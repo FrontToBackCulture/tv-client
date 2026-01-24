@@ -36,6 +36,7 @@ export interface FolderActionHandlers {
   // Domain root actions
   onSyncReport?: () => void;
   onAllSchedules?: () => void;
+  onSODStatus?: () => void;
   // Data models actions
   onTablesList?: () => void;
   onTablesHealth?: () => void;
@@ -170,6 +171,12 @@ export function FolderActions({ folderType, handlers, activeAction }: FolderActi
               title="All Schedules"
               onClick={handlers.onAllSchedules}
               isActive={activeAction === "all-schedules"}
+            />
+            <ActionButton
+              icon={<Database size={16} />}
+              title="SOD Table Status"
+              onClick={handlers.onSODStatus}
+              isActive={activeAction === "sod-status"}
             />
           </>
         );

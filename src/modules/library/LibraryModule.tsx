@@ -6,9 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Sidebar } from "./Sidebar";
 import { FileViewer } from "./FileViewer";
 import { FolderView } from "./FolderView";
-
-// Default knowledge path (will be fetched from Rust state)
-const DEFAULT_KNOWLEDGE_PATH = "/Users/melvinwang/Code/SkyNet/tv-knowledge";
+import { useRepository } from "../../stores/repositoryStore";
 
 // Sidebar width constraints
 const MIN_SIDEBAR_WIDTH = 200;
@@ -25,11 +23,17 @@ interface Selection {
 }
 
 export function LibraryModule() {
-  const knowledgePath = DEFAULT_KNOWLEDGE_PATH;
+  const { activeRepository } = useRepository();
+  const knowledgePath = activeRepository?.path ?? "";
   const [selection, setSelection] = useState<Selection | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Clear selection when repository changes
+  const handleRepositoryChange = useCallback(() => {
+    setSelection(null);
+  }, []);
 
   // Handle sidebar resize
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -76,11 +80,13 @@ export function LibraryModule() {
 
   return (
     <div ref={containerRef} className="h-full flex bg-zinc-950">
-      {/* Sidebar with file tree */}
+      {/* Sidebar with file tree - key forces remount on repository change */}
       <Sidebar
+        key={activeRepository?.id ?? "no-repo"}
         knowledgePath={knowledgePath}
         selectedPath={selection?.path ?? null}
         onFileSelect={handleFileSelect}
+        onRepositoryChange={handleRepositoryChange}
         width={sidebarWidth}
       />
 
@@ -109,6 +115,16 @@ export function LibraryModule() {
               onNavigate={handleNavigate}
             />
           )
+        ) : !knowledgePath ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center">
+              <Library size={48} className="mx-auto mb-4 text-zinc-700" />
+              <h2 className="text-xl font-semibold text-zinc-400">No Repository Selected</h2>
+              <p className="text-sm text-zinc-600 mt-2 max-w-md">
+                Add a repository using the dropdown in the sidebar.
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">

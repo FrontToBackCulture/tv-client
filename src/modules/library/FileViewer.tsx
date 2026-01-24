@@ -1,6 +1,6 @@
 // src/modules/library/FileViewer.tsx
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { FileText, FileCode, AlertCircle } from "lucide-react";
@@ -11,6 +11,7 @@ import { MarkdownEditor } from "./MarkdownEditor";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileActions } from "./FileActions";
 import { JSONEditor, SQLEditor, ImageViewer, CSVViewer, HTMLViewer, PDFViewer } from "./viewers";
+import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
 
 interface FileViewerProps {
   path: string;
@@ -83,6 +84,10 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const lastSavedContentRef = useRef<string>("");
 
   const favorite = isFavorite(path);
+
+  // Domain URL for "Open in VAL" action
+  const domainUrl = useMemo(() => buildDomainUrl(path), [path]);
+  const domainLabel = useMemo(() => getDomainLinkLabel(path), [path]);
 
   // Reset state when path changes
   useEffect(() => {
@@ -209,6 +214,8 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           onToggleFavorite={handleToggleFavorite}
           onDelete={handleDelete}
           onShowToast={showToast}
+          domainUrl={domainUrl}
+          domainLabel={domainLabel}
           onGenerateImage={handleGenerateImage}
           onGenerateImageWithLogo={handleGenerateImageWithLogo}
           onGenerateDeck={handleGenerateDeck}
@@ -337,6 +344,8 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
                 onToggleFavorite={handleToggleFavorite}
                 onDelete={handleDelete}
                 onShowToast={showToast}
+                domainUrl={domainUrl}
+                domainLabel={domainLabel}
                 onGenerateImage={handleGenerateImage}
                 onGenerateImageWithLogo={handleGenerateImageWithLogo}
                 onGenerateDeck={handleGenerateDeck}

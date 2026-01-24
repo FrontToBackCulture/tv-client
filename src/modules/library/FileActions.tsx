@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open as openUrl } from "@tauri-apps/plugin-shell";
 import {
   MoreVertical,
   Copy,
@@ -15,6 +16,7 @@ import {
   ImagePlus,
   Presentation,
   Video,
+  Globe,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 
@@ -36,6 +38,9 @@ interface FileActionsProps {
   onRename?: () => void;
   onDelete?: () => void;
   onShowToast?: (message: string, type: "success" | "error") => void;
+  // Domain URL for opening in VAL
+  domainUrl?: string | null;
+  domainLabel?: string;
   // File-type-specific action handlers
   onGenerateImage?: () => void;
   onGenerateImageWithLogo?: () => void;
@@ -65,6 +70,8 @@ export function FileActions({
   onRename,
   onDelete,
   onShowToast,
+  domainUrl,
+  domainLabel = "Open in VAL",
   onGenerateImage,
   onGenerateImageWithLogo,
   onGenerateDeck,
@@ -78,6 +85,18 @@ export function FileActions({
   const menuRef = useRef<HTMLDivElement>(null);
 
   const fileType = getFileType(path);
+
+  const openInBrowser = async (url: string) => {
+    setLoading("browser");
+    try {
+      await openUrl(url);
+    } catch (err) {
+      onShowToast?.(`Failed to open URL: ${err}`, "error");
+    } finally {
+      setLoading(null);
+      setIsOpen(false);
+    }
+  };
 
   // Close menu on outside click
   useEffect(() => {
@@ -190,6 +209,17 @@ export function FileActions({
       },
       disabled: isGeneratingVideo,
       loading: isGeneratingVideo,
+      dividerAfter: true,
+    });
+  }
+
+  // Domain URL action (Open in VAL)
+  if (domainUrl) {
+    items.push({
+      label: domainLabel,
+      icon: <Globe className="w-4 h-4" />,
+      onClick: () => openInBrowser(domainUrl),
+      loading: loading === "browser",
       dividerAfter: true,
     });
   }

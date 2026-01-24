@@ -4,19 +4,20 @@ import { useState } from "react";
 import {
   Search,
   RefreshCw,
-  FolderOpen,
   Star,
   Clock,
   ChevronDown,
   ChevronRight,
   File,
   Folder,
+  FolderOpen,
   X,
   ChevronsUpDown,
   ChevronsDownUp,
 } from "lucide-react";
 import { FileTree } from "./FileTree";
 import { SearchResults } from "./SearchResults";
+import { RepositorySwitcher } from "./RepositorySwitcher";
 import { useFileTree } from "../../hooks/useFiles";
 import { useSearch } from "../../hooks/useSearch";
 import { useRecentFiles, RecentFile } from "../../hooks/useRecentFiles";
@@ -28,10 +29,11 @@ interface SidebarProps {
   knowledgePath: string;
   selectedPath: string | null;
   onFileSelect: (path: string) => void;
+  onRepositoryChange?: () => void;
   width?: number;
 }
 
-export function Sidebar({ knowledgePath, selectedPath, onFileSelect, width = 256 }: SidebarProps) {
+export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onRepositoryChange, width = 256 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFavorites, setShowFavorites] = useState(true);
   const [showRecent, setShowRecent] = useState(false);
@@ -59,12 +61,17 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, width = 256
       className="h-full flex flex-col bg-zinc-900 border-r border-zinc-800 flex-shrink-0"
       style={{ width: `${width}px` }}
     >
+      {/* Repository Switcher */}
+      <div className="p-2 border-b border-zinc-800">
+        <RepositorySwitcher onRepositoryChange={onRepositoryChange} />
+      </div>
+
       {/* Header */}
       <div className="p-3 border-b border-zinc-800">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <FolderOpen size={16} className="text-zinc-500" />
-            <span className="text-sm font-medium text-zinc-300">Library</span>
+            <span className="text-sm font-medium text-zinc-300">Files</span>
           </div>
           <div className="flex items-center gap-1">
             <button

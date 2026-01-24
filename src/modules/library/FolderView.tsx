@@ -25,7 +25,11 @@ import { QueriesList } from "./QueriesList";
 import { QueryDetails } from "./QueryDetails";
 import { MonitoringOverview } from "./MonitoringOverview";
 import { AnalyticsOverview } from "./AnalyticsOverview";
+import { DomainSyncReport } from "./DomainSyncReport";
+import { AllSchedulesReport } from "./AllSchedulesReport";
+import { SODTableStatus } from "./SODTableStatus";
 import { detectFolderType, FolderType, extractDomainName } from "../../lib/folderTypes";
+import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
 import { cn } from "../../lib/cn";
 
 interface FolderViewProps {
@@ -43,6 +47,10 @@ type ViewMode =
   | "health"
   | "schedule"
   | "lineage"
+  // Domain root viewers
+  | "sync-report"
+  | "all-schedules"
+  | "sod-status"
   // Artifact list viewers
   | "tables-list"
   | "workflows-list"
@@ -297,8 +305,9 @@ export function FolderView({
 
       case "domain-root":
         return {
-          onSyncReport: createHandler("Sync Report"),
-          onAllSchedules: createHandler("All Schedules"),
+          onSyncReport: () => setViewMode("sync-report"),
+          onAllSchedules: () => setViewMode("all-schedules"),
+          onSODStatus: () => setViewMode("sod-status"),
         };
 
       case "data-models":
@@ -393,6 +402,10 @@ export function FolderView({
 
   // Get domain name for viewers that need it
   const domainName = extractDomainName(path) || folderName;
+
+  // Domain URL for "Open in VAL" action
+  const domainUrl = useMemo(() => buildDomainUrl(path), [path]);
+  const domainLabel = useMemo(() => getDomainLinkLabel(path), [path]);
 
   return (
     <div className="h-full flex flex-col">
@@ -751,6 +764,56 @@ export function FolderView({
                 </button>
               </>
             )}
+
+            {/* Domain root viewer tabs (sync report, all schedules, SOD status) */}
+            {(viewMode === "sync-report" || viewMode === "all-schedules" || viewMode === "sod-status") && folderType === "domain-root" && (
+              <>
+                <div className="w-px h-4 bg-zinc-700 mx-1" />
+                <button
+                  onClick={() => setViewMode("sync-report")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    viewMode === "sync-report"
+                      ? "bg-teal-600 text-white"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                  title="Sync Report"
+                >
+                  <FileText size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("all-schedules")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    viewMode === "all-schedules"
+                      ? "bg-teal-600 text-white"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                  title="All Schedules"
+                >
+                  <Clock size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("sod-status")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    viewMode === "sod-status"
+                      ? "bg-teal-600 text-white"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                  title="SOD Table Status"
+                >
+                  <Database size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("files")}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm text-zinc-500 hover:text-zinc-300"
+                  title="Close viewer"
+                >
+                  <X size={14} />
+                </button>
+              </>
+            )}
             </div>
 
             {/* Folder actions menu (favorites, copy path, etc.) */}
@@ -761,6 +824,8 @@ export function FolderView({
               onToggleFavorite={handleToggleFavorite}
               onDelete={handleDelete}
               onShowToast={showToastMessage}
+              domainUrl={domainUrl}
+              domainLabel={domainLabel}
             />
           </div>
         </div>
@@ -846,6 +911,12 @@ export function FolderView({
         <MonitoringOverview monitoringPath={path} domainName={domainName} />
       ) : viewMode === "analytics-overview" ? (
         <AnalyticsOverview analyticsPath={path} domainName={domainName} />
+      ) : viewMode === "sync-report" ? (
+        <DomainSyncReport basePath={path} />
+      ) : viewMode === "all-schedules" ? (
+        <AllSchedulesReport basePath={path} />
+      ) : viewMode === "sod-status" ? (
+        <SODTableStatus basePath={path} />
       ) : null}
     </div>
   );
