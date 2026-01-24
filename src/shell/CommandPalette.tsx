@@ -1,0 +1,145 @@
+// src/shell/CommandPalette.tsx
+
+import { useState, useEffect, useRef } from "react";
+import { Search, X } from "lucide-react";
+import { useAppStore } from "../stores/appStore";
+
+interface Command {
+  id: string;
+  label: string;
+  shortcut?: string;
+  action: () => void;
+}
+
+export function CommandPalette() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { setActiveModule } = useAppStore();
+
+  const commands: Command[] = [
+    {
+      id: "library",
+      label: "Go to Library",
+      shortcut: "⌘1",
+      action: () => setActiveModule("library"),
+    },
+    {
+      id: "work",
+      label: "Go to Work",
+      shortcut: "⌘2",
+      action: () => setActiveModule("work"),
+    },
+    {
+      id: "inbox",
+      label: "Go to Inbox",
+      shortcut: "⌘3",
+      action: () => setActiveModule("inbox"),
+    },
+    {
+      id: "crm",
+      label: "Go to CRM",
+      shortcut: "⌘4",
+      action: () => setActiveModule("crm"),
+    },
+    {
+      id: "console",
+      label: "Go to Console",
+      shortcut: "⌘5",
+      action: () => setActiveModule("console"),
+    },
+    { id: "sync", label: "Sync Now", action: () => console.log("Sync") },
+    {
+      id: "settings",
+      label: "Open Settings",
+      action: () => setActiveModule("console"),
+    },
+  ];
+
+  const filteredCommands = commands.filter((cmd) =>
+    cmd.label.toLowerCase().includes(query.toLowerCase())
+  );
+
+  // ⌘K to open
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setIsOpen((prev) => !prev);
+      }
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // Focus input when opened
+  useEffect(() => {
+    if (isOpen) {
+      inputRef.current?.focus();
+      setQuery("");
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const executeCommand = (command: Command) => {
+    command.action();
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={() => setIsOpen(false)}
+      />
+
+      {/* Palette */}
+      <div className="relative w-full max-w-lg bg-zinc-900 rounded-lg border border-zinc-700 shadow-2xl">
+        {/* Search input */}
+        <div className="flex items-center px-4 border-b border-zinc-700">
+          <Search size={16} className="text-zinc-500" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Type a command..."
+            className="flex-1 bg-transparent px-3 py-3 text-sm outline-none placeholder:text-zinc-500"
+          />
+          <button
+            onClick={() => setIsOpen(false)}
+            className="text-zinc-500 hover:text-zinc-300"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Results */}
+        <div className="max-h-80 overflow-y-auto p-2">
+          {filteredCommands.map((cmd) => (
+            <button
+              key={cmd.id}
+              onClick={() => executeCommand(cmd)}
+              className="w-full flex items-center justify-between px-3 py-2 text-sm rounded hover:bg-zinc-800"
+            >
+              <span>{cmd.label}</span>
+              {cmd.shortcut && (
+                <span className="text-xs text-zinc-500">{cmd.shortcut}</span>
+              )}
+            </button>
+          ))}
+          {filteredCommands.length === 0 && (
+            <div className="px-3 py-2 text-sm text-zinc-500">
+              No commands found
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
