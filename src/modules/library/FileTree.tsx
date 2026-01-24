@@ -201,7 +201,7 @@ export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps)
     try {
       const result = await invoke<TreeNode>("get_file_tree", {
         path: node.path,
-        maxDepth: 1,
+        max_depth: 1,
       });
       setChildren(result.children || []);
     } catch (err) {

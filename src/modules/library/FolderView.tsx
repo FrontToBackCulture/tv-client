@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { FileText, FileCode, FileJson, Image, Loader2, FolderOpen, MessageCircle, Files, BarChart3, GitBranch, Clock, Activity, X, Database, Workflow, Eye } from "lucide-react";
-import { useFolderFiles, FolderFile } from "../../hooks/useFolderFiles";
+import { useFolderFiles, useFolderEntries, FolderFile, FolderEntry } from "../../hooks/useFolderFiles";
 import { useFavorites } from "../../hooks/useFavorites";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FolderChat } from "./FolderChat";
@@ -145,24 +145,57 @@ function FileCard({
   );
 }
 
+// Subdirectory card component
+function SubfolderCard({
+  entry,
+  onClick,
+}: {
+  entry: FolderEntry;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-teal-500/50 hover:bg-zinc-800/50 transition-all group"
+    >
+      <div className="flex items-center gap-3">
+        <FolderOpen size={20} className="text-teal-400 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-medium text-zinc-200 group-hover:text-teal-400 transition-colors truncate">
+            {entry.name}
+          </h4>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 // Files view content
 function FilesView({
   files,
+  directories,
   isLoading,
   isError,
   folderName,
   folderType,
   actionHandlers,
   onFileSelect,
+  onNavigate,
 }: {
   files: FolderFile[] | undefined;
+  directories: FolderEntry[] | undefined;
   isLoading: boolean;
   isError: boolean;
   folderName: string;
   folderType: FolderType;
   actionHandlers: FolderActionHandlers;
   onFileSelect: (path: string) => void;
+  onNavigate: (path: string) => void;
 }) {
+  const subdirs = directories?.filter(d => d.is_directory) || [];
+  const hasFiles = files && files.length > 0;
+  const hasSubdirs = subdirs.length > 0;
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-4 pt-8 pb-24">
@@ -175,7 +208,10 @@ function FilesView({
             {folderName}
           </h1>
           <p className="text-zinc-500 mb-4">
-            Browse files in this folder
+            {hasSubdirs ? `${subdirs.length} folders` : ""}
+            {hasSubdirs && hasFiles ? " · " : ""}
+            {hasFiles ? `${files.length} files` : ""}
+            {!hasSubdirs && !hasFiles ? "Empty folder" : ""}
           </p>
 
           {/* Context-specific action buttons */}
@@ -185,41 +221,66 @@ function FilesView({
           />
         </div>
 
-        {/* Recent files */}
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 text-zinc-500 py-8">
             <Loader2 size={20} className="animate-spin" />
-            <span>Loading files...</span>
+            <span>Loading...</span>
           </div>
         ) : isError ? (
           <div className="text-center py-8">
-            <p className="text-red-400">Failed to load files</p>
-          </div>
-        ) : files && files.length > 0 ? (
-          <div>
-            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
-              Recent in this folder
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {files.slice(0, 8).map((file) => (
-                <FileCard
-                  key={file.path}
-                  file={file}
-                  onClick={() => onFileSelect(file.path)}
-                />
-              ))}
-            </div>
-            {files.length > 8 && (
-              <p className="text-center text-sm text-zinc-600 mt-4">
-                + {files.length - 8} more files
-              </p>
-            )}
+            <p className="text-red-400">Failed to load contents</p>
           </div>
         ) : (
-          <div className="text-center py-8">
-            <FolderOpen size={48} className="mx-auto mb-4 text-zinc-700" />
-            <p className="text-zinc-500">No files in this folder</p>
-          </div>
+          <>
+            {/* Subdirectories */}
+            {hasSubdirs && (
+              <div className="mb-8">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
+                  Folders
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {subdirs.map((dir) => (
+                    <SubfolderCard
+                      key={dir.path}
+                      entry={dir}
+                      onClick={() => onNavigate(dir.path)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recent files */}
+            {hasFiles && (
+              <div>
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
+                  Recent files
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {files.slice(0, 8).map((file) => (
+                    <FileCard
+                      key={file.path}
+                      file={file}
+                      onClick={() => onFileSelect(file.path)}
+                    />
+                  ))}
+                </div>
+                {files.length > 8 && (
+                  <p className="text-center text-sm text-zinc-600 mt-4">
+                    + {files.length - 8} more files
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!hasSubdirs && !hasFiles && (
+              <div className="text-center py-8">
+                <FolderOpen size={48} className="mx-auto mb-4 text-zinc-700" />
+                <p className="text-zinc-500">This folder is empty</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -243,6 +304,7 @@ export function FolderView({
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const folderName = getFolderName(path);
   const { data: files, isLoading, isError } = useFolderFiles(path, 20);
+  const { data: entries, isLoading: entriesLoading } = useFolderEntries(path);
   const { isFavorite, toggleFavorite } = useFavorites();
 
   const favorite = isFavorite(path);
@@ -852,12 +914,14 @@ export function FolderView({
       {viewMode === "files" ? (
         <FilesView
           files={files}
-          isLoading={isLoading}
+          directories={entries}
+          isLoading={isLoading || entriesLoading}
           isError={isError}
           folderName={folderName}
           folderType={folderType}
           actionHandlers={actionHandlers}
           onFileSelect={onFileSelect}
+          onNavigate={onNavigate}
         />
       ) : viewMode === "chat" ? (
         <FolderChat
