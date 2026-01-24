@@ -1,5 +1,5 @@
 // src/modules/library/DomainSchedule.tsx
-// Schedule view showing workflow schedules, SOD status, and execution times
+// Schedule view showing workflow schedules and execution times
 
 import { useState, useMemo } from "react";
 import {
@@ -15,15 +15,10 @@ import {
   List,
   BarChart3,
   Loader2,
-  RefreshCw,
-  Database,
   FileJson,
   Play,
   FolderOpen,
-  FileText,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
-import { useQuery } from "@tanstack/react-query";
 import { useDomainData, WorkflowHealth } from "../../hooks/useDomainData";
 import { cn } from "../../lib/cn";
 
@@ -32,21 +27,9 @@ interface DomainScheduleProps {
   domainName: string;
 }
 
-type TabType = "overview" | "sod" | "history" | "datasources";
+type TabType = "schedule" | "datasources";
 type StatusFilter = "all" | "completed" | "failed" | "warning" | "healthy";
 type ViewMode = "list" | "timeline";
-
-// SOD Table Entry type
-interface SODTableEntry {
-  table_name: string;
-  table_id: string;
-  status: string;
-  queued: string;
-  started: string | null;
-  completed: string | null;
-  errored: string | null;
-  error_message: string | null;
-}
 
 // Tab button component
 function TabButton({
@@ -74,8 +57,8 @@ function TabButton({
 }
 
 export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) {
-  const { workflows, syncMetadata, loading, error } = useDomainData(domainPath);
-  const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const { workflows, loading, error } = useDomainData(domainPath);
+  const [activeTab, setActiveTab] = useState<TabType>("schedule");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -107,14 +90,8 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
     <div className="h-full flex flex-col">
       {/* Tabs */}
       <div className="border-b border-zinc-800 flex">
-        <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>
-          Workflows
-        </TabButton>
-        <TabButton active={activeTab === "sod"} onClick={() => setActiveTab("sod")}>
-          SOD Tables
-        </TabButton>
-        <TabButton active={activeTab === "history"} onClick={() => setActiveTab("history")}>
-          History
+        <TabButton active={activeTab === "schedule"} onClick={() => setActiveTab("schedule")}>
+          Schedule
         </TabButton>
         <TabButton active={activeTab === "datasources"} onClick={() => setActiveTab("datasources")}>
           Data Sources
@@ -123,8 +100,8 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto">
-        {activeTab === "overview" && workflows && (
-          <ScheduleOverviewTab
+        {activeTab === "schedule" && workflows && (
+          <ScheduleTab
             workflows={workflows.workflows}
             domainName={domainName}
             statusFilter={statusFilter}
@@ -137,21 +114,10 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
             setMonitoringDate={setMonitoringDate}
           />
         )}
-        {activeTab === "overview" && !workflows && (
+        {activeTab === "schedule" && !workflows && (
           <div className="p-6 text-zinc-500">
             No workflow data available. Run workflow health check to generate schedule data.
           </div>
-        )}
-        {activeTab === "sod" && (
-          <SODTableTab
-            domainPath={domainPath}
-            domainName={domainName}
-            currentDate={monitoringDate}
-            setCurrentDate={setMonitoringDate}
-          />
-        )}
-        {activeTab === "history" && (
-          <ScheduleHistoryTab syncMetadata={syncMetadata} />
         )}
         {activeTab === "datasources" && (
           <DataSourcesTab domainPath={domainPath} currentDate={monitoringDate} />
@@ -161,399 +127,8 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
   );
 }
 
-// SOD Table Tab
-function SODTableTab({
-  domainPath,
-  domainName,
-  currentDate,
-  setCurrentDate,
-}: {
-  domainPath: string;
-  domainName: string;
-  currentDate: string;
-  setCurrentDate: (d: string) => void;
-}) {
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // Load SOD status data
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["sod-status-domain", domainPath, currentDate],
-    queryFn: async () => {
-      const sodFilePath = `${domainPath}/monitoring/${currentDate}/sod_tables_status_${currentDate}.json`;
-      try {
-        const content = await invoke<string>("read_file", { path: sodFilePath });
-        const parsed = JSON.parse(content);
-
-        if (parsed.data && Array.isArray(parsed.data)) {
-          const tables: SODTableEntry[] = parsed.data;
-          const summary = {
-            total: tables.length,
-            completed: tables.filter((t) => t.status.toLowerCase() === "completed").length,
-            pending: tables.filter((t) =>
-              t.status.toLowerCase() === "pending" || t.status.toLowerCase() === "pending sod"
-            ).length,
-            started: tables.filter((t) => t.status.toLowerCase() === "started").length,
-            errored: tables.filter((t) => t.status.toLowerCase() === "errored").length,
-          };
-          return { tables, summary };
-        }
-        return null;
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  // Date navigation
-  const isToday = currentDate === new Date().toISOString().split("T")[0];
-
-  const goToPreviousDay = () => {
-    const current = new Date(currentDate);
-    current.setDate(current.getDate() - 1);
-    setCurrentDate(current.toISOString().split("T")[0]);
-  };
-
-  const goToNextDay = () => {
-    const current = new Date(currentDate);
-    const today = new Date().toISOString().split("T")[0];
-    current.setDate(current.getDate() + 1);
-    const nextDate = current.toISOString().split("T")[0];
-    if (nextDate <= today) {
-      setCurrentDate(nextDate);
-    }
-  };
-
-  const goToToday = () => {
-    setCurrentDate(new Date().toISOString().split("T")[0]);
-  };
-
-  const formatMonitoringDate = (dateStr: string) => {
-    const date = new Date(dateStr + "T00:00:00");
-    return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  };
-
-  // Filtered tables
-  const filteredTables = useMemo(() => {
-    if (!data?.tables) return [];
-
-    let tables = [...data.tables];
-
-    // Status filter
-    if (filterStatus !== "all") {
-      tables = tables.filter((t) => {
-        const s = t.status.toLowerCase();
-        if (filterStatus === "completed") return s === "completed";
-        if (filterStatus === "pending") return s === "pending" || s === "pending sod";
-        if (filterStatus === "started") return s === "started";
-        if (filterStatus === "errored") return s === "errored";
-        return true;
-      });
-    }
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      tables = tables.filter(
-        (t) =>
-          t.table_name.toLowerCase().includes(query) ||
-          t.table_id.toLowerCase().includes(query)
-      );
-    }
-
-    return tables;
-  }, [data, filterStatus, searchQuery]);
-
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <Loader2 size={24} className="text-zinc-500 animate-spin mr-2" />
-        <span className="text-zinc-500">Loading SOD status...</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-              <Database size={20} className="text-teal-400" />
-              SOD Table Status
-            </h2>
-            <p className="text-sm text-zinc-500 mt-0.5">{domainName} - Start of Day calculations</p>
-          </div>
-
-          {/* Date Navigator */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 py-1">
-              <button
-                onClick={goToPreviousDay}
-                className="p-1 hover:bg-zinc-700 rounded transition-colors"
-                title="Previous day"
-              >
-                <ChevronLeft size={16} className="text-zinc-400" />
-              </button>
-              <div className="flex items-center gap-2 px-2">
-                <Calendar size={14} className="text-zinc-500" />
-                <span className="text-sm font-medium text-zinc-300 min-w-[100px] text-center">
-                  {formatMonitoringDate(currentDate)}
-                </span>
-                {isToday && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-400/10 text-green-400 rounded">
-                    Today
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={goToNextDay}
-                disabled={isToday}
-                className={cn(
-                  "p-1 rounded transition-colors",
-                  isToday ? "text-zinc-600 cursor-not-allowed" : "hover:bg-zinc-700 text-zinc-400"
-                )}
-                title={isToday ? "Already on today" : "Next day"}
-              >
-                <ChevronRight size={16} />
-              </button>
-              {!isToday && (
-                <button
-                  onClick={goToToday}
-                  className="ml-1 px-2 py-0.5 text-xs font-medium text-teal-400 hover:bg-teal-400/10 rounded transition-colors"
-                  title="Go to today"
-                >
-                  Today
-                </button>
-              )}
-            </div>
-
-            <button
-              onClick={() => refetch()}
-              className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300 transition-colors"
-            >
-              <RefreshCw size={14} />
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        {/* Stats Row */}
-        {data && (
-          <div className="grid grid-cols-5 gap-2 mb-4">
-            <SODStatCard
-              label="Total"
-              value={data.summary.total}
-              active={filterStatus === "all"}
-              onClick={() => setFilterStatus("all")}
-              color="zinc"
-            />
-            <SODStatCard
-              label="Completed"
-              value={data.summary.completed}
-              active={filterStatus === "completed"}
-              onClick={() => setFilterStatus(filterStatus === "completed" ? "all" : "completed")}
-              color="green"
-            />
-            <SODStatCard
-              label="Pending"
-              value={data.summary.pending}
-              active={filterStatus === "pending"}
-              onClick={() => setFilterStatus(filterStatus === "pending" ? "all" : "pending")}
-              color="zinc"
-            />
-            <SODStatCard
-              label="In Progress"
-              value={data.summary.started}
-              active={filterStatus === "started"}
-              onClick={() => setFilterStatus(filterStatus === "started" ? "all" : "started")}
-              color="teal"
-            />
-            <SODStatCard
-              label="Errored"
-              value={data.summary.errored}
-              active={filterStatus === "errored"}
-              onClick={() => setFilterStatus(filterStatus === "errored" ? "all" : "errored")}
-              color="red"
-            />
-          </div>
-        )}
-
-        {/* Search */}
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input
-            type="text"
-            placeholder="Search tables..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-          />
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {!data ? (
-          <div className="text-center py-12 bg-zinc-900 rounded-xl border border-zinc-800">
-            <Database size={32} className="mx-auto mb-3 text-zinc-600" />
-            <p className="text-sm text-zinc-500">No SOD data for {formatMonitoringDate(currentDate)}</p>
-            <p className="text-xs text-zinc-600 mt-1">
-              SOD tables may not be enabled for this domain or date.
-            </p>
-          </div>
-        ) : filteredTables.length === 0 ? (
-          <div className="text-center py-12 bg-zinc-900 rounded-xl border border-zinc-800">
-            <Search size={32} className="mx-auto mb-3 text-zinc-600" />
-            <p className="text-sm text-zinc-500">No tables match your filters</p>
-          </div>
-        ) : (
-          <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-800/50">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Table Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Queued</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Started</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Completed</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Error</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
-                {filteredTables.map((table, idx) => (
-                  <tr key={`${table.table_id}-${idx}`} className="hover:bg-zinc-800/50 transition-colors">
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-zinc-200 font-medium">{table.table_name}</span>
-                      <div className="text-xs text-zinc-500">{table.table_id}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <SODStatusBadge status={table.status} />
-                    </td>
-                    <td className="px-4 py-3 text-sm text-zinc-400">{formatTime(table.queued)}</td>
-                    <td className="px-4 py-3 text-sm text-zinc-400">{formatTime(table.started)}</td>
-                    <td className="px-4 py-3 text-sm text-zinc-400">{formatTime(table.completed)}</td>
-                    <td className="px-4 py-3 text-sm text-red-400 max-w-xs truncate" title={table.error_message || ""}>
-                      {table.error_message || "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// SOD Stat Card
-function SODStatCard({
-  label,
-  value,
-  active,
-  onClick,
-  color,
-}: {
-  label: string;
-  value: number;
-  active: boolean;
-  onClick: () => void;
-  color: "zinc" | "teal" | "green" | "red";
-}) {
-  const colors = {
-    zinc: {
-      bg: active ? "bg-zinc-700 ring-2 ring-zinc-500" : "bg-zinc-800 hover:bg-zinc-700",
-      text: "text-zinc-100",
-      label: "text-zinc-400",
-    },
-    teal: {
-      bg: active ? "bg-teal-400/20 ring-2 ring-teal-500" : "bg-teal-400/10 hover:bg-teal-400/15",
-      text: "text-teal-400",
-      label: "text-teal-400/70",
-    },
-    green: {
-      bg: active ? "bg-green-400/20 ring-2 ring-green-500" : "bg-green-400/10 hover:bg-green-400/15",
-      text: "text-green-400",
-      label: "text-green-400/70",
-    },
-    red: {
-      bg: active ? "bg-red-400/20 ring-2 ring-red-500" : "bg-red-400/10 hover:bg-red-400/15",
-      text: "text-red-400",
-      label: "text-red-400/70",
-    },
-  };
-
-  const c = colors[color];
-
-  return (
-    <button onClick={onClick} className={cn("rounded-lg p-3 text-center cursor-pointer transition-all", c.bg)}>
-      <div className={cn("text-2xl font-bold", c.text)}>{value}</div>
-      <div className={cn("text-xs", c.label)}>{label}</div>
-    </button>
-  );
-}
-
-// SOD Status Badge
-function SODStatusBadge({ status }: { status: string }) {
-  const lowerStatus = status.toLowerCase();
-
-  if (lowerStatus === "completed") {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-400/10 text-green-400">
-        <CheckCircle2 size={12} />
-        Completed
-      </span>
-    );
-  }
-
-  if (lowerStatus === "started") {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-teal-400/10 text-teal-400">
-        <Loader2 size={12} className="animate-spin" />
-        In Progress
-      </span>
-    );
-  }
-
-  if (lowerStatus === "errored") {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-400/10 text-red-400">
-        <XCircle size={12} />
-        Errored
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-700 text-zinc-400">
-      <Clock size={12} />
-      Pending
-    </span>
-  );
-}
-
-// Format time helper
-function formatTime(timestamp: string | null): string {
-  if (!timestamp) return "-";
-  try {
-    const parts = timestamp.split(" ");
-    if (parts.length === 2) {
-      const timeParts = parts[1].split(":");
-      if (timeParts.length >= 2) {
-        return `${timeParts[0]}:${timeParts[1]}`;
-      }
-    }
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-  } catch {
-    return "-";
-  }
-}
-
-// Schedule Overview Tab
-function ScheduleOverviewTab({
+// Schedule Tab
+function ScheduleTab({
   workflows,
   domainName,
   statusFilter,
@@ -935,70 +510,14 @@ function TimelineView({ workflows }: { workflows: WorkflowHealth[] }) {
   );
 }
 
-// Schedule History Tab
-function ScheduleHistoryTab({ syncMetadata }: { syncMetadata: any }) {
-  if (!syncMetadata?.syncHistory?.length) {
-    return <div className="p-6 text-zinc-500">No sync history available.</div>;
-  }
-
-  return (
-    <div className="p-4">
-      <h3 className="text-lg font-medium text-zinc-100 mb-4">Sync History</h3>
-      <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-zinc-800 bg-zinc-800/50">
-              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Date</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Type</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Details</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800">
-            {syncMetadata.syncHistory.slice(0, 20).map((entry: any, i: number) => (
-              <tr key={i} className="hover:bg-zinc-800/50 transition-colors">
-                <td className="px-4 py-3 text-sm text-zinc-300">{new Date(entry.timestamp).toLocaleDateString()}</td>
-                <td className="px-4 py-3 text-sm text-zinc-300">{entry.type}</td>
-                <td className="px-4 py-3 text-sm text-zinc-400">
-                  {entry.artifactType || entry.extractionType || entry.generationType || "-"}
-                  {entry.count !== undefined && ` (${entry.count})`}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={cn(
-                      "text-xs px-2 py-0.5 rounded",
-                      entry.status === "success"
-                        ? "bg-green-400/10 text-green-400"
-                        : entry.status === "partial"
-                          ? "bg-yellow-400/10 text-yellow-400"
-                          : "bg-red-400/10 text-red-400"
-                    )}
-                  >
-                    {entry.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 // Data Sources Tab
 function DataSourcesTab({ domainPath, currentDate }: { domainPath: string; currentDate: string }) {
   const dataSourceFiles = [
     { name: "all_workflows.json", icon: Play, description: "All workflow definitions", category: "Definitions" },
-    { name: "all_queries.json", icon: FileJson, description: "Query definitions", category: "Definitions" },
-    { name: "all_dashboards.json", icon: BarChart3, description: "Dashboard definitions", category: "Definitions" },
     { name: "workflow-health-results.json", icon: CheckCircle2, description: "Workflow health analysis", category: "Health" },
-    { name: "health-check-results.json", icon: Database, description: "Table health analysis", category: "Health" },
-    { name: "sync-metadata.json", icon: RefreshCw, description: "Sync history and metadata", category: "Metadata" },
   ];
 
   const monitoringFiles = [
-    { name: `sod_tables_status_${currentDate}.json`, icon: Database, description: "SOD table calculation status", folder: `monitoring/${currentDate}` },
     { name: `workflow_executions_${currentDate}.json`, icon: Play, description: "Workflow execution logs", folder: `monitoring/${currentDate}` },
   ];
 
@@ -1059,19 +578,6 @@ function DataSourcesTab({ domainPath, currentDate }: { domainPath: string; curre
                 <span className="text-xs text-zinc-600 font-mono">{file.folder}/</span>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Metadata Files */}
-      <div>
-        <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
-          <FileText size={14} />
-          Metadata Files
-        </h3>
-        <div className="space-y-2">
-          {dataSourceFiles.filter((f) => f.category === "Metadata").map((file) => (
-            <DataSourceCard key={file.name} file={file} basePath={domainPath} />
           ))}
         </div>
       </div>
