@@ -78,6 +78,95 @@ export interface DomainWorkflowData {
   workflows: WorkflowHealth[];
 }
 
+// Dashboard health types
+export interface DashboardHealth {
+  id: number;
+  name: string;
+  category: string;
+  createdDate: string;
+  updatedDate: string;
+  metrics: {
+    totalSessions: number;
+    uniqueUsers: number;
+    totalPageViews: number;
+    daysWithActivity: number;
+    sessionsPerMonth: number;
+    firstSession: string | null;
+    lastSession: string | null;
+    daysSinceLastSession: number | null;
+  };
+  health: {
+    score: number | null;
+    status: {
+      level: "critical" | "active" | "occasional" | "attention" | "declining" | "unused";
+      emoji: string;
+      description: string;
+    };
+    issues: string[];
+    frequencyTier: string;
+    recencyTier: string;
+  };
+}
+
+export interface DomainDashboardData {
+  domain: string;
+  timestamp: string;
+  lookbackDays: number;
+  totalDashboards: number;
+  dashboardsWithSessions: number;
+  dashboards: DashboardHealth[];
+  summary?: {
+    critical: number;
+    active: number;
+    occasional: number;
+    attention: number;
+    declining: number;
+    unused: number;
+  };
+}
+
+// Query health types
+export interface QueryHealth {
+  id: number;
+  name: string;
+  createdDate: string;
+  updatedDate: string;
+  dashboardCount: number;
+  dashboards: Array<{
+    id: number;
+    name: string;
+    category: string;
+    widgetType: string;
+    health: string;
+  }>;
+  health: {
+    score: number | null;
+    status: {
+      level: "essential" | "active" | "at_risk" | "orphaned" | "standalone";
+      emoji: string;
+      description: string;
+    };
+    issues: string[];
+  };
+}
+
+export interface DomainQueryData {
+  domain: string;
+  timestamp: string;
+  totalQueries: number;
+  queriesInDashboards: number;
+  standaloneQueries: number;
+  hasDashboardHealth: boolean;
+  queries: QueryHealth[];
+  summary?: {
+    essential: number;
+    active: number;
+    at_risk: number;
+    orphaned: number;
+    standalone: number;
+  };
+}
+
 // Sync metadata types
 export interface SyncHistoryEntry {
   timestamp: string;
@@ -119,6 +208,8 @@ export interface SyncMetadata {
 export interface DomainData {
   health: DomainHealthData | null;
   workflows: DomainWorkflowData | null;
+  dashboards: DomainDashboardData | null;
+  queries: DomainQueryData | null;
   syncMetadata: SyncMetadata | null;
   loading: boolean;
   error: string | null;
@@ -127,6 +218,8 @@ export interface DomainData {
 export function useDomainData(domainPath: string): DomainData {
   const [health, setHealth] = useState<DomainHealthData | null>(null);
   const [workflows, setWorkflows] = useState<DomainWorkflowData | null>(null);
+  const [dashboards, setDashboards] = useState<DomainDashboardData | null>(null);
+  const [queries, setQueries] = useState<DomainQueryData | null>(null);
   const [syncMetadata, setSyncMetadata] = useState<SyncMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +250,26 @@ export function useDomainData(domainPath: string): DomainData {
           setWorkflows(null);
         }
 
+        // Try to load dashboard health results
+        const dashboardPath = `${domainPath}/dashboard-health-results.json`;
+        try {
+          const dashboardContent = await invoke<string>("read_file", { path: dashboardPath });
+          setDashboards(JSON.parse(dashboardContent));
+        } catch {
+          // Dashboard file might not exist
+          setDashboards(null);
+        }
+
+        // Try to load query health results
+        const queryPath = `${domainPath}/query-health-results.json`;
+        try {
+          const queryContent = await invoke<string>("read_file", { path: queryPath });
+          setQueries(JSON.parse(queryContent));
+        } catch {
+          // Query file might not exist
+          setQueries(null);
+        }
+
         // Try to load sync metadata
         const syncPath = `${domainPath}/sync-metadata.json`;
         try {
@@ -178,5 +291,5 @@ export function useDomainData(domainPath: string): DomainData {
     }
   }, [domainPath]);
 
-  return { health, workflows, syncMetadata, loading, error };
+  return { health, workflows, dashboards, queries, syncMetadata, loading, error };
 }
