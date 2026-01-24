@@ -1,8 +1,18 @@
 // src/modules/library/DomainOverview.tsx
-// Overview panel showing domain summary stats
+// Overview panel showing domain summary stats with tabs
 
-import { Database, Workflow, AlertTriangle, CheckCircle } from "lucide-react";
-import { useDomainData } from "../../hooks/useDomainData";
+import { useState } from "react";
+import {
+  Database,
+  Workflow,
+  AlertTriangle,
+  CheckCircle,
+  BarChart3,
+  Clock,
+  FileJson,
+  ExternalLink,
+} from "lucide-react";
+import { useDomainData, SyncMetadata } from "../../hooks/useDomainData";
 import { cn } from "../../lib/cn";
 
 interface DomainOverviewProps {
@@ -10,8 +20,11 @@ interface DomainOverviewProps {
   domainName: string;
 }
 
+type TabType = "overview" | "history" | "datasources";
+
 export function DomainOverview({ domainPath, domainName }: DomainOverviewProps) {
-  const { health, workflows, loading, error } = useDomainData(domainPath);
+  const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const { health, workflows, syncMetadata, loading, error } = useDomainData(domainPath);
 
   if (loading) {
     return (
@@ -32,10 +45,98 @@ export function DomainOverview({ domainPath, domainName }: DomainOverviewProps) 
     );
   }
 
-  if (!health && !workflows) {
+  return (
+    <div className="p-6 space-y-4">
+      {/* Header */}
+      <div>
+        <h2 className="text-xl font-semibold text-zinc-100">{domainName}</h2>
+        <p className="text-sm text-zinc-500 mt-1">
+          Last sync: {syncMetadata?.lastFullSync ? new Date(syncMetadata.lastFullSync).toLocaleString() : "Never"}
+        </p>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-1 border-b border-zinc-700">
+        <TabButton
+          active={activeTab === "overview"}
+          onClick={() => setActiveTab("overview")}
+          icon={<BarChart3 size={14} />}
+          label="Overview"
+        />
+        <TabButton
+          active={activeTab === "history"}
+          onClick={() => setActiveTab("history")}
+          icon={<Clock size={14} />}
+          label="History"
+        />
+        <TabButton
+          active={activeTab === "datasources"}
+          onClick={() => setActiveTab("datasources")}
+          icon={<FileJson size={14} />}
+          label="Data Sources"
+        />
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "overview" && (
+        <OverviewTabContent
+          health={health}
+          workflows={workflows}
+          syncMetadata={syncMetadata}
+        />
+      )}
+      {activeTab === "history" && (
+        <HistoryTabContent syncMetadata={syncMetadata} />
+      )}
+      {activeTab === "datasources" && (
+        <DataSourcesTabContent domainPath={domainPath} />
+      )}
+    </div>
+  );
+}
+
+// Tab button component
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+        active
+          ? "border-teal-500 text-teal-400"
+          : "border-transparent text-zinc-400 hover:text-zinc-200"
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+// Overview tab content
+function OverviewTabContent({
+  health,
+  workflows,
+  syncMetadata,
+}: {
+  health: ReturnType<typeof useDomainData>["health"];
+  workflows: ReturnType<typeof useDomainData>["workflows"];
+  syncMetadata: SyncMetadata | null;
+}) {
+  if (!health && !workflows && !syncMetadata) {
     return (
-      <div className="p-6 text-zinc-500">
-        No health data available for this domain. Run health checks to generate data.
+      <div className="text-zinc-500 py-8 text-center">
+        No data available for this domain. Run sync to generate data.
       </div>
     );
   }
@@ -57,36 +158,23 @@ export function DomainOverview({ domainPath, domainName }: DomainOverviewProps) 
   ).length ?? 0;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-semibold text-zinc-100">{domainName}</h2>
-        <p className="text-sm text-zinc-500 mt-1">
-          Last updated: {health?.timestamp ? new Date(health.timestamp).toLocaleString() : "Unknown"}
-        </p>
-      </div>
-
+    <div className="space-y-6">
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Tables */}
         <StatCard
           icon={<Database size={20} />}
           label="Tables"
-          value={health?.totalTables ?? 0}
-          subtitle={`${health?.transactionalTables ?? 0} transactional`}
+          value={health?.totalTables ?? syncMetadata?.artifacts.tables.count ?? 0}
+          subtitle={health ? `${health.transactionalTables} transactional` : ""}
           color="teal"
         />
-
-        {/* Workflows */}
         <StatCard
           icon={<Workflow size={20} />}
           label="Workflows"
-          value={workflows?.totalWorkflows ?? 0}
-          subtitle={`${workflows?.analyzedWorkflows ?? 0} scheduled`}
+          value={workflows?.totalWorkflows ?? syncMetadata?.artifacts.workflows.count ?? 0}
+          subtitle={workflows ? `${workflows.analyzedWorkflows} scheduled` : ""}
           color="blue"
         />
-
-        {/* Healthy */}
         <StatCard
           icon={<CheckCircle size={20} />}
           label="Healthy"
@@ -94,58 +182,71 @@ export function DomainOverview({ domainPath, domainName }: DomainOverviewProps) 
           subtitle="workflows"
           color="green"
         />
-
-        {/* Issues */}
         <StatCard
           icon={<AlertTriangle size={20} />}
           label="Issues"
           value={warningWorkflows + criticalWorkflows}
-          subtitle={`${criticalWorkflows} critical`}
+          subtitle={criticalWorkflows > 0 ? `${criticalWorkflows} critical` : "none critical"}
           color={criticalWorkflows > 0 ? "red" : warningWorkflows > 0 ? "yellow" : "green"}
         />
       </div>
 
-      {/* Quick Health Summary */}
-      <div className="bg-zinc-900 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-zinc-300 mb-3">Health Summary</h3>
-        <div className="space-y-2">
-          <HealthRow
-            label="Table Freshness"
-            status={staleTables === 0 ? "healthy" : staleTables < 5 ? "warning" : "critical"}
-            detail={staleTables === 0 ? "All tables up to date" : `${staleTables} tables stale (>7 days)`}
-          />
-          <HealthRow
-            label="Workflow Execution"
-            status={criticalWorkflows === 0 ? (warningWorkflows === 0 ? "healthy" : "warning") : "critical"}
-            detail={
-              criticalWorkflows > 0
-                ? `${criticalWorkflows} workflows failing`
-                : warningWorkflows > 0
-                  ? `${warningWorkflows} workflows with warnings`
-                  : "All workflows healthy"
-            }
-          />
-          <HealthRow
-            label="Static Tables"
-            status="healthy"
-            detail={`${health?.staticTables ?? 0} configuration tables`}
-          />
+      {/* Artifacts Summary */}
+      {syncMetadata && (
+        <div className="bg-zinc-900 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-zinc-300 mb-3">Artifacts Synced</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <ArtifactStat label="Tables" data={syncMetadata.artifacts.tables} />
+            <ArtifactStat label="Workflows" data={syncMetadata.artifacts.workflows} />
+            <ArtifactStat label="Queries" data={syncMetadata.artifacts.queries} />
+            <ArtifactStat label="Dashboards" data={syncMetadata.artifacts.dashboards} />
+            <ArtifactStat label="Fields" data={syncMetadata.artifacts.fields} />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Quick Health Summary */}
+      {(health || workflows) && (
+        <div className="bg-zinc-900 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-zinc-300 mb-3">Health Summary</h3>
+          <div className="space-y-2">
+            <HealthRow
+              label="Table Freshness"
+              status={staleTables === 0 ? "healthy" : staleTables < 5 ? "warning" : "critical"}
+              detail={staleTables === 0 ? "All tables up to date" : `${staleTables} tables stale (>7 days)`}
+            />
+            <HealthRow
+              label="Workflow Execution"
+              status={criticalWorkflows === 0 ? (warningWorkflows === 0 ? "healthy" : "warning") : "critical"}
+              detail={
+                criticalWorkflows > 0
+                  ? `${criticalWorkflows} workflows failing`
+                  : warningWorkflows > 0
+                    ? `${warningWorkflows} workflows with warnings`
+                    : "All workflows healthy"
+              }
+            />
+            {health && (
+              <HealthRow
+                label="Static Tables"
+                status="healthy"
+                detail={`${health.staticTables} configuration tables`}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Recent Issues */}
-      {(warningWorkflows > 0 || criticalWorkflows > 0) && (
+      {(warningWorkflows > 0 || criticalWorkflows > 0) && workflows && (
         <div className="bg-zinc-900 rounded-lg p-4">
           <h3 className="text-sm font-medium text-zinc-300 mb-3">Recent Issues</h3>
           <div className="space-y-2 max-h-48 overflow-y-auto">
-            {workflows?.workflows
+            {workflows.workflows
               .filter((w) => w.health.status.level === "critical" || w.health.status.level === "warning")
               .slice(0, 10)
               .map((workflow) => (
-                <div
-                  key={workflow.id}
-                  className="flex items-start gap-2 text-sm"
-                >
+                <div key={workflow.id} className="flex items-start gap-2 text-sm">
                   <span className="mt-0.5">{workflow.health.status.emoji}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-zinc-300 truncate">{workflow.name}</p>
@@ -160,7 +261,113 @@ export function DomainOverview({ domainPath, domainName }: DomainOverviewProps) 
   );
 }
 
-// Stat card component
+// History tab content
+function HistoryTabContent({ syncMetadata }: { syncMetadata: SyncMetadata | null }) {
+  if (!syncMetadata?.syncHistory || syncMetadata.syncHistory.length === 0) {
+    return (
+      <div className="text-zinc-500 py-8 text-center">
+        No sync history available.
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-zinc-900 rounded-lg overflow-hidden">
+      <div className="px-4 py-2 bg-zinc-800 border-b border-zinc-700">
+        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+          Recent Sync History
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-zinc-800">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Time</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Type</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Details</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Count</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {syncMetadata.syncHistory.slice(0, 20).map((entry, index) => (
+              <tr key={index} className="border-b border-zinc-800/50 hover:bg-zinc-800/50">
+                <td className="px-4 py-3 text-zinc-400">{formatRelativeTime(entry.timestamp)}</td>
+                <td className="px-4 py-3 text-zinc-200 font-medium">{entry.type}</td>
+                <td className="px-4 py-3 text-zinc-400">
+                  {entry.artifactType || entry.extractionType || entry.generationType || "-"}
+                </td>
+                <td className="px-4 py-3 text-zinc-400">{entry.count ?? "-"}</td>
+                <td className="px-4 py-3">
+                  <StatusBadge status={entry.status} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Data sources tab content
+function DataSourcesTabContent({ domainPath }: { domainPath: string }) {
+  const dataSourceFiles = [
+    { name: "sync-metadata.json", description: "Sync timestamps and history" },
+    { name: "all_workflows.json", description: "Workflow definitions from VAL API" },
+    { name: "all_dashboards.json", description: "Dashboard definitions from VAL API" },
+    { name: "all_queries.json", description: "Query definitions from VAL API" },
+    { name: "all_global_fields.json", description: "Global field definitions" },
+    { name: "all_calculated_fields.json", description: "Calculated field definitions" },
+    { name: "health-check-results.json", description: "Data model health check results" },
+    { name: "workflow-health-results.json", description: "Workflow health check results" },
+    { name: "CLAUDE.md", description: "AI configuration for this domain" },
+  ];
+
+  return (
+    <div className="bg-zinc-900 rounded-lg overflow-hidden">
+      <div className="px-4 py-2 bg-zinc-800 border-b border-zinc-700">
+        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+          Domain Data Source Files
+        </span>
+      </div>
+      <div className="divide-y divide-zinc-800">
+        {dataSourceFiles.map((file) => (
+          <div
+            key={file.name}
+            className="flex items-center justify-between px-4 py-3 hover:bg-zinc-800/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <FileJson size={16} className="text-teal-400" />
+              <div>
+                <p className="text-sm text-zinc-200">{file.name}</p>
+                <p className="text-xs text-zinc-500">{file.description}</p>
+              </div>
+            </div>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                // Could open file in viewer
+              }}
+              className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1"
+            >
+              <ExternalLink size={12} />
+              View
+            </a>
+          </div>
+        ))}
+      </div>
+      <div className="px-4 py-3 bg-zinc-800/50 border-t border-zinc-700">
+        <p className="text-xs text-zinc-500">
+          Path: <code className="text-zinc-400">{domainPath}</code>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Helper components
 function StatCard({
   icon,
   label,
@@ -189,12 +396,20 @@ function StatCard({
       </div>
       <p className="text-2xl font-semibold text-zinc-100">{value}</p>
       <p className="text-sm text-zinc-400">{label}</p>
-      <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>
+      {subtitle && <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>}
     </div>
   );
 }
 
-// Health row component
+function ArtifactStat({ label, data }: { label: string; data: { count: number; lastSync: string | null; status: string } }) {
+  return (
+    <div className="text-center">
+      <p className="text-lg font-semibold text-zinc-100">{data.count}</p>
+      <p className="text-xs text-zinc-500">{label}</p>
+    </div>
+  );
+}
+
 function HealthRow({
   label,
   status,
@@ -219,4 +434,41 @@ function HealthRow({
       </div>
     </div>
   );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const statusClasses: Record<string, string> = {
+    success: "bg-green-400/10 text-green-400",
+    partial: "bg-yellow-400/10 text-yellow-400",
+    failed: "bg-red-400/10 text-red-400",
+    never: "bg-zinc-400/10 text-zinc-400",
+  };
+
+  return (
+    <span className={cn(
+      "px-2 py-0.5 rounded text-xs font-medium",
+      statusClasses[status] || statusClasses.never
+    )}>
+      {status}
+    </span>
+  );
+}
+
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) {
+    return diffMins <= 1 ? "Just now" : `${diffMins}m ago`;
+  } else if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  } else if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  } else {
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
 }

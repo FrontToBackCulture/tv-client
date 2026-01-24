@@ -78,9 +78,48 @@ export interface DomainWorkflowData {
   workflows: WorkflowHealth[];
 }
 
+// Sync metadata types
+export interface SyncHistoryEntry {
+  timestamp: string;
+  type: string;
+  artifactType?: string;
+  extractionType?: string;
+  generationType?: string;
+  count?: number;
+  status: string;
+}
+
+export interface ArtifactData {
+  count: number;
+  lastSync: string | null;
+  status: "success" | "partial" | "failed" | "never";
+}
+
+export interface SyncMetadata {
+  domain: string;
+  created: string;
+  artifacts: {
+    fields: ArtifactData;
+    queries: ArtifactData;
+    workflows: ArtifactData;
+    dashboards: ArtifactData;
+    tables: ArtifactData;
+  };
+  extractions: {
+    queryDefinitions: ArtifactData;
+    workflowDefinitions: ArtifactData;
+    workflowSQL: ArtifactData;
+    dashboardDefinitions: ArtifactData;
+    tableDefinitions: ArtifactData;
+  };
+  lastFullSync: string | null;
+  syncHistory: SyncHistoryEntry[];
+}
+
 export interface DomainData {
   health: DomainHealthData | null;
   workflows: DomainWorkflowData | null;
+  syncMetadata: SyncMetadata | null;
   loading: boolean;
   error: string | null;
 }
@@ -88,6 +127,7 @@ export interface DomainData {
 export function useDomainData(domainPath: string): DomainData {
   const [health, setHealth] = useState<DomainHealthData | null>(null);
   const [workflows, setWorkflows] = useState<DomainWorkflowData | null>(null);
+  const [syncMetadata, setSyncMetadata] = useState<SyncMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,6 +156,16 @@ export function useDomainData(domainPath: string): DomainData {
           // Workflow file might not exist
           setWorkflows(null);
         }
+
+        // Try to load sync metadata
+        const syncPath = `${domainPath}/sync-metadata.json`;
+        try {
+          const syncContent = await invoke<string>("read_file", { path: syncPath });
+          setSyncMetadata(JSON.parse(syncContent));
+        } catch {
+          // Sync metadata might not exist
+          setSyncMetadata(null);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load domain data");
       } finally {
@@ -128,5 +178,5 @@ export function useDomainData(domainPath: string): DomainData {
     }
   }, [domainPath]);
 
-  return { health, workflows, loading, error };
+  return { health, workflows, syncMetadata, loading, error };
 }
