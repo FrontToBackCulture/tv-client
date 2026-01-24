@@ -313,7 +313,7 @@ export function FolderView({
         return {
           onSyncReport: () => setViewMode("sync-report"),
           onAllSchedules: () => setViewMode("all-schedules"),
-          // SOD status removed - only available on specific domain folders
+          onSODStatus: () => setViewMode("sod-status"),
         };
 
       case "data-models":

@@ -88,17 +88,17 @@ interface ActionButtonProps {
 }
 
 function ActionButton({ icon, title, onClick, isActive }: ActionButtonProps) {
-  // Don't render if no handler provided
-  if (!onClick) return null;
-
   return (
     <button
       onClick={onClick}
+      disabled={!onClick}
       className={cn(
         "p-2 rounded-full transition-all duration-200",
         isActive
           ? "bg-teal-500 text-white shadow-sm"
-          : "text-teal-400/70 hover:text-teal-400 hover:bg-teal-500/20"
+          : onClick
+            ? "text-teal-400/70 hover:text-teal-400 hover:bg-teal-500/20"
+            : "text-zinc-600 cursor-not-allowed"
       )}
       title={title}
     >
@@ -171,6 +171,12 @@ export function FolderActions({ folderType, handlers, activeAction }: FolderActi
               title="All Schedules"
               onClick={handlers.onAllSchedules}
               isActive={activeAction === "all-schedules"}
+            />
+            <ActionButton
+              icon={<Database size={16} />}
+              title="SOD Table Status"
+              onClick={handlers.onSODStatus}
+              isActive={activeAction === "sod-status"}
             />
           </>
         );
