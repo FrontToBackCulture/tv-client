@@ -208,10 +208,11 @@ function FilesView({
             {folderName}
           </h1>
           <p className="text-zinc-500 mb-4">
-            {hasSubdirs ? `${subdirs.length} folders` : ""}
-            {hasSubdirs && hasFiles ? " · " : ""}
-            {hasFiles ? `${files.length} files` : ""}
-            {!hasSubdirs && !hasFiles ? "Empty folder" : ""}
+            {hasFiles
+              ? `${files.length} recent files`
+              : hasSubdirs
+                ? `${subdirs.length} folders`
+                : "Empty folder"}
           </p>
 
           {/* Context-specific action buttons */}
@@ -232,8 +233,8 @@ function FilesView({
           </div>
         ) : (
           <>
-            {/* Subdirectories */}
-            {hasSubdirs && (
+            {/* Subdirectories - only show if NO files (files take priority) */}
+            {hasSubdirs && !hasFiles && (
               <div className="mb-8">
                 <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
                   Folders
@@ -250,7 +251,7 @@ function FilesView({
               </div>
             )}
 
-            {/* Recent files */}
+            {/* Recent files - shows direct files OR recursively found files */}
             {hasFiles && (
               <div>
                 <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">

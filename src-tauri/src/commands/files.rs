@@ -258,11 +258,38 @@ pub async fn read_file_binary(path: String) -> Result<String, String> {
 
 /// Get files in a folder, sorted by modified time (most recent first)
 /// For markdown files, extracts title and summary from frontmatter
+/// If the folder has no direct files (only subdirectories), searches recursively
 #[command]
 pub async fn get_folder_files(path: String, limit: Option<u32>) -> Result<Vec<FileEntry>, String> {
     let limit = limit.unwrap_or(20) as usize;
-    let entries = fs::read_dir(&path).map_err(|e| format!("Failed to read directory: {}", e))?;
 
+    // First, try to get direct files in this folder
+    let mut files = collect_files_in_dir(&path)?;
+
+    // If no direct files found, search recursively through subdirectories
+    if files.is_empty() {
+        files = collect_files_recursive(&path, 3)?; // max depth of 3
+    }
+
+    // Sort by modified time (most recent first)
+    files.sort_by(|a, b| {
+        match (&b.modified, &a.modified) {
+            (Some(b_mod), Some(a_mod)) => b_mod.cmp(a_mod),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+    });
+
+    // Limit results
+    files.truncate(limit);
+
+    Ok(files)
+}
+
+/// Collect files from a single directory (non-recursive)
+fn collect_files_in_dir(path: &str) -> Result<Vec<FileEntry>, String> {
+    let entries = fs::read_dir(path).map_err(|e| format!("Failed to read directory: {}", e))?;
     let mut files: Vec<FileEntry> = Vec::new();
 
     for entry in entries.flatten() {
@@ -308,20 +335,69 @@ pub async fn get_folder_files(path: String, limit: Option<u32>) -> Result<Vec<Fi
         });
     }
 
-    // Sort by modified time (most recent first)
-    files.sort_by(|a, b| {
-        match (&b.modified, &a.modified) {
-            (Some(b_mod), Some(a_mod)) => b_mod.cmp(a_mod),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => std::cmp::Ordering::Equal,
-        }
-    });
-
-    // Limit results
-    files.truncate(limit);
-
     Ok(files)
+}
+
+/// Collect files recursively from subdirectories
+fn collect_files_recursive(path: &str, max_depth: usize) -> Result<Vec<FileEntry>, String> {
+    let mut files: Vec<FileEntry> = Vec::new();
+    collect_files_recursive_impl(Path::new(path), 0, max_depth, &mut files);
+    Ok(files)
+}
+
+fn collect_files_recursive_impl(path: &Path, current_depth: usize, max_depth: usize, files: &mut Vec<FileEntry>) {
+    if current_depth > max_depth {
+        return;
+    }
+
+    let entries = match fs::read_dir(path) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let metadata = entry.metadata().ok();
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        // Skip hidden files and directories
+        if name.starts_with('.') || name == "node_modules" || name == "__pycache__" || name == "target" {
+            continue;
+        }
+
+        let is_dir = metadata.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+        let file_path = entry.path();
+
+        if is_dir {
+            // Recurse into subdirectories
+            collect_files_recursive_impl(&file_path, current_depth + 1, max_depth, files);
+        } else {
+            let modified = metadata
+                .as_ref()
+                .and_then(|m| m.modified().ok())
+                .map(|t| {
+                    chrono::DateTime::<chrono::Utc>::from(t)
+                        .format("%Y-%m-%dT%H:%M:%SZ")
+                        .to_string()
+                });
+
+            // Extract title and summary from markdown frontmatter
+            let (title, summary) = if name.ends_with(".md") || name.ends_with(".markdown") {
+                extract_frontmatter(&file_path)
+            } else {
+                (None, None)
+            };
+
+            files.push(FileEntry {
+                name,
+                path: file_path.to_string_lossy().to_string(),
+                is_directory: false,
+                size: metadata.as_ref().map(|m| m.len()).unwrap_or(0),
+                modified,
+                title,
+                summary,
+            });
+        }
+    }
 }
 
 /// Extract title and summary from markdown frontmatter
