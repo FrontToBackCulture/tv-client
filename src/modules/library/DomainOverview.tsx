@@ -1,7 +1,7 @@
 // src/modules/library/DomainOverview.tsx
 // Overview panel showing domain summary stats with tabs
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Database,
   Workflow,
@@ -9,10 +9,10 @@ import {
   CheckCircle,
   BarChart3,
   Clock,
-  FileJson,
-  ExternalLink,
+  FolderOpen,
 } from "lucide-react";
 import { useDomainData, SyncMetadata } from "../../hooks/useDomainData";
+import { ViewerLayout, ViewerTab, DataSourcesTab } from "./ViewerLayout";
 import { cn } from "../../lib/cn";
 
 interface DomainOverviewProps {
@@ -20,15 +20,54 @@ interface DomainOverviewProps {
   domainName: string;
 }
 
-type TabType = "overview" | "history" | "datasources";
+type TabType = "overview" | "history" | "sources";
 
 export function DomainOverview({ domainPath, domainName }: DomainOverviewProps) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const { health, workflows, syncMetadata, loading, error } = useDomainData(domainPath);
 
+  // Define tabs
+  const tabs: ViewerTab[] = useMemo(
+    () => [
+      {
+        id: "overview",
+        label: "Overview",
+        icon: <BarChart3 size={14} />,
+      },
+      {
+        id: "history",
+        label: "History",
+        icon: <Clock size={14} />,
+        count: syncMetadata?.syncHistory?.length ?? 0,
+      },
+      {
+        id: "sources",
+        label: "Data Sources",
+        icon: <FolderOpen size={14} />,
+      },
+    ],
+    [syncMetadata]
+  );
+
+  // Data sources for this viewer
+  const dataSources = useMemo(
+    () => [
+      { name: "Sync Metadata", path: `${domainPath}/sync-metadata.json`, description: "Sync timestamps and history" },
+      { name: "Workflows", path: `${domainPath}/all_workflows.json`, description: "Workflow definitions from VAL API" },
+      { name: "Dashboards", path: `${domainPath}/all_dashboards.json`, description: "Dashboard definitions from VAL API" },
+      { name: "Queries", path: `${domainPath}/all_queries.json`, description: "Query definitions from VAL API" },
+      { name: "Global Fields", path: `${domainPath}/all_global_fields.json`, description: "Global field definitions" },
+      { name: "Calculated Fields", path: `${domainPath}/all_calculated_fields.json`, description: "Calculated field definitions" },
+      { name: "Data Model Health", path: `${domainPath}/health-check-results.json`, description: "Data model health check results" },
+      { name: "Workflow Health", path: `${domainPath}/workflow-health-results.json`, description: "Workflow health check results" },
+      { name: "AI Config", path: `${domainPath}/CLAUDE.md`, description: "AI configuration for this domain" },
+    ],
+    [domainPath]
+  );
+
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="animate-pulse text-zinc-500">Loading domain data...</div>
       </div>
     );
@@ -36,7 +75,7 @@ export function DomainOverview({ domainPath, domainName }: DomainOverviewProps) 
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="h-full flex items-center justify-center">
         <div className="text-red-400 flex items-center gap-2">
           <AlertTriangle size={16} />
           <span>{error}</span>
@@ -46,80 +85,29 @@ export function DomainOverview({ domainPath, domainName }: DomainOverviewProps) 
   }
 
   return (
-    <div className="p-6 space-y-4">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-semibold text-zinc-100">{domainName}</h2>
-        <p className="text-sm text-zinc-500 mt-1">
-          Last sync: {syncMetadata?.lastFullSync ? new Date(syncMetadata.lastFullSync).toLocaleString() : "Never"}
-        </p>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="flex items-center gap-1 border-b border-zinc-700">
-        <TabButton
-          active={activeTab === "overview"}
-          onClick={() => setActiveTab("overview")}
-          icon={<BarChart3 size={14} />}
-          label="Overview"
-        />
-        <TabButton
-          active={activeTab === "history"}
-          onClick={() => setActiveTab("history")}
-          icon={<Clock size={14} />}
-          label="History"
-        />
-        <TabButton
-          active={activeTab === "datasources"}
-          onClick={() => setActiveTab("datasources")}
-          icon={<FileJson size={14} />}
-          label="Data Sources"
-        />
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === "overview" && (
-        <OverviewTabContent
-          health={health}
-          workflows={workflows}
-          syncMetadata={syncMetadata}
-        />
-      )}
-      {activeTab === "history" && (
-        <HistoryTabContent syncMetadata={syncMetadata} />
-      )}
-      {activeTab === "datasources" && (
-        <DataSourcesTabContent domainPath={domainPath} />
-      )}
-    </div>
-  );
-}
-
-// Tab button component
-function TabButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
-        active
-          ? "border-teal-500 text-teal-400"
-          : "border-transparent text-zinc-400 hover:text-zinc-200"
-      )}
+    <ViewerLayout
+      title={`${domainName} Overview`}
+      subtitle={`Last sync: ${syncMetadata?.lastFullSync ? new Date(syncMetadata.lastFullSync).toLocaleString() : "Never"}`}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={(id) => setActiveTab(id as TabType)}
     >
-      {icon}
-      {label}
-    </button>
+      <div className="h-full overflow-y-auto p-6">
+        {activeTab === "overview" && (
+          <OverviewTabContent
+            health={health}
+            workflows={workflows}
+            syncMetadata={syncMetadata}
+          />
+        )}
+        {activeTab === "history" && (
+          <HistoryTabContent syncMetadata={syncMetadata} />
+        )}
+        {activeTab === "sources" && (
+          <DataSourcesTab sources={dataSources} basePath={domainPath} />
+        )}
+      </div>
+    </ViewerLayout>
   );
 }
 
@@ -158,7 +146,7 @@ function OverviewTabContent({
   ).length ?? 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl">
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
@@ -272,96 +260,41 @@ function HistoryTabContent({ syncMetadata }: { syncMetadata: SyncMetadata | null
   }
 
   return (
-    <div className="bg-zinc-900 rounded-lg overflow-hidden">
-      <div className="px-4 py-2 bg-zinc-800 border-b border-zinc-700">
-        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
-          Recent Sync History
-        </span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-zinc-800">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Time</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Type</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Details</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Count</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {syncMetadata.syncHistory.slice(0, 20).map((entry, index) => (
-              <tr key={index} className="border-b border-zinc-800/50 hover:bg-zinc-800/50">
-                <td className="px-4 py-3 text-zinc-400">{formatRelativeTime(entry.timestamp)}</td>
-                <td className="px-4 py-3 text-zinc-200 font-medium">{entry.type}</td>
-                <td className="px-4 py-3 text-zinc-400">
-                  {entry.artifactType || entry.extractionType || entry.generationType || "-"}
-                </td>
-                <td className="px-4 py-3 text-zinc-400">{entry.count ?? "-"}</td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={entry.status} />
-                </td>
+    <div className="max-w-4xl">
+      <div className="bg-zinc-900 rounded-lg overflow-hidden">
+        <div className="px-4 py-2 bg-zinc-800 border-b border-zinc-700">
+          <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+            Recent Sync History
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Time</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Details</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Count</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// Data sources tab content
-function DataSourcesTabContent({ domainPath }: { domainPath: string }) {
-  const dataSourceFiles = [
-    { name: "sync-metadata.json", description: "Sync timestamps and history" },
-    { name: "all_workflows.json", description: "Workflow definitions from VAL API" },
-    { name: "all_dashboards.json", description: "Dashboard definitions from VAL API" },
-    { name: "all_queries.json", description: "Query definitions from VAL API" },
-    { name: "all_global_fields.json", description: "Global field definitions" },
-    { name: "all_calculated_fields.json", description: "Calculated field definitions" },
-    { name: "health-check-results.json", description: "Data model health check results" },
-    { name: "workflow-health-results.json", description: "Workflow health check results" },
-    { name: "CLAUDE.md", description: "AI configuration for this domain" },
-  ];
-
-  return (
-    <div className="bg-zinc-900 rounded-lg overflow-hidden">
-      <div className="px-4 py-2 bg-zinc-800 border-b border-zinc-700">
-        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
-          Domain Data Source Files
-        </span>
-      </div>
-      <div className="divide-y divide-zinc-800">
-        {dataSourceFiles.map((file) => (
-          <div
-            key={file.name}
-            className="flex items-center justify-between px-4 py-3 hover:bg-zinc-800/50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <FileJson size={16} className="text-teal-400" />
-              <div>
-                <p className="text-sm text-zinc-200">{file.name}</p>
-                <p className="text-xs text-zinc-500">{file.description}</p>
-              </div>
-            </div>
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                // Could open file in viewer
-              }}
-              className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1"
-            >
-              <ExternalLink size={12} />
-              View
-            </a>
-          </div>
-        ))}
-      </div>
-      <div className="px-4 py-3 bg-zinc-800/50 border-t border-zinc-700">
-        <p className="text-xs text-zinc-500">
-          Path: <code className="text-zinc-400">{domainPath}</code>
-        </p>
+            </thead>
+            <tbody>
+              {syncMetadata.syncHistory.slice(0, 20).map((entry, index) => (
+                <tr key={index} className="border-b border-zinc-800/50 hover:bg-zinc-800/50">
+                  <td className="px-4 py-3 text-zinc-400">{formatRelativeTime(entry.timestamp)}</td>
+                  <td className="px-4 py-3 text-zinc-200 font-medium">{entry.type}</td>
+                  <td className="px-4 py-3 text-zinc-400">
+                    {entry.artifactType || entry.extractionType || entry.generationType || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-400">{entry.count ?? "-"}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={entry.status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

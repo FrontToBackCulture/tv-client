@@ -1,7 +1,7 @@
 // src/modules/library/DomainHealth.tsx
 // Detailed health view for data models, workflows, dashboards, and queries
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   AlertTriangle,
   CheckCircle,
@@ -12,6 +12,7 @@ import {
   Clock,
   LayoutDashboard,
   FileSearch,
+  FolderOpen,
 } from "lucide-react";
 import {
   useDomainData,
@@ -20,14 +21,14 @@ import {
   DashboardHealth,
   QueryHealth,
 } from "../../hooks/useDomainData";
-import { cn } from "../../lib/cn";
+import { ViewerLayout, ViewerTab, DataSourcesTab } from "./ViewerLayout";
 
 interface DomainHealthProps {
   domainPath: string;
   domainName: string;
 }
 
-type TabType = "data-model" | "workflows" | "dashboards" | "queries";
+type TabType = "data-model" | "workflows" | "dashboards" | "queries" | "sources";
 type FilterType = "all" | "healthy" | "warning" | "critical";
 
 export function DomainHealth({ domainPath, domainName }: DomainHealthProps) {
@@ -36,9 +37,66 @@ export function DomainHealth({ domainPath, domainName }: DomainHealthProps) {
   const [filter, setFilter] = useState<FilterType>("all");
   const [search, setSearch] = useState("");
 
+  // Define tabs
+  const tabs: ViewerTab[] = useMemo(() => [
+    {
+      id: "data-model",
+      label: "Data Model",
+      icon: <Database size={14} />,
+      count: health?.tables.length ?? 0,
+    },
+    {
+      id: "workflows",
+      label: "Workflows",
+      icon: <Clock size={14} />,
+      count: workflows?.workflows.length ?? 0,
+    },
+    {
+      id: "dashboards",
+      label: "Dashboards",
+      icon: <LayoutDashboard size={14} />,
+      count: dashboards?.dashboards.length ?? 0,
+    },
+    {
+      id: "queries",
+      label: "Queries",
+      icon: <FileSearch size={14} />,
+      count: queries?.queries.length ?? 0,
+    },
+    {
+      id: "sources",
+      label: "Data Sources",
+      icon: <FolderOpen size={14} />,
+    },
+  ], [health, workflows, dashboards, queries]);
+
+  // Data sources for this viewer
+  const dataSources = useMemo(() => [
+    {
+      name: "Data Model Health",
+      path: `${domainPath}/health-check-results.json`,
+      description: "Table freshness and row counts",
+    },
+    {
+      name: "Workflow Health",
+      path: `${domainPath}/workflow-health-results.json`,
+      description: "Workflow execution history and status",
+    },
+    {
+      name: "Dashboard Health",
+      path: `${domainPath}/dashboard-health-results.json`,
+      description: "Dashboard usage and session metrics",
+    },
+    {
+      name: "Query Health",
+      path: `${domainPath}/query-health-results.json`,
+      description: "Query usage in dashboards",
+    },
+  ], [domainPath]);
+
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="animate-pulse text-zinc-500">Loading health data...</div>
       </div>
     );
@@ -46,7 +104,7 @@ export function DomainHealth({ domainPath, domainName }: DomainHealthProps) {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="h-full flex items-center justify-center">
         <div className="text-red-400 flex items-center gap-2">
           <AlertTriangle size={16} />
           <span>{error}</span>
@@ -87,7 +145,7 @@ export function DomainHealth({ domainPath, domainName }: DomainHealthProps) {
     }
     if (filter === "all") return true;
     const level = d.health.status.level;
-    if (filter === "healthy") return level === "critical" || level === "active"; // critical = essential/highly used
+    if (filter === "healthy") return level === "critical" || level === "active";
     if (filter === "warning") return level === "occasional" || level === "attention";
     if (filter === "critical") return level === "declining" || level === "unused";
     return true;
@@ -106,115 +164,49 @@ export function DomainHealth({ domainPath, domainName }: DomainHealthProps) {
     return true;
   }) ?? [];
 
-  return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <h2 className="text-lg font-semibold text-zinc-100">{domainName} Health</h2>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mt-3">
-          <TabButton
-            active={activeTab === "data-model"}
-            onClick={() => setActiveTab("data-model")}
-            count={health?.tables.length ?? 0}
-            icon={<Database size={14} />}
-          >
-            Data Model
-          </TabButton>
-          <TabButton
-            active={activeTab === "workflows"}
-            onClick={() => setActiveTab("workflows")}
-            count={workflows?.workflows.length ?? 0}
-            icon={<Clock size={14} />}
-          >
-            Workflows
-          </TabButton>
-          <TabButton
-            active={activeTab === "dashboards"}
-            onClick={() => setActiveTab("dashboards")}
-            count={dashboards?.dashboards.length ?? 0}
-            icon={<LayoutDashboard size={14} />}
-          >
-            Dashboards
-          </TabButton>
-          <TabButton
-            active={activeTab === "queries"}
-            onClick={() => setActiveTab("queries")}
-            count={queries?.queries.length ?? 0}
-            icon={<FileSearch size={14} />}
-          >
-            Queries
-          </TabButton>
-        </div>
-
-        {/* Filters */}
-        <div className="flex gap-2 mt-3">
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
-            />
-          </div>
-
-          {/* Status filter */}
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as FilterType)}
-            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-teal-500"
-          >
-            <option value="all">All</option>
-            <option value="healthy">Healthy</option>
-            <option value="warning">Warning</option>
-            <option value="critical">Critical</option>
-          </select>
-        </div>
+  // Filters UI
+  const filtersUI = activeTab !== "sources" && (
+    <div className="flex gap-2">
+      <div className="relative">
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+        <input
+          type="text"
+          placeholder="Search..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-48 bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+        />
       </div>
+      <select
+        value={filter}
+        onChange={(e) => setFilter(e.target.value as FilterType)}
+        className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-teal-500"
+      >
+        <option value="all">All</option>
+        <option value="healthy">Healthy</option>
+        <option value="warning">Warning</option>
+        <option value="critical">Critical</option>
+      </select>
+    </div>
+  );
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+  return (
+    <ViewerLayout
+      title={`${domainName} Health`}
+      subtitle="Data model, workflow, dashboard, and query health status"
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={(id) => setActiveTab(id as TabType)}
+      actions={filtersUI}
+    >
+      <div className="h-full overflow-y-auto p-4">
         {activeTab === "data-model" && <TableList tables={filteredTables} />}
         {activeTab === "workflows" && <WorkflowList workflows={filteredWorkflows} />}
         {activeTab === "dashboards" && <DashboardList dashboards={filteredDashboards} />}
         {activeTab === "queries" && <QueryList queries={filteredQueries} />}
+        {activeTab === "sources" && <DataSourcesTab sources={dataSources} basePath={domainPath} />}
       </div>
-    </div>
-  );
-}
-
-// Tab button
-function TabButton({
-  active,
-  onClick,
-  count,
-  icon,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  count: number;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
-        active
-          ? "bg-zinc-700 text-zinc-100"
-          : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
-      )}
-    >
-      {icon}
-      {children}
-      <span className="ml-1 text-xs text-zinc-500">({count})</span>
-    </button>
+    </ViewerLayout>
   );
 }
 
@@ -222,7 +214,7 @@ function TabButton({
 function getStatusIcon(level: string) {
   switch (level) {
     case "healthy":
-    case "critical": // Dashboard "critical" = essential/highly used
+    case "critical":
     case "essential":
     case "active":
       return <CheckCircle size={16} className="text-green-400" />;

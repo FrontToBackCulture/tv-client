@@ -15,7 +15,7 @@ import { DomainOverview } from "./DomainOverview";
 import { DomainHealth } from "./DomainHealth";
 import { DomainSchedule } from "./DomainSchedule";
 import { DomainLineage } from "./DomainLineage";
-import { DataModelsList } from "./DataModelsList";
+import { DataModelsAgGrid } from "./DataModelsAgGrid";
 import { TableDetails } from "./TableDetails";
 import { WorkflowsList } from "./WorkflowsList";
 import { WorkflowDetails } from "./WorkflowDetails";
@@ -28,6 +28,8 @@ import { AnalyticsOverview } from "./AnalyticsOverview";
 import { DomainSyncReport } from "./DomainSyncReport";
 import { AllSchedulesReport } from "./AllSchedulesReport";
 import { SODTableStatus } from "./SODTableStatus";
+import { DomainAudit } from "./DomainAudit";
+import { ValUsage } from "./ValUsage";
 import { detectFolderType, FolderType, extractDomainName } from "../../lib/folderTypes";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
 import { cn } from "../../lib/cn";
@@ -47,6 +49,8 @@ type ViewMode =
   | "health"
   | "schedule"
   | "lineage"
+  | "audit"
+  | "usage"
   // Domain root viewers
   | "sync-report"
   | "all-schedules"
@@ -310,11 +314,41 @@ export function FolderView({
 
   const favorite = isFavorite(path);
 
-  // Reset viewMode to files when navigating to a new folder
-  // This prevents stale view states from persisting across navigation
+  // Detect folder type for context-specific actions
+  const folderType = useMemo(() => detectFolderType(path), [path]);
+
+  // Set default viewMode based on folder type when navigating to a new folder
   useEffect(() => {
-    setViewMode("files");
-  }, [path]);
+    // Auto-show specialized views for certain folder types
+    switch (folderType) {
+      case "data-models":
+        setViewMode("tables-list");
+        break;
+      case "workflows-list":
+        setViewMode("workflows-list");
+        break;
+      case "dashboards-list":
+        setViewMode("dashboards-list");
+        break;
+      case "queries-list":
+        setViewMode("queries-list");
+        break;
+      case "table":
+        setViewMode("table-details");
+        break;
+      case "workflow":
+        setViewMode("workflow-details");
+        break;
+      case "dashboard":
+        setViewMode("dashboard-details");
+        break;
+      case "query":
+        setViewMode("query-details");
+        break;
+      default:
+        setViewMode("files");
+    }
+  }, [path, folderType]);
 
   // Handle toast display
   const showToastMessage = (message: string, type: "success" | "error") => {
@@ -348,9 +382,6 @@ export function FolderView({
     }
   };
 
-  // Detect folder type for context-specific actions
-  const folderType = useMemo(() => detectFolderType(path), [path]);
-
   // Action handlers - domain folders show specialized viewers
   const actionHandlers: FolderActionHandlers = useMemo(() => {
     const createHandler = (actionName: string) => () => {
@@ -364,12 +395,9 @@ export function FolderView({
           onLineage: () => setViewMode("lineage"),
           onSchedule: () => setViewMode("schedule"),
           onHealth: () => setViewMode("health"),
+          onAudit: () => setViewMode("audit"),
+          onUsage: () => setViewMode("usage"),
           onSODStatus: () => setViewMode("sod-status"),
-          onClaudeMd: () => {
-            // Try to open CLAUDE.md in the domain folder
-            const claudeMdPath = `${path}/CLAUDE.md`;
-            onFileSelect(claudeMdPath);
-          },
         };
 
       case "domain-root":
@@ -382,7 +410,6 @@ export function FolderView({
       case "data-models":
         return {
           onTablesList: () => setViewMode("tables-list"),
-          onTablesHealth: () => setViewMode("health"),
         };
 
       case "table":
@@ -467,7 +494,7 @@ export function FolderView({
   }, [folderType, path, onFileSelect]);
 
   // Check if we're showing a specialized viewer panel
-  const isDomainViewer = ["overview", "health", "schedule", "lineage"].includes(viewMode);
+  const isDomainViewer = ["overview", "health", "schedule", "lineage", "audit", "usage", "sod-status"].includes(viewMode);
 
   // Get domain name for viewers that need it
   const domainName = extractDomainName(path) || folderName;
@@ -951,8 +978,12 @@ export function FolderView({
         <DomainSchedule domainPath={path} domainName={domainName} />
       ) : viewMode === "lineage" ? (
         <DomainLineage domainPath={path} domainName={domainName} />
+      ) : viewMode === "audit" ? (
+        <DomainAudit domainPath={path} domainName={domainName} />
+      ) : viewMode === "usage" ? (
+        <ValUsage domainPath={path} domainName={domainName} />
       ) : viewMode === "tables-list" ? (
-        <DataModelsList
+        <DataModelsAgGrid
           dataModelsPath={path}
           domainName={domainName}
           onTableSelect={(tablePath) => {

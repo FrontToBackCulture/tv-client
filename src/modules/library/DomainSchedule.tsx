@@ -15,46 +15,20 @@ import {
   List,
   BarChart3,
   Loader2,
-  FileJson,
-  Play,
   FolderOpen,
 } from "lucide-react";
 import { useDomainData, WorkflowHealth } from "../../hooks/useDomainData";
 import { cn } from "../../lib/cn";
+import { ViewerLayout, ViewerTab, DataSourcesTab } from "./ViewerLayout";
 
 interface DomainScheduleProps {
   domainPath: string;
   domainName: string;
 }
 
-type TabType = "schedule" | "datasources";
+type TabType = "schedule" | "sources";
 type StatusFilter = "all" | "completed" | "failed" | "warning" | "healthy";
 type ViewMode = "list" | "timeline";
-
-// Tab button component
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "px-4 py-2 text-sm font-medium transition-colors border-b-2",
-        active
-          ? "text-teal-400 border-teal-400"
-          : "text-zinc-400 border-transparent hover:text-zinc-200 hover:border-zinc-600"
-      )}
-    >
-      {children}
-    </button>
-  );
-}
 
 export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) {
   const { workflows, loading, error } = useDomainData(domainPath);
@@ -66,9 +40,43 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
     return new Date().toISOString().split("T")[0];
   });
 
+  // Define tabs
+  const tabs: ViewerTab[] = useMemo(() => [
+    {
+      id: "schedule",
+      label: "Schedule",
+      icon: <Clock size={14} />,
+      count: workflows?.workflows.filter(w => w.isScheduled).length ?? 0,
+    },
+    {
+      id: "sources",
+      label: "Data Sources",
+      icon: <FolderOpen size={14} />,
+    },
+  ], [workflows]);
+
+  // Data sources for this viewer
+  const dataSources = useMemo(() => [
+    {
+      name: "Workflow Definitions",
+      path: `${domainPath}/all_workflows.json`,
+      description: "All workflow definitions from VAL",
+    },
+    {
+      name: "Workflow Health Results",
+      path: `${domainPath}/workflow-health-results.json`,
+      description: "Workflow health analysis and execution history",
+    },
+    {
+      name: "Workflow Executions",
+      path: `${domainPath}/monitoring/${monitoringDate}/workflow_executions_${monitoringDate}.json`,
+      description: `Execution logs for ${monitoringDate}`,
+    },
+  ], [domainPath, monitoringDate]);
+
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <Loader2 className="w-5 h-5 animate-spin text-zinc-500 mr-2" />
         <span className="text-zinc-500">Loading schedule data...</span>
       </div>
@@ -77,7 +85,7 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="h-full flex items-center justify-center">
         <div className="text-red-400 flex items-center gap-2">
           <AlertTriangle size={16} />
           <span>{error}</span>
@@ -87,50 +95,41 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Tabs */}
-      <div className="border-b border-zinc-800 flex">
-        <TabButton active={activeTab === "schedule"} onClick={() => setActiveTab("schedule")}>
-          Schedule
-        </TabButton>
-        <TabButton active={activeTab === "datasources"} onClick={() => setActiveTab("datasources")}>
-          Data Sources
-        </TabButton>
-      </div>
-
-      {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto">
-        {activeTab === "schedule" && workflows && (
-          <ScheduleTab
-            workflows={workflows.workflows}
-            domainName={domainName}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            monitoringDate={monitoringDate}
-            setMonitoringDate={setMonitoringDate}
-          />
-        )}
-        {activeTab === "schedule" && !workflows && (
-          <div className="p-6 text-zinc-500">
-            No workflow data available. Run workflow health check to generate schedule data.
-          </div>
-        )}
-        {activeTab === "datasources" && (
-          <DataSourcesTab domainPath={domainPath} currentDate={monitoringDate} />
-        )}
-      </div>
-    </div>
+    <ViewerLayout
+      title={`${domainName} Schedule`}
+      subtitle="Workflow schedules and execution times"
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={(id) => setActiveTab(id as TabType)}
+    >
+      {activeTab === "schedule" && workflows && (
+        <ScheduleTab
+          workflows={workflows.workflows}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          monitoringDate={monitoringDate}
+          setMonitoringDate={setMonitoringDate}
+        />
+      )}
+      {activeTab === "schedule" && !workflows && (
+        <div className="p-6 text-zinc-500">
+          No workflow data available. Run workflow health check to generate schedule data.
+        </div>
+      )}
+      {activeTab === "sources" && (
+        <DataSourcesTab sources={dataSources} basePath={domainPath} />
+      )}
+    </ViewerLayout>
   );
 }
 
 // Schedule Tab
 function ScheduleTab({
   workflows,
-  domainName,
   statusFilter,
   setStatusFilter,
   searchQuery,
@@ -141,7 +140,6 @@ function ScheduleTab({
   setMonitoringDate,
 }: {
   workflows: WorkflowHealth[];
-  domainName: string;
   statusFilter: StatusFilter;
   setStatusFilter: (f: StatusFilter) => void;
   searchQuery: string;
@@ -225,17 +223,9 @@ function ScheduleTab({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header Section */}
+      {/* Controls Section */}
       <div className="p-4 border-b border-zinc-800">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-              <Clock size={20} className="text-teal-400" />
-              Workflow Schedules
-            </h2>
-            <p className="text-sm text-zinc-500 mt-0.5">{domainName} workflows</p>
-          </div>
-
           {/* Date Navigator */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 py-1">
@@ -505,103 +495,6 @@ function TimelineView({ workflows }: { workflows: WorkflowHealth[] }) {
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-// Data Sources Tab
-function DataSourcesTab({ domainPath, currentDate }: { domainPath: string; currentDate: string }) {
-  const dataSourceFiles = [
-    { name: "all_workflows.json", icon: Play, description: "All workflow definitions", category: "Definitions" },
-    { name: "workflow-health-results.json", icon: CheckCircle2, description: "Workflow health analysis", category: "Health" },
-  ];
-
-  const monitoringFiles = [
-    { name: `workflow_executions_${currentDate}.json`, icon: Play, description: "Workflow execution logs", folder: `monitoring/${currentDate}` },
-  ];
-
-  return (
-    <div className="p-4 space-y-6">
-      {/* Domain Info */}
-      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-4">
-        <div className="flex items-center gap-3 mb-3">
-          <FolderOpen size={18} className="text-teal-400" />
-          <div>
-            <h3 className="text-sm font-medium text-zinc-200">Domain Path</h3>
-            <code className="text-xs text-zinc-500 font-mono">{domainPath}</code>
-          </div>
-        </div>
-      </div>
-
-      {/* Definition Files */}
-      <div>
-        <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
-          <FileJson size={14} />
-          Definition Files
-        </h3>
-        <div className="space-y-2">
-          {dataSourceFiles.filter((f) => f.category === "Definitions").map((file) => (
-            <DataSourceCard key={file.name} file={file} basePath={domainPath} />
-          ))}
-        </div>
-      </div>
-
-      {/* Health Files */}
-      <div>
-        <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
-          <CheckCircle2 size={14} />
-          Health Analysis Files
-        </h3>
-        <div className="space-y-2">
-          {dataSourceFiles.filter((f) => f.category === "Health").map((file) => (
-            <DataSourceCard key={file.name} file={file} basePath={domainPath} />
-          ))}
-        </div>
-      </div>
-
-      {/* Monitoring Files */}
-      <div>
-        <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
-          <Clock size={14} />
-          Monitoring Files ({currentDate})
-        </h3>
-        <div className="space-y-2">
-          {monitoringFiles.map((file) => (
-            <div key={file.name} className="bg-zinc-900 rounded-lg p-4 hover:bg-zinc-800/80 transition-colors">
-              <div className="flex items-center gap-3">
-                <file.icon size={18} className="text-teal-400" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-zinc-200">{file.name}</p>
-                  <p className="text-xs text-zinc-500">{file.description}</p>
-                </div>
-                <span className="text-xs text-zinc-600 font-mono">{file.folder}/</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Data source card
-function DataSourceCard({
-  file,
-  basePath,
-}: {
-  file: { name: string; icon: any; description: string };
-  basePath: string;
-}) {
-  return (
-    <div className="bg-zinc-900 rounded-lg p-4 hover:bg-zinc-800/80 transition-colors">
-      <div className="flex items-center gap-3">
-        <file.icon size={18} className="text-teal-400" />
-        <div className="flex-1">
-          <p className="text-sm font-medium text-zinc-200">{file.name}</p>
-          <p className="text-xs text-zinc-500">{file.description}</p>
-        </div>
-        <span className="text-xs text-zinc-600 font-mono truncate max-w-[200px]">{basePath}/</span>
       </div>
     </div>
   );

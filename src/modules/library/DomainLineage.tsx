@@ -1,9 +1,18 @@
 // src/modules/library/DomainLineage.tsx
 // Lineage view showing table dependencies and workflow relationships
 
-import { useState } from "react";
-import { GitBranch, Database, Workflow, Search, ChevronRight, ChevronDown } from "lucide-react";
+import { useState, useMemo } from "react";
+import {
+  GitBranch,
+  Database,
+  Workflow,
+  Search,
+  ChevronRight,
+  ChevronDown,
+  FolderOpen,
+} from "lucide-react";
 import { useDomainData, TableHealth } from "../../hooks/useDomainData";
+import { ViewerLayout, ViewerTab, DataSourcesTab } from "./ViewerLayout";
 import { cn } from "../../lib/cn";
 
 interface DomainLineageProps {
@@ -11,14 +20,64 @@ interface DomainLineageProps {
   domainName: string;
 }
 
+type TabType = "lineage" | "sources";
+
 export function DomainLineage({ domainPath, domainName }: DomainLineageProps) {
   const { health, loading, error } = useDomainData(domainPath);
+  const [activeTab, setActiveTab] = useState<TabType>("lineage");
   const [search, setSearch] = useState("");
   const [selectedTable, setSelectedTable] = useState<TableHealth | null>(null);
 
+  // Filter tables with dependencies
+  const tablesWithDeps = health?.tables.filter((t) => t.dependencies.length > 0) ?? [];
+
+  // Define tabs
+  const tabs: ViewerTab[] = useMemo(
+    () => [
+      {
+        id: "lineage",
+        label: "Lineage",
+        icon: <GitBranch size={14} />,
+        count: tablesWithDeps.length,
+      },
+      {
+        id: "sources",
+        label: "Data Sources",
+        icon: <FolderOpen size={14} />,
+      },
+    ],
+    [tablesWithDeps.length]
+  );
+
+  // Data sources for this viewer
+  const dataSources = useMemo(
+    () => [
+      {
+        name: "Data Model Health",
+        path: `${domainPath}/health-check-results.json`,
+        description: "Table freshness, dependencies, and row counts",
+      },
+    ],
+    [domainPath]
+  );
+
+  // Search filter actions
+  const filtersUI = activeTab === "lineage" && (
+    <div className="relative">
+      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+      <input
+        type="text"
+        placeholder="Search tables..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-48 bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+      />
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="animate-pulse text-zinc-500">Loading lineage data...</div>
       </div>
     );
@@ -26,7 +85,7 @@ export function DomainLineage({ domainPath, domainName }: DomainLineageProps) {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="h-full flex items-center justify-center">
         <div className="text-red-400 flex items-center gap-2">
           <GitBranch size={16} />
           <span>{error}</span>
@@ -37,14 +96,11 @@ export function DomainLineage({ domainPath, domainName }: DomainLineageProps) {
 
   if (!health) {
     return (
-      <div className="p-6 text-zinc-500">
+      <div className="h-full flex items-center justify-center text-zinc-500">
         No lineage data available. Run health check with dependency scanning enabled.
       </div>
     );
   }
-
-  // Filter tables with dependencies
-  const tablesWithDeps = health.tables.filter((t) => t.dependencies.length > 0);
 
   // Filter by search
   const filteredTables = tablesWithDeps.filter(
@@ -57,57 +113,56 @@ export function DomainLineage({ domainPath, domainName }: DomainLineageProps) {
   const groupedBySpace = groupTablesBySpace(filteredTables);
 
   return (
-    <div className="h-full flex">
-      {/* Table list */}
-      <div className="w-80 border-r border-zinc-800 flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-zinc-800">
-          <h2 className="text-lg font-semibold text-zinc-100">{domainName} Lineage</h2>
-          <p className="text-xs text-zinc-500 mt-1">
-            {tablesWithDeps.length} tables with dependencies
-          </p>
+    <ViewerLayout
+      title={`${domainName} Lineage`}
+      subtitle="Table dependencies and workflow relationships"
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={(id) => setActiveTab(id as TabType)}
+      actions={filtersUI}
+    >
+      {activeTab === "lineage" && (
+        <div className="h-full flex">
+          {/* Table list */}
+          <div className="w-80 border-r border-zinc-800 flex flex-col overflow-hidden">
+            <div className="px-4 py-2 border-b border-zinc-800 text-xs text-zinc-500">
+              {tablesWithDeps.length} tables with dependencies
+            </div>
 
-          {/* Search */}
-          <div className="relative mt-3">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input
-              type="text"
-              placeholder="Search tables..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
-            />
-          </div>
-        </div>
-
-        {/* Table list */}
-        <div className="flex-1 overflow-y-auto">
-          {Object.entries(groupedBySpace).map(([space, tables]) => (
-            <SpaceGroup
-              key={space}
-              space={space}
-              tables={tables}
-              selectedTable={selectedTable}
-              onSelectTable={setSelectedTable}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Dependency detail */}
-      <div className="flex-1 overflow-y-auto">
-        {selectedTable ? (
-          <TableDependencyDetail table={selectedTable} />
-        ) : (
-          <div className="h-full flex items-center justify-center text-zinc-500">
-            <div className="text-center">
-              <GitBranch size={32} className="mx-auto mb-2 opacity-50" />
-              <p>Select a table to view its dependencies</p>
+            {/* Table list */}
+            <div className="flex-1 overflow-y-auto">
+              {Object.entries(groupedBySpace).map(([space, tables]) => (
+                <SpaceGroup
+                  key={space}
+                  space={space}
+                  tables={tables}
+                  selectedTable={selectedTable}
+                  onSelectTable={setSelectedTable}
+                />
+              ))}
             </div>
           </div>
-        )}
-      </div>
-    </div>
+
+          {/* Dependency detail */}
+          <div className="flex-1 overflow-y-auto">
+            {selectedTable ? (
+              <TableDependencyDetail table={selectedTable} />
+            ) : (
+              <div className="h-full flex items-center justify-center text-zinc-500">
+                <div className="text-center">
+                  <GitBranch size={32} className="mx-auto mb-2 opacity-50" />
+                  <p>Select a table to view its dependencies</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "sources" && (
+        <DataSourcesTab sources={dataSources} basePath={domainPath} />
+      )}
+    </ViewerLayout>
   );
 }
 

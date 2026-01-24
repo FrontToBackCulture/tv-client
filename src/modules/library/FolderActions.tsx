@@ -21,6 +21,7 @@ import {
   Table,
   Eye,
   Code,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { FolderType } from "../../lib/folderTypes";
@@ -31,8 +32,8 @@ export interface FolderActionHandlers {
   onLineage?: () => void;
   onSchedule?: () => void;
   onHealth?: () => void;
+  onAudit?: () => void;
   onUsage?: () => void;
-  onClaudeMd?: () => void;
   // Domain root actions
   onSyncReport?: () => void;
   onAllSchedules?: () => void;
@@ -143,16 +144,22 @@ export function FolderActions({ folderType, handlers, activeAction }: FolderActi
               isActive={activeAction === "health"}
             />
             <ActionButton
+              icon={<ClipboardCheck size={16} />}
+              title="Artifact Audit"
+              onClick={handlers.onAudit}
+              isActive={activeAction === "audit"}
+            />
+            <ActionButton
+              icon={<TrendingUp size={16} />}
+              title="VAL Usage"
+              onClick={handlers.onUsage}
+              isActive={activeAction === "usage"}
+            />
+            <ActionButton
               icon={<Table size={16} />}
               title="SOD Tables"
               onClick={handlers.onSODStatus}
               isActive={activeAction === "sod-status"}
-            />
-            <ActionButton
-              icon={<Sparkles size={16} />}
-              title="AI Config (CLAUDE.md)"
-              onClick={handlers.onClaudeMd}
-              isActive={activeAction === "claude-md"}
             />
           </>
         );
@@ -183,20 +190,12 @@ export function FolderActions({ folderType, handlers, activeAction }: FolderActi
 
       case "data-models":
         return (
-          <>
-            <ActionButton
-              icon={<Table size={16} />}
-              title="Tables List"
-              onClick={handlers.onTablesList}
-              isActive={activeAction === "tables-list"}
-            />
-            <ActionButton
-              icon={<Activity size={16} />}
-              title="Tables Health"
-              onClick={handlers.onTablesHealth}
-              isActive={activeAction === "tables-health"}
-            />
-          </>
+          <ActionButton
+            icon={<Table size={16} />}
+            title="Tables List"
+            onClick={handlers.onTablesList}
+            isActive={activeAction === "tables-list"}
+          />
         );
 
       case "table":
