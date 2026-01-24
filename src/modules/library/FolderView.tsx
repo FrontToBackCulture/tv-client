@@ -364,7 +364,7 @@ export function FolderView({
           onLineage: () => setViewMode("lineage"),
           onSchedule: () => setViewMode("schedule"),
           onHealth: () => setViewMode("health"),
-          onUsage: createHandler("VAL Usage"),
+          onSODStatus: () => setViewMode("sod-status"),
           onClaudeMd: () => {
             // Try to open CLAUDE.md in the domain folder
             const claudeMdPath = `${path}/CLAUDE.md`;

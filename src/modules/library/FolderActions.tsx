@@ -143,10 +143,10 @@ export function FolderActions({ folderType, handlers, activeAction }: FolderActi
               isActive={activeAction === "health"}
             />
             <ActionButton
-              icon={<TrendingUp size={16} />}
-              title="Usage"
-              onClick={handlers.onUsage}
-              isActive={activeAction === "usage"}
+              icon={<Table size={16} />}
+              title="SOD Tables"
+              onClick={handlers.onSODStatus}
+              isActive={activeAction === "sod-status"}
             />
             <ActionButton
               icon={<Sparkles size={16} />}

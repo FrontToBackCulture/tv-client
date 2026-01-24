@@ -273,10 +273,19 @@ export function SODTableStatus({ basePath }: SODTableStatusProps) {
   const [activeTab, setActiveTab] = useState<TabMode>("report");
 
   // Determine the production path
+  // Handle both domain-root (/production) and single domain (/production/abaavo) paths
   const productionPath = useMemo(() => {
     if (basePath.endsWith("/production")) {
+      // Already at production root
       return basePath;
     }
+    // Check if we're inside a domain folder under production
+    const productionIndex = basePath.indexOf("/production/");
+    if (productionIndex !== -1) {
+      // Extract path up to and including /production
+      return basePath.substring(0, productionIndex + "/production".length);
+    }
+    // Fallback: append /production
     return `${basePath}/production`;
   }, [basePath]);
 
