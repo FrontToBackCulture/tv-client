@@ -1,5 +1,5 @@
 // src/modules/library/DomainSchedule.tsx
-// Schedule view showing workflow schedules and execution times
+// Schedule view showing workflow schedules, SOD status, and execution times
 
 import { useState, useMemo } from "react";
 import {
@@ -19,7 +19,11 @@ import {
   Database,
   FileJson,
   Play,
+  FolderOpen,
+  FileText,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { useQuery } from "@tanstack/react-query";
 import { useDomainData, WorkflowHealth } from "../../hooks/useDomainData";
 import { cn } from "../../lib/cn";
 
@@ -28,9 +32,21 @@ interface DomainScheduleProps {
   domainName: string;
 }
 
-type TabType = "overview" | "history" | "datasources";
+type TabType = "overview" | "sod" | "history" | "datasources";
 type StatusFilter = "all" | "completed" | "failed" | "warning" | "healthy";
 type ViewMode = "list" | "timeline";
+
+// SOD Table Entry type
+interface SODTableEntry {
+  table_name: string;
+  table_id: string;
+  status: string;
+  queued: string;
+  started: string | null;
+  completed: string | null;
+  errored: string | null;
+  error_message: string | null;
+}
 
 // Tab button component
 function TabButton({
@@ -87,20 +103,15 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
     );
   }
 
-  if (!workflows) {
-    return (
-      <div className="p-6 text-zinc-500">
-        No workflow data available. Run workflow health check to generate schedule data.
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col">
       {/* Tabs */}
       <div className="border-b border-zinc-800 flex">
         <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>
-          Overview
+          Workflows
+        </TabButton>
+        <TabButton active={activeTab === "sod"} onClick={() => setActiveTab("sod")}>
+          SOD Tables
         </TabButton>
         <TabButton active={activeTab === "history"} onClick={() => setActiveTab("history")}>
           History
@@ -112,7 +123,7 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto">
-        {activeTab === "overview" && (
+        {activeTab === "overview" && workflows && (
           <ScheduleOverviewTab
             workflows={workflows.workflows}
             domainName={domainName}
@@ -126,15 +137,419 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
             setMonitoringDate={setMonitoringDate}
           />
         )}
+        {activeTab === "overview" && !workflows && (
+          <div className="p-6 text-zinc-500">
+            No workflow data available. Run workflow health check to generate schedule data.
+          </div>
+        )}
+        {activeTab === "sod" && (
+          <SODTableTab
+            domainPath={domainPath}
+            domainName={domainName}
+            currentDate={monitoringDate}
+            setCurrentDate={setMonitoringDate}
+          />
+        )}
         {activeTab === "history" && (
           <ScheduleHistoryTab syncMetadata={syncMetadata} />
         )}
         {activeTab === "datasources" && (
-          <DataSourcesTab domainPath={domainPath} />
+          <DataSourcesTab domainPath={domainPath} currentDate={monitoringDate} />
         )}
       </div>
     </div>
   );
+}
+
+// SOD Table Tab
+function SODTableTab({
+  domainPath,
+  domainName,
+  currentDate,
+  setCurrentDate,
+}: {
+  domainPath: string;
+  domainName: string;
+  currentDate: string;
+  setCurrentDate: (d: string) => void;
+}) {
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Load SOD status data
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["sod-status-domain", domainPath, currentDate],
+    queryFn: async () => {
+      const sodFilePath = `${domainPath}/monitoring/${currentDate}/sod_tables_status_${currentDate}.json`;
+      try {
+        const content = await invoke<string>("read_file", { path: sodFilePath });
+        const parsed = JSON.parse(content);
+
+        if (parsed.data && Array.isArray(parsed.data)) {
+          const tables: SODTableEntry[] = parsed.data;
+          const summary = {
+            total: tables.length,
+            completed: tables.filter((t) => t.status.toLowerCase() === "completed").length,
+            pending: tables.filter((t) =>
+              t.status.toLowerCase() === "pending" || t.status.toLowerCase() === "pending sod"
+            ).length,
+            started: tables.filter((t) => t.status.toLowerCase() === "started").length,
+            errored: tables.filter((t) => t.status.toLowerCase() === "errored").length,
+          };
+          return { tables, summary };
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  // Date navigation
+  const isToday = currentDate === new Date().toISOString().split("T")[0];
+
+  const goToPreviousDay = () => {
+    const current = new Date(currentDate);
+    current.setDate(current.getDate() - 1);
+    setCurrentDate(current.toISOString().split("T")[0]);
+  };
+
+  const goToNextDay = () => {
+    const current = new Date(currentDate);
+    const today = new Date().toISOString().split("T")[0];
+    current.setDate(current.getDate() + 1);
+    const nextDate = current.toISOString().split("T")[0];
+    if (nextDate <= today) {
+      setCurrentDate(nextDate);
+    }
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date().toISOString().split("T")[0]);
+  };
+
+  const formatMonitoringDate = (dateStr: string) => {
+    const date = new Date(dateStr + "T00:00:00");
+    return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  };
+
+  // Filtered tables
+  const filteredTables = useMemo(() => {
+    if (!data?.tables) return [];
+
+    let tables = [...data.tables];
+
+    // Status filter
+    if (filterStatus !== "all") {
+      tables = tables.filter((t) => {
+        const s = t.status.toLowerCase();
+        if (filterStatus === "completed") return s === "completed";
+        if (filterStatus === "pending") return s === "pending" || s === "pending sod";
+        if (filterStatus === "started") return s === "started";
+        if (filterStatus === "errored") return s === "errored";
+        return true;
+      });
+    }
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      tables = tables.filter(
+        (t) =>
+          t.table_name.toLowerCase().includes(query) ||
+          t.table_id.toLowerCase().includes(query)
+      );
+    }
+
+    return tables;
+  }, [data, filterStatus, searchQuery]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <Loader2 size={24} className="text-zinc-500 animate-spin mr-2" />
+        <span className="text-zinc-500">Loading SOD status...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="p-4 border-b border-zinc-800">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
+              <Database size={20} className="text-teal-400" />
+              SOD Table Status
+            </h2>
+            <p className="text-sm text-zinc-500 mt-0.5">{domainName} - Start of Day calculations</p>
+          </div>
+
+          {/* Date Navigator */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 py-1">
+              <button
+                onClick={goToPreviousDay}
+                className="p-1 hover:bg-zinc-700 rounded transition-colors"
+                title="Previous day"
+              >
+                <ChevronLeft size={16} className="text-zinc-400" />
+              </button>
+              <div className="flex items-center gap-2 px-2">
+                <Calendar size={14} className="text-zinc-500" />
+                <span className="text-sm font-medium text-zinc-300 min-w-[100px] text-center">
+                  {formatMonitoringDate(currentDate)}
+                </span>
+                {isToday && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-400/10 text-green-400 rounded">
+                    Today
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={goToNextDay}
+                disabled={isToday}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  isToday ? "text-zinc-600 cursor-not-allowed" : "hover:bg-zinc-700 text-zinc-400"
+                )}
+                title={isToday ? "Already on today" : "Next day"}
+              >
+                <ChevronRight size={16} />
+              </button>
+              {!isToday && (
+                <button
+                  onClick={goToToday}
+                  className="ml-1 px-2 py-0.5 text-xs font-medium text-teal-400 hover:bg-teal-400/10 rounded transition-colors"
+                  title="Go to today"
+                >
+                  Today
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => refetch()}
+              className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300 transition-colors"
+            >
+              <RefreshCw size={14} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Stats Row */}
+        {data && (
+          <div className="grid grid-cols-5 gap-2 mb-4">
+            <SODStatCard
+              label="Total"
+              value={data.summary.total}
+              active={filterStatus === "all"}
+              onClick={() => setFilterStatus("all")}
+              color="zinc"
+            />
+            <SODStatCard
+              label="Completed"
+              value={data.summary.completed}
+              active={filterStatus === "completed"}
+              onClick={() => setFilterStatus(filterStatus === "completed" ? "all" : "completed")}
+              color="green"
+            />
+            <SODStatCard
+              label="Pending"
+              value={data.summary.pending}
+              active={filterStatus === "pending"}
+              onClick={() => setFilterStatus(filterStatus === "pending" ? "all" : "pending")}
+              color="zinc"
+            />
+            <SODStatCard
+              label="In Progress"
+              value={data.summary.started}
+              active={filterStatus === "started"}
+              onClick={() => setFilterStatus(filterStatus === "started" ? "all" : "started")}
+              color="teal"
+            />
+            <SODStatCard
+              label="Errored"
+              value={data.summary.errored}
+              active={filterStatus === "errored"}
+              onClick={() => setFilterStatus(filterStatus === "errored" ? "all" : "errored")}
+              color="red"
+            />
+          </div>
+        )}
+
+        {/* Search */}
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input
+            type="text"
+            placeholder="Search tables..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {!data ? (
+          <div className="text-center py-12 bg-zinc-900 rounded-xl border border-zinc-800">
+            <Database size={32} className="mx-auto mb-3 text-zinc-600" />
+            <p className="text-sm text-zinc-500">No SOD data for {formatMonitoringDate(currentDate)}</p>
+            <p className="text-xs text-zinc-600 mt-1">
+              SOD tables may not be enabled for this domain or date.
+            </p>
+          </div>
+        ) : filteredTables.length === 0 ? (
+          <div className="text-center py-12 bg-zinc-900 rounded-xl border border-zinc-800">
+            <Search size={32} className="mx-auto mb-3 text-zinc-600" />
+            <p className="text-sm text-zinc-500">No tables match your filters</p>
+          </div>
+        ) : (
+          <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-zinc-800 bg-zinc-800/50">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Table Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Queued</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Started</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Completed</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Error</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {filteredTables.map((table, idx) => (
+                  <tr key={`${table.table_id}-${idx}`} className="hover:bg-zinc-800/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className="text-sm text-zinc-200 font-medium">{table.table_name}</span>
+                      <div className="text-xs text-zinc-500">{table.table_id}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <SODStatusBadge status={table.status} />
+                    </td>
+                    <td className="px-4 py-3 text-sm text-zinc-400">{formatTime(table.queued)}</td>
+                    <td className="px-4 py-3 text-sm text-zinc-400">{formatTime(table.started)}</td>
+                    <td className="px-4 py-3 text-sm text-zinc-400">{formatTime(table.completed)}</td>
+                    <td className="px-4 py-3 text-sm text-red-400 max-w-xs truncate" title={table.error_message || ""}>
+                      {table.error_message || "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// SOD Stat Card
+function SODStatCard({
+  label,
+  value,
+  active,
+  onClick,
+  color,
+}: {
+  label: string;
+  value: number;
+  active: boolean;
+  onClick: () => void;
+  color: "zinc" | "teal" | "green" | "red";
+}) {
+  const colors = {
+    zinc: {
+      bg: active ? "bg-zinc-700 ring-2 ring-zinc-500" : "bg-zinc-800 hover:bg-zinc-700",
+      text: "text-zinc-100",
+      label: "text-zinc-400",
+    },
+    teal: {
+      bg: active ? "bg-teal-400/20 ring-2 ring-teal-500" : "bg-teal-400/10 hover:bg-teal-400/15",
+      text: "text-teal-400",
+      label: "text-teal-400/70",
+    },
+    green: {
+      bg: active ? "bg-green-400/20 ring-2 ring-green-500" : "bg-green-400/10 hover:bg-green-400/15",
+      text: "text-green-400",
+      label: "text-green-400/70",
+    },
+    red: {
+      bg: active ? "bg-red-400/20 ring-2 ring-red-500" : "bg-red-400/10 hover:bg-red-400/15",
+      text: "text-red-400",
+      label: "text-red-400/70",
+    },
+  };
+
+  const c = colors[color];
+
+  return (
+    <button onClick={onClick} className={cn("rounded-lg p-3 text-center cursor-pointer transition-all", c.bg)}>
+      <div className={cn("text-2xl font-bold", c.text)}>{value}</div>
+      <div className={cn("text-xs", c.label)}>{label}</div>
+    </button>
+  );
+}
+
+// SOD Status Badge
+function SODStatusBadge({ status }: { status: string }) {
+  const lowerStatus = status.toLowerCase();
+
+  if (lowerStatus === "completed") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-400/10 text-green-400">
+        <CheckCircle2 size={12} />
+        Completed
+      </span>
+    );
+  }
+
+  if (lowerStatus === "started") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-teal-400/10 text-teal-400">
+        <Loader2 size={12} className="animate-spin" />
+        In Progress
+      </span>
+    );
+  }
+
+  if (lowerStatus === "errored") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-400/10 text-red-400">
+        <XCircle size={12} />
+        Errored
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-700 text-zinc-400">
+      <Clock size={12} />
+      Pending
+    </span>
+  );
+}
+
+// Format time helper
+function formatTime(timestamp: string | null): string {
+  if (!timestamp) return "-";
+  try {
+    const parts = timestamp.split(" ");
+    if (parts.length === 2) {
+      const timeParts = parts[1].split(":");
+      if (timeParts.length >= 2) {
+        return `${timeParts[0]}:${timeParts[1]}`;
+      }
+    }
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  } catch {
+    return "-";
+  }
 }
 
 // Schedule Overview Tab
@@ -272,9 +687,7 @@ function ScheduleOverviewTab({
                 disabled={isToday}
                 className={cn(
                   "p-1 rounded transition-colors",
-                  isToday
-                    ? "text-zinc-600 cursor-not-allowed"
-                    : "hover:bg-zinc-700 text-zinc-400"
+                  isToday ? "text-zinc-600 cursor-not-allowed" : "hover:bg-zinc-700 text-zinc-400"
                 )}
                 title={isToday ? "Already on today" : "Next day"}
               >
@@ -297,9 +710,7 @@ function ScheduleOverviewTab({
                 onClick={() => setViewMode("list")}
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded transition-colors",
-                  viewMode === "list"
-                    ? "bg-zinc-700 text-teal-400"
-                    : "text-zinc-400 hover:text-zinc-200"
+                  viewMode === "list" ? "bg-zinc-700 text-teal-400" : "text-zinc-400 hover:text-zinc-200"
                 )}
                 title="List View"
               >
@@ -310,9 +721,7 @@ function ScheduleOverviewTab({
                 onClick={() => setViewMode("timeline")}
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded transition-colors",
-                  viewMode === "timeline"
-                    ? "bg-zinc-700 text-teal-400"
-                    : "text-zinc-400 hover:text-zinc-200"
+                  viewMode === "timeline" ? "bg-zinc-700 text-teal-400" : "text-zinc-400 hover:text-zinc-200"
                 )}
                 title="Timeline View"
               >
@@ -325,41 +734,11 @@ function ScheduleOverviewTab({
 
         {/* Stats Row */}
         <div className="grid grid-cols-5 gap-2 mb-4">
-          <StatCard
-            label="Total"
-            value={stats.total}
-            active={statusFilter === "all"}
-            onClick={() => setStatusFilter("all")}
-            color="zinc"
-          />
-          <StatCard
-            label="Scheduled"
-            value={stats.scheduled}
-            active={false}
-            onClick={() => {}}
-            color="teal"
-          />
-          <StatCard
-            label="Healthy"
-            value={stats.healthy}
-            active={statusFilter === "healthy"}
-            onClick={() => setStatusFilter(statusFilter === "healthy" ? "all" : "healthy")}
-            color="green"
-          />
-          <StatCard
-            label="Warning"
-            value={stats.warning}
-            active={statusFilter === "warning"}
-            onClick={() => setStatusFilter(statusFilter === "warning" ? "all" : "warning")}
-            color="yellow"
-          />
-          <StatCard
-            label="Failed"
-            value={stats.critical}
-            active={statusFilter === "failed"}
-            onClick={() => setStatusFilter(statusFilter === "failed" ? "all" : "failed")}
-            color="red"
-          />
+          <StatCard label="Total" value={stats.total} active={statusFilter === "all"} onClick={() => setStatusFilter("all")} color="zinc" />
+          <StatCard label="Scheduled" value={stats.scheduled} active={false} onClick={() => {}} color="teal" />
+          <StatCard label="Healthy" value={stats.healthy} active={statusFilter === "healthy"} onClick={() => setStatusFilter(statusFilter === "healthy" ? "all" : "healthy")} color="green" />
+          <StatCard label="Warning" value={stats.warning} active={statusFilter === "warning"} onClick={() => setStatusFilter(statusFilter === "warning" ? "all" : "warning")} color="yellow" />
+          <StatCard label="Failed" value={stats.critical} active={statusFilter === "failed"} onClick={() => setStatusFilter(statusFilter === "failed" ? "all" : "failed")} color="red" />
         </div>
 
         {/* Search */}
@@ -410,43 +789,17 @@ function StatCard({
   color: "zinc" | "teal" | "green" | "yellow" | "red";
 }) {
   const colors = {
-    zinc: {
-      bg: active ? "bg-zinc-700 ring-2 ring-zinc-500" : "bg-zinc-800 hover:bg-zinc-700",
-      text: "text-zinc-100",
-      label: "text-zinc-400",
-    },
-    teal: {
-      bg: "bg-teal-400/10",
-      text: "text-teal-400",
-      label: "text-teal-400/70",
-    },
-    green: {
-      bg: active ? "bg-green-400/20 ring-2 ring-green-500" : "bg-green-400/10 hover:bg-green-400/15",
-      text: "text-green-400",
-      label: "text-green-400/70",
-    },
-    yellow: {
-      bg: active ? "bg-yellow-400/20 ring-2 ring-yellow-500" : "bg-yellow-400/10 hover:bg-yellow-400/15",
-      text: "text-yellow-400",
-      label: "text-yellow-400/70",
-    },
-    red: {
-      bg: active ? "bg-red-400/20 ring-2 ring-red-500" : "bg-red-400/10 hover:bg-red-400/15",
-      text: "text-red-400",
-      label: "text-red-400/70",
-    },
+    zinc: { bg: active ? "bg-zinc-700 ring-2 ring-zinc-500" : "bg-zinc-800 hover:bg-zinc-700", text: "text-zinc-100", label: "text-zinc-400" },
+    teal: { bg: "bg-teal-400/10", text: "text-teal-400", label: "text-teal-400/70" },
+    green: { bg: active ? "bg-green-400/20 ring-2 ring-green-500" : "bg-green-400/10 hover:bg-green-400/15", text: "text-green-400", label: "text-green-400/70" },
+    yellow: { bg: active ? "bg-yellow-400/20 ring-2 ring-yellow-500" : "bg-yellow-400/10 hover:bg-yellow-400/15", text: "text-yellow-400", label: "text-yellow-400/70" },
+    red: { bg: active ? "bg-red-400/20 ring-2 ring-red-500" : "bg-red-400/10 hover:bg-red-400/15", text: "text-red-400", label: "text-red-400/70" },
   };
 
   const c = colors[color];
 
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-lg p-3 text-center cursor-pointer transition-all",
-        c.bg
-      )}
-    >
+    <button onClick={onClick} className={cn("rounded-lg p-3 text-center cursor-pointer transition-all", c.bg)}>
       <div className={cn("text-2xl font-bold", c.text)}>{value}</div>
       <div className={cn("text-xs", c.label)}>{label}</div>
     </button>
@@ -465,9 +818,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowHealth }) {
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-zinc-200 truncate">{workflow.name}</p>
             {workflow.isChildWorkflow && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-zinc-700 text-zinc-400 rounded">
-                Child
-              </span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-zinc-700 text-zinc-400 rounded">Child</span>
             )}
           </div>
           {cronInfo && (
@@ -478,12 +829,9 @@ function WorkflowCard({ workflow }: { workflow: WorkflowHealth }) {
             </div>
           )}
         </div>
-
-        {/* Status badge */}
         <StatusBadge level={workflow.health.status.level} />
       </div>
 
-      {/* Stats row */}
       <div className="flex items-center gap-4 mt-3 text-xs text-zinc-400">
         {lastRunDate && (
           <span>
@@ -491,25 +839,18 @@ function WorkflowCard({ workflow }: { workflow: WorkflowHealth }) {
           </span>
         )}
         <span>
-          Success: {workflow.totalExecutions > 0
-            ? Math.round((workflow.successfulExecutions / workflow.totalExecutions) * 100)
-            : 0}%
+          Success: {workflow.totalExecutions > 0 ? Math.round((workflow.successfulExecutions / workflow.totalExecutions) * 100) : 0}%
         </span>
         <span>{workflow.totalExecutions} runs</span>
       </div>
 
-      {/* Issues */}
       {workflow.health.issues.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {workflow.health.issues.slice(0, 2).map((issue, i) => (
-            <span key={i} className="text-[10px] px-1.5 py-0.5 bg-red-400/10 text-red-400 rounded">
-              {issue}
-            </span>
+            <span key={i} className="text-[10px] px-1.5 py-0.5 bg-red-400/10 text-red-400 rounded">{issue}</span>
           ))}
           {workflow.health.issues.length > 2 && (
-            <span className="text-[10px] text-zinc-500">
-              +{workflow.health.issues.length - 2} more
-            </span>
+            <span className="text-[10px] text-zinc-500">+{workflow.health.issues.length - 2} more</span>
           )}
         </div>
       )}
@@ -539,29 +880,23 @@ function StatusBadge({ level }: { level: "healthy" | "warning" | "critical" | "s
 
 // Timeline view component
 function TimelineView({ workflows }: { workflows: WorkflowHealth[] }) {
-  // Generate 24 hour markers
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
   return (
     <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-      {/* Time header */}
       <div className="flex border-b border-zinc-800">
         <div className="w-48 flex-shrink-0 px-3 py-2 text-xs font-medium text-zinc-400 border-r border-zinc-800 bg-zinc-800/50">
           Workflow
         </div>
         <div className="flex-1 flex">
           {hours.map((h) => (
-            <div
-              key={h}
-              className="flex-1 text-center py-2 text-[10px] text-zinc-500 border-r border-zinc-800 last:border-r-0"
-            >
+            <div key={h} className="flex-1 text-center py-2 text-[10px] text-zinc-500 border-r border-zinc-800 last:border-r-0">
               {h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Workflow rows */}
       <div className="divide-y divide-zinc-800">
         {workflows.map((workflow) => {
           const timeInMinutes = getCronTimeInMinutes(workflow.cronExpression);
@@ -603,11 +938,7 @@ function TimelineView({ workflows }: { workflows: WorkflowHealth[] }) {
 // Schedule History Tab
 function ScheduleHistoryTab({ syncMetadata }: { syncMetadata: any }) {
   if (!syncMetadata?.syncHistory?.length) {
-    return (
-      <div className="p-6 text-zinc-500">
-        No sync history available.
-      </div>
-    );
+    return <div className="p-6 text-zinc-500">No sync history available.</div>;
   }
 
   return (
@@ -626,9 +957,7 @@ function ScheduleHistoryTab({ syncMetadata }: { syncMetadata: any }) {
           <tbody className="divide-y divide-zinc-800">
             {syncMetadata.syncHistory.slice(0, 20).map((entry: any, i: number) => (
               <tr key={i} className="hover:bg-zinc-800/50 transition-colors">
-                <td className="px-4 py-3 text-sm text-zinc-300">
-                  {new Date(entry.timestamp).toLocaleDateString()}
-                </td>
+                <td className="px-4 py-3 text-sm text-zinc-300">{new Date(entry.timestamp).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-sm text-zinc-300">{entry.type}</td>
                 <td className="px-4 py-3 text-sm text-zinc-400">
                   {entry.artifactType || entry.extractionType || entry.generationType || "-"}
@@ -658,37 +987,115 @@ function ScheduleHistoryTab({ syncMetadata }: { syncMetadata: any }) {
 }
 
 // Data Sources Tab
-function DataSourcesTab({ domainPath }: { domainPath: string }) {
+function DataSourcesTab({ domainPath, currentDate }: { domainPath: string; currentDate: string }) {
   const dataSourceFiles = [
-    { name: "all_workflows.json", icon: Play, description: "All workflow definitions" },
-    { name: "workflow-health-results.json", icon: CheckCircle2, description: "Workflow health analysis" },
-    { name: "health-check-results.json", icon: Database, description: "Table health analysis" },
-    { name: "sync-metadata.json", icon: RefreshCw, description: "Sync history and metadata" },
-    { name: "all_queries.json", icon: FileJson, description: "Query definitions" },
-    { name: "all_dashboards.json", icon: BarChart3, description: "Dashboard definitions" },
+    { name: "all_workflows.json", icon: Play, description: "All workflow definitions", category: "Definitions" },
+    { name: "all_queries.json", icon: FileJson, description: "Query definitions", category: "Definitions" },
+    { name: "all_dashboards.json", icon: BarChart3, description: "Dashboard definitions", category: "Definitions" },
+    { name: "workflow-health-results.json", icon: CheckCircle2, description: "Workflow health analysis", category: "Health" },
+    { name: "health-check-results.json", icon: Database, description: "Table health analysis", category: "Health" },
+    { name: "sync-metadata.json", icon: RefreshCw, description: "Sync history and metadata", category: "Metadata" },
+  ];
+
+  const monitoringFiles = [
+    { name: `sod_tables_status_${currentDate}.json`, icon: Database, description: "SOD table calculation status", folder: `monitoring/${currentDate}` },
+    { name: `workflow_executions_${currentDate}.json`, icon: Play, description: "Workflow execution logs", folder: `monitoring/${currentDate}` },
   ];
 
   return (
-    <div className="p-4">
-      <h3 className="text-lg font-medium text-zinc-100 mb-4">Data Source Files</h3>
-      <div className="space-y-2">
-        {dataSourceFiles.map((file) => (
-          <div
-            key={file.name}
-            className="bg-zinc-900 rounded-lg p-4 hover:bg-zinc-800/80 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <file.icon size={18} className="text-teal-400" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-zinc-200">{file.name}</p>
-                <p className="text-xs text-zinc-500">{file.description}</p>
-              </div>
-              <span className="text-xs text-zinc-600 font-mono">
-                {domainPath}/{file.name}
-              </span>
-            </div>
+    <div className="p-4 space-y-6">
+      {/* Domain Info */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <FolderOpen size={18} className="text-teal-400" />
+          <div>
+            <h3 className="text-sm font-medium text-zinc-200">Domain Path</h3>
+            <code className="text-xs text-zinc-500 font-mono">{domainPath}</code>
           </div>
-        ))}
+        </div>
+      </div>
+
+      {/* Definition Files */}
+      <div>
+        <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+          <FileJson size={14} />
+          Definition Files
+        </h3>
+        <div className="space-y-2">
+          {dataSourceFiles.filter((f) => f.category === "Definitions").map((file) => (
+            <DataSourceCard key={file.name} file={file} basePath={domainPath} />
+          ))}
+        </div>
+      </div>
+
+      {/* Health Files */}
+      <div>
+        <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+          <CheckCircle2 size={14} />
+          Health Analysis Files
+        </h3>
+        <div className="space-y-2">
+          {dataSourceFiles.filter((f) => f.category === "Health").map((file) => (
+            <DataSourceCard key={file.name} file={file} basePath={domainPath} />
+          ))}
+        </div>
+      </div>
+
+      {/* Monitoring Files */}
+      <div>
+        <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+          <Clock size={14} />
+          Monitoring Files ({currentDate})
+        </h3>
+        <div className="space-y-2">
+          {monitoringFiles.map((file) => (
+            <div key={file.name} className="bg-zinc-900 rounded-lg p-4 hover:bg-zinc-800/80 transition-colors">
+              <div className="flex items-center gap-3">
+                <file.icon size={18} className="text-teal-400" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-zinc-200">{file.name}</p>
+                  <p className="text-xs text-zinc-500">{file.description}</p>
+                </div>
+                <span className="text-xs text-zinc-600 font-mono">{file.folder}/</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Metadata Files */}
+      <div>
+        <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+          <FileText size={14} />
+          Metadata Files
+        </h3>
+        <div className="space-y-2">
+          {dataSourceFiles.filter((f) => f.category === "Metadata").map((file) => (
+            <DataSourceCard key={file.name} file={file} basePath={domainPath} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Data source card
+function DataSourceCard({
+  file,
+  basePath,
+}: {
+  file: { name: string; icon: any; description: string };
+  basePath: string;
+}) {
+  return (
+    <div className="bg-zinc-900 rounded-lg p-4 hover:bg-zinc-800/80 transition-colors">
+      <div className="flex items-center gap-3">
+        <file.icon size={18} className="text-teal-400" />
+        <div className="flex-1">
+          <p className="text-sm font-medium text-zinc-200">{file.name}</p>
+          <p className="text-xs text-zinc-500">{file.description}</p>
+        </div>
+        <span className="text-xs text-zinc-600 font-mono truncate max-w-[200px]">{basePath}/</span>
       </div>
     </div>
   );
