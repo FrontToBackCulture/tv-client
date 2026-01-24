@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
-import { FileText, FileCode, FileJson, Image, Loader2, FolderOpen, MessageCircle, Files, BarChart3, GitBranch, Clock, Activity, X, Database, Workflow, Eye } from "lucide-react";
+import { FileText, FileCode, FileJson, Image, Loader2, FolderOpen, MessageCircle, Files, BarChart3, GitBranch, Clock, Activity, X, Database, Workflow, Eye, TableProperties } from "lucide-react";
 import { useFolderFiles, useFolderEntries, FolderFile, FolderEntry } from "../../hooks/useFolderFiles";
 import { useFavorites } from "../../hooks/useFavorites";
 import { Breadcrumbs } from "./Breadcrumbs";
@@ -561,8 +561,21 @@ export function FolderView({
                       ? "bg-teal-600 text-white"
                       : "text-zinc-500 hover:text-zinc-300"
                   )}
+                  title="Data Health"
                 >
                   <Activity size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("sod-status")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    viewMode === "sod-status"
+                      ? "bg-teal-600 text-white"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                  title="SOD Tables"
+                >
+                  <TableProperties size={14} />
                 </button>
                 <button
                   onClick={() => setViewMode("files")}
