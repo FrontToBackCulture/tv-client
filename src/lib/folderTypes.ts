@@ -80,8 +80,9 @@ export function detectFolderType(path: string): FolderType {
     return "domain";
   }
 
-  // Domain root (e.g., /domains or /domains/production)
-  if (path.match(/\/domains(\/production|\/staging)?$/)) {
+  // Domain root (only /domains itself, not /domains/production or /domains/staging)
+  // Production/staging folders are just containers - no special actions
+  if (path.match(/\/domains$/)) {
     return "domain-root";
   }
 
