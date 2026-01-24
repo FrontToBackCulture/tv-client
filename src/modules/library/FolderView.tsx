@@ -1,7 +1,7 @@
 // src/modules/library/FolderView.tsx
 // Folder view component - shows folder header, recent files, AI chat, and context actions
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { FileText, FileCode, FileJson, Image, Loader2, FolderOpen, MessageCircle, Files, BarChart3, GitBranch, Clock, Activity, X, Database, Workflow, Eye } from "lucide-react";
@@ -246,6 +246,12 @@ export function FolderView({
   const { isFavorite, toggleFavorite } = useFavorites();
 
   const favorite = isFavorite(path);
+
+  // Reset viewMode to files when navigating to a new folder
+  // This prevents stale view states from persisting across navigation
+  useEffect(() => {
+    setViewMode("files");
+  }, [path]);
 
   // Handle toast display
   const showToastMessage = (message: string, type: "success" | "error") => {
