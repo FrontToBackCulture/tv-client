@@ -54,9 +54,8 @@ export function StatusBar() {
       </div>
       <div className="flex-1" />
       <div className="flex items-center gap-4">
-        {/* Background Jobs Indicator */}
-        {hasJobs && (
-          <div className="relative" ref={panelRef}>
+        {/* Background Jobs Indicator - always visible */}
+        <div className="relative" ref={panelRef}>
             <button
               onClick={() => setShowJobsPanel(!showJobsPanel)}
               className={cn(
@@ -73,9 +72,14 @@ export function StatusBar() {
                     {runningJobs.length} job{runningJobs.length > 1 ? "s" : ""} running
                   </span>
                 </>
-              ) : (
+              ) : hasJobs ? (
                 <>
                   <CheckCircle2 size={12} className="text-green-500" />
+                  <span>Jobs</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={12} className="text-zinc-400" />
                   <span>Jobs</span>
                 </>
               )}
@@ -162,7 +166,6 @@ export function StatusBar() {
               </div>
             )}
           </div>
-        )}
 
         <span>⌘K for commands</span>
 
