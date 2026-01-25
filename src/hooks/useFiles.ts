@@ -148,6 +148,22 @@ export function useRenamePath() {
   });
 }
 
+// Load folder children on demand (for lazy-loaded tree nodes)
+export function useFolderChildren(path: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["folderChildren", path],
+    queryFn: async () => {
+      const result = await tauriInvoke<TreeNode>("get_file_tree", {
+        path,
+        max_depth: 1,
+      });
+      return result.children || [];
+    },
+    enabled: !!path && enabled,
+    staleTime: 0, // Always refetch when invalidated
+  });
+}
+
 // Watch directory for changes
 export function useWatchDirectory(
   path: string | undefined,
@@ -167,6 +183,7 @@ export function useWatchDirectory(
     listen<string[]>("file-change", (event) => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["fileTree"] });
+      queryClient.invalidateQueries({ queryKey: ["folderChildren"] });
       queryClient.invalidateQueries({ queryKey: ["directory"] });
 
       // Call callback if provided

@@ -1,6 +1,6 @@
 // src/modules/library/Sidebar.tsx
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Search,
   RefreshCw,
@@ -15,10 +15,11 @@ import {
   ChevronsUpDown,
   ChevronsDownUp,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FileTree } from "./FileTree";
 import { SearchResults } from "./SearchResults";
 import { RepositorySwitcher } from "./RepositorySwitcher";
-import { useFileTree } from "../../hooks/useFiles";
+import { useFileTree, useWatchDirectory } from "../../hooks/useFiles";
 import { useSearch } from "../../hooks/useSearch";
 import { useRecentFiles, RecentFile } from "../../hooks/useRecentFiles";
 import { useFavorites, Favorite } from "../../hooks/useFavorites";
@@ -38,8 +39,20 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onRepositor
   const [showFavorites, setShowFavorites] = useState(true);
   const [showRecent, setShowRecent] = useState(false);
 
+  const queryClient = useQueryClient();
+
   // Load file tree
-  const { data: fileTree, isLoading: treeLoading, refetch } = useFileTree(knowledgePath, 4);
+  const { data: fileTree, isLoading: treeLoading, isFetching } = useFileTree(knowledgePath, 4);
+
+  // Watch for file changes and auto-refresh
+  useWatchDirectory(knowledgePath);
+
+  // Full refresh - invalidates all file-related queries
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["fileTree"] });
+    queryClient.invalidateQueries({ queryKey: ["folderChildren"] });
+    queryClient.invalidateQueries({ queryKey: ["directory"] });
+  }, [queryClient]);
 
   // Search when query is present
   const { results: searchResults, isLoading: searchLoading } = useSearch(
@@ -128,11 +141,11 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onRepositor
               )}
             </div>
             <button
-              onClick={() => refetch()}
+              onClick={handleRefresh}
               className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
               title="Refresh"
             >
-              <RefreshCw size={14} className={cn("text-zinc-500", treeLoading && "animate-spin")} />
+              <RefreshCw size={14} className={cn("text-zinc-500", isFetching && "animate-spin")} />
             </button>
           </div>
         </div>

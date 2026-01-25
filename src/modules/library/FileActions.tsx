@@ -17,6 +17,7 @@ import {
   Presentation,
   Video,
   Globe,
+  FileOutput,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 
@@ -46,18 +47,24 @@ interface FileActionsProps {
   onGenerateImageWithLogo?: () => void;
   onGenerateDeck?: () => void;
   onGenerateVideo?: () => void;
+  onExportPdf?: () => void;
   // Loading states for async actions
   isGeneratingImage?: boolean;
   isGeneratingDeck?: boolean;
   isGeneratingVideo?: boolean;
+  isExportingPdf?: boolean;
 }
 
 // Get file type from path
-function getFileType(path: string): "nanobanana" | "gamma" | "veo" | "markdown" | "other" {
+function getFileType(path: string): "nanobanana" | "gamma" | "veo" | "order-form" | "proposal" | "markdown" | "other" {
   const lowerPath = path.toLowerCase();
   if (lowerPath.endsWith(".nanobanana.json")) return "nanobanana";
   if (lowerPath.endsWith(".gamma.json")) return "gamma";
   if (lowerPath.endsWith(".veo.json")) return "veo";
+  // Check for exportable document files
+  const filename = lowerPath.split("/").pop() || "";
+  if (filename === "order-form-data.md") return "order-form";
+  if (filename === "proposal-data.md") return "proposal";
   if (lowerPath.endsWith(".md") || lowerPath.endsWith(".markdown")) return "markdown";
   return "other";
 }
@@ -76,9 +83,11 @@ export function FileActions({
   onGenerateImageWithLogo,
   onGenerateDeck,
   onGenerateVideo,
+  onExportPdf,
   isGeneratingImage = false,
   isGeneratingDeck = false,
   isGeneratingVideo = false,
+  isExportingPdf = false,
 }: FileActionsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -209,6 +218,21 @@ export function FileActions({
       },
       disabled: isGeneratingVideo,
       loading: isGeneratingVideo,
+      dividerAfter: true,
+    });
+  }
+
+  // Export to PDF for order forms and proposals
+  if ((fileType === "order-form" || fileType === "proposal") && onExportPdf) {
+    items.push({
+      label: isExportingPdf ? "Exporting..." : "Export to PDF",
+      icon: <FileOutput className="w-4 h-4" />,
+      onClick: () => {
+        onExportPdf();
+        setIsOpen(false);
+      },
+      disabled: isExportingPdf,
+      loading: isExportingPdf,
       dividerAfter: true,
     });
   }

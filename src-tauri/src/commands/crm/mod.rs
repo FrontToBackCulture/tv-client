@@ -1,0 +1,14 @@
+// CRM Module
+// Company, contact, deal, and activity management
+
+pub mod types;
+pub mod companies;
+pub mod contacts;
+pub mod deals;
+pub mod activities;
+
+pub use types::*;
+pub use companies::*;
+pub use contacts::*;
+pub use deals::*;
+pub use activities::*;

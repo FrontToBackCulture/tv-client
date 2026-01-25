@@ -1,6 +1,6 @@
 // src/modules/library/FileTree.tsx
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -18,7 +18,7 @@ import {
   Video,
   Presentation,
 } from "lucide-react";
-import { TreeNode } from "../../hooks/useFiles";
+import { TreeNode, useFolderChildren } from "../../hooks/useFiles";
 import { useFavorites } from "../../hooks/useFavorites";
 import { useFolderExpansion } from "../../stores/folderExpansionStore";
 import { cn } from "../../lib/cn";
@@ -171,8 +171,6 @@ function ContextMenu({
 }
 
 export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps) {
-  const [children, setChildren] = useState<TreeNode[] | null>(node.children || null);
-  const [isLoading, setIsLoading] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -180,6 +178,18 @@ export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps)
 
   const isDirectory = node.is_directory;
   const isExpanded = isDirectory ? checkExpanded(node.path) : false;
+
+  // Use node.children if available (from parent query), otherwise load on demand
+  const needsLazyLoad = isDirectory && node.children === null;
+
+  // Only fetch children via query if we need lazy loading AND folder is expanded
+  const { data: lazyChildren, isLoading, isFetching } = useFolderChildren(
+    node.path,
+    needsLazyLoad && isExpanded
+  );
+
+  // Children come from either the node prop or the lazy-loaded query
+  const children = node.children ?? lazyChildren ?? null;
 
   // Register this folder with the expansion store
   useEffect(() => {
@@ -190,33 +200,11 @@ export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps)
 
   const isSelected = selectedPath === node.path;
   const hasChildren = isDirectory && children && children.length > 0;
-  const needsLoad = isDirectory && children === null;
+  const showChevron = isDirectory && (hasChildren || needsLazyLoad);
   const favorite = isFavorite(node.path);
 
-  // Load children on demand
-  const loadChildren = useCallback(async () => {
-    if (!isDirectory || isLoading) return;
-
-    setIsLoading(true);
-    try {
-      const result = await invoke<TreeNode>("get_file_tree", {
-        path: node.path,
-        max_depth: 1,
-      });
-      setChildren(result.children || []);
-    } catch (err) {
-      console.error("Failed to load children:", err);
-      setChildren([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [node.path, isDirectory, isLoading]);
-
-  const handleClick = async () => {
+  const handleClick = () => {
     if (isDirectory) {
-      if (!isExpanded && needsLoad) {
-        await loadChildren();
-      }
       toggleExpanded(node.path);
       // Also select the folder to show FolderView
       onSelect(node.path);
@@ -250,9 +238,9 @@ export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps)
         {/* Expand/collapse chevron for directories */}
         {isDirectory ? (
           <span className="w-4 h-4 flex items-center justify-center">
-            {isLoading ? (
+            {(isLoading || isFetching) ? (
               <Loader2 size={12} className="text-zinc-500 animate-spin" />
-            ) : hasChildren || needsLoad ? (
+            ) : showChevron ? (
               isExpanded ? (
                 <ChevronDown size={12} className="text-zinc-500" />
               ) : (

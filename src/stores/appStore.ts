@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-export type ModuleId = "library" | "work" | "inbox" | "crm" | "console";
+export type ModuleId = "library" | "work" | "inbox" | "crm" | "console" | "settings";
 export type Theme = "light" | "dark";
 
 // Get initial theme from localStorage or system preference

@@ -6,6 +6,7 @@ import {
   Mail,
   Building2,
   Settings,
+  Terminal,
   LucideIcon,
 } from "lucide-react";
 import { cn } from "../lib/cn";
@@ -29,7 +30,12 @@ const navItems: NavItem[] = [
   { id: "work", icon: CheckSquare, label: "Work", shortcut: "⌘2" },
   { id: "crm", icon: Building2, label: "CRM", shortcut: "⌘3" },
   { id: "inbox", icon: Mail, label: "Inbox", shortcut: "⌘4" },
-  { id: "console", icon: Settings, label: "Console", shortcut: "⌘5" },
+  { id: "console", icon: Terminal, label: "Console", shortcut: "⌘5" },
+];
+
+// Bottom items (settings, etc.)
+const bottomItems: NavItem[] = [
+  { id: "settings", icon: Settings, label: "Settings", shortcut: "⌘," },
 ];
 
 export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) {
@@ -56,8 +62,29 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
         );
       })}
 
-      {/* Spacer to push user profile to bottom */}
+      {/* Spacer to push bottom items down */}
       <div className="flex-1" />
+
+      {/* Bottom navigation (settings) */}
+      {bottomItems.map((item) => {
+        const Icon = item.icon;
+        const isActive = activeModule === item.id;
+
+        return (
+          <button
+            key={item.id}
+            onClick={() => onModuleChange(item.id)}
+            className={cn(
+              "w-10 h-10 flex items-center justify-center rounded-lg transition-colors text-zinc-600 dark:text-zinc-400",
+              "hover:bg-slate-200 dark:hover:bg-zinc-800",
+              isActive && "bg-slate-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
+            )}
+            title={`${item.label} (${item.shortcut})`}
+          >
+            <Icon size={20} />
+          </button>
+        );
+      })}
 
       {/* User profile */}
       <UserProfile collapsed />

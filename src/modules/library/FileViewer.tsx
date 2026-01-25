@@ -7,6 +7,7 @@ import { FileText, FileCode, AlertCircle } from "lucide-react";
 import { useReadFile } from "../../hooks/useFiles";
 import { useRecentFiles } from "../../hooks/useRecentFiles";
 import { useFavorites } from "../../hooks/useFavorites";
+import { useJobsStore } from "../../stores/jobsStore";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileActions } from "./FileActions";
@@ -77,6 +78,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const { addRecentFile } = useRecentFiles();
   const { isFavorite, toggleFavorite } = useFavorites();
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Auto-save state for markdown files
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
@@ -160,21 +162,215 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     showToast(favorite ? "Removed from favorites" : "Added to favorites", "success");
   };
 
-  // File-type-specific action handlers (placeholder - API integration needed)
-  const handleGenerateImage = () => {
-    showToast("Image generation coming soon", "success");
+  // Jobs store for background task tracking
+  const addJob = useJobsStore((s) => s.addJob);
+  const updateJob = useJobsStore((s) => s.updateJob);
+
+  // File-type-specific action handlers
+  const handleGenerateImage = async () => {
+    if (isGenerating) return;
+
+    const jobId = `nanobanana-${Date.now()}`;
+    const jobName = `Generate: ${filename}`;
+
+    try {
+      setIsGenerating(true);
+
+      // Add job to monitoring
+      addJob({
+        id: jobId,
+        name: jobName,
+        status: "running",
+        message: "Checking API key...",
+      });
+
+      // Get API key from settings
+      const apiKey = await invoke<string | null>("settings_get_gemini_key");
+      if (!apiKey) {
+        updateJob(jobId, {
+          status: "failed",
+          message: "Gemini API key not set"
+        });
+        showToast("Gemini API key not set. Go to Settings (⌘,) to add it.", "error");
+        return;
+      }
+
+      updateJob(jobId, { message: "Generating image with Gemini..." });
+
+      // Generate image from the file (reads prompt from frontmatter/JSON)
+      const outputPath = await invoke<string>("nanobanana_generate_from_file", {
+        apiKey,
+        filePath: path,
+      });
+
+      const outputFilename = outputPath.split("/").pop();
+      updateJob(jobId, {
+        status: "completed",
+        message: `Saved: ${outputFilename}`
+      });
+      showToast(`Image saved: ${outputFilename}`, "success");
+    } catch (err) {
+      updateJob(jobId, {
+        status: "failed",
+        message: String(err)
+      });
+      showToast(`Generation failed: ${err}`, "error");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  const handleGenerateImageWithLogo = () => {
-    showToast("Image generation with logo coming soon", "success");
+  const handleGenerateImageWithLogo = async () => {
+    // TODO: Implement with reference image support
+    showToast("Image with logo - coming soon", "success");
   };
 
-  const handleGenerateDeck = () => {
-    showToast("Deck generation coming soon", "success");
+  const handleGenerateDeck = async () => {
+    if (isGenerating) return;
+
+    const jobId = `gamma-${Date.now()}`;
+    const jobName = `Deck: ${filename}`;
+
+    try {
+      setIsGenerating(true);
+
+      // Add job to monitoring
+      addJob({
+        id: jobId,
+        name: jobName,
+        status: "running",
+        progress: 0,
+        message: "Checking API key...",
+      });
+
+      // Get API key from settings
+      const apiKey = await invoke<string | null>("settings_get_gamma_key");
+      if (!apiKey) {
+        updateJob(jobId, {
+          status: "failed",
+          message: "Gamma API key not set"
+        });
+        showToast("Gamma API key not set. Go to Settings (⌘,) to add it.", "error");
+        return;
+      }
+
+      updateJob(jobId, { progress: 10, message: "Submitting to Gamma..." });
+
+      // Read file content
+      const fileContent = content || "";
+
+      // Create generation request first
+      const createResult = await invoke<{ generation_id: string }>("gamma_create_generation", {
+        apiKey,
+        inputText: fileContent,
+        options: {
+          format: "presentation",
+          num_cards: 10,
+        },
+      });
+
+      updateJob(jobId, { progress: 20, message: "Processing..." });
+
+      // Poll for status with progress updates
+      let attempts = 0;
+      const maxAttempts = 120; // 10 minutes max
+      let gammaUrl: string | null = null;
+
+      while (attempts < maxAttempts) {
+        const status = await invoke<{ status: string; gamma_url?: string; error_message?: string }>(
+          "gamma_get_status",
+          { apiKey, generationId: createResult.generation_id }
+        );
+
+        // Update progress (20-90% during processing)
+        const progress = Math.min(20 + Math.floor((attempts / maxAttempts) * 70), 90);
+        updateJob(jobId, { progress, message: `Processing... (${status.status})` });
+
+        if (status.status === "completed" && status.gamma_url) {
+          gammaUrl = status.gamma_url;
+          break;
+        } else if (status.status === "failed") {
+          throw new Error(status.error_message || "Generation failed");
+        }
+
+        // Wait 5 seconds before next poll
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        attempts++;
+      }
+
+      if (!gammaUrl) {
+        throw new Error("Generation timed out");
+      }
+
+      updateJob(jobId, {
+        status: "completed",
+        progress: 100,
+        message: "Opening presentation..."
+      });
+      showToast("Presentation created!", "success");
+
+      // Open the Gamma URL
+      await invoke("open_with_default_app", { path: gammaUrl });
+    } catch (err) {
+      updateJob(jobId, {
+        status: "failed",
+        message: String(err)
+      });
+      showToast(`Generation failed: ${err}`, "error");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleGenerateVideo = () => {
     showToast("Video generation coming soon", "success");
+  };
+
+  // Handle PDF export for order forms and proposals
+  const handleExportPdf = async () => {
+    if (isGenerating) return;
+
+    const jobId = `pdf-${Date.now()}`;
+    const jobName = `PDF: ${filename}`;
+
+    try {
+      setIsGenerating(true);
+
+      // Add job to monitoring
+      addJob({
+        id: jobId,
+        name: jobName,
+        status: "running",
+        message: "Generating PDF...",
+      });
+
+      // Determine if this is an order form or proposal
+      const isOrderForm = filename.toLowerCase() === "order-form-data.md";
+
+      // Call the appropriate Rust command
+      const outputPath = await invoke<string>(
+        isOrderForm ? "generate_order_form_pdf_cmd" : "generate_proposal_pdf_cmd",
+        { filePath: path }
+      );
+
+      const outputFilename = outputPath.split("/").pop();
+      updateJob(jobId, {
+        status: "completed",
+        message: `Saved: ${outputFilename}`
+      });
+      showToast(`PDF saved: ${outputFilename}`, "success");
+
+      // Open the generated PDF
+      await invoke("open_with_default_app", { path: outputPath });
+    } catch (err) {
+      updateJob(jobId, {
+        status: "failed",
+        message: String(err)
+      });
+      showToast(`PDF export failed: ${err}`, "error");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // Handle delete
@@ -220,6 +416,10 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           onGenerateImageWithLogo={handleGenerateImageWithLogo}
           onGenerateDeck={handleGenerateDeck}
           onGenerateVideo={handleGenerateVideo}
+          onExportPdf={handleExportPdf}
+          isGeneratingImage={isGenerating}
+          isGeneratingDeck={isGenerating}
+          isExportingPdf={isGenerating}
         />
       </div>
     </div>
@@ -350,6 +550,10 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
                 onGenerateImageWithLogo={handleGenerateImageWithLogo}
                 onGenerateDeck={handleGenerateDeck}
                 onGenerateVideo={handleGenerateVideo}
+                onExportPdf={handleExportPdf}
+                isGeneratingImage={isGenerating}
+                isGeneratingDeck={isGenerating}
+                isExportingPdf={isGenerating}
               />
             </div>
           </div>

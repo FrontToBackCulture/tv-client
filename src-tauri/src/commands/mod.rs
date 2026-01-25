@@ -1,9 +1,14 @@
 // Tauri IPC command handlers
 
 pub mod auth;
+pub mod crm;
 pub mod files;
 pub mod search;
+pub mod settings;
+pub mod supabase;
 pub mod terminal;
+pub mod tools;
+pub mod work;
 
 use tauri::command;
 
