@@ -55,10 +55,25 @@ export default function App() {
   // Show loading spinner while initializing auth
   if (!isInitialized || isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
-        <div className="text-center">
-          <Loader2 size={32} className="mx-auto mb-3 text-teal-600 animate-spin" />
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading...</p>
+      <div className="h-screen flex flex-col bg-slate-50 dark:bg-zinc-950">
+        {/* Draggable title bar */}
+        <div
+          data-tauri-drag-region
+          className="h-10 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center flex-shrink-0"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        >
+          <div className="w-20 flex-shrink-0" />
+          <div className="flex-1 flex justify-center">
+            <span className="text-xs text-zinc-500 pointer-events-none">TV Desktop</span>
+          </div>
+          <div className="w-20 flex-shrink-0" />
+        </div>
+        {/* Loading content */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 size={32} className="mx-auto mb-3 text-teal-600 animate-spin" />
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading...</p>
+          </div>
         </div>
       </div>
     );

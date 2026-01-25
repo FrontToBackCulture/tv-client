@@ -63,13 +63,13 @@ export const useJobsStore = create<JobsState>((set) => ({
 
 // Helper hooks
 export function useRunningJobs() {
-  return useJobsStore((state) => state.jobs.filter((j) => j.status === "running"));
+  const jobs = useJobsStore((state) => state.jobs);
+  return jobs.filter((j) => j.status === "running");
 }
 
 export function useRecentJobs(limit = 5) {
-  return useJobsStore((state) =>
-    state.jobs
-      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
-      .slice(0, limit)
-  );
+  const jobs = useJobsStore((state) => state.jobs);
+  return [...jobs]
+    .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+    .slice(0, limit);
 }

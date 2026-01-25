@@ -21,6 +21,18 @@ export function Login() {
   if (!isGitHubConfigured) {
     return (
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-800">
+        {/* Draggable title bar */}
+        <div
+          data-tauri-drag-region
+          className="h-10 flex-shrink-0 flex items-center"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        >
+          <div className="w-20 flex-shrink-0" />
+          <div className="flex-1 flex justify-center">
+            <span className="text-xs text-zinc-500 pointer-events-none">TV Desktop</span>
+          </div>
+          <div className="w-20 flex-shrink-0" />
+        </div>
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-sm">
             <div className="text-center mb-8">
@@ -60,6 +72,18 @@ export function Login() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-800">
+      {/* Draggable title bar */}
+      <div
+        data-tauri-drag-region
+        className="h-10 flex-shrink-0 flex items-center"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
+        <div className="w-20 flex-shrink-0" />
+        <div className="flex-1 flex justify-center">
+          <span className="text-xs text-zinc-500 pointer-events-none">TV Desktop</span>
+        </div>
+        <div className="w-20 flex-shrink-0" />
+      </div>
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
