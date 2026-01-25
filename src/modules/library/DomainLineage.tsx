@@ -70,7 +70,7 @@ export function DomainLineage({ domainPath, domainName }: DomainLineageProps) {
         placeholder="Search tables..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-48 bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+        className="w-48 bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
       />
     </div>
   );
@@ -86,7 +86,7 @@ export function DomainLineage({ domainPath, domainName }: DomainLineageProps) {
   if (error) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-red-400 flex items-center gap-2">
+        <div className="text-red-500 dark:text-red-400 flex items-center gap-2">
           <GitBranch size={16} />
           <span>{error}</span>
         </div>
@@ -124,8 +124,8 @@ export function DomainLineage({ domainPath, domainName }: DomainLineageProps) {
       {activeTab === "lineage" && (
         <div className="h-full flex">
           {/* Table list */}
-          <div className="w-80 border-r border-zinc-800 flex flex-col overflow-hidden">
-            <div className="px-4 py-2 border-b border-zinc-800 text-xs text-zinc-500">
+          <div className="w-80 border-r border-slate-200 dark:border-zinc-800 flex flex-col overflow-hidden">
+            <div className="px-4 py-2 border-b border-slate-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-500">
               {tablesWithDeps.length} tables with dependencies
             </div>
 
@@ -199,11 +199,11 @@ function SpaceGroup({
     <div>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-800/50"
+        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800/50"
       >
         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         {space}
-        <span className="text-zinc-600">({tables.length})</span>
+        <span className="text-zinc-400 dark:text-zinc-600">({tables.length})</span>
       </button>
 
       {expanded && (
@@ -213,15 +213,15 @@ function SpaceGroup({
               key={table.id}
               onClick={() => onSelectTable(table)}
               className={cn(
-                "w-full flex items-center gap-2 px-4 py-2 text-sm text-left hover:bg-zinc-800/50",
+                "w-full flex items-center gap-2 px-4 py-2 text-sm text-left hover:bg-slate-100 dark:hover:bg-zinc-800/50",
                 selectedTable?.id === table.id
-                  ? "bg-zinc-800 text-zinc-100"
-                  : "text-zinc-300"
+                  ? "bg-slate-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                  : "text-zinc-700 dark:text-zinc-300"
               )}
             >
               <Database size={14} className="text-zinc-500 flex-shrink-0" />
               <span className="truncate">{table.displayName}</span>
-              <span className="ml-auto text-xs text-zinc-600">
+              <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-600">
                 {table.dependencies.length}
               </span>
             </button>
@@ -243,11 +243,11 @@ function TableDependencyDetail({ table }: { table: TableHealth }) {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <Database size={14} />
           {table.space} &gt; {table.zone}
         </div>
-        <h3 className="text-xl font-semibold text-zinc-100">{table.displayName}</h3>
+        <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">{table.displayName}</h3>
         <p className="text-sm text-zinc-500 font-mono mt-1">{table.tableName}</p>
       </div>
 
@@ -289,12 +289,12 @@ function StatBox({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
-      <div className="flex items-center gap-2 text-zinc-400 mb-2">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+      <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-2">
         {icon}
         <span className="text-sm">{label}</span>
       </div>
-      <p className="text-2xl font-semibold text-zinc-100">{count}</p>
+      <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{count}</p>
     </div>
   );
 }
@@ -309,16 +309,16 @@ function DependencySection({
 }) {
   return (
     <div className="mb-6">
-      <h4 className="text-sm font-medium text-zinc-300 mb-3">{title}</h4>
+      <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">{title}</h4>
       <div className="space-y-2">
         {items.map((item) => (
           <div
             key={item.id}
-            className="bg-zinc-900 rounded-lg px-3 py-2 flex items-center gap-2"
+            className="bg-white dark:bg-zinc-900 rounded-lg px-3 py-2 flex items-center gap-2 border border-slate-200 dark:border-transparent"
           >
             <Workflow size={14} className="text-zinc-500" />
-            <span className="text-sm text-zinc-300 truncate">{item.name}</span>
-            <span className="ml-auto text-xs text-zinc-600">#{item.id}</span>
+            <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{item.name}</span>
+            <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-600">#{item.id}</span>
           </div>
         ))}
       </div>

@@ -180,28 +180,28 @@ export function WorkflowsList({ workflowsPath, domainName, onWorkflowSelect }: W
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <Workflow size={14} />
           <span>{domainName}</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">Workflows</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Workflows</h2>
         <p className="text-sm text-zinc-500 mt-1">{workflows.length} workflows</p>
 
         {/* Stats */}
         <div className="flex gap-4 mt-4">
           <div className="flex items-center gap-1.5 text-sm">
-            <Clock size={14} className="text-blue-400" />
-            <span className="text-zinc-400">{scheduledCount} scheduled</span>
+            <Clock size={14} className="text-blue-500 dark:text-blue-400" />
+            <span className="text-zinc-500 dark:text-zinc-400">{scheduledCount} scheduled</span>
           </div>
           <div className="flex items-center gap-1.5 text-sm">
-            <CheckCircle size={14} className="text-green-400" />
-            <span className="text-zinc-400">{healthyCount} healthy</span>
+            <CheckCircle size={14} className="text-green-500 dark:text-green-400" />
+            <span className="text-zinc-500 dark:text-zinc-400">{healthyCount} healthy</span>
           </div>
           {errorCount > 0 && (
             <div className="flex items-center gap-1.5 text-sm">
-              <AlertTriangle size={14} className="text-red-400" />
-              <span className="text-zinc-400">{errorCount} errors</span>
+              <AlertTriangle size={14} className="text-red-500 dark:text-red-400" />
+              <span className="text-zinc-500 dark:text-zinc-400">{errorCount} errors</span>
             </div>
           )}
         </div>
@@ -215,13 +215,13 @@ export function WorkflowsList({ workflowsPath, domainName, onWorkflowSelect }: W
               placeholder="Search workflows..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+              className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
             />
           </div>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as "all" | "scheduled" | "manual")}
-            className="bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-teal-500"
+            className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
           >
             <option value="all">All</option>
             <option value="scheduled">Scheduled</option>
@@ -236,17 +236,17 @@ export function WorkflowsList({ workflowsPath, domainName, onWorkflowSelect }: W
           <button
             key={workflow.id}
             onClick={() => onWorkflowSelect?.(workflow.path, workflow.workflowName)}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/50 border-b border-zinc-800/50 text-left"
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-zinc-800/50 border-b border-slate-100 dark:border-zinc-800/50 text-left"
           >
             <WorkflowStatusIcon status={workflow.status} lastStatus={workflow.lastStatus} />
             <div className="flex-1 min-w-0">
-              <div className="text-sm text-zinc-200 truncate">{workflow.displayName}</div>
+              <div className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{workflow.displayName}</div>
               <div className="flex items-center gap-2 text-xs text-zinc-500">
                 <span className="font-mono">#{workflow.workflowName}</span>
                 {workflow.isScheduled && (
                   <>
                     <span>•</span>
-                    <span className="text-blue-400">{workflow.schedule}</span>
+                    <span className="text-blue-500 dark:text-blue-400">{workflow.schedule}</span>
                   </>
                 )}
               </div>
@@ -255,7 +255,7 @@ export function WorkflowsList({ workflowsPath, domainName, onWorkflowSelect }: W
               {workflow.lastRun && (
                 <span className="text-xs text-zinc-500">{workflow.lastRun}</span>
               )}
-              <ChevronRight size={14} className="text-zinc-600" />
+              <ChevronRight size={14} className="text-zinc-400 dark:text-zinc-600" />
             </div>
           </button>
         ))}

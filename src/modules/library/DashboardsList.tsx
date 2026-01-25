@@ -118,12 +118,12 @@ export function DashboardsList({ dashboardsPath, domainName, onDashboardSelect }
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <LayoutDashboard size={14} />
           <span>{domainName}</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">Dashboards</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Dashboards</h2>
         <p className="text-sm text-zinc-500 mt-1">{dashboards.length} dashboards</p>
 
         {/* Search */}
@@ -134,7 +134,7 @@ export function DashboardsList({ dashboardsPath, domainName, onDashboardSelect }
             placeholder="Search dashboards..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+            className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
           />
         </div>
       </div>
@@ -145,11 +145,11 @@ export function DashboardsList({ dashboardsPath, domainName, onDashboardSelect }
           <button
             key={dashboard.id}
             onClick={() => onDashboardSelect?.(dashboard.path, dashboard.name)}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/50 border-b border-zinc-800/50 text-left"
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-zinc-800/50 border-b border-slate-100 dark:border-zinc-800/50 text-left"
           >
-            <LayoutDashboard size={16} className="text-purple-400 flex-shrink-0" />
+            <LayoutDashboard size={16} className="text-purple-500 dark:text-purple-400 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-sm text-zinc-200 truncate">{dashboard.displayName}</div>
+              <div className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{dashboard.displayName}</div>
               {dashboard.description && (
                 <div className="text-xs text-zinc-500 truncate">{dashboard.description}</div>
               )}
@@ -161,7 +161,7 @@ export function DashboardsList({ dashboardsPath, domainName, onDashboardSelect }
                   {dashboard.viewCount}
                 </span>
               )}
-              <ChevronRight size={14} className="text-zinc-600" />
+              <ChevronRight size={14} className="text-zinc-400 dark:text-zinc-600" />
             </div>
           </button>
         ))}

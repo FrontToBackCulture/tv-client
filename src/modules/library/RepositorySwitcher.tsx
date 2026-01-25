@@ -79,10 +79,10 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
       {/* Trigger button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-zinc-800 rounded-lg transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
       >
         <Database size={16} className="text-teal-500 flex-shrink-0" />
-        <span className="text-sm font-medium text-zinc-200 truncate flex-1">
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate flex-1">
           {activeRepository?.name || "Select Repository"}
         </span>
         <ChevronDown
@@ -107,7 +107,7 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
           />
 
           {/* Menu */}
-          <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden min-w-[320px]">
+          <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl overflow-hidden min-w-[320px]">
             {/* Repository list */}
             <div className="max-h-64 overflow-y-auto">
               {repositories.map((repo) => (
@@ -117,8 +117,8 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors group",
                     repo.id === activeRepository?.id
-                      ? "bg-teal-900/30 text-teal-300"
-                      : "text-zinc-300 hover:bg-zinc-800"
+                      ? "bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300"
+                      : "text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
                   )}
                 >
                   <FolderOpen size={14} className="flex-shrink-0" />
@@ -126,19 +126,19 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
                     <div className="text-sm font-medium truncate">
                       {repo.name}
                     </div>
-                    <div className="text-xs text-zinc-500 truncate">
+                    <div className="text-xs text-zinc-500 dark:text-zinc-500 truncate">
                       {repo.path}
                     </div>
                   </div>
                   {repo.id === activeRepository?.id ? (
-                    <Check size={14} className="text-teal-400 flex-shrink-0" />
+                    <Check size={14} className="text-teal-500 dark:text-teal-400 flex-shrink-0" />
                   ) : repositories.length > 1 ? (
                     <button
                       onClick={(e) => handleRemove(e, repo.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-zinc-700 rounded transition-opacity"
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-opacity"
                       title="Remove repository"
                     >
-                      <Trash2 size={12} className="text-zinc-400" />
+                      <Trash2 size={12} className="text-zinc-500 dark:text-zinc-400" />
                     </button>
                   ) : null}
                 </div>
@@ -146,35 +146,35 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
             </div>
 
             {/* Divider */}
-            <div className="border-t border-zinc-800" />
+            <div className="border-t border-slate-200 dark:border-zinc-800" />
 
             {/* Add new section */}
             {isAdding ? (
               <div className="p-3 space-y-3">
                 <div>
-                  <label className="block text-xs text-zinc-500 mb-1">Name</label>
+                  <label className="block text-xs text-zinc-500 dark:text-zinc-500 mb-1">Name</label>
                   <input
                     type="text"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     placeholder="My Knowledge Base"
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:border-teal-600"
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded text-sm text-zinc-800 dark:text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:border-teal-600"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-zinc-500 mb-1">Folder Path</label>
+                  <label className="block text-xs text-zinc-500 dark:text-zinc-500 mb-1">Folder Path</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={newPath}
                       onChange={(e) => setNewPath(e.target.value)}
                       placeholder="/path/to/folder"
-                      className="flex-1 min-w-0 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:border-teal-600"
+                      className="flex-1 min-w-0 px-3 py-2 bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded text-sm text-zinc-800 dark:text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:border-teal-600"
                     />
                     <button
                       onClick={handleBrowse}
-                      className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors whitespace-nowrap"
+                      className="px-3 py-2 bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors whitespace-nowrap"
                     >
                       Browse...
                     </button>
@@ -187,7 +187,7 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
                       setNewName("");
                       setNewPath("");
                     }}
-                    className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                    className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
                   >
                     Cancel
                   </button>
@@ -203,7 +203,7 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
             ) : (
               <button
                 onClick={() => setIsAdding(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
               >
                 <Plus size={14} />
                 Add Repository

@@ -1,5 +1,6 @@
 // Tauri IPC command handlers
 
+pub mod auth;
 pub mod files;
 pub mod search;
 

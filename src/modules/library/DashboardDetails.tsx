@@ -120,16 +120,16 @@ export function DashboardDetails({ dashboardPath, dashboardName }: DashboardDeta
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <LayoutDashboard size={14} />
           <span>Dashboard</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
           {definition?.name || dashboardName}
         </h2>
         {definition?.category && (
-          <span className="inline-block mt-1 px-2 py-0.5 bg-zinc-800 rounded text-xs text-zinc-400">
+          <span className="inline-block mt-1 px-2 py-0.5 bg-slate-200 dark:bg-zinc-800 rounded text-xs text-zinc-600 dark:text-zinc-400">
             {definition.category}
           </span>
         )}
@@ -172,16 +172,16 @@ export function DashboardDetails({ dashboardPath, dashboardName }: DashboardDeta
         {/* Widgets */}
         {definition?.widgets && definition.widgets.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
               <BarChart2 size={14} />
               Widgets ({definition.widgets.length})
             </h3>
             <div className="space-y-2">
               {definition.widgets.map((widget, i) => (
-                <div key={widget.id || i} className="bg-zinc-900 rounded-lg overflow-hidden">
+                <div key={widget.id || i} className="bg-white dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-200 dark:border-transparent">
                   <button
                     onClick={() => toggleWidget(i)}
-                    className="w-full flex items-center gap-2 p-3 text-left hover:bg-zinc-800/50"
+                    className="w-full flex items-center gap-2 p-3 text-left hover:bg-slate-50 dark:hover:bg-zinc-800/50"
                   >
                     {expandedWidgets.has(i) ? (
                       <ChevronDown size={14} className="text-zinc-500" />
@@ -189,11 +189,11 @@ export function DashboardDetails({ dashboardPath, dashboardName }: DashboardDeta
                       <ChevronRight size={14} className="text-zinc-500" />
                     )}
                     <WidgetIcon type={widget.name} />
-                    <span className="text-sm text-zinc-200 flex-1">
+                    <span className="text-sm text-zinc-800 dark:text-zinc-200 flex-1">
                       {widget.name || `Widget ${i + 1}`}
                     </span>
                     {widget.grid && (
-                      <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">
+                      <span className="text-xs text-zinc-500 bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded">
                         {widget.grid.w}x{widget.grid.h}
                       </span>
                     )}
@@ -203,15 +203,15 @@ export function DashboardDetails({ dashboardPath, dashboardName }: DashboardDeta
                       {widget.grid && (
                         <div className="text-xs">
                           <span className="text-zinc-500">Position: </span>
-                          <span className="text-zinc-300">({widget.grid.x}, {widget.grid.y})</span>
+                          <span className="text-zinc-700 dark:text-zinc-300">({widget.grid.x}, {widget.grid.y})</span>
                           <span className="text-zinc-500 ml-3">Size: </span>
-                          <span className="text-zinc-300">{widget.grid.w} x {widget.grid.h}</span>
+                          <span className="text-zinc-700 dark:text-zinc-300">{widget.grid.w} x {widget.grid.h}</span>
                         </div>
                       )}
                       {widget.settings && (
                         <div>
                           <span className="text-xs text-zinc-500">Settings:</span>
-                          <pre className="text-xs text-zinc-400 bg-zinc-950 rounded p-2 mt-1 overflow-x-auto max-h-40 overflow-y-auto">
+                          <pre className="text-xs text-zinc-600 dark:text-zinc-400 bg-slate-50 dark:bg-zinc-950 rounded p-2 mt-1 overflow-x-auto max-h-40 overflow-y-auto">
                             {JSON.stringify(widget.settings, null, 2).substring(0, 500)}
                             {JSON.stringify(widget.settings).length > 500 && "..."}
                           </pre>
@@ -227,23 +227,23 @@ export function DashboardDetails({ dashboardPath, dashboardName }: DashboardDeta
 
         {/* Metadata */}
         {definition && (
-          <div className="bg-zinc-900 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">Metadata</h3>
+          <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Metadata</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-zinc-500">Dashboard ID: </span>
-                <span className="text-zinc-300">{definition.id}</span>
+                <span className="text-zinc-700 dark:text-zinc-300">{definition.id}</span>
               </div>
               {definition.created_date && (
                 <div>
                   <span className="text-zinc-500">Created: </span>
-                  <span className="text-zinc-300">{new Date(definition.created_date).toLocaleDateString()}</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{new Date(definition.created_date).toLocaleDateString()}</span>
                 </div>
               )}
               {definition.updated_date && (
                 <div>
                   <span className="text-zinc-500">Last modified: </span>
-                  <span className="text-zinc-300">{new Date(definition.updated_date).toLocaleDateString()}</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{new Date(definition.updated_date).toLocaleDateString()}</span>
                 </div>
               )}
             </div>
@@ -272,12 +272,12 @@ function StatBox({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
-      <div className="flex items-center gap-2 text-zinc-400 mb-2">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+      <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-2">
         {icon}
         <span className="text-xs text-zinc-500">{label}</span>
       </div>
-      <p className="text-2xl font-semibold text-zinc-100">{value}</p>
+      <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{value}</p>
     </div>
   );
 }

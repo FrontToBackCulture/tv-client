@@ -204,7 +204,7 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
   const headerActions = (
     <button
       onClick={() => refetch()}
-      className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300 transition-colors"
+      className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 transition-colors"
     >
       <RefreshCw size={14} />
       Refresh
@@ -226,9 +226,9 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <AlertCircle size={32} className="mx-auto mb-3 text-zinc-600" />
-          <p className="text-sm text-zinc-500">No usage data available</p>
-          <p className="text-xs text-zinc-600 mt-1">
+          <AlertCircle size={32} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-600" />
+          <p className="text-sm text-zinc-600 dark:text-zinc-500">No usage data available</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-1">
             Run &quot;Sync Dashboard Usage&quot; to generate data
           </p>
         </div>
@@ -277,8 +277,8 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
             </div>
 
             {/* Category Distribution */}
-            <div className="bg-zinc-900 rounded-xl p-4">
-              <h3 className="text-sm font-medium text-zinc-300 mb-4">Usage by Category</h3>
+            <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-slate-200 dark:border-transparent">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">Usage by Category</h3>
               <div className="space-y-3">
                 {categoryStats.map((item) => (
                   <div key={item.category} className="flex items-center gap-3">
@@ -288,7 +288,7 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-zinc-300">
+                        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                           {item.category}
                         </span>
                         <span className="text-xs text-zinc-500">{item.count} pages</span>
@@ -297,7 +297,7 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
                         <span>{item.sessions.toLocaleString()} sessions</span>
                         <span>{item.pageViews.toLocaleString()} views</span>
                       </div>
-                      <div className="mt-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="mt-1 h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all"
                           style={{
@@ -313,11 +313,11 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
             </div>
 
             {/* All Pages Table */}
-            <div className="bg-zinc-900 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+            <div className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden border border-slate-200 dark:border-transparent">
+              <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calendar size={16} className="text-zinc-500" />
-                  <span className="font-medium text-zinc-200">All Tracked Pages</span>
+                  <span className="font-medium text-zinc-800 dark:text-zinc-200">All Tracked Pages</span>
                   <span className="text-xs text-zinc-500">
                     ({filteredPages.length} of {allPages.length})
                   </span>
@@ -325,7 +325,7 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="px-2 py-1 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300"
+                  className="px-2 py-1 text-sm bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-lg text-zinc-700 dark:text-zinc-300"
                 >
                   <option value="all">All Categories</option>
                   <option value="Dashboards">Dashboards</option>
@@ -337,7 +337,7 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
               </div>
               <div className="max-h-96 overflow-y-auto">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-zinc-800">
+                  <thead className="sticky top-0 bg-slate-100 dark:bg-zinc-800">
                     <tr>
                       <th className="text-left px-4 py-2 text-xs font-medium text-zinc-500 uppercase">
                         Page
@@ -356,11 +356,11 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-800">
+                  <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
                     {filteredPages.map((page, idx) => (
-                      <tr key={idx} className="hover:bg-zinc-800/50">
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50">
                         <td className="px-4 py-3">
-                          <div className="font-medium text-zinc-200 truncate max-w-xs">
+                          <div className="font-medium text-zinc-800 dark:text-zinc-200 truncate max-w-xs">
                             {page.displayName}
                           </div>
                           <div className="text-xs text-zinc-500 truncate max-w-xs">
@@ -378,13 +378,13 @@ export function ValUsage({ domainPath, domainName }: ValUsageProps) {
                             {page.category}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right text-zinc-300">
+                        <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">
                           {page.sessions.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-right text-zinc-300">
+                        <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">
                           {page.pageViews.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-right text-zinc-300">
+                        <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">
                           {page.uniqueUsers.toLocaleString()}
                         </td>
                       </tr>
@@ -416,19 +416,19 @@ function StatCard({
   color: "teal" | "blue" | "green" | "purple";
 }) {
   const colorClasses = {
-    teal: "text-teal-400 bg-teal-400/10",
-    blue: "text-blue-400 bg-blue-400/10",
-    green: "text-green-400 bg-green-400/10",
-    purple: "text-purple-400 bg-purple-400/10",
+    teal: "text-teal-600 dark:text-teal-400 bg-teal-400/10",
+    blue: "text-blue-600 dark:text-blue-400 bg-blue-400/10",
+    green: "text-green-600 dark:text-green-400 bg-green-400/10",
+    purple: "text-purple-600 dark:text-purple-400 bg-purple-400/10",
   };
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
       <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center mb-3", colorClasses[color])}>
         {icon}
       </div>
-      <p className="text-2xl font-semibold text-zinc-100">{value.toLocaleString()}</p>
-      <p className="text-sm text-zinc-400">{label}</p>
+      <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{value.toLocaleString()}</p>
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">{label}</p>
     </div>
   );
 }

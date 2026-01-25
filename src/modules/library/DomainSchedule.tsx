@@ -86,7 +86,7 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
   if (error) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-red-400 flex items-center gap-2">
+        <div className="text-red-500 dark:text-red-400 flex items-center gap-2">
           <AlertTriangle size={16} />
           <span>{error}</span>
         </div>
@@ -116,7 +116,7 @@ export function DomainSchedule({ domainPath, domainName }: DomainScheduleProps) 
         />
       )}
       {activeTab === "schedule" && !workflows && (
-        <div className="p-6 text-zinc-500">
+        <div className="p-6 text-zinc-600 dark:text-zinc-500">
           No workflow data available. Run workflow health check to generate schedule data.
         </div>
       )}
@@ -224,25 +224,25 @@ function ScheduleTab({
   return (
     <div className="flex flex-col h-full">
       {/* Controls Section */}
-      <div className="p-4 border-b border-zinc-800">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
         <div className="flex items-center justify-between mb-4">
           {/* Date Navigator */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 py-1">
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 rounded-lg px-2 py-1">
               <button
                 onClick={goToPreviousDay}
-                className="p-1 hover:bg-zinc-700 rounded transition-colors"
+                className="p-1 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-colors"
                 title="Previous day"
               >
-                <ChevronLeft size={16} className="text-zinc-400" />
+                <ChevronLeft size={16} className="text-zinc-500 dark:text-zinc-400" />
               </button>
               <div className="flex items-center gap-2 px-2">
                 <Calendar size={14} className="text-zinc-500" />
-                <span className="text-sm font-medium text-zinc-300 min-w-[100px] text-center">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 min-w-[100px] text-center">
                   {formatMonitoringDate(monitoringDate)}
                 </span>
                 {isToday && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-400/10 text-green-400 rounded">
+                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/10 dark:bg-green-400/10 text-green-600 dark:text-green-400 rounded">
                     Today
                   </span>
                 )}
@@ -252,7 +252,7 @@ function ScheduleTab({
                 disabled={isToday}
                 className={cn(
                   "p-1 rounded transition-colors",
-                  isToday ? "text-zinc-600 cursor-not-allowed" : "hover:bg-zinc-700 text-zinc-400"
+                  isToday ? "text-zinc-400 dark:text-zinc-600 cursor-not-allowed" : "hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400"
                 )}
                 title={isToday ? "Already on today" : "Next day"}
               >
@@ -261,7 +261,7 @@ function ScheduleTab({
               {!isToday && (
                 <button
                   onClick={goToToday}
-                  className="ml-1 px-2 py-0.5 text-xs font-medium text-teal-400 hover:bg-teal-400/10 rounded transition-colors"
+                  className="ml-1 px-2 py-0.5 text-xs font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 dark:hover:bg-teal-400/10 rounded transition-colors"
                   title="Go to today"
                 >
                   Today
@@ -270,12 +270,12 @@ function ScheduleTab({
             </div>
 
             {/* View Toggle */}
-            <div className="flex items-center bg-zinc-800 rounded-md p-0.5">
+            <div className="flex items-center bg-slate-100 dark:bg-zinc-800 rounded-md p-0.5">
               <button
                 onClick={() => setViewMode("list")}
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded transition-colors",
-                  viewMode === "list" ? "bg-zinc-700 text-teal-400" : "text-zinc-400 hover:text-zinc-200"
+                  viewMode === "list" ? "bg-white dark:bg-zinc-700 text-teal-600 dark:text-teal-400" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
                 )}
                 title="List View"
               >
@@ -286,7 +286,7 @@ function ScheduleTab({
                 onClick={() => setViewMode("timeline")}
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded transition-colors",
-                  viewMode === "timeline" ? "bg-zinc-700 text-teal-400" : "text-zinc-400 hover:text-zinc-200"
+                  viewMode === "timeline" ? "bg-white dark:bg-zinc-700 text-teal-600 dark:text-teal-400" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
                 )}
                 title="Timeline View"
               >
@@ -314,14 +314,14 @@ function ScheduleTab({
             placeholder="Search workflows..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
           />
         </div>
       </div>
 
       {/* Workflow List */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="text-sm text-zinc-500 mb-3">
+        <div className="text-sm text-zinc-600 dark:text-zinc-500 mb-3">
           Showing {filteredWorkflows.length} of {workflows.length} workflows
         </div>
 
@@ -354,11 +354,11 @@ function StatCard({
   color: "zinc" | "teal" | "green" | "yellow" | "red";
 }) {
   const colors = {
-    zinc: { bg: active ? "bg-zinc-700 ring-2 ring-zinc-500" : "bg-zinc-800 hover:bg-zinc-700", text: "text-zinc-100", label: "text-zinc-400" },
-    teal: { bg: "bg-teal-400/10", text: "text-teal-400", label: "text-teal-400/70" },
-    green: { bg: active ? "bg-green-400/20 ring-2 ring-green-500" : "bg-green-400/10 hover:bg-green-400/15", text: "text-green-400", label: "text-green-400/70" },
-    yellow: { bg: active ? "bg-yellow-400/20 ring-2 ring-yellow-500" : "bg-yellow-400/10 hover:bg-yellow-400/15", text: "text-yellow-400", label: "text-yellow-400/70" },
-    red: { bg: active ? "bg-red-400/20 ring-2 ring-red-500" : "bg-red-400/10 hover:bg-red-400/15", text: "text-red-400", label: "text-red-400/70" },
+    zinc: { bg: active ? "bg-slate-200 dark:bg-zinc-700 ring-2 ring-slate-400 dark:ring-zinc-500" : "bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700", text: "text-zinc-900 dark:text-zinc-100", label: "text-zinc-500 dark:text-zinc-400" },
+    teal: { bg: "bg-teal-500/10 dark:bg-teal-400/10", text: "text-teal-600 dark:text-teal-400", label: "text-teal-600/70 dark:text-teal-400/70" },
+    green: { bg: active ? "bg-green-500/20 dark:bg-green-400/20 ring-2 ring-green-500" : "bg-green-500/10 dark:bg-green-400/10 hover:bg-green-500/15 dark:hover:bg-green-400/15", text: "text-green-600 dark:text-green-400", label: "text-green-600/70 dark:text-green-400/70" },
+    yellow: { bg: active ? "bg-yellow-500/20 dark:bg-yellow-400/20 ring-2 ring-yellow-500" : "bg-yellow-500/10 dark:bg-yellow-400/10 hover:bg-yellow-500/15 dark:hover:bg-yellow-400/15", text: "text-yellow-600 dark:text-yellow-400", label: "text-yellow-600/70 dark:text-yellow-400/70" },
+    red: { bg: active ? "bg-red-500/20 dark:bg-red-400/20 ring-2 ring-red-500" : "bg-red-500/10 dark:bg-red-400/10 hover:bg-red-500/15 dark:hover:bg-red-400/15", text: "text-red-600 dark:text-red-400", label: "text-red-600/70 dark:text-red-400/70" },
   };
 
   const c = colors[color];
@@ -377,27 +377,27 @@ function WorkflowCard({ workflow }: { workflow: WorkflowHealth }) {
   const lastRunDate = workflow.lastRun ? new Date(workflow.lastRun.date) : null;
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4 hover:bg-zinc-800/80 transition-colors">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 hover:bg-slate-50 dark:hover:bg-zinc-800/80 transition-colors border border-slate-200 dark:border-transparent">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-zinc-200 truncate">{workflow.name}</p>
+            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{workflow.name}</p>
             {workflow.isChildWorkflow && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-zinc-700 text-zinc-400 rounded">Child</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 rounded">Child</span>
             )}
           </div>
           {cronInfo && (
             <div className="flex items-center gap-2 mt-1">
               <Clock size={12} className="text-zinc-500" />
-              <span className="text-xs text-zinc-400">{cronInfo.readable}</span>
-              <span className="text-[10px] text-zinc-600 font-mono">{cronInfo.raw}</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">{cronInfo.readable}</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono">{cronInfo.raw}</span>
             </div>
           )}
         </div>
         <StatusBadge level={workflow.health.status.level} />
       </div>
 
-      <div className="flex items-center gap-4 mt-3 text-xs text-zinc-400">
+      <div className="flex items-center gap-4 mt-3 text-xs text-zinc-500 dark:text-zinc-400">
         {lastRunDate && (
           <span>
             Last: {lastRunDate.toLocaleDateString()} {lastRunDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -412,7 +412,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowHealth }) {
       {workflow.health.issues.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {workflow.health.issues.slice(0, 2).map((issue, i) => (
-            <span key={i} className="text-[10px] px-1.5 py-0.5 bg-red-400/10 text-red-400 rounded">{issue}</span>
+            <span key={i} className="text-[10px] px-1.5 py-0.5 bg-red-500/10 dark:bg-red-400/10 text-red-600 dark:text-red-400 rounded">{issue}</span>
           ))}
           {workflow.health.issues.length > 2 && (
             <span className="text-[10px] text-zinc-500">+{workflow.health.issues.length - 2} more</span>
@@ -426,10 +426,10 @@ function WorkflowCard({ workflow }: { workflow: WorkflowHealth }) {
 // Status badge component
 function StatusBadge({ level }: { level: "healthy" | "warning" | "critical" | "skipped" }) {
   const config = {
-    healthy: { icon: CheckCircle2, bg: "bg-green-400/10", text: "text-green-400" },
-    warning: { icon: AlertCircle, bg: "bg-yellow-400/10", text: "text-yellow-400" },
-    critical: { icon: XCircle, bg: "bg-red-400/10", text: "text-red-400" },
-    skipped: { icon: AlertTriangle, bg: "bg-zinc-700", text: "text-zinc-400" },
+    healthy: { icon: CheckCircle2, bg: "bg-green-500/10 dark:bg-green-400/10", text: "text-green-600 dark:text-green-400" },
+    warning: { icon: AlertCircle, bg: "bg-yellow-500/10 dark:bg-yellow-400/10", text: "text-yellow-600 dark:text-yellow-400" },
+    critical: { icon: XCircle, bg: "bg-red-500/10 dark:bg-red-400/10", text: "text-red-600 dark:text-red-400" },
+    skipped: { icon: AlertTriangle, bg: "bg-slate-200 dark:bg-zinc-700", text: "text-zinc-500 dark:text-zinc-400" },
   };
 
   const c = config[level];
@@ -448,29 +448,29 @@ function TimelineView({ workflows }: { workflows: WorkflowHealth[] }) {
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
   return (
-    <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-      <div className="flex border-b border-zinc-800">
-        <div className="w-48 flex-shrink-0 px-3 py-2 text-xs font-medium text-zinc-400 border-r border-zinc-800 bg-zinc-800/50">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg border border-slate-200 dark:border-zinc-800 overflow-hidden">
+      <div className="flex border-b border-slate-200 dark:border-zinc-800">
+        <div className="w-48 flex-shrink-0 px-3 py-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 border-r border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50">
           Workflow
         </div>
         <div className="flex-1 flex">
           {hours.map((h) => (
-            <div key={h} className="flex-1 text-center py-2 text-[10px] text-zinc-500 border-r border-zinc-800 last:border-r-0">
+            <div key={h} className="flex-1 text-center py-2 text-[10px] text-zinc-500 border-r border-slate-200 dark:border-zinc-800 last:border-r-0">
               {h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`}
             </div>
           ))}
         </div>
       </div>
 
-      <div className="divide-y divide-zinc-800">
+      <div className="divide-y divide-slate-200 dark:divide-zinc-800">
         {workflows.map((workflow) => {
           const timeInMinutes = getCronTimeInMinutes(workflow.cronExpression);
           const leftPercent = timeInMinutes < 9999 ? (timeInMinutes / 1440) * 100 : -1;
 
           return (
-            <div key={workflow.id} className="flex hover:bg-zinc-800/50 transition-colors">
-              <div className="w-48 flex-shrink-0 px-3 py-2 border-r border-zinc-800 bg-zinc-900">
-                <p className="text-xs text-zinc-300 truncate">{workflow.name}</p>
+            <div key={workflow.id} className="flex hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors">
+              <div className="w-48 flex-shrink-0 px-3 py-2 border-r border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                <p className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{workflow.name}</p>
               </div>
               <div className="flex-1 relative h-10">
                 {leftPercent >= 0 && (
@@ -478,12 +478,12 @@ function TimelineView({ workflows }: { workflows: WorkflowHealth[] }) {
                     className={cn(
                       "absolute top-1/2 -translate-y-1/2 h-6 w-20 rounded flex items-center justify-center text-[10px]",
                       workflow.health.status.level === "healthy"
-                        ? "bg-green-400/20 text-green-400"
+                        ? "bg-green-500/20 dark:bg-green-400/20 text-green-600 dark:text-green-400"
                         : workflow.health.status.level === "warning"
-                          ? "bg-yellow-400/20 text-yellow-400"
+                          ? "bg-yellow-500/20 dark:bg-yellow-400/20 text-yellow-600 dark:text-yellow-400"
                           : workflow.health.status.level === "critical"
-                            ? "bg-red-400/20 text-red-400"
-                            : "bg-zinc-700 text-zinc-400"
+                            ? "bg-red-500/20 dark:bg-red-400/20 text-red-600 dark:text-red-400"
+                            : "bg-slate-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400"
                     )}
                     style={{ left: `${leftPercent}%` }}
                     title={parseCronExpression(workflow.cronExpression)?.readable}

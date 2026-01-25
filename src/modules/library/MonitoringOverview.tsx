@@ -118,11 +118,11 @@ export function MonitoringOverview({ monitoringPath, domainName }: MonitoringOve
   if (!data) {
     return (
       <div className="p-6">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-4">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-4">
           <Activity size={14} />
           <span>{domainName}</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100 mb-4">Monitoring</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Monitoring</h2>
         <div className="text-center text-zinc-500 py-8">
           <Activity size={32} className="mx-auto mb-3 opacity-50" />
           <p>No monitoring data available</p>
@@ -135,12 +135,12 @@ export function MonitoringOverview({ monitoringPath, domainName }: MonitoringOve
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <Activity size={14} />
           <span>{domainName}</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">Monitoring</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Monitoring</h2>
         {data.lastUpdated && (
           <p className="text-sm text-zinc-500 mt-1">Last updated: {data.lastUpdated}</p>
         )}
@@ -181,29 +181,29 @@ export function MonitoringOverview({ monitoringPath, domainName }: MonitoringOve
         {/* Recent executions */}
         {data.recentExecutions && data.recentExecutions.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
               <Calendar size={14} />
               Recent Execution History
             </h3>
-            <div className="bg-zinc-900 rounded-lg overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-200 dark:border-transparent">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="text-left px-3 py-2 text-zinc-400 font-medium">Date</th>
-                    <th className="text-right px-3 py-2 text-zinc-400 font-medium">Total</th>
-                    <th className="text-right px-3 py-2 text-zinc-400 font-medium">Success</th>
-                    <th className="text-right px-3 py-2 text-zinc-400 font-medium">Failed</th>
+                  <tr className="border-b border-slate-200 dark:border-zinc-800">
+                    <th className="text-left px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Date</th>
+                    <th className="text-right px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Total</th>
+                    <th className="text-right px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Success</th>
+                    <th className="text-right px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Failed</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.recentExecutions.map((exec, i) => (
-                    <tr key={i} className="border-b border-zinc-800/50 last:border-0">
-                      <td className="px-3 py-2 text-zinc-200">{exec.date}</td>
-                      <td className="px-3 py-2 text-zinc-400 text-right">{exec.totalExecutions}</td>
-                      <td className="px-3 py-2 text-green-400 text-right">{exec.successful}</td>
+                    <tr key={i} className="border-b border-slate-100 dark:border-zinc-800/50 last:border-0">
+                      <td className="px-3 py-2 text-zinc-800 dark:text-zinc-200">{exec.date}</td>
+                      <td className="px-3 py-2 text-zinc-500 dark:text-zinc-400 text-right">{exec.totalExecutions}</td>
+                      <td className="px-3 py-2 text-green-500 dark:text-green-400 text-right">{exec.successful}</td>
                       <td className={cn(
                         "px-3 py-2 text-right",
-                        exec.failed > 0 ? "text-red-400" : "text-zinc-500"
+                        exec.failed > 0 ? "text-red-500 dark:text-red-400" : "text-zinc-500"
                       )}>
                         {exec.failed}
                       </td>
@@ -218,18 +218,18 @@ export function MonitoringOverview({ monitoringPath, domainName }: MonitoringOve
         {/* Recent errors */}
         {data.recentErrors && data.recentErrors.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-              <AlertTriangle size={14} className="text-red-400" />
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
+              <AlertTriangle size={14} className="text-red-500 dark:text-red-400" />
               Recent Errors
             </h3>
             <div className="space-y-2">
               {data.recentErrors.map((err, i) => (
-                <div key={i} className="bg-zinc-900 rounded-lg p-3 border-l-2 border-red-500/50">
+                <div key={i} className="bg-white dark:bg-zinc-900 rounded-lg p-3 border-l-2 border-red-500/50">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-zinc-200">{err.workflowName}</span>
+                    <span className="text-sm text-zinc-800 dark:text-zinc-200">{err.workflowName}</span>
                     <span className="text-xs text-zinc-500">{err.timestamp}</span>
                   </div>
-                  <p className="text-xs text-red-400 truncate">{err.error}</p>
+                  <p className="text-xs text-red-500 dark:text-red-400 truncate">{err.error}</p>
                 </div>
               ))}
             </div>
@@ -253,20 +253,20 @@ function StatCard({
   color: "blue" | "green" | "teal" | "red" | "zinc";
 }) {
   const colorClasses = {
-    blue: "text-blue-400",
-    green: "text-green-400",
-    teal: "text-teal-400",
-    red: "text-red-400",
-    zinc: "text-zinc-400",
+    blue: "text-blue-500 dark:text-blue-400",
+    green: "text-green-500 dark:text-green-400",
+    teal: "text-teal-500 dark:text-teal-400",
+    red: "text-red-500 dark:text-red-400",
+    zinc: "text-zinc-500 dark:text-zinc-400",
   };
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
       <div className={cn("flex items-center gap-2 mb-2", colorClasses[color])}>
         {icon}
         <span className="text-xs text-zinc-500">{label}</span>
       </div>
-      <p className="text-2xl font-semibold text-zinc-100">{value}</p>
+      <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{value}</p>
     </div>
   );
 }

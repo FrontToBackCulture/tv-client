@@ -54,6 +54,9 @@ fn main() {
             commands::search::search_files,
             commands::search::search_content,
             commands::search::index_directory,
+            // Auth operations (GitHub OAuth)
+            commands::auth::github_oauth_start,
+            commands::auth::github_get_user,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

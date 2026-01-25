@@ -14,11 +14,11 @@ interface ShellProps {
 
 export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
   return (
-    <div className="h-screen flex flex-col bg-zinc-950 text-zinc-100 select-none">
+    <div className="h-screen flex flex-col bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 select-none">
       {/* Draggable title bar region for macOS */}
       <div
         data-tauri-drag-region
-        className="h-8 bg-zinc-900 border-b border-zinc-800 flex items-center"
+        className="h-8 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
         {/* Leave space for macOS traffic lights (close/minimize/fullscreen) */}

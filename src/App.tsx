@@ -7,7 +7,11 @@ import { WorkModule } from "./modules/work/WorkModule";
 import { InboxModule } from "./modules/inbox/InboxModule";
 import { CrmModule } from "./modules/crm/CrmModule";
 import { ConsoleModule } from "./modules/console/ConsoleModule";
+import { Login } from "./components/Login";
 import { useAppStore, ModuleId } from "./stores/appStore";
+import { useAuth } from "./stores/authStore";
+import { useRealtimeSync } from "./hooks/useRealtimeSync";
+import { Loader2 } from "lucide-react";
 
 const modules: Record<ModuleId, React.ComponentType> = {
   library: LibraryModule,
@@ -19,6 +23,15 @@ const modules: Record<ModuleId, React.ComponentType> = {
 
 export default function App() {
   const { activeModule, setActiveModule } = useAppStore();
+  const { user, isLoading, isInitialized, initialize } = useAuth();
+
+  // Initialize auth on mount
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  // Subscribe to Supabase Realtime for automatic UI updates (only when authenticated)
+  useRealtimeSync();
 
   // Keyboard shortcuts: ⌘1-5 to switch modules
   useEffect(() => {
@@ -28,8 +41,8 @@ export default function App() {
         const moduleKeys: ModuleId[] = [
           "library",
           "work",
-          "inbox",
           "crm",
+          "inbox",
           "console",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
@@ -38,6 +51,23 @@ export default function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [setActiveModule]);
+
+  // Show loading spinner while initializing auth
+  if (!isInitialized || isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
+        <div className="text-center">
+          <Loader2 size={32} className="mx-auto mb-3 text-teal-600 animate-spin" />
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!user) {
+    return <Login />;
+  }
 
   const ActiveModule = modules[activeModule];
 

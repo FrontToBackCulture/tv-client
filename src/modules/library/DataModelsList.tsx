@@ -213,23 +213,23 @@ export function DataModelsList({ dataModelsPath, domainName, onTableSelect }: Da
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <Database size={14} />
           <span>{domainName}</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">Data Models</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Data Models</h2>
         <p className="text-sm text-zinc-500 mt-1">{tables.length} tables</p>
 
         {/* Stats */}
         <div className="flex gap-4 mt-4">
           <div className="flex items-center gap-1.5 text-sm">
-            <CheckCircle size={14} className="text-green-400" />
-            <span className="text-zinc-400">{freshCount} fresh</span>
+            <CheckCircle size={14} className="text-green-500 dark:text-green-400" />
+            <span className="text-zinc-500 dark:text-zinc-400">{freshCount} fresh</span>
           </div>
           <div className="flex items-center gap-1.5 text-sm">
-            <AlertTriangle size={14} className="text-amber-400" />
-            <span className="text-zinc-400">{staleCount} stale</span>
+            <AlertTriangle size={14} className="text-amber-500 dark:text-amber-400" />
+            <span className="text-zinc-500 dark:text-zinc-400">{staleCount} stale</span>
           </div>
         </div>
 
@@ -242,13 +242,13 @@ export function DataModelsList({ dataModelsPath, domainName, onTableSelect }: Da
               placeholder="Search tables..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+              className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
             />
           </div>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as "all" | "fresh" | "stale")}
-            className="bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-teal-500"
+            className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
           >
             <option value="all">All</option>
             <option value="fresh">Fresh</option>
@@ -261,30 +261,30 @@ export function DataModelsList({ dataModelsPath, domainName, onTableSelect }: Da
       <div className="flex-1 overflow-y-auto">
         {Object.entries(groupedBySpace).map(([space, spaceTables]) => (
           <div key={space}>
-            <div className="px-4 py-2 text-xs font-medium text-zinc-500 bg-zinc-900/50 sticky top-0">
+            <div className="px-4 py-2 text-xs font-medium text-zinc-500 bg-slate-100 dark:bg-zinc-900/50 sticky top-0">
               {space} ({spaceTables.length})
             </div>
             {spaceTables.map((table) => (
               <button
                 key={table.id}
                 onClick={() => onTableSelect?.(table.path, table.tableName)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/50 border-b border-zinc-800/50 text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-zinc-800/50 border-b border-slate-100 dark:border-zinc-800/50 text-left"
               >
                 <StatusIcon status={table.freshnessStatus} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-zinc-200 truncate">{table.displayName}</div>
+                  <div className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{table.displayName}</div>
                   <div className="text-xs text-zinc-500 font-mono truncate">{table.tableName}</div>
                 </div>
                 <div className="flex items-center gap-2">
                   {table.hasAnalysis && (
-                    <span className="text-xs text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded">
+                    <span className="text-xs text-teal-600 dark:text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded">
                       AI
                     </span>
                   )}
                   {table.lastUpdated && (
                     <span className="text-xs text-zinc-500">{table.lastUpdated}</span>
                   )}
-                  <ChevronRight size={14} className="text-zinc-600" />
+                  <ChevronRight size={14} className="text-zinc-400 dark:text-zinc-600" />
                 </div>
               </button>
             ))}

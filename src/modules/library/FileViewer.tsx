@@ -199,7 +199,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   // Header with breadcrumbs and actions
   const renderHeader = () => (
-    <div className="sticky top-0 z-10 bg-zinc-950 border-b border-zinc-800">
+    <div className="sticky top-0 z-10 bg-slate-50 dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800">
       <div className="flex items-center justify-between px-4 py-2">
         <Breadcrumbs
           path={path}
@@ -231,7 +231,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     return (
       <div
         className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 transition-opacity ${
-          toast.type === "success" ? "bg-teal-900 text-teal-100" : "bg-red-900 text-red-100"
+          toast.type === "success" ? "bg-teal-600 dark:bg-teal-900 text-white dark:text-teal-100" : "bg-red-600 dark:bg-red-900 text-white dark:text-red-100"
         }`}
       >
         {toast.message}
@@ -268,11 +268,11 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   // Loading state for text files
   if (isLoading) {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <FileText size={32} className="mx-auto mb-3 text-zinc-600 animate-pulse" />
+            <FileText size={32} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-600 animate-pulse" />
             <p className="text-sm text-zinc-500">Loading...</p>
           </div>
         </div>
@@ -282,12 +282,12 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (isError) {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <AlertCircle size={32} className="mx-auto mb-3 text-red-500" />
-            <p className="text-sm text-red-400">Failed to load file</p>
+            <p className="text-sm text-red-500 dark:text-red-400">Failed to load file</p>
             <p className="text-xs text-zinc-500 mt-1">{String(error)}</p>
           </div>
         </div>
@@ -298,11 +298,11 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (!content) {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <FileText size={32} className="mx-auto mb-3 text-zinc-600" />
+            <FileText size={32} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-600" />
             <p className="text-sm text-zinc-500">Empty file</p>
           </div>
         </div>
@@ -314,9 +314,9 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   // Render based on file type
   if (fileType === "markdown") {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
         {/* Header with breadcrumbs and actions */}
-        <div className="sticky top-0 z-10 bg-zinc-950 border-b border-zinc-800">
+        <div className="sticky top-0 z-10 bg-slate-50 dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="flex items-center gap-3">
               <Breadcrumbs
@@ -329,7 +329,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
               <span className={`text-xs ${
                 saveStatus === "saving" ? "text-zinc-500" :
                 saveStatus === "unsaved" ? "text-amber-500" :
-                "text-zinc-600"
+                "text-zinc-500 dark:text-zinc-600"
               }`}>
                 {saveStatus === "saving" ? "Saving..." :
                  saveStatus === "unsaved" ? "Unsaved" :
@@ -370,7 +370,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "json") {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <JSONEditor
@@ -388,7 +388,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "sql") {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <SQLEditor
@@ -406,7 +406,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "csv") {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <CSVViewer content={content} filename={filename} />
@@ -418,7 +418,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "html") {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <HTMLViewer content={content} filename={filename} />
@@ -430,18 +430,18 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "code") {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-auto">
           <div className="p-4">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-800">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200 dark:border-zinc-800">
               <FileCode size={16} className="text-zinc-500" />
-              <span className="text-sm text-zinc-400">{filename}</span>
-              <span className="text-xs text-zinc-600 bg-zinc-800 px-2 py-0.5 rounded ml-auto">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
+              <span className="text-xs text-zinc-600 dark:text-zinc-600 bg-slate-200 dark:bg-zinc-800 px-2 py-0.5 rounded ml-auto">
                 {getLanguage(path)}
               </span>
             </div>
-            <pre className="text-sm font-mono text-zinc-300 whitespace-pre-wrap">
+            <pre className="text-sm font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
               {content}
             </pre>
           </div>
@@ -453,15 +453,15 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   // Plain text fallback
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
       {renderHeader()}
       <div className="flex-1 overflow-auto">
         <div className="p-4">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-800">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200 dark:border-zinc-800">
             <FileText size={16} className="text-zinc-500" />
-            <span className="text-sm text-zinc-400">{filename}</span>
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
           </div>
-          <pre className="text-sm font-mono text-zinc-300 whitespace-pre-wrap">
+          <pre className="text-sm font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
             {content}
           </pre>
         </div>

@@ -118,19 +118,19 @@ export function CSVViewer({ content, filename }: CSVViewerProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900/50">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50">
         <div className="flex items-center gap-2">
           <Table2 size={16} className="text-zinc-500" />
-          <span className="text-sm text-zinc-400">{filename}</span>
-          <span className="text-xs text-zinc-600">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-600">
             {rows.length} rows × {headers.length} columns
           </span>
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded transition-colors"
         >
-          {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+          {copied ? <Check size={12} className="text-green-500 dark:text-green-400" /> : <Copy size={12} />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
@@ -138,9 +138,9 @@ export function CSVViewer({ content, filename }: CSVViewerProps) {
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse text-sm">
-          <thead className="sticky top-0 bg-zinc-900">
+          <thead className="sticky top-0 bg-slate-50 dark:bg-zinc-900">
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500 border-b border-zinc-800 w-10">
+              <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500 border-b border-slate-200 dark:border-zinc-800 w-10">
                 #
               </th>
               {headers.map((header, idx) => (
@@ -148,8 +148,8 @@ export function CSVViewer({ content, filename }: CSVViewerProps) {
                   key={idx}
                   onClick={() => handleSort(idx)}
                   className={cn(
-                    "px-3 py-2 text-left text-xs font-medium text-zinc-400 border-b border-zinc-800 cursor-pointer hover:bg-zinc-800 transition-colors",
-                    sortColumn === idx && "text-teal-400"
+                    "px-3 py-2 text-left text-xs font-medium text-zinc-600 dark:text-zinc-400 border-b border-slate-200 dark:border-zinc-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors",
+                    sortColumn === idx && "text-teal-600 dark:text-teal-400"
                   )}
                 >
                   <div className="flex items-center gap-1">
@@ -161,7 +161,7 @@ export function CSVViewer({ content, filename }: CSVViewerProps) {
                         <ArrowDown size={12} />
                       )
                     ) : (
-                      <ArrowUpDown size={12} className="text-zinc-600" />
+                      <ArrowUpDown size={12} className="text-zinc-400 dark:text-zinc-600" />
                     )}
                   </div>
                 </th>
@@ -172,15 +172,15 @@ export function CSVViewer({ content, filename }: CSVViewerProps) {
             {sortedRows.map((row, rowIdx) => (
               <tr
                 key={rowIdx}
-                className="hover:bg-zinc-800/50 transition-colors"
+                className="hover:bg-slate-100/50 dark:hover:bg-zinc-800/50 transition-colors"
               >
-                <td className="px-3 py-1.5 text-zinc-600 border-b border-zinc-800/50">
+                <td className="px-3 py-1.5 text-zinc-500 dark:text-zinc-600 border-b border-slate-100 dark:border-zinc-800/50">
                   {rowIdx + 1}
                 </td>
                 {headers.map((_, colIdx) => (
                   <td
                     key={colIdx}
-                    className="px-3 py-1.5 text-zinc-300 border-b border-zinc-800/50 max-w-xs truncate"
+                    className="px-3 py-1.5 text-zinc-800 dark:text-zinc-300 border-b border-slate-100 dark:border-zinc-800/50 max-w-xs truncate"
                     title={row[colIdx] || ""}
                   >
                     {row[colIdx] || ""}

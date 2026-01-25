@@ -79,7 +79,7 @@ export function LibraryModule() {
   }, [knowledgePath, handleFileSelect]);
 
   return (
-    <div ref={containerRef} className="h-full flex bg-zinc-950">
+    <div ref={containerRef} className="h-full flex bg-slate-50 dark:bg-zinc-950">
       {/* Sidebar with file tree - key forces remount on repository change */}
       <Sidebar
         key={activeRepository?.id ?? "no-repo"}
@@ -94,7 +94,7 @@ export function LibraryModule() {
       <div
         onMouseDown={handleMouseDown}
         className={`w-1 cursor-col-resize hover:bg-teal-500/50 transition-colors flex-shrink-0 ${
-          isResizing ? "bg-teal-500" : "bg-transparent hover:bg-zinc-700"
+          isResizing ? "bg-teal-500" : "bg-transparent hover:bg-slate-300 dark:hover:bg-zinc-700"
         }`}
       />
 
@@ -118,9 +118,9 @@ export function LibraryModule() {
         ) : !knowledgePath ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
-              <Library size={48} className="mx-auto mb-4 text-zinc-700" />
-              <h2 className="text-xl font-semibold text-zinc-400">No Repository Selected</h2>
-              <p className="text-sm text-zinc-600 mt-2 max-w-md">
+              <Library size={48} className="mx-auto mb-4 text-zinc-400 dark:text-zinc-700" />
+              <h2 className="text-xl font-semibold text-zinc-600 dark:text-zinc-400">No Repository Selected</h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-600 mt-2 max-w-md">
                 Add a repository using the dropdown in the sidebar.
               </p>
             </div>
@@ -128,9 +128,9 @@ export function LibraryModule() {
         ) : (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
-              <Library size={48} className="mx-auto mb-4 text-zinc-700" />
-              <h2 className="text-xl font-semibold text-zinc-400">Knowledge Base</h2>
-              <p className="text-sm text-zinc-600 mt-2 max-w-md">
+              <Library size={48} className="mx-auto mb-4 text-zinc-400 dark:text-zinc-700" />
+              <h2 className="text-xl font-semibold text-zinc-600 dark:text-zinc-400">Knowledge Base</h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-600 mt-2 max-w-md">
                 Select a file or folder from the sidebar to view its contents.
                 <br />
                 Use search to find files by name or content.

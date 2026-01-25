@@ -244,13 +244,13 @@ function TimelineHeader({ zoom }: { zoom: number }) {
   });
 
   return (
-    <div className="flex border-b border-zinc-800 bg-zinc-900/50">
+    <div className="flex border-b border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50">
       {hourLabels.map((hour) => {
         const label = hour === 0 ? "12a" : hour < 12 ? `${hour}a` : hour === 12 ? "12p" : `${hour - 12}p`;
         return (
           <div
             key={hour}
-            className="flex-shrink-0 px-2 py-1 text-xs text-zinc-500 border-r border-zinc-800"
+            className="flex-shrink-0 px-2 py-1 text-xs text-zinc-500 border-r border-slate-200 dark:border-zinc-800"
             style={{ width: `${30 * (60 / zoom)}px` }}
           >
             {label}
@@ -387,11 +387,11 @@ function DomainScheduleCard({
   }, [scheduledWorkflows]);
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+    <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
       {/* Header */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between p-4 hover:bg-zinc-800/50 transition-colors"
+        className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         <div className="flex items-center gap-3">
           {expanded ? (
@@ -399,12 +399,12 @@ function DomainScheduleCard({
           ) : (
             <ChevronRight size={16} className="text-zinc-500" />
           )}
-          <Database size={16} className="text-teal-400" />
-          <span className="font-medium text-zinc-200">{data.domain}</span>
+          <Database size={16} className="text-teal-600 dark:text-teal-400" />
+          <span className="font-medium text-zinc-800 dark:text-zinc-200">{data.domain}</span>
         </div>
         <div className="flex items-center gap-4 text-sm text-zinc-500">
           <span className="flex items-center gap-1">
-            <Clock size={14} className="text-teal-400" />
+            <Clock size={14} className="text-teal-600 dark:text-teal-400" />
             {scheduledWorkflows.length} scheduled
           </span>
           <span className="flex items-center gap-1">
@@ -416,17 +416,17 @@ function DomainScheduleCard({
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-zinc-800">
+        <div className="border-t border-slate-200 dark:border-zinc-800">
           {viewMode === "timeline" ? (
             <div className="overflow-x-auto">
               <TimelineHeader zoom={zoom} />
-              <div className="divide-y divide-zinc-800">
+              <div className="divide-y divide-slate-200 dark:divide-zinc-800">
                 {sortedByTime.map((wf) => (
                   <div key={wf.id} className="flex items-center">
-                    <div className="flex-shrink-0 w-64 px-4 py-2 border-r border-zinc-800">
+                    <div className="flex-shrink-0 w-64 px-4 py-2 border-r border-slate-200 dark:border-zinc-800">
                       <div className="flex items-center gap-2">
                         <WorkflowStatusIcon workflow={wf} dateStr={dateStr} />
-                        <span className="text-sm text-zinc-300 truncate">{wf.name}</span>
+                        <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{wf.name}</span>
                       </div>
                       <div className="text-xs text-zinc-500 ml-5">
                         {formatCronTime(wf.cron_expression)}
@@ -443,10 +443,10 @@ function DomainScheduleCard({
             <div className="p-4 space-y-4">
               {Object.entries(byPattern).map(([pattern, workflows]) => (
                 <div key={pattern}>
-                  <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <Calendar size={12} className="text-teal-400" />
+                  <h4 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <Calendar size={12} className="text-teal-600 dark:text-teal-400" />
                     {pattern}
-                    <span className="text-zinc-600">({workflows.length})</span>
+                    <span className="text-zinc-400 dark:text-zinc-600">({workflows.length})</span>
                   </h4>
                   <div className="space-y-1">
                     {workflows.map((wf) => (
@@ -458,10 +458,10 @@ function DomainScheduleCard({
 
               {manualWorkflows.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                  <h4 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                     <Play size={12} className="text-zinc-500" />
                     Manual
-                    <span className="text-zinc-600">({manualWorkflows.length})</span>
+                    <span className="text-zinc-400 dark:text-zinc-600">({manualWorkflows.length})</span>
                   </h4>
                   <div className="space-y-1">
                     {manualWorkflows.slice(0, 5).map((wf) => (
@@ -505,14 +505,14 @@ function WorkflowRow({ workflow, dateStr }: { workflow: WorkflowData; dateStr: s
   const cronTime = formatCronTime(workflow.cron_expression);
 
   return (
-    <div className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-zinc-800/50">
+    <div className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-slate-100 dark:hover:bg-zinc-800/50">
       <div className="flex items-center gap-2 min-w-0 flex-1">
         <WorkflowStatusIcon workflow={workflow} dateStr={dateStr} />
-        <span className="text-sm text-zinc-300 truncate">{workflow.name}</span>
+        <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{workflow.name}</span>
       </div>
       <div className="flex items-center gap-3 flex-shrink-0 ml-2">
         {cronTime && workflow.cron_expression && (
-          <span className="text-xs text-zinc-600 font-mono">{cronTime}</span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-600 font-mono">{cronTime}</span>
         )}
         <span className="text-xs text-zinc-500">
           {formatRelativeTime(workflow.run_completed_at)}
@@ -542,34 +542,34 @@ function DataSourcesTab({
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Data Sources section */}
-        <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
-            <FileJson size={16} className="text-teal-400" />
-            <span className="font-medium text-zinc-200">Data Sources by Domain</span>
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-2">
+            <FileJson size={16} className="text-teal-600 dark:text-teal-400" />
+            <span className="font-medium text-zinc-800 dark:text-zinc-200">Data Sources by Domain</span>
             <span className="text-xs text-zinc-500 ml-2">
               ({sources.length} domains)
             </span>
           </div>
-          <div className="divide-y divide-zinc-800">
+          <div className="divide-y divide-slate-200 dark:divide-zinc-800">
             {sources.map((source) => (
-              <div key={source.domain} className="px-4 py-3 hover:bg-zinc-800/50">
+              <div key={source.domain} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-zinc-800/50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Database size={14} className="text-zinc-500" />
-                    <span className="text-sm font-medium text-zinc-200">
+                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
                       {source.domain}
                     </span>
-                    <span className="text-xs text-zinc-600">/</span>
-                    <span className="text-xs text-teal-400 font-mono">
+                    <span className="text-xs text-zinc-400 dark:text-zinc-600">/</span>
+                    <span className="text-xs text-teal-600 dark:text-teal-400 font-mono">
                       {source.file}
                     </span>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-zinc-500">
                     <span>{source.workflows} workflows</span>
-                    <span className="text-teal-400">{source.scheduled} scheduled</span>
+                    <span className="text-teal-600 dark:text-teal-400">{source.scheduled} scheduled</span>
                   </div>
                 </div>
-                <div className="mt-1.5 text-xs text-zinc-600 font-mono truncate">
+                <div className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-600 font-mono truncate">
                   {source.path}
                 </div>
               </div>
@@ -578,10 +578,10 @@ function DataSourcesTab({
         </div>
 
         {/* File Locations section */}
-        <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
-            <FolderOpen size={16} className="text-teal-400" />
-            <span className="font-medium text-zinc-200">Base Locations</span>
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-2">
+            <FolderOpen size={16} className="text-teal-600 dark:text-teal-400" />
+            <span className="font-medium text-zinc-800 dark:text-zinc-200">Base Locations</span>
           </div>
           <div className="p-4 space-y-3">
             <div>
@@ -589,7 +589,7 @@ function DataSourcesTab({
                 <FolderOpen size={12} />
                 Production Path
               </div>
-              <code className="text-xs text-zinc-400 font-mono bg-zinc-800 px-2 py-1 rounded block overflow-x-auto">
+              <code className="text-xs text-zinc-600 dark:text-zinc-400 font-mono bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded block overflow-x-auto">
                 {productionPath}
               </code>
             </div>
@@ -598,7 +598,7 @@ function DataSourcesTab({
                 <FileText size={12} />
                 Workflow File Pattern
               </div>
-              <code className="text-xs text-zinc-400 font-mono bg-zinc-800 px-2 py-1 rounded block">
+              <code className="text-xs text-zinc-600 dark:text-zinc-400 font-mono bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded block">
                 {"{domain}"}/all_workflows.json
               </code>
             </div>
@@ -606,25 +606,25 @@ function DataSourcesTab({
         </div>
 
         {/* Summary Stats */}
-        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-4">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <div className="text-2xl font-bold text-zinc-100">
+              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 {sources.length}
               </div>
               <div className="text-xs text-zinc-500">Domains</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-zinc-100">
+              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 {sources.reduce((sum, s) => sum + s.workflows, 0)}
               </div>
               <div className="text-xs text-zinc-500">Total Workflows</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-teal-400">
+              <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">
                 {sources.reduce((sum, s) => sum + s.scheduled, 0)}
               </div>
-              <div className="text-xs text-teal-400/70">Scheduled</div>
+              <div className="text-xs text-teal-600/70 dark:text-teal-400/70">Scheduled</div>
             </div>
           </div>
         </div>
@@ -800,11 +800,11 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <AlertCircle size={32} className="mx-auto mb-3 text-red-500" />
-          <p className="text-sm text-red-400">Failed to load schedule data</p>
+          <p className="text-sm text-red-500 dark:text-red-400">Failed to load schedule data</p>
           <p className="text-xs text-zinc-500 mt-1">
             Could not read domain workflow files
           </p>
-          <code className="text-xs text-zinc-600 mt-2 block">{productionPath}</code>
+          <code className="text-xs text-zinc-500 dark:text-zinc-600 mt-2 block">{productionPath}</code>
         </div>
       </div>
     );
@@ -813,13 +813,13 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-zinc-800 p-4">
+      <div className="flex-shrink-0 border-b border-slate-200 dark:border-zinc-800 p-4">
         {/* Title row */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-6">
             <div>
-              <h1 className="text-xl font-semibold text-zinc-100 flex items-center gap-2">
-                <Clock size={22} className="text-teal-400" />
+              <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <Clock size={22} className="text-teal-600 dark:text-teal-400" />
                 All Domain Schedules
               </h1>
               <p className="text-sm text-zinc-500 mt-1">
@@ -828,14 +828,14 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
             </div>
 
             {/* Tab Buttons */}
-            <div className="flex items-center bg-zinc-800 rounded-lg p-0.5">
+            <div className="flex items-center bg-slate-100 dark:bg-zinc-800 rounded-lg p-0.5">
               <button
                 onClick={() => setActiveTab("report")}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                   activeTab === "report"
-                    ? "bg-zinc-700 text-zinc-100"
-                    : "text-zinc-400 hover:text-zinc-200"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
                 )}
               >
                 <BarChart3 size={14} />
@@ -846,8 +846,8 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                   activeTab === "sources"
-                    ? "bg-zinc-700 text-zinc-100"
-                    : "text-zinc-400 hover:text-zinc-200"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
                 )}
               >
                 <FileJson size={14} />
@@ -859,14 +859,14 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
           <div className="flex items-center gap-2">
             {/* View Toggle - only show when on report tab */}
             {activeTab === "report" && (
-              <div className="flex items-center bg-zinc-800 rounded-lg p-0.5">
+              <div className="flex items-center bg-slate-100 dark:bg-zinc-800 rounded-lg p-0.5">
                 <button
                   onClick={() => setViewMode("list")}
                   className={cn(
                     "flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors",
                     viewMode === "list"
-                      ? "bg-zinc-700 text-teal-400"
-                      : "text-zinc-400 hover:text-zinc-200"
+                      ? "bg-white dark:bg-zinc-700 text-teal-600 dark:text-teal-400 shadow-sm"
+                      : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
                   )}
                 >
                   <List size={14} />
@@ -877,8 +877,8 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
                   className={cn(
                     "flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors",
                     viewMode === "timeline"
-                      ? "bg-zinc-700 text-teal-400"
-                      : "text-zinc-400 hover:text-zinc-200"
+                      ? "bg-white dark:bg-zinc-700 text-teal-600 dark:text-teal-400 shadow-sm"
+                      : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
                   )}
                 >
                   <BarChart3 size={14} />
@@ -889,7 +889,7 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
 
             <button
               onClick={() => refetch()}
-              className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 transition-colors"
             >
               <RefreshCw size={14} />
               Refresh
@@ -900,33 +900,33 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
         {/* Date navigation - only show when on report tab */}
         {activeTab === "report" && (
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 py-1">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 rounded-lg px-2 py-1">
             <button
               onClick={goToPreviousDay}
-              className="p-1 hover:bg-zinc-700 rounded transition-colors"
+              className="p-1 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-colors"
             >
-              <ChevronLeft size={16} className="text-zinc-400" />
+              <ChevronLeft size={16} className="text-zinc-500 dark:text-zinc-400" />
             </button>
             <Calendar size={14} className="text-zinc-500 mx-1" />
-            <span className="text-sm font-medium text-zinc-300 min-w-[90px] text-center">
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 min-w-[90px] text-center">
               {formatDate(currentDate)}
             </span>
             {isToday && (
-              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-teal-500/20 text-teal-400 rounded">
+              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-teal-500/20 text-teal-600 dark:text-teal-400 rounded">
                 Today
               </span>
             )}
             <button
               onClick={goToNextDay}
-              className="p-1 hover:bg-zinc-700 rounded transition-colors"
+              className="p-1 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-colors"
             >
-              <ChevronRight size={16} className="text-zinc-400" />
+              <ChevronRight size={16} className="text-zinc-500 dark:text-zinc-400" />
             </button>
           </div>
           {!isToday && (
             <button
               onClick={goToToday}
-              className="px-2.5 py-1 text-sm font-medium text-teal-400 hover:bg-teal-500/10 rounded-lg transition-colors"
+              className="px-2.5 py-1 text-sm font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 rounded-lg transition-colors"
             >
               Today
             </button>
@@ -941,56 +941,56 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
           <button
             onClick={() => setFilterStatus("all")}
             className={cn(
-              "bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
-              filterStatus === "all" ? "border-zinc-500" : "border-zinc-700 hover:border-zinc-600"
+              "bg-white dark:bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
+              filterStatus === "all" ? "border-zinc-400 dark:border-zinc-500" : "border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600"
             )}
           >
-            <div className="text-lg font-bold text-zinc-100">{stats.total}</div>
+            <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{stats.total}</div>
             <div className="text-xs text-zinc-500">Total</div>
           </button>
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2">
-            <div className="text-lg font-bold text-teal-400">{stats.scheduled}</div>
+          <div className="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg px-3 py-2">
+            <div className="text-lg font-bold text-teal-600 dark:text-teal-400">{stats.scheduled}</div>
             <div className="text-xs text-zinc-500">Scheduled</div>
           </div>
           <button
             onClick={() => setFilterStatus("completed")}
             className={cn(
-              "bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
-              filterStatus === "completed" ? "border-green-500" : "border-zinc-700 hover:border-green-600"
+              "bg-white dark:bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
+              filterStatus === "completed" ? "border-green-500" : "border-slate-200 dark:border-zinc-700 hover:border-green-600"
             )}
           >
-            <div className="text-lg font-bold text-green-400">{stats.completed}</div>
-            <div className="text-xs text-green-400/70">Completed</div>
+            <div className="text-lg font-bold text-green-600 dark:text-green-400">{stats.completed}</div>
+            <div className="text-xs text-green-600/70 dark:text-green-400/70">Completed</div>
           </button>
           <button
             onClick={() => setFilterStatus("failed")}
             className={cn(
-              "bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
-              filterStatus === "failed" ? "border-red-500" : "border-zinc-700 hover:border-red-600"
+              "bg-white dark:bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
+              filterStatus === "failed" ? "border-red-500" : "border-slate-200 dark:border-zinc-700 hover:border-red-600"
             )}
           >
-            <div className="text-lg font-bold text-red-400">{stats.failed}</div>
-            <div className="text-xs text-red-400/70">Failed</div>
+            <div className="text-lg font-bold text-red-600 dark:text-red-400">{stats.failed}</div>
+            <div className="text-xs text-red-600/70 dark:text-red-400/70">Failed</div>
           </button>
           <button
             onClick={() => setFilterStatus("not_yet")}
             className={cn(
-              "bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
-              filterStatus === "not_yet" ? "border-zinc-400" : "border-zinc-700 hover:border-zinc-500"
+              "bg-white dark:bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
+              filterStatus === "not_yet" ? "border-zinc-400" : "border-slate-200 dark:border-zinc-700 hover:border-zinc-500"
             )}
           >
-            <div className="text-lg font-bold text-zinc-400">{stats.notYet}</div>
+            <div className="text-lg font-bold text-zinc-500 dark:text-zinc-400">{stats.notYet}</div>
             <div className="text-xs text-zinc-500">Not Yet</div>
           </button>
           <button
             onClick={() => setFilterStatus("missed")}
             className={cn(
-              "bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
-              filterStatus === "missed" ? "border-amber-500" : "border-zinc-700 hover:border-amber-600"
+              "bg-white dark:bg-zinc-800 border rounded-lg px-3 py-2 text-left transition-all",
+              filterStatus === "missed" ? "border-amber-500" : "border-slate-200 dark:border-zinc-700 hover:border-amber-600"
             )}
           >
-            <div className="text-lg font-bold text-amber-400">{stats.missed}</div>
-            <div className="text-xs text-amber-400/70">Missed</div>
+            <div className="text-lg font-bold text-amber-600 dark:text-amber-400">{stats.missed}</div>
+            <div className="text-xs text-amber-600/70 dark:text-amber-400/70">Missed</div>
           </button>
         </div>
 
@@ -1003,14 +1003,14 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
               placeholder="Search workflows or domains..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600"
+              className="w-full pl-9 pr-3 py-1.5 text-sm bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-lg text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 dark:placeholder-zinc-600"
             />
           </div>
 
           <select
             value={selectedDomain}
             onChange={(e) => setSelectedDomain(e.target.value)}
-            className="px-3 py-1.5 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300"
+            className="px-3 py-1.5 text-sm bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-lg text-zinc-700 dark:text-zinc-300"
           >
             <option value="all">All Domains ({data.domains.length})</option>
             {data.domains.map((d) => (
@@ -1030,8 +1030,8 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
                   className={cn(
                     "px-2 py-1 rounded transition-colors",
                     timelineZoom === z
-                      ? "bg-zinc-700 text-zinc-200"
-                      : "hover:bg-zinc-800 text-zinc-500"
+                      ? "bg-slate-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
+                      : "hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-500"
                   )}
                 >
                   {z === 60 ? "1h" : `${z}m`}
@@ -1058,12 +1058,12 @@ export function AllSchedulesReport({ basePath }: AllSchedulesReportProps) {
             <span className="text-zinc-500">
               Showing {filteredDomains.reduce((sum, d) => sum + d.workflows.filter((w) => w.cron_expression).length, 0)} scheduled workflows
             </span>
-            <span className="text-zinc-700">|</span>
-            <button onClick={expandAll} className="text-zinc-500 hover:text-zinc-300">
+            <span className="text-zinc-400 dark:text-zinc-700">|</span>
+            <button onClick={expandAll} className="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
               Expand all
             </button>
-            <span className="text-zinc-700">|</span>
-            <button onClick={collapseAll} className="text-zinc-500 hover:text-zinc-300">
+            <span className="text-zinc-400 dark:text-zinc-700">|</span>
+            <button onClick={collapseAll} className="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
               Collapse all
             </button>
           </div>

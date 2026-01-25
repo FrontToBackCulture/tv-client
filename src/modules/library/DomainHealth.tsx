@@ -105,7 +105,7 @@ export function DomainHealth({ domainPath, domainName }: DomainHealthProps) {
   if (error) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-red-400 flex items-center gap-2">
+        <div className="text-red-500 dark:text-red-400 flex items-center gap-2">
           <AlertTriangle size={16} />
           <span>{error}</span>
         </div>
@@ -174,13 +174,13 @@ export function DomainHealth({ domainPath, domainName }: DomainHealthProps) {
           placeholder="Search..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-48 bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+          className="w-48 bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
         />
       </div>
       <select
         value={filter}
         onChange={(e) => setFilter(e.target.value as FilterType)}
-        className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-teal-500"
+        className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
       >
         <option value="all">All</option>
         <option value="healthy">Healthy</option>
@@ -217,16 +217,16 @@ function getStatusIcon(level: string) {
     case "critical":
     case "essential":
     case "active":
-      return <CheckCircle size={16} className="text-green-400" />;
+      return <CheckCircle size={16} className="text-green-500 dark:text-green-400" />;
     case "warning":
     case "occasional":
     case "attention":
     case "at_risk":
-      return <AlertCircle size={16} className="text-yellow-400" />;
+      return <AlertCircle size={16} className="text-yellow-500 dark:text-yellow-400" />;
     case "stale":
     case "declining":
     case "orphaned":
-      return <AlertTriangle size={16} className="text-red-400" />;
+      return <AlertTriangle size={16} className="text-red-500 dark:text-red-400" />;
     case "skipped":
     case "unused":
     case "standalone":
@@ -267,18 +267,18 @@ function TableCard({ table }: { table: TableHealth }) {
           : "critical";
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-3">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-slate-200 dark:border-transparent">
       <div className="flex items-start gap-2">
         <div className="mt-0.5">{getStatusIcon(status)}</div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-zinc-200 font-medium truncate">{table.displayName}</p>
+          <p className="text-sm text-zinc-800 dark:text-zinc-200 font-medium truncate">{table.displayName}</p>
           <p className="text-xs text-zinc-500 mt-0.5">{table.path}</p>
 
-          <div className="flex gap-4 mt-2 text-xs text-zinc-400">
+          <div className="flex gap-4 mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             <span>Rows: {table.stats.rowCount}</span>
             <span>Type: {table.tableType}</span>
             {days !== null && (
-              <span className={days > 7 ? "text-red-400" : days > 3 ? "text-yellow-400" : ""}>
+              <span className={days > 7 ? "text-red-500 dark:text-red-400" : days > 3 ? "text-yellow-500 dark:text-yellow-400" : ""}>
                 Updated: {days}d ago
               </span>
             )}
@@ -317,16 +317,16 @@ function WorkflowList({ workflows }: { workflows: WorkflowHealth[] }) {
 // Workflow card
 function WorkflowCard({ workflow }: { workflow: WorkflowHealth }) {
   return (
-    <div className="bg-zinc-900 rounded-lg p-3">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-slate-200 dark:border-transparent">
       <div className="flex items-start gap-2">
         <div className="mt-0.5">
           {getStatusIcon(workflow.health.status.level)}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-zinc-200 font-medium truncate">{workflow.name}</p>
+          <p className="text-sm text-zinc-800 dark:text-zinc-200 font-medium truncate">{workflow.name}</p>
           <p className="text-xs text-zinc-500 mt-0.5">{workflow.health.status.description}</p>
 
-          <div className="flex gap-4 mt-2 text-xs text-zinc-400">
+          <div className="flex gap-4 mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             <span>
               Runs: {workflow.successfulExecutions}/{workflow.totalExecutions}
             </span>
@@ -345,7 +345,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowHealth }) {
           {workflow.health.issues.length > 0 && (
             <div className="mt-2 space-y-1">
               {workflow.health.issues.map((issue, i) => (
-                <p key={i} className="text-xs text-yellow-400/80">
+                <p key={i} className="text-xs text-yellow-600/80 dark:text-yellow-400/80">
                   • {issue}
                 </p>
               ))}
@@ -379,16 +379,16 @@ function DashboardList({ dashboards }: { dashboards: DashboardHealth[] }) {
 // Dashboard card
 function DashboardCard({ dashboard }: { dashboard: DashboardHealth }) {
   return (
-    <div className="bg-zinc-900 rounded-lg p-3">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-slate-200 dark:border-transparent">
       <div className="flex items-start gap-2">
         <div className="mt-0.5">
           {getStatusIcon(dashboard.health.status.level)}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-zinc-200 font-medium truncate">{dashboard.name}</p>
+          <p className="text-sm text-zinc-800 dark:text-zinc-200 font-medium truncate">{dashboard.name}</p>
           <p className="text-xs text-zinc-500 mt-0.5">{dashboard.health.status.description}</p>
 
-          <div className="flex gap-4 mt-2 text-xs text-zinc-400">
+          <div className="flex gap-4 mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             <span>Category: {dashboard.category}</span>
             <span>Sessions: {dashboard.metrics.totalSessions}</span>
             <span>Users: {dashboard.metrics.uniqueUsers}</span>
@@ -402,7 +402,7 @@ function DashboardCard({ dashboard }: { dashboard: DashboardHealth }) {
           {dashboard.health.issues.length > 0 && (
             <div className="mt-2 space-y-1">
               {dashboard.health.issues.map((issue, i) => (
-                <p key={i} className="text-xs text-yellow-400/80">
+                <p key={i} className="text-xs text-yellow-600/80 dark:text-yellow-400/80">
                   • {issue}
                 </p>
               ))}
@@ -436,16 +436,16 @@ function QueryList({ queries }: { queries: QueryHealth[] }) {
 // Query card
 function QueryCard({ query }: { query: QueryHealth }) {
   return (
-    <div className="bg-zinc-900 rounded-lg p-3">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-slate-200 dark:border-transparent">
       <div className="flex items-start gap-2">
         <div className="mt-0.5">
           {getStatusIcon(query.health.status.level)}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-zinc-200 font-medium truncate">{query.name}</p>
+          <p className="text-sm text-zinc-800 dark:text-zinc-200 font-medium truncate">{query.name}</p>
           <p className="text-xs text-zinc-500 mt-0.5">{query.health.status.description}</p>
 
-          <div className="flex gap-4 mt-2 text-xs text-zinc-400">
+          <div className="flex gap-4 mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             <span>ID: {query.id}</span>
             <span>Dashboards: {query.dashboardCount}</span>
             {query.dashboards.length > 0 && (
@@ -458,7 +458,7 @@ function QueryCard({ query }: { query: QueryHealth }) {
           {query.health.issues.length > 0 && (
             <div className="mt-2 space-y-1">
               {query.health.issues.map((issue, i) => (
-                <p key={i} className="text-xs text-yellow-400/80">
+                <p key={i} className="text-xs text-yellow-600/80 dark:text-yellow-400/80">
                   • {issue}
                 </p>
               ))}

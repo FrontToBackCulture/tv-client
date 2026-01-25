@@ -83,32 +83,32 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
   const getStatusColor = (status?: string) => {
     switch (status?.toLowerCase()) {
       case "published":
-        return "bg-green-900/30 text-green-400 border-green-700";
+        return "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-300 dark:border-green-700";
       case "draft":
-        return "bg-yellow-900/30 text-yellow-400 border-yellow-700";
+        return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700";
       case "review":
-        return "bg-blue-900/30 text-blue-400 border-blue-700";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700";
       case "archived":
-        return "bg-zinc-900/30 text-zinc-400 border-zinc-700";
+        return "bg-zinc-100 dark:bg-zinc-900/30 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700";
       default:
-        return "bg-zinc-900/30 text-zinc-400 border-zinc-700";
+        return "bg-zinc-100 dark:bg-zinc-900/30 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700";
     }
   };
 
   return (
-    <div className="border border-zinc-800 rounded-lg mb-4 overflow-hidden">
+    <div className="border border-slate-200 dark:border-zinc-800 rounded-lg mb-4 overflow-hidden">
       {/* Header - always visible */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-4 py-2 bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2 bg-slate-50/50 dark:bg-zinc-900/50 hover:bg-slate-100/50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         <div className="flex items-center gap-2">
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-zinc-400" />
+            <ChevronDown className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-zinc-400" />
+            <ChevronRight className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
           )}
-          <span className="text-sm font-medium text-zinc-300">Metadata</span>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Metadata</span>
           {data.status && (
             <span
               className={cn(
@@ -135,14 +135,14 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
 
       {/* Expanded content */}
       {isExpanded && (
-        <div className="px-4 py-3 space-y-3 border-t border-zinc-800">
+        <div className="px-4 py-3 space-y-3 border-t border-slate-200 dark:border-zinc-800">
           {/* Title */}
           {data.title && (
             <div className="flex items-start gap-2">
               <FileText className="w-4 h-4 text-zinc-500 mt-0.5 flex-shrink-0" />
               <div>
                 <div className="text-xs text-zinc-500 mb-0.5">Title</div>
-                <div className="text-sm text-zinc-200">{data.title}</div>
+                <div className="text-sm text-zinc-800 dark:text-zinc-200">{data.title}</div>
               </div>
             </div>
           )}
@@ -151,7 +151,7 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
           {data.summary && (
             <div>
               <div className="text-xs text-zinc-500 mb-1">Summary</div>
-              <div className="text-sm text-zinc-300">{data.summary}</div>
+              <div className="text-sm text-zinc-700 dark:text-zinc-300">{data.summary}</div>
             </div>
           )}
 
@@ -162,7 +162,7 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
                 <Calendar className="w-4 h-4 text-zinc-500" />
                 <div>
                   <div className="text-xs text-zinc-500">Created</div>
-                  <div className="text-sm text-zinc-300">{formatDate(data.created)}</div>
+                  <div className="text-sm text-zinc-700 dark:text-zinc-300">{formatDate(data.created)}</div>
                 </div>
               </div>
             )}
@@ -171,7 +171,7 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
                 <Clock className="w-4 h-4 text-zinc-500" />
                 <div>
                   <div className="text-xs text-zinc-500">Updated</div>
-                  <div className="text-sm text-zinc-300">{formatDate(data.updated)}</div>
+                  <div className="text-sm text-zinc-700 dark:text-zinc-300">{formatDate(data.updated)}</div>
                 </div>
               </div>
             )}
@@ -183,7 +183,7 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
               <User className="w-4 h-4 text-zinc-500" />
               <div>
                 <div className="text-xs text-zinc-500">Author</div>
-                <div className="text-sm text-zinc-300">{data.author}</div>
+                <div className="text-sm text-zinc-700 dark:text-zinc-300">{data.author}</div>
               </div>
             </div>
           )}
@@ -192,7 +192,7 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
           {data.category && (
             <div>
               <div className="text-xs text-zinc-500 mb-1">Category</div>
-              <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">
+              <span className="text-xs px-2 py-0.5 rounded bg-slate-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
                 {data.category}
               </span>
             </div>
@@ -208,7 +208,7 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
                   {data.tags.map((tag, i) => (
                     <span
                       key={i}
-                      className="text-xs px-2 py-0.5 rounded bg-teal-900/30 text-teal-400 border border-teal-700"
+                      className="text-xs px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-300 dark:border-teal-700"
                     >
                       {tag}
                     </span>
@@ -220,9 +220,9 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
 
           {/* Review info */}
           {(data.last_reviewed || data.reviewed_by) && (
-            <div className="pt-2 border-t border-zinc-800">
+            <div className="pt-2 border-t border-slate-200 dark:border-zinc-800">
               <div className="text-xs text-zinc-500 mb-1">Review</div>
-              <div className="text-sm text-zinc-400">
+              <div className="text-sm text-zinc-600 dark:text-zinc-400">
                 {data.reviewed_by && <span>By {data.reviewed_by}</span>}
                 {data.reviewed_by && data.last_reviewed && <span> on </span>}
                 {data.last_reviewed && <span>{formatDate(data.last_reviewed)}</span>}

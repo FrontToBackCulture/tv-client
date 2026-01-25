@@ -104,11 +104,11 @@ export function AnalyticsOverview({ analyticsPath, domainName }: AnalyticsOvervi
   if (!data) {
     return (
       <div className="p-6">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-4">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-4">
           <TrendingUp size={14} />
           <span>{domainName}</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100 mb-4">Analytics</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Analytics</h2>
         <div className="text-center text-zinc-500 py-8">
           <TrendingUp size={32} className="mx-auto mb-3 opacity-50" />
           <p>No analytics data available</p>
@@ -121,12 +121,12 @@ export function AnalyticsOverview({ analyticsPath, domainName }: AnalyticsOvervi
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <TrendingUp size={14} />
           <span>{domainName}</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">Analytics</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Analytics</h2>
         {data.lastUpdated && (
           <p className="text-sm text-zinc-500 mt-1">Last updated: {data.lastUpdated}</p>
         )}
@@ -170,27 +170,27 @@ export function AnalyticsOverview({ analyticsPath, domainName }: AnalyticsOvervi
         {/* Usage history */}
         {data.usageHistory && data.usageHistory.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
               <Clock size={14} />
               Usage History
             </h3>
-            <div className="bg-zinc-900 rounded-lg overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-200 dark:border-transparent">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="text-left px-3 py-2 text-zinc-400 font-medium">Period</th>
-                    <th className="text-right px-3 py-2 text-zinc-400 font-medium">Queries</th>
-                    <th className="text-right px-3 py-2 text-zinc-400 font-medium">Views</th>
-                    <th className="text-right px-3 py-2 text-zinc-400 font-medium">Users</th>
+                  <tr className="border-b border-slate-200 dark:border-zinc-800">
+                    <th className="text-left px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Period</th>
+                    <th className="text-right px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Queries</th>
+                    <th className="text-right px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Views</th>
+                    <th className="text-right px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Users</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.usageHistory.map((row, i) => (
-                    <tr key={i} className="border-b border-zinc-800/50 last:border-0">
-                      <td className="px-3 py-2 text-zinc-200">{row.period}</td>
-                      <td className="px-3 py-2 text-zinc-400 text-right">{formatNumber(row.queries)}</td>
-                      <td className="px-3 py-2 text-zinc-400 text-right">{formatNumber(row.dashboardViews)}</td>
-                      <td className="px-3 py-2 text-zinc-400 text-right">{row.uniqueUsers}</td>
+                    <tr key={i} className="border-b border-slate-100 dark:border-zinc-800/50 last:border-0">
+                      <td className="px-3 py-2 text-zinc-800 dark:text-zinc-200">{row.period}</td>
+                      <td className="px-3 py-2 text-zinc-500 dark:text-zinc-400 text-right">{formatNumber(row.queries)}</td>
+                      <td className="px-3 py-2 text-zinc-500 dark:text-zinc-400 text-right">{formatNumber(row.dashboardViews)}</td>
+                      <td className="px-3 py-2 text-zinc-500 dark:text-zinc-400 text-right">{row.uniqueUsers}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -236,20 +236,20 @@ function StatCard({
   color: "blue" | "purple" | "green" | "teal";
 }) {
   const colorClasses = {
-    blue: "text-blue-400",
-    purple: "text-purple-400",
-    green: "text-green-400",
-    teal: "text-teal-400",
+    blue: "text-blue-500 dark:text-blue-400",
+    purple: "text-purple-500 dark:text-purple-400",
+    green: "text-green-500 dark:text-green-400",
+    teal: "text-teal-500 dark:text-teal-400",
   };
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
       <div className={cn("flex items-center gap-2 mb-2", colorClasses[color])}>
         {icon}
         <span className="text-xs text-zinc-500">{label}</span>
       </div>
       <div className="flex items-end justify-between">
-        <p className="text-2xl font-semibold text-zinc-100">{value}</p>
+        <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{value}</p>
         {trend !== undefined && (
           <TrendIndicator value={trend} />
         )}
@@ -262,14 +262,14 @@ function StatCard({
 function TrendIndicator({ value }: { value: number }) {
   if (value > 0) {
     return (
-      <span className="flex items-center gap-0.5 text-xs text-green-400">
+      <span className="flex items-center gap-0.5 text-xs text-green-500 dark:text-green-400">
         <ArrowUp size={12} />
         {value}%
       </span>
     );
   } else if (value < 0) {
     return (
-      <span className="flex items-center gap-0.5 text-xs text-red-400">
+      <span className="flex items-center gap-0.5 text-xs text-red-500 dark:text-red-400">
         <ArrowDown size={12} />
         {Math.abs(value)}%
       </span>
@@ -294,22 +294,22 @@ function TopItemsList({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
-      <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+      <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
         {icon}
         {title}
       </h4>
       <div className="space-y-2">
         {items.slice(0, 5).map((item, i) => (
           <div key={i} className="flex items-center justify-between">
-            <span className="text-sm text-zinc-400 truncate flex-1">{item.name}</span>
+            <span className="text-sm text-zinc-500 dark:text-zinc-400 truncate flex-1">{item.name}</span>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-zinc-300">{formatNumber(item.count)}</span>
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">{formatNumber(item.count)}</span>
               {item.trend && (
                 <span className={cn(
                   "text-xs",
-                  item.trend === "up" && "text-green-400",
-                  item.trend === "down" && "text-red-400",
+                  item.trend === "up" && "text-green-500 dark:text-green-400",
+                  item.trend === "down" && "text-red-500 dark:text-red-400",
                   item.trend === "flat" && "text-zinc-500"
                 )}>
                   {item.trend === "up" && <ArrowUp size={10} />}

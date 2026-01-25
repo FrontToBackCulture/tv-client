@@ -124,12 +124,12 @@ export function QueriesList({ queriesPath, domainName, onQuerySelect }: QueriesL
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <FileCode size={14} />
           <span>{domainName}</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">Queries</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Queries</h2>
         <p className="text-sm text-zinc-500 mt-1">{queries.length} saved queries</p>
 
         {/* Search */}
@@ -140,7 +140,7 @@ export function QueriesList({ queriesPath, domainName, onQuerySelect }: QueriesL
             placeholder="Search queries..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+            className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded pl-8 pr-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
           />
         </div>
       </div>
@@ -151,28 +151,28 @@ export function QueriesList({ queriesPath, domainName, onQuerySelect }: QueriesL
           <button
             key={query.id}
             onClick={() => onQuerySelect?.(query.path, query.name)}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/50 border-b border-zinc-800/50 text-left"
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-zinc-800/50 border-b border-slate-100 dark:border-zinc-800/50 text-left"
           >
-            <FileCode size={16} className="text-yellow-400 flex-shrink-0" />
+            <FileCode size={16} className="text-yellow-500 dark:text-yellow-400 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-sm text-zinc-200 truncate">{query.displayName}</div>
+              <div className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{query.displayName}</div>
               {query.description && (
                 <div className="text-xs text-zinc-500 truncate">{query.description}</div>
               )}
               {query.tables && query.tables.length > 0 && (
                 <div className="flex items-center gap-1 mt-1">
-                  <Database size={10} className="text-zinc-600" />
-                  <span className="text-xs text-zinc-600">{query.tables.length} tables</span>
+                  <Database size={10} className="text-zinc-500 dark:text-zinc-600" />
+                  <span className="text-xs text-zinc-500 dark:text-zinc-600">{query.tables.length} tables</span>
                 </div>
               )}
             </div>
             <div className="flex items-center gap-2">
               {query.queryType && (
-                <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
+                <span className="text-xs text-zinc-600 dark:text-zinc-500 bg-slate-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
                   {query.queryType}
                 </span>
               )}
-              <ChevronRight size={14} className="text-zinc-600" />
+              <ChevronRight size={14} className="text-zinc-400 dark:text-zinc-600" />
             </div>
           </button>
         ))}

@@ -1,12 +1,22 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
 // Supabase configuration
-// These will be set via environment variables in production
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
-// Create Supabase client
-// Used by React components for Work, CRM, and Inbox data
+// Check if Supabase is configured
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+// Create Supabase client (untyped for flexibility)
+// Type safety is handled in the hooks via explicit type annotations
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Type exports will be added in Phase 4 (Supabase integration)
+// Helper to get the client (throws if not configured)
+export function getSupabaseClient() {
+  if (!isSupabaseConfigured) {
+    throw new Error(
+      "Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables."
+    );
+  }
+  return supabase;
+}

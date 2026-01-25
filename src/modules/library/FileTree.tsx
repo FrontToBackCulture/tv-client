@@ -128,7 +128,7 @@ function ContextMenu({
       <div className="fixed inset-0 z-40" onClick={onClose} />
       {/* Menu */}
       <div
-        className="fixed z-50 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px]"
+        className="fixed z-50 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px]"
         style={{ left: x, top: y }}
       >
         <button
@@ -136,22 +136,22 @@ function ContextMenu({
             onToggleFavorite();
             onClose();
           }}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
         >
           <Star size={14} className={isFavorite ? "text-yellow-500 fill-yellow-500" : ""} />
           {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
         </button>
-        <div className="border-t border-zinc-800 my-1" />
+        <div className="border-t border-slate-200 dark:border-zinc-800 my-1" />
         <button
           onClick={handleCopyPath}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
         >
           <Copy size={14} />
           Copy Path
         </button>
         <button
           onClick={handleShowInFinder}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
         >
           <FolderOpen size={14} />
           Show in Finder
@@ -159,7 +159,7 @@ function ContextMenu({
         {!isDirectory && (
           <button
             onClick={handleOpenWithDefault}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <ExternalLink size={14} />
             Open with Default App
@@ -242,8 +242,8 @@ export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps)
         onContextMenu={handleContextMenu}
         className={cn(
           "group flex items-center gap-1 px-2 py-1 cursor-pointer transition-colors",
-          "hover:bg-zinc-800",
-          isSelected && "bg-zinc-800 text-teal-400"
+          "hover:bg-slate-100 dark:hover:bg-zinc-800",
+          isSelected && "bg-slate-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
         )}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
       >
@@ -272,7 +272,7 @@ export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps)
         )}
 
         {/* Name */}
-        <span className={cn("text-sm truncate flex-1", isSelected ? "text-teal-400" : "text-zinc-300")}>
+        <span className={cn("text-sm truncate flex-1", isSelected ? "text-teal-600 dark:text-teal-400" : "text-zinc-700 dark:text-zinc-300")}>
           {node.name}
         </span>
 

@@ -300,14 +300,14 @@ export function FileActions({
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-1.5 rounded hover:bg-zinc-800 transition-colors"
+        className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
         title="More actions"
       >
-        <MoreVertical className="w-4 h-4 text-zinc-400" />
+        <MoreVertical className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-1 w-52 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg py-1 z-50">
+        <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
           {items.map((item, index) => (
             <div key={index}>
               <button
@@ -318,8 +318,8 @@ export function FileActions({
                   item.disabled || item.loading
                     ? "opacity-50 cursor-not-allowed"
                     : item.variant === "danger"
-                    ? "text-red-400 hover:bg-red-900/20"
-                    : "text-zinc-300 hover:bg-zinc-800"
+                    ? "text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20"
+                    : "text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
                 )}
               >
                 {item.loading ? (
@@ -344,7 +344,7 @@ export function FileActions({
                 <span className="flex-1">{item.label}</span>
               </button>
               {item.dividerAfter && (
-                <div className="my-1 border-t border-zinc-700" />
+                <div className="my-1 border-t border-slate-200 dark:border-zinc-700" />
               )}
             </div>
           ))}

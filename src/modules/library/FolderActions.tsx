@@ -98,8 +98,8 @@ function ActionButton({ icon, title, onClick, isActive }: ActionButtonProps) {
         isActive
           ? "bg-teal-500 text-white shadow-sm"
           : onClick
-            ? "text-teal-400/70 hover:text-teal-400 hover:bg-teal-500/20"
-            : "text-zinc-600 cursor-not-allowed"
+            ? "text-teal-600/70 dark:text-teal-400/70 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-500/20"
+            : "text-zinc-400 dark:text-zinc-600 cursor-not-allowed"
       )}
       title={title}
     >

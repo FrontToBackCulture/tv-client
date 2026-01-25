@@ -29,7 +29,7 @@ export function Breadcrumbs({ path, basePath, onNavigate, isFile = false }: Brea
       {/* Home/Root button */}
       <button
         onClick={() => onNavigate(basePath)}
-        className="flex-shrink-0 p-1 rounded hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-zinc-200"
+        className="flex-shrink-0 p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
         title="Go to root"
       >
         <Home className="w-4 h-4" />
@@ -40,7 +40,7 @@ export function Breadcrumbs({ path, basePath, onNavigate, isFile = false }: Brea
           {/* Truncate if too many segments */}
           {parts.length > 4 && (
             <>
-              <ChevronRight className="w-3 h-3 text-zinc-600 flex-shrink-0" />
+              <ChevronRight className="w-3 h-3 text-zinc-500 dark:text-zinc-600 flex-shrink-0" />
               <span className="text-zinc-500">...</span>
             </>
           )}
@@ -53,17 +53,17 @@ export function Breadcrumbs({ path, basePath, onNavigate, isFile = false }: Brea
 
             return (
               <div key={actualIndex} className="flex items-center gap-1 min-w-0">
-                <ChevronRight className="w-3 h-3 text-zinc-600 flex-shrink-0" />
+                <ChevronRight className="w-3 h-3 text-zinc-500 dark:text-zinc-600 flex-shrink-0" />
 
                 {isLast ? (
                   // Last segment - not clickable, show icon
                   <div className="flex items-center gap-1.5 min-w-0">
                     {isFile ? (
-                      <FileText className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
+                      <FileText className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
                     ) : (
                       <Folder className="w-3.5 h-3.5 text-teal-500 flex-shrink-0" />
                     )}
-                    <span className="text-zinc-200 font-medium truncate">
+                    <span className="text-zinc-800 dark:text-zinc-200 font-medium truncate">
                       {part}
                     </span>
                   </div>
@@ -72,7 +72,7 @@ export function Breadcrumbs({ path, basePath, onNavigate, isFile = false }: Brea
                   <button
                     onClick={() => onNavigate(segmentPath)}
                     className={cn(
-                      "text-zinc-400 hover:text-zinc-200 transition-colors truncate max-w-[120px]",
+                      "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors truncate max-w-[120px]",
                       "hover:underline"
                     )}
                     title={part}
@@ -88,8 +88,8 @@ export function Breadcrumbs({ path, basePath, onNavigate, isFile = false }: Brea
 
       {parts.length === 0 && (
         <>
-          <ChevronRight className="w-3 h-3 text-zinc-600 flex-shrink-0" />
-          <span className="text-zinc-200 font-medium">Root</span>
+          <ChevronRight className="w-3 h-3 text-zinc-500 dark:text-zinc-600 flex-shrink-0" />
+          <span className="text-zinc-800 dark:text-zinc-200 font-medium">Root</span>
         </>
       )}
     </div>

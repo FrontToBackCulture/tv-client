@@ -38,21 +38,21 @@ export function JSONViewer({ content, filename }: JSONViewerProps) {
   if (parsed === null) {
     return (
       <div className="p-4">
-        <div className="text-red-400 text-sm mb-2">Invalid JSON</div>
-        <pre className="text-sm font-mono text-zinc-400 whitespace-pre-wrap">{content}</pre>
+        <div className="text-red-500 dark:text-red-400 text-sm mb-2">Invalid JSON</div>
+        <pre className="text-sm font-mono text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap">{content}</pre>
       </div>
     );
   }
 
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-3 pb-2 border-b border-zinc-800">
-        <span className="text-sm text-zinc-400">{filename}</span>
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-zinc-800">
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">{filename}</span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
         >
-          {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+          {copied ? <Check size={12} className="text-green-500 dark:text-green-400" /> : <Copy size={12} />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
@@ -91,7 +91,7 @@ function JSONNode({
     <div style={{ marginLeft: level > 0 ? 16 : 0 }}>
       <div
         className={cn(
-          "flex items-start gap-1 py-0.5 rounded hover:bg-zinc-800/50",
+          "flex items-start gap-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-800/50",
           isExpandable && "cursor-pointer"
         )}
         onClick={() => isExpandable && setIsExpanded(!isExpanded)}
@@ -112,7 +112,7 @@ function JSONNode({
         {/* Key name */}
         {name !== null && (
           <>
-            <span className="text-purple-400">{`"${name}"`}</span>
+            <span className="text-purple-600 dark:text-purple-400">{`"${name}"`}</span>
             <span className="text-zinc-500">:</span>
           </>
         )}
@@ -122,7 +122,7 @@ function JSONNode({
           <span className="text-zinc-500">
             {isArray ? "[" : "{"}
             {!isExpanded && (
-              <span className="text-zinc-600 ml-1">
+              <span className="text-zinc-400 dark:text-zinc-600 ml-1">
                 {entries.length} {entries.length === 1 ? "item" : "items"}
               </span>
             )}
@@ -159,15 +159,15 @@ function ValueDisplay({ value }: { value: JSONValue }) {
     return <span className="text-zinc-500 italic">null</span>;
   }
   if (typeof value === "boolean") {
-    return <span className="text-orange-400">{value.toString()}</span>;
+    return <span className="text-orange-500 dark:text-orange-400">{value.toString()}</span>;
   }
   if (typeof value === "number") {
-    return <span className="text-cyan-400">{value}</span>;
+    return <span className="text-cyan-600 dark:text-cyan-400">{value}</span>;
   }
   if (typeof value === "string") {
     // Truncate long strings
     const display = value.length > 100 ? value.slice(0, 100) + "..." : value;
-    return <span className="text-green-400">{`"${display}"`}</span>;
+    return <span className="text-green-600 dark:text-green-400">{`"${display}"`}</span>;
   }
   return null;
 }

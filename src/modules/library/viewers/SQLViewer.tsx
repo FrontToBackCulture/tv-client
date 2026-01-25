@@ -63,7 +63,7 @@ function highlightSQL(code: string): React.ReactNode[] {
       const stringMatch = remaining.match(/^'([^']*(?:''[^']*)*)'/);
       if (stringMatch) {
         tokens.push(
-          <span key={tokenIdx++} className="text-green-400">
+          <span key={tokenIdx++} className="text-green-600 dark:text-green-400">
             {stringMatch[0]}
           </span>
         );
@@ -75,7 +75,7 @@ function highlightSQL(code: string): React.ReactNode[] {
       const numberMatch = remaining.match(/^\d+(\.\d+)?/);
       if (numberMatch) {
         tokens.push(
-          <span key={tokenIdx++} className="text-cyan-400">
+          <span key={tokenIdx++} className="text-cyan-600 dark:text-cyan-400">
             {numberMatch[0]}
           </span>
         );
@@ -91,19 +91,19 @@ function highlightSQL(code: string): React.ReactNode[] {
 
         if (SQL_KEYWORDS.includes(upperWord)) {
           tokens.push(
-            <span key={tokenIdx++} className="text-blue-400 font-semibold">
+            <span key={tokenIdx++} className="text-blue-600 dark:text-blue-400 font-semibold">
               {word}
             </span>
           );
         } else if (SQL_TYPES.includes(upperWord)) {
           tokens.push(
-            <span key={tokenIdx++} className="text-purple-400">
+            <span key={tokenIdx++} className="text-purple-600 dark:text-purple-400">
               {word}
             </span>
           );
         } else {
           tokens.push(
-            <span key={tokenIdx++} className="text-zinc-300">
+            <span key={tokenIdx++} className="text-zinc-600 dark:text-zinc-300">
               {word}
             </span>
           );
@@ -116,7 +116,7 @@ function highlightSQL(code: string): React.ReactNode[] {
       const operatorMatch = remaining.match(/^[=<>!]+|^[(),;.*]/);
       if (operatorMatch) {
         tokens.push(
-          <span key={tokenIdx++} className="text-yellow-400">
+          <span key={tokenIdx++} className="text-yellow-600 dark:text-yellow-400">
             {operatorMatch[0]}
           </span>
         );
@@ -126,7 +126,7 @@ function highlightSQL(code: string): React.ReactNode[] {
 
       // Default: take one character
       tokens.push(
-        <span key={tokenIdx++} className="text-zinc-300">
+        <span key={tokenIdx++} className="text-zinc-600 dark:text-zinc-300">
           {remaining[0]}
         </span>
       );
@@ -135,7 +135,7 @@ function highlightSQL(code: string): React.ReactNode[] {
 
     return (
       <div key={lineIdx} className="flex">
-        <span className="w-10 text-right pr-4 text-zinc-600 select-none flex-shrink-0">
+        <span className="w-10 text-right pr-4 text-zinc-400 dark:text-zinc-600 select-none flex-shrink-0">
           {lineIdx + 1}
         </span>
         <span className="flex-1">{tokens}</span>
@@ -161,17 +161,17 @@ export function SQLViewer({ content, filename }: SQLViewerProps) {
 
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-3 pb-2 border-b border-zinc-800">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-zinc-800">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-zinc-400">{filename}</span>
-          <span className="text-xs text-zinc-600 bg-zinc-800 px-2 py-0.5 rounded">SQL</span>
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">{filename}</span>
+          <span className="text-xs text-zinc-600 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded">SQL</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
           >
-            {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+            {copied ? <Check size={12} className="text-green-500 dark:text-green-400" /> : <Copy size={12} />}
             {copied ? "Copied" : "Copy"}
           </button>
         </div>

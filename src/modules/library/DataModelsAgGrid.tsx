@@ -11,6 +11,7 @@ import {
   GetRowIdParams,
   ModuleRegistry,
   AllCommunityModule,
+  ColumnState,
 } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
@@ -25,7 +26,6 @@ import {
   WrapText,
   Loader2,
   AlertTriangle,
-  Database,
   FileSpreadsheet,
   Bookmark,
   ChevronsLeftRight,
@@ -736,7 +736,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
     if (!api) return;
 
     const layout = savedLayouts[name] as {
-      columnState: object[];
+      columnState: ColumnState[];
       rowGroupColumns: string[];
       filterModel?: Record<string, unknown>;
     } | undefined;
@@ -794,7 +794,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
   }
 
   return (
-    <div className={`${isFullscreen ? "fixed inset-0 z-50 bg-zinc-950 p-4 flex flex-col" : "h-full flex flex-col"}`}>
+    <div className={`${isFullscreen ? "fixed inset-0 z-50 bg-slate-50 dark:bg-zinc-950 p-4 flex flex-col" : "h-full flex flex-col"}`}>
       {/* Custom styles for AG Grid */}
       <style>{`
         .ag-group-row-custom {
@@ -818,15 +818,15 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
       `}</style>
 
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-800 flex-shrink-0">
-        <h2 className="text-xl font-semibold text-zinc-100">Data Models Index</h2>
+      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Data Models Index</h2>
         <p className="text-sm text-zinc-500">
           {domainName} • {tables.length} tables • {tables.length > 0 ? Math.round((tables.filter(t => t.hasOverview).length / tables.length) * 100) : 0}% documented
         </p>
       </div>
 
       {/* Toolbar */}
-      <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
+      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -835,7 +835,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
             placeholder="Quick filter..."
             value={quickFilterText}
             onChange={(e) => setQuickFilterText(e.target.value)}
-            className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+            className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
           />
         </div>
 
@@ -843,7 +843,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
         <div className="flex items-center gap-2">
           <button
             onClick={applyFlatLayout}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
             title="Apply flat layout with Category pinned left"
           >
             <Columns size={14} />
@@ -851,7 +851,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
           </button>
           <button
             onClick={resetLayout}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
             title="Reset to default grouped layout"
           >
             <RotateCcw size={14} />
@@ -859,7 +859,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
           </button>
           <button
             onClick={autoSizeAllColumns}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
             title="Auto-size all columns"
           >
             <ChevronsLeftRight size={14} />
@@ -870,27 +870,27 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
           <div className="relative">
             <button
               onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
               title="Saved layouts"
             >
               <Bookmark size={14} />
               Layouts
             </button>
             {showLayoutMenu && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-zinc-800 rounded-lg shadow-lg border border-zinc-700 z-50 py-1">
+              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-slate-200 dark:border-zinc-700 z-50 py-1">
                 <button
                   onClick={() => {
                     setShowLayoutMenu(false);
                     setShowSaveDialog(true);
                   }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center gap-2"
                 >
-                  <span className="text-green-400">+</span>
+                  <span className="text-green-600 dark:text-green-400">+</span>
                   Save current layout...
                 </button>
                 {Object.keys(savedLayouts).length > 0 && (
                   <>
-                    <div className="border-t border-zinc-700 my-1" />
+                    <div className="border-t border-slate-200 dark:border-zinc-700 my-1" />
                     <div className="px-3 py-1 text-xs font-medium text-zinc-500">
                       Saved Layouts
                     </div>
@@ -898,12 +898,12 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
                       <div
                         key={name}
                         onClick={() => loadLayout(name)}
-                        className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
                       >
                         <span className="truncate">{name}</span>
                         <button
                           onClick={(e) => deleteLayout(name, e)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-900/30 rounded text-red-400"
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400"
                           title="Delete layout"
                         >
                           <X size={12} />
@@ -920,8 +920,8 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
             onClick={() => setWrapSummary(!wrapSummary)}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
               wrapSummary
-                ? "border-teal-500 bg-teal-500/20 text-teal-400"
-                : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                : "border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700"
             }`}
             title={wrapSummary ? "Click to truncate text" : "Click to wrap text"}
           >
@@ -929,7 +929,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
           </button>
           <button
             onClick={exportToCsv}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
             title="Export to CSV"
           >
             <Download size={14} />
@@ -947,8 +947,8 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
             onClick={() => setIsFullscreen(!isFullscreen)}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
               isFullscreen
-                ? "border-teal-500 bg-teal-500/20 text-teal-400"
-                : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                : "border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700"
             }`}
             title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
           >
@@ -1052,8 +1052,8 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
       {/* Save Layout Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="bg-zinc-800 rounded-lg shadow-xl p-6 w-96 max-w-[90vw] border border-zinc-700">
-            <h3 className="text-lg font-semibold text-zinc-100 mb-4">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-96 max-w-[90vw] border border-slate-200 dark:border-zinc-700">
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
               Save Layout
             </h3>
             <input
@@ -1069,7 +1069,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
                 }
               }}
               placeholder="Enter layout name..."
-              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-teal-500 mb-4"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500 mb-4"
               autoFocus
             />
             <div className="flex justify-end gap-2">
@@ -1078,7 +1078,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
                   setShowSaveDialog(false);
                   setNewLayoutName("");
                 }}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700"
               >
                 Cancel
               </button>

@@ -181,8 +181,8 @@ function OverviewTabContent({
 
       {/* Artifacts Summary */}
       {syncMetadata && (
-        <div className="bg-zinc-900 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-3">Artifacts Synced</h3>
+        <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Artifacts Synced</h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <ArtifactStat label="Tables" data={syncMetadata.artifacts.tables} />
             <ArtifactStat label="Workflows" data={syncMetadata.artifacts.workflows} />
@@ -195,8 +195,8 @@ function OverviewTabContent({
 
       {/* Quick Health Summary */}
       {(health || workflows) && (
-        <div className="bg-zinc-900 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-3">Health Summary</h3>
+        <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Health Summary</h3>
           <div className="space-y-2">
             <HealthRow
               label="Table Freshness"
@@ -227,8 +227,8 @@ function OverviewTabContent({
 
       {/* Recent Issues */}
       {(warningWorkflows > 0 || criticalWorkflows > 0) && workflows && (
-        <div className="bg-zinc-900 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-3">Recent Issues</h3>
+        <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Recent Issues</h3>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {workflows.workflows
               .filter((w) => w.health.status.level === "critical" || w.health.status.level === "warning")
@@ -237,7 +237,7 @@ function OverviewTabContent({
                 <div key={workflow.id} className="flex items-start gap-2 text-sm">
                   <span className="mt-0.5">{workflow.health.status.emoji}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-zinc-300 truncate">{workflow.name}</p>
+                    <p className="text-zinc-700 dark:text-zinc-300 truncate">{workflow.name}</p>
                     <p className="text-zinc-500 text-xs">{workflow.health.status.description}</p>
                   </div>
                 </div>
@@ -261,16 +261,16 @@ function HistoryTabContent({ syncMetadata }: { syncMetadata: SyncMetadata | null
 
   return (
     <div className="max-w-4xl">
-      <div className="bg-zinc-900 rounded-lg overflow-hidden">
-        <div className="px-4 py-2 bg-zinc-800 border-b border-zinc-700">
-          <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-200 dark:border-transparent">
+        <div className="px-4 py-2 bg-slate-100 dark:bg-zinc-800 border-b border-slate-200 dark:border-zinc-700">
+          <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">
             Recent Sync History
           </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800">
+              <tr className="border-b border-slate-200 dark:border-zinc-800">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Time</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Type</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wide">Details</th>
@@ -280,13 +280,13 @@ function HistoryTabContent({ syncMetadata }: { syncMetadata: SyncMetadata | null
             </thead>
             <tbody>
               {syncMetadata.syncHistory.slice(0, 20).map((entry, index) => (
-                <tr key={index} className="border-b border-zinc-800/50 hover:bg-zinc-800/50">
-                  <td className="px-4 py-3 text-zinc-400">{formatRelativeTime(entry.timestamp)}</td>
-                  <td className="px-4 py-3 text-zinc-200 font-medium">{entry.type}</td>
-                  <td className="px-4 py-3 text-zinc-400">
+                <tr key={index} className="border-b border-slate-100 dark:border-zinc-800/50 hover:bg-slate-50 dark:hover:bg-zinc-800/50">
+                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{formatRelativeTime(entry.timestamp)}</td>
+                  <td className="px-4 py-3 text-zinc-800 dark:text-zinc-200 font-medium">{entry.type}</td>
+                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                     {entry.artifactType || entry.extractionType || entry.generationType || "-"}
                   </td>
-                  <td className="px-4 py-3 text-zinc-400">{entry.count ?? "-"}</td>
+                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{entry.count ?? "-"}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={entry.status} />
                   </td>
@@ -315,20 +315,20 @@ function StatCard({
   color: "teal" | "blue" | "green" | "yellow" | "red";
 }) {
   const colorClasses = {
-    teal: "text-teal-400 bg-teal-400/10",
-    blue: "text-blue-400 bg-blue-400/10",
-    green: "text-green-400 bg-green-400/10",
-    yellow: "text-yellow-400 bg-yellow-400/10",
-    red: "text-red-400 bg-red-400/10",
+    teal: "text-teal-500 dark:text-teal-400 bg-teal-400/10",
+    blue: "text-blue-500 dark:text-blue-400 bg-blue-400/10",
+    green: "text-green-500 dark:text-green-400 bg-green-400/10",
+    yellow: "text-yellow-500 dark:text-yellow-400 bg-yellow-400/10",
+    red: "text-red-500 dark:text-red-400 bg-red-400/10",
   };
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
       <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center mb-3", colorClasses[color])}>
         {icon}
       </div>
-      <p className="text-2xl font-semibold text-zinc-100">{value}</p>
-      <p className="text-sm text-zinc-400">{label}</p>
+      <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{value}</p>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">{label}</p>
       {subtitle && <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>}
     </div>
   );
@@ -337,7 +337,7 @@ function StatCard({
 function ArtifactStat({ label, data }: { label: string; data: { count: number; lastSync: string | null; status: string } }) {
   return (
     <div className="text-center">
-      <p className="text-lg font-semibold text-zinc-100">{data.count}</p>
+      <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{data.count}</p>
       <p className="text-xs text-zinc-500">{label}</p>
     </div>
   );
@@ -362,7 +362,7 @@ function HealthRow({
     <div className="flex items-center gap-3">
       <div className={cn("w-2 h-2 rounded-full", statusColors[status])} />
       <div className="flex-1">
-        <span className="text-sm text-zinc-300">{label}</span>
+        <span className="text-sm text-zinc-700 dark:text-zinc-300">{label}</span>
         <span className="text-sm text-zinc-500 ml-2">— {detail}</span>
       </div>
     </div>

@@ -102,7 +102,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
     content: initialHtml,
     editorProps: {
       attributes: {
-        class: "prose prose-invert prose-zinc max-w-none focus:outline-none min-h-[300px] px-6 py-4",
+        class: "prose dark:prose-invert prose-zinc max-w-none focus:outline-none min-h-[300px] px-6 py-4",
       },
     },
     onUpdate: ({ editor }) => {
@@ -134,7 +134,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
         "p-1.5 rounded transition-colors",
         isActive
           ? "bg-teal-600 text-white"
-          : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700",
+          : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-slate-200 dark:hover:bg-zinc-700",
         disabled && "opacity-50 cursor-not-allowed"
       )}
     >
@@ -160,9 +160,9 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
   }
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900">
+    <div className="h-full flex flex-col bg-white dark:bg-zinc-900">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-zinc-800 bg-zinc-900/80 flex-wrap">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-900/80 flex-wrap">
         <div className="flex items-center gap-0.5">
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleBold().run()}
@@ -194,7 +194,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           </ToolbarButton>
         </div>
 
-        <div className="w-px h-5 bg-zinc-700 mx-1" />
+        <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700 mx-1" />
 
         <div className="flex items-center gap-0.5">
           <ToolbarButton
@@ -220,7 +220,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           </ToolbarButton>
         </div>
 
-        <div className="w-px h-5 bg-zinc-700 mx-1" />
+        <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700 mx-1" />
 
         <div className="flex items-center gap-0.5">
           <ToolbarButton
@@ -252,7 +252,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           </ToolbarButton>
         </div>
 
-        <div className="w-px h-5 bg-zinc-700 mx-1" />
+        <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700 mx-1" />
 
         <div className="flex items-center gap-0.5">
           <ToolbarButton
@@ -270,7 +270,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           </ToolbarButton>
         </div>
 
-        <div className="w-px h-5 bg-zinc-700 mx-1" />
+        <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700 mx-1" />
 
         <div className="flex items-center gap-0.5">
           <ToolbarButton

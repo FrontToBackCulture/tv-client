@@ -129,26 +129,26 @@ export function WorkflowDetails({ workflowPath, workflowName }: WorkflowDetailsP
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <Workflow size={14} />
           <span>Workflow</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
           {definition?.name || workflowName}
         </h2>
         {definition?.data?.description && (
           <p className="text-sm text-zinc-500 mt-1">{definition.data.description}</p>
         )}
-        <p className="text-sm text-zinc-600 font-mono mt-1">#{workflowName}</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-600 font-mono mt-1">#{workflowName}</p>
 
         {/* Status badge */}
         {definition?.latest_run_status && (
           <div className={cn(
             "inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs mt-2",
-            definition.latest_run_status === "completed" && "bg-green-500/20 text-green-400",
-            definition.latest_run_status === "failed" && "bg-red-500/20 text-red-400",
-            definition.latest_run_status === "running" && "bg-blue-500/20 text-blue-400"
+            definition.latest_run_status === "completed" && "bg-green-500/20 text-green-500 dark:text-green-400",
+            definition.latest_run_status === "failed" && "bg-red-500/20 text-red-500 dark:text-red-400",
+            definition.latest_run_status === "running" && "bg-blue-500/20 text-blue-500 dark:text-blue-400"
           )}>
             {definition.latest_run_status === "completed" && <CheckCircle size={12} />}
             {definition.latest_run_status === "failed" && <AlertTriangle size={12} />}
@@ -175,8 +175,8 @@ export function WorkflowDetails({ workflowPath, workflowName }: WorkflowDetailsP
           })()}
           {definition?.cron_expression && (
             <div className="flex items-center gap-2">
-              <Clock size={14} className="text-blue-400" />
-              <span className="text-sm text-blue-400">{definition.cron_expression}</span>
+              <Clock size={14} className="text-blue-500 dark:text-blue-400" />
+              <span className="text-sm text-blue-500 dark:text-blue-400">{definition.cron_expression}</span>
             </div>
           )}
         </div>
@@ -220,10 +220,10 @@ function TabButton({
       className={cn(
         "px-3 py-1.5 text-sm rounded-md transition-colors",
         disabled
-          ? "text-zinc-600 cursor-not-allowed"
+          ? "text-zinc-400 dark:text-zinc-600 cursor-not-allowed"
           : active
-            ? "bg-zinc-700 text-zinc-100"
-            : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+            ? "bg-slate-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800"
       )}
     >
       {children}
@@ -261,21 +261,21 @@ function DetailsTab({ definition }: { definition: WorkflowDefinition | null }) {
     <div className="space-y-6">
       {/* Description */}
       {definition.data?.description && (
-        <div className="bg-zinc-900 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-2">Description</h3>
-          <p className="text-sm text-zinc-400">{definition.data.description}</p>
+        <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Description</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{definition.data.description}</p>
         </div>
       )}
 
       {/* Tags */}
       {definition.tags && definition.tags.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-zinc-300 mb-3">Tags</h3>
+          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Tags</h3>
           <div className="flex flex-wrap gap-2">
             {definition.tags.map((tag, i) => (
               <span
                 key={i}
-                className="px-2 py-1 bg-zinc-800 rounded text-xs text-zinc-300"
+                className="px-2 py-1 bg-slate-100 dark:bg-zinc-800 rounded text-xs text-zinc-700 dark:text-zinc-300"
               >
                 {tag}
               </span>
@@ -287,7 +287,7 @@ function DetailsTab({ definition }: { definition: WorkflowDefinition | null }) {
       {/* Tables used */}
       {allTables.size > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
             <Database size={14} />
             Source Tables ({allTables.size})
           </h3>
@@ -295,7 +295,7 @@ function DetailsTab({ definition }: { definition: WorkflowDefinition | null }) {
             {Array.from(allTables).map((table, i) => (
               <span
                 key={i}
-                className="px-2 py-1 bg-zinc-800 rounded text-xs text-zinc-300 font-mono"
+                className="px-2 py-1 bg-slate-100 dark:bg-zinc-800 rounded text-xs text-zinc-700 dark:text-zinc-300 font-mono"
               >
                 {table}
               </span>
@@ -307,28 +307,28 @@ function DetailsTab({ definition }: { definition: WorkflowDefinition | null }) {
       {/* Plugins/Steps */}
       {plugins.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
             <FileJson size={14} />
             Plugins ({plugins.length})
           </h3>
           <div className="space-y-2">
             {plugins.map((plugin, i) => (
-              <div key={i} className="bg-zinc-900 rounded-lg overflow-hidden">
+              <div key={i} className="bg-white dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-200 dark:border-transparent">
                 <button
                   onClick={() => togglePlugin(i)}
-                  className="w-full flex items-center gap-2 p-3 text-left hover:bg-zinc-800/50"
+                  className="w-full flex items-center gap-2 p-3 text-left hover:bg-slate-50 dark:hover:bg-zinc-800/50"
                 >
                   {expandedPlugins.has(i) ? (
                     <ChevronDown size={14} className="text-zinc-500" />
                   ) : (
                     <ChevronRight size={14} className="text-zinc-500" />
                   )}
-                  <span className="text-xs text-zinc-600 font-mono w-6">{i + 1}</span>
-                  <span className="text-sm text-zinc-200 flex-1">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-600 font-mono w-6">{i + 1}</span>
+                  <span className="text-sm text-zinc-800 dark:text-zinc-200 flex-1">
                     {plugin.name}
                   </span>
                   {plugin.params?.target?.table && (
-                    <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded font-mono">
+                    <span className="text-xs text-zinc-500 bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded font-mono">
                       → {plugin.params.target.table}
                     </span>
                   )}
@@ -341,7 +341,7 @@ function DetailsTab({ definition }: { definition: WorkflowDefinition | null }) {
                         <span className="text-xs text-zinc-500">Column Mapping ({plugin.params.mapping.length})</span>
                         <div className="mt-1 max-h-32 overflow-y-auto">
                           {plugin.params.mapping.slice(0, 5).map((m, j) => (
-                            <div key={j} className="text-xs text-zinc-400 font-mono">
+                            <div key={j} className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
                               {m.source} → {m.target}
                             </div>
                           ))}
@@ -357,7 +357,7 @@ function DetailsTab({ definition }: { definition: WorkflowDefinition | null }) {
                     {plugin.params?.sql_query && (
                       <div>
                         <span className="text-xs text-zinc-500">SQL Query</span>
-                        <pre className="text-xs text-zinc-400 bg-zinc-950 rounded p-2 mt-1 overflow-x-auto max-h-40 overflow-y-auto">
+                        <pre className="text-xs text-zinc-600 dark:text-zinc-400 bg-slate-50 dark:bg-zinc-950 rounded p-2 mt-1 overflow-x-auto max-h-40 overflow-y-auto">
                           {plugin.params.sql_query.substring(0, 500)}
                           {plugin.params.sql_query.length > 500 && "..."}
                         </pre>
@@ -372,29 +372,29 @@ function DetailsTab({ definition }: { definition: WorkflowDefinition | null }) {
       )}
 
       {/* Metadata */}
-      <div className="bg-zinc-900 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-zinc-300 mb-3">Metadata</h3>
+      <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+        <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Metadata</h3>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-zinc-500">Workflow ID: </span>
-            <span className="text-zinc-300">{definition.id}</span>
+            <span className="text-zinc-700 dark:text-zinc-300">{definition.id}</span>
           </div>
           {definition.priority !== undefined && (
             <div>
               <span className="text-zinc-500">Priority: </span>
-              <span className="text-zinc-300">{definition.priority}</span>
+              <span className="text-zinc-700 dark:text-zinc-300">{definition.priority}</span>
             </div>
           )}
           {definition.updated_date && (
             <div>
               <span className="text-zinc-500">Last Updated: </span>
-              <span className="text-zinc-300">{new Date(definition.updated_date).toLocaleDateString()}</span>
+              <span className="text-zinc-700 dark:text-zinc-300">{new Date(definition.updated_date).toLocaleDateString()}</span>
             </div>
           )}
           {definition.run_completed_at && (
             <div>
               <span className="text-zinc-500">Last Run: </span>
-              <span className="text-zinc-300">{new Date(definition.run_completed_at).toLocaleString()}</span>
+              <span className="text-zinc-700 dark:text-zinc-300">{new Date(definition.run_completed_at).toLocaleString()}</span>
             </div>
           )}
         </div>
@@ -413,7 +413,7 @@ function HistoryTab({ definition }: { definition: WorkflowDefinition | null }) {
 
   return (
     <div>
-      <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+      <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
         <History size={14} />
         Recent Executions ({executions.length})
       </h3>
@@ -426,11 +426,11 @@ function HistoryTab({ definition }: { definition: WorkflowDefinition | null }) {
           return (
             <div
               key={i}
-              className="bg-zinc-900 rounded-lg p-3 flex items-center gap-3"
+              className="bg-white dark:bg-zinc-900 rounded-lg p-3 flex items-center gap-3 border border-slate-200 dark:border-transparent"
             >
               <ExecutionStatusIcon status={exec.status} />
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-zinc-200">
+                <div className="text-sm text-zinc-800 dark:text-zinc-200">
                   {startTime ? startTime.toLocaleString() : "-"}
                 </div>
                 {duration && (
@@ -441,9 +441,9 @@ function HistoryTab({ definition }: { definition: WorkflowDefinition | null }) {
               </div>
               <span className={cn(
                 "text-xs px-2 py-0.5 rounded",
-                exec.status === "completed" && "bg-green-500/20 text-green-400",
-                exec.status === "failed" && "bg-red-500/20 text-red-400",
-                exec.status === "running" && "bg-blue-500/20 text-blue-400"
+                exec.status === "completed" && "bg-green-500/20 text-green-500 dark:text-green-400",
+                exec.status === "failed" && "bg-red-500/20 text-red-500 dark:text-red-400",
+                exec.status === "running" && "bg-blue-500/20 text-blue-500 dark:text-blue-400"
               )}>
                 {exec.status}
               </span>
@@ -460,13 +460,13 @@ function ExecutionStatusIcon({ status }: { status: string }) {
   switch (status) {
     case "completed":
     case "success":
-      return <CheckCircle size={16} className="text-green-400 flex-shrink-0" />;
+      return <CheckCircle size={16} className="text-green-500 dark:text-green-400 flex-shrink-0" />;
     case "failed":
-      return <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />;
+      return <AlertTriangle size={16} className="text-red-500 dark:text-red-400 flex-shrink-0" />;
     case "running":
-      return <Play size={16} className="text-blue-400 flex-shrink-0 animate-pulse" />;
+      return <Play size={16} className="text-blue-500 dark:text-blue-400 flex-shrink-0 animate-pulse" />;
     default:
-      return <Clock size={16} className="text-zinc-400 flex-shrink-0" />;
+      return <Clock size={16} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />;
   }
 }
 

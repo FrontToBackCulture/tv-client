@@ -15,7 +15,7 @@ export function CommandPalette() {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { setActiveModule } = useAppStore();
+  const { setActiveModule, toggleTheme, theme } = useAppStore();
 
   const commands: Command[] = [
     {
@@ -31,22 +31,27 @@ export function CommandPalette() {
       action: () => setActiveModule("work"),
     },
     {
-      id: "inbox",
-      label: "Go to Inbox",
-      shortcut: "⌘3",
-      action: () => setActiveModule("inbox"),
-    },
-    {
       id: "crm",
       label: "Go to CRM",
-      shortcut: "⌘4",
+      shortcut: "⌘3",
       action: () => setActiveModule("crm"),
+    },
+    {
+      id: "inbox",
+      label: "Go to Inbox",
+      shortcut: "⌘4",
+      action: () => setActiveModule("inbox"),
     },
     {
       id: "console",
       label: "Go to Console",
       shortcut: "⌘5",
       action: () => setActiveModule("console"),
+    },
+    {
+      id: "theme",
+      label: `Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`,
+      action: () => toggleTheme(),
     },
     { id: "sync", label: "Sync Now", action: () => console.log("Sync") },
     {
@@ -99,21 +104,21 @@ export function CommandPalette() {
       />
 
       {/* Palette */}
-      <div className="relative w-full max-w-lg bg-zinc-900 rounded-lg border border-zinc-700 shadow-2xl">
+      <div className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-lg border border-slate-200 dark:border-zinc-700 shadow-2xl">
         {/* Search input */}
-        <div className="flex items-center px-4 border-b border-zinc-700">
-          <Search size={16} className="text-zinc-500" />
+        <div className="flex items-center px-4 border-b border-slate-200 dark:border-zinc-700">
+          <Search size={16} className="text-zinc-400 dark:text-zinc-500" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type a command..."
-            className="flex-1 bg-transparent px-3 py-3 text-sm outline-none placeholder:text-zinc-500"
+            className="flex-1 bg-transparent px-3 py-3 text-sm outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-zinc-900 dark:text-zinc-100"
           />
           <button
             onClick={() => setIsOpen(false)}
-            className="text-zinc-500 hover:text-zinc-300"
+            className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             <X size={16} />
           </button>
@@ -125,16 +130,16 @@ export function CommandPalette() {
             <button
               key={cmd.id}
               onClick={() => executeCommand(cmd)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm rounded hover:bg-zinc-800"
+              className="w-full flex items-center justify-between px-3 py-2 text-sm rounded text-zinc-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800"
             >
               <span>{cmd.label}</span>
               {cmd.shortcut && (
-                <span className="text-xs text-zinc-500">{cmd.shortcut}</span>
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">{cmd.shortcut}</span>
               )}
             </button>
           ))}
           {filteredCommands.length === 0 && (
-            <div className="px-3 py-2 text-sm text-zinc-500">
+            <div className="px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500">
               No commands found
             </div>
           )}

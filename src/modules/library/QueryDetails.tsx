@@ -156,19 +156,19 @@ export function QueryDetails({ queryPath, queryName }: QueryDetailsProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
+      <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm mb-1">
           <FileCode size={14} />
           <span>Query</span>
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
           {definition?.name || queryName}
         </h2>
         {definition?.datasource?.basicInfo?.desc && (
           <p className="text-sm text-zinc-500 mt-1">{definition.datasource.basicInfo.desc}</p>
         )}
         {definition?.category && (
-          <span className="inline-block mt-1 px-2 py-0.5 bg-zinc-800 rounded text-xs text-zinc-400">
+          <span className="inline-block mt-1 px-2 py-0.5 bg-slate-200 dark:bg-zinc-800 rounded text-xs text-zinc-600 dark:text-zinc-400">
             {definition.category}
           </span>
         )}
@@ -194,24 +194,24 @@ export function QueryDetails({ queryPath, queryName }: QueryDetailsProps) {
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* Source Table */}
         {definition?.datasource?.queryInfo?.tableInfo && (
-          <div className="bg-zinc-900 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
               <Database size={14} />
               Source Table
             </h3>
             <div className="space-y-2">
               <div>
                 <span className="text-xs text-zinc-500">Table Name: </span>
-                <span className="text-sm text-zinc-200">{definition.datasource.queryInfo.tableInfo.name}</span>
+                <span className="text-sm text-zinc-800 dark:text-zinc-200">{definition.datasource.queryInfo.tableInfo.name}</span>
               </div>
               <div>
                 <span className="text-xs text-zinc-500">Table ID: </span>
-                <span className="text-sm text-zinc-300 font-mono">{definition.datasource.queryInfo.tableInfo.id}</span>
+                <span className="text-sm text-zinc-700 dark:text-zinc-300 font-mono">{definition.datasource.queryInfo.tableInfo.id}</span>
               </div>
               {definition.datasource.queryInfo.tableInfo.sourceType && (
                 <div>
                   <span className="text-xs text-zinc-500">Type: </span>
-                  <span className="text-sm text-zinc-400">{definition.datasource.queryInfo.tableInfo.sourceType}</span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">{definition.datasource.queryInfo.tableInfo.sourceType}</span>
                 </div>
               )}
             </div>
@@ -221,14 +221,14 @@ export function QueryDetails({ queryPath, queryName }: QueryDetailsProps) {
         {/* Fields */}
         {definition?.datasource?.queryInfo?.tableInfo?.fields && definition.datasource.queryInfo.tableInfo.fields.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">
               Fields ({definition.datasource.queryInfo.tableInfo.fields.length})
             </h3>
             <div className="flex flex-wrap gap-2">
               {definition.datasource.queryInfo.tableInfo.fields.map((field, i) => (
                 <span
                   key={i}
-                  className="px-2 py-1 bg-zinc-800 rounded text-xs text-zinc-300 font-mono"
+                  className="px-2 py-1 bg-slate-100 dark:bg-zinc-800 rounded text-xs text-zinc-700 dark:text-zinc-300 font-mono"
                 >
                   {field}
                 </span>
@@ -240,18 +240,18 @@ export function QueryDetails({ queryPath, queryName }: QueryDetailsProps) {
         {/* Grouping */}
         {definition?.datasource?.queryInfo?.groupingInfo && definition.datasource.queryInfo.groupingInfo.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">
               Grouping ({definition.datasource.queryInfo.groupingInfo.length})
             </h3>
             <div className="flex flex-wrap gap-2">
               {definition.datasource.queryInfo.groupingInfo.map((g, i) => (
                 <span
                   key={i}
-                  className="px-2 py-1 bg-zinc-800 rounded text-xs text-zinc-300"
+                  className="px-2 py-1 bg-slate-100 dark:bg-zinc-800 rounded text-xs text-zinc-700 dark:text-zinc-300"
                 >
                   <span className="font-mono">{g.field}</span>
                   {g.dataType && <span className="text-zinc-500 ml-1">({g.dataType})</span>}
-                  {g.dateGroup && <span className="text-teal-400 ml-1">• {g.dateGroup}</span>}
+                  {g.dateGroup && <span className="text-teal-600 dark:text-teal-400 ml-1">• {g.dateGroup}</span>}
                 </span>
               ))}
             </div>
@@ -261,24 +261,24 @@ export function QueryDetails({ queryPath, queryName }: QueryDetailsProps) {
         {/* Aggregations */}
         {definition?.datasource?.queryInfo?.aggregationInfo && definition.datasource.queryInfo.aggregationInfo.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">
               Aggregations ({definition.datasource.queryInfo.aggregationInfo.length})
             </h3>
-            <div className="bg-zinc-900 rounded-lg overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-200 dark:border-transparent">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="text-left px-3 py-2 text-zinc-400 font-medium">Field</th>
-                    <th className="text-left px-3 py-2 text-zinc-400 font-medium">Function</th>
-                    <th className="text-left px-3 py-2 text-zinc-400 font-medium">Output</th>
+                  <tr className="border-b border-slate-200 dark:border-zinc-800">
+                    <th className="text-left px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Field</th>
+                    <th className="text-left px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Function</th>
+                    <th className="text-left px-3 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Output</th>
                   </tr>
                 </thead>
                 <tbody>
                   {definition.datasource.queryInfo.aggregationInfo.map((agg, i) => (
-                    <tr key={i} className="border-b border-zinc-800/50 last:border-0">
-                      <td className="px-3 py-2 text-zinc-200 font-mono text-xs">{agg.field}</td>
-                      <td className="px-3 py-2 text-teal-400 text-xs">{agg.aggregate}</td>
-                      <td className="px-3 py-2 text-zinc-400 font-mono text-xs">{agg.aggField}</td>
+                    <tr key={i} className="border-b border-slate-100 dark:border-zinc-800/50 last:border-0">
+                      <td className="px-3 py-2 text-zinc-800 dark:text-zinc-200 font-mono text-xs">{agg.field}</td>
+                      <td className="px-3 py-2 text-teal-600 dark:text-teal-400 text-xs">{agg.aggregate}</td>
+                      <td className="px-3 py-2 text-zinc-500 dark:text-zinc-400 font-mono text-xs">{agg.aggField}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -291,14 +291,14 @@ export function QueryDetails({ queryPath, queryName }: QueryDetailsProps) {
         {sqlContent && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-zinc-300">SQL File</h3>
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">SQL File</h3>
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-800 rounded"
+                className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 bg-slate-100 dark:bg-zinc-800 rounded"
               >
                 {copied ? (
                   <>
-                    <Check size={12} className="text-green-400" />
+                    <Check size={12} className="text-green-500 dark:text-green-400" />
                     Copied
                   </>
                 ) : (
@@ -309,7 +309,7 @@ export function QueryDetails({ queryPath, queryName }: QueryDetailsProps) {
                 )}
               </button>
             </div>
-            <pre className="bg-zinc-900 rounded-lg p-4 text-xs text-zinc-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
+            <pre className="bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-transparent rounded-lg p-4 text-xs text-zinc-700 dark:text-zinc-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
               {sqlContent}
             </pre>
           </div>
@@ -317,23 +317,23 @@ export function QueryDetails({ queryPath, queryName }: QueryDetailsProps) {
 
         {/* Metadata */}
         {definition && (
-          <div className="bg-zinc-900 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">Metadata</h3>
+          <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Metadata</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-zinc-500">Query ID: </span>
-                <span className="text-zinc-300">{definition.id}</span>
+                <span className="text-zinc-700 dark:text-zinc-300">{definition.id}</span>
               </div>
               {definition.created_date && (
                 <div>
                   <span className="text-zinc-500">Created: </span>
-                  <span className="text-zinc-300">{new Date(definition.created_date).toLocaleDateString()}</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{new Date(definition.created_date).toLocaleDateString()}</span>
                 </div>
               )}
               {definition.updated_date && (
                 <div>
                   <span className="text-zinc-500">Last modified: </span>
-                  <span className="text-zinc-300">{new Date(definition.updated_date).toLocaleDateString()}</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{new Date(definition.updated_date).toLocaleDateString()}</span>
                 </div>
               )}
             </div>

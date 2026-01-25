@@ -108,7 +108,7 @@ export function DomainAudit({ domainPath, domainName }: DomainAuditProps) {
   const headerActions = (
     <button
       onClick={() => refetch()}
-      className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300 transition-colors"
+      className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 transition-colors"
     >
       <RefreshCw size={14} />
       Refresh
@@ -130,9 +130,9 @@ export function DomainAudit({ domainPath, domainName }: DomainAuditProps) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <AlertCircle size={32} className="mx-auto mb-3 text-zinc-600" />
-          <p className="text-sm text-zinc-500">No audit data available</p>
-          <p className="text-xs text-zinc-600 mt-1">
+          <AlertCircle size={32} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-600" />
+          <p className="text-sm text-zinc-600 dark:text-zinc-500">No audit data available</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-1">
             Run artifact audit to generate data
           </p>
         </div>
@@ -157,21 +157,21 @@ export function DomainAudit({ domainPath, domainName }: DomainAuditProps) {
               className={cn(
                 "rounded-xl p-6 border",
                 isHealthy
-                  ? "bg-green-900/10 border-green-800"
-                  : "bg-yellow-900/10 border-yellow-800"
+                  ? "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800"
+                  : "bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800"
               )}
             >
               <div className="flex items-center gap-4">
                 {isHealthy ? (
-                  <CheckCircle size={32} className="text-green-400" />
+                  <CheckCircle size={32} className="text-green-500 dark:text-green-400" />
                 ) : (
-                  <AlertTriangle size={32} className="text-yellow-400" />
+                  <AlertTriangle size={32} className="text-yellow-500 dark:text-yellow-400" />
                 )}
                 <div>
-                  <h2 className="text-lg font-semibold text-zinc-100">
+                  <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                     {isHealthy ? "All Artifacts in Sync" : `${totalStale} Stale Artifacts`}
                   </h2>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
                     {audit.summary.totalCurrent} of {audit.summary.totalLocal} artifacts are current
                   </p>
                 </div>
@@ -206,7 +206,7 @@ export function DomainAudit({ domainPath, domainName }: DomainAuditProps) {
 
             {/* By Type Breakdown */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium text-zinc-300">Artifacts by Type</h3>
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Artifacts by Type</h3>
               <div className="grid grid-cols-2 gap-4">
                 <ArtifactTypeCard
                   type="Queries"
@@ -233,22 +233,22 @@ export function DomainAudit({ domainPath, domainName }: DomainAuditProps) {
 
             {/* Stale Artifacts List */}
             {totalStale > 0 && (
-              <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-                <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
-                  <AlertTriangle size={16} className="text-yellow-400" />
-                  <span className="font-medium text-zinc-200">Stale Artifacts</span>
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-yellow-500 dark:text-yellow-400" />
+                  <span className="font-medium text-zinc-800 dark:text-zinc-200">Stale Artifacts</span>
                 </div>
-                <div className="divide-y divide-zinc-800 max-h-64 overflow-y-auto">
+                <div className="divide-y divide-slate-200 dark:divide-zinc-800 max-h-64 overflow-y-auto">
                   {Object.entries(audit.byType).map(([type, data]) =>
                     data.staleArtifacts.map((artifact) => (
                       <div
                         key={`${type}-${artifact.id}`}
                         className="px-4 py-3 flex items-center gap-3"
                       >
-                        <span className="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-400 uppercase">
+                        <span className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 uppercase">
                           {type}
                         </span>
-                        <span className="text-sm text-zinc-200 flex-1 truncate">
+                        <span className="text-sm text-zinc-800 dark:text-zinc-200 flex-1 truncate">
                           {artifact.name}
                         </span>
                         {artifact.reason && (
@@ -285,14 +285,14 @@ function StatCard({
   color?: "zinc" | "green" | "yellow" | "red";
 }) {
   const colorClasses = {
-    zinc: "text-zinc-400",
-    green: "text-green-400",
-    yellow: "text-yellow-400",
-    red: "text-red-400",
+    zinc: "text-zinc-500 dark:text-zinc-400",
+    green: "text-green-500 dark:text-green-400",
+    yellow: "text-yellow-500 dark:text-yellow-400",
+    red: "text-red-500 dark:text-red-400",
   };
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
       <div className="flex items-center gap-2 text-zinc-500 mb-2">
         {icon}
         <span className="text-xs">{label}</span>
@@ -317,40 +317,40 @@ function ArtifactTypeCard({
     : 100;
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-slate-200 dark:border-transparent">
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 text-zinc-300">
+        <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
           {icon}
           <span className="font-medium">{type}</span>
         </div>
         {isHealthy ? (
-          <CheckCircle size={16} className="text-green-400" />
+          <CheckCircle size={16} className="text-green-500 dark:text-green-400" />
         ) : (
-          <AlertTriangle size={16} className="text-yellow-400" />
+          <AlertTriangle size={16} className="text-yellow-500 dark:text-yellow-400" />
         )}
       </div>
 
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-zinc-500">Local / Remote</span>
-          <span className="text-zinc-300">
+          <span className="text-zinc-700 dark:text-zinc-300">
             {data.localCount} / {data.remoteCount}
           </span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-zinc-500">Current</span>
-          <span className="text-green-400">{data.currentCount}</span>
+          <span className="text-green-500 dark:text-green-400">{data.currentCount}</span>
         </div>
         {data.staleCount > 0 && (
           <div className="flex justify-between text-sm">
             <span className="text-zinc-500">Stale</span>
-            <span className="text-yellow-400">{data.staleCount}</span>
+            <span className="text-yellow-500 dark:text-yellow-400">{data.staleCount}</span>
           </div>
         )}
 
         {/* Progress bar */}
         <div className="mt-3">
-          <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+          <div className="h-2 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
             <div
               className={cn(
                 "h-full rounded-full transition-all",
