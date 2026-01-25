@@ -1,14 +1,39 @@
 // src/shell/StatusBar.tsx
 
+import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../stores/appStore";
+import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { cn } from "../lib/cn";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2 } from "lucide-react";
 
 export function StatusBar() {
   const { syncStatus, theme, toggleTheme } = useAppStore();
+  const runningJobs = useRunningJobs();
+  const recentJobs = useRecentJobs(10);
+  const clearCompleted = useJobsStore((s) => s.clearCompleted);
+  const removeJob = useJobsStore((s) => s.removeJob);
+
+  const [showJobsPanel, setShowJobsPanel] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Close panel on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setShowJobsPanel(false);
+      }
+    }
+    if (showJobsPanel) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showJobsPanel]);
+
+  const hasJobs = recentJobs.length > 0;
+  const hasRunning = runningJobs.length > 0;
 
   return (
-    <div className="h-6 bg-slate-100 dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500">
+    <div className="h-6 bg-slate-100 dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative">
       <div className="flex items-center gap-4">
         <span>TV Desktop v0.1.0</span>
         {syncStatus !== "idle" && (
@@ -29,6 +54,116 @@ export function StatusBar() {
       </div>
       <div className="flex-1" />
       <div className="flex items-center gap-4">
+        {/* Background Jobs Indicator */}
+        {hasJobs && (
+          <div className="relative" ref={panelRef}>
+            <button
+              onClick={() => setShowJobsPanel(!showJobsPanel)}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-0.5 rounded transition-colors",
+                hasRunning
+                  ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                  : "hover:bg-slate-200 dark:hover:bg-zinc-800"
+              )}
+            >
+              {hasRunning ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>
+                    {runningJobs.length} job{runningJobs.length > 1 ? "s" : ""} running
+                  </span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={12} className="text-green-500" />
+                  <span>Jobs</span>
+                </>
+              )}
+            </button>
+
+            {/* Jobs Panel */}
+            {showJobsPanel && (
+              <div className="absolute bottom-full right-0 mb-1 w-80 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-zinc-700">
+                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                    Background Jobs
+                  </span>
+                  <button
+                    onClick={clearCompleted}
+                    className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 flex items-center gap-1"
+                  >
+                    <Trash2 size={10} />
+                    Clear completed
+                  </button>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {recentJobs.length === 0 ? (
+                    <div className="px-3 py-4 text-center text-zinc-400">
+                      No recent jobs
+                    </div>
+                  ) : (
+                    recentJobs.map((job) => (
+                      <div
+                        key={job.id}
+                        className="px-3 py-2 border-b border-slate-100 dark:border-zinc-800 last:border-0 hover:bg-slate-50 dark:hover:bg-zinc-800/50"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {job.status === "running" && (
+                              <Loader2
+                                size={14}
+                                className="animate-spin text-teal-500 flex-shrink-0"
+                              />
+                            )}
+                            {job.status === "completed" && (
+                              <CheckCircle2
+                                size={14}
+                                className="text-green-500 flex-shrink-0"
+                              />
+                            )}
+                            {job.status === "failed" && (
+                              <XCircle
+                                size={14}
+                                className="text-red-500 flex-shrink-0"
+                              />
+                            )}
+                            <span className="truncate text-zinc-700 dark:text-zinc-200">
+                              {job.name}
+                            </span>
+                          </div>
+                          {job.status !== "running" && (
+                            <button
+                              onClick={() => removeJob(job.id)}
+                              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+                        {job.message && (
+                          <p className="mt-1 text-xs text-zinc-500 truncate pl-6">
+                            {job.message}
+                          </p>
+                        )}
+                        {job.status === "running" && job.progress !== undefined && (
+                          <div className="mt-1.5 pl-6">
+                            <div className="h-1 bg-slate-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-teal-500 transition-all duration-300"
+                                style={{ width: `${job.progress}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <span>⌘K for commands</span>
 
         {/* Theme toggle */}
