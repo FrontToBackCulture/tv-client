@@ -18,7 +18,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
       {/* Draggable title bar region for macOS */}
       <div
         data-tauri-drag-region
-        className="h-8 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center"
+        className="h-10 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
         {/* Leave space for macOS traffic lights (close/minimize/fullscreen) */}
