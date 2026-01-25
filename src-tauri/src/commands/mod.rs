@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod files;
 pub mod search;
+pub mod terminal;
 
 use tauri::command;
 

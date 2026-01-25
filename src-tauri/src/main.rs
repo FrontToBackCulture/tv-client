@@ -31,6 +31,9 @@ fn main() {
             let state = AppState { knowledge_path };
             app.manage(state);
 
+            // Terminal sessions state
+            app.manage(commands::terminal::TerminalSessions::default());
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -57,6 +60,13 @@ fn main() {
             // Auth operations (GitHub OAuth)
             commands::auth::github_oauth_start,
             commands::auth::github_get_user,
+            // Terminal operations (PTY)
+            commands::terminal::terminal_create,
+            commands::terminal::terminal_write,
+            commands::terminal::terminal_read,
+            commands::terminal::terminal_resize,
+            commands::terminal::terminal_close,
+            commands::terminal::terminal_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
