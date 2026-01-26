@@ -6,10 +6,12 @@ import { LibraryModule } from "./modules/library/LibraryModule";
 import { WorkModule } from "./modules/work/WorkModule";
 import { InboxModule } from "./modules/inbox/InboxModule";
 import { CrmModule } from "./modules/crm/CrmModule";
+import { BotModule } from "./modules/bot/BotModule";
 import { ConsoleModule } from "./modules/console/ConsoleModule";
 import { SettingsModule } from "./modules/settings/SettingsModule";
 import { Login } from "./components/Login";
 import { useAppStore, ModuleId } from "./stores/appStore";
+import { useSidePanelStore } from "./stores/sidePanelStore";
 import { useAuth } from "./stores/authStore";
 import { useRealtimeSync } from "./hooks/useRealtimeSync";
 import { Loader2 } from "lucide-react";
@@ -19,6 +21,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   work: WorkModule,
   inbox: InboxModule,
   crm: CrmModule,
+  bot: BotModule,
   console: ConsoleModule,
   settings: SettingsModule,
 };
@@ -35,7 +38,7 @@ export default function App() {
   // Subscribe to Supabase Realtime for automatic UI updates (only when authenticated)
   useRealtimeSync();
 
-  // Keyboard shortcuts: ⌘1-5 to switch modules, ⌘, for settings
+  // Keyboard shortcuts: ⌘1-4 to switch modules, ⌘, for settings
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "5") {
@@ -45,7 +48,7 @@ export default function App() {
           "work",
           "crm",
           "inbox",
-          "console",
+          "bot",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
       }
@@ -53,6 +56,11 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === ",") {
         e.preventDefault();
         setActiveModule("settings");
+      }
+      // ⌘. — Toggle side document panel
+      if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+        e.preventDefault();
+        useSidePanelStore.getState().togglePanel();
       }
     };
     window.addEventListener("keydown", handler);

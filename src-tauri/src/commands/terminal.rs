@@ -15,8 +15,10 @@ pub struct TerminalSessions {
 
 struct TerminalSession {
     writer: Box<dyn Write + Send>,
-    reader: Arc<Mutex<Box<dyn Read + Send>>>,
+    output_buffer: Arc<Mutex<Vec<u8>>>,
     _child: Box<dyn portable_pty::Child + Send + Sync>,
+    // Reader thread handle — dropped (detached) when session is removed
+    _reader_handle: std::thread::JoinHandle<()>,
 }
 
 impl Default for TerminalSessions {
@@ -68,6 +70,7 @@ pub fn terminal_create(
     // Set environment
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    cmd.env("PROMPT_EOL_MARK", ""); // Suppress zsh's % mark on fresh terminal
 
     // Spawn the shell
     let child = pair
@@ -76,7 +79,7 @@ pub fn terminal_create(
         .map_err(|e| format!("Failed to spawn shell: {}", e))?;
 
     // Get reader and writer
-    let reader = pair
+    let mut reader = pair
         .master
         .try_clone_reader()
         .map_err(|e| format!("Failed to clone reader: {}", e))?;
@@ -85,10 +88,29 @@ pub fn terminal_create(
         .take_writer()
         .map_err(|e| format!("Failed to take writer: {}", e))?;
 
+    // Spawn background thread to read PTY output into buffer
+    let output_buffer = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let buffer_clone = output_buffer.clone();
+    let reader_handle = std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break, // EOF
+                Ok(n) => {
+                    if let Ok(mut buffer) = buffer_clone.lock() {
+                        buffer.extend_from_slice(&buf[..n]);
+                    }
+                }
+                Err(_) => break, // PTY closed
+            }
+        }
+    });
+
     let session = TerminalSession {
         writer,
-        reader: Arc::new(Mutex::new(reader)),
+        output_buffer,
         _child: child,
+        _reader_handle: reader_handle,
     };
 
     sessions
@@ -129,7 +151,7 @@ pub fn terminal_write(
     Ok(())
 }
 
-/// Read data from terminal (non-blocking)
+/// Read data from terminal (non-blocking — drains buffered output)
 #[tauri::command]
 pub fn terminal_read(id: String, sessions: State<'_, TerminalSessions>) -> Result<String, String> {
     let sessions_guard = sessions
@@ -141,23 +163,18 @@ pub fn terminal_read(id: String, sessions: State<'_, TerminalSessions>) -> Resul
         .get(&id)
         .ok_or_else(|| "Session not found".to_string())?;
 
-    let reader = session.reader.clone();
-    drop(sessions_guard); // Release lock before blocking read
+    let mut buffer = session
+        .output_buffer
+        .lock()
+        .map_err(|e| format!("Buffer lock error: {}", e))?;
 
-    let mut reader_guard = reader.lock().map_err(|e| format!("Reader lock error: {}", e))?;
-
-    let mut buffer = [0u8; 4096];
-
-    // Try to read available data
-    match reader_guard.read(&mut buffer) {
-        Ok(0) => Ok(String::new()),
-        Ok(n) => {
-            let data = String::from_utf8_lossy(&buffer[..n]).to_string();
-            Ok(data)
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(String::new()),
-        Err(e) => Err(format!("Read error: {}", e)),
+    if buffer.is_empty() {
+        return Ok(String::new());
     }
+
+    let data = String::from_utf8_lossy(&buffer).to_string();
+    buffer.clear();
+    Ok(data)
 }
 
 /// Resize terminal

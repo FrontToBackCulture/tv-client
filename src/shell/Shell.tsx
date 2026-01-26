@@ -4,7 +4,10 @@ import { ReactNode } from "react";
 import { ActivityBar } from "./ActivityBar";
 import { StatusBar } from "./StatusBar";
 import { CommandPalette } from "./CommandPalette";
+import { SidePanel } from "./SidePanel";
+import { FloatingTerminal } from "../components/FloatingTerminal";
 import { ModuleId } from "../stores/appStore";
+import { useSidePanelStore } from "../stores/sidePanelStore";
 
 interface ShellProps {
   activeModule: ModuleId;
@@ -13,6 +16,9 @@ interface ShellProps {
 }
 
 export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
+  const sidePanelOpen = useSidePanelStore((s) => s.isOpen);
+  const sidePanelVisible = sidePanelOpen && activeModule !== "library";
+
   return (
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 select-none">
       {/* Draggable title bar region for macOS */}
@@ -44,7 +50,13 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
         />
 
         {/* Module content */}
-        <div className="flex-1 overflow-hidden">{children}</div>
+        <div className="flex-1 overflow-hidden min-w-0 relative">
+          {children}
+          <FloatingTerminal activeModule={activeModule} />
+        </div>
+
+        {/* Side document panel (hidden in Library which has its own viewer) */}
+        {sidePanelVisible && <SidePanel />}
       </div>
 
       {/* Status bar */}

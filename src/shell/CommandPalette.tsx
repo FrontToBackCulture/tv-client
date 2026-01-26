@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, X } from "lucide-react";
 import { useAppStore } from "../stores/appStore";
+import { useSidePanelStore } from "../stores/sidePanelStore";
 
 interface Command {
   id: string;
@@ -58,6 +59,23 @@ export function CommandPalette() {
       id: "settings",
       label: "Open Settings",
       action: () => setActiveModule("console"),
+    },
+    {
+      id: "toggle-side-panel",
+      label: "Toggle Document Panel",
+      shortcut: "⌘.",
+      action: () => useSidePanelStore.getState().togglePanel(),
+    },
+    {
+      id: "open-side-panel",
+      label: "Open Document in Side Panel...",
+      action: () => {
+        const store = useSidePanelStore.getState();
+        store.openPicker();
+        if (!store.isOpen) {
+          useSidePanelStore.setState({ isOpen: true, isPickerOpen: true });
+        }
+      },
     },
   ];
 

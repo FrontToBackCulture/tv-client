@@ -12,6 +12,7 @@ import { DealPipeline } from "./DealPipeline";
 import { PipelineStatsBar } from "./PipelineStatsBar";
 import { Loader2 } from "lucide-react";
 
+
 type CRMView = "companies" | "contacts" | "pipeline" | "clients";
 
 // Storage key for sidebar width

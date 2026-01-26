@@ -22,6 +22,7 @@ export function Terminal({ id: _id, cwd, onClose: _onClose, isActive = true }: T
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const initializedRef = useRef(false);
 
   // Handle incoming terminal data
   const handleData = useCallback((data: string) => {
@@ -93,10 +94,15 @@ export function Terminal({ id: _id, cwd, onClose: _onClose, isActive = true }: T
       resize(rows, cols);
     });
 
-    // Create terminal session
+    // Create terminal session with fitted dimensions
     const rows = xterm.rows;
     const cols = xterm.cols;
     create(rows, cols);
+
+    // Mark initialized after a short delay to skip the initial isActive fit
+    const initTimer = setTimeout(() => {
+      initializedRef.current = true;
+    }, 200);
 
     // Handle window resize
     const handleResize = () => {
@@ -107,14 +113,18 @@ export function Terminal({ id: _id, cwd, onClose: _onClose, isActive = true }: T
     window.addEventListener("resize", handleResize);
 
     return () => {
+      clearTimeout(initTimer);
       window.removeEventListener("resize", handleResize);
+      initializedRef.current = false;
       xterm.dispose();
       close();
     };
-  }, [create, write, resize, close, cwd]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- cwd intentionally excluded; only used at creation time via ref
+  }, [create, write, resize, close]);
 
-  // Re-fit when tab becomes active
+  // Re-fit when tab becomes active (skip initial mount to avoid double prompt)
   useEffect(() => {
+    if (!initializedRef.current) return;
     if (isActive && fitAddonRef.current) {
       setTimeout(() => {
         fitAddonRef.current?.fit();

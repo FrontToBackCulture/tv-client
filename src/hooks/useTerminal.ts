@@ -21,13 +21,19 @@ export function useTerminal(options: UseTerminalOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const readIntervalRef = useRef<number | null>(null);
   const onDataRef = useRef(options.onData);
+  const terminalIdRef = useRef<string | null>(null);
+  const cwdRef = useRef(options.cwd);
 
-  // Keep onData callback up to date
+  // Keep refs up to date
   useEffect(() => {
     onDataRef.current = options.onData;
   }, [options.onData]);
 
-  // Create terminal session
+  useEffect(() => {
+    cwdRef.current = options.cwd;
+  }, [options.cwd]);
+
+  // Create terminal session — stable callback (uses refs)
   const create = useCallback(
     async (rows: number = 24, cols: number = 80) => {
       try {
@@ -36,8 +42,9 @@ export function useTerminal(options: UseTerminalOptions = {}) {
           id,
           rows,
           cols,
-          cwd: options.cwd,
+          cwd: cwdRef.current,
         });
+        terminalIdRef.current = info.id;
         setTerminalId(info.id);
         setIsConnected(true);
         setError(null);
@@ -52,7 +59,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
           } catch (e) {
             console.error("Terminal read error:", e);
           }
-        }, 50); // Read every 50ms
+        }, 50);
 
         return info.id;
       } catch (e) {
@@ -61,51 +68,55 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         throw e;
       }
     },
-    [options.cwd]
+    []
   );
 
-  // Write to terminal
+  // Write to terminal — stable ref, no deps on terminalId
   const write = useCallback(
     async (data: string) => {
-      if (!terminalId) return;
+      const id = terminalIdRef.current;
+      if (!id) return;
       try {
-        await invoke("terminal_write", { id: terminalId, data });
+        await invoke("terminal_write", { id, data });
       } catch (e) {
         console.error("Terminal write error:", e);
       }
     },
-    [terminalId]
+    []
   );
 
-  // Resize terminal
+  // Resize terminal — stable ref
   const resize = useCallback(
     async (rows: number, cols: number) => {
-      if (!terminalId) return;
+      const id = terminalIdRef.current;
+      if (!id) return;
       try {
-        await invoke("terminal_resize", { id: terminalId, rows, cols });
+        await invoke("terminal_resize", { id, rows, cols });
       } catch (e) {
         console.error("Terminal resize error:", e);
       }
     },
-    [terminalId]
+    []
   );
 
-  // Close terminal
+  // Close terminal — stable ref
   const close = useCallback(async () => {
     if (readIntervalRef.current) {
       clearInterval(readIntervalRef.current);
       readIntervalRef.current = null;
     }
-    if (terminalId) {
+    const id = terminalIdRef.current;
+    if (id) {
       try {
-        await invoke("terminal_close", { id: terminalId });
+        await invoke("terminal_close", { id });
       } catch (e) {
         console.error("Terminal close error:", e);
       }
+      terminalIdRef.current = null;
       setTerminalId(null);
       setIsConnected(false);
     }
-  }, [terminalId]);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -113,11 +124,12 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       if (readIntervalRef.current) {
         clearInterval(readIntervalRef.current);
       }
-      if (terminalId) {
-        invoke("terminal_close", { id: terminalId }).catch(console.error);
+      const id = terminalIdRef.current;
+      if (id) {
+        invoke("terminal_close", { id }).catch(console.error);
       }
     };
-  }, [terminalId]);
+  }, []);
 
   return {
     terminalId,
