@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Database, Table, Sparkles, FileJson, AlertTriangle, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { Database, Table, Sparkles, FileJson, AlertTriangle, ChevronDown, ChevronRight, ExternalLink, FolderOpen } from "lucide-react";
 import { cn } from "../../lib/cn";
 
 interface TableDetailsProps {
@@ -63,7 +63,24 @@ interface TableSample {
   rowCount?: number;
 }
 
-type TabType = "details" | "sample" | "analysis";
+type TabType = "details" | "sample" | "analysis" | "sources";
+
+interface SourceFileEntry {
+  name: string;
+  path: string;
+  size: number;
+  modified: string | null;
+}
+
+// Map file names to the tab they feed
+const SOURCE_TAB_MAP: Record<string, string> = {
+  "definition_details.json": "Details",
+  "definition.json": "Details (fallback)",
+  "definition_sample.json": "Sample Data",
+  "definition_analysis.json": "AI Analysis",
+  "definition_calculated_fields.json": "Calculated Fields",
+  "overview.md": "Overview",
+};
 
 // Extract domain name from path for VAL URL
 function extractDomainFromPath(path: string): string | null {
@@ -83,6 +100,7 @@ export function TableDetails({ tablePath, tableName }: TableDetailsProps) {
   const [definition, setDefinition] = useState<TableDefinition | null>(null);
   const [analysis, setAnalysis] = useState<TableAnalysis | null>(null);
   const [sample, setSample] = useState<TableSample | null>(null);
+  const [sourceFiles, setSourceFiles] = useState<SourceFileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,6 +143,7 @@ export function TableDetails({ tablePath, tableName }: TableDetailsProps) {
         } catch {
           setSample(null);
         }
+
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load table data");
       } finally {
@@ -135,6 +154,23 @@ export function TableDetails({ tablePath, tableName }: TableDetailsProps) {
     if (tablePath) {
       loadData();
     }
+  }, [tablePath]);
+
+  // Load file listing separately so it doesn't block main content
+  useEffect(() => {
+    let cancelled = false;
+    async function loadFiles() {
+      try {
+        const entries = await invoke<SourceFileEntry[]>("list_directory", { path: tablePath });
+        if (!cancelled) {
+          setSourceFiles(entries.filter((e) => !e.name.startsWith(".")).sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      } catch {
+        if (!cancelled) setSourceFiles([]);
+      }
+    }
+    if (tablePath) loadFiles();
+    return () => { cancelled = true; };
   }, [tablePath]);
 
   if (loading) {
@@ -199,6 +235,9 @@ export function TableDetails({ tablePath, tableName }: TableDetailsProps) {
           <TabButton active={activeTab === "analysis"} onClick={() => setActiveTab("analysis")} disabled={!analysis}>
             AI Analysis
           </TabButton>
+          <TabButton active={activeTab === "sources"} onClick={() => setActiveTab("sources")}>
+            Data Source
+          </TabButton>
         </div>
       </div>
 
@@ -207,6 +246,7 @@ export function TableDetails({ tablePath, tableName }: TableDetailsProps) {
         {activeTab === "details" && <DetailsTab definition={definition} />}
         {activeTab === "sample" && <SampleTab sample={sample} />}
         {activeTab === "analysis" && <AnalysisTab analysis={analysis} />}
+        {activeTab === "sources" && <DataSourceTab files={sourceFiles} tablePath={tablePath} />}
       </div>
     </div>
   );
@@ -450,6 +490,68 @@ function AnalysisTab({ analysis }: { analysis: TableAnalysis | null }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Data Source tab
+function DataSourceTab({ files, tablePath }: { files: SourceFileEntry[]; tablePath: string }) {
+  if (files.length === 0) {
+    return <div className="text-zinc-500">No files found in this table folder.</div>;
+  }
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatDate(iso: string | null): string {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-SG", { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  return (
+    <div>
+      <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
+        <FolderOpen size={14} />
+        Files ({files.length})
+      </h3>
+      <p className="text-xs text-zinc-500 dark:text-zinc-500 mb-3 font-mono truncate">{tablePath}</p>
+      <div className="bg-white dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-200 dark:border-transparent">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-zinc-800">
+              <th className="text-left px-3 py-2 text-zinc-600 dark:text-zinc-400 font-medium">File</th>
+              <th className="text-left px-3 py-2 text-zinc-600 dark:text-zinc-400 font-medium">Feeds Tab</th>
+              <th className="text-right px-3 py-2 text-zinc-600 dark:text-zinc-400 font-medium">Size</th>
+              <th className="text-right px-3 py-2 text-zinc-600 dark:text-zinc-400 font-medium">Modified</th>
+            </tr>
+          </thead>
+          <tbody>
+            {files.map((f) => {
+              const feedsTab = SOURCE_TAB_MAP[f.name] || null;
+              return (
+                <tr key={f.name} className="border-b border-slate-100 dark:border-zinc-800/50 last:border-0">
+                  <td className="px-3 py-2 text-zinc-800 dark:text-zinc-200 font-mono text-xs">{f.name}</td>
+                  <td className="px-3 py-2">
+                    {feedsTab ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400">
+                        {feedsTab}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-zinc-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right text-zinc-500 text-xs">{formatSize(f.size)}</td>
+                  <td className="px-3 py-2 text-right text-zinc-500 text-xs">{formatDate(f.modified)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

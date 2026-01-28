@@ -8,10 +8,12 @@ import { useReadFile } from "../../hooks/useFiles";
 import { useRecentFiles } from "../../hooks/useRecentFiles";
 import { useFavorites } from "../../hooks/useFavorites";
 import { useJobsStore } from "../../stores/jobsStore";
+import { useTabStore } from "../../stores/tabStore";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileActions } from "./FileActions";
 import { JSONEditor, SQLEditor, ImageViewer, CSVViewer, HTMLViewer, PDFViewer } from "./viewers";
+import { IntercomModal } from "./IntercomModal";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
 
 interface FileViewerProps {
@@ -67,6 +69,25 @@ function getLanguage(path: string): string {
   return langMap[ext] || ext.toUpperCase();
 }
 
+// Frontmatter helpers for intercom_article_id
+function addFrontmatterField(content: string, key: string, value: string): string {
+  const fmMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+  if (fmMatch) {
+    // Remove existing field if present, then add before closing ---
+    const yaml = fmMatch[2].replace(new RegExp(`^${key}:.*$\\n?`, "m"), "");
+    return `${fmMatch[1]}${yaml.trimEnd()}\n${key}: "${value}"${fmMatch[3]}${content.slice(fmMatch[0].length)}`;
+  }
+  // No frontmatter - prepend one
+  return `---\n${key}: "${value}"\n---\n${content}`;
+}
+
+function removeFrontmatterField(content: string, key: string): string {
+  const fmMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+  if (!fmMatch) return content;
+  const yaml = fmMatch[2].replace(new RegExp(`^${key}:.*$\\n?`, "m"), "");
+  return `${fmMatch[1]}${yaml.trimEnd()}${fmMatch[3]}${content.slice(fmMatch[0].length)}`;
+}
+
 export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const fileType = getFileType(path);
   const filename = getFileName(path);
@@ -79,17 +100,55 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [intercomModalOpen, setIntercomModalOpen] = useState(false);
 
   // Auto-save state for markdown files
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContentRef = useRef<string>("");
 
+  const pinTab = useTabStore((s) => s.pinTab);
   const favorite = isFavorite(path);
 
   // Domain URL for "Open in VAL" action
   const domainUrl = useMemo(() => buildDomainUrl(path), [path]);
   const domainLabel = useMemo(() => getDomainLinkLabel(path), [path]);
+
+  // Extract intercom_article_id from frontmatter
+  const intercomArticleId = useMemo(() => {
+    if (!content) return undefined;
+    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!match) return undefined;
+    const yaml = match[1];
+    const idMatch = yaml.match(/^intercom_article_id:\s*["']?([^"'\n]+)["']?\s*$/m);
+    return idMatch ? idMatch[1].trim() : undefined;
+  }, [content]);
+
+  // Handle intercom publish: add intercom_article_id to frontmatter
+  const handleIntercomPublished = useCallback(async (articleId: string, _articleUrl: string) => {
+    if (!content) return;
+    const updated = addFrontmatterField(content, "intercom_article_id", articleId);
+    try {
+      await invoke("write_file", { path, content: updated });
+      lastSavedContentRef.current = updated;
+      showToast("Published to Help Center", "success");
+    } catch (err) {
+      showToast(`Failed to update frontmatter: ${err}`, "error");
+    }
+  }, [content, path]);
+
+  // Handle intercom delete: remove intercom_article_id from frontmatter
+  const handleIntercomDeleted = useCallback(async () => {
+    if (!content) return;
+    const updated = removeFrontmatterField(content, "intercom_article_id");
+    try {
+      await invoke("write_file", { path, content: updated });
+      lastSavedContentRef.current = updated;
+      showToast("Article deleted from Help Center", "success");
+    } catch (err) {
+      showToast(`Failed to update frontmatter: ${err}`, "error");
+    }
+  }, [content, path]);
 
   // Reset state when path changes
   useEffect(() => {
@@ -122,16 +181,17 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
       clearTimeout(saveTimeoutRef.current);
     }
 
-    // Mark as unsaved
+    // Mark as unsaved and auto-pin tab on edit
     if (newContent !== lastSavedContentRef.current) {
       setSaveStatus("unsaved");
+      pinTab(path);
     }
 
     // Debounce save - wait 1 second after user stops typing
     saveTimeoutRef.current = setTimeout(() => {
       saveContent(newContent);
     }, 1000);
-  }, [saveContent]);
+  }, [saveContent, pinTab, path]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -254,19 +314,70 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
         return;
       }
 
+      updateJob(jobId, { progress: 5, message: "Reading config..." });
+
+      // Parse .gamma.json config to get options and source file
+      let gammaConfig: Record<string, unknown> = {};
+      let inputText = "";
+
+      try {
+        gammaConfig = JSON.parse(content || "{}");
+      } catch {
+        throw new Error("Invalid .gamma.json file");
+      }
+
+      // Read the source markdown file referenced in config
+      const sourceFile = gammaConfig.source as string | undefined;
+      if (sourceFile) {
+        const dir = path.substring(0, path.lastIndexOf("/"));
+        const sourcePath = `${dir}/${sourceFile}`;
+        try {
+          inputText = await invoke<string>("read_file", { path: sourcePath });
+        } catch {
+          throw new Error(`Source file not found: ${sourceFile}`);
+        }
+      }
+
+      if (!inputText.trim()) {
+        throw new Error("No content to generate. Set \"source\" in .gamma.json pointing to a markdown file.");
+      }
+
+      // Build options matching Rust GammaGenerationOptions (camelCase via serde)
+      const options: Record<string, unknown> = {};
+      if (gammaConfig.core) {
+        const core = gammaConfig.core as Record<string, unknown>;
+        if (core.text_mode) options.textMode = core.text_mode;
+        if (core.format) options.format = core.format;
+        if (core.num_cards) options.numCards = core.num_cards;
+      }
+      if (gammaConfig.text) {
+        const text = gammaConfig.text as Record<string, unknown>;
+        const textOptions: Record<string, unknown> = {};
+        if (text.amount) textOptions.amount = text.amount;
+        if (text.language) textOptions.language = text.language;
+        if (Object.keys(textOptions).length > 0) options.textOptions = textOptions;
+      }
+      if (gammaConfig.image) {
+        const image = gammaConfig.image as Record<string, unknown>;
+        const imageOptions: Record<string, unknown> = {};
+        if (image.source) imageOptions.source = image.source;
+        if (Object.keys(imageOptions).length > 0) options.imageOptions = imageOptions;
+      }
+      if (gammaConfig.theme) {
+        const theme = gammaConfig.theme as Record<string, unknown>;
+        if (theme.theme_id) options.themeId = theme.theme_id;
+      }
+      if (gammaConfig.instructions) {
+        options.additionalInstructions = gammaConfig.instructions;
+      }
+
       updateJob(jobId, { progress: 10, message: "Submitting to Gamma..." });
 
-      // Read file content
-      const fileContent = content || "";
-
-      // Create generation request first
-      const createResult = await invoke<{ generation_id: string }>("gamma_create_generation", {
+      // Create generation request (returns generation ID as plain string)
+      const generationId = await invoke<string>("gamma_create_generation", {
         apiKey,
-        inputText: fileContent,
-        options: {
-          format: "presentation",
-          num_cards: 10,
-        },
+        inputText,
+        options,
       });
 
       updateJob(jobId, { progress: 20, message: "Processing..." });
@@ -277,20 +388,20 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
       let gammaUrl: string | null = null;
 
       while (attempts < maxAttempts) {
-        const status = await invoke<{ status: string; gamma_url?: string; error_message?: string }>(
+        const status = await invoke<{ status: string; gammaUrl?: string; message?: string }>(
           "gamma_get_status",
-          { apiKey, generationId: createResult.generation_id }
+          { apiKey, generationId }
         );
 
         // Update progress (20-90% during processing)
         const progress = Math.min(20 + Math.floor((attempts / maxAttempts) * 70), 90);
         updateJob(jobId, { progress, message: `Processing... (${status.status})` });
 
-        if (status.status === "completed" && status.gamma_url) {
-          gammaUrl = status.gamma_url;
+        if (status.status === "completed") {
+          gammaUrl = status.gammaUrl || null;
           break;
-        } else if (status.status === "failed") {
-          throw new Error(status.error_message || "Generation failed");
+        } else if (status.status === "failed" || status.status === "error") {
+          throw new Error(status.message || "Generation failed");
         }
 
         // Wait 5 seconds before next poll
@@ -299,7 +410,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
       }
 
       if (!gammaUrl) {
-        throw new Error("Generation timed out");
+        throw new Error(attempts >= maxAttempts ? "Generation timed out" : "Generation completed but no URL returned");
       }
 
       updateJob(jobId, {
@@ -417,6 +528,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           onGenerateDeck={handleGenerateDeck}
           onGenerateVideo={handleGenerateVideo}
           onExportPdf={handleExportPdf}
+          onPublishIntercom={() => setIntercomModalOpen(true)}
           isGeneratingImage={isGenerating}
           isGeneratingDeck={isGenerating}
           isExportingPdf={isGenerating}
@@ -551,6 +663,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
                 onGenerateDeck={handleGenerateDeck}
                 onGenerateVideo={handleGenerateVideo}
                 onExportPdf={handleExportPdf}
+                onPublishIntercom={() => setIntercomModalOpen(true)}
                 isGeneratingImage={isGenerating}
                 isGeneratingDeck={isGenerating}
                 isExportingPdf={isGenerating}
@@ -568,6 +681,16 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           />
         </div>
         {renderToast()}
+        <IntercomModal
+          isOpen={intercomModalOpen}
+          onClose={() => setIntercomModalOpen(false)}
+          filePath={path}
+          content={content}
+          filename={filename}
+          intercomArticleId={intercomArticleId}
+          onPublished={handleIntercomPublished}
+          onDeleted={handleIntercomDeleted}
+        />
       </div>
     );
   }

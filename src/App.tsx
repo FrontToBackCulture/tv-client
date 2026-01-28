@@ -7,6 +7,7 @@ import { WorkModule } from "./modules/work/WorkModule";
 import { InboxModule } from "./modules/inbox/InboxModule";
 import { CrmModule } from "./modules/crm/CrmModule";
 import { BotModule } from "./modules/bot/BotModule";
+import { ProductModule } from "./modules/product/ProductModule";
 import { ConsoleModule } from "./modules/console/ConsoleModule";
 import { SettingsModule } from "./modules/settings/SettingsModule";
 import { Login } from "./components/Login";
@@ -14,6 +15,7 @@ import { useAppStore, ModuleId } from "./stores/appStore";
 import { useSidePanelStore } from "./stores/sidePanelStore";
 import { useAuth } from "./stores/authStore";
 import { useRealtimeSync } from "./hooks/useRealtimeSync";
+import { openModuleInNewWindow } from "./lib/windowManager";
 import { Loader2 } from "lucide-react";
 
 const modules: Record<ModuleId, React.ComponentType> = {
@@ -21,6 +23,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   work: WorkModule,
   inbox: InboxModule,
   crm: CrmModule,
+  product: ProductModule,
   bot: BotModule,
   console: ConsoleModule,
   settings: SettingsModule,
@@ -41,13 +44,14 @@ export default function App() {
   // Keyboard shortcuts: ⌘1-4 to switch modules, ⌘, for settings
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "5") {
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "6") {
         e.preventDefault();
         const moduleKeys: ModuleId[] = [
           "library",
           "work",
           "crm",
           "inbox",
+          "product",
           "bot",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
@@ -61,6 +65,11 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === ".") {
         e.preventDefault();
         useSidePanelStore.getState().togglePanel();
+      }
+      // ⇧⌘N — Open current module in new window
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "N") {
+        e.preventDefault();
+        openModuleInNewWindow(useAppStore.getState().activeModule);
       }
     };
     window.addEventListener("keydown", handler);

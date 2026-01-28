@@ -30,11 +30,12 @@ interface SidebarProps {
   knowledgePath: string;
   selectedPath: string | null;
   onFileSelect: (path: string) => void;
+  onPinSelect?: (path: string) => void;
   onRepositoryChange?: () => void;
   width?: number;
 }
 
-export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onRepositoryChange, width = 256 }: SidebarProps) {
+export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect, onRepositoryChange, width = 256 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFavorites, setShowFavorites] = useState(true);
   const [showRecent, setShowRecent] = useState(false);
@@ -254,6 +255,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onRepositor
                 node={fileTree}
                 selectedPath={selectedPath}
                 onSelect={onFileSelect}
+                onPinSelect={onPinSelect}
                 level={0}
               />
             ) : (

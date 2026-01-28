@@ -18,6 +18,7 @@ import {
   Video,
   Globe,
   FileOutput,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 
@@ -48,6 +49,7 @@ interface FileActionsProps {
   onGenerateDeck?: () => void;
   onGenerateVideo?: () => void;
   onExportPdf?: () => void;
+  onPublishIntercom?: () => void;
   // Loading states for async actions
   isGeneratingImage?: boolean;
   isGeneratingDeck?: boolean;
@@ -84,6 +86,7 @@ export function FileActions({
   onGenerateDeck,
   onGenerateVideo,
   onExportPdf,
+  onPublishIntercom,
   isGeneratingImage = false,
   isGeneratingDeck = false,
   isGeneratingVideo = false,
@@ -233,6 +236,19 @@ export function FileActions({
       },
       disabled: isExportingPdf,
       loading: isExportingPdf,
+      dividerAfter: true,
+    });
+  }
+
+  // Publish to Help Center (markdown files)
+  if (fileType === "markdown" && onPublishIntercom) {
+    items.push({
+      label: "Publish to Help Center",
+      icon: <BookOpen className="w-4 h-4" />,
+      onClick: () => {
+        onPublishIntercom();
+        setIsOpen(false);
+      },
       dividerAfter: true,
     });
   }

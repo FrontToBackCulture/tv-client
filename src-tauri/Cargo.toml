@@ -70,3 +70,9 @@ regex = "1"
 
 # Markdown to HTML conversion (for Intercom and PDF generation)
 pulldown-cmark = "0.10"
+
+# SQLite (for Outlook email metadata)
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Hashing (for email body file names)
+sha2 = "0.10"

@@ -11,7 +11,7 @@ pub async fn crm_list_deals(
 ) -> Result<Vec<Deal>, String> {
     let client = get_client().await?;
 
-    let mut filters = vec!["select=*,company:crm_companies(name,display_name)".to_string()];
+    let mut filters = vec!["select=*,company:crm_companies(id,name,display_name)".to_string()];
 
     if let Some(cid) = company_id {
         filters.push(format!("company_id=eq.{}", cid));
@@ -37,7 +37,7 @@ pub async fn crm_get_deal(deal_id: String, include_relations: Option<bool>) -> R
             deal_id
         )
     } else {
-        format!("select=*,company:crm_companies(name,display_name)&id=eq.{}", deal_id)
+        format!("select=*,company:crm_companies(id,name,display_name)&id=eq.{}", deal_id)
     };
 
     client

@@ -12,6 +12,7 @@ export const API_KEYS = {
   GITHUB_CLIENT_SECRET: "github_client_secret",
   SUPABASE_URL: "supabase_url",
   SUPABASE_ANON_KEY: "supabase_anon_key",
+  INTERCOM: "intercom_api_key",
 } as const;
 
 export type ApiKeyName = (typeof API_KEYS)[keyof typeof API_KEYS];

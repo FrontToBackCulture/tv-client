@@ -1,5 +1,7 @@
 // src/stores/tabStore.ts
 // Global store for managing open file/folder tabs in the Library module
+// Implements VS Code-style preview tabs: single-click opens a preview (italic),
+// double-click or editing pins the tab.
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -9,6 +11,7 @@ export interface Tab {
   path: string;
   name: string;
   isDirectory: boolean;
+  isPinned: boolean;
 }
 
 export interface SplitFile {
@@ -26,6 +29,7 @@ interface TabState {
   splitOpen: boolean;
 
   openTab: (path: string, name: string, isDirectory: boolean) => void;
+  pinTab: (id: string) => void;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   closeAllTabs: () => void;
@@ -47,13 +51,38 @@ export const useTabStore = create<TabState>()(
 
       openTab: (path: string, name: string, isDirectory: boolean) => {
         set((state) => {
+          // If tab already exists, just switch to it
           const existing = state.tabs.find((t) => t.id === path);
           if (existing) {
             return { activeTabId: path };
           }
+
+          // Replace the existing preview (unpinned) tab, if any
+          const previewIdx = state.tabs.findIndex((t) => !t.isPinned);
+          const newTab: Tab = { id: path, path, name, isDirectory, isPinned: false };
+
+          if (previewIdx !== -1) {
+            const newTabs = [...state.tabs];
+            newTabs[previewIdx] = newTab;
+            return { tabs: newTabs, activeTabId: path };
+          }
+
+          // No preview tab to replace — append
           return {
-            tabs: [...state.tabs, { id: path, path, name, isDirectory }],
+            tabs: [...state.tabs, newTab],
             activeTabId: path,
+          };
+        });
+      },
+
+      pinTab: (id: string) => {
+        set((state) => {
+          const tab = state.tabs.find((t) => t.id === id);
+          if (!tab || tab.isPinned) return state;
+          return {
+            tabs: state.tabs.map((t) =>
+              t.id === id ? { ...t, isPinned: true } : t
+            ),
           };
         });
       },

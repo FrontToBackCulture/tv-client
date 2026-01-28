@@ -39,6 +39,7 @@ interface FolderViewProps {
   basePath: string;
   onNavigate: (path: string) => void;
   onFileSelect: (path: string) => void;
+  onFilePinned?: (path: string) => void;
 }
 
 type ViewMode =
@@ -120,13 +121,16 @@ function FileIcon({ filename }: { filename: string }) {
 function FileCard({
   file,
   onClick,
+  onDoubleClick,
 }: {
   file: FolderFile;
   onClick: () => void;
+  onDoubleClick?: () => void;
 }) {
   return (
     <button
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       className="w-full text-left p-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-teal-500/50 hover:bg-slate-100 dark:hover:bg-zinc-800/50 transition-all group"
     >
       <div className="flex items-start gap-3">
@@ -184,6 +188,7 @@ function FilesView({
   folderType,
   actionHandlers,
   onFileSelect,
+  onFilePinned,
   onNavigate,
 }: {
   files: FolderFile[] | undefined;
@@ -194,6 +199,7 @@ function FilesView({
   folderType: FolderType;
   actionHandlers: FolderActionHandlers;
   onFileSelect: (path: string) => void;
+  onFilePinned?: (path: string) => void;
   onNavigate: (path: string) => void;
 }) {
   const subdirs = directories?.filter(d => d.is_directory) || [];
@@ -267,6 +273,7 @@ function FilesView({
                       key={file.path}
                       file={file}
                       onClick={() => onFileSelect(file.path)}
+                      onDoubleClick={onFilePinned ? () => onFilePinned(file.path) : undefined}
                     />
                   ))}
                 </div>
@@ -304,6 +311,7 @@ export function FolderView({
   basePath,
   onNavigate,
   onFileSelect,
+  onFilePinned,
 }: FolderViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("files");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -962,6 +970,7 @@ export function FolderView({
           folderType={folderType}
           actionHandlers={actionHandlers}
           onFileSelect={onFileSelect}
+          onFilePinned={onFilePinned}
           onNavigate={onNavigate}
         />
       ) : viewMode === "chat" ? (

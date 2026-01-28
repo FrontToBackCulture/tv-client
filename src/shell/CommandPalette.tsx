@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Search, X } from "lucide-react";
 import { useAppStore } from "../stores/appStore";
 import { useSidePanelStore } from "../stores/sidePanelStore";
+import { openModuleInNewWindow } from "../lib/windowManager";
 
 interface Command {
   id: string;
@@ -16,9 +17,15 @@ export function CommandPalette() {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { setActiveModule, toggleTheme, theme } = useAppStore();
+  const { activeModule, setActiveModule, toggleTheme, theme } = useAppStore();
 
   const commands: Command[] = [
+    {
+      id: "new-window",
+      label: "Open Current Module in New Window",
+      shortcut: "⇧⌘N",
+      action: () => openModuleInNewWindow(activeModule),
+    },
     {
       id: "library",
       label: "Go to Library",

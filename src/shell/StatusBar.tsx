@@ -87,7 +87,7 @@ export function StatusBar() {
 
             {/* Jobs Panel */}
             {showJobsPanel && (
-              <div className="absolute bottom-full right-0 mb-1 w-80 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+              <div className="absolute bottom-full right-0 mb-1 w-96 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-zinc-700">
                   <span className="font-medium text-zinc-900 dark:text-zinc-100">
                     Background Jobs
@@ -131,21 +131,21 @@ export function StatusBar() {
                                 className="text-red-500 flex-shrink-0"
                               />
                             )}
-                            <span className="truncate text-zinc-700 dark:text-zinc-200">
+                            <span className="truncate text-zinc-700 dark:text-zinc-200" title={job.name}>
                               {job.name}
                             </span>
                           </div>
                           {job.status !== "running" && (
                             <button
                               onClick={() => removeJob(job.id)}
-                              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex-shrink-0"
                             >
                               <X size={12} />
                             </button>
                           )}
                         </div>
                         {job.message && (
-                          <p className="mt-1 text-xs text-zinc-500 truncate pl-6">
+                          <p className="mt-1 text-xs text-zinc-500 pl-6 break-words" title={job.message}>
                             {job.message}
                           </p>
                         )}

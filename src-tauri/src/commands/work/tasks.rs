@@ -14,7 +14,7 @@ pub async fn work_list_tasks(
 ) -> Result<Vec<Task>, String> {
     let client = get_client().await?;
 
-    let mut filters = vec!["select=*,project:projects(*),status:task_statuses(*),assignee:users(*)".to_string()];
+    let mut filters = vec!["select=*,project:projects(*),status:task_statuses(*),assignee:users!tasks_assignee_id_fkey(*)".to_string()];
 
     if let Some(pid) = project_id {
         filters.push(format!("project_id=eq.{}", pid));
@@ -44,7 +44,7 @@ pub async fn work_get_task(task_id: String) -> Result<Task, String> {
     let client = get_client().await?;
 
     let query = format!(
-        "select=*,project:projects(*),status:task_statuses(*),assignee:users(*)&id=eq.{}",
+        "select=*,project:projects(*),status:task_statuses(*),assignee:users!tasks_assignee_id_fkey(*)&id=eq.{}",
         task_id
     );
 

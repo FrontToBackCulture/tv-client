@@ -14,7 +14,7 @@ import {
   VolumeX,
   RefreshCw,
 } from "lucide-react";
-import type { EmailCategory, EmailStatus } from "../../lib/inbox/types";
+import type { EmailCategory, EmailStatus } from "../../hooks/useOutlook";
 
 interface InboxSidebarProps {
   selectedFolder: string;

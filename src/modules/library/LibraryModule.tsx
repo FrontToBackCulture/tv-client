@@ -25,7 +25,7 @@ interface FileInfo {
 export function LibraryModule() {
   const { activeRepository } = useRepository();
   const knowledgePath = activeRepository?.path ?? "";
-  const { tabs, activeTabId, splitOpen, splitFile, openTab, closeTab, setActiveTab, closeAllTabs, setSplitFile, closeSplit } = useTabStore();
+  const { tabs, activeTabId, splitOpen, splitFile, openTab, pinTab, closeTab, setActiveTab, closeAllTabs, setSplitFile, closeSplit } = useTabStore();
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [splitWidth, setSplitWidth] = useState(0.5); // fraction of content area
   const [isResizing, setIsResizing] = useState(false);
@@ -103,6 +103,21 @@ export function LibraryModule() {
     }
   }, [openTab]);
 
+  // Handle double-click — opens and pins the tab
+  const handleFilePinned = useCallback(async (path: string) => {
+    try {
+      const info = await invoke<FileInfo>("get_file_info", { path });
+      const name = path.split("/").pop() || path;
+      openTab(path, name, info.is_directory);
+      pinTab(path);
+    } catch (err) {
+      console.error("Failed to get file info:", err);
+      const name = path.split("/").pop() || path;
+      openTab(path, name, false);
+      pinTab(path);
+    }
+  }, [openTab, pinTab]);
+
   // Handle split file selection
   const handleSplitFileSelect = useCallback(async (path: string) => {
     try {
@@ -175,6 +190,7 @@ export function LibraryModule() {
         knowledgePath={knowledgePath}
         selectedPath={activeTab?.path ?? null}
         onFileSelect={handleFileSelect}
+        onPinSelect={handleFilePinned}
         onRepositoryChange={handleRepositoryChange}
         width={sidebarWidth}
       />
@@ -203,6 +219,7 @@ export function LibraryModule() {
                   basePath={knowledgePath}
                   onNavigate={handleNavigate}
                   onFileSelect={handleFileSelect}
+                  onFilePinned={handleFilePinned}
                 />
               ) : (
                 <FileViewer

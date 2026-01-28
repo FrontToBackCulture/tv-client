@@ -100,12 +100,19 @@ pub struct GammaCreateResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GammaCredits {
+    pub deducted: Option<i32>,
+    pub remaining: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GammaStatusResponse {
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gamma_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub credits: Option<i32>,
+    pub credits: Option<GammaCredits>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
@@ -115,7 +122,7 @@ pub struct GammaStatusResponse {
 pub struct GammaGenerationResult {
     pub generation_id: String,
     pub gamma_url: String,
-    pub credits: Option<i32>,
+    pub credits: Option<GammaCredits>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -178,15 +185,17 @@ pub async fn gamma_create_generation(
         return Err("Input text exceeds maximum length of 400,000 characters".to_string());
     }
 
+    let defaults = GammaGenerationOptions::default();
     let opts = options.unwrap_or_default();
 
+    // Apply defaults for required API fields when not provided
     let request = GammaGenerationRequest {
         input_text,
-        text_mode: opts.text_mode,
-        format: opts.format,
-        num_cards: opts.num_cards,
-        text_options: opts.text_options,
-        image_options: opts.image_options,
+        text_mode: opts.text_mode.or(defaults.text_mode),
+        format: opts.format.or(defaults.format),
+        num_cards: opts.num_cards.or(defaults.num_cards),
+        text_options: opts.text_options.or(defaults.text_options),
+        image_options: opts.image_options.or(defaults.image_options),
         theme_id: opts.theme_id,
         folder_id: opts.folder_id,
         additional_instructions: opts.additional_instructions,

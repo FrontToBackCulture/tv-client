@@ -15,11 +15,35 @@ import {
   ChevronDown,
   Mail,
 } from "lucide-react";
-import type { Email } from "../../lib/inbox/types";
-import ReactMarkdown from "react-markdown";
+import { HtmlEmailViewer } from "./HtmlEmailViewer";
+
+interface EmailAddress {
+  name: string;
+  email: string;
+}
+
+interface EmailDetailData {
+  id: string;
+  subject: string;
+  from: EmailAddress;
+  to: EmailAddress[];
+  cc?: EmailAddress[];
+  receivedAt: string;
+  isRead: boolean;
+  hasAttachments: boolean;
+  classification?: {
+    category: string;
+    priority: string;
+    summary?: string;
+    actionRequired?: boolean;
+  };
+  linkedCompanyId?: string;
+  linkedCompanyName?: string;
+  attachments?: { name: string }[];
+}
 
 interface EmailDetailProps {
-  email: Email | undefined;
+  email: EmailDetailData | undefined;
   body: string;
   isLoading: boolean;
   onArchive: () => void;
@@ -221,10 +245,8 @@ export function EmailDetail({
             </div>
           )}
 
-          {/* Body */}
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown>{body}</ReactMarkdown>
-          </div>
+          {/* Body - HTML rendered in sandboxed iframe */}
+          <HtmlEmailViewer html={body} />
 
           {/* Link to CRM */}
           {email.linkedCompanyId && (

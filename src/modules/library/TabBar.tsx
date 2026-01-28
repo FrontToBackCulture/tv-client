@@ -7,7 +7,7 @@ import { cn } from "../../lib/cn";
 import { Tab, useTabStore } from "../../stores/tabStore";
 
 export function TabBar() {
-  const { tabs, activeTabId, splitOpen, setActiveTab, closeTab, closeAllTabs, closeOtherTabs, openSplit, closeSplit } = useTabStore();
+  const { tabs, activeTabId, splitOpen, setActiveTab, closeTab, closeAllTabs, closeOtherTabs, pinTab, openSplit, closeSplit } = useTabStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null);
 
@@ -61,6 +61,7 @@ export function TabBar() {
               tab={tab}
               isActive={tab.id === activeTabId}
               onClick={() => setActiveTab(tab.id)}
+              onDoubleClick={() => pinTab(tab.id)}
               onClose={() => closeTab(tab.id)}
               onMouseDown={(e) => handleMouseDown(e, tab.id)}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}
@@ -88,6 +89,8 @@ export function TabBar() {
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
+          isPinned={tabs.find((t) => t.id === contextMenu.tabId)?.isPinned ?? false}
+          onPin={() => pinTab(contextMenu.tabId)}
           onClose={() => closeTab(contextMenu.tabId)}
           onCloseOthers={() => closeOtherTabs(contextMenu.tabId)}
           onCloseAll={closeAllTabs}
@@ -102,15 +105,17 @@ interface TabItemProps {
   tab: Tab;
   isActive: boolean;
   onClick: () => void;
+  onDoubleClick: () => void;
   onClose: () => void;
   onMouseDown: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }
 
-function TabItem({ tab, isActive, onClick, onClose, onMouseDown, onContextMenu }: TabItemProps) {
+function TabItem({ tab, isActive, onClick, onDoubleClick, onClose, onMouseDown, onContextMenu }: TabItemProps) {
   return (
     <div
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
       className={cn(
@@ -127,8 +132,8 @@ function TabItem({ tab, isActive, onClick, onClose, onMouseDown, onContextMenu }
         <File size={13} className="flex-shrink-0" />
       )}
 
-      {/* Name */}
-      <span className="truncate">{tab.name}</span>
+      {/* Name — italic for preview (unpinned) tabs */}
+      <span className={cn("truncate", !tab.isPinned && "italic")}>{tab.name}</span>
 
       {/* Close button */}
       <button
@@ -153,13 +158,16 @@ function TabItem({ tab, isActive, onClick, onClose, onMouseDown, onContextMenu }
 interface ContextMenuProps {
   x: number;
   y: number;
+  isPinned: boolean;
+  onPin: () => void;
   onClose: () => void;
   onCloseOthers: () => void;
   onCloseAll: () => void;
 }
 
-function ContextMenu({ x, y, onClose, onCloseOthers, onCloseAll }: ContextMenuProps) {
+function ContextMenu({ x, y, isPinned, onPin, onClose, onCloseOthers, onCloseAll }: ContextMenuProps) {
   const items = [
+    ...(!isPinned ? [{ label: "Keep Open", action: onPin }] : []),
     { label: "Close", action: onClose },
     { label: "Close Others", action: onCloseOthers },
     { label: "Close All", action: onCloseAll },

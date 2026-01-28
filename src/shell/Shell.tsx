@@ -1,13 +1,25 @@
 // src/shell/Shell.tsx
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useMemo } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ActivityBar } from "./ActivityBar";
 import { StatusBar } from "./StatusBar";
 import { CommandPalette } from "./CommandPalette";
 import { SidePanel } from "./SidePanel";
 import { FloatingTerminal } from "../components/FloatingTerminal";
-import { ModuleId } from "../stores/appStore";
+import { ModuleId, isSecondaryWindow } from "../stores/appStore";
 import { useSidePanelStore } from "../stores/sidePanelStore";
+
+const moduleLabels: Record<ModuleId, string> = {
+  library: "Library",
+  work: "Work",
+  inbox: "Inbox",
+  crm: "CRM",
+  product: "Product",
+  bot: "Bots",
+  console: "Console",
+  settings: "Settings",
+};
 
 interface ShellProps {
   activeModule: ModuleId;
@@ -18,6 +30,18 @@ interface ShellProps {
 export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
   const sidePanelOpen = useSidePanelStore((s) => s.isOpen);
   const sidePanelVisible = sidePanelOpen && activeModule !== "library";
+  const secondary = useMemo(() => isSecondaryWindow(), []);
+
+  const titleText = secondary
+    ? `TV Desktop — ${moduleLabels[activeModule]}`
+    : "TV Desktop";
+
+  // Update OS-level window title when module changes (secondary windows)
+  useEffect(() => {
+    if (secondary) {
+      getCurrentWindow().setTitle(`TV Desktop — ${moduleLabels[activeModule]}`);
+    }
+  }, [activeModule, secondary]);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 select-none">
@@ -35,7 +59,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
             className="text-xs text-zinc-500 pointer-events-none"
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
-            TV Desktop
+            {titleText}
           </span>
         </div>
         <div className="w-20 flex-shrink-0" />

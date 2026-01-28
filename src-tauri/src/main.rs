@@ -20,6 +20,7 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            eprintln!("[tv-desktop] Setup starting...");
             // Default knowledge path (can be configured in settings)
             let knowledge_path = std::env::var("TV_KNOWLEDGE_PATH")
                 .unwrap_or_else(|_| {
@@ -33,6 +34,9 @@ fn main() {
 
             // Terminal sessions state
             app.manage(commands::terminal::TerminalSessions::default());
+
+            // Start Outlook background sync
+            commands::outlook::background::start_background_sync(app.handle().clone());
 
             Ok(())
         })
@@ -70,6 +74,7 @@ fn main() {
             commands::settings::settings_list_keys,
             commands::settings::settings_get_gamma_key,
             commands::settings::settings_get_gemini_key,
+            commands::settings::settings_get_intercom_key,
             commands::settings::settings_get_github_credentials,
             commands::settings::settings_get_supabase_credentials,
             commands::settings::settings_get_path,
@@ -97,6 +102,11 @@ fn main() {
             // Document generation (PDF)
             commands::tools::docgen::generate_order_form_pdf_cmd,
             commands::tools::docgen::generate_proposal_pdf_cmd,
+            // Intercom API (help center publishing)
+            commands::tools::intercom::intercom_list_collections,
+            commands::tools::intercom::intercom_publish_article,
+            commands::tools::intercom::intercom_update_article,
+            commands::tools::intercom::intercom_delete_article,
             // Work Module - Projects
             commands::work::work_list_projects,
             commands::work::work_get_project,
@@ -174,6 +184,75 @@ fn main() {
             commands::crm::crm_link_email,
             commands::crm::crm_unlink_email,
             commands::crm::crm_auto_link_email,
+            // VAL Sync - Config
+            commands::val_sync::config::val_sync_load_config,
+            commands::val_sync::config::val_sync_save_config,
+            commands::val_sync::config::val_sync_list_domains,
+            commands::val_sync::config::val_sync_import_config,
+            commands::val_sync::config::val_sync_discover_domains,
+            // VAL Sync - Auth
+            commands::val_sync::auth::val_sync_login,
+            commands::val_sync::auth::val_sync_login_with_credentials,
+            commands::val_sync::auth::val_sync_check_auth,
+            commands::val_sync::auth::val_sync_clear_token,
+            // VAL Sync - Sync operations
+            commands::val_sync::sync::val_sync_fields,
+            commands::val_sync::sync::val_sync_queries,
+            commands::val_sync::sync::val_sync_workflows,
+            commands::val_sync::sync::val_sync_dashboards,
+            commands::val_sync::sync::val_sync_tables,
+            commands::val_sync::sync::val_sync_calc_fields,
+            commands::val_sync::sync::val_sync_all,
+            // VAL Sync - Monitoring operations
+            commands::val_sync::monitoring::val_sync_workflow_executions,
+            commands::val_sync::monitoring::val_sync_sod_tables_status,
+            // VAL Sync - Error sync operations
+            commands::val_sync::errors::val_sync_importer_errors,
+            commands::val_sync::errors::val_sync_integration_errors,
+            // VAL Sync - Extract operations
+            commands::val_sync::extract::val_extract_queries,
+            commands::val_sync::extract::val_extract_workflows,
+            commands::val_sync::extract::val_extract_dashboards,
+            commands::val_sync::extract::val_extract_tables,
+            commands::val_sync::extract::val_extract_sql,
+            commands::val_sync::extract::val_extract_calc_fields,
+            // VAL Sync - Metadata
+            commands::val_sync::metadata::val_sync_get_status,
+            commands::val_sync::metadata::val_get_output_status,
+            // VAL Sync - Health checks
+            commands::val_sync::health::val_generate_health_config,
+            commands::val_sync::health::val_run_data_model_health,
+            commands::val_sync::health::val_run_workflow_health,
+            // VAL Sync - Additional health and audit
+            commands::val_sync::audit::val_run_artifact_audit,
+            commands::val_sync::query_health::val_run_query_health,
+            commands::val_sync::dashboard_health::val_run_dashboard_health,
+            commands::val_sync::overview::val_generate_overview,
+            // Settings - MS Graph credentials
+            commands::settings::settings_get_ms_graph_credentials,
+            commands::settings::settings_get_anthropic_key,
+            // Settings - VAL credentials
+            commands::settings::settings_get_val_credentials,
+            commands::settings::settings_import_val_credentials,
+            // Outlook - Auth
+            commands::outlook::auth::outlook_auth_start,
+            commands::outlook::auth::outlook_auth_check,
+            commands::outlook::auth::outlook_auth_logout,
+            commands::outlook::auth::outlook_auth_import,
+            // Outlook - Email queries
+            commands::outlook::commands::outlook_list_emails,
+            commands::outlook::commands::outlook_get_email,
+            commands::outlook::commands::outlook_get_email_body,
+            commands::outlook::commands::outlook_get_stats,
+            // Outlook - Email actions
+            commands::outlook::commands::outlook_mark_read,
+            commands::outlook::commands::outlook_archive_email,
+            commands::outlook::commands::outlook_send_email,
+            // Outlook - Sync
+            commands::outlook::commands::outlook_sync_start,
+            commands::outlook::commands::outlook_sync_status,
+            commands::outlook::commands::outlook_get_folders,
+            commands::outlook::commands::outlook_bootstrap_contacts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

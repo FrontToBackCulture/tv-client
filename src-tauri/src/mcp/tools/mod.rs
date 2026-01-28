@@ -6,6 +6,7 @@ pub mod crm;
 pub mod generate;
 pub mod intercom;
 pub mod docgen;
+pub mod val_sync;
 
 use super::protocol::{Tool, ToolResult};
 use serde_json::Value;
@@ -28,6 +29,9 @@ pub fn list_tools() -> Vec<Tool> {
 
     // Document generation tools (Order forms, Proposals)
     tools.extend(docgen::tools());
+
+    // VAL Sync tools
+    tools.extend(val_sync::tools());
 
     tools
 }
@@ -62,6 +66,11 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
     // Document generation tools
     if name.starts_with("generate-order-form") || name.starts_with("generate-proposal") || name == "check-document-type" {
         return docgen::call(name, arguments).await;
+    }
+
+    // VAL Sync tools
+    if name.starts_with("sync-val-") {
+        return val_sync::call(name, arguments).await;
     }
 
     ToolResult::error(format!("Unknown tool: {}", name))

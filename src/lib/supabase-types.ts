@@ -734,6 +734,456 @@ export interface Database {
           created_at?: string;
         };
       };
+
+      // ============================================================
+      // PRODUCT MODULE TABLES
+      // ============================================================
+      product_modules: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          layer: "connectivity" | "application" | "experience";
+          description: string | null;
+          icon: string | null;
+          doc_path: string | null;
+          status: "active" | "maintenance" | "deprecated";
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          layer: "connectivity" | "application" | "experience";
+          description?: string | null;
+          icon?: string | null;
+          doc_path?: string | null;
+          status?: "active" | "maintenance" | "deprecated";
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          slug?: string;
+          layer?: "connectivity" | "application" | "experience";
+          description?: string | null;
+          icon?: string | null;
+          doc_path?: string | null;
+          status?: "active" | "maintenance" | "deprecated";
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      product_features: {
+        Row: {
+          id: string;
+          name: string;
+          module_id: string;
+          category: string | null;
+          description: string | null;
+          priority: number;
+          tags: string[] | null;
+          doc_path: string | null;
+          status: "planned" | "alpha" | "beta" | "ga" | "deprecated";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          module_id: string;
+          category?: string | null;
+          description?: string | null;
+          priority?: number;
+          tags?: string[] | null;
+          doc_path?: string | null;
+          status?: "planned" | "alpha" | "beta" | "ga" | "deprecated";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          module_id?: string;
+          category?: string | null;
+          description?: string | null;
+          priority?: number;
+          tags?: string[] | null;
+          doc_path?: string | null;
+          status?: "planned" | "alpha" | "beta" | "ga" | "deprecated";
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      product_connectors: {
+        Row: {
+          id: string;
+          name: string;
+          platform_category: string;
+          connector_type: "api" | "report_translator" | "rpa" | "hybrid";
+          description: string | null;
+          region: string | null;
+          doc_path: string | null;
+          status: "planned" | "development" | "active" | "maintenance" | "deprecated";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          platform_category: string;
+          connector_type: "api" | "report_translator" | "rpa" | "hybrid";
+          description?: string | null;
+          region?: string | null;
+          doc_path?: string | null;
+          status?: "planned" | "development" | "active" | "maintenance" | "deprecated";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          platform_category?: string;
+          connector_type?: "api" | "report_translator" | "rpa" | "hybrid";
+          description?: string | null;
+          region?: string | null;
+          doc_path?: string | null;
+          status?: "planned" | "development" | "active" | "maintenance" | "deprecated";
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      product_solutions: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          target_industry: string | null;
+          roi_summary: string | null;
+          doc_path: string | null;
+          status: "draft" | "active" | "sunset";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          target_industry?: string | null;
+          roi_summary?: string | null;
+          doc_path?: string | null;
+          status?: "draft" | "active" | "sunset";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          target_industry?: string | null;
+          roi_summary?: string | null;
+          doc_path?: string | null;
+          status?: "draft" | "active" | "sunset";
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      product_releases: {
+        Row: {
+          id: string;
+          version: string;
+          name: string | null;
+          description: string | null;
+          release_date: string | null;
+          notion_sync_path: string | null;
+          status: "planned" | "in_progress" | "released";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          version: string;
+          name?: string | null;
+          description?: string | null;
+          release_date?: string | null;
+          notion_sync_path?: string | null;
+          status?: "planned" | "in_progress" | "released";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          version?: string;
+          name?: string | null;
+          description?: string | null;
+          release_date?: string | null;
+          notion_sync_path?: string | null;
+          status?: "planned" | "in_progress" | "released";
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      product_deployments: {
+        Row: {
+          id: string;
+          domain_id: string;
+          company_id: string | null;
+          description: string | null;
+          go_live_date: string | null;
+          domain_path: string | null;
+          status: "active" | "inactive" | "trial";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          domain_id: string;
+          company_id?: string | null;
+          description?: string | null;
+          go_live_date?: string | null;
+          domain_path?: string | null;
+          status?: "active" | "inactive" | "trial";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          domain_id?: string;
+          company_id?: string | null;
+          description?: string | null;
+          go_live_date?: string | null;
+          domain_path?: string | null;
+          status?: "active" | "inactive" | "trial";
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+
+      // Product junction tables
+      product_feature_connectors: {
+        Row: {
+          id: string;
+          feature_id: string;
+          connector_id: string;
+          relation: "depends_on" | "integrates_with" | "optional";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          feature_id: string;
+          connector_id: string;
+          relation?: "depends_on" | "integrates_with" | "optional";
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          feature_id?: string;
+          connector_id?: string;
+          relation?: "depends_on" | "integrates_with" | "optional";
+          created_at?: string;
+        };
+      };
+      product_solution_features: {
+        Row: {
+          id: string;
+          solution_id: string;
+          feature_id: string;
+          is_core: boolean;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          solution_id: string;
+          feature_id: string;
+          is_core?: boolean;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          solution_id?: string;
+          feature_id?: string;
+          is_core?: boolean;
+          sort_order?: number;
+          created_at?: string;
+        };
+      };
+      product_solution_connectors: {
+        Row: {
+          id: string;
+          solution_id: string;
+          connector_id: string;
+          is_required: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          solution_id: string;
+          connector_id: string;
+          is_required?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          solution_id?: string;
+          connector_id?: string;
+          is_required?: boolean;
+          created_at?: string;
+        };
+      };
+      product_release_items: {
+        Row: {
+          id: string;
+          release_id: string;
+          type: "feature" | "bugfix" | "connector" | "improvement";
+          title: string;
+          description: string | null;
+          feature_id: string | null;
+          connector_id: string | null;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          release_id: string;
+          type: "feature" | "bugfix" | "connector" | "improvement";
+          title: string;
+          description?: string | null;
+          feature_id?: string | null;
+          connector_id?: string | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          release_id?: string;
+          type?: "feature" | "bugfix" | "connector" | "improvement";
+          title?: string;
+          description?: string | null;
+          feature_id?: string | null;
+          connector_id?: string | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+      };
+      product_deployment_connectors: {
+        Row: {
+          id: string;
+          deployment_id: string;
+          connector_id: string;
+          status: "active" | "inactive" | "trial";
+          enabled_date: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          deployment_id: string;
+          connector_id: string;
+          status?: "active" | "inactive" | "trial";
+          enabled_date?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          deployment_id?: string;
+          connector_id?: string;
+          status?: "active" | "inactive" | "trial";
+          enabled_date?: string | null;
+          created_at?: string;
+        };
+      };
+      product_deployment_solutions: {
+        Row: {
+          id: string;
+          deployment_id: string;
+          solution_id: string;
+          status: "active" | "inactive" | "trial";
+          enabled_date: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          deployment_id: string;
+          solution_id: string;
+          status?: "active" | "inactive" | "trial";
+          enabled_date?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          deployment_id?: string;
+          solution_id?: string;
+          status?: "active" | "inactive" | "trial";
+          enabled_date?: string | null;
+          created_at?: string;
+        };
+      };
+
+      // Product supporting tables
+      product_activity: {
+        Row: {
+          id: string;
+          entity_type: "module" | "feature" | "connector" | "solution" | "release" | "deployment";
+          entity_id: string;
+          action: string;
+          old_value: Json | null;
+          new_value: Json | null;
+          content: string | null;
+          actor_name: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entity_type: "module" | "feature" | "connector" | "solution" | "release" | "deployment";
+          entity_id: string;
+          action: string;
+          old_value?: Json | null;
+          new_value?: Json | null;
+          content?: string | null;
+          actor_name?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          entity_type?: "module" | "feature" | "connector" | "solution" | "release" | "deployment";
+          entity_id?: string;
+          action?: string;
+          old_value?: Json | null;
+          new_value?: Json | null;
+          content?: string | null;
+          actor_name?: string | null;
+          created_at?: string;
+        };
+      };
+      product_task_links: {
+        Row: {
+          id: string;
+          task_id: string;
+          entity_type: "module" | "feature" | "connector" | "solution" | "release" | "deployment";
+          entity_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          entity_type: "module" | "feature" | "connector" | "solution" | "release" | "deployment";
+          entity_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          task_id?: string;
+          entity_type?: "module" | "feature" | "connector" | "solution" | "release" | "deployment";
+          entity_id?: string;
+          created_at?: string;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

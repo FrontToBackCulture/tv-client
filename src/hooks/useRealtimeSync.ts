@@ -7,8 +7,8 @@ import { supabase } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // Tables to watch and their corresponding query keys (reference for documentation)
-const _CRM_TABLES = ["crm_companies", "crm_contacts", "crm_deals", "crm_activities", "crm_deal_tasks"];
-const _WORK_TABLES = ["work_tasks", "work_projects", "work_initiatives", "work_milestones", "work_project_updates"];
+const _CRM_TABLES = ["crm_companies", "crm_contacts", "crm_deals", "crm_activities", "task_deal_links"];
+const _WORK_TABLES = ["tasks", "projects", "initiatives", "milestones", "project_updates"];
 void _CRM_TABLES; void _WORK_TABLES; // Suppress unused warnings
 
 export function useRealtimeSync() {
@@ -73,7 +73,7 @@ export function useRealtimeSync() {
         {
           event: "*",
           schema: "public",
-          table: "crm_deal_tasks",
+          table: "task_deal_links",
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["crm", "deals"] }); // Tasks shown in deal cards
@@ -92,11 +92,13 @@ export function useRealtimeSync() {
         {
           event: "*",
           schema: "public",
-          table: "work_tasks",
+          table: "tasks",
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["work", "tasks"] });
           queryClient.invalidateQueries({ queryKey: ["work", "projects"] }); // Task counts in projects
+          queryClient.invalidateQueries({ queryKey: ["crm", "deals"] }); // Tasks shown in deal cards
+          queryClient.invalidateQueries({ queryKey: ["crm", "deal-tasks"] });
         }
       )
       .on(
@@ -104,7 +106,7 @@ export function useRealtimeSync() {
         {
           event: "*",
           schema: "public",
-          table: "work_projects",
+          table: "projects",
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["work", "projects"] });
@@ -115,7 +117,7 @@ export function useRealtimeSync() {
         {
           event: "*",
           schema: "public",
-          table: "work_initiatives",
+          table: "initiatives",
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["work", "initiatives"] });
@@ -126,7 +128,7 @@ export function useRealtimeSync() {
         {
           event: "*",
           schema: "public",
-          table: "work_milestones",
+          table: "milestones",
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["work", "milestones"] });
@@ -138,7 +140,7 @@ export function useRealtimeSync() {
         {
           event: "*",
           schema: "public",
-          table: "work_project_updates",
+          table: "project_updates",
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["work", "project-updates"] });

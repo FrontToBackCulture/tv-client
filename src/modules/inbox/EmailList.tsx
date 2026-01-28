@@ -12,10 +12,10 @@ import {
   UserPlus,
   AlertCircle,
 } from "lucide-react";
-import type { Email, EmailCategory } from "../../lib/inbox/types";
+import type { OutlookEmail } from "../../hooks/useOutlook";
 
 interface EmailListProps {
-  emails: Email[];
+  emails: OutlookEmail[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onArchive: (id: string) => void;
@@ -40,7 +40,7 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function getCategoryIcon(category?: EmailCategory) {
+function getCategoryIcon(category?: string) {
   switch (category) {
     case "client":
       return <Building2 size={12} className="text-blue-500" />;
@@ -68,8 +68,8 @@ export function EmailList({
     ? emails.filter(
         (e) =>
           e.subject.toLowerCase().includes(search.toLowerCase()) ||
-          e.from.name.toLowerCase().includes(search.toLowerCase()) ||
-          e.from.email.toLowerCase().includes(search.toLowerCase())
+          e.fromName.toLowerCase().includes(search.toLowerCase()) ||
+          e.fromEmail.toLowerCase().includes(search.toLowerCase())
       )
     : emails;
 
@@ -143,7 +143,7 @@ export function EmailList({
                           : "text-zinc-700 dark:text-zinc-300"
                       )}
                     >
-                      {email.from.name || email.from.email}
+                      {email.fromName || email.fromEmail}
                     </span>
                     <span className="text-xs text-zinc-500 flex-shrink-0">
                       {formatDate(email.receivedAt)}
@@ -152,10 +152,10 @@ export function EmailList({
 
                   {/* Subject */}
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    {email.classification?.actionRequired && (
+                    {email.actionRequired && (
                       <AlertCircle size={12} className="text-amber-500 flex-shrink-0" />
                     )}
-                    {getCategoryIcon(email.classification?.category)}
+                    {getCategoryIcon(email.category)}
                     <span
                       className={cn(
                         "text-sm truncate",
@@ -170,7 +170,7 @@ export function EmailList({
 
                   {/* Preview */}
                   <p className="text-xs text-zinc-500 truncate mt-1">
-                    {email.preview}
+                    {email.bodyPreview}
                   </p>
 
                   {/* Tags */}
@@ -183,9 +183,9 @@ export function EmailList({
                         {email.linkedCompanyName}
                       </span>
                     )}
-                    {email.classification?.summary && hoveredId === email.id && (
+                    {email.aiSummary && hoveredId === email.id && (
                       <span className="text-xs text-teal-600 dark:text-teal-400 truncate">
-                        {email.classification.summary}
+                        {email.aiSummary}
                       </span>
                     )}
                   </div>

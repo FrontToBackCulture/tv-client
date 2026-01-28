@@ -2,8 +2,25 @@
 
 import { create } from "zustand";
 
-export type ModuleId = "library" | "work" | "inbox" | "crm" | "bot" | "console" | "settings";
+export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "console" | "settings";
 export type Theme = "light" | "dark";
+
+// Get initial module from URL query param (for multi-window support)
+function getInitialModule(): ModuleId {
+  if (typeof window === "undefined") return "library";
+  const params = new URLSearchParams(window.location.search);
+  const module = params.get("module") as ModuleId | null;
+  if (module && ["library", "work", "inbox", "crm", "product", "bot", "console", "settings"].includes(module)) {
+    return module;
+  }
+  return "library";
+}
+
+// Check if this is a secondary (module-specific) window
+export function isSecondaryWindow(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).has("module");
+}
 
 // Get initial theme from localStorage or system preference
 function getInitialTheme(): Theme {
@@ -67,7 +84,7 @@ export const useAppStore = create<AppState>((set) => ({
     }),
 
   // Navigation
-  activeModule: "library",
+  activeModule: getInitialModule(),
   setActiveModule: (module) => set({ activeModule: module }),
 
   // Sync
@@ -79,3 +96,14 @@ export const useAppStore = create<AppState>((set) => ({
   setTerminalOpen: (open) => set({ terminalOpen: open }),
   toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
 }));
+
+// Sync theme across windows via localStorage storage event
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === "tv-desktop-theme" && e.newValue) {
+      const newTheme = e.newValue as Theme;
+      applyTheme(newTheme);
+      useAppStore.setState({ theme: newTheme });
+    }
+  });
+}

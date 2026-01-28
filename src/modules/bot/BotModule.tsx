@@ -1,7 +1,7 @@
 // src/modules/bot/BotModule.tsx
 // Bot management module — inspect bot CLAUDE.md files + session timeline
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   Bot,
   Loader2,
@@ -25,6 +25,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useFolderFiles, FolderFile } from "../../hooks/useFolderFiles";
 import { useBotSettingsStore } from "../../stores/botSettingsStore";
 import { useAuth } from "../../stores/authStore";
+import { MarkdownEditor } from "../library/MarkdownEditor";
 import { MarkdownViewer } from "../library/MarkdownViewer";
 import { cn } from "../../lib/cn";
 
@@ -1012,6 +1013,53 @@ export function BotModule() {
   const { data: claudeContent, isLoading: loadingFile } =
     useReadFile(claudeMdPath);
 
+  // Auto-save state for CLAUDE.md editing
+  const [claudeSaveStatus, setClaudeSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
+  const claudeSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const claudeLastSavedRef = useRef<string>("");
+
+  // Reset save state when selected bot changes
+  useEffect(() => {
+    setClaudeSaveStatus("saved");
+    claudeLastSavedRef.current = claudeContent || "";
+    if (claudeSaveTimeoutRef.current) {
+      clearTimeout(claudeSaveTimeoutRef.current);
+    }
+  }, [claudeMdPath, claudeContent]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (claudeSaveTimeoutRef.current) {
+        clearTimeout(claudeSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const saveClaudeContent = useCallback(async (contentToSave: string) => {
+    if (!claudeMdPath || contentToSave === claudeLastSavedRef.current) return;
+    setClaudeSaveStatus("saving");
+    try {
+      await invoke("write_file", { path: claudeMdPath, content: contentToSave });
+      claudeLastSavedRef.current = contentToSave;
+      setClaudeSaveStatus("saved");
+    } catch {
+      setClaudeSaveStatus("unsaved");
+    }
+  }, [claudeMdPath]);
+
+  const handleClaudeContentChange = useCallback((newContent: string) => {
+    if (claudeSaveTimeoutRef.current) {
+      clearTimeout(claudeSaveTimeoutRef.current);
+    }
+    if (newContent !== claudeLastSavedRef.current) {
+      setClaudeSaveStatus("unsaved");
+    }
+    claudeSaveTimeoutRef.current = setTimeout(() => {
+      saveClaudeContent(newContent);
+    }, 1000);
+  }, [saveClaudeContent]);
+
   const displayPath = useMemo(() => {
     if (!selectedBot || !teamPath) return null;
     return selectedBot.dirPath.replace(teamPath + "/", "") + "/CLAUDE.md";
@@ -1363,8 +1411,17 @@ export function BotModule() {
 
           {/* Show selected bot name or file path in tab bar */}
           {mainView === "config" && selectedBot && (
-            <span className="ml-auto mr-4 text-xs text-zinc-400 font-mono truncate">
+            <span className="ml-auto mr-4 flex items-center gap-2 text-xs text-zinc-400 font-mono truncate">
               {displayPath}
+              <span className={
+                claudeSaveStatus === "saving" ? "text-zinc-500" :
+                claudeSaveStatus === "unsaved" ? "text-amber-500" :
+                "text-zinc-500 dark:text-zinc-600"
+              }>
+                {claudeSaveStatus === "saving" ? "Saving..." :
+                 claudeSaveStatus === "unsaved" ? "Unsaved" :
+                 "Saved"}
+              </span>
             </span>
           )}
           {mainView === "sessions" && selectedBot && (
@@ -1378,7 +1435,7 @@ export function BotModule() {
         {mainView === "config" && (
           <>
             {selectedBot ? (
-              <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="flex-1 overflow-hidden flex flex-col">
                 {loadingFile ? (
                   <div className="flex items-center justify-center py-16">
                     <Loader2
@@ -1387,7 +1444,13 @@ export function BotModule() {
                     />
                   </div>
                 ) : claudeContent ? (
-                  <MarkdownViewer content={claudeContent} />
+                  <div className="flex-1 overflow-hidden">
+                    <MarkdownEditor
+                      key={claudeMdPath}
+                      content={claudeContent}
+                      onChange={handleClaudeContentChange}
+                    />
+                  </div>
                 ) : (
                   <div className="text-center py-16 text-zinc-400 dark:text-zinc-500">
                     <FileText size={32} className="mx-auto mb-3 opacity-40" />

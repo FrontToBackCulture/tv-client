@@ -19,8 +19,8 @@ export function FloatingTerminal({ activeModule }: FloatingTerminalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [sessions, setSessions] = useState<Set<ModuleId>>(new Set());
-  const [width, setWidth] = useState(500);
-  const [height, setHeight] = useState(320);
+  const [width, setWidth] = useState(720);
+  const [height, setHeight] = useState(440);
 
   const paths = useTerminalSettingsStore((s) => s.paths);
   const { activeRepository } = useRepository();
@@ -72,8 +72,8 @@ export function FloatingTerminal({ activeModule }: FloatingTerminalProps) {
   const axisRef = useRef<ResizeAxis>("y");
   const startXRef = useRef(0);
   const startYRef = useRef(0);
-  const startWidthRef = useRef(500);
-  const startHeightRef = useRef(320);
+  const startWidthRef = useRef(720);
+  const startHeightRef = useRef(440);
 
   const startResize = useCallback(
     (e: React.MouseEvent, axis: ResizeAxis) => {
@@ -95,11 +95,11 @@ export function FloatingTerminal({ activeModule }: FloatingTerminalProps) {
       const axis = axisRef.current;
       if (axis === "y" || axis === "xy") {
         const dy = startYRef.current - e.clientY;
-        setHeight(Math.max(200, Math.min(700, startHeightRef.current + dy)));
+        setHeight(Math.max(200, Math.min(900, startHeightRef.current + dy)));
       }
       if (axis === "x" || axis === "xy") {
         const dx = startXRef.current - e.clientX;
-        setWidth(Math.max(360, Math.min(900, startWidthRef.current + dx)));
+        setWidth(Math.max(360, Math.min(1200, startWidthRef.current + dx)));
       }
     };
     const handleMouseUp = () => setIsResizing(false);

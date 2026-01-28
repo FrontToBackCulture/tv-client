@@ -28,6 +28,7 @@ interface FileTreeProps {
   node: TreeNode;
   selectedPath: string | null;
   onSelect: (path: string) => void;
+  onPinSelect?: (path: string) => void;
   level: number;
 }
 
@@ -170,7 +171,7 @@ function ContextMenu({
   );
 }
 
-export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps) {
+export function FileTree({ node, selectedPath, onSelect, onPinSelect, level }: FileTreeProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -206,10 +207,15 @@ export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps)
   const handleClick = () => {
     if (isDirectory) {
       toggleExpanded(node.path);
-      // Also select the folder to show FolderView
       onSelect(node.path);
     } else {
       onSelect(node.path);
+    }
+  };
+
+  const handleDoubleClick = () => {
+    if (!isDirectory && onPinSelect) {
+      onPinSelect(node.path);
     }
   };
 
@@ -227,6 +233,7 @@ export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps)
     <div>
       <div
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         className={cn(
           "group flex items-center gap-1 px-2 py-1 cursor-pointer transition-colors",
@@ -292,6 +299,7 @@ export function FileTree({ node, selectedPath, onSelect, level }: FileTreeProps)
               node={child}
               selectedPath={selectedPath}
               onSelect={onSelect}
+              onPinSelect={onPinSelect}
               level={level + 1}
             />
           ))}

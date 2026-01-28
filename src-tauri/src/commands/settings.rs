@@ -16,6 +16,10 @@ pub const KEY_SUPABASE_URL: &str = "supabase_url";
 pub const KEY_SUPABASE_ANON_KEY: &str = "supabase_anon_key";
 pub const KEY_OPENAI_API: &str = "openai_api_key";
 pub const KEY_INTERCOM_API: &str = "intercom_api_key";
+pub const KEY_MS_GRAPH_CLIENT_ID: &str = "ms_graph_client_id";
+pub const KEY_MS_GRAPH_TENANT_ID: &str = "ms_graph_tenant_id";
+pub const KEY_MS_GRAPH_CLIENT_SECRET: &str = "ms_graph_client_secret";
+pub const KEY_ANTHROPIC_API: &str = "anthropic_api_key";
 
 // ============================================================================
 // Types
@@ -43,6 +47,10 @@ pub struct SettingsStatus {
     pub github_client_secret: bool,
     pub supabase_url: bool,
     pub supabase_anon_key: bool,
+    pub ms_graph_client_id: bool,
+    pub ms_graph_tenant_id: bool,
+    pub ms_graph_client_secret: bool,
+    pub anthropic_api_key: bool,
 }
 
 // ============================================================================
@@ -59,7 +67,7 @@ fn get_settings_path() -> PathBuf {
     get_settings_dir().join("settings.json")
 }
 
-fn load_settings() -> Result<Settings, String> {
+pub fn load_settings() -> Result<Settings, String> {
     let path = get_settings_path();
     if !path.exists() {
         return Ok(Settings::default());
@@ -83,7 +91,7 @@ fn save_settings(settings: &Settings) -> Result<(), String> {
         .map_err(|e| format!("Failed to write settings: {}", e))
 }
 
-fn mask_key(key: &str) -> String {
+pub fn mask_key(key: &str) -> String {
     if key.len() <= 8 {
         "*".repeat(key.len())
     } else {
@@ -147,6 +155,10 @@ pub fn settings_get_status() -> Result<SettingsStatus, String> {
         github_client_secret: settings.keys.contains_key(KEY_GITHUB_CLIENT_SECRET),
         supabase_url: settings.keys.contains_key(KEY_SUPABASE_URL),
         supabase_anon_key: settings.keys.contains_key(KEY_SUPABASE_ANON_KEY),
+        ms_graph_client_id: settings.keys.contains_key(KEY_MS_GRAPH_CLIENT_ID),
+        ms_graph_tenant_id: settings.keys.contains_key(KEY_MS_GRAPH_TENANT_ID),
+        ms_graph_client_secret: settings.keys.contains_key(KEY_MS_GRAPH_CLIENT_SECRET),
+        anthropic_api_key: settings.keys.contains_key(KEY_ANTHROPIC_API),
     })
 }
 
@@ -164,6 +176,10 @@ pub fn settings_list_keys() -> Result<Vec<ApiKeyInfo>, String> {
         (KEY_SUPABASE_ANON_KEY, "Supabase Anon Key", "Database authentication"),
         (KEY_OPENAI_API, "OpenAI API Key", "For AI features"),
         (KEY_INTERCOM_API, "Intercom API Key", "For Help Center publishing"),
+        (KEY_MS_GRAPH_CLIENT_ID, "MS Graph Client ID", "For Outlook email integration"),
+        (KEY_MS_GRAPH_TENANT_ID, "MS Graph Tenant ID", "For Outlook email integration"),
+        (KEY_MS_GRAPH_CLIENT_SECRET, "MS Graph Client Secret", "For Outlook email integration"),
+        (KEY_ANTHROPIC_API, "Anthropic API Key", "For AI email summaries"),
     ];
 
     let mut result = Vec::new();
@@ -199,6 +215,12 @@ pub fn settings_get_gemini_key() -> Result<Option<String>, String> {
     settings_get_key(KEY_GEMINI_API.to_string())
 }
 
+/// Get Intercom API key (for help center publishing)
+#[command]
+pub fn settings_get_intercom_key() -> Result<Option<String>, String> {
+    settings_get_key(KEY_INTERCOM_API.to_string())
+}
+
 /// Get GitHub credentials (for auth)
 #[command]
 pub fn settings_get_github_credentials() -> Result<(Option<String>, Option<String>), String> {
@@ -217,11 +239,99 @@ pub fn settings_get_supabase_credentials() -> Result<(Option<String>, Option<Str
     Ok((url, anon_key))
 }
 
+/// Get MS Graph credentials (for Outlook)
+#[command]
+pub fn settings_get_ms_graph_credentials() -> Result<(Option<String>, Option<String>, Option<String>), String> {
+    let settings = load_settings()?;
+    let client_id = settings.keys.get(KEY_MS_GRAPH_CLIENT_ID).cloned();
+    let tenant_id = settings.keys.get(KEY_MS_GRAPH_TENANT_ID).cloned();
+    let client_secret = settings.keys.get(KEY_MS_GRAPH_CLIENT_SECRET).cloned();
+    Ok((client_id, tenant_id, client_secret))
+}
+
+/// Get Anthropic API key (for AI summaries)
+#[command]
+pub fn settings_get_anthropic_key() -> Result<Option<String>, String> {
+    settings_get_key(KEY_ANTHROPIC_API.to_string())
+}
+
 /// Get the settings file path (for importing)
 #[command]
 pub fn settings_get_path() -> String {
     get_settings_path().to_string_lossy().to_string()
 }
+
+// ============================================================================
+// Commands - VAL Sync credentials
+// ============================================================================
+
+/// Get credentials for a specific VAL domain
+/// Keys: val_email_{domain}, val_password_{domain}
+#[command]
+pub fn settings_get_val_credentials(
+    domain: String,
+) -> Result<(Option<String>, Option<String>), String> {
+    let settings = load_settings()?;
+    let email = settings
+        .keys
+        .get(&format!("val_email_{}", domain))
+        .cloned();
+    let password = settings
+        .keys
+        .get(&format!("val_password_{}", domain))
+        .cloned();
+    Ok((email, password))
+}
+
+/// Import credentials from val-sync .env file
+/// Parses VAL_DOMAIN_{DOMAIN}_EMAIL/PASSWORD entries
+#[command]
+pub fn settings_import_val_credentials(env_file_path: String) -> Result<Vec<String>, String> {
+    let content = fs::read_to_string(&env_file_path)
+        .map_err(|e| format!("Failed to read .env file: {}", e))?;
+
+    let mut settings = load_settings()?;
+    let mut imported = Vec::new();
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let eq_pos = match line.find('=') {
+            Some(p) => p,
+            None => continue,
+        };
+        let key = line[..eq_pos].trim();
+        let value = line[eq_pos + 1..].trim().trim_matches('"').trim_matches('\'');
+
+        if value.is_empty() {
+            continue;
+        }
+
+        // Match VAL_DOMAIN_{DOMAIN}_EMAIL or VAL_DOMAIN_{DOMAIN}_PASSWORD
+        if let Some(rest) = key.strip_prefix("VAL_DOMAIN_") {
+            if let Some(domain_upper) = rest.strip_suffix("_EMAIL") {
+                let domain = domain_upper.to_lowercase().replace('_', "-");
+                let settings_key = format!("val_email_{}", domain);
+                settings.keys.insert(settings_key.clone(), value.to_string());
+                imported.push(format!("{} -> {}", key, settings_key));
+            } else if let Some(domain_upper) = rest.strip_suffix("_PASSWORD") {
+                let domain = domain_upper.to_lowercase().replace('_', "-");
+                let settings_key = format!("val_password_{}", domain);
+                settings.keys.insert(settings_key.clone(), value.to_string());
+                imported.push(format!("{} -> {}", key, settings_key));
+            }
+        }
+    }
+
+    save_settings(&settings)?;
+    Ok(imported)
+}
+
+// ============================================================================
+// Commands - Generic import
+// ============================================================================
 
 /// Import settings from a JSON file or env-style file
 #[command]
@@ -273,6 +383,10 @@ pub fn settings_import_from_file(file_path: String) -> Result<Vec<String>, Strin
                     "SUPABASE_ANON_KEY" | "NEXT_PUBLIC_SUPABASE_ANON_KEY" => Some(KEY_SUPABASE_ANON_KEY),
                     "OPENAI_API_KEY" => Some(KEY_OPENAI_API),
                     "INTERCOM_ACCESS_TOKEN" | "INTERCOM_API_KEY" => Some(KEY_INTERCOM_API),
+                    "MS_GRAPH_CLIENT_ID" | "AZURE_CLIENT_ID" => Some(KEY_MS_GRAPH_CLIENT_ID),
+                    "MS_GRAPH_TENANT_ID" | "AZURE_TENANT_ID" => Some(KEY_MS_GRAPH_TENANT_ID),
+                    "MS_GRAPH_CLIENT_SECRET" | "AZURE_CLIENT_SECRET" => Some(KEY_MS_GRAPH_CLIENT_SECRET),
+                    "ANTHROPIC_API_KEY" => Some(KEY_ANTHROPIC_API),
                     _ => None,
                 };
 

@@ -84,6 +84,37 @@ export function Terminal({ id: _id, cwd, onClose: _onClose, isActive = true }: T
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
 
+    // Handle Cmd+V paste and Cmd+C copy in Tauri webview
+    xterm.attachCustomKeyEventHandler((event) => {
+      if (event.type !== "keydown") return true;
+
+      // Cmd+V: paste from clipboard
+      if (event.metaKey && event.key === "v") {
+        navigator.clipboard.readText().then((text) => {
+          if (text) write(text);
+        });
+        return false;
+      }
+
+      // Shift+Enter: send newline for multi-line input
+      if (event.shiftKey && event.key === "Enter") {
+        write("\n");
+        return false;
+      }
+
+      // Cmd+C: copy selection (or pass Ctrl+C to shell if no selection)
+      if (event.metaKey && event.key === "c") {
+        const selection = xterm.getSelection();
+        if (selection) {
+          navigator.clipboard.writeText(selection);
+          return false;
+        }
+        // No selection — let it pass through as interrupt (Ctrl+C)
+      }
+
+      return true;
+    });
+
     // Handle user input
     xterm.onData((data) => {
       write(data);
