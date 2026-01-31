@@ -2,7 +2,7 @@
 // Main CRM module container with sidebar, company list, and detail panel
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useCompanies, usePipelineStats } from "../../hooks/useCRM";
+import { useCompanies, usePipelineStats, useCRMRealtime } from "../../hooks/useCRM";
 import { Company, CompanyFilters, DealWithTaskInfo } from "../../lib/crm/types";
 import { CRMSidebar } from "./CRMSidebar";
 import { CompanyListView } from "./CompanyListView";
@@ -36,6 +36,9 @@ export function CrmModule() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [showCompanyForm, setShowCompanyForm] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | undefined>(undefined);
+
+  // Enable real-time updates from Supabase
+  useCRMRealtime();
 
   // Sidebar resizing
   const [sidebarWidth, setSidebarWidthState] = useState(240);

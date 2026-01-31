@@ -1,7 +1,7 @@
 // VAL Sync MCP Tools
-// 10 tools for syncing VAL platform data via Claude Code
+// 11 tools for syncing VAL platform data via Claude Code
 
-use crate::commands::val_sync::{config, extract, metadata, sync};
+use crate::commands::val_sync::{config, extract, metadata, sql, sync};
 use crate::mcp::protocol::{InputSchema, Tool, ToolResult};
 use serde_json::{json, Value};
 
@@ -145,6 +145,27 @@ pub fn tools() -> Vec<Tool> {
                     }
                 }),
                 vec![],
+            ),
+        },
+        Tool {
+            name: "execute-val-sql".to_string(),
+            description: "Execute a SQL query on a VAL domain. Provide SQL directly or as a file path. Returns summary and data. Only SELECT queries are allowed.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "domain": {
+                        "type": "string",
+                        "description": "VAL domain name (e.g., 'suntec', 'koi', 'tryval', 'jfh')"
+                    },
+                    "sql": {
+                        "type": "string",
+                        "description": "SQL query (SELECT only) OR path to a .sql file"
+                    },
+                    "limit": {
+                        "type": "number",
+                        "description": "Max rows to return (default: 100)"
+                    }
+                }),
+                vec!["domain".to_string(), "sql".to_string()],
             ),
         },
     ]
@@ -338,6 +359,67 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                         Err(e) => ToolResult::error(format!("Failed to list domains: {}", e)),
                     }
                 }
+            }
+        }
+
+        "execute-val-sql" => {
+            let domain = require_domain!(args);
+            let sql_query = match args.get("sql").and_then(|s| s.as_str()) {
+                Some(s) => s.to_string(),
+                None => return ToolResult::error("'sql' parameter is required".to_string()),
+            };
+            let limit = args.get("limit").and_then(|l| l.as_u64()).map(|l| l as usize);
+
+            match sql::val_execute_sql(domain.clone(), sql_query, limit).await {
+                Ok(result) => {
+                    if let Some(err) = &result.error {
+                        return ToolResult::error(format!("SQL error: {}", err));
+                    }
+
+                    let mut lines = vec![
+                        format!("## SQL Results: {} ({})", domain, result.row_count),
+                        format!("Columns: {}", result.columns.join(", ")),
+                        String::new(),
+                    ];
+
+                    if result.truncated {
+                        lines.push(format!("*Results truncated to {} rows*\n", result.data.len()));
+                    }
+
+                    // Format data as markdown table
+                    if !result.data.is_empty() && !result.columns.is_empty() {
+                        // Header
+                        lines.push(format!("| {} |", result.columns.join(" | ")));
+                        lines.push(format!("| {} |", result.columns.iter().map(|_| "---").collect::<Vec<_>>().join(" | ")));
+
+                        // Rows (max 50 for display)
+                        for row in result.data.iter().take(50) {
+                            let cells: Vec<String> = result.columns.iter().map(|col| {
+                                row.get(col)
+                                    .map(|v| {
+                                        if v.is_null() {
+                                            "NULL".to_string()
+                                        } else if let Some(s) = v.as_str() {
+                                            s.to_string()
+                                        } else {
+                                            v.to_string()
+                                        }
+                                    })
+                                    .unwrap_or_default()
+                            }).collect();
+                            lines.push(format!("| {} |", cells.join(" | ")));
+                        }
+
+                        if result.data.len() > 50 {
+                            lines.push(format!("\n*...and {} more rows*", result.data.len() - 50));
+                        }
+                    } else {
+                        lines.push("No rows returned.".to_string());
+                    }
+
+                    ToolResult::text(lines.join("\n"))
+                }
+                Err(e) => ToolResult::error(format!("SQL execution failed: {}", e)),
             }
         }
 

@@ -116,6 +116,7 @@ export const COMPANY_STAGES = [
 ];
 
 export const DEAL_STAGES = [
+  { value: "target" as const, label: "Target", color: "zinc" },
   { value: "prospect" as const, label: "Prospect", color: "slate" },
   { value: "lead" as const, label: "Lead", color: "gray" },
   { value: "qualified" as const, label: "Qualified", color: "blue" },

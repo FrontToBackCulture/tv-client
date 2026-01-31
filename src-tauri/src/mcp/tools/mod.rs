@@ -69,7 +69,7 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
     }
 
     // VAL Sync tools
-    if name.starts_with("sync-val-") {
+    if name.starts_with("sync-val-") || name == "execute-val-sql" {
         return val_sync::call(name, arguments).await;
     }
 

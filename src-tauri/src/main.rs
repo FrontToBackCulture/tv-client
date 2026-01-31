@@ -228,6 +228,10 @@ fn main() {
             commands::val_sync::query_health::val_run_query_health,
             commands::val_sync::dashboard_health::val_run_dashboard_health,
             commands::val_sync::overview::val_generate_overview,
+            // VAL Sync - SQL execution
+            commands::val_sync::sql::val_execute_sql,
+            // VAL Sync - SQL generation (AI)
+            commands::val_sync::sql_gen::val_generate_sql,
             // Settings - MS Graph credentials
             commands::settings::settings_get_ms_graph_credentials,
             commands::settings::settings_get_anthropic_key,

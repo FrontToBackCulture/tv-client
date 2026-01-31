@@ -1605,3 +1605,46 @@ export function useRunAllDomainsOverview() {
   const abort = useCallback(() => { abortRef.current = true; }, []);
   return { trigger, abort, progress };
 }
+
+// ============================================================
+// SQL Execution
+// ============================================================
+
+export interface SqlExecuteResult {
+  domain: string;
+  sql: string;
+  row_count: number;
+  columns: string[];
+  data: Record<string, unknown>[];
+  truncated: boolean;
+  error: string | null;
+}
+
+/** Execute a SQL query against a VAL domain */
+export function useValExecuteSql() {
+  return useMutation({
+    mutationFn: ({ domain, sql, limit }: { domain: string; sql: string; limit?: number }) =>
+      invoke<SqlExecuteResult>("val_execute_sql", { domain, sql, limit: limit ?? null }),
+  });
+}
+
+// ============================================================
+// SQL Generation (AI)
+// ============================================================
+
+export interface SqlGenerateResult {
+  domain: string;
+  prompt: string;
+  sql: string;
+  explanation: string;
+  tables_used: string[];
+  error: string | null;
+}
+
+/** Generate SQL from natural language using Claude Haiku */
+export function useValGenerateSql() {
+  return useMutation({
+    mutationFn: ({ domain, prompt }: { domain: string; prompt: string }) =>
+      invoke<SqlGenerateResult>("val_generate_sql", { domain, prompt }),
+  });
+}

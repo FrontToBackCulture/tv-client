@@ -12,6 +12,7 @@ import {
   PanelRight,
   ExternalLink,
   LucideIcon,
+  TerminalSquare,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { id: "inbox", icon: Mail, label: "Inbox", shortcut: "⌘4" },
   { id: "product", icon: Boxes, label: "Product", shortcut: "⌘5" },
   { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘6" },
+  { id: "console", icon: TerminalSquare, label: "Console", shortcut: "⌘7" },
 ];
 
 // Bottom items (settings, etc.)

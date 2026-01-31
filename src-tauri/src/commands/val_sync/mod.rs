@@ -14,4 +14,6 @@ pub mod metadata;
 pub mod monitoring;
 pub mod overview;
 pub mod query_health;
+pub mod sql;
+pub mod sql_gen;
 pub mod sync;

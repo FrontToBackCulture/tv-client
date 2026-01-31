@@ -2,27 +2,43 @@
 
 import { useState, useCallback } from "react";
 import { Terminal } from "./Terminal";
-import { ConsoleSidebar, TerminalTab } from "./ConsoleSidebar";
-import { TerminalSquare } from "lucide-react";
+import { SqlConsole } from "./SqlConsole";
+import { ConsoleSidebar, ConsoleTab } from "./ConsoleSidebar";
+import { TerminalSquare, Database } from "lucide-react";
 
 export function ConsoleModule() {
-  const [tabs, setTabs] = useState<TerminalTab[]>([]);
+  const [tabs, setTabs] = useState<ConsoleTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
   // Create new terminal tab
-  const handleNewTab = useCallback((cwd?: string) => {
+  const handleNewTerminal = useCallback((cwd?: string) => {
     const id = `term-${Date.now()}`;
-    const tabNumber = tabs.length + 1;
-    const newTab: TerminalTab = {
+    const tabNumber = tabs.filter((t) => t.type === "terminal").length + 1;
+    const newTab: ConsoleTab = {
       id,
+      type: "terminal",
       name: `Terminal ${tabNumber}`,
       cwd: cwd || "",
     };
     setTabs((prev) => [...prev, newTab]);
     setActiveTabId(id);
-  }, [tabs.length]);
+  }, [tabs]);
 
-  // Close terminal tab
+  // Create new SQL Console tab
+  const handleNewSqlConsole = useCallback((domain?: string) => {
+    const id = `sql-${Date.now()}`;
+    const tabNumber = tabs.filter((t) => t.type === "sql").length + 1;
+    const newTab: ConsoleTab = {
+      id,
+      type: "sql",
+      name: domain ? `SQL: ${domain}` : `SQL Console ${tabNumber}`,
+      domain,
+    };
+    setTabs((prev) => [...prev, newTab]);
+    setActiveTabId(id);
+  }, [tabs]);
+
+  // Close tab
   const handleCloseTab = useCallback((id: string) => {
     setTabs((prev) => {
       const newTabs = prev.filter((t) => t.id !== id);
@@ -36,7 +52,7 @@ export function ConsoleModule() {
     });
   }, [activeTabId]);
 
-  // Select terminal tab
+  // Select tab
   const handleSelectTab = useCallback((id: string) => {
     setActiveTabId(id);
   }, []);
@@ -51,10 +67,11 @@ export function ConsoleModule() {
         activeTabId={activeTabId}
         onTabSelect={handleSelectTab}
         onTabClose={handleCloseTab}
-        onNewTab={handleNewTab}
+        onNewTerminal={handleNewTerminal}
+        onNewSqlConsole={handleNewSqlConsole}
       />
 
-      {/* Terminal Area */}
+      {/* Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Tab Bar */}
         {tabs.length > 0 && (
@@ -69,41 +86,65 @@ export function ConsoleModule() {
                     : "text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800"
                 }`}
               >
-                <TerminalSquare size={12} />
+                {tab.type === "terminal" ? (
+                  <TerminalSquare size={12} />
+                ) : (
+                  <Database size={12} />
+                )}
                 <span>{tab.name}</span>
               </button>
             ))}
           </div>
         )}
 
-        {/* Terminal Content */}
+        {/* Tab Content */}
         <div className="flex-1 overflow-hidden">
           {activeTab ? (
-            <Terminal
-              key={activeTab.id}
-              id={activeTab.id}
-              cwd={activeTab.cwd || undefined}
-              onClose={() => handleCloseTab(activeTab.id)}
-              isActive={activeTabId === activeTab.id}
-            />
+            activeTab.type === "terminal" ? (
+              <Terminal
+                key={activeTab.id}
+                id={activeTab.id}
+                cwd={activeTab.cwd || undefined}
+                onClose={() => handleCloseTab(activeTab.id)}
+                isActive={activeTabId === activeTab.id}
+              />
+            ) : (
+              <SqlConsole
+                key={activeTab.id}
+                initialDomain={activeTab.domain}
+              />
+            )
           ) : (
             <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
               <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center">
-                  <TerminalSquare size={32} className="text-zinc-400" />
+                <div className="flex justify-center gap-4 mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center">
+                    <TerminalSquare size={32} className="text-zinc-400" />
+                  </div>
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center">
+                    <Database size={32} className="text-zinc-400" />
+                  </div>
                 </div>
                 <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-                  No Terminal Open
+                  Console
                 </h2>
                 <p className="text-zinc-500 mb-6">
-                  Create a new terminal to get started
+                  Open a terminal or SQL console to get started
                 </p>
-                <button
-                  onClick={() => handleNewTab()}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
-                >
-                  New Terminal
-                </button>
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={() => handleNewTerminal()}
+                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
+                  >
+                    New Terminal
+                  </button>
+                  <button
+                    onClick={() => handleNewSqlConsole()}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
+                  >
+                    SQL Console
+                  </button>
+                </div>
               </div>
             </div>
           )}

@@ -1,6 +1,7 @@
 // React Query hooks for CRM module
 // Direct Supabase calls - no middleware
 
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import type {
@@ -45,6 +46,53 @@ export const crmKeys = {
     [...crmKeys.activities(), "company", companyId] as const,
   pipeline: () => [...crmKeys.all, "pipeline"] as const,
 };
+
+// ============================================
+// Real-time Subscriptions
+// ============================================
+export function useCRMRealtime() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    // Subscribe to CRM table changes
+    const channel = supabase
+      .channel("crm-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "crm_companies" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: crmKeys.companies() });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "crm_contacts" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: crmKeys.contacts() });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "crm_deals" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: crmKeys.deals() });
+          queryClient.invalidateQueries({ queryKey: crmKeys.pipeline() });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "crm_activities" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: crmKeys.activities() });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+}
 
 // ============================================
 // Companies
@@ -842,6 +890,8 @@ export function usePipelineStats() {
         .from("crm_deals")
         .select("*")
         .in("stage", [
+          "target",
+          "prospect",
           "lead",
           "qualified",
           "pilot",
@@ -852,6 +902,8 @@ export function usePipelineStats() {
       if (error) throw new Error(`Failed to fetch deals: ${error.message}`);
 
       const byStage = [
+        "target",
+        "prospect",
         "lead",
         "qualified",
         "pilot",

@@ -52,7 +52,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
 
   // Fetch active deals with tasks (not won/lost)
   const { data: deals = [], isLoading, refetch } = useDealsWithTasks({
-    stage: ["prospect", "lead", "qualified", "pilot", "proposal", "negotiation"],
+    stage: ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation"],
   });
 
   const updateMutation = useUpdateDeal();
@@ -388,6 +388,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
 
 function StageIndicator({ color }: { color: string }) {
   const colors: Record<string, string> = {
+    zinc: "bg-zinc-400",
     slate: "bg-slate-400",
     gray: "bg-gray-500",
     purple: "bg-purple-500",
@@ -405,6 +406,7 @@ function StageIndicator({ color }: { color: string }) {
 
 function SolutionBadge({ color }: { color: string }) {
   const colors: Record<string, string> = {
+    zinc: "bg-zinc-400",
     slate: "bg-slate-400",
     gray: "bg-gray-500",
     purple: "bg-purple-500",

@@ -1,56 +1,60 @@
 // MCP Server
-// Stdio-based JSON-RPC server for the Model Context Protocol
+// JSON-RPC server for the Model Context Protocol
+// Supports stdio (for Claude Desktop) and HTTP (for testing)
 
 use super::protocol::*;
 use super::tools;
-use std::io::{self, BufRead, Write};
+use axum::{
+    extract::Json,
+    http::StatusCode,
+    routing::{get, post},
+    Router,
+};
+use std::net::SocketAddr;
+use tower_http::cors::{Any, CorsLayer};
 
-/// Run the MCP server on stdio
-pub async fn run() -> io::Result<()> {
-    let stdin = io::stdin();
-    let mut stdout = io::stdout();
-    let reader = stdin.lock();
+/// Default port for the MCP HTTP server
+pub const DEFAULT_PORT: u16 = 23816;
 
-    for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
+/// Run the MCP server on HTTP (for testing)
+pub async fn run_http(port: u16) -> std::io::Result<()> {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
 
-        let response = handle_message(&line).await;
-        let response_json = serde_json::to_string(&response).unwrap_or_else(|_| {
-            r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Failed to serialize response"}}"#.to_string()
-        });
+    let app = Router::new()
+        .route("/", get(health_check))
+        .route("/mcp", post(handle_mcp_request))
+        .layer(cors);
 
-        writeln!(stdout, "{}", response_json)?;
-        stdout.flush()?;
-    }
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    log::info!("MCP server starting on http://localhost:{}", port);
 
-    Ok(())
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app)
+        .await
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
 
-/// Handle a single JSON-RPC message
-async fn handle_message(line: &str) -> JsonRpcResponse {
-    // Parse request
-    let request: JsonRpcRequest = match serde_json::from_str(line) {
-        Ok(req) => req,
-        Err(e) => {
-            return JsonRpcResponse::error(
-                None,
-                PARSE_ERROR,
-                &format!("Failed to parse request: {}", e),
-            );
-        }
-    };
+/// Health check endpoint
+async fn health_check() -> &'static str {
+    "tv-mcp server running"
+}
 
-    // Dispatch based on method
+/// Handle MCP JSON-RPC request
+async fn handle_mcp_request(
+    Json(request): Json<JsonRpcRequest>,
+) -> (StatusCode, Json<JsonRpcResponse>) {
+    let response = dispatch_request(request).await;
+    (StatusCode::OK, Json(response))
+}
+
+/// Dispatch based on method
+async fn dispatch_request(request: JsonRpcRequest) -> JsonRpcResponse {
     match request.method.as_str() {
         "initialize" => handle_initialize(request.id),
-        "initialized" => {
-            // Notification, no response needed but we still return something
-            JsonRpcResponse::success(request.id, serde_json::json!({}))
-        }
-        "notifications/initialized" => {
+        "initialized" | "notifications/initialized" => {
             JsonRpcResponse::success(request.id, serde_json::json!({}))
         }
         "tools/list" => handle_list_tools(request.id),
@@ -111,4 +115,60 @@ async fn handle_call_tool(
 
     let result = tools::call_tool(&params.name, params.arguments).await;
     JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
+}
+
+// ============================================================================
+// Stdio server (for Claude Desktop integration)
+// ============================================================================
+
+use std::io::{self, BufRead, Write};
+
+/// Run the MCP server on stdio (for Claude Desktop)
+pub async fn run_stdio() -> io::Result<()> {
+    let stdin = io::stdin();
+    let mut stdout = io::stdout();
+    let reader = stdin.lock();
+
+    for line in reader.lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let request: JsonRpcRequest = match serde_json::from_str(&line) {
+            Ok(req) => req,
+            Err(e) => {
+                let response = JsonRpcResponse::error(
+                    None,
+                    PARSE_ERROR,
+                    &format!("Failed to parse request: {}", e),
+                );
+                let response_json = serde_json::to_string(&response).unwrap();
+                writeln!(stdout, "{}", response_json)?;
+                stdout.flush()?;
+                continue;
+            }
+        };
+
+        // Check if this is a notification (no id = no response expected)
+        let is_notification = request.id.is_none();
+        let method = request.method.clone();
+
+        // Handle notifications without sending response
+        if is_notification || method == "notifications/initialized" || method == "initialized" {
+            // Process but don't respond to notifications
+            let _ = dispatch_request(request).await;
+            continue;
+        }
+
+        let response = dispatch_request(request).await;
+        let response_json = serde_json::to_string(&response).unwrap_or_else(|_| {
+            r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Failed to serialize response"}}"#.to_string()
+        });
+
+        writeln!(stdout, "{}", response_json)?;
+        stdout.flush()?;
+    }
+
+    Ok(())
 }

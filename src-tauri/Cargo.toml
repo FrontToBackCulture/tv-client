@@ -63,7 +63,11 @@ urlencoding = "2"
 open = "5"
 
 # Async runtime (for OAuth timeout and MCP server)
-tokio = { version = "1", features = ["time", "sync", "rt-multi-thread", "macros", "io-std"] }
+tokio = { version = "1", features = ["time", "sync", "rt-multi-thread", "macros", "io-std", "net"] }
+
+# HTTP server (for MCP testing)
+axum = "0.7"
+tower-http = { version = "0.5", features = ["cors"] }
 
 # Regex (for parsing frontmatter)
 regex = "1"

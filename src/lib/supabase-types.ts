@@ -565,6 +565,7 @@ export interface Database {
           value: number | null;
           currency: string;
           stage:
+            | "target"
             | "prospect"
             | "lead"
             | "qualified"

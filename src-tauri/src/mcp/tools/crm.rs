@@ -159,7 +159,7 @@ pub fn tools() -> Vec<Tool> {
             input_schema: InputSchema::with_properties(
                 json!({
                     "company_id": { "type": "string", "description": "Filter by company UUID" },
-                    "stage": { "type": "string", "enum": ["prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"] }
+                    "stage": { "type": "string", "enum": ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"] }
                 }),
                 vec![],
             ),
@@ -189,7 +189,7 @@ pub fn tools() -> Vec<Tool> {
                     "deal_id": { "type": "string", "description": "Deal UUID (required)" },
                     "name": { "type": "string" },
                     "description": { "type": "string" },
-                    "stage": { "type": "string", "enum": ["prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"] },
+                    "stage": { "type": "string", "enum": ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"] },
                     "value": { "type": "number" },
                     "expected_close_date": { "type": "string" },
                     "actual_close_date": { "type": "string" },

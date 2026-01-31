@@ -41,10 +41,10 @@ export default function App() {
   // Subscribe to Supabase Realtime for automatic UI updates (only when authenticated)
   useRealtimeSync();
 
-  // Keyboard shortcuts: ⌘1-4 to switch modules, ⌘, for settings
+  // Keyboard shortcuts: ⌘1-7 to switch modules, ⌘, for settings
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "6") {
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "7") {
         e.preventDefault();
         const moduleKeys: ModuleId[] = [
           "library",
@@ -53,6 +53,7 @@ export default function App() {
           "inbox",
           "product",
           "bot",
+          "console",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
       }

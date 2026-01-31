@@ -1,8 +1,10 @@
 // src/modules/crm/CRMSidebar.tsx
 // CRM sidebar with navigation and filters
 
-import { Building2, Users, BarChart3, CheckCircle, Plus } from "lucide-react";
+import { useState } from "react";
+import { Building2, Users, BarChart3, CheckCircle, Plus, Trophy } from "lucide-react";
 import { CompanyFilters, COMPANY_STAGES, PipelineStats } from "../../lib/crm/types";
+import { ClosedDealsPanel } from "./ClosedDealsPanel";
 
 type CRMView = "companies" | "contacts" | "pipeline" | "clients";
 
@@ -30,6 +32,8 @@ export function CRMSidebar({
   pipelineStats,
   onNewCompany,
 }: CRMSidebarProps) {
+  const [showClosedDeals, setShowClosedDeals] = useState(false);
+
   return (
     <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-900">
       {/* Header */}
@@ -151,6 +155,17 @@ export function CRMSidebar({
       {/* Spacer */}
       <div className="flex-1" />
 
+      {/* Closed Deals button */}
+      <div className="px-2 py-1">
+        <button
+          onClick={() => setShowClosedDeals(true)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-colors"
+        >
+          <Trophy size={16} />
+          Closed Deals
+        </button>
+      </div>
+
       {/* New Company button */}
       <div className="px-2 py-2 border-t border-slate-200 dark:border-zinc-800">
         <button
@@ -161,6 +176,12 @@ export function CRMSidebar({
           New Company
         </button>
       </div>
+
+      {/* Closed Deals Panel */}
+      <ClosedDealsPanel
+        isOpen={showClosedDeals}
+        onClose={() => setShowClosedDeals(false)}
+      />
     </div>
   );
 }
