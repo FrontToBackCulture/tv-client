@@ -133,11 +133,3 @@ export function useSearch(
   };
 }
 
-// Build search index (for future tantivy integration)
-export function useIndexDirectory() {
-  return {
-    index: async (root: string) => {
-      await tauriInvoke<void>("index_directory", { root });
-    },
-  };
-}

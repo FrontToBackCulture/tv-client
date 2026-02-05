@@ -1,6 +1,6 @@
 #!/bin/bash
 # Setup script for tv-mcp in Claude Desktop (macOS)
-# Run this after installing tv-desktop
+# Run this after installing tv-client
 
 set -e
 
@@ -9,10 +9,10 @@ echo ""
 
 # Determine tv-mcp binary location
 # Check common locations
-if [ -f "/Applications/tv-desktop.app/Contents/MacOS/tv-mcp" ]; then
-    TV_MCP_PATH="/Applications/tv-desktop.app/Contents/MacOS/tv-mcp"
-elif [ -f "$HOME/Applications/tv-desktop.app/Contents/MacOS/tv-mcp" ]; then
-    TV_MCP_PATH="$HOME/Applications/tv-desktop.app/Contents/MacOS/tv-mcp"
+if [ -f "/Applications/tv-client.app/Contents/MacOS/tv-mcp" ]; then
+    TV_MCP_PATH="/Applications/tv-client.app/Contents/MacOS/tv-mcp"
+elif [ -f "$HOME/Applications/tv-client.app/Contents/MacOS/tv-mcp" ]; then
+    TV_MCP_PATH="$HOME/Applications/tv-client.app/Contents/MacOS/tv-mcp"
 elif [ -f "$(dirname "$0")/../src-tauri/target/release/tv-mcp" ]; then
     # Development mode
     TV_MCP_PATH="$(cd "$(dirname "$0")/../src-tauri/target/release" && pwd)/tv-mcp"

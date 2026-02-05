@@ -150,7 +150,7 @@ struct TableDefinition {
 struct ColumnDefinition {
     name: Option<String>,
     #[serde(rename = "displayName")]
-    display_name: Option<String>,
+    _display_name: Option<String>,
     #[serde(rename = "type")]
     column_type: Option<String>,
 }
@@ -158,7 +158,7 @@ struct ColumnDefinition {
 // All tables summary
 #[derive(Debug, Clone, Deserialize)]
 struct AllTablesEntry {
-    id: Option<String>,
+    _id: Option<String>,
     name: Option<String>,
     #[serde(rename = "displayName")]
     display_name: Option<String>,
@@ -978,7 +978,7 @@ pub async fn val_run_workflow_health(
     }
 
     // Find scheduled workflow IDs (for child workflow detection)
-    let scheduled_workflow_ids: HashSet<String> = workflows
+    let _scheduled_workflow_ids: HashSet<String> = workflows
         .iter()
         .filter(|w| w.cron_expression.is_some())
         .filter_map(|w| w.id.clone())
@@ -995,7 +995,7 @@ pub async fn val_run_workflow_health(
         skipped: 0,
     };
 
-    let cutoff_date = chrono::Local::now() - chrono::Duration::days(days);
+    let _cutoff_date = chrono::Local::now() - chrono::Duration::days(days);
 
     for wf in &workflows {
         let wf_id = wf.id.clone().unwrap_or_default();

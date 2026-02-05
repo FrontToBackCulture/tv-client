@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useCompanyWithRelations, useDeleteCompany } from "../../hooks/useCRM";
 import { COMPANY_STAGES } from "../../lib/crm/types";
+import { useSidePanelStore } from "../../stores/sidePanelStore";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { ContactListView } from "./ContactListView";
 import { DealCard } from "./DealCard";
@@ -44,6 +45,26 @@ export function CompanyDetailPanel({
 
   const { data: company, isLoading, refetch } = useCompanyWithRelations(companyId);
   const deleteMutation = useDeleteCompany();
+  const { openPanel, isOpen: sidePanelOpen } = useSidePanelStore();
+
+  // Open client folder in side panel
+  function handleOpenFolder() {
+    if (!company?.client_folder_path) return;
+    // If it's a file path, open it directly; if folder, open with picker
+    const path = company.client_folder_path;
+    const name = path.split("/").pop() || "Client Folder";
+    // Check if it looks like a file (has extension) or folder
+    const hasExtension = /\.[^/]+$/.test(path);
+    if (hasExtension) {
+      openPanel(path, name);
+    } else {
+      // For folders, open the side panel and let user browse
+      useSidePanelStore.getState().openPicker();
+      if (!sidePanelOpen) {
+        useSidePanelStore.setState({ isOpen: true });
+      }
+    }
+  }
 
   async function handleDelete() {
     try {
@@ -142,7 +163,11 @@ export function CompanyDetailPanel({
         {(company.client_folder_path || company.domain_id || company.website) && (
           <div className="flex gap-2 mt-2">
             {company.client_folder_path && (
-              <button className="flex items-center gap-1 text-[11px] px-2 py-1 bg-slate-100 dark:bg-zinc-800 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors">
+              <button
+                onClick={handleOpenFolder}
+                className="flex items-center gap-1 text-[11px] px-2 py-1 bg-slate-100 dark:bg-zinc-800 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
+                title="Open in side panel"
+              >
                 <FolderOpen size={12} />
                 Folder
               </button>
@@ -228,7 +253,7 @@ export function CompanyDetailPanel({
                   key={deal.id}
                   className="border border-slate-200 dark:border-zinc-700 rounded-lg overflow-hidden"
                 >
-                  <DealCard deal={deal} onDealUpdated={() => refetch()} />
+                  <DealCard deal={deal} showTasks={false} onDealUpdated={() => refetch()} />
                   <div className="border-t border-slate-200 dark:border-zinc-700">
                     <DealTasks
                       dealId={deal.id}

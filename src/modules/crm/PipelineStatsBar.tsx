@@ -2,13 +2,15 @@
 // Pipeline stats header bar
 
 import { PipelineStats, DEAL_STAGES } from "../../lib/crm/types";
+import { RefreshCw } from "lucide-react";
 
 interface PipelineStatsBarProps {
   stats: PipelineStats | null | undefined;
   loading?: boolean;
+  onRefresh?: () => void;
 }
 
-export function PipelineStatsBar({ stats, loading }: PipelineStatsBarProps) {
+export function PipelineStatsBar({ stats, loading, onRefresh }: PipelineStatsBarProps) {
   if (loading) {
     return (
       <div className="p-4 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
@@ -39,7 +41,18 @@ export function PipelineStatsBar({ stats, loading }: PipelineStatsBarProps) {
   return (
     <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Pipeline Overview</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Pipeline Overview</h2>
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+              title="Refresh data"
+            >
+              <RefreshCw size={14} />
+            </button>
+          )}
+        </div>
         <div className="text-right">
           <p className="text-xl font-bold text-teal-600 dark:text-teal-400">
             ${totalValue.toLocaleString()}

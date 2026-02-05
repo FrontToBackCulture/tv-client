@@ -1,8 +1,8 @@
 #!/bin/bash
 # Import API keys from SkyNet .env into macOS Keychain
-# Run once to set up tv-desktop with your existing keys
+# Run once to set up tv-client with your existing keys
 
-SERVICE="tv-desktop"
+SERVICE="tv-client"
 SKYNET_ENV="/Users/melvinwang/Code/SkyNet/.skynet.env"
 
 echo "Importing API keys into macOS Keychain..."
@@ -48,4 +48,4 @@ echo ""
 echo "Done! Keys are now stored in macOS Keychain."
 echo ""
 echo "Verify with:"
-echo "  security find-generic-password -s tv-desktop -a gamma_api_key -w"
+echo "  security find-generic-password -s tv-client -a gamma_api_key -w"

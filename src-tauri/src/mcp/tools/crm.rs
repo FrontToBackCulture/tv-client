@@ -173,6 +173,7 @@ pub fn tools() -> Vec<Tool> {
                     "name": { "type": "string", "description": "Deal name (required)" },
                     "description": { "type": "string" },
                     "stage": { "type": "string", "enum": ["prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"], "description": "Deal stage (default: qualified)" },
+                    "solution": { "type": "string", "description": "Solution category (e.g., ap_automation, ar_automation, free_invoice_scan, events_ai)" },
                     "value": { "type": "number", "description": "Deal value in dollars" },
                     "currency": { "type": "string", "description": "Currency code (default: SGD)" },
                     "expected_close_date": { "type": "string", "description": "Expected close date (YYYY-MM-DD)" },
@@ -197,7 +198,10 @@ pub fn tools() -> Vec<Tool> {
                     "won_notes": { "type": "string", "description": "Notes if deal is won" },
                     "proposal_path": { "type": "string", "description": "Path to proposal document" },
                     "order_form_path": { "type": "string", "description": "Path to order form" },
-                    "notes": { "type": "string" }
+                    "notes": { "type": "string" },
+                    "solution": { "type": "string", "description": "Solution category (e.g., ap_automation, ar_automation, free_invoice_scan, events_ai)" },
+                    "stage_changed_at": { "type": "string", "description": "Manually set stage_changed_at timestamp (ISO format)" },
+                    "preserve_stage_date": { "type": "boolean", "description": "If true, don't update stage_changed_at when stage changes (keeps days-in-stage counter)" }
                 }),
                 vec!["deal_id".to_string()],
             ),
@@ -237,6 +241,18 @@ pub fn tools() -> Vec<Tool> {
             name: "get-crm-pipeline".to_string(),
             description: "Get pipeline statistics: total deals, value by stage, counts.".to_string(),
             input_schema: InputSchema::empty(),
+        },
+        // Task-Deal Linking
+        Tool {
+            name: "link-task-to-deal".to_string(),
+            description: "Link a task to a CRM deal via the junction table. Use this to link a task to multiple deals.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "task_id": { "type": "string", "description": "The task UUID" },
+                    "deal_id": { "type": "string", "description": "The deal UUID" }
+                }),
+                vec!["task_id".to_string(), "deal_id".to_string()],
+            ),
         },
     ]
 }
@@ -425,6 +441,22 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         "get-crm-pipeline" => {
             match crm::crm_get_pipeline().await {
                 Ok(stats) => ToolResult::json(&stats),
+                Err(e) => ToolResult::error(e),
+            }
+        }
+
+        // Task-Deal Linking
+        "link-task-to-deal" => {
+            let task_id = match args.get("task_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("task_id is required".to_string()),
+            };
+            let deal_id = match args.get("deal_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("deal_id is required".to_string()),
+            };
+            match crm::crm_link_task_to_deal(task_id, deal_id).await {
+                Ok(result) => ToolResult::json(&result),
                 Err(e) => ToolResult::error(e),
             }
         }

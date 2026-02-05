@@ -83,6 +83,7 @@ pub async fn work_create_task(data: CreateTask) -> Result<Task, String> {
         "depends_on": data.depends_on,
         "session_ref": data.session_ref,
         "requires_review": data.requires_review,
+        "crm_deal_id": data.crm_deal_id,
         "task_number": next_number
     });
 

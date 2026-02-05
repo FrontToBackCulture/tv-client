@@ -1,4 +1,4 @@
-# tv-desktop Build Status
+# tv-client Build Status
 
 Last updated: 2026-01-22 (Phase 3e completed)
 

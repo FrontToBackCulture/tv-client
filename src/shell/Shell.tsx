@@ -18,6 +18,7 @@ const moduleLabels: Record<ModuleId, string> = {
   product: "Product",
   bot: "Bots",
   console: "Console",
+  system: "System",
   settings: "Settings",
 };
 

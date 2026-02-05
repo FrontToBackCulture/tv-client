@@ -43,6 +43,7 @@ pub struct OrderFormData {
     pub solution_name: String,
     pub scope_items: Vec<String>,
     pub complementary_items: Vec<String>,
+    pub implementation_plan: Vec<String>,
 
     // Payments
     pub subscription_payments: Vec<PaymentRow>,
@@ -151,6 +152,7 @@ pub fn parse_order_form_markdown(markdown: &str) -> Result<OrderFormData, String
     // Scope items (from markdown list under "### Scope Items")
     data.scope_items = extract_list_items(markdown, "Scope Items");
     data.complementary_items = extract_list_items(markdown, "Complementary Items");
+    data.implementation_plan = extract_list_items(markdown, "Implementation Plan");
 
     // Subscription payments (from markdown table)
     data.subscription_payments = extract_subscription_payments(markdown);
@@ -230,7 +232,7 @@ fn extract_yaml_values(markdown: &str) -> HashMap<String, String> {
     values
 }
 
-/// Extract list items under a specific heading
+/// Extract list items under a specific heading (handles sub-headings like **Title:**)
 fn extract_list_items(markdown: &str, heading: &str) -> Vec<String> {
     let mut items = Vec::new();
     let mut in_section = false;
@@ -247,6 +249,14 @@ fn extract_list_items(markdown: &str, heading: &str) -> Vec<String> {
         // Check if we've left the section (another heading or separator)
         if in_section && (trimmed.starts_with("## ") || trimmed.starts_with("### ") || trimmed == "---") {
             break;
+        }
+
+        // Extract bold sub-headings like **AR Automation:**
+        if in_section && trimmed.starts_with("**") && trimmed.ends_with(":**") {
+            // Remove ** markers and trailing :
+            let sub_heading = trimmed.trim_start_matches("**").trim_end_matches(":**");
+            items.push(format!("__SUBHEADING__{}", sub_heading));
+            continue;
         }
 
         // Extract list items
@@ -397,12 +407,33 @@ pub fn generate_order_form_pdf(data: &OrderFormData, output_path: &str) -> Resul
 
 /// Wrap order form data in HTML template
 fn wrap_in_order_form_template(data: &OrderFormData) -> String {
-    // Generate scope items HTML
-    let scope_items_html: String = data.scope_items
-        .iter()
-        .map(|item| format!("        <li>{}</li>", item))
-        .collect::<Vec<_>>()
-        .join("\n");
+    // Generate scope items HTML with sub-headings support
+    let mut scope_items_html = String::new();
+    let mut in_list = false;
+
+    for item in &data.scope_items {
+        if item.starts_with("__SUBHEADING__") {
+            // Close previous list if open
+            if in_list {
+                scope_items_html.push_str("      </ul>\n");
+                in_list = false;
+            }
+            // Add sub-heading
+            let heading = item.trim_start_matches("__SUBHEADING__");
+            scope_items_html.push_str(&format!("      <p class=\"scope-title\"><strong>{}</strong></p>\n", heading));
+        } else {
+            // Start list if not already in one
+            if !in_list {
+                scope_items_html.push_str("      <ul>\n");
+                in_list = true;
+            }
+            scope_items_html.push_str(&format!("        <li>{}</li>\n", item));
+        }
+    }
+    // Close final list if open
+    if in_list {
+        scope_items_html.push_str("      </ul>");
+    }
 
     // Generate complementary items HTML
     let complementary_html = if !data.complementary_items.is_empty() {
@@ -416,6 +447,40 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
       <ul>
 {}
       </ul>"#, items)
+    } else {
+        String::new()
+    };
+
+    // Generate implementation plan HTML with sub-headings support
+    let implementation_plan_html = if !data.implementation_plan.is_empty() {
+        let mut plan_html = String::new();
+        let mut in_list = false;
+
+        for item in &data.implementation_plan {
+            if item.starts_with("__SUBHEADING__") {
+                if in_list {
+                    plan_html.push_str("      </ul>\n");
+                    in_list = false;
+                }
+                let heading = item.trim_start_matches("__SUBHEADING__");
+                plan_html.push_str(&format!("      <p class=\"scope-title\"><strong>{}</strong></p>\n", heading));
+            } else {
+                if !in_list {
+                    plan_html.push_str("      <ul>\n");
+                    in_list = true;
+                }
+                plan_html.push_str(&format!("        <li>{}</li>\n", item));
+            }
+        }
+        if in_list {
+            plan_html.push_str("      </ul>");
+        }
+
+        format!(r#"
+    <div class="entitlement-section">
+      <p class="section-title"><strong>Implementation Plan:</strong></p>
+{}
+    </div>"#, plan_html)
     } else {
         String::new()
     };
@@ -515,7 +580,6 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
     }}
 
     .highlight {{
-      background-color: #FFFF00;
       padding: 1px 3px;
     }}
 
@@ -692,6 +756,50 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
       margin-top: 40px;
     }}
 
+    .terms-box {{
+      border: 1px solid #ddd;
+      padding: 15px 20px;
+      margin: 25px 0;
+      text-align: justify;
+    }}
+
+    .terms-box p {{
+      margin-bottom: 12px;
+    }}
+
+    .terms-box p:last-child {{
+      margin-bottom: 0;
+    }}
+
+    .terms-box a {{
+      color: #00A0E3;
+      text-decoration: underline;
+    }}
+
+    .customer-signature {{
+      margin-top: 30px;
+      page-break-inside: avoid;
+    }}
+
+    .customer-signature h3 {{
+      font-size: 12pt;
+      font-weight: bold;
+      margin-bottom: 25px;
+    }}
+
+    .signature-grid {{
+      display: flex;
+      gap: 40px;
+    }}
+
+    .sig-left, .sig-right {{
+      flex: 1;
+    }}
+
+    .signature-grid p {{
+      margin-bottom: 12px;
+    }}
+
     @page {{
       size: A4;
       margin: 15mm 20mm;
@@ -740,13 +848,9 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
       </tr>
       <tr>
         <td class="label">Subscription Start Date:</td>
-        <td class="value highlight">{subscription_start_date}</td>
-        <td colspan="2"></td>
-      </tr>
-      <tr>
+        <td class="value">{subscription_start_date}</td>
         <td class="label">Subscription End Date:</td>
-        <td class="value highlight">{subscription_end_date}</td>
-        <td colspan="2"></td>
+        <td class="value">{subscription_end_date}</td>
       </tr>
     </table>
 
@@ -770,20 +874,23 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
     <!-- Subscription Entitlement -->
     <div class="entitlement-section">
       <p class="section-title"><strong>Subscription Entitlement:</strong></p>
-      <p>Feature Plan: <span class="highlight">{feature_plan}</span></p>
       <p>Solutions: <span class="highlight">{solutions}</span></p>
       <p>Number of Outlets: {number_of_outlets}</p>
       <p>Unlimited Users</p>
 
-      <p class="scope-title"><strong>{solution_name} Scope:</strong></p>
-      <ul>
+      <p class="scope-title"><strong>Scope:</strong></p>
 {scope_items}
-      </ul>
 {complementary}
-
-      <p class="small">Method of loading data for selected system is attached as Appendix B - 11.4</p>
-      <p class="small">Terms of the service entitlement is attached as Appendix B hereto ("Services Scope")</p>
     </div>
+
+    <!-- Implementation Service -->
+    <div class="info-box">
+      <p><strong>Implementation Service:</strong> Company will use commercially reasonable efforts to provide Customer the services described in the Statement of Work ("SOW") attached as Appendix C hereto ("Implementation Services"), and Customer shall pay Company the Implementation Fee in accordance with the terms herein</p>
+      <p><strong>Implementation Fee (one-time):</strong> SGD${implementation_fee} (exclusive of any GST imposed in Singapore)</p>
+    </div>
+
+    <!-- Implementation Plan -->
+{implementation_plan}
 
     <!-- Fee Payment Schedule -->
     <h2>Fee Payment Schedule</h2>
@@ -798,6 +905,10 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
       </thead>
       <tbody>
 {subscription_payments}
+        <tr class="total-row">
+          <td colspan="2"><strong>Total</strong></td>
+          <td><strong>SGD${subscription_fee}</strong></td>
+        </tr>
       </tbody>
     </table>
 
@@ -808,6 +919,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         <tr>
           <th>S/N</th>
           <th>Payment Milestones</th>
+          <th>% of SOW Total Contract Price</th>
           <th>Payment Date</th>
           <th>Contract Price (SGD)</th>
         </tr>
@@ -816,72 +928,31 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
 {implementation_payments}
         <tr class="total-row">
           <td colspan="2"><strong>Total</strong></td>
+          <td><strong>100%</strong></td>
           <td></td>
           <td><strong>SGD${implementation_fee}</strong></td>
         </tr>
       </tbody>
     </table>
 
-    <div class="info-box">
-      <p><strong>Implementation Service:</strong> Company will use commercially reasonable efforts to provide Customer the services described in the Statement of Work ("SOW") attached as Appendix C hereto ("Implementation Services"), and Customer shall pay Company the Implementation Fee in accordance with the terms herein</p>
-      <p><strong>Implementation Fee (one-time):</strong> <span class="highlight">SGD${implementation_fee}</span> (exclusive of any GST imposed in Singapore)</p>
-      <p><strong>Total Contract Value:</strong> SGD${total_contract_value}</p>
+    <!-- Terms and Signature Section -->
+    <div class="terms-box">
+      <p>This Agreement shall automatically renew annually, unless either party provides the other party written notice of termination at least sixty (60) days in advance of the next renewal date, in which case the Agreement shall terminate as of such next renewal date. The 60 days' notice period shall apply also if Customer wants to downgrade their subscription, including but not limited to reducing the number of users, accounts, or products.</p>
+      <p>During the Term, ThinkVAL may include Customer's name and logo in ThinkVAL website, press releases, promotional and sales literature, and lists of customers.</p>
+      <p>By signing this Order Form, the Customer agrees to ThinkVAL Terms Of Service published at: <a href="https://thinkval.com/terms">https://thinkval.com/terms</a></p>
     </div>
 
-    <!-- Notices Section -->
-    <div class="notices-section">
-      <h2>Notices</h2>
-      <p>Each party notifying or giving notice under this Agreement shall notify:-</p>
-
-      <div class="notices-grid">
-        <div class="notice-box">
-          <h3>Customer</h3>
-          <p>Name of Officer: {customer_officer_name}</p>
-          <p>Designation: {customer_officer_title}</p>
-          <p>Email address: {customer_officer_email}</p>
-          <p>Telephone number: {customer_officer_phone}</p>
-          <p>Correspondence address: {customer_address}</p>
+    <div class="customer-signature">
+      <h3>Customer Signature:</h3>
+      <div class="signature-grid">
+        <div class="sig-left">
+          <p>Signature: _______________________</p>
+          <p>Name: {customer_officer_name}</p>
         </div>
-        <div class="notice-box">
-          <h3>Company</h3>
-          <p>Name of Officer: Melvin H H Wang</p>
-          <p>Designation: Managing Director</p>
-          <p>Email address: melvin@thinkval.com</p>
-          <p>Telephone number: 96258498</p>
-          <p>Correspondence address: 24 Lorong Telok #02-01. Singapore 049036</p>
+        <div class="sig-right">
+          <p>Title: {customer_officer_title}</p>
+          <p>Date:</p>
         </div>
-      </div>
-    </div>
-
-    <!-- Agreement Section - force new page -->
-    <div class="page-break"></div>
-
-    <header class="header">
-      <div class="logo">
-        <img src="data:image/png;base64,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" alt="ThinkVAL" height="50">
-      </div>
-    </header>
-
-    <h1 class="title">Software As A Service (SAAS) Agreement</h1>
-
-    <p class="reference">SAAS Agreement Reference Number: <strong>{agreement_reference}</strong></p>
-
-    <div class="agreement-text">
-      <p>This SaaS Services Agreement ("Agreement") is entered into on this <span class="highlight">{agreement_day}</span> day of <span class="highlight">{agreement_month}</span>, {agreement_year} (the "Effective Date") between THINKVAL PTE. LTD., Company Registration No. 201321400E with a place of business at 24 Lorong Telok #02-01 Singapore 049036 ("Company"), and <span class="highlight">{customer_name}</span> (hereby referred to as "Customer"), Company Registration No. <span class="highlight">{customer_uen}</span>, having its principal place of business at <span class="highlight">{customer_address}</span>. This Agreement includes and incorporates the above Order Form, as well as the attached Terms and Conditions and contains, among other things, warranty disclaimers, liability limitations and use limitations. There shall be no force or effect to any different terms of any related purchase order or similar form even if signed by the parties after the date hereof.</p>
-    </div>
-
-    <div class="signature-section">
-      <div class="signature-box">
-        <h3>FOR COMPANY</h3>
-        <p>Name: Melvin Wang</p>
-        <p>Title: Managing Director</p>
-        <p class="signature-line">Signature: _______________________</p>
-      </div>
-      <div class="signature-box">
-        <h3>FOR CUSTOMER</h3>
-        <p>Name: _______________________</p>
-        <p>Title: _______________________</p>
-        <p class="signature-line">Signature: _______________________</p>
       </div>
     </div>
   </div>
@@ -898,24 +969,16 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         subscription_end_date = data.subscription_end_date,
         subscription_fee = data.subscription_fee,
         service_term = data.service_term,
-        feature_plan = data.feature_plan,
         solutions = data.solutions,
         number_of_outlets = data.number_of_outlets,
-        solution_name = data.solution_name,
         scope_items = scope_items_html,
         complementary = complementary_html,
+        implementation_plan = implementation_plan_html,
         subscription_payments = sub_payments_html,
         implementation_payments = impl_payments_html,
         implementation_fee = data.implementation_fee,
-        total_contract_value = data.total_contract_value,
         customer_officer_name = data.customer_officer_name,
         customer_officer_title = data.customer_officer_title,
-        customer_officer_email = data.customer_officer_email,
-        customer_officer_phone = data.customer_officer_phone,
-        agreement_reference = data.agreement_reference,
-        agreement_day = data.agreement_day,
-        agreement_month = data.agreement_month,
-        agreement_year = data.agreement_year,
     )
 }
 
@@ -1386,6 +1449,7 @@ pub fn generate_order_form_from_file(
 }
 
 /// Check if a file is an order form data file
+#[allow(dead_code)]
 pub fn is_order_form_file(file_path: &str) -> bool {
     let path = Path::new(file_path);
     let filename = path.file_name().unwrap_or_default().to_string_lossy();
@@ -1393,6 +1457,7 @@ pub fn is_order_form_file(file_path: &str) -> bool {
 }
 
 /// Check if a file is a proposal data file
+#[allow(dead_code)]
 pub fn is_proposal_file(file_path: &str) -> bool {
     let path = Path::new(file_path);
     let filename = path.file_name().unwrap_or_default().to_string_lossy();

@@ -21,7 +21,10 @@ import { DeploymentListView } from "./DeploymentListView";
 import { DeploymentDetailPanel } from "./DeploymentDetailPanel";
 import { DomainListView } from "./DomainListView";
 import { DomainDetailPanel } from "./DomainDetailPanel";
+import { CategoryLibraryPanel } from "./CategoryLibraryPanel";
 import { EntityForm } from "./EntityForm";
+import { DataModelsReviewView } from "../library/DataModelsReviewView";
+import { ArrowLeft } from "lucide-react";
 
 const SIDEBAR_WIDTH_KEY = "tv-desktop-product-sidebar-width";
 
@@ -42,6 +45,9 @@ export function ProductModule() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+
+  // Data models review mode - when set, shows full-screen review for this domain
+  const [reviewingDomain, setReviewingDomain] = useState<string | null>(null);
 
   // Sidebar resizing
   const [sidebarWidth, setSidebarWidth] = useState(240);
@@ -133,6 +139,16 @@ export function ProductModule() {
     statsQuery.refetch();
   }, [statsQuery]);
 
+  // Handle entering data models review mode
+  const handleReviewDataModels = useCallback((domain: string) => {
+    setReviewingDomain(domain);
+  }, []);
+
+  // Handle exiting data models review mode
+  const handleExitReview = useCallback(() => {
+    setReviewingDomain(null);
+  }, []);
+
   // Render view content
   const renderListView = () => {
     switch (activeView) {
@@ -150,6 +166,8 @@ export function ProductModule() {
         return <DeploymentListView search={searchQuery} selectedId={selectedId} onSelect={handleSelect} />;
       case "domains":
         return <DomainListView search={searchQuery} selectedId={selectedId} onSelect={handleSelect} />;
+      case "category-library":
+        return <CategoryLibraryPanel />;
     }
   };
 
@@ -169,9 +187,47 @@ export function ProductModule() {
       case "deployments":
         return <DeploymentDetailPanel id={selectedId} onClose={handleCloseDetail} />;
       case "domains":
-        return <DomainDetailPanel id={selectedId} onClose={handleCloseDetail} />;
+        return <DomainDetailPanel id={selectedId} onClose={handleCloseDetail} onReviewDataModels={() => handleReviewDataModels(selectedId)} />;
+      case "category-library":
+        return null; // No detail panel for category library
     }
   };
+
+  // If reviewing data models, show full-screen review view
+  if (reviewingDomain) {
+    const domainPath = activeRepository
+      ? `${activeRepository.path}/0_Platform/domains/production/${reviewingDomain}/data_models`
+      : null;
+
+    return (
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+        {/* Back header */}
+        <div className="px-4 py-2 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
+          <button
+            onClick={handleExitReview}
+            className="flex items-center gap-1.5 px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+          >
+            <ArrowLeft size={14} />
+            Back to Domains
+          </button>
+          <span className="text-zinc-300 dark:text-zinc-700">|</span>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {reviewingDomain}
+          </span>
+        </div>
+
+        {/* Review view */}
+        <div className="flex-1 overflow-hidden">
+          {domainPath && (
+            <DataModelsReviewView
+              dataModelsPath={domainPath}
+              domainName={reviewingDomain}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex bg-slate-50 dark:bg-zinc-950">

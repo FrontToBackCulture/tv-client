@@ -57,6 +57,10 @@ pub struct DiscoveredDomain {
     pub global_path: String,
     pub has_metadata: bool,
     pub has_actual_domain: bool,
+    /// ISO timestamp of the most recent sync operation
+    pub last_sync: Option<String>,
+    /// Count of total artifacts synced
+    pub artifact_count: Option<u32>,
 }
 
 impl DomainConfig {
@@ -123,8 +127,8 @@ fn resolve_path_variable(path: &str, tv_knowledge_path: Option<&str>) -> String 
     } else {
         // Default: try common locations
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        // Try Google Drive path first (macOS)
-        let gdrive = home.join("Library/CloudStorage/GoogleDrive-melvin@thinkval.ai/Shared drives/ThinkVAL/SkyNet/tv-knowledge");
+        // Try Dropbox path first (macOS)
+        let gdrive = home.join("Thinkval Dropbox/ThinkVAL team folder/SkyNet/tv-knowledge");
         if gdrive.exists() {
             gdrive.to_string_lossy().to_string()
         } else {
@@ -334,6 +338,7 @@ pub fn val_sync_discover_domains(domains_path: String) -> Result<Vec<DiscoveredD
             let has_metadata = entry_path_has_metadata(&global_path);
             let existing = existing_map.get(&domain_name);
             let has_actual_domain = existing.map_or(false, |d| d.actual_domain.is_some());
+            let (last_sync, artifact_count) = read_sync_metadata(&global_path);
 
             discovered.push(DiscoveredDomain {
                 domain: domain_name.clone(),
@@ -341,6 +346,8 @@ pub fn val_sync_discover_domains(domains_path: String) -> Result<Vec<DiscoveredD
                 global_path: global_path.clone(),
                 has_metadata,
                 has_actual_domain,
+                last_sync,
+                artifact_count,
             });
 
             // Build DomainConfig, preserving existing data if available
@@ -375,4 +382,54 @@ fn entry_path_has_metadata(global_path: &str) -> bool {
     std::path::Path::new(global_path)
         .join(".sync-metadata.json")
         .exists()
+}
+
+/// Read .sync-metadata.json and extract the most recent sync timestamp and total artifact count
+fn read_sync_metadata(global_path: &str) -> (Option<String>, Option<u32>) {
+    let meta_path = std::path::Path::new(global_path).join(".sync-metadata.json");
+    if !meta_path.exists() {
+        return (None, None);
+    }
+
+    let content = match fs::read_to_string(&meta_path) {
+        Ok(c) => c,
+        Err(_) => return (None, None),
+    };
+
+    let json: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return (None, None),
+    };
+
+    let artifacts = match json.get("artifacts") {
+        Some(a) => a,
+        None => return (None, None),
+    };
+
+    let mut latest_sync: Option<String> = None;
+    let mut total_count: u32 = 0;
+
+    // Iterate through artifact types to find the most recent lastSync
+    if let Some(obj) = artifacts.as_object() {
+        for (_key, value) in obj {
+            // Sum up counts
+            if let Some(count) = value.get("count").and_then(|c| c.as_u64()) {
+                total_count += count as u32;
+            }
+
+            // Find the most recent lastSync
+            if let Some(last_sync_str) = value.get("lastSync").and_then(|s| s.as_str()) {
+                if let Some(ref current) = latest_sync {
+                    // Compare ISO timestamps lexicographically (works for ISO format)
+                    if last_sync_str > current.as_str() {
+                        latest_sync = Some(last_sync_str.to_string());
+                    }
+                } else {
+                    latest_sync = Some(last_sync_str.to_string());
+                }
+            }
+        }
+    }
+
+    (latest_sync, if total_count > 0 { Some(total_count) } else { None })
 }

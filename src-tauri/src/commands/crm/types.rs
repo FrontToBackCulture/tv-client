@@ -257,6 +257,12 @@ pub struct UpdateDeal {
     pub order_form_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    /// Manually set stage_changed_at (use with preserve_stage_date to override automatic update)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stage_changed_at: Option<String>,
+    /// If true, don't update stage_changed_at when stage changes (preserves days-in-stage counter)
+    #[serde(skip_serializing)]
+    pub preserve_stage_date: Option<bool>,
 }
 
 // ============================================================================

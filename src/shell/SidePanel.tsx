@@ -2,11 +2,11 @@
 // Side document panel — read-only file viewer alongside Work/CRM/Inbox modules
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, X, FileText, FileCode, AlertCircle, File, Folder, FolderOpen, Loader2, Clock, ChevronRight, ChevronDown, Replace } from "lucide-react";
+import { Search, X, FileText, FileCode, AlertCircle, File, Folder, FolderOpen, Loader2, Clock, ChevronRight, Replace } from "lucide-react";
 import { useSidePanelStore } from "../stores/sidePanelStore";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useRecentFilesStore } from "../stores/recentFilesStore";
-import { useReadFile, useFileTree, useFolderChildren, TreeNode } from "../hooks/useFiles";
+import { useReadFile, useFolderChildren } from "../hooks/useFiles";
 import { useFileSearch } from "../hooks/useSearch";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
 import { JSONViewer, SQLViewer, CSVViewer, HTMLViewer, ImageViewer, PDFViewer } from "../modules/library/viewers";
@@ -152,8 +152,11 @@ function Picker({ onSelect, onClose }: { onSelect: (path: string, name: string) 
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRepo = useRepositoryStore((s) => s.getActiveRepository());
   const recentFiles = useRecentFilesStore((s) => s.files);
+  const currentFolder = useSidePanelStore((s) => s.currentFolder);
 
   const root = activeRepo?.path;
+  // Use current folder if it's within the active repo, otherwise fall back to root
+  const initialFolder = currentFolder && root && currentFolder.startsWith(root) ? currentFolder : root;
   const { data: searchResults, isLoading } = useFileSearch(root, query, {
     maxResults: 20,
     enabled: query.length >= 2,
@@ -254,7 +257,7 @@ function Picker({ onSelect, onClose }: { onSelect: (path: string, name: string) 
                   <FolderOpen size={12} />
                   <span>Browse</span>
                 </div>
-                <PickerTree root={root} onSelect={selectFile} />
+                <PickerTree root={root} initialFolder={initialFolder} onSelect={selectFile} />
               </div>
             )}
           </>
@@ -266,8 +269,29 @@ function Picker({ onSelect, onClose }: { onSelect: (path: string, name: string) 
 
 // ---------- Picker file tree ----------
 
-function PickerTree({ root, onSelect }: { root: string; onSelect: (path: string) => void }) {
-  const { data: tree, isLoading } = useFileTree(root, 3);
+function PickerTree({ root, initialFolder, onSelect }: { root: string; initialFolder?: string | null; onSelect: (path: string) => void }) {
+  // Current folder being browsed - starts at initialFolder or root
+  const [currentPath, setCurrentPath] = useState(initialFolder || root);
+
+  // Load contents of current folder
+  const { data: children, isLoading } = useFolderChildren(currentPath, true);
+
+  // Check if at root
+  const isAtRoot = currentPath === root;
+  const folderName = currentPath.split("/").pop() || "Root";
+
+  // Navigate to parent folder
+  const goUp = () => {
+    const parentPath = currentPath.slice(0, currentPath.lastIndexOf("/"));
+    if (parentPath.length >= root.length) {
+      setCurrentPath(parentPath);
+    }
+  };
+
+  // Navigate into a subfolder
+  const openFolder = (path: string) => {
+    setCurrentPath(path);
+  };
 
   if (isLoading) {
     return (
@@ -277,78 +301,51 @@ function PickerTree({ root, onSelect }: { root: string; onSelect: (path: string)
     );
   }
 
-  if (!tree?.children) return null;
-
   return (
     <div>
-      {tree.children.map((node) => (
-        <PickerTreeNode key={node.path} node={node} onSelect={onSelect} level={0} />
-      ))}
-    </div>
-  );
-}
-
-function PickerTreeNode({ node, onSelect, level }: { node: TreeNode; onSelect: (path: string) => void; level: number }) {
-  const [expanded, setExpanded] = useState(false);
-  const indent = 12 + level * 16;
-
-  // Lazy-load children when node.children is null (beyond initial tree depth)
-  const needsLazyLoad = node.is_directory && node.children === null;
-  const { data: lazyChildren, isLoading: lazyLoading } = useFolderChildren(
-    node.path,
-    expanded && needsLazyLoad
-  );
-
-  if (node.is_directory) {
-    // Use pre-loaded children if available, otherwise lazy-loaded ones
-    const children = node.children ?? lazyChildren ?? [];
-
-    return (
-      <div>
+      {/* Current folder header with back button */}
+      {!isAtRoot && (
         <button
-          onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left"
-          style={{ paddingLeft: `${indent}px` }}
+          onClick={goUp}
+          className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left border-b border-slate-100 dark:border-zinc-800"
         >
-          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          {expanded ? (
-            <FolderOpen size={14} className="text-teal-500 flex-shrink-0" />
-          ) : (
-            <Folder size={14} className="text-teal-500 flex-shrink-0" />
-          )}
-          <span className="truncate">{node.name}</span>
+          <ChevronRight size={12} className="rotate-180" />
+          <FolderOpen size={14} className="text-teal-500 flex-shrink-0" />
+          <span className="truncate font-medium">{folderName}</span>
+          <span className="text-[10px] text-zinc-400 ml-auto">↑ Back</span>
         </button>
-        {expanded && (
-          <div>
-            {lazyLoading ? (
-              <div className="flex items-center gap-2 py-1" style={{ paddingLeft: `${indent + 28}px` }}>
-                <Loader2 size={12} className="text-zinc-400 animate-spin" />
-                <span className="text-xs text-zinc-400">Loading...</span>
-              </div>
-            ) : children.length > 0 ? (
-              children.map((child) => (
-                <PickerTreeNode key={child.path} node={child} onSelect={onSelect} level={level + 1} />
-              ))
-            ) : (
-              <div className="text-xs text-zinc-400 py-1" style={{ paddingLeft: `${indent + 28}px` }}>
-                Empty folder
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <button
-      onClick={() => onSelect(node.path)}
-      className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left"
-      style={{ paddingLeft: `${indent + 16}px` }}
-    >
-      <File size={14} className="flex-shrink-0 text-zinc-400" />
-      <span className="truncate">{node.name}</span>
-    </button>
+      {/* Folder contents */}
+      {children && children.length > 0 ? (
+        children.map((node) => (
+          node.is_directory ? (
+            <button
+              key={node.path}
+              onClick={() => openFolder(node.path)}
+              className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left"
+            >
+              <Folder size={14} className="text-teal-500 flex-shrink-0" />
+              <span className="truncate">{node.name}</span>
+              <ChevronRight size={12} className="ml-auto text-zinc-300" />
+            </button>
+          ) : (
+            <button
+              key={node.path}
+              onClick={() => onSelect(node.path)}
+              className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left"
+            >
+              <File size={14} className="flex-shrink-0 text-zinc-400" />
+              <span className="truncate">{node.name}</span>
+            </button>
+          )
+        ))
+      ) : (
+        <div className="px-3 py-4 text-center text-xs text-zinc-400">
+          Empty folder
+        </div>
+      )}
+    </div>
   );
 }
 

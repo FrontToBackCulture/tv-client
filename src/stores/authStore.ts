@@ -120,7 +120,7 @@ export const useAuth = create<AuthState>()(
       },
     }),
     {
-      name: "tv-desktop-auth",
+      name: "tv-client-auth",
       partialize: (state) => ({
         // Persist token and user
         accessToken: state.accessToken,

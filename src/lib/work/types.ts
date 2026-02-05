@@ -1,4 +1,4 @@
-// Work module types for tv-desktop
+// Work module types for tv-client
 import type { Database } from "../supabase-types";
 
 // Base types from database

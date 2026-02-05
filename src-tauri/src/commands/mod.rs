@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod crm;
 pub mod files;
+pub mod mcp;
 pub mod outlook;
 pub mod search;
 pub mod settings;

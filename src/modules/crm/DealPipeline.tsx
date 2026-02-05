@@ -1,11 +1,42 @@
 // src/modules/crm/DealPipeline.tsx
 // Deal pipeline view with swimlanes by solution and columns by stage
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useDealsWithTasks, useUpdateDeal } from "../../hooks/useCRM";
 import { Deal, DealWithTaskInfo, DEAL_STAGES, DEAL_SOLUTIONS } from "../../lib/crm/types";
 import { DealCard } from "./DealCard";
-import { Loader2, ChevronRight, ArrowUpDown } from "lucide-react";
+import { Loader2, ChevronRight, ArrowUpDown, GripVertical, RefreshCw } from "lucide-react";
+
+// Storage key for swimlane order
+const SWIMLANE_ORDER_KEY = "tv-desktop-crm-swimlane-order";
+
+// Default order: AP, AR, Analytics, then rest. Free Invoice Scan and Partnership at bottom.
+const DEFAULT_SWIMLANE_ORDER = [
+  "ap_automation",
+  "ar_automation",
+  "analytics",
+  "revenue_reconciliation",
+  "professional_services",
+  "data_extraction",
+  "events_ai",
+  "general",
+  "other",
+  "free_invoice_scan",
+  "partnership",
+  "unassigned",
+];
+
+function getSwimlaneOrder(): string[] {
+  if (typeof window === "undefined") return DEFAULT_SWIMLANE_ORDER;
+  const stored = localStorage.getItem(SWIMLANE_ORDER_KEY);
+  return stored ? JSON.parse(stored) : DEFAULT_SWIMLANE_ORDER;
+}
+
+function setSwimlaneOrder(order: string[]): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SWIMLANE_ORDER_KEY, JSON.stringify(order));
+  }
+}
 
 interface DealPipelineProps {
   onRefresh?: () => void;
@@ -29,6 +60,8 @@ function getDealSolution(deal: DealWithTaskInfo): SolutionValue {
   if (lowerName.startsWith("revenue reconciliation")) return "revenue_reconciliation";
   if (lowerName.includes("professional service") || lowerName.includes("sow"))
     return "professional_services";
+  if (lowerName.startsWith("events ai")) return "events_ai";
+  if (lowerName.startsWith("general")) return "general";
 
   return "unassigned";
 }
@@ -49,6 +82,16 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
   );
   const [sortField, setSortField] = useState<SortField>("company");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  // Swimlane reordering
+  const [swimlaneOrder, setSwimlaneOrderState] = useState<string[]>(DEFAULT_SWIMLANE_ORDER);
+  const [draggingSwimlane, setDraggingSwimlane] = useState<string | null>(null);
+  const [dragOverSwimlane, setDragOverSwimlane] = useState<string | null>(null);
+
+  // Load swimlane order on mount
+  useEffect(() => {
+    setSwimlaneOrderState(getSwimlaneOrder());
+  }, []);
 
   // Fetch active deals with tasks (not won/lost)
   const { data: deals = [], isLoading, refetch } = useDealsWithTasks({
@@ -87,6 +130,8 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
       professional_services: [],
       partnership: [],
       data_extraction: [],
+      events_ai: [],
+      general: [],
       other: [],
       unassigned: [],
     };
@@ -114,7 +159,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
     return stats;
   }, [dealsBySolution]);
 
-  // Get solutions that have deals
+  // Get solutions that have deals (respecting custom order)
   const activeSolutions: { value: SolutionValue; label: string; color: string }[] =
     useMemo(() => {
       const solutions: { value: SolutionValue; label: string; color: string }[] = [];
@@ -129,8 +174,76 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
         solutions.push({ value: "unassigned", label: "Unassigned", color: "slate" });
       }
 
+      // Apply custom order
+      solutions.sort((a, b) => {
+        const indexA = swimlaneOrder.indexOf(a.value);
+        const indexB = swimlaneOrder.indexOf(b.value);
+        // Items not in order go to the end
+        if (indexA === -1 && indexB === -1) return 0;
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      });
+
       return solutions;
-    }, [dealsBySolution]);
+    }, [dealsBySolution, swimlaneOrder]);
+
+  // Handle swimlane drag and drop
+  const handleSwimlaneDragStart = (e: React.DragEvent, solutionValue: string) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", solutionValue);
+    e.dataTransfer.setData("swimlaneId", solutionValue);
+    // Use setTimeout to avoid immediate state update interfering with drag
+    setTimeout(() => setDraggingSwimlane(solutionValue), 0);
+  };
+
+  const handleSwimlaneDragOver = (e: React.DragEvent, solutionValue: string) => {
+    // Only handle if we're actively dragging a swimlane
+    if (!draggingSwimlane) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggingSwimlane !== solutionValue) {
+      setDragOverSwimlane(solutionValue);
+    }
+  };
+
+  const handleSwimlaneDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverSwimlane(null);
+  };
+
+  const handleSwimlaneDragEnd = () => {
+    setDraggingSwimlane(null);
+    setDragOverSwimlane(null);
+  };
+
+  const handleSwimlaneDrop = (e: React.DragEvent, targetSolutionValue: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const draggedId = e.dataTransfer.getData("swimlaneId") || e.dataTransfer.getData("text/plain");
+    if (!draggedId || draggedId === targetSolutionValue) {
+      handleSwimlaneDragEnd();
+      return;
+    }
+
+    // Get current order (use activeSolutions order as base)
+    const currentOrder = activeSolutions.map(s => s.value);
+    const draggedIndex = currentOrder.indexOf(draggedId as SolutionValue);
+    const targetIndex = currentOrder.indexOf(targetSolutionValue as SolutionValue);
+
+    if (draggedIndex !== -1 && targetIndex !== -1) {
+      // Remove dragged item and insert at target position
+      const newOrder = [...currentOrder];
+      newOrder.splice(draggedIndex, 1);
+      newOrder.splice(targetIndex, 0, draggedId as SolutionValue);
+      setSwimlaneOrderState(newOrder);
+      setSwimlaneOrder(newOrder);
+    }
+
+    handleSwimlaneDragEnd();
+  };
 
   const toggleSwimlane = (solution: SolutionValue) => {
     setCollapsedSwimlanes((prev) => {
@@ -214,6 +327,16 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
               >
                 <ArrowUpDown size={12} />
               </button>
+              <button
+                onClick={() => {
+                  refetch();
+                  onRefresh?.();
+                }}
+                className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded"
+                title="Refresh pipeline"
+              >
+                <RefreshCw size={12} />
+              </button>
             </div>
           </div>
         </div>
@@ -257,17 +380,36 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
             const solutionDeals = dealsBySolution[solution.value] || [];
             const stats = solutionStats[solution.value];
 
+            const isDragging = draggingSwimlane === solution.value;
+            const isDragOver = dragOverSwimlane === solution.value;
+
             return (
               <div
                 key={solution.value}
-                className="border-b border-slate-200 dark:border-zinc-800 last:border-b-0"
+                className={`border-b border-slate-200 dark:border-zinc-800 last:border-b-0 transition-all ${
+                  isDragging ? "opacity-50" : ""
+                } ${isDragOver ? "border-t-2 border-t-teal-500 bg-teal-50 dark:bg-teal-900/20" : ""}`}
+                onDragOver={(e) => handleSwimlaneDragOver(e, solution.value)}
+                onDragLeave={handleSwimlaneDragLeave}
+                onDrop={(e) => handleSwimlaneDrop(e, solution.value)}
               >
                 {/* Swimlane header */}
                 <div className="flex bg-slate-100 dark:bg-zinc-950">
-                  <button
-                    onClick={() => toggleSwimlane(solution.value)}
-                    className="w-44 flex-shrink-0 px-3 py-2 flex items-center gap-2 border-r border-slate-200 dark:border-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-900 transition-colors text-left"
-                  >
+                  {/* Solution label cell with drag handle */}
+                  <div className="w-44 flex-shrink-0 flex items-center border-r border-slate-200 dark:border-zinc-800">
+                    {/* Drag handle */}
+                    <div
+                      draggable
+                      onDragStart={(e) => handleSwimlaneDragStart(e, solution.value)}
+                      onDragEnd={handleSwimlaneDragEnd}
+                      className="flex items-center px-1.5 py-2 cursor-grab active:cursor-grabbing text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                    >
+                      <GripVertical size={14} />
+                    </div>
+                    <button
+                      onClick={() => toggleSwimlane(solution.value)}
+                      className="flex-1 px-1 py-2 flex items-center gap-2 hover:bg-slate-200 dark:hover:bg-zinc-900 transition-colors text-left"
+                    >
                     <ChevronRight
                       size={14}
                       className={`text-zinc-500 transition-transform ${
@@ -282,6 +424,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                       {stats?.count || 0}
                     </span>
                   </button>
+                  </div>
 
                   {/* Stage cells summary (when collapsed) */}
                   {isCollapsed && (

@@ -35,7 +35,7 @@ export const useRepositoryStore = create<RepositoryState>()(
         {
           id: "default",
           name: "tv-knowledge",
-          path: "/Users/melvinwang/Code/SkyNet/tv-knowledge",
+          path: "/Users/melvinwang/Thinkval Dropbox/ThinkVAL team folder/SkyNet/tv-knowledge",
           addedAt: Date.now(),
         },
       ],
@@ -80,7 +80,7 @@ export const useRepositoryStore = create<RepositoryState>()(
       },
     }),
     {
-      name: "tv-desktop-repositories",
+      name: "tv-client-repositories",
     }
   )
 );

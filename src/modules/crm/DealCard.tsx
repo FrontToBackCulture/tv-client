@@ -16,6 +16,7 @@ interface DealCardProps {
     nextTask?: { title: string; due_date: string | null } | null;
   };
   compact?: boolean;
+  showTasks?: boolean; // Show tasks section in full view (default: true)
   onClick?: () => void;
   onDealUpdated?: () => void;
 }
@@ -53,6 +54,7 @@ function getStaleStatus(deal: Deal): {
 export function DealCard({
   deal,
   compact = false,
+  showTasks = true,
   onClick,
   onDealUpdated,
 }: DealCardProps) {
@@ -93,10 +95,21 @@ export function DealCard({
     });
   };
 
-  if (compact) {
-    const isOverdue =
-      deal.expected_close_date && new Date(deal.expected_close_date) < new Date();
+  // Get date pill styles based on due date proximity
+  const getDatePillStyle = (dateStr: string | null) => {
+    if (!dateStr) return "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400";
+    const date = new Date(dateStr);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
+    if (diffDays < 0) return "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"; // Past due
+    if (diffDays <= 5) return "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"; // Due in 1-5 days
+    return "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"; // Future
+  };
+
+  if (compact) {
     const staleBorderColor = {
       fresh: "border-l-emerald-500",
       warning: "border-l-amber-400",
@@ -184,36 +197,28 @@ export function DealCard({
               </span>
             )}
 
+            {/* Expected close date */}
             {deal.expected_close_date && (
-              <span
-                className={`flex items-center gap-1 ${
-                  isOverdue ? "text-red-500 dark:text-red-400" : "text-zinc-500"
-                }`}
-              >
+              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded font-medium ${getDatePillStyle(deal.expected_close_date)}`}>
                 <Calendar size={10} />
-                {formatDate(deal.expected_close_date)}
+                Close {formatDate(deal.expected_close_date)}
               </span>
             )}
 
-            {(deal.openTaskCount ?? 0) > 0 && (
+            {/* Task due date */}
+            {(deal.openTaskCount ?? 0) > 0 && deal.nextTask?.due_date && (
               <span className="relative group/task">
-                <span
-                  className={`flex items-center gap-1 ${
-                    deal.nextTask?.due_date && new Date(deal.nextTask.due_date) < new Date()
-                      ? "text-red-500 dark:text-red-400"
-                      : "text-amber-600 dark:text-amber-500"
-                  }`}
-                >
+                <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded font-medium ${getDatePillStyle(deal.nextTask.due_date)}`}>
                   <ClipboardList size={10} />
-                  {deal.nextTask?.due_date
-                    ? formatDate(deal.nextTask.due_date)
-                    : deal.openTaskCount}
+                  Task {formatDate(deal.nextTask.due_date)}
                 </span>
                 {/* Tooltip */}
-                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-[10px] font-medium text-white bg-zinc-800 rounded shadow-lg whitespace-nowrap opacity-0 invisible group-hover/task:opacity-100 group-hover/task:visible transition-opacity z-50 pointer-events-none">
-                  {deal.nextTask?.title || `${deal.openTaskCount} open task(s)`}
-                  <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
-                </span>
+                {deal.nextTask?.title && (
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-[10px] font-medium text-white bg-zinc-800 rounded shadow-lg whitespace-nowrap opacity-0 invisible group-hover/task:opacity-100 group-hover/task:visible transition-opacity z-50 pointer-events-none">
+                    {deal.nextTask.title}
+                    <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
+                  </span>
+                )}
               </span>
             )}
           </div>
@@ -288,7 +293,7 @@ export function DealCard({
         )}
 
         {/* Linked Tasks */}
-        {deal.tasks && deal.tasks.length > 0 && (
+        {showTasks && deal.tasks && deal.tasks.length > 0 && (
           <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-700">
             <div className="flex items-center gap-2 mb-2">
               <ClipboardList size={12} className="text-zinc-500" />

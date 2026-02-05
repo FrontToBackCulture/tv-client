@@ -49,7 +49,7 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
     if name.starts_with("list-crm-") || name.starts_with("find-crm-") ||
        name.starts_with("get-crm-") || name.starts_with("create-crm-") ||
        name.starts_with("update-crm-") || name.starts_with("delete-crm-") ||
-       name.starts_with("log-crm-") {
+       name.starts_with("log-crm-") || name == "link-task-to-deal" {
         return crm::call(name, arguments).await;
     }
 

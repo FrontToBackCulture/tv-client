@@ -1,10 +1,10 @@
 # tv-mcp Setup for Claude Desktop
 
-This guide explains how to connect tv-desktop's MCP tools to Claude Desktop.
+This guide explains how to connect tv-client's MCP tools to Claude Desktop.
 
 ## What This Does
 
-After setup, Claude Desktop will have access to tv-desktop's tools:
+After setup, Claude Desktop will have access to tv-client's tools:
 - **Work** - Projects, tasks, milestones, initiatives
 - **CRM** - Companies, contacts, deals, activities
 - **Generation** - Gamma presentations, Nanobanana images
@@ -16,17 +16,17 @@ After setup, Claude Desktop will have access to tv-desktop's tools:
 
 ### macOS
 
-1. Install tv-desktop
+1. Install tv-client
 2. Open Terminal
 3. Run:
    ```bash
-   /path/to/tv-desktop/scripts/setup-claude-mcp.sh
+   /path/to/tv-client/scripts/setup-claude-mcp.sh
    ```
 4. Restart Claude Desktop
 
 ### Windows
 
-1. Install tv-desktop
+1. Install tv-client
 2. Right-click `setup-claude-mcp.ps1` → "Run with PowerShell"
 
    Or open PowerShell and run:
@@ -47,7 +47,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "tv-mcp": {
-      "command": "/Applications/tv-desktop.app/Contents/MacOS/tv-mcp"
+      "command": "/Applications/tv-client.app/Contents/MacOS/tv-mcp"
     }
   }
 }
@@ -61,13 +61,13 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 {
   "mcpServers": {
     "tv-mcp": {
-      "command": "C:\\Program Files\\tv-desktop\\tv-mcp.exe"
+      "command": "C:\\Program Files\\tv-client\\tv-mcp.exe"
     }
   }
 }
 ```
 
-Adjust the path based on where tv-desktop is installed.
+Adjust the path based on where tv-client is installed.
 
 ## Verify Setup
 
@@ -79,7 +79,7 @@ After restarting Claude Desktop:
 ## Troubleshooting
 
 ### "Tool not found" errors
-- Make sure tv-desktop is installed
+- Make sure tv-client is installed
 - Verify the path in config points to the actual `tv-mcp` binary
 - Restart Claude Desktop after config changes
 
@@ -96,4 +96,4 @@ After restarting Claude Desktop:
 
 ## Updating
 
-If you update tv-desktop to a new version, you don't need to re-run setup unless the binary location changes.
+If you update tv-client to a new version, you don't need to re-run setup unless the binary location changes.

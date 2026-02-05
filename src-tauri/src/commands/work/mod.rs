@@ -9,6 +9,7 @@ pub mod initiatives;
 pub mod labels;
 pub mod users;
 
+#[allow(unused_imports)]
 pub use types::*;
 pub use projects::*;
 pub use tasks::*;

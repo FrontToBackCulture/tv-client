@@ -2,6 +2,7 @@
 
 mod commands;
 mod models;
+mod mcp;
 
 use tauri::Manager;
 
@@ -38,11 +39,23 @@ fn main() {
             // Start Outlook background sync
             commands::outlook::background::start_background_sync(app.handle().clone());
 
+            // Start MCP HTTP server (for external tool access)
+            tauri::async_runtime::spawn(async {
+                eprintln!("[tv-desktop] Starting MCP HTTP server on port {}...", mcp::server::DEFAULT_PORT);
+                if let Err(e) = mcp::server::run_http(mcp::server::DEFAULT_PORT).await {
+                    eprintln!("[tv-desktop] MCP server error: {}", e);
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             // Test command
             commands::greet,
+            // MCP commands (for UI capability explorer)
+            commands::mcp::mcp_list_tools,
+            commands::mcp::mcp_call_tool,
+            commands::mcp::mcp_get_status,
             // File operations (Rust native)
             commands::files::read_file,
             commands::files::write_file,
@@ -60,7 +73,6 @@ fn main() {
             // Search operations (Rust native)
             commands::search::search_files,
             commands::search::search_content,
-            commands::search::index_directory,
             // Auth operations (GitHub OAuth)
             commands::auth::github_oauth_start,
             commands::auth::github_get_user,
@@ -232,6 +244,16 @@ fn main() {
             commands::val_sync::sql::val_execute_sql,
             // VAL Sync - SQL generation (AI)
             commands::val_sync::sql_gen::val_generate_sql,
+            // VAL Sync - Table Pipeline (generate overview.md)
+            commands::val_sync::table_pipeline::val_prepare_table_overview,
+            commands::val_sync::table_pipeline::val_sample_table_data,
+            commands::val_sync::table_pipeline::val_fetch_categorical_values,
+            commands::val_sync::table_pipeline::val_analyze_table_data,
+            commands::val_sync::table_pipeline::val_extract_table_calc_fields,
+            commands::val_sync::table_pipeline::val_generate_table_overview_md,
+            commands::val_sync::table_pipeline::val_run_table_pipeline,
+            commands::val_sync::table_pipeline::val_list_domain_tables,
+            commands::val_sync::table_pipeline::val_scan_category_library,
             // Settings - MS Graph credentials
             commands::settings::settings_get_ms_graph_credentials,
             commands::settings::settings_get_anthropic_key,

@@ -13,6 +13,7 @@ const moduleLabels: Record<ModuleId, string> = {
   product: "Product",
   bot: "Bots",
   console: "Console",
+  system: "System",
   settings: "Settings",
 };
 
@@ -26,7 +27,11 @@ export function openModuleInNewWindow(moduleId: ModuleId) {
     title,
     width: 1400,
     height: 900,
-    decorations: false,
+    minWidth: 1000,
+    minHeight: 600,
+    decorations: true,
+    titleBarStyle: "overlay",
+    hiddenTitle: true,
     transparent: false,
     center: true,
   });

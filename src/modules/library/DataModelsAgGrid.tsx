@@ -12,6 +12,9 @@ import {
   ModuleRegistry,
   AllCommunityModule,
   ColumnState,
+  CellValueChangedEvent,
+  RowClickedEvent,
+  PasteEndEvent,
 } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
@@ -29,7 +32,9 @@ import {
   FileSpreadsheet,
   Bookmark,
   ChevronsLeftRight,
+  Filter,
 } from "lucide-react";
+import { cn } from "../../lib/cn";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
@@ -39,12 +44,13 @@ if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
   LicenseManager.setLicenseKey(import.meta.env.VITE_AG_GRID_LICENSE_KEY);
 }
 
-interface TableInfo {
+export interface TableInfo {
   name: string;
   path: string;
   hasOverview: boolean;
   displayName: string | null;
   columnCount: number | null;
+  calculatedColumnCount: number | null;
   dataType: string | null;
   dataCategory: string | null;
   dataSubCategory: string | null;
@@ -54,17 +60,103 @@ interface TableInfo {
   usageStatus: string | null;
   suggestedName: string | null;
   dataSource: string | null;
+  sourceSystem: string | null;
   summaryShort: string | null;
   summaryFull: string | null;
   space: string | null;
   action: string | null;
+  tags: string | null;
+  tableType: string | null;
+  // Relationship counts
+  workflowCount: number | null;
+  scheduledWorkflowCount: number | null;
+  queryCount: number | null;
+  dashboardCount: number | null;
+  // Timestamps
+  lastSampleAt: string | null;
+  lastDetailsAt: string | null;
+  lastAnalyzeAt: string | null;
+  lastOverviewAt: string | null;
 }
 
 interface DataModelsAgGridProps {
   dataModelsPath: string;
   domainName: string;
   onTableSelect?: (tablePath: string) => void;
+  // Review mode props
+  reviewMode?: boolean;
+  onRowSelected?: (tablePath: string | null, tableName: string | null, rowData: TableInfo | null) => void;
+  onCellEdited?: (tableName: string, field: string, newValue: unknown) => void;
+  modifiedRows?: Map<string, Partial<TableInfo>>;
 }
+
+// Dropdown values for editable columns (empty string first allows clearing)
+export const DROPDOWN_VALUES = {
+  dataCategory: [
+    "", // Clear option
+    "Mapping",
+    "Master List",
+    "Transaction",
+    "Report",
+    "Staging",
+    "Archive",
+    "System",
+    "GL",
+    "AP",
+    "AR",
+    "Receipt",
+    "Payment",
+    "Fee",
+    "Tax",
+    "Product",
+    "Stock",
+    "Order",
+    "Delivery",
+    "Customer",
+    "Employee",
+    "Other",
+  ],
+  dataSubCategory: [
+    "", // Clear option
+    "Outlet",
+    "Brand",
+    "Platform",
+    "Fulfilment Type",
+    "Other",
+  ],
+  usageStatus: ["", "In Use", "Not Used", "Historically Used", "I Dunno"],
+  action: ["", "None", "To Review", "To Delete", "Approved"],
+  dataSource: [
+    "", // Clear option
+    "POS",
+    "ERP",
+    "Bank",
+    "Manual Upload",
+    "API",
+    "File Import",
+    "System Generated",
+    "Unknown",
+  ],
+  sourceSystem: [
+    "", // Clear option
+    "Dine Connect",
+    "Square",
+    "Revel",
+    "Toast",
+    "Lightspeed",
+    "Oracle",
+    "SAP",
+    "NetSuite",
+    "QuickBooks",
+    "Xero",
+    "Shopify",
+    "WooCommerce",
+    "Magento",
+    "Custom",
+    "Other",
+  ],
+};
+
 
 // Name cell renderer with documentation indicator
 const NameCellRenderer = (params: ICellRendererParams<TableInfo>) => {
@@ -93,16 +185,19 @@ const StatusCellRenderer = (params: ICellRendererParams) => {
   let className = "px-2 py-0.5 rounded text-xs font-medium ";
   switch (value) {
     case "In Use":
-      className += "bg-green-900/30 text-green-400";
+      className += "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
       break;
     case "Not Used":
-      className += "bg-red-900/30 text-red-400";
+      className += "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
       break;
     case "Historically Used":
-      className += "bg-amber-900/30 text-amber-400";
+      className += "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
+      break;
+    case "I Dunno":
+      className += "bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400";
       break;
     default:
-      className += "bg-zinc-700 text-zinc-400";
+      className += "bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400";
   }
 
   return <span className={className}>{value}</span>;
@@ -118,13 +213,16 @@ const ActionCellRenderer = (params: ICellRendererParams) => {
   let className = "px-2 py-0.5 rounded text-xs font-medium ";
   switch (value) {
     case "To Review":
-      className += "bg-blue-900/30 text-blue-400";
+      className += "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
       break;
     case "To Delete":
-      className += "bg-red-900/30 text-red-400";
+      className += "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+      break;
+    case "Approved":
+      className += "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
       break;
     default:
-      className += "bg-zinc-700 text-zinc-400";
+      className += "bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400";
   }
 
   return <span className={className}>{value}</span>;
@@ -151,28 +249,31 @@ const DaysCellRenderer = (params: ICellRendererParams) => {
   return <span className={className}>{value}</span>;
 };
 
-// Tag style helper
+// Tag style helper - light and dark mode
 const getTagStyle = (tag: string, type: string) => {
   if (type === "status") {
     switch (tag) {
-      case "In Use": return "bg-green-900/40 text-green-400";
-      case "Not Used": return "bg-red-900/40 text-red-400";
-      case "Historically Used": return "bg-amber-900/40 text-amber-400";
-      default: return "bg-zinc-700 text-zinc-400";
+      case "In Use": return "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400";
+      case "Not Used": return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400";
+      case "Historically Used": return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400";
+      case "I Dunno": return "bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400";
+      default: return "bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400";
     }
   }
   if (type === "action") {
     switch (tag) {
-      case "To Review": return "bg-blue-900/40 text-blue-400";
-      case "To Delete": return "bg-red-900/40 text-red-400";
-      default: return "bg-zinc-700 text-zinc-400";
+      case "To Review": return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400";
+      case "To Delete": return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400";
+      case "Approved": return "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400";
+      default: return "bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400";
     }
   }
-  if (type === "category") return "bg-violet-900/40 text-violet-400";
-  if (type === "subCategory") return "bg-indigo-900/40 text-indigo-400";
-  if (type === "dataSource") return "bg-cyan-900/40 text-cyan-400";
-  if (type === "dataType") return "bg-teal-900/40 text-teal-400";
-  return "bg-zinc-700 text-zinc-400";
+  if (type === "category") return "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400";
+  if (type === "subCategory") return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400";
+  if (type === "dataSource") return "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-400";
+  if (type === "dataType") return "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400";
+  if (type === "tag") return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+  return "bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400";
 };
 
 // Tags cell renderer
@@ -199,6 +300,16 @@ const TagsCellRenderer = (params: ICellRendererParams<TableInfo>) => {
   addTag(data.usageStatus, "status");
   addTag(data.action, "action");
 
+  // Add actual tags from classification (comma-separated string)
+  if (data.tags) {
+    data.tags.split(",").forEach(tag => {
+      const trimmed = tag.trim();
+      if (trimmed) {
+        addTag(trimmed, "tag");
+      }
+    });
+  }
+
   if (tags.length === 0) {
     return <span className="text-zinc-500">-</span>;
   }
@@ -217,7 +328,15 @@ const TagsCellRenderer = (params: ICellRendererParams<TableInfo>) => {
   );
 };
 
-export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: DataModelsAgGridProps) {
+export function DataModelsAgGrid({
+  dataModelsPath,
+  domainName,
+  onTableSelect,
+  reviewMode = false,
+  onRowSelected,
+  onCellEdited,
+  modifiedRows,
+}: DataModelsAgGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,6 +348,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState("");
+  const [reviewFilter, setReviewFilter] = useState<"all" | "needs-review" | "modified">("all");
 
   // Load saved layouts from localStorage
   useEffect(() => {
@@ -241,6 +361,58 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
       }
     }
   }, []);
+
+  // Update grid when modifiedRows changes (for detail panel edits)
+  // Track a serialized version of modifiedRows to detect any change
+  const modifiedRowsJson = useMemo(() => {
+    if (!modifiedRows || modifiedRows.size === 0) return "";
+    const obj: Record<string, unknown> = {};
+    modifiedRows.forEach((v, k) => { obj[k] = v; });
+    return JSON.stringify(obj);
+  }, [modifiedRows]);
+
+  useEffect(() => {
+    if (!gridRef.current?.api || !modifiedRows || modifiedRows.size === 0 || tables.length === 0) {
+      return;
+    }
+
+    // Check if tables already has the modified values (to prevent unnecessary updates)
+    let needsUpdate = false;
+    modifiedRows.forEach((mods, tableName) => {
+      const table = tables.find(t => t.name === tableName);
+      if (table) {
+        for (const [key, value] of Object.entries(mods)) {
+          if (table[key as keyof TableInfo] !== value) {
+            needsUpdate = true;
+            break;
+          }
+        }
+      }
+    });
+
+    if (!needsUpdate) return;
+
+    // Build updated rows for modified entries
+    const updatedRows: TableInfo[] = [];
+    modifiedRows.forEach((mods, tableName) => {
+      const original = tables.find(t => t.name === tableName);
+      if (original) {
+        updatedRows.push({ ...original, ...mods });
+      }
+    });
+
+    if (updatedRows.length > 0) {
+      gridRef.current.api.applyTransaction({ update: updatedRows });
+
+      // Also update tables state so values persist after modifiedRows is cleared
+      setTables(prevTables => {
+        return prevTables.map(table => {
+          const mods = modifiedRows.get(table.name);
+          return mods ? { ...table, ...mods } : table;
+        });
+      });
+    }
+  }, [modifiedRowsJson, tables]);
 
   // Load tables data
   useEffect(() => {
@@ -266,6 +438,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
               hasOverview: t.hasOverview as boolean || false,
               displayName: t.displayName as string | null,
               columnCount: t.columnCount as number | null,
+              calculatedColumnCount: t.calculatedColumnCount as number | null,
               dataType: t.dataType as string | null,
               dataCategory: t.dataCategory as string | null,
               dataSubCategory: t.dataSubCategory as string | null,
@@ -275,13 +448,93 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
               usageStatus: t.usageStatus as string | null,
               suggestedName: t.suggestedName as string | null,
               dataSource: t.dataSource as string | null,
+              sourceSystem: t.sourceSystem as string | null,
               summaryShort: t.summaryShort as string | null,
               summaryFull: t.summaryFull as string | null,
               space: t.space as string | null,
               action: t.action as string | null,
+              tags: t.tags as string | null,
+              tableType: t.tableType as string | null,
+              workflowCount: t.workflowCount as number | null,
+              scheduledWorkflowCount: t.scheduledWorkflowCount as number | null,
+              queryCount: t.queryCount as number | null,
+              dashboardCount: t.dashboardCount as number | null,
+              lastSampleAt: t.lastSampleAt as string | null,
+              lastDetailsAt: t.lastDetailsAt as string | null,
+              lastAnalyzeAt: t.lastAnalyzeAt as string | null,
+              lastOverviewAt: t.lastOverviewAt as string | null,
             }));
 
-            setTables(tableList);
+            // Supplement with timestamps from actual files (index may not have them)
+            const tablesWithTimestamps = await Promise.all(
+              tableList.map(async (table) => {
+                let lastSampleAt = table.lastSampleAt;
+                let lastDetailsAt = table.lastDetailsAt;
+                let lastAnalyzeAt = table.lastAnalyzeAt;
+                let lastOverviewAt = table.lastOverviewAt;
+
+                // Read definition_sample.json for timestamp if not in index
+                if (!lastSampleAt) {
+                  try {
+                    const sampleContent = await invoke<string>("read_file", {
+                      path: `${table.path}/definition_sample.json`,
+                    });
+                    const sample = JSON.parse(sampleContent);
+                    lastSampleAt = sample.meta?.sampledAt || null;
+                  } catch {
+                    // No sample file
+                  }
+                }
+
+                // Read definition_details.json for timestamp if not in index
+                if (!lastDetailsAt) {
+                  try {
+                    const detailsContent = await invoke<string>("read_file", {
+                      path: `${table.path}/definition_details.json`,
+                    });
+                    const details = JSON.parse(detailsContent);
+                    lastDetailsAt = details.meta?.generatedAt || null;
+                  } catch {
+                    // No details file
+                  }
+                }
+
+                // Read definition_analysis.json for timestamp if not in index
+                if (!lastAnalyzeAt) {
+                  try {
+                    const analysisContent = await invoke<string>("read_file", {
+                      path: `${table.path}/definition_analysis.json`,
+                    });
+                    const analysis = JSON.parse(analysisContent);
+                    lastAnalyzeAt = analysis.meta?.analyzedAt || null;
+                  } catch {
+                    // No analysis file
+                  }
+                }
+
+                // Get overview.md file modified time if not in index
+                if (!lastOverviewAt && table.hasOverview) {
+                  try {
+                    const fileInfo = await invoke<{ modified?: string }>("get_file_info", {
+                      path: `${table.path}/overview.md`,
+                    });
+                    lastOverviewAt = fileInfo.modified || null;
+                  } catch {
+                    // Ignore
+                  }
+                }
+
+                return {
+                  ...table,
+                  lastSampleAt,
+                  lastDetailsAt,
+                  lastAnalyzeAt,
+                  lastOverviewAt,
+                };
+              })
+            );
+
+            setTables(tablesWithTimestamps);
             loadedFromIndex = true;
           }
         } catch {
@@ -305,6 +558,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
               let displayName: string | null = null;
               let hasOverview = false;
               let columnCount: number | null = null;
+              let calculatedColumnCount: number | null = null;
               let dataType: string | null = null;
               let dataCategory: string | null = null;
               let dataSubCategory: string | null = null;
@@ -315,8 +569,21 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
               let action: string | null = null;
               let suggestedName: string | null = null;
               let dataSource: string | null = null;
+              let sourceSystem: string | null = null;
               let summaryShort: string | null = null;
               let summaryFull: string | null = null;
+              let tags: string | null = null;
+              let tableType: string | null = null;
+              // Relationship counts
+              let workflowCount: number | null = null;
+              let scheduledWorkflowCount: number | null = null;
+              let queryCount: number | null = null;
+              let dashboardCount: number | null = null;
+              // Timestamps
+              let lastDetailsAt: string | null = null;
+              let lastSampleAt: string | null = null;
+              let lastAnalyzeAt: string | null = null;
+              let lastOverviewAt: string | null = null;
 
               // Read definition_details.json
               try {
@@ -326,6 +593,10 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
                 const details = JSON.parse(detailsContent);
                 // displayName is nested under meta
                 displayName = details.meta?.displayName || null;
+                // Table type from meta
+                tableType = details.meta?.tableType || null;
+                // Timestamp from meta
+                lastDetailsAt = details.meta?.generatedAt || null;
                 // Health section
                 if (details.health) {
                   if (details.health.rowCount !== undefined) {
@@ -344,14 +615,52 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
                 if (details.columns) {
                   if (Array.isArray(details.columns)) {
                     columnCount = details.columns.length;
+                    // Count calculated columns (have formula or isCalculated flag)
+                    calculatedColumnCount = details.columns.filter(
+                      (col: { formula?: string; isCalculated?: boolean }) =>
+                        col.formula || col.isCalculated
+                    ).length;
                   } else {
                     const systemCols = details.columns.system?.length || 0;
                     const customCols = details.columns.custom?.length || 0;
                     columnCount = systemCols + customCols;
+                    // Count calculated from custom columns
+                    if (details.columns.custom) {
+                      calculatedColumnCount = details.columns.custom.filter(
+                        (col: { formula?: string; isCalculated?: boolean }) =>
+                          col.formula || col.isCalculated
+                      ).length;
+                    }
+                  }
+                }
+                // Count relationships
+                if (details.relationships) {
+                  if (details.relationships.workflows && Array.isArray(details.relationships.workflows)) {
+                    workflowCount = details.relationships.workflows.length;
+                    scheduledWorkflowCount = details.relationships.workflows.filter(
+                      (wf: { scheduled?: boolean }) => wf.scheduled === true
+                    ).length;
+                  }
+                  if (details.relationships.queries && Array.isArray(details.relationships.queries)) {
+                    queryCount = details.relationships.queries.length;
+                  }
+                  if (details.relationships.dashboards && Array.isArray(details.relationships.dashboards)) {
+                    dashboardCount = details.relationships.dashboards.length;
                   }
                 }
               } catch {
                 // No details file
+              }
+
+              // Read definition_sample.json for timestamp
+              try {
+                const sampleContent = await invoke<string>("read_file", {
+                  path: `${dir.path}/definition_sample.json`,
+                });
+                const sample = JSON.parse(sampleContent);
+                lastSampleAt = sample.meta?.sampledAt || null;
+              } catch {
+                // No sample file
               }
 
               // Read overview.md for metadata
@@ -396,12 +705,46 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
                 dataType = analysis.dataType || analysis.classification?.dataType || null;
                 summaryShort = analysis.summary?.short || null;
                 summaryFull = analysis.summary?.full || null;
+                // Timestamp from meta
+                lastAnalyzeAt = analysis.meta?.analyzedAt || null;
                 // Category from analysis can override if not found in overview
                 if (!dataCategory && analysis.dataCategory) {
                   dataCategory = analysis.dataCategory;
                 }
+                // Sub Category from analysis if not found in overview
+                if (!dataSubCategory && analysis.dataSubCategory) {
+                  dataSubCategory = analysis.dataSubCategory;
+                }
+                // Usage Status from analysis if not found in overview
+                if (!usageStatus && analysis.usageStatus) {
+                  usageStatus = analysis.usageStatus;
+                }
+                // Action from analysis if not found in overview
+                if (!action && analysis.action) {
+                  action = analysis.action;
+                }
+                // Tags from analysis
+                if (analysis.tags) {
+                  tags = analysis.tags;
+                }
+                // Source System from analysis
+                if (analysis.sourceSystem) {
+                  sourceSystem = analysis.sourceSystem;
+                }
               } catch {
                 // No analysis file
+              }
+
+              // Get overview.md file modified time
+              if (hasOverview) {
+                try {
+                  const fileInfo = await invoke<{ modified?: string }>("get_file_info", {
+                    path: `${dir.path}/overview.md`,
+                  });
+                  lastOverviewAt = fileInfo.modified || null;
+                } catch {
+                  // Ignore
+                }
               }
 
               return {
@@ -410,6 +753,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
                 hasOverview,
                 displayName: displayName || suggestedName || tableName,
                 columnCount,
+                calculatedColumnCount,
                 dataType,
                 dataCategory,
                 dataSubCategory,
@@ -419,10 +763,21 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
                 usageStatus,
                 suggestedName,
                 dataSource,
+                sourceSystem,
                 summaryShort,
                 summaryFull,
                 space: null,
                 action,
+                tags,
+                tableType,
+                workflowCount,
+                scheduledWorkflowCount,
+                queryCount,
+                dashboardCount,
+                lastSampleAt,
+                lastDetailsAt,
+                lastAnalyzeAt,
+                lastOverviewAt,
               };
             })
           );
@@ -487,22 +842,49 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
       headerName: "Data Source",
       width: 120,
       filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      cellEditorParams: {
+        values: DROPDOWN_VALUES.dataSource,
+      },
     },
     {
       field: "summaryShort",
-      headerName: "Summary",
+      headerName: "Short Summary",
       minWidth: 200,
+      flex: 1,
+      filter: "agTextColumnFilter",
+      cellClass: "text-xs text-zinc-400",
+      enableRowGroup: false,
+      wrapText: wrapSummary,
+      autoHeight: wrapSummary,
+      editable: reviewMode,
+      cellEditor: "agLargeTextCellEditor",
+      cellEditorParams: {
+        maxLength: 500,
+        rows: 3,
+        cols: 50,
+      },
+      cellEditorPopup: true,
+    },
+    {
+      field: "summaryFull",
+      headerName: "Full Summary",
+      minWidth: 300,
       flex: 2,
       filter: "agTextColumnFilter",
       cellClass: "text-xs text-zinc-400",
       enableRowGroup: false,
       wrapText: wrapSummary,
       autoHeight: wrapSummary,
-      tooltipValueGetter: (params) => {
-        const data = params.data as TableInfo | undefined;
-        if (!data) return "";
-        return data.summaryFull || data.summaryShort || "";
+      editable: reviewMode,
+      cellEditor: "agLargeTextCellEditor",
+      cellEditorParams: {
+        maxLength: 2000,
+        rows: 6,
+        cols: 60,
       },
+      cellEditorPopup: true,
     },
     {
       headerName: "Tags",
@@ -521,8 +903,11 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
         if (data.dataSource) tags.push(data.dataSource);
         if (data.usageStatus && data.usageStatus !== "I Dunno") tags.push(data.usageStatus);
         if (data.action && data.action !== "None") tags.push(data.action);
+        // Include actual tags
+        if (data.tags) tags.push(data.tags);
         return tags.join(", ");
       },
+      hide: reviewMode, // Hide tags in review mode - we show editable columns instead
     },
     {
       field: "rowCount",
@@ -556,29 +941,200 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
       field: "dataCategory",
       headerName: "Category",
       width: 140,
-      rowGroup: true,
+      rowGroup: !reviewMode, // Don't group in review mode
       hide: false,
       filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      cellEditorParams: {
+        values: DROPDOWN_VALUES.dataCategory,
+      },
     },
     {
       field: "dataSubCategory",
       headerName: "Sub Category",
       width: 120,
       filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      cellEditorParams: {
+        values: DROPDOWN_VALUES.dataSubCategory,
+      },
     },
     {
       field: "usageStatus",
       headerName: "Status",
       width: 100,
-      cellRenderer: StatusCellRenderer,
+      cellRenderer: reviewMode ? undefined : StatusCellRenderer, // Use default renderer when editable
       filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      cellEditorParams: {
+        values: DROPDOWN_VALUES.usageStatus,
+      },
     },
     {
       field: "action",
       headerName: "Action",
-      width: 90,
-      cellRenderer: ActionCellRenderer,
+      width: 100,
+      cellRenderer: reviewMode ? undefined : ActionCellRenderer, // Use default renderer when editable
       filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      cellEditorParams: {
+        values: DROPDOWN_VALUES.action,
+      },
+    },
+    {
+      field: "dataType",
+      headerName: "Table Type",
+      width: 110,
+      filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      cellEditorParams: {
+        values: ["Transactional", "Master Data", "Mapping", "Configuration", "Report", "Staging", "Archive", "System"],
+      },
+      valueFormatter: (params: ValueFormatterParams) => {
+        const val = params.value as string | null;
+        if (!val) return "-";
+        return val;
+      },
+    },
+    {
+      field: "sourceSystem",
+      headerName: "Source System",
+      width: 120,
+      filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      cellEditorParams: {
+        values: DROPDOWN_VALUES.sourceSystem,
+      },
+    },
+    {
+      field: "workflowCount",
+      headerName: "Workflows",
+      width: 90,
+      type: "numericColumn",
+      filter: "agNumberColumnFilter",
+      headerTooltip: "Total number of workflows using this table",
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.value != null ? String(params.value) : "-",
+    },
+    {
+      field: "scheduledWorkflowCount",
+      headerName: "Sched WFs",
+      width: 90,
+      type: "numericColumn",
+      filter: "agNumberColumnFilter",
+      headerTooltip: "Number of scheduled workflows using this table",
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.value != null ? String(params.value) : "-",
+    },
+    {
+      field: "queryCount",
+      headerName: "Queries",
+      width: 80,
+      type: "numericColumn",
+      filter: "agNumberColumnFilter",
+      headerTooltip: "Number of queries using this table",
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.value != null ? String(params.value) : "-",
+    },
+    {
+      field: "dashboardCount",
+      headerName: "Dashboards",
+      width: 95,
+      type: "numericColumn",
+      filter: "agNumberColumnFilter",
+      headerTooltip: "Number of dashboards using this table",
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.value != null ? String(params.value) : "-",
+    },
+    {
+      field: "columnCount",
+      headerName: "Columns",
+      width: 85,
+      type: "numericColumn",
+      filter: "agNumberColumnFilter",
+      headerTooltip: "Total number of columns",
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.value != null ? String(params.value) : "-",
+    },
+    {
+      field: "calculatedColumnCount",
+      headerName: "Calc Cols",
+      width: 85,
+      type: "numericColumn",
+      filter: "agNumberColumnFilter",
+      headerTooltip: "Number of calculated columns",
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.value != null ? String(params.value) : "-",
+    },
+    {
+      field: "lastSampleAt",
+      headerName: "Last Sample",
+      width: 140,
+      filter: "agDateColumnFilter",
+      headerTooltip: "Last time sample data was fetched",
+      valueFormatter: (params: ValueFormatterParams) => {
+        if (!params.value) return "-";
+        try {
+          const date = new Date(params.value);
+          return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        } catch {
+          return params.value;
+        }
+      },
+    },
+    {
+      field: "lastDetailsAt",
+      headerName: "Last Details",
+      width: 140,
+      filter: "agDateColumnFilter",
+      headerTooltip: "Last time details were fetched",
+      valueFormatter: (params: ValueFormatterParams) => {
+        if (!params.value) return "-";
+        try {
+          const date = new Date(params.value);
+          return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        } catch {
+          return params.value;
+        }
+      },
+    },
+    {
+      field: "lastAnalyzeAt",
+      headerName: "Last Analyze",
+      width: 140,
+      filter: "agDateColumnFilter",
+      headerTooltip: "Last time AI analysis was run",
+      valueFormatter: (params: ValueFormatterParams) => {
+        if (!params.value) return "-";
+        try {
+          const date = new Date(params.value);
+          return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        } catch {
+          return params.value;
+        }
+      },
+    },
+    {
+      field: "lastOverviewAt",
+      headerName: "Last Overview",
+      width: 140,
+      filter: "agDateColumnFilter",
+      headerTooltip: "Last time overview.md was generated",
+      valueFormatter: (params: ValueFormatterParams) => {
+        if (!params.value) return "-";
+        try {
+          const date = new Date(params.value);
+          return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        } catch {
+          return params.value;
+        }
+      },
     },
     {
       field: "space",
@@ -587,7 +1143,7 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
       filter: "agSetColumnFilter",
       hide: true,
     },
-  ], [wrapSummary]);
+  ], [wrapSummary, reviewMode]);
 
   // Default column definitions
   const defaultColDef = useMemo<ColDef>(() => ({
@@ -615,16 +1171,74 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
     }
   }, [onTableSelect]);
 
+  // Handle row single click for selection in review mode
+  const handleRowClicked = useCallback((event: RowClickedEvent<TableInfo>) => {
+    if (reviewMode && event.data && onRowSelected) {
+      onRowSelected(event.data.path, event.data.name, event.data);
+    }
+  }, [reviewMode, onRowSelected]);
+
+  // Handle cell value change in review mode
+  const handleCellValueChanged = useCallback((event: CellValueChangedEvent<TableInfo>) => {
+    if (reviewMode && event.data && event.colDef.field && onCellEdited) {
+      onCellEdited(event.data.name, event.colDef.field, event.newValue);
+    }
+  }, [reviewMode, onCellEdited]);
+
+  // Handle paste end - process all pasted cells
+  const handlePasteEnd = useCallback((_event: PasteEndEvent<TableInfo>) => {
+    if (!reviewMode || !onCellEdited || !gridRef.current?.api) return;
+
+    // Get the pasted cell ranges
+    const cellRanges = gridRef.current.api.getCellRanges();
+    if (!cellRanges || cellRanges.length === 0) return;
+
+    // Process each cell in the pasted range
+    cellRanges.forEach(range => {
+      const startRow = Math.min(range.startRow?.rowIndex ?? 0, range.endRow?.rowIndex ?? 0);
+      const endRow = Math.max(range.startRow?.rowIndex ?? 0, range.endRow?.rowIndex ?? 0);
+      const columns = range.columns;
+
+      for (let rowIdx = startRow; rowIdx <= endRow; rowIdx++) {
+        const rowNode = gridRef.current?.api.getDisplayedRowAtIndex(rowIdx);
+        if (!rowNode?.data) continue;
+
+        columns.forEach(col => {
+          const field = col.getColId();
+          const value = rowNode.data?.[field as keyof TableInfo];
+          if (field && rowNode.data) {
+            onCellEdited(rowNode.data.name, field, value);
+          }
+        });
+      }
+    });
+  }, [reviewMode, onCellEdited]);
+
+  // Merge modifiedRows into tables for display
+  // This ensures grid reflects edits made in the detail panel
+  const mergedTables = useMemo(() => {
+    if (!modifiedRows || modifiedRows.size === 0) return tables;
+    return tables.map(table => {
+      const mods = modifiedRows.get(table.name);
+      return mods ? { ...table, ...mods } : table;
+    });
+  }, [tables, modifiedRows]);
+
   // Get row ID
   const getRowId = useCallback((params: GetRowIdParams<TableInfo>) => params.data.name, []);
 
-  // Style group rows differently
-  const getRowClass = useCallback((params: { node: { group?: boolean } }) => {
+  // Style group rows and modified rows differently
+  const getRowClass = useCallback((params: { node: { group?: boolean }; data?: TableInfo }) => {
+    const classes: string[] = [];
     if (params.node.group) {
-      return "ag-group-row-custom";
+      classes.push("ag-group-row-custom");
     }
-    return "";
-  }, []);
+    // Highlight modified rows in review mode
+    if (reviewMode && params.data && modifiedRows?.has(params.data.name)) {
+      classes.push("ag-row-modified");
+    }
+    return classes.join(" ");
+  }, [reviewMode, modifiedRows]);
 
   // Make group rows taller
   const getRowHeight = useCallback((params: { node: { group?: boolean } }) => {
@@ -797,46 +1411,160 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
     <div className={`${isFullscreen ? "fixed inset-0 z-50 bg-slate-50 dark:bg-zinc-950 p-4 flex flex-col" : "h-full flex flex-col"}`}>
       {/* Custom styles for AG Grid */}
       <style>{`
-        .ag-group-row-custom {
+        /* Light mode group rows */
+        .ag-theme-alpine .ag-group-row-custom {
+          background-color: #f1f5f9 !important;
+          font-weight: 600 !important;
+          border-top: 2px solid #e2e8f0 !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+        }
+        .ag-theme-alpine .ag-group-row-custom .ag-group-value {
+          font-size: 13px !important;
+          font-weight: 700 !important;
+          color: #0d9488 !important;
+        }
+        .ag-theme-alpine .ag-group-row-custom .ag-group-child-count {
+          font-weight: 500 !important;
+          color: #64748b !important;
+        }
+        .ag-theme-alpine .ag-row-odd:not(.ag-group-row-custom) {
+          background-color: #f8fafc !important;
+        }
+        /* Light mode modified row highlighting */
+        .ag-theme-alpine .ag-row-modified {
+          background-color: rgba(251, 191, 36, 0.15) !important;
+        }
+        .ag-theme-alpine .ag-row-modified.ag-row-odd {
+          background-color: rgba(251, 191, 36, 0.2) !important;
+        }
+        .ag-theme-alpine .ag-row-modified:hover {
+          background-color: rgba(251, 191, 36, 0.25) !important;
+        }
+        /* Light mode editable cell indicator */
+        .ag-theme-alpine .ag-cell-editable {
+          cursor: pointer;
+        }
+        .ag-theme-alpine .ag-cell-editable:hover {
+          background-color: rgba(13, 148, 136, 0.1);
+        }
+        /* Dark mode group rows */
+        .ag-theme-alpine-dark .ag-group-row-custom {
           background-color: #27272a !important;
           font-weight: 600 !important;
           border-top: 2px solid #3f3f46 !important;
           border-bottom: 1px solid #3f3f46 !important;
         }
-        .ag-group-row-custom .ag-group-value {
+        .ag-theme-alpine-dark .ag-group-row-custom .ag-group-value {
           font-size: 13px !important;
           font-weight: 700 !important;
           color: #2dd4bf !important;
         }
-        .ag-group-row-custom .ag-group-child-count {
+        .ag-theme-alpine-dark .ag-group-row-custom .ag-group-child-count {
           font-weight: 500 !important;
           color: #71717a !important;
         }
         .ag-theme-alpine-dark .ag-row-odd:not(.ag-group-row-custom) {
           background-color: #1f1f23 !important;
         }
+        /* Dark mode modified row highlighting */
+        .ag-theme-alpine-dark .ag-row-modified {
+          background-color: rgba(251, 191, 36, 0.15) !important;
+        }
+        .ag-theme-alpine-dark .ag-row-modified.ag-row-odd {
+          background-color: rgba(251, 191, 36, 0.2) !important;
+        }
+        .ag-theme-alpine-dark .ag-row-modified:hover {
+          background-color: rgba(251, 191, 36, 0.25) !important;
+        }
+        /* Dark mode editable cell indicator */
+        .ag-theme-alpine-dark .ag-cell-editable {
+          cursor: pointer;
+        }
+        .ag-theme-alpine-dark .ag-cell-editable:hover {
+          background-color: rgba(45, 212, 191, 0.1);
+        }
       `}</style>
 
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">
-        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Data Models Index</h2>
-        <p className="text-sm text-zinc-500">
-          {domainName} • {tables.length} tables • {tables.length > 0 ? Math.round((tables.filter(t => t.hasOverview).length / tables.length) * 100) : 0}% documented
-        </p>
-      </div>
+      {/* Header - hide in review mode since parent provides header */}
+      {!reviewMode && (
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">
+          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Data Models Index</h2>
+          <p className="text-sm text-zinc-500">
+            {domainName} • {tables.length} tables • {tables.length > 0 ? Math.round((tables.filter(t => t.hasOverview).length / tables.length) * 100) : 0}% documented
+          </p>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input
-            type="text"
-            placeholder="Quick filter..."
-            value={quickFilterText}
-            onChange={(e) => setQuickFilterText(e.target.value)}
-            className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
-          />
+        {/* Left side: Search and filters */}
+        <div className="flex items-center gap-3 flex-1">
+          {/* Search */}
+          <div className="relative flex-1 max-w-md">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Quick filter..."
+              value={quickFilterText}
+              onChange={(e) => setQuickFilterText(e.target.value)}
+              className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+            />
+          </div>
+
+          {/* Review filter buttons - only show in review mode */}
+          {reviewMode && (
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-900 rounded-lg p-1">
+              <button
+                onClick={() => {
+                  setReviewFilter("all");
+                  gridRef.current?.api.setFilterModel(null);
+                }}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
+                  reviewFilter === "all"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                )}
+              >
+                All
+              </button>
+              <button
+                onClick={() => {
+                  setReviewFilter("needs-review");
+                  gridRef.current?.api.setFilterModel({
+                    action: {
+                      filterType: "set",
+                      values: ["To Review"],
+                    },
+                  });
+                }}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
+                  reviewFilter === "needs-review"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                )}
+              >
+                <Filter size={12} />
+                Needs Review
+              </button>
+              <button
+                onClick={() => {
+                  setReviewFilter("modified");
+                  // Can't directly filter by modified in AG Grid, show all and let visual highlighting work
+                  gridRef.current?.api.setFilterModel(null);
+                }}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
+                  reviewFilter === "modified"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                )}
+              >
+                Modified ({modifiedRows?.size || 0})
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -868,101 +1596,132 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
 
           {/* Layouts dropdown */}
           <div className="relative">
-            <button
-              onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
-              title="Saved layouts"
-            >
-              <Bookmark size={14} />
-              Layouts
-            </button>
-            {showLayoutMenu && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-slate-200 dark:border-zinc-700 z-50 py-1">
-                <button
-                  onClick={() => {
-                    setShowLayoutMenu(false);
-                    setShowSaveDialog(true);
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center gap-2"
-                >
-                  <span className="text-green-600 dark:text-green-400">+</span>
-                  Save current layout...
-                </button>
-                {Object.keys(savedLayouts).length > 0 && (
-                  <>
-                    <div className="border-t border-slate-200 dark:border-zinc-700 my-1" />
-                    <div className="px-3 py-1 text-xs font-medium text-zinc-500">
-                      Saved Layouts
-                    </div>
-                    {Object.keys(savedLayouts).map((name) => (
-                      <div
-                        key={name}
-                        onClick={() => loadLayout(name)}
-                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
-                      >
-                        <span className="truncate">{name}</span>
-                        <button
-                          onClick={(e) => deleteLayout(name, e)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400"
-                          title="Delete layout"
-                        >
-                          <X size={12} />
-                        </button>
+              <button
+                onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
+                title="Saved layouts"
+              >
+                <Bookmark size={14} />
+                Layouts
+              </button>
+              {showLayoutMenu && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-slate-200 dark:border-zinc-700 z-50 py-1">
+                  <button
+                    onClick={() => {
+                      setShowLayoutMenu(false);
+                      setShowSaveDialog(true);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  >
+                    <span className="text-green-600 dark:text-green-400">+</span>
+                    Save current layout...
+                  </button>
+                  {Object.keys(savedLayouts).length > 0 && (
+                    <>
+                      <div className="border-t border-slate-200 dark:border-zinc-700 my-1" />
+                      <div className="px-3 py-1 text-xs font-medium text-zinc-500">
+                        Saved Layouts
                       </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+                      {Object.keys(savedLayouts).map((name) => (
+                        <div
+                          key={name}
+                          onClick={() => loadLayout(name)}
+                          className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
+                        >
+                          <span className="truncate">{name}</span>
+                          <button
+                            onClick={(e) => deleteLayout(name, e)}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400"
+                            title="Delete layout"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
-          <button
-            onClick={() => setWrapSummary(!wrapSummary)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-              wrapSummary
-                ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
-                : "border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700"
-            }`}
-            title={wrapSummary ? "Click to truncate text" : "Click to wrap text"}
-          >
-            <WrapText size={14} />
-          </button>
-          <button
-            onClick={exportToCsv}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
-            title="Export to CSV"
-          >
-            <Download size={14} />
-            CSV
-          </button>
-          <button
-            onClick={exportToExcel}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-500 transition-colors"
-            title="Export to Excel"
-          >
-            <FileSpreadsheet size={14} />
-            Excel
-          </button>
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-              isFullscreen
-                ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
-                : "border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700"
-            }`}
-            title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
-          >
-            {isFullscreen ? <X size={14} /> : <Maximize2 size={14} />}
-          </button>
+          {/* Hide these buttons in review mode - parent handles export */}
+          {!reviewMode && (
+            <>
+              <button
+                onClick={() => setWrapSummary(!wrapSummary)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                  wrapSummary
+                    ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                    : "border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700"
+                }`}
+                title={wrapSummary ? "Click to truncate text" : "Click to wrap text"}
+              >
+                <WrapText size={14} />
+              </button>
+              <button
+                onClick={exportToCsv}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
+                title="Export to CSV"
+              >
+                <Download size={14} />
+                CSV
+              </button>
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-500 transition-colors"
+                title="Export to Excel"
+              >
+                <FileSpreadsheet size={14} />
+                Excel
+              </button>
+              <button
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                  isFullscreen
+                    ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                    : "border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700"
+                }`}
+                title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
+              >
+                {isFullscreen ? <X size={14} /> : <Maximize2 size={14} />}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* AG Grid */}
       <div
-        className="ag-theme-alpine-dark flex-1 min-h-0 overflow-hidden"
+        className="ag-theme-alpine dark:ag-theme-alpine-dark flex-1 min-h-0 overflow-hidden"
         style={{ width: "100%", height: isFullscreen ? "100%" : "calc(100vh - 200px)" }}
       >
         <style>{`
+          /* Light mode */
+          .ag-theme-alpine {
+            --ag-background-color: #ffffff;
+            --ag-header-background-color: #f8fafc;
+            --ag-odd-row-background-color: #f8fafc;
+            --ag-row-hover-color: #f1f5f9;
+            --ag-border-color: #e2e8f0;
+            --ag-header-foreground-color: #475569;
+            --ag-foreground-color: #1e293b;
+            --ag-secondary-foreground-color: #64748b;
+          }
+          .ag-theme-alpine .ag-row {
+            cursor: pointer;
+          }
+          .ag-theme-alpine .ag-header-cell-resize {
+            pointer-events: auto !important;
+            cursor: col-resize !important;
+            z-index: 1 !important;
+          }
+          .ag-theme-alpine .ag-header {
+            pointer-events: auto !important;
+          }
+          .ag-theme-alpine .ag-column-drop {
+            pointer-events: auto !important;
+          }
+          /* Dark mode */
           .ag-theme-alpine-dark {
             --ag-background-color: #18181b;
             --ag-header-background-color: #27272a;
@@ -991,26 +1750,32 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
         <AgGridReact<TableInfo>
           ref={gridRef}
           theme="legacy"
-          rowData={tables}
+          rowData={mergedTables}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
           autoGroupColumnDef={autoGroupColumnDef}
-          groupDisplayType="groupRows"
-          groupDefaultExpanded={-1}
+          groupDisplayType={reviewMode ? "singleColumn" : "groupRows"}
+          groupDefaultExpanded={reviewMode ? 0 : -1}
           getRowHeight={getRowHeight}
           animateRows={true}
-          rowSelection="multiple"
+          rowSelection={reviewMode ? "single" : "multiple"}
           onRowDoubleClicked={handleRowDoubleClicked}
+          onRowClicked={handleRowClicked}
+          onCellValueChanged={handleCellValueChanged}
           getRowId={getRowId}
           getRowClass={getRowClass}
           quickFilterText={quickFilterText}
           enableRangeSelection={true}
-          suppressRowClickSelection={true}
+          suppressRowClickSelection={!reviewMode}
+          onPasteEnd={handlePasteEnd}
           enableBrowserTooltips={true}
-          rowGroupPanelShow="always"
+          rowGroupPanelShow={reviewMode ? "never" : "always"}
+          singleClickEdit={reviewMode}
+          stopEditingWhenCellsLoseFocus={true}
           getContextMenuItems={() => [
             "copy",
             "copyWithHeaders",
+            "paste",
             "separator",
             "export",
             "separator",
@@ -1046,6 +1811,9 @@ export function DataModelsAgGrid({ dataModelsPath, domainName, onTableSelect }: 
               { statusPanel: "agAggregationComponent", align: "right" },
             ],
           }}
+          pagination={true}
+          paginationPageSize={100}
+          paginationPageSizeSelector={[50, 100, 200, 500]}
         />
       </div>
 

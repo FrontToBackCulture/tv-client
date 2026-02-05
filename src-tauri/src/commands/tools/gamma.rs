@@ -436,6 +436,7 @@ pub async fn gamma_list_folders(
 // ============================================================================
 
 /// Prepare markdown for slides by adding card breaks before headings
+#[allow(dead_code)]
 pub fn prepare_markdown_for_slides(
     markdown: &str,
     split_on_h1: bool,

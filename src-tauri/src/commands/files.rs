@@ -258,18 +258,13 @@ pub async fn read_file_binary(path: String) -> Result<String, String> {
 
 /// Get files in a folder, sorted by modified time (most recent first)
 /// For markdown files, extracts title and summary from frontmatter
-/// If the folder has no direct files (only subdirectories), searches recursively
+/// Always searches recursively to find nested files (e.g., sessions/2026-01-01/notes.md)
 #[command]
 pub async fn get_folder_files(path: String, limit: Option<u32>) -> Result<Vec<FileEntry>, String> {
     let limit = limit.unwrap_or(20) as usize;
 
-    // First, try to get direct files in this folder
-    let mut files = collect_files_in_dir(&path)?;
-
-    // If no direct files found, search recursively through subdirectories
-    if files.is_empty() {
-        files = collect_files_recursive(&path, 3)?; // max depth of 3
-    }
+    // Always search recursively - depth 4 to handle nested structures like sessions/_archive/date/notes.md
+    let mut files = collect_files_recursive(&path, 4)?;
 
     // Sort by modified time (most recent first)
     files.sort_by(|a, b| {
@@ -288,6 +283,7 @@ pub async fn get_folder_files(path: String, limit: Option<u32>) -> Result<Vec<Fi
 }
 
 /// Collect files from a single directory (non-recursive)
+#[allow(dead_code)]
 fn collect_files_in_dir(path: &str) -> Result<Vec<FileEntry>, String> {
     let entries = fs::read_dir(path).map_err(|e| format!("Failed to read directory: {}", e))?;
     let mut files: Vec<FileEntry> = Vec::new();

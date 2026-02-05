@@ -135,7 +135,7 @@ export const useTabStore = create<TabState>()(
       },
     }),
     {
-      name: "tv-desktop-tabs",
+      name: "tv-client-tabs",
       partialize: (state) => ({
         tabs: state.tabs,
         activeTabId: state.activeTabId,

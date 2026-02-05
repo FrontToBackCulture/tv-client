@@ -109,7 +109,8 @@ pub fn tools() -> Vec<Tool> {
                     "milestone_id": { "type": "string", "description": "Milestone UUID" },
                     "depends_on": { "type": "array", "items": { "type": "string" }, "description": "Task IDs this depends on" },
                     "session_ref": { "type": "string", "description": "Session folder path" },
-                    "requires_review": { "type": "boolean", "description": "Requires human review" }
+                    "requires_review": { "type": "boolean", "description": "Requires human review" },
+                    "crm_deal_id": { "type": "string", "description": "CRM deal UUID to link this task to" }
                 }),
                 vec!["project_id".to_string(), "status_id".to_string(), "title".to_string()],
             ),
@@ -129,7 +130,8 @@ pub fn tools() -> Vec<Tool> {
                     "milestone_id": { "type": "string" },
                     "depends_on": { "type": "array", "items": { "type": "string" } },
                     "session_ref": { "type": "string" },
-                    "requires_review": { "type": "boolean" }
+                    "requires_review": { "type": "boolean" },
+                    "crm_deal_id": { "type": "string", "description": "CRM deal UUID to link this task to" }
                 }),
                 vec!["task_id".to_string()],
             ),

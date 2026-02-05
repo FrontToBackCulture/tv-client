@@ -1,5 +1,5 @@
 # Setup script for tv-mcp in Claude Desktop (Windows)
-# Run this after installing tv-desktop
+# Run this after installing tv-client
 # Usage: Right-click and "Run with PowerShell" or run in terminal
 
 Write-Host "=== tv-mcp Setup for Claude Desktop (Windows) ===" -ForegroundColor Cyan
@@ -7,9 +7,9 @@ Write-Host ""
 
 # Determine tv-mcp binary location
 $possiblePaths = @(
-    "$env:LOCALAPPDATA\tv-desktop\tv-mcp.exe",
-    "$env:ProgramFiles\tv-desktop\tv-mcp.exe",
-    "${env:ProgramFiles(x86)}\tv-desktop\tv-mcp.exe",
+    "$env:LOCALAPPDATA\tv-client\tv-mcp.exe",
+    "$env:ProgramFiles\tv-client\tv-mcp.exe",
+    "${env:ProgramFiles(x86)}\tv-client\tv-mcp.exe",
     "$PSScriptRoot\..\src-tauri\target\release\tv-mcp.exe"
 )
 

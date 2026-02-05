@@ -1,4 +1,4 @@
-// Supabase database types for tv-desktop
+// Supabase database types for tv-client
 // Based on tv-app schema
 
 export type Json =
@@ -596,6 +596,7 @@ export interface Database {
           value?: number | null;
           currency?: string;
           stage?:
+            | "target"
             | "prospect"
             | "lead"
             | "qualified"
@@ -626,6 +627,7 @@ export interface Database {
           value?: number | null;
           currency?: string;
           stage?:
+            | "target"
             | "prospect"
             | "lead"
             | "qualified"

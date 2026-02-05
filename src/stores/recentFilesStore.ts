@@ -53,7 +53,7 @@ export const useRecentFilesStore = create<RecentFilesState>()(
       },
     }),
     {
-      name: "tv-desktop-recent-files",
+      name: "tv-client-recent-files",
     }
   )
 );

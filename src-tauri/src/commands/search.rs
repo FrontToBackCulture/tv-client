@@ -156,10 +156,3 @@ pub async fn search_content(
     Ok(results)
 }
 
-/// Build search index for a directory (placeholder for tantivy integration)
-#[command]
-pub async fn index_directory(_root: String) -> Result<(), String> {
-    // TODO: Build tantivy full-text index for faster search
-    // For v1, we use simple search above
-    Ok(())
-}

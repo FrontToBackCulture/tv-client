@@ -17,3 +17,4 @@ pub mod query_health;
 pub mod sql;
 pub mod sql_gen;
 pub mod sync;
+pub mod table_pipeline;

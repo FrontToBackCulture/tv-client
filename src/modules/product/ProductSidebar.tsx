@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Tags,
 } from "lucide-react";
 import type { ProductView, ProductStats } from "../../lib/product/types";
 
@@ -24,7 +25,7 @@ interface ProductSidebarProps {
   onNew: () => void;
 }
 
-const views: { id: ProductView; label: string; icon: typeof Boxes; statsKey: keyof ProductStats }[] = [
+const views: { id: ProductView; label: string; icon: typeof Boxes; statsKey?: keyof ProductStats }[] = [
   { id: "modules", label: "Modules", icon: Boxes, statsKey: "modules" },
   { id: "connectors", label: "Connectors", icon: Plug, statsKey: "connectors" },
   { id: "features", label: "Features", icon: Star, statsKey: "features" },
@@ -32,6 +33,7 @@ const views: { id: ProductView; label: string; icon: typeof Boxes; statsKey: key
   { id: "releases", label: "Releases", icon: Rocket, statsKey: "releases" },
   { id: "deployments", label: "Deployments", icon: Globe, statsKey: "deployments" },
   { id: "domains", label: "Domains", icon: Database, statsKey: "domains" },
+  { id: "category-library", label: "Category Library", icon: Tags },
 ];
 
 const NEW_LABELS: Record<ProductView, string> = {
@@ -42,6 +44,7 @@ const NEW_LABELS: Record<ProductView, string> = {
   releases: "New Release",
   deployments: "New Deployment",
   domains: "Refresh",
+  "category-library": "Scan",
 };
 
 export function ProductSidebar({
@@ -82,7 +85,7 @@ export function ProductSidebar({
           {views.map((view) => {
             const isActive = view.id === activeView;
             const Icon = view.icon;
-            const count = stats?.[view.statsKey] ?? null;
+            const count = view.statsKey ? stats?.[view.statsKey] ?? null : null;
 
             return (
               <button

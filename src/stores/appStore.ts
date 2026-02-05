@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "console" | "settings";
+export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "console" | "system" | "settings";
 export type Theme = "light" | "dark";
 
 // Get initial module from URL query param (for multi-window support)
@@ -10,7 +10,7 @@ function getInitialModule(): ModuleId {
   if (typeof window === "undefined") return "library";
   const params = new URLSearchParams(window.location.search);
   const module = params.get("module") as ModuleId | null;
-  if (module && ["library", "work", "inbox", "crm", "product", "bot", "console", "settings"].includes(module)) {
+  if (module && ["library", "work", "inbox", "crm", "product", "bot", "console", "system", "settings"].includes(module)) {
     return module;
   }
   return "library";
@@ -25,7 +25,7 @@ export function isSecondaryWindow(): boolean {
 // Get initial theme from localStorage or system preference
 function getInitialTheme(): Theme {
   if (typeof window === "undefined") return "dark";
-  const stored = localStorage.getItem("tv-desktop-theme") as Theme | null;
+  const stored = localStorage.getItem("tv-client-theme") as Theme | null;
   if (stored) return stored;
   // Check system preference
   if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -42,7 +42,7 @@ function applyTheme(theme: Theme) {
   } else {
     document.documentElement.classList.remove("dark");
   }
-  localStorage.setItem("tv-desktop-theme", theme);
+  localStorage.setItem("tv-client-theme", theme);
 }
 
 interface AppState {
@@ -100,7 +100,7 @@ export const useAppStore = create<AppState>((set) => ({
 // Sync theme across windows via localStorage storage event
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
-    if (e.key === "tv-desktop-theme" && e.newValue) {
+    if (e.key === "tv-client-theme" && e.newValue) {
       const newTheme = e.newValue as Theme;
       applyTheme(newTheme);
       useAppStore.setState({ theme: newTheme });

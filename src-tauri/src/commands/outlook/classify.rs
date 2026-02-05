@@ -5,6 +5,7 @@ use super::db::EmailDb;
 
 pub struct Classification {
     pub category: String,
+    #[allow(dead_code)]
     pub confidence: f32,
     pub entity_name: Option<String>,
     pub entity_path: Option<String>,

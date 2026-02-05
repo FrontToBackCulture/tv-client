@@ -112,6 +112,7 @@ impl GraphClient {
     }
 
     /// Delta query for incremental sync
+    #[allow(dead_code)]
     pub async fn delta_messages(
         &self,
         delta_link: Option<&str>,

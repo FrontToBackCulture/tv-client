@@ -5,7 +5,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useDiscoverDomains, useSyncAllDomains, useSyncAllDomainsMonitoring, useSyncAllDomainsSod, useSyncAllDomainsImporterErrors, useSyncAllDomainsIntegrationErrors, useRunAllDomainsDataModelHealth, useRunAllDomainsWorkflowHealth, useRunAllDomainsDashboardHealth, useRunAllDomainsQueryHealth, useRunAllDomainsArtifactAudit, useRunAllDomainsOverview, type DiscoveredDomain } from "../../hooks/useValSync";
 import { useRepository } from "../../stores/repositoryStore";
 import { useJobsStore } from "../../stores/jobsStore";
-import { StatusChip } from "./StatusChip";
 import { Loader2, Database, FolderOpen, AlertCircle, RefreshCw, Square, ChevronDown, Zap } from "lucide-react";
 import { cn } from "../../lib/cn";
 
@@ -21,6 +20,27 @@ const TYPE_LABELS: Record<string, string> = {
   demo: "Demo",
   template: "Templates",
 };
+
+/** Format ISO timestamp as relative time (e.g., "2d ago", "3h ago") */
+function formatRelativeTime(isoString: string | null): string {
+  if (!isoString) return "Never";
+
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+
+  const minutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 30) return `${days}d ago`;
+
+  // For older dates, show the date
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 function groupByType(domains: DiscoveredDomain[]): Map<string, DiscoveredDomain[]> {
   const groups = new Map<string, DiscoveredDomain[]>();
@@ -470,8 +490,8 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
       {/* Table header */}
       <div className="flex items-center px-4 py-2 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 text-xs font-medium text-zinc-500 uppercase tracking-wider">
         <span className="flex-1">Domain</span>
-        <span className="w-24 text-center">API</span>
-        <span className="w-28 text-center">Status</span>
+        <span className="w-32 text-center">Last Synced</span>
+        <span className="w-24 text-center">Artifacts</span>
       </div>
 
       {/* Grouped rows */}
@@ -506,18 +526,22 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
                     {domain.global_path.split("/").slice(-2).join("/")}
                   </span>
                 </div>
-                <span className="w-24 text-center">
-                  {domain.has_actual_domain ? (
-                    <StatusChip label="Alias" color="blue" />
+                <span className="w-32 text-center text-xs">
+                  {domain.last_sync ? (
+                    <span className="text-zinc-600 dark:text-zinc-400" title={new Date(domain.last_sync).toLocaleString()}>
+                      {formatRelativeTime(domain.last_sync)}
+                    </span>
                   ) : (
-                    <StatusChip label="Direct" color="gray" />
+                    <span className="text-zinc-400">—</span>
                   )}
                 </span>
-                <span className="w-28 text-center">
-                  {domain.has_metadata ? (
-                    <StatusChip label="Synced" color="green" />
+                <span className="w-24 text-center">
+                  {domain.artifact_count ? (
+                    <span className="text-xs text-zinc-600 dark:text-zinc-400 font-mono">
+                      {domain.artifact_count.toLocaleString()}
+                    </span>
                   ) : (
-                    <StatusChip label="Not synced" color="gray" />
+                    <span className="text-zinc-400">—</span>
                   )}
                 </span>
               </button>

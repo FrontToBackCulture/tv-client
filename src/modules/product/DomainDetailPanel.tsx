@@ -11,6 +11,13 @@ import {
   useValLogin,
   useValSyncAll,
   useValSyncArtifact,
+  useRunTablePipeline,
+  usePrepareTableOverview,
+  useSampleTableData,
+  useAnalyzeTableData,
+  useExtractTableCalcFields,
+  useGenerateTableOverviewMd,
+  useListDomainTables,
   type OutputFileStatus,
 } from "../../hooks/useValSync";
 import { StatusChip } from "./StatusChip";
@@ -31,13 +38,22 @@ import {
   Folder,
   FileText,
   AlertCircle,
+  FileCode,
+  Database,
+  Sparkles,
+  Calculator,
+  FileOutput,
+  ChevronDown,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useJobsStore } from "../../stores/jobsStore";
+import { useSidePanelStore } from "../../stores/sidePanelStore";
 
 interface DomainDetailPanelProps {
   id: string; // domain name
   onClose: () => void;
+  onReviewDataModels?: () => void;
 }
 
 const ARTIFACT_LABELS: Record<string, string> = {
@@ -60,7 +76,7 @@ const EXTRACT_LABELS: Record<string, string> = {
 
 type Tab = "overview" | "files" | "sync" | "history";
 
-export function DomainDetailPanel({ id: domain, onClose }: DomainDetailPanelProps) {
+export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels }: DomainDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [showCredForm, setShowCredForm] = useState(false);
   const [credEmail, setCredEmail] = useState("");
@@ -76,6 +92,15 @@ export function DomainDetailPanel({ id: domain, onClose }: DomainDetailPanelProp
   const syncAllMutation = useValSyncAll();
   const syncArtifactMutation = useValSyncArtifact();
 
+  // Table pipeline mutations
+  const runPipelineMutation = useRunTablePipeline();
+  const prepareOverviewMutation = usePrepareTableOverview();
+  const sampleDataMutation = useSampleTableData();
+  const analyzeDataMutation = useAnalyzeTableData();
+  const extractCalcFieldsMutation = useExtractTableCalcFields();
+  const generateOverviewMdMutation = useGenerateTableOverviewMd();
+  const domainTablesQuery = useListDomainTables(domain);
+
   const auth = authQuery.data;
   const creds = credQuery.data;
   const metadata = statusQuery.data;
@@ -84,6 +109,13 @@ export function DomainDetailPanel({ id: domain, onClose }: DomainDetailPanelProp
   const updateJob = useJobsStore((s) => s.updateJob);
 
   const isSyncing = syncAllMutation.isPending || syncArtifactMutation.isPending;
+  const isPipelineRunning =
+    runPipelineMutation.isPending ||
+    prepareOverviewMutation.isPending ||
+    sampleDataMutation.isPending ||
+    analyzeDataMutation.isPending ||
+    extractCalcFieldsMutation.isPending ||
+    generateOverviewMdMutation.isPending;
 
   const handleLogin = () => {
     const jobId = `val-login-${domain}-${Date.now()}`;
@@ -174,6 +206,88 @@ export function DomainDetailPanel({ id: domain, onClose }: DomainDetailPanelProp
     );
   };
 
+  // Pipeline handlers
+  const [pipelineTableName, setPipelineTableName] = useState("all");
+
+  const handleRunFullPipeline = () => {
+    const jobId = `val-pipeline-${domain}-${Date.now()}`;
+    addJob({
+      id: jobId,
+      name: `Table Pipeline: ${domain}`,
+      status: "running",
+      progress: 0,
+      message: `Running pipeline for ${pipelineTableName === "all" ? "all tables" : pipelineTableName}...`,
+    });
+    runPipelineMutation.mutate(
+      { domain, tableName: pipelineTableName, overwrite: false },
+      {
+        onSuccess: (data) => {
+          updateJob(jobId, {
+            status: data.tables_errored > 0 ? "failed" : "completed",
+            progress: 100,
+            message: `${data.tables_processed} processed, ${data.tables_skipped} skipped, ${data.tables_errored} errors (${(data.total_duration_ms / 1000).toFixed(1)}s)`,
+          });
+          outputStatusQuery.refetch();
+        },
+        onError: (err) => {
+          updateJob(jobId, { status: "failed", message: String(err) });
+        },
+      }
+    );
+  };
+
+  const handlePipelineStep = (
+    step: "prepare" | "sample" | "analyze" | "calc" | "overview",
+    tableName: string
+  ) => {
+    const stepLabels = {
+      prepare: "Prepare Overview",
+      sample: "Sample Data",
+      analyze: "Analyze Data",
+      calc: "Extract Calc Fields",
+      overview: "Generate Overview MD",
+    };
+    const label = stepLabels[step];
+    const jobId = `val-pipeline-${step}-${domain}-${Date.now()}`;
+    addJob({
+      id: jobId,
+      name: `${label}: ${domain}/${tableName}`,
+      status: "running",
+      message: `Running ${label.toLowerCase()}...`,
+    });
+
+    const callbacks = {
+      onSuccess: (data: { status: string; message: string; duration_ms: number }) => {
+        updateJob(jobId, {
+          status: "completed",
+          message: `${data.message} (${(data.duration_ms / 1000).toFixed(1)}s)`,
+        });
+        outputStatusQuery.refetch();
+      },
+      onError: (err: unknown) => {
+        updateJob(jobId, { status: "failed", message: String(err) });
+      },
+    };
+
+    switch (step) {
+      case "prepare":
+        prepareOverviewMutation.mutate({ domain, tableName, overwrite: false, skipSql: false }, callbacks);
+        break;
+      case "sample":
+        sampleDataMutation.mutate({ domain, tableName, overwrite: false }, callbacks);
+        break;
+      case "analyze":
+        analyzeDataMutation.mutate({ domain, tableName, overwrite: false }, callbacks);
+        break;
+      case "calc":
+        extractCalcFieldsMutation.mutate({ domain, tableName, overwrite: false }, callbacks);
+        break;
+      case "overview":
+        generateOverviewMdMutation.mutate({ domain, tableName, overwrite: false }, callbacks);
+        break;
+    }
+  };
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "files", label: "Files" },
@@ -227,6 +341,17 @@ export function DomainDetailPanel({ id: domain, onClose }: DomainDetailPanelProp
       <div className="flex-1 overflow-auto p-4">
         {activeTab === "overview" && (
           <div className="space-y-4">
+            {/* Review Data Models action */}
+            {onReviewDataModels && (
+              <button
+                onClick={onReviewDataModels}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <ClipboardCheck size={16} />
+                Review Data Models
+              </button>
+            )}
+
             {/* Credentials section */}
             <div>
               <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
@@ -508,6 +633,92 @@ export function DomainDetailPanel({ id: domain, onClose }: DomainDetailPanelProp
                 {(syncArtifactMutation.error as Error).message}
               </p>
             )}
+
+            {/* Divider */}
+            <div className="border-t border-slate-200 dark:border-zinc-800 my-4" />
+
+            {/* Table Documentation Pipeline */}
+            <div>
+              <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                Table Documentation Pipeline
+              </label>
+              <p className="text-[10px] text-zinc-400 mt-0.5 mb-2">
+                Generate overview.md files for tables in data_models/
+              </p>
+
+              {/* Table selection dropdown */}
+              <div className="flex gap-2 mb-3">
+                <div className="relative flex-1">
+                  <select
+                    value={pipelineTableName}
+                    onChange={(e) => setPipelineTableName(e.target.value)}
+                    disabled={domainTablesQuery.isLoading}
+                    className="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 appearance-none cursor-pointer pr-8 disabled:opacity-50"
+                  >
+                    <option value="all">All Tables ({domainTablesQuery.data?.length || 0})</option>
+                    {domainTablesQuery.data?.map((table) => (
+                      <option key={table.id} value={table.id}>
+                        {table.display_name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={14}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+                  />
+                </div>
+                <button
+                  onClick={handleRunFullPipeline}
+                  disabled={isPipelineRunning || !pipelineTableName.trim()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded text-sm font-medium transition-colors"
+                >
+                  {runPipelineMutation.isPending ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <FileCode size={14} />
+                  )}
+                  Run Pipeline
+                </button>
+              </div>
+
+              {/* Pipeline result */}
+              {runPipelineMutation.isSuccess && (
+                <PipelineResultView data={runPipelineMutation.data} />
+              )}
+              {runPipelineMutation.isError && (
+                <p className="mb-3 text-xs text-red-500">
+                  {(runPipelineMutation.error as Error).message}
+                </p>
+              )}
+
+              {/* Individual pipeline steps */}
+              <div className="grid grid-cols-1 gap-1.5">
+                {[
+                  { step: "prepare" as const, label: "1. Prepare Overview", icon: Database, desc: "definition_details.json" },
+                  { step: "sample" as const, label: "2. Sample Data", icon: Database, desc: "definition_sample.json" },
+                  { step: "analyze" as const, label: "3. Analyze (AI)", icon: Sparkles, desc: "definition_analysis.json" },
+                  { step: "calc" as const, label: "4. Extract Calc Fields", icon: Calculator, desc: "definition_calculated_fields.json" },
+                  { step: "overview" as const, label: "5. Generate MD", icon: FileOutput, desc: "overview.md" },
+                ].map(({ step, label, icon: Icon, desc }) => (
+                  <button
+                    key={step}
+                    onClick={() => handlePipelineStep(step, pipelineTableName)}
+                    disabled={isPipelineRunning || !pipelineTableName.trim()}
+                    className="flex items-center gap-2 p-2 text-left rounded border border-slate-200 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-900 disabled:opacity-50 transition-colors"
+                  >
+                    <Icon size={14} className="text-purple-500 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm text-zinc-700 dark:text-zinc-300 block">
+                        {label}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-mono">
+                        {desc}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -566,6 +777,12 @@ function timeAgo(iso: string): string {
 
 /** Files tab showing output status grouped by category */
 function FilesTab({ outputs, isLoading }: { outputs: OutputFileStatus[]; isLoading: boolean }) {
+  const { openPanel } = useSidePanelStore();
+
+  function handleOpenFile(output: OutputFileStatus) {
+    if (!output.exists || output.is_folder) return;
+    openPanel(output.path, output.name);
+  }
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -613,12 +830,16 @@ function FilesTab({ outputs, isLoading }: { outputs: OutputFileStatus[]; isLoadi
               {items.map((output) => (
                 <div
                   key={output.relative_path}
+                  onClick={() => handleOpenFile(output)}
                   className={cn(
                     "p-2 rounded border flex items-start gap-2",
-                    output.exists
+                    output.exists && !output.is_folder
+                      ? "border-slate-200 dark:border-zinc-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-900"
+                      : output.exists
                       ? "border-slate-200 dark:border-zinc-800"
                       : "border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-900/10"
                   )}
+                  title={output.exists && !output.is_folder ? "Click to view in side panel" : undefined}
                 >
                   {output.is_folder ? (
                     <Folder size={14} className={cn(
@@ -681,6 +902,80 @@ function FilesTab({ outputs, isLoading }: { outputs: OutputFileStatus[]; isLoadi
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Pipeline result view with generated files */
+function PipelineResultView({ data }: { data: import("../../hooks/useValSync").PipelineRunResult }) {
+  const { openPanel } = useSidePanelStore();
+  const [expanded, setExpanded] = useState(false);
+
+  // Collect all output files from all tables
+  const allFiles = data.results.flatMap((r) => r.output_files);
+  const hasFiles = allFiles.length > 0;
+
+  return (
+    <div className="mb-3 rounded border border-purple-200 dark:border-purple-800/50 bg-purple-500/10 overflow-hidden">
+      {/* Summary header - clickable to expand */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 p-2 text-left hover:bg-purple-500/10 transition-colors"
+      >
+        <CheckCircle2 size={14} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />
+        <span className="text-xs text-purple-600 dark:text-purple-400 flex-1">
+          {data.tables_processed} tables processed, {data.tables_skipped} skipped, {data.tables_errored} errors
+          <span className="text-purple-400 dark:text-purple-500 ml-1">
+            ({(data.total_duration_ms / 1000).toFixed(1)}s)
+          </span>
+        </span>
+        {hasFiles && (
+          <span className="text-[10px] text-purple-500 dark:text-purple-400">
+            {expanded ? "▼" : "▶"} {allFiles.length} files
+          </span>
+        )}
+      </button>
+
+      {/* Expanded file list */}
+      {expanded && hasFiles && (
+        <div className="border-t border-purple-200 dark:border-purple-800/50 p-2 space-y-2">
+          {data.results.filter((r) => r.output_files.length > 0).map((result) => (
+            <div key={result.table_name}>
+              <div className="text-[10px] font-medium text-purple-600 dark:text-purple-400 mb-1">
+                {result.table_name}
+              </div>
+              <div className="space-y-0.5">
+                {result.output_files.map((filePath) => {
+                  const fileName = filePath.split("/").pop() || filePath;
+                  const isOverview = fileName === "overview.md";
+                  return (
+                    <button
+                      key={filePath}
+                      onClick={() => openPanel(filePath, fileName)}
+                      className={cn(
+                        "w-full flex items-center gap-1.5 px-2 py-1 text-left rounded text-xs transition-colors",
+                        isOverview
+                          ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                          : "text-zinc-600 dark:text-zinc-400 hover:bg-purple-100 dark:hover:bg-purple-900/20"
+                      )}
+                    >
+                      {isOverview ? (
+                        <FileOutput size={12} className="flex-shrink-0" />
+                      ) : (
+                        <FileCode size={12} className="flex-shrink-0" />
+                      )}
+                      <span className="truncate font-mono">{fileName}</span>
+                      {isOverview && (
+                        <span className="ml-auto text-[9px] opacity-70">View</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

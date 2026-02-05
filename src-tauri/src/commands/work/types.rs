@@ -168,6 +168,9 @@ pub struct Task {
     // Notion sync
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notion_page_id: Option<String>,
+    // CRM link
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crm_deal_id: Option<String>,
     // Nested data (from joins)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project: Option<Box<Project>>,
@@ -200,6 +203,8 @@ pub struct CreateTask {
     pub session_ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires_review: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crm_deal_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -226,6 +231,8 @@ pub struct UpdateTask {
     pub requires_review: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_order: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crm_deal_id: Option<String>,
 }
 
 // ============================================================================

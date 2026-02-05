@@ -24,6 +24,10 @@ export interface DiscoveredDomain {
   global_path: string;
   has_metadata: boolean;
   has_actual_domain: boolean;
+  /** ISO timestamp of the most recent sync operation */
+  last_sync: string | null;
+  /** Count of total artifacts synced */
+  artifact_count: number | null;
 }
 
 export interface AuthResult {
@@ -1646,5 +1650,375 @@ export function useValGenerateSql() {
   return useMutation({
     mutationFn: ({ domain, prompt }: { domain: string; prompt: string }) =>
       invoke<SqlGenerateResult>("val_generate_sql", { domain, prompt }),
+  });
+}
+
+// ============================================================
+// Table Pipeline (generate overview.md)
+// ============================================================
+
+export interface TablePipelineResult {
+  domain: string;
+  table_name: string;
+  step: string;
+  status: string;
+  file_path: string | null;
+  message: string;
+  duration_ms: number;
+}
+
+export interface TablePipelineStepResult {
+  table_name: string;
+  status: string;
+  steps: Record<string, string>;
+  error: string | null;
+  output_folder: string | null;
+  output_files: string[];
+}
+
+export interface PipelineRunResult {
+  domain: string;
+  tables_processed: number;
+  tables_skipped: number;
+  tables_errored: number;
+  results: TablePipelineStepResult[];
+  total_duration_ms: number;
+}
+
+/** Step 1: Prepare table overview (definition_details.json) */
+export function usePrepareTableOverview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      domain,
+      tableName,
+      overwrite = false,
+      skipSql = false,
+      freshnessColumn,
+    }: {
+      domain: string;
+      tableName: string;
+      overwrite?: boolean;
+      skipSql?: boolean;
+      freshnessColumn?: string;
+    }) =>
+      invoke<TablePipelineResult>("val_prepare_table_overview", {
+        domain,
+        tableName,
+        overwrite,
+        skipSql,
+        freshnessColumn: freshnessColumn ?? null,
+      }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+    },
+  });
+}
+
+/** Step 2: Sample table data (definition_sample.json) */
+export function useSampleTableData() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      domain,
+      tableName,
+      rowCount = 20,
+      orderBy,
+      overwrite = false,
+    }: {
+      domain: string;
+      tableName: string;
+      rowCount?: number;
+      orderBy?: string;
+      overwrite?: boolean;
+    }) =>
+      invoke<TablePipelineResult>("val_sample_table_data", {
+        domain,
+        tableName,
+        rowCount,
+        orderBy: orderBy ?? null,
+        overwrite,
+      }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+    },
+  });
+}
+
+/** Step 2b: Fetch categorical values from full table (definition_categorical.json) */
+export function useFetchCategoricalValues() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      domain,
+      tableName,
+      overwrite = false,
+    }: {
+      domain: string;
+      tableName: string;
+      overwrite?: boolean;
+    }) =>
+      invoke<TablePipelineResult>("val_fetch_categorical_values", {
+        domain,
+        tableName,
+        overwrite,
+      }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+    },
+  });
+}
+
+/** Step 3: Analyze table data with AI (definition_analysis.json) */
+export function useAnalyzeTableData() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      domain,
+      tableName,
+      overwrite = false,
+    }: {
+      domain: string;
+      tableName: string;
+      overwrite?: boolean;
+    }) =>
+      invoke<TablePipelineResult>("val_analyze_table_data", {
+        domain,
+        tableName,
+        overwrite,
+      }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+    },
+  });
+}
+
+/** Step 4: Extract table calculated fields (definition_calculated_fields.json) */
+export function useExtractTableCalcFields() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      domain,
+      tableName,
+      overwrite = false,
+    }: {
+      domain: string;
+      tableName: string;
+      overwrite?: boolean;
+    }) =>
+      invoke<TablePipelineResult>("val_extract_table_calc_fields", {
+        domain,
+        tableName,
+        overwrite,
+      }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+    },
+  });
+}
+
+/** Step 5: Generate table overview markdown (overview.md) */
+export function useGenerateTableOverviewMd() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      domain,
+      tableName,
+      overwrite = false,
+    }: {
+      domain: string;
+      tableName: string;
+      overwrite?: boolean;
+    }) =>
+      invoke<TablePipelineResult>("val_generate_table_overview_md", {
+        domain,
+        tableName,
+        overwrite,
+      }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+    },
+  });
+}
+
+/** Run full table pipeline (all 5 steps) */
+export function useRunTablePipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      domain,
+      tableName,
+      overwrite = false,
+      skipSteps,
+    }: {
+      domain: string;
+      tableName: string;
+      overwrite?: boolean;
+      skipSteps?: string;
+    }) =>
+      invoke<PipelineRunResult>("val_run_table_pipeline", {
+        domain,
+        tableName,
+        overwrite,
+        skipSteps: skipSteps ?? null,
+      }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+    },
+  });
+}
+
+/** Table info with ID and display name */
+export interface TableInfo {
+  id: string;
+  display_name: string;
+}
+
+/** List available tables in a domain's data_models folder */
+export function useListDomainTables(domain: string | undefined) {
+  return useQuery({
+    queryKey: ["val-domain-tables", domain],
+    queryFn: () => invoke<TableInfo[]>("val_list_domain_tables", { domain: domain! }),
+    enabled: !!domain,
+    staleTime: 60_000, // Cache for 1 minute
+  });
+}
+
+/** Run table pipeline for all domains sequentially with job tracking */
+export function useRunAllDomainsTablePipeline() {
+  const addJob = useJobsStore((s) => s.addJob);
+  const updateJob = useJobsStore((s) => s.updateJob);
+  const qc = useQueryClient();
+  const [progress, setProgress] = useState<SyncAllDomainsProgress | null>(null);
+  const abortRef = useRef(false);
+
+  const trigger = useCallback(
+    async (
+      domains: string[],
+      options?: { overwrite?: boolean; skipSteps?: string }
+    ) => {
+      if (progress?.isRunning) return;
+      abortRef.current = false;
+
+      const jobId = `val-table-pipeline-${Date.now()}`;
+      const total = domains.length;
+      const completed: string[] = [];
+      const failed: string[] = [];
+
+      addJob({
+        id: jobId,
+        name: `Table Pipeline (${total})`,
+        status: "running",
+        progress: 0,
+        message: `Starting table pipeline for ${total} domains...`,
+      });
+
+      setProgress({
+        current: 0,
+        total,
+        currentDomain: "",
+        completed: [],
+        failed: [],
+        isRunning: true,
+      });
+
+      for (let i = 0; i < domains.length; i++) {
+        if (abortRef.current) {
+          updateJob(jobId, {
+            status: "failed",
+            progress: Math.round((i / total) * 100),
+            message: `Aborted after ${completed.length} completed, ${failed.length} failed`,
+          });
+          setProgress((p) => (p ? { ...p, isRunning: false } : null));
+          return;
+        }
+
+        const domain = domains[i];
+        updateJob(jobId, {
+          progress: Math.round((i / total) * 100),
+          message: `[${i + 1}/${total}] Running pipeline for ${domain}...`,
+        });
+        setProgress({
+          current: i + 1,
+          total,
+          currentDomain: domain,
+          completed: [...completed],
+          failed: [...failed],
+          isRunning: true,
+        });
+
+        try {
+          await invoke<PipelineRunResult>("val_run_table_pipeline", {
+            domain,
+            tableName: "all",
+            overwrite: options?.overwrite ?? false,
+            skipSteps: options?.skipSteps ?? null,
+          });
+          completed.push(domain);
+          qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+        } catch {
+          failed.push(domain);
+        }
+      }
+
+      const finalMsg =
+        failed.length > 0
+          ? `Done: ${completed.length} processed, ${failed.length} failed (${failed.join(", ")})`
+          : `Done: ${completed.length}/${total} domains processed`;
+
+      updateJob(jobId, {
+        status: failed.length === total ? "failed" : "completed",
+        progress: 100,
+        message: finalMsg,
+      });
+
+      setProgress({
+        current: total,
+        total,
+        currentDomain: "",
+        completed,
+        failed,
+        isRunning: false,
+      });
+    },
+    [addJob, updateJob, qc, progress?.isRunning]
+  );
+
+  const abort = useCallback(() => {
+    abortRef.current = true;
+  }, []);
+
+  return { trigger, abort, progress };
+}
+
+// ============================================================================
+// Category Library
+// ============================================================================
+
+/** Category entry with value, count, and domains */
+export interface CategoryEntry {
+  value: string;
+  count: number;
+  domains: string[];
+}
+
+/** Category library result from scanning all definition_analysis.json files */
+export interface CategoryLibrary {
+  data_types: CategoryEntry[];
+  data_categories: CategoryEntry[];
+  data_sub_categories: CategoryEntry[];
+  usage_statuses: CategoryEntry[];
+  actions: CategoryEntry[];
+  data_sources: CategoryEntry[];
+  total_tables_scanned: number;
+  domains_scanned: string[];
+}
+
+/** Scan all definition_analysis.json files to extract unique category values */
+export function useScanCategoryLibrary() {
+  return useQuery({
+    queryKey: ["val-category-library"],
+    queryFn: () => invoke<CategoryLibrary>("val_scan_category_library"),
+    staleTime: 5 * 60_000, // Cache for 5 minutes
   });
 }

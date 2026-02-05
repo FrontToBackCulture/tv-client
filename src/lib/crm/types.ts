@@ -1,4 +1,4 @@
-// CRM module types for tv-desktop
+// CRM module types for tv-client
 import type { Database } from "../supabase-types";
 
 // Base types from database
@@ -175,6 +175,18 @@ export const DEAL_SOLUTIONS = [
     label: "Data Extraction",
     color: "orange",
     icon: "file-search",
+  },
+  {
+    value: "events_ai" as const,
+    label: "Events AI",
+    color: "pink",
+    icon: "calendar-days",
+  },
+  {
+    value: "general" as const,
+    label: "General",
+    color: "gray",
+    icon: "folder-open",
   },
   { value: "other" as const, label: "Other", color: "slate", icon: "folder" },
 ];

@@ -162,6 +162,7 @@ impl EmailDb {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn delete_email(&self, id: &str) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
         conn.execute("DELETE FROM emails WHERE id = ?1", params![id])
@@ -257,6 +258,7 @@ impl EmailDb {
         Ok(emails)
     }
 
+    #[allow(dead_code)]
     pub fn email_exists(&self, id: &str) -> Result<bool, String> {
         let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
         let count: i64 = conn
@@ -299,6 +301,7 @@ impl EmailDb {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn set_ai_summary(&self, id: &str, summary: &str) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
         conn.execute(
@@ -434,6 +437,7 @@ impl EmailDb {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn get_contacts(&self) -> Result<Vec<ContactRule>, String> {
         let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
         let mut stmt = conn

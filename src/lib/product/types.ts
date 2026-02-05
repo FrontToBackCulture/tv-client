@@ -1,4 +1,4 @@
-// Product module types for tv-desktop
+// Product module types for tv-client
 import type { Database } from "../supabase-types";
 
 // ============================================================
@@ -252,7 +252,7 @@ export interface ActivityFilters {
 // View types
 // ============================================================
 
-export type ProductView = "modules" | "connectors" | "features" | "solutions" | "releases" | "deployments" | "domains";
+export type ProductView = "modules" | "connectors" | "features" | "solutions" | "releases" | "deployments" | "domains" | "category-library";
 
 export interface ProductStats {
   modules: number;

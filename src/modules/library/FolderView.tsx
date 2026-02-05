@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
-import { FileText, FileCode, FileJson, Image, Loader2, FolderOpen, MessageCircle, Files, BarChart3, GitBranch, Clock, Activity, X, Database, Workflow, Eye, TableProperties } from "lucide-react";
+import { FileText, FileCode, FileJson, Image, Loader2, FolderOpen, MessageCircle, Files, BarChart3, GitBranch, Clock, Activity, X, Database, Workflow, Eye, TableProperties, ClipboardCheck } from "lucide-react";
 import { useFolderFiles, useFolderEntries, FolderFile, FolderEntry } from "../../hooks/useFolderFiles";
 import { useFavorites } from "../../hooks/useFavorites";
 import { Breadcrumbs } from "./Breadcrumbs";
@@ -16,6 +16,7 @@ import { DomainHealth } from "./DomainHealth";
 import { DomainSchedule } from "./DomainSchedule";
 import { DomainLineage } from "./DomainLineage";
 import { DataModelsAgGrid } from "./DataModelsAgGrid";
+import { DataModelsReviewView } from "./DataModelsReviewView";
 import { TableDetails } from "./TableDetails";
 import { WorkflowsList } from "./WorkflowsList";
 import { WorkflowDetails } from "./WorkflowDetails";
@@ -58,6 +59,7 @@ type ViewMode =
   | "sod-status"
   // Artifact list viewers
   | "tables-list"
+  | "tables-review"
   | "workflows-list"
   | "dashboards-list"
   | "queries-list"
@@ -623,7 +625,7 @@ export function FolderView({
             )}
 
             {/* Data models viewer tabs */}
-            {(viewMode === "tables-list" || folderType === "data-models") && viewMode !== "files" && viewMode !== "chat" && (
+            {(viewMode === "tables-list" || viewMode === "tables-review" || folderType === "data-models") && viewMode !== "files" && viewMode !== "chat" && (
               <>
                 <div className="w-px h-4 bg-zinc-700 mx-1" />
                 <button
@@ -637,6 +639,18 @@ export function FolderView({
                   title="Tables List"
                 >
                   <Database size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("tables-review")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    viewMode === "tables-review"
+                      ? "bg-teal-600 text-white"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                  title="Review Mode"
+                >
+                  <ClipboardCheck size={14} />
                 </button>
                 <button
                   onClick={() => setViewMode("files")}
@@ -993,6 +1007,14 @@ export function FolderView({
         <ValUsage domainPath={path} domainName={domainName} />
       ) : viewMode === "tables-list" ? (
         <DataModelsAgGrid
+          dataModelsPath={path}
+          domainName={domainName}
+          onTableSelect={(tablePath) => {
+            onNavigate(tablePath);
+          }}
+        />
+      ) : viewMode === "tables-review" ? (
+        <DataModelsReviewView
           dataModelsPath={path}
           domainName={domainName}
           onTableSelect={(tablePath) => {

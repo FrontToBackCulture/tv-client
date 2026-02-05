@@ -131,6 +131,7 @@ pub struct GraphTokenResponse {
     pub refresh_token: Option<String>,
     pub expires_in: u64,
     pub scope: Option<String>,
+    #[allow(dead_code)]
     pub token_type: Option<String>,
     pub error: Option<String>,
     pub error_description: Option<String>,
@@ -142,6 +143,7 @@ pub struct GraphMessageList {
     #[serde(rename = "@odata.nextLink")]
     pub next_link: Option<String>,
     #[serde(rename = "@odata.deltaLink")]
+    #[allow(dead_code)]
     pub delta_link: Option<String>,
 }
 
@@ -168,8 +170,10 @@ pub struct GraphMessage {
     pub body: Option<GraphBody>,
     #[serde(rename = "parentFolderId")]
     pub parent_folder_id: Option<String>,
+    #[allow(dead_code)]
     pub categories: Option<Vec<String>>,
     #[serde(rename = "@removed")]
+    #[allow(dead_code)]
     pub removed: Option<serde_json::Value>,
 }
 
@@ -188,6 +192,7 @@ pub struct GraphEmailAddress {
 #[derive(Debug, Deserialize)]
 pub struct GraphBody {
     #[serde(rename = "contentType")]
+    #[allow(dead_code)]
     pub content_type: Option<String>,
     pub content: Option<String>,
 }
@@ -207,6 +212,7 @@ pub struct GraphFolder {
 pub struct GraphFolderList {
     pub value: Vec<GraphFolder>,
     #[serde(rename = "@odata.nextLink")]
+    #[allow(dead_code)]
     pub next_link: Option<String>,
 }
 
@@ -216,5 +222,6 @@ pub struct GraphUserProfile {
     #[serde(rename = "userPrincipalName")]
     pub user_principal_name: Option<String>,
     #[serde(rename = "displayName")]
+    #[allow(dead_code)]
     pub display_name: Option<String>,
 }

@@ -15,7 +15,7 @@
 //   ./tv-mcp --http
 //   curl -X POST http://localhost:23816/mcp -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 
-use tv_desktop::mcp;
+use tv_client::mcp;
 
 #[tokio::main]
 async fn main() {

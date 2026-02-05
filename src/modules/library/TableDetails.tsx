@@ -233,6 +233,7 @@ export function TableDetails({ tablePath, tableName }: TableDetailsProps) {
             Sample Data
           </TabButton>
           <TabButton active={activeTab === "analysis"} onClick={() => setActiveTab("analysis")} disabled={!analysis}>
+            <Sparkles size={12} className="mr-1 inline" />
             AI Analysis
           </TabButton>
           <TabButton active={activeTab === "sources"} onClick={() => setActiveTab("sources")}>

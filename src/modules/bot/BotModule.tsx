@@ -17,6 +17,10 @@ import {
   FolderOpen,
   Terminal as TerminalIcon,
   Zap,
+  Sparkles,
+  Folder,
+  BookOpen,
+  FileCode,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueries } from "@tanstack/react-query";
@@ -140,6 +144,8 @@ const BOT_ALIASES: Record<string, string> = {
   "sales creative": "bot-corp-designer",
   "bot-sales-creative": "bot-corp-designer",
   "bot-tools-developer": "bot-eng-developer",
+  "mel": "bot-mel",
+  "bot-mel": "bot-mel",
 };
 
 // Find the best matching current bot for a session bot name
@@ -245,7 +251,7 @@ const groupOrder = [
   "acct",
 ];
 
-type MainView = "config" | "sessions" | "permissions" | "commands";
+type MainView = "config" | "sessions" | "permissions" | "commands" | "skills";
 
 interface BotPermissions {
   additionalDirectories: string[];
@@ -1027,11 +1033,17 @@ export function BotModule() {
     }
   }, [claudeMdPath, claudeContent]);
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (claudeSaveTimeoutRef.current) {
         clearTimeout(claudeSaveTimeoutRef.current);
+      }
+      if (commandSaveTimeoutRef.current) {
+        clearTimeout(commandSaveTimeoutRef.current);
+      }
+      if (skillSaveTimeoutRef.current) {
+        clearTimeout(skillSaveTimeoutRef.current);
       }
     };
   }, []);
@@ -1109,6 +1121,146 @@ export function BotModule() {
   const { data: commandContent, isLoading: loadingCommand } = useReadFile(
     selectedCommand || undefined
   );
+
+  // Auto-save state for command editing
+  const [commandSaveStatus, setCommandSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
+  const commandSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const commandLastSavedRef = useRef<string>("");
+
+  // Reset command save state when selected command changes
+  useEffect(() => {
+    setCommandSaveStatus("saved");
+    commandLastSavedRef.current = commandContent || "";
+    if (commandSaveTimeoutRef.current) {
+      clearTimeout(commandSaveTimeoutRef.current);
+    }
+  }, [selectedCommand, commandContent]);
+
+  const saveCommandContent = useCallback(async (contentToSave: string) => {
+    if (!selectedCommand || contentToSave === commandLastSavedRef.current) return;
+    setCommandSaveStatus("saving");
+    try {
+      await invoke("write_file", { path: selectedCommand, content: contentToSave });
+      commandLastSavedRef.current = contentToSave;
+      setCommandSaveStatus("saved");
+    } catch {
+      setCommandSaveStatus("unsaved");
+    }
+  }, [selectedCommand]);
+
+  const handleCommandContentChange = useCallback((newContent: string) => {
+    if (commandSaveTimeoutRef.current) {
+      clearTimeout(commandSaveTimeoutRef.current);
+    }
+    if (newContent !== commandLastSavedRef.current) {
+      setCommandSaveStatus("unsaved");
+    }
+    commandSaveTimeoutRef.current = setTimeout(() => {
+      saveCommandContent(newContent);
+    }, 1000);
+  }, [saveCommandContent]);
+
+  // ── Skills ──────────────────────────────────────
+  const skillsDir = selectedPath ? `${selectedPath}/skills` : undefined;
+  const { data: skillEntries = [] } = useListDirectory(skillsDir);
+
+  const skillFolders = useMemo(
+    () =>
+      skillEntries
+        .filter((e) => e.is_directory)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [skillEntries]
+  );
+
+  // Batch-read skill SKILL.md files to extract summaries
+  const skillContentQueries = useQueries({
+    queries: skillFolders.map((f) => ({
+      queryKey: ["file", `${f.path}/SKILL.md`],
+      queryFn: () => invoke<string>("read_file", { path: `${f.path}/SKILL.md` }),
+      staleTime: 10 * 60 * 1000,
+    })),
+  });
+
+  // Read skill subfolders (templates, playbooks, etc.)
+  const skillSubfolderQueries = useQueries({
+    queries: skillFolders.map((f) => ({
+      queryKey: ["dir", f.path],
+      queryFn: () => invoke<{ name: string; path: string; is_directory: boolean }[]>("list_directory", { path: f.path }),
+      staleTime: 10 * 60 * 1000,
+    })),
+  });
+
+  const skillList = useMemo(() => {
+    return skillFolders.map((f, i) => {
+      const content = skillContentQueries[i]?.data;
+      const subfolders = skillSubfolderQueries[i]?.data || [];
+      // Parse title from first # heading
+      const titleMatch = content?.match(/^#\s+(.+)$/m);
+      // Parse summary from frontmatter or first paragraph
+      const summaryMatch = content?.match(/^summary:\s*"?([^"\n]+)"?/m) ||
+        content?.match(/^>\s*(.+)$/m);
+      // Count subfolders (excluding SKILL.md)
+      const subfoldersFiltered = subfolders.filter(
+        (s) => s.is_directory && !s.name.startsWith(".")
+      );
+      return {
+        name: f.name,
+        title: titleMatch?.[1] || f.name,
+        summary: summaryMatch?.[1]?.trim() || "",
+        path: f.path,
+        skillMdPath: `${f.path}/SKILL.md`,
+        subfolders: subfoldersFiltered,
+        hasContent: !!content,
+      };
+    });
+  }, [skillFolders, skillContentQueries, skillSubfolderQueries]);
+
+  // Selected skill for detail view
+  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
+  const { data: skillContent, isLoading: loadingSkill } = useReadFile(
+    selectedSkill || undefined
+  );
+
+  // Get selected skill's subfolders for detail view
+  const selectedSkillData = skillList.find((s) => s.skillMdPath === selectedSkill);
+
+  // Auto-save state for skill editing
+  const [skillSaveStatus, setSkillSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
+  const skillSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const skillLastSavedRef = useRef<string>("");
+
+  // Reset skill save state when selected skill changes
+  useEffect(() => {
+    setSkillSaveStatus("saved");
+    skillLastSavedRef.current = skillContent || "";
+    if (skillSaveTimeoutRef.current) {
+      clearTimeout(skillSaveTimeoutRef.current);
+    }
+  }, [selectedSkill, skillContent]);
+
+  const saveSkillContent = useCallback(async (contentToSave: string) => {
+    if (!selectedSkill || contentToSave === skillLastSavedRef.current) return;
+    setSkillSaveStatus("saving");
+    try {
+      await invoke("write_file", { path: selectedSkill, content: contentToSave });
+      skillLastSavedRef.current = contentToSave;
+      setSkillSaveStatus("saved");
+    } catch {
+      setSkillSaveStatus("unsaved");
+    }
+  }, [selectedSkill]);
+
+  const handleSkillContentChange = useCallback((newContent: string) => {
+    if (skillSaveTimeoutRef.current) {
+      clearTimeout(skillSaveTimeoutRef.current);
+    }
+    if (newContent !== skillLastSavedRef.current) {
+      setSkillSaveStatus("unsaved");
+    }
+    skillSaveTimeoutRef.current = setTimeout(() => {
+      saveSkillContent(newContent);
+    }, 1000);
+  }, [saveSkillContent]);
 
   // ── Permissions ─────────────────────────────────────
   // Read from three sources: team settings.json, bot settings.json, bot settings.local.json
@@ -1195,46 +1347,25 @@ export function BotModule() {
     [sessionFiles]
   );
 
-  // Batch-read session contents to map each session → bots referenced
-  const sessionContentQueries = useQueries({
-    queries: sessions.map((s) => ({
-      queryKey: ["file", s.file.path],
-      queryFn: () => invoke<string>("read_file", { path: s.file.path }),
-      staleTime: 10 * 60 * 1000,
-    })),
-  });
-
-  // Map session path → set of matched bot dirPaths
-  const sessionBotMap = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    sessions.forEach((s, i) => {
-      const content = sessionContentQueries[i]?.data;
-      if (!content) return;
-      const parsed = parseBotSections(content);
-      const matchedPaths = new Set<string>();
-      for (const p of parsed) {
-        const matched = findBestMatchBot(p.bot, allBots);
-        if (matched) matchedPaths.add(matched.dirPath);
-      }
-      map.set(s.file.path, matchedPaths);
-    });
-    return map;
-  }, [sessions, sessionContentQueries, allBots]);
-
-  // Filter sessions by selected bot
-  // Summaries (weekly/monthly) always show — they're cross-bot context
-  const filteredSessions = useMemo(() => {
-    if (!selectedPath) return sessions;
-    return sessions.filter((s) => {
-      if (s.type !== "daily") return true;
-      const botPaths = sessionBotMap.get(s.file.path);
-      return botPaths?.has(selectedPath);
-    });
-  }, [sessions, selectedPath, sessionBotMap]);
+  // Sessions sorted by date descending (newest first)
+  const sortedSessions = useMemo(() => {
+    return [...sessions].sort((a, b) => b.date.localeCompare(a.date));
+  }, [sessions]);
 
   // View state
-  const [mainView, setMainView] = useState<MainView>("config");
+  const [mainView, setMainView] = useState<MainView>("sessions");
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
+
+  // When switching between Sessions and Bot views, update mainView appropriately
+  useEffect(() => {
+    if (selectedPath && mainView === "sessions") {
+      // Switched to a bot - go to config view
+      setMainView("config");
+    } else if (!selectedPath && mainView !== "sessions") {
+      // Switched to sessions - go to sessions view
+      setMainView("sessions");
+    }
+  }, [selectedPath, mainView]);
 
   // Read selected session content
   const { data: sessionContent, isLoading: loadingSession } =
@@ -1278,6 +1409,32 @@ export function BotModule() {
         </div>
 
         <div className="flex-1 overflow-y-auto py-1">
+          {/* Sessions - always visible at top */}
+          <button
+            onClick={() => {
+              setSelectedPath(null);
+              setMainView("sessions");
+              setSelectedSession(null);
+              setSelectedCommand(null);
+              setSelectedSkill(null);
+            }}
+            className={cn(
+              "w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2",
+              "hover:bg-slate-100 dark:hover:bg-zinc-800/60",
+              !selectedPath
+                ? "bg-slate-100 dark:bg-zinc-800 text-teal-700 dark:text-teal-400 font-medium"
+                : "text-zinc-700 dark:text-zinc-300"
+            )}
+          >
+            <Clock size={14} />
+            Sessions
+            {sessions.length > 0 && (
+              <span className="text-xs text-zinc-400 ml-auto">{sessions.length}</span>
+            )}
+          </button>
+
+          <div className="h-px bg-slate-200 dark:bg-zinc-800 my-2 mx-3" />
+
           {!teamPath ? (
             <div className="px-3 py-8 text-center text-sm text-zinc-400">
               <p>No bots path configured</p>
@@ -1314,6 +1471,7 @@ export function BotModule() {
                       setSelectedPath(bot.dirPath);
                       setSelectedSession(null);
                       setSelectedCommand(null);
+                      setSelectedSkill(null);
                     }}
                     className={cn(
                       "w-full text-left px-3 py-1.5 text-sm transition-colors",
@@ -1334,80 +1492,96 @@ export function BotModule() {
 
       {/* ── Main content ───────────────────────── */}
       <div className="flex-1 overflow-hidden flex flex-col min-w-0">
-        {/* Tab bar */}
+        {/* Tab bar - different tabs for Sessions view vs Bot view */}
         <div className="flex items-center border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">
-          <button
-            onClick={() => {
-              setMainView("config");
-              setSelectedSession(null);
-            }}
-            className={cn(
-              "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
-              mainView === "config"
-                ? "border-teal-600 text-teal-700 dark:text-teal-400"
-                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            )}
-          >
-            Config
-          </button>
-          <button
-            onClick={() => {
-              setMainView("sessions");
-              setSelectedSession(null);
-            }}
-            className={cn(
-              "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5",
-              mainView === "sessions"
-                ? "border-teal-600 text-teal-700 dark:text-teal-400"
-                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            )}
-          >
-            <Clock size={14} />
-            Sessions
-            {filteredSessions.length > 0 && (
-              <span className="text-xs text-zinc-400 ml-0.5">
-                {filteredSessions.length}
-              </span>
-            )}
-          </button>
+          {!selectedPath ? (
+            /* Sessions mode - no tabs, just header */
+            <div className="px-4 py-2.5 text-sm font-medium text-teal-700 dark:text-teal-400 flex items-center gap-1.5">
+              <Clock size={14} />
+              All Sessions
+              {sessions.length > 0 && (
+                <span className="text-xs text-zinc-400 ml-0.5">{sessions.length}</span>
+              )}
+            </div>
+          ) : (
+            /* Bot mode - Config, Permissions, Commands tabs */
+            <>
+              <button
+                onClick={() => {
+                  setMainView("config");
+                  setSelectedSession(null);
+                }}
+                className={cn(
+                  "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
+                  mainView === "config"
+                    ? "border-teal-600 text-teal-700 dark:text-teal-400"
+                    : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                )}
+              >
+                Config
+              </button>
 
-          <button
-            onClick={() => {
-              setMainView("permissions");
-              setSelectedSession(null);
-            }}
-            className={cn(
-              "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5",
-              mainView === "permissions"
-                ? "border-teal-600 text-teal-700 dark:text-teal-400"
-                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            )}
-          >
-            <Shield size={14} />
-            Permissions
-          </button>
+              <button
+                onClick={() => {
+                  setMainView("permissions");
+                  setSelectedSession(null);
+                }}
+                className={cn(
+                  "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5",
+                  mainView === "permissions"
+                    ? "border-teal-600 text-teal-700 dark:text-teal-400"
+                    : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                )}
+              >
+                <Shield size={14} />
+                Permissions
+              </button>
 
-          <button
-            onClick={() => {
-              setMainView("commands");
-              setSelectedSession(null);
-              setSelectedCommand(null);
-            }}
-            className={cn(
-              "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5",
-              mainView === "commands"
-                ? "border-teal-600 text-teal-700 dark:text-teal-400"
-                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            )}
-          >
-            <Zap size={14} />
-            Commands
-            {commandList.length > 0 && (
-              <span className="text-xs text-zinc-400 ml-0.5">
-                {commandList.length}
-              </span>
-            )}
-          </button>
+              <button
+                onClick={() => {
+                  setMainView("commands");
+                  setSelectedSession(null);
+                  setSelectedCommand(null);
+                }}
+                className={cn(
+                  "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5",
+                  mainView === "commands"
+                    ? "border-teal-600 text-teal-700 dark:text-teal-400"
+                    : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                )}
+              >
+                <Zap size={14} />
+                Commands
+                {commandList.length > 0 && (
+                  <span className="text-xs text-zinc-400 ml-0.5">
+                    {commandList.length}
+                  </span>
+                )}
+              </button>
+
+              {skillList.length > 0 && (
+                <button
+                  onClick={() => {
+                    setMainView("skills");
+                    setSelectedSession(null);
+                    setSelectedSkill(null);
+                  }}
+                  className={cn(
+                    "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5",
+                    mainView === "skills"
+                      ? "border-teal-600 text-teal-700 dark:text-teal-400"
+                      : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  )}
+                >
+                  <Sparkles size={14} />
+                  Skills
+                  <span className="text-xs text-zinc-400 ml-0.5">
+                    {skillList.length}
+                  </span>
+                </button>
+              )}
+            </>
+          )}
 
           {/* Show selected bot name or file path in tab bar */}
           {mainView === "config" && selectedBot && (
@@ -1490,53 +1664,22 @@ export function BotModule() {
               <div className="flex items-center justify-center py-16">
                 <Loader2 size={24} className="animate-spin text-zinc-400" />
               </div>
-            ) : filteredSessions.length === 0 ? (
+            ) : sortedSessions.length === 0 ? (
               <div className="flex items-center justify-center h-full text-zinc-400">
                 <div className="text-center">
                   <Clock size={32} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">
-                    {selectedBot
-                      ? `No sessions found for ${formatBotName(selectedBot.name)}`
-                      : "No sessions found"}
-                  </p>
-                  {selectedBot && sessions.length > 0 && (
-                    <button
-                      onClick={() => setSelectedPath(null)}
-                      className="text-xs mt-2 text-teal-600 dark:text-teal-400 hover:underline"
-                    >
-                      Show all sessions
-                    </button>
-                  )}
+                  <p className="text-sm">No sessions found</p>
                 </div>
               </div>
             ) : (
               <div className="max-w-2xl mx-auto px-6 py-4">
-                {/* Filtering indicator */}
-                {selectedBot && (
-                  <div className="flex items-center gap-2 mb-4 text-xs text-zinc-500">
-                    <Bot size={12} className="text-teal-500" />
-                    <span>
-                      Showing sessions for{" "}
-                      <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                        {formatBotName(selectedBot.name)}
-                      </span>
-                    </span>
-                    <button
-                      onClick={() => setSelectedPath(null)}
-                      className="ml-auto text-teal-600 dark:text-teal-400 hover:underline"
-                    >
-                      Show all
-                    </button>
-                  </div>
-                )}
-
                 {/* Timeline */}
                 <div className="relative">
                   {/* Vertical line */}
                   <div className="absolute left-[19px] top-2 bottom-2 w-px bg-slate-200 dark:bg-zinc-800" />
 
                   <div className="space-y-3">
-                    {filteredSessions.map((s) => (
+                    {sortedSessions.map((s) => (
                       <button
                         key={s.file.path}
                         onClick={() => setSelectedSession(s.file.path)}
@@ -1694,7 +1837,7 @@ export function BotModule() {
 
         {/* ── Command detail view ──────────── */}
         {mainView === "commands" && selectedCommand && (
-          <div className="flex-1 overflow-y-auto flex flex-col">
+          <div className="flex-1 overflow-hidden flex flex-col">
             <div className="px-4 py-2 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
               <button
                 onClick={() => setSelectedCommand(null)}
@@ -1705,18 +1848,167 @@ export function BotModule() {
               <code className="text-sm font-semibold text-teal-700 dark:text-teal-400">
                 /{selectedCommand.split("/").pop()?.replace(".md", "")}
               </code>
+              <span className="ml-auto text-xs text-zinc-400 font-mono truncate">
+                {selectedCommand.split("/").slice(-3).join("/")}
+              </span>
+              <span className={cn(
+                "text-xs",
+                commandSaveStatus === "saving" ? "text-zinc-500" :
+                commandSaveStatus === "unsaved" ? "text-amber-500" :
+                "text-zinc-500 dark:text-zinc-600"
+              )}>
+                {commandSaveStatus === "saving" ? "Saving..." :
+                 commandSaveStatus === "unsaved" ? "Unsaved" :
+                 "Saved"}
+              </span>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="flex-1 overflow-hidden">
               {loadingCommand ? (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 size={24} className="animate-spin text-zinc-400" />
                 </div>
-              ) : commandContent ? (
-                <MarkdownViewer content={commandContent} />
+              ) : commandContent !== undefined ? (
+                <MarkdownEditor
+                  key={selectedCommand}
+                  content={commandContent || ""}
+                  onChange={handleCommandContentChange}
+                />
               ) : (
                 <div className="text-center py-16 text-zinc-400">
                   <p className="text-sm">Could not load command</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Skills view ──────────────────── */}
+        {mainView === "skills" && !selectedSkill && (
+          <>
+            {selectedBot ? (
+              <div className="flex-1 overflow-y-auto">
+                {skillList.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-zinc-400">
+                    <div className="text-center">
+                      <Sparkles size={32} className="mx-auto mb-3 opacity-30" />
+                      <p className="text-sm">No skills defined for this bot</p>
+                      <p className="text-xs mt-1 text-zinc-500">
+                        Skills live in skills/ inside the bot directory
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="max-w-2xl mx-auto px-6 py-4">
+                    <div className="space-y-2">
+                      {skillList.map((skill) => (
+                        <button
+                          key={skill.name}
+                          onClick={() => setSelectedSkill(skill.skillMdPath)}
+                          className="w-full text-left px-4 py-3 rounded-lg border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition-colors group"
+                        >
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <Sparkles size={14} className="text-amber-500 flex-shrink-0" />
+                            <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                              {skill.title}
+                            </span>
+                          </div>
+                          {skill.summary && (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-2">
+                              {skill.summary}
+                            </p>
+                          )}
+                          {skill.subfolders.length > 0 && (
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                              {skill.subfolders.map((sub) => (
+                                <span
+                                  key={sub.name}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-slate-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                                >
+                                  {sub.name === "templates" && <FileCode size={10} />}
+                                  {sub.name === "playbooks" && <BookOpen size={10} />}
+                                  {!["templates", "playbooks"].includes(sub.name) && <Folder size={10} />}
+                                  {sub.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-zinc-400 dark:text-zinc-500">
+                <div className="text-center">
+                  <Sparkles size={40} className="mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">
+                    Select a bot to view its skills
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Skill detail view ────────────── */}
+        {mainView === "skills" && selectedSkill && (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="px-4 py-2 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
+              <button
+                onClick={() => setSelectedSkill(null)}
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-amber-500" />
+                <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  {selectedSkillData?.title || selectedSkill.split("/").slice(-2, -1)[0]}
+                </span>
+              </div>
+              {selectedSkillData?.subfolders && selectedSkillData.subfolders.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  {selectedSkillData.subfolders.map((sub) => (
+                    <span
+                      key={sub.name}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-slate-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                    >
+                      {sub.name === "templates" && <FileCode size={10} />}
+                      {sub.name === "playbooks" && <BookOpen size={10} />}
+                      {!["templates", "playbooks"].includes(sub.name) && <Folder size={10} />}
+                      {sub.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <span className={cn(
+                "ml-auto text-xs",
+                skillSaveStatus === "saving" ? "text-zinc-500" :
+                skillSaveStatus === "unsaved" ? "text-amber-500" :
+                "text-zinc-500 dark:text-zinc-600"
+              )}>
+                {skillSaveStatus === "saving" ? "Saving..." :
+                 skillSaveStatus === "unsaved" ? "Unsaved" :
+                 "Saved"}
+              </span>
+            </div>
+
+            <div className="flex-1 overflow-hidden">
+              {loadingSkill ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 size={24} className="animate-spin text-zinc-400" />
+                </div>
+              ) : skillContent !== undefined ? (
+                <MarkdownEditor
+                  key={selectedSkill}
+                  content={skillContent || ""}
+                  onChange={handleSkillContentChange}
+                />
+              ) : (
+                <div className="text-center py-16 text-zinc-400">
+                  <p className="text-sm">Could not load skill</p>
                 </div>
               )}
             </div>

@@ -110,9 +110,11 @@ pub async fn crm_update_deal(deal_id: String, data: UpdateDeal) -> Result<Deal, 
     if let Some(new_stage) = &data.stage {
         if let Some(old_stage) = &current.stage {
             if old_stage != new_stage {
-                // Update stage_changed_at and clear stale_snoozed_until
+                // Update stage_changed_at and clear stale_snoozed_until (unless preserve_stage_date is set)
                 if let Some(obj) = update_data.as_object_mut() {
-                    obj.insert("stage_changed_at".to_string(), serde_json::Value::String(now.clone()));
+                    if !data.preserve_stage_date.unwrap_or(false) {
+                        obj.insert("stage_changed_at".to_string(), serde_json::Value::String(now.clone()));
+                    }
                     obj.insert("stale_snoozed_until".to_string(), serde_json::Value::Null);
                 }
 
@@ -203,4 +205,26 @@ pub async fn crm_get_pipeline() -> Result<PipelineStats, String> {
         total_value,
         total_deals,
     })
+}
+
+/// Link a task to a deal via the junction table
+#[tauri::command]
+pub async fn crm_link_task_to_deal(task_id: String, deal_id: String) -> Result<serde_json::Value, String> {
+    let client = get_client().await?;
+
+    // Insert into junction table
+    let link_data = serde_json::json!({
+        "task_id": task_id,
+        "deal_id": deal_id
+    });
+
+    // Use upsert to avoid duplicates (task_id, deal_id is the primary key)
+    let result: serde_json::Value = client.insert("task_deal_links", &link_data).await?;
+
+    Ok(serde_json::json!({
+        "success": true,
+        "task_id": task_id,
+        "deal_id": deal_id,
+        "result": result
+    }))
 }

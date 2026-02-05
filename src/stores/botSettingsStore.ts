@@ -21,6 +21,6 @@ export const useBotSettingsStore = create<BotSettingsState>()(
       sessionsPath: "",
       setSessionsPath: (path) => set({ sessionsPath: path }),
     }),
-    { name: "tv-desktop-bot-settings" }
+    { name: "tv-client-bot-settings" }
   )
 );

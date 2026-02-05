@@ -171,6 +171,7 @@ impl SupabaseClient {
     }
 
     /// RPC call - call a database function
+    #[allow(dead_code)]
     pub async fn rpc<T: Serialize, R: DeserializeOwned>(
         &self,
         function: &str,

@@ -75,7 +75,7 @@ export const useFavoritesStore = create<FavoritesState>()(
       },
     }),
     {
-      name: "tv-desktop-favorites",
+      name: "tv-client-favorites",
     }
   )
 );

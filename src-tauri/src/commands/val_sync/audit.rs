@@ -203,7 +203,7 @@ fn scan_local_artifacts(global_path: &str, config: &ArtifactTypeConfig) -> Vec<S
 
 /// Audit a single artifact type
 async fn audit_artifact_type(
-    domain: &str,
+    _domain: &str,
     global_path: &str,
     artifact_type: &str,
     config: &ArtifactTypeConfig,

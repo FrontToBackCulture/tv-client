@@ -10,6 +10,7 @@ interface SidePanelState {
   fileName: string | null;
   panelWidth: number;
   isPickerOpen: boolean;
+  currentFolder: string | null; // Parent folder of current file for picker context
 
   openPanel: (path: string, name: string) => void;
   closePanel: () => void;
@@ -35,9 +36,14 @@ export const useSidePanelStore = create<SidePanelState>()(
       fileName: null,
       panelWidth: DEFAULT_WIDTH,
       isPickerOpen: false,
+      currentFolder: null,
 
-      openPanel: (path, name) =>
-        set({ isOpen: true, filePath: path, fileName: name, isPickerOpen: false }),
+      openPanel: (path, name) => {
+        // Extract parent folder from file path
+        const lastSlash = path.lastIndexOf("/");
+        const folder = lastSlash > 0 ? path.slice(0, lastSlash) : null;
+        set({ isOpen: true, filePath: path, fileName: name, isPickerOpen: false, currentFolder: folder });
+      },
 
       closePanel: () =>
         set({ isOpen: false, isPickerOpen: false }),
@@ -64,11 +70,12 @@ export const useSidePanelStore = create<SidePanelState>()(
         set({ isPickerOpen: false }),
     }),
     {
-      name: "tv-desktop-side-panel",
+      name: "tv-client-side-panel",
       partialize: (state) => ({
         filePath: state.filePath,
         fileName: state.fileName,
         panelWidth: state.panelWidth,
+        currentFolder: state.currentFolder,
       }),
     }
   )

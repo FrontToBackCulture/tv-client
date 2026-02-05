@@ -32,6 +32,6 @@ export const useTerminalSettingsStore = create<TerminalSettingsState>()(
           return { paths: rest };
         }),
     }),
-    { name: "tv-desktop-terminal-settings" }
+    { name: "tv-client-terminal-settings" }
   )
 );
