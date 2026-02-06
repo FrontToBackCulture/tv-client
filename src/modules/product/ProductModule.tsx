@@ -195,9 +195,13 @@ export function ProductModule() {
 
   // If reviewing data models, show full-screen review view
   if (reviewingDomain) {
-    const domainPath = activeRepository
-      ? `${activeRepository.path}/0_Platform/domains/production/${reviewingDomain}/data_models`
-      : null;
+    // Look up the domain's actual path from discovered domains (handles production/demo/template)
+    const discoveredDomain = domainsQuery.data?.find((d) => d.domain === reviewingDomain);
+    const domainPath = discoveredDomain
+      ? `${discoveredDomain.global_path}/data_models`
+      : activeRepository
+        ? `${activeRepository.path}/0_Platform/domains/production/${reviewingDomain}/data_models`
+        : null;
 
     return (
       <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">

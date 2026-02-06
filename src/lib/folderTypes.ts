@@ -31,7 +31,7 @@ export function detectFolderType(path: string): FolderType {
   }
 
   // Data models folder (e.g., /domains/production/koi/data_models)
-  if (path.match(/\/domains\/(production|staging)\/[^/]+\/data_models$/)) {
+  if (path.match(/\/domains\/(production|staging|demo|templates)\/[^/]+\/data_models$/)) {
     return "data-models";
   }
 
@@ -41,7 +41,7 @@ export function detectFolderType(path: string): FolderType {
   }
 
   // Workflows list folder (e.g., /domains/production/koi/workflows)
-  if (path.match(/\/domains\/(production|staging)\/[^/]+\/workflows$/)) {
+  if (path.match(/\/domains\/(production|staging|demo|templates)\/[^/]+\/workflows$/)) {
     return "workflows-list";
   }
 
@@ -51,7 +51,7 @@ export function detectFolderType(path: string): FolderType {
   }
 
   // Dashboards list folder
-  if (path.match(/\/domains\/(production|staging)\/[^/]+\/dashboards$/)) {
+  if (path.match(/\/domains\/(production|staging|demo|templates)\/[^/]+\/dashboards$/)) {
     return "dashboards-list";
   }
 
@@ -61,22 +61,22 @@ export function detectFolderType(path: string): FolderType {
   }
 
   // Queries list folder
-  if (path.match(/\/domains\/(production|staging)\/[^/]+\/queries$/)) {
+  if (path.match(/\/domains\/(production|staging|demo|templates)\/[^/]+\/queries$/)) {
     return "queries-list";
   }
 
   // Monitoring folder
-  if (path.match(/\/domains\/(production|staging)\/[^/]+\/monitoring$/)) {
+  if (path.match(/\/domains\/(production|staging|demo|templates)\/[^/]+\/monitoring$/)) {
     return "monitoring";
   }
 
   // Analytics folder
-  if (path.match(/\/domains\/(production|staging)\/[^/]+\/analytics$/)) {
+  if (path.match(/\/domains\/(production|staging|demo|templates)\/[^/]+\/analytics$/)) {
     return "analytics";
   }
 
   // Domain folder (e.g., /domains/production/suntec or /domains/staging/koi)
-  if (path.match(/\/domains\/(production|staging)\/[^/]+$/)) {
+  if (path.match(/\/domains\/(production|staging|demo|templates)\/[^/]+$/)) {
     return "domain";
   }
 
@@ -119,7 +119,7 @@ export function detectFolderType(path: string): FolderType {
  * e.g., /domains/production/suntec -> suntec
  */
 export function extractDomainName(path: string): string | null {
-  const match = path.match(/\/domains\/(production|staging)\/([^/]+)/);
+  const match = path.match(/\/domains\/(production|staging|demo|templates)\/([^/]+)/);
   return match ? match[2] : null;
 }
 
@@ -145,13 +145,13 @@ export function extractBotName(path: string): string | null {
  * Check if path is within a domain
  */
 export function isWithinDomain(path: string): boolean {
-  return path.includes("/domains/production/") || path.includes("/domains/staging/");
+  return /\/domains\/(production|staging|demo|templates|demo|templates)\//.test(path);
 }
 
 /**
  * Get the domain path from any path within a domain
  */
 export function getDomainPath(path: string): string | null {
-  const match = path.match(/(.*\/domains\/(production|staging)\/[^/]+)/);
+  const match = path.match(/(.*\/domains\/(production|staging|demo|templates|demo|templates)\/[^/]+)/);
   return match ? match[1] : null;
 }

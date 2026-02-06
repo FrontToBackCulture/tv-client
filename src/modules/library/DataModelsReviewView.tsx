@@ -593,9 +593,14 @@ export function DataModelsReviewView({
 
   // AI Analyze all tables in the domain (one by one)
   const handleAnalyzeAll = useCallback(async () => {
-    if (isBatchRunning) return;
+    console.log("[AI Analyze All] clicked", { isBatchRunning, dataModelsPath, domainName });
+    if (isBatchRunning) {
+      console.log("[AI Analyze All] blocked by isBatchRunning");
+      return;
+    }
 
     const jobId = `analyze-all-${Date.now()}`;
+    console.log("[AI Analyze All] creating job:", jobId);
     addJob({
       id: jobId,
       name: `AI Analyze All (${domainName})`,
@@ -605,10 +610,13 @@ export function DataModelsReviewView({
     });
 
     try {
+      console.log("[AI Analyze All] listing directory:", dataModelsPath);
       const entries = await invoke<Array<{ name: string; is_directory: boolean }>>("list_directory", { path: dataModelsPath });
       const tableFolders = entries
         .filter((e) => e.is_directory && e.name.startsWith("table_"))
         .map((e) => e.name);
+
+      console.log("[AI Analyze All] found", tableFolders.length, "table folders");
 
       if (tableFolders.length === 0) {
         updateJob(jobId, { status: "failed", message: "No tables found" });
@@ -629,14 +637,16 @@ export function DataModelsReviewView({
         });
 
         try {
+          console.log(`[AI Analyze All] ${i + 1}/${tableFolders.length}: invoking for ${tableName}`);
           await invoke("val_analyze_table_data", {
             domain: domainName,
             tableName,
             overwrite: true,
           });
+          console.log(`[AI Analyze All] ${i + 1}/${tableFolders.length}: ${tableName} OK`);
           successCount++;
         } catch (e) {
-          console.warn(`Failed to analyze ${tableName}:`, e);
+          console.error(`[AI Analyze All] ${i + 1}/${tableFolders.length}: ${tableName} FAILED:`, e);
           errorCount++;
         }
       }
@@ -646,7 +656,9 @@ export function DataModelsReviewView({
         progress: 100,
         message: `Analyzed ${successCount}${errorCount > 0 ? `, ${errorCount} errors` : ""}`,
       });
+      console.log("[AI Analyze All] completed:", { successCount, errorCount });
     } catch (e) {
+      console.error("[AI Analyze All] outer error:", e);
       updateJob(jobId, {
         status: "failed",
         message: e instanceof Error ? e.message : "Failed",

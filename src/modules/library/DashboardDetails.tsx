@@ -45,7 +45,7 @@ interface DashboardDefinition {
 
 // Extract domain name from path for VAL URL
 function extractDomainFromPath(path: string): string | null {
-  const match = path.match(/\/domains\/(production|staging)\/([^/]+)/);
+  const match = path.match(/\/domains\/(production|staging|demo|templates)\/([^/]+)/);
   return match ? match[2] : null;
 }
 

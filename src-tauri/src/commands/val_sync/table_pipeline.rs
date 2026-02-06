@@ -1815,8 +1815,10 @@ pub async fn val_analyze_table_data(
     overwrite: bool,
 ) -> Result<TablePipelineResult, String> {
     let start = std::time::Instant::now();
+    eprintln!("[tv-client] val_analyze_table_data: domain={}, table={}, overwrite={}", domain, table_name, overwrite);
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
+    eprintln!("[tv-client]   global_path={}", global_path);
 
     let table_folder = Path::new(global_path)
         .join("data_models")
@@ -2095,6 +2097,7 @@ For columnDescriptions:
     let user_prompt = format!("Analyze this table:\n\n{}", table_context);
 
     // Call Anthropic API
+    eprintln!("[tv-client]   Calling Anthropic API for table: {} (context len: {} chars)", table_name, table_context.len());
     let client = reqwest::Client::new();
     let response = client
         .post("https://api.anthropic.com/v1/messages")
@@ -2102,8 +2105,8 @@ For columnDescriptions:
         .header("x-api-key", &api_key)
         .header("anthropic-version", "2023-06-01")
         .json(&json!({
-            "model": "claude-haiku-4-5-20250214",
-            "max_tokens": 2000,
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 16000,
             "temperature": 0.3,
             "system": system_prompt,
             "messages": [
@@ -2115,11 +2118,16 @@ For columnDescriptions:
         }))
         .send()
         .await
-        .map_err(|e| format!("API request failed: {}", e))?;
+        .map_err(|e| {
+            eprintln!("[tv-client]   API request failed: {}", e);
+            format!("API request failed: {}", e)
+        })?;
 
+    eprintln!("[tv-client]   API response status: {}", response.status());
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
+        eprintln!("[tv-client]   API error body: {}", &body[..body.len().min(500)]);
         return Err(format!("Anthropic API error ({}): {}", status, body));
     }
 
@@ -2169,7 +2177,7 @@ For columnDescriptions:
             "tableName": table_name,
             "displayName": details["meta"]["displayName"],
             "analyzedAt": now.to_rfc3339(),
-            "model": "claude-haiku-4-5-20250214",
+            "model": "claude-haiku-4-5-20251001",
             "basedOn": {
                 "detailsJson": true,
                 "sampleJson": sample.is_some()
