@@ -18,6 +18,7 @@ import {
   ChevronRight,
   FileText,
   MoreHorizontal,
+  Users,
 } from "lucide-react";
 import { useListDirectory, useReadFile } from "../hooks/useFiles";
 import { useQueries } from "@tanstack/react-query";
@@ -718,6 +719,84 @@ function StatPill({ icon: Icon, label, count, color, clickable }: { icon: typeof
 }
 
 // ============================
+// Tab bar (CRM-style)
+// ============================
+function ViewTab({ label, icon: Icon, active, onClick }: {
+  label: string; icon: typeof Bot; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
+        active
+          ? "border-teal-500 text-zinc-800 dark:text-zinc-100"
+          : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-400"
+      }`}>
+      <Icon size={14} />
+      {label}
+    </button>
+  );
+}
+
+// ============================
+// Sessions timeline (full-width view)
+// ============================
+function SessionsTimeline({
+  sessions,
+  selectedPath,
+  onSessionClick,
+}: {
+  sessions: { date: string; title: string | null; summary: string | null; path: string }[];
+  selectedPath: string | null;
+  onSessionClick: (s: { date: string; title: string | null; summary: string | null; path: string }) => void;
+}) {
+  if (sessions.length === 0) {
+    return (
+      <div className="w-[280px] flex-shrink-0 h-full border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex items-center justify-center text-zinc-400">
+        <div className="text-center">
+          <Clock size={24} className="mx-auto mb-2 opacity-20" />
+          <p className="text-xs">No sessions yet</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-[280px] flex-shrink-0 h-full border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 overflow-y-auto">
+      <div className="p-2 space-y-0.5">
+        {sessions.map((s) => (
+          <button
+            key={s.path}
+            onClick={() => onSessionClick(s)}
+            className={cn(
+              "w-full text-left px-2.5 py-2 rounded-md transition-colors",
+              selectedPath === s.path
+                ? "bg-teal-50 dark:bg-teal-950/30"
+                : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+            )}
+          >
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{relativeDate(s.date)}</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-600">{s.date}</span>
+            </div>
+            {s.title && (
+              <p className={cn(
+                "text-xs font-medium truncate",
+                selectedPath === s.path
+                  ? "text-teal-700 dark:text-teal-300"
+                  : "text-zinc-700 dark:text-zinc-300"
+              )}>{s.title}</p>
+            )}
+            {s.summary && (
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 line-clamp-1 mt-0.5">{s.summary}</p>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================
 // Bot Sidebar
 // ============================
 function BotSidebarItem({
@@ -736,7 +815,7 @@ function BotSidebarItem({
     <button
       onClick={onSelect}
       className={cn(
-        "w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors",
+        "w-full text-left flex items-center gap-2 px-2.5 py-1 rounded-md transition-colors",
         isSelected
           ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
@@ -744,14 +823,14 @@ function BotSidebarItem({
     >
       <div
         className={cn(
-          "w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0",
+          "w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold flex-shrink-0",
           colors.badge,
           colors.text
         )}
       >
         {initials}
       </div>
-      <span className="text-[13px] font-medium truncate">{formatBotName(bot.name)}</span>
+      <span className="text-xs font-medium truncate">{formatBotName(bot.name)}</span>
     </button>
   );
 }
@@ -763,9 +842,6 @@ function BotSidebar({
   search,
   onSearch,
   onSelect,
-  showSessions,
-  onToggleSessions,
-  sessionCount,
 }: {
   bots: BotEntry[];
   grouped: [string, BotEntry[]][];
@@ -773,9 +849,6 @@ function BotSidebar({
   search: string;
   onSearch: (v: string) => void;
   onSelect: (path: string) => void;
-  showSessions: boolean;
-  onToggleSessions: () => void;
-  sessionCount: number;
 }) {
   const filtered = search
     ? bots.filter((b) =>
@@ -784,9 +857,9 @@ function BotSidebar({
     : null;
 
   return (
-    <div className="w-[240px] flex-shrink-0 h-full border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex flex-col">
+    <div className="w-[220px] flex-shrink-0 h-full border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex flex-col">
       {/* Search */}
-      <div className="p-3 pb-2">
+      <div className="p-2.5 pb-1.5">
         <div className="relative">
           <Search
             size={13}
@@ -797,7 +870,7 @@ function BotSidebar({
             placeholder="Search bots..."
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            className="w-full pl-8 pr-7 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
+            className="w-full pl-8 pr-7 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
           />
           {search && (
             <button
@@ -810,38 +883,15 @@ function BotSidebar({
         </div>
       </div>
 
-      {/* Sessions link */}
-      <div className="px-3 pb-2">
-        <button
-          onClick={onToggleSessions}
-          className={cn(
-            "w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors",
-            showSessions
-              ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300"
-              : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400"
-          )}
-        >
-          <Clock size={14} />
-          <span className="flex-1">Sessions</span>
-          {sessionCount > 0 && (
-            <span className="text-[10px] tabular-nums text-zinc-400">
-              {sessionCount}
-            </span>
-          )}
-        </button>
-      </div>
-
-      <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-3" />
-
       {/* Bot list */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div className="flex-1 overflow-y-auto px-2 py-1">
         {filtered ? (
           filtered.length === 0 ? (
             <p className="text-xs text-zinc-400 text-center py-4">
               No bots matching "{search}"
             </p>
           ) : (
-            <div className="space-y-0.5">
+            <div>
               {filtered.map((bot) => (
                 <BotSidebarItem
                   key={bot.dirPath}
@@ -853,13 +903,13 @@ function BotSidebar({
             </div>
           )
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {grouped.map(([group, groupBots]) => (
               <div key={group}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-3 mb-1">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-2.5 mb-0.5">
                   {GROUP_LABELS[group] || group}
                 </p>
-                <div className="space-y-0.5">
+                <div>
                   {groupBots.map((bot) => (
                     <BotSidebarItem
                       key={bot.dirPath}
@@ -889,8 +939,9 @@ export function BotPlayground() {
 
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [showSessions, setShowSessions] = useState(false);
+  const [activeView, setActiveView] = useState<"directory" | "sessions">("directory");
   const [detailView, setDetailView] = useState<DetailView>(null);
+  const [sessionDetailView, setSessionDetailView] = useState<{ date: string; title: string | null; summary: string | null; path: string } | null>(null);
 
   // Load team directory
   const { data: teamEntries = [], isLoading: loadingTeam } = useListDirectory(teamPath);
@@ -1013,7 +1064,6 @@ export function BotPlayground() {
   // Navigation
   const handleSelectBot = (path: string) => {
     setSelectedPath(path);
-    setShowSessions(false);
     setDetailView(null);
   };
 
@@ -1081,23 +1131,54 @@ export function BotPlayground() {
   }
 
   return (
-    <div className="h-full flex bg-white dark:bg-zinc-950">
-      <BotSidebar
-        bots={allBots}
-        grouped={grouped}
-        selectedPath={selectedPath}
-        search={search}
-        onSearch={setSearch}
-        onSelect={handleSelectBot}
-        showSessions={showSessions}
-        onToggleSessions={() => {
-          setShowSessions(!showSessions);
-          setSelectedPath(null);
-          setDetailView(null);
-        }}
-        sessionCount={sessions.length}
-      />
-      <div className="flex-1 min-w-0">{content}</div>
+    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+      {/* Tab bar */}
+      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
+        <ViewTab label="Directory" icon={Users} active={activeView === "directory"} onClick={() => { setActiveView("directory"); }} />
+        <ViewTab label="Sessions" icon={Clock} active={activeView === "sessions"} onClick={() => { setActiveView("sessions"); setSelectedPath(null); setDetailView(null); setSessionDetailView(null); }} />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {activeView === "directory" ? (
+          <>
+            <BotSidebar
+              bots={allBots}
+              grouped={grouped}
+              selectedPath={selectedPath}
+              search={search}
+              onSearch={setSearch}
+              onSelect={handleSelectBot}
+            />
+            <div className="flex-1 min-w-0">{content}</div>
+          </>
+        ) : (
+          <>
+            <SessionsTimeline
+              sessions={sessions}
+              selectedPath={sessionDetailView?.path ?? null}
+              onSessionClick={(s) => setSessionDetailView(s)}
+            />
+            {sessionDetailView ? (
+              <div className="flex-1 min-w-0">
+                <SessionDetail
+                  sessionPath={sessionDetailView.path}
+                  date={sessionDetailView.date}
+                  title={sessionDetailView.title}
+                  onBack={() => setSessionDetailView(null)}
+                />
+              </div>
+            ) : (
+              <div className="flex-1 min-w-0 flex items-center justify-center text-zinc-400">
+                <div className="text-center">
+                  <Clock size={32} className="mx-auto mb-3 opacity-20" />
+                  <p className="text-sm">Select a session to view</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

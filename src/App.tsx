@@ -53,9 +53,9 @@ export default function App() {
           "library",
           "crm",
           "work",
-          "inbox",
           "product",
           "bot",
+          "inbox",
           "console",
           "system",
         ];

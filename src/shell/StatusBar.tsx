@@ -4,11 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../stores/appStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { cn } from "../lib/cn";
-import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Download } from "lucide-react";
+import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Download, FlaskConical } from "lucide-react";
 import { useAppUpdate } from "../hooks/useAppUpdate";
 
 export function StatusBar() {
-  const { syncStatus, theme, toggleTheme } = useAppStore();
+  const { syncStatus, theme, toggleTheme, playgroundMode, togglePlayground } = useAppStore();
   const runningJobs = useRunningJobs();
   const recentJobs = useRecentJobs(10);
   const clearCompleted = useJobsStore((s) => s.clearCompleted);
@@ -183,6 +183,21 @@ export function StatusBar() {
               </div>
             )}
           </div>
+
+        {/* Playground toggle */}
+        <button
+          onClick={togglePlayground}
+          className={cn(
+            "flex items-center gap-1 px-2 py-0.5 rounded transition-colors",
+            playgroundMode
+              ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400"
+              : "hover:bg-slate-200 dark:hover:bg-zinc-800 text-zinc-400"
+          )}
+          title={`${playgroundMode ? "Exit" : "Enter"} playground mode (⇧⌘X)`}
+        >
+          <FlaskConical size={11} />
+          <span>{playgroundMode ? "Playground" : "Playground"}</span>
+        </button>
 
         <span>⌘K for commands</span>
 

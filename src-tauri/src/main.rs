@@ -5,9 +5,33 @@ mod models;
 mod mcp;
 
 use tauri::Manager;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 
 pub struct AppState {
     pub knowledge_path: String,
+}
+
+fn create_new_window(app: &tauri::AppHandle) {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let label = format!("main-{}", millis);
+
+    match tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App("/".into()))
+        .title("TV Client")
+        .inner_size(1400.0, 900.0)
+        .min_inner_size(1000.0, 600.0)
+        .resizable(true)
+        .fullscreen(false)
+        .decorations(true)
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .build()
+    {
+        Ok(_) => eprintln!("[tv-desktop] New window created: {}", label),
+        Err(e) => eprintln!("[tv-desktop] Failed to create window: {}", e),
+    }
 }
 
 fn main() {
@@ -45,6 +69,48 @@ fn main() {
                 eprintln!("[tv-desktop] Starting MCP HTTP server on port {}...", mcp::server::DEFAULT_PORT);
                 if let Err(e) = mcp::server::run_http(mcp::server::DEFAULT_PORT).await {
                     eprintln!("[tv-desktop] MCP server error: {}", e);
+                }
+            });
+
+            // Build native macOS menu bar
+            let handle = app.handle();
+
+            let new_window = MenuItem::with_id(handle, "new-window", "New Window", true, Some("CmdOrCtrl+N"))?;
+            let close_window = PredefinedMenuItem::close_window(handle, None)?;
+
+            let file_menu = Submenu::with_items(handle, "File", true, &[
+                &new_window,
+                &PredefinedMenuItem::separator(handle)?,
+                &close_window,
+            ])?;
+
+            let edit_menu = Submenu::with_items(handle, "Edit", true, &[
+                &PredefinedMenuItem::undo(handle, None)?,
+                &PredefinedMenuItem::redo(handle, None)?,
+                &PredefinedMenuItem::separator(handle)?,
+                &PredefinedMenuItem::cut(handle, None)?,
+                &PredefinedMenuItem::copy(handle, None)?,
+                &PredefinedMenuItem::paste(handle, None)?,
+                &PredefinedMenuItem::select_all(handle, None)?,
+            ])?;
+
+            let window_menu = Submenu::with_items(handle, "Window", true, &[
+                &PredefinedMenuItem::minimize(handle, None)?,
+                &PredefinedMenuItem::maximize(handle, None)?,
+                &PredefinedMenuItem::separator(handle)?,
+            ])?;
+
+            let menu = Menu::with_items(handle, &[
+                &file_menu,
+                &edit_menu,
+                &window_menu,
+            ])?;
+
+            app.set_menu(menu)?;
+
+            app.on_menu_event(|app_handle, event| {
+                if event.id().as_ref() == "new-window" {
+                    create_new_window(app_handle);
                 }
             });
 
