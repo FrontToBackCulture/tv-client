@@ -1705,42 +1705,103 @@ pub async fn val_fetch_categorical_values(
         })
         .collect();
 
-    // Identify text-type columns for categorical analysis
-    let text_columns: Vec<String> = column_types
+    // Helper: check if a column name looks like an ID/key field (not categorical)
+    let is_id_like = |name: &str| -> bool {
+        let lower = name.to_lowercase();
+        // Exact matches
+        if matches!(lower.as_str(), "id" | "uuid" | "guid" | "key" | "hash" | "token"
+            | "rowid" | "row_id" | "pk" | "primary_key") {
+            return true;
+        }
+        // Suffix patterns
+        if lower.ends_with("_id") || lower.ends_with("_uuid") || lower.ends_with("_guid")
+            || lower.ends_with("_key") || lower.ends_with("_ref") || lower.ends_with("_hash")
+            || lower.ends_with("_token") || lower.ends_with("_code")
+            || lower.ends_with("_number") || lower.ends_with("_no")
+            || lower.ends_with("_num") || lower.ends_with("_pk")
+            || lower.ends_with("id") && lower.len() > 2 && lower.chars().nth(lower.len() - 3).map_or(false, |c| c == '_' || c.is_uppercase())
+        {
+            return true;
+        }
+        // Prefix patterns
+        if lower.starts_with("id_") || lower.starts_with("fk_") || lower.starts_with("pk_")
+            || lower.starts_with("ref_")
+        {
+            return true;
+        }
+        // Contains patterns for paths, urls, descriptions (high cardinality)
+        if lower.contains("path") || lower.contains("url") || lower.contains("uri")
+            || lower.contains("description") || lower.contains("comment")
+            || lower.contains("note") || lower.contains("remark")
+            || lower.contains("address") || lower.contains("email")
+            || lower.contains("filename") || lower.contains("file_name")
+        {
+            return true;
+        }
+        false
+    };
+
+    // Count all text-type columns before filtering
+    let all_text_count = column_types
         .iter()
         .filter(|(_, col_type)| {
             col_type.contains("varchar")
                 || col_type.contains("text")
                 || col_type.contains("character")
         })
+        .count();
+
+    // Identify text-type columns, excluding ID-like columns
+    let text_columns: Vec<String> = column_types
+        .iter()
+        .filter(|(col_name, col_type)| {
+            (col_type.contains("varchar")
+                || col_type.contains("text")
+                || col_type.contains("character"))
+                && !is_id_like(col_name)
+        })
         .map(|(col_name, _)| col_name.clone())
         .collect();
+
+    let skipped_count = all_text_count - text_columns.len();
 
     let mut categorical_columns: HashMap<String, Value> = HashMap::new();
     let mut categorical_count = 0;
 
-    // For text columns, query FULL distinct values from the table
+    // Batch: get distinct counts for all text columns in a single query
+    let mut distinct_counts: HashMap<String, i64> = HashMap::new();
+    if !text_columns.is_empty() {
+        // Build batches of up to 50 columns per query to avoid SQL length limits
+        for chunk in text_columns.chunks(50) {
+            let select_parts: Vec<String> = chunk
+                .iter()
+                .map(|col| format!("COUNT(DISTINCT \"{}\") as \"cnt_{}\"", col, col))
+                .collect();
+            let batch_query = format!("SELECT {} FROM {}", select_parts.join(", "), table_name);
+            if let Ok(result) = val_execute_sql(domain.clone(), batch_query, Some(1)).await {
+                if let Some(row) = result.data.first() {
+                    for col in chunk {
+                        let key = format!("cnt_{}", col);
+                        let count = row.get(&key)
+                            .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+                            .unwrap_or(0);
+                        distinct_counts.insert(col.clone(), count);
+                    }
+                }
+            }
+        }
+    }
+
+    // Categorical threshold: distinct count < 10% of total rows (or max 1000 if unknown)
+    let ratio_threshold = total_row_count
+        .map(|total| (total as f64 * 0.10).max(1.0) as i64)
+        .unwrap_or(1000);
+
+    // For each text column, check if categorical and fetch distinct values if so
     for col_name in &text_columns {
         let display_name = column_names.get(col_name).cloned().unwrap_or(col_name.clone());
         let col_type = column_types.get(col_name).cloned().unwrap_or_default();
-
-        // Query distinct count from full table
-        let count_query = format!(
-            "SELECT COUNT(DISTINCT \"{}\") as cnt FROM {}",
-            col_name, table_name
-        );
-        let distinct_count: i64 = match val_execute_sql(domain.clone(), count_query, Some(1)).await {
-            Ok(result) => result.data.first()
-                .and_then(|row| row.get("cnt"))
-                .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
-                .unwrap_or(0),
-            Err(_) => 0
-        };
-
-        // Categorical if distinct count < 10% of total rows
-        let ratio_threshold = total_row_count
-            .map(|total| (total as f64 * 0.10).max(1.0) as i64)
-            .unwrap_or(1000);
+        let distinct_count = distinct_counts.get(col_name).copied().unwrap_or(0);
         let is_categorical = distinct_count > 0 && distinct_count <= ratio_threshold;
 
         let mut stat = json!({
@@ -1781,6 +1842,8 @@ pub async fn val_fetch_categorical_values(
             "tableName": table_name,
             "fetchedAt": now.to_rfc3339(),
             "totalRowCount": total_row_count,
+            "totalTextColumns": all_text_count,
+            "skippedIdLikeColumns": skipped_count,
             "textColumnsAnalyzed": text_columns.len(),
             "categoricalColumnsFound": categorical_count
         },
@@ -1799,7 +1862,7 @@ pub async fn val_fetch_categorical_values(
         step: "fetch-categorical-values".to_string(),
         status: "created".to_string(),
         file_path: Some(categorical_path.to_string_lossy().to_string()),
-        message: format!("{} categorical columns found (of {} text columns)", categorical_count, text_columns.len()),
+        message: format!("{} categorical found ({} analyzed, {} id-like skipped)", categorical_count, text_columns.len(), skipped_count),
         duration_ms: start.elapsed().as_millis() as u64,
     })
 }
