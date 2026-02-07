@@ -37,7 +37,7 @@ export function StatusBar() {
   return (
     <div className="h-6 bg-slate-100 dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative">
       <div className="flex items-center gap-4">
-        <span>TV Desktop v0.3.5</span>
+        <span>TV Desktop v0.3.6</span>
         {updateAvailable && !downloading && (
           <button
             onClick={installUpdate}
