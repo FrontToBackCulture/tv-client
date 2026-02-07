@@ -19,6 +19,37 @@ type StageValue = (typeof STAGES)[number]["value"];
 const stageColorMap = Object.fromEntries(STAGES.map((s) => [s.value, s.color])) as Record<StageValue, string>;
 
 // ============================
+// Engagement Health
+// ============================
+export type HealthLevel = "active" | "healthy" | "cooling" | "needs_attention" | "at_risk";
+
+export interface EngagementHealth {
+  level: HealthLevel;
+  daysSince: number;
+  label: string;
+  dotColor: string;
+}
+
+const HEALTH_TIERS: { level: HealthLevel; maxDays: number; label: string; dotColor: string }[] = [
+  { level: "active", maxDays: 7, label: "Active", dotColor: "bg-emerald-500" },
+  { level: "healthy", maxDays: 14, label: "Healthy", dotColor: "bg-teal-500" },
+  { level: "cooling", maxDays: 30, label: "Cooling", dotColor: "bg-amber-500" },
+  { level: "needs_attention", maxDays: 60, label: "Needs Attention", dotColor: "bg-orange-500" },
+  { level: "at_risk", maxDays: Infinity, label: "At Risk", dotColor: "bg-red-500" },
+];
+
+export function getEngagementHealth(lastActivityDate: string | null | undefined): EngagementHealth {
+  if (!lastActivityDate) {
+    return { level: "at_risk", daysSince: -1, label: "At Risk", dotColor: "bg-red-500" };
+  }
+  const daysSince = Math.floor((Date.now() - new Date(lastActivityDate).getTime()) / 86400000);
+  const tier = HEALTH_TIERS.find((t) => daysSince <= t.maxDays) || HEALTH_TIERS[HEALTH_TIERS.length - 1];
+  return { level: tier.level, daysSince, label: tier.label, dotColor: tier.dotColor };
+}
+
+export const HEALTH_TIER_CONFIG = HEALTH_TIERS;
+
+// ============================
 // Helpers
 // ============================
 export function timeAgo(dateStr: string): string {
