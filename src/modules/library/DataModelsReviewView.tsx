@@ -4,7 +4,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Download, CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles } from "lucide-react";
-import { DataModelsAgGrid, TableInfo } from "./DataModelsAgGrid";
+import { DataModelsAgGrid, DataModelsAgGridHandle, TableInfo } from "./DataModelsAgGrid";
 import { TableDetailPreview } from "./TableDetailPreview";
 import { cn } from "../../lib/cn";
 import { useJobsStore } from "../../stores/jobsStore";
@@ -90,6 +90,9 @@ export function DataModelsReviewView({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Grid ref for accessing filtered rows
+  const gridRef = useRef<DataModelsAgGridHandle>(null);
+
   // Panel resizing
   const [panelWidth, setPanelWidth] = useState(400);
   const [isResizing, setIsResizing] = useState(false);
@@ -107,6 +110,11 @@ export function DataModelsReviewView({
   const isBatchRunning = runningJobs.some((j) =>
     j.id.startsWith("fetch-samples-") || j.id.startsWith("fetch-categorical-") || j.id.startsWith("fetch-details-") || j.id.startsWith("analyze-all-") || j.id.startsWith("generate-overviews-")
   );
+
+  // Get table names from grid's current filter state (respects all AG Grid filters)
+  const getTargetTableNames = useCallback((): string[] => {
+    return gridRef.current?.getFilteredTableNames() ?? [];
+  }, []);
 
   // Initialize panel width from localStorage
   useEffect(() => {
@@ -339,37 +347,29 @@ export function DataModelsReviewView({
   const handleGenerateAllOverviews = useCallback(async () => {
     if (isBatchRunning) return;
 
+    const tableNames = getTargetTableNames();
+    if (tableNames.length === 0) return;
+
     const jobId = `generate-overviews-${Date.now()}`;
     addJob({
       id: jobId,
-      name: `Generate Overviews (${domainName})`,
+      name: `Generate Overviews (${tableNames.length} tables)`,
       status: "running",
       progress: 0,
       message: "Starting...",
     });
 
     try {
-      const entries = await invoke<Array<{ name: string; is_directory: boolean }>>("list_directory", { path: dataModelsPath });
-      const tableFolders = entries
-        .filter((e) => e.is_directory && e.name.startsWith("table_"))
-        .map((e) => e.name);
-
-      if (tableFolders.length === 0) {
-        updateJob(jobId, { status: "failed", message: "No tables found" });
-        return;
-      }
-
       let successCount = 0;
       let errorCount = 0;
 
-      for (let i = 0; i < tableFolders.length; i++) {
-        const folder = tableFolders[i];
-        const tableName = folder.replace("table_", "");
-        const progress = Math.round(((i + 1) / tableFolders.length) * 100);
+      for (let i = 0; i < tableNames.length; i++) {
+        const tableName = tableNames[i];
+        const progress = Math.round(((i + 1) / tableNames.length) * 100);
 
         updateJob(jobId, {
           progress,
-          message: `${i + 1}/${tableFolders.length}: ${tableName}`,
+          message: `${i + 1}/${tableNames.length}: ${tableName}`,
         });
 
         try {
@@ -396,43 +396,35 @@ export function DataModelsReviewView({
         message: e instanceof Error ? e.message : "Failed",
       });
     }
-  }, [isBatchRunning, dataModelsPath, domainName, addJob, updateJob]);
+  }, [isBatchRunning, getTargetTableNames, domainName, addJob, updateJob]);
 
   // Fetch sample data for all tables in the domain (one by one)
   const handleFetchAllSamples = useCallback(async () => {
     if (isBatchRunning) return;
 
+    const tableNames = getTargetTableNames();
+    if (tableNames.length === 0) return;
+
     const jobId = `fetch-samples-${Date.now()}`;
     addJob({
       id: jobId,
-      name: `Fetch All Samples (${domainName})`,
+      name: `Fetch Samples (${tableNames.length} tables)`,
       status: "running",
       progress: 0,
       message: "Starting...",
     });
 
     try {
-      const entries = await invoke<Array<{ name: string; is_directory: boolean }>>("list_directory", { path: dataModelsPath });
-      const tableFolders = entries
-        .filter((e) => e.is_directory && e.name.startsWith("table_"))
-        .map((e) => e.name);
-
-      if (tableFolders.length === 0) {
-        updateJob(jobId, { status: "failed", message: "No tables found" });
-        return;
-      }
-
       let successCount = 0;
       let errorCount = 0;
 
-      for (let i = 0; i < tableFolders.length; i++) {
-        const folder = tableFolders[i];
-        const tableName = folder.replace("table_", "");
-        const progress = Math.round(((i + 1) / tableFolders.length) * 100);
+      for (let i = 0; i < tableNames.length; i++) {
+        const tableName = tableNames[i];
+        const progress = Math.round(((i + 1) / tableNames.length) * 100);
 
         updateJob(jobId, {
           progress,
-          message: `${i + 1}/${tableFolders.length}: ${tableName}`,
+          message: `${i + 1}/${tableNames.length}: ${tableName}`,
         });
 
         try {
@@ -461,43 +453,35 @@ export function DataModelsReviewView({
         message: e instanceof Error ? e.message : "Failed",
       });
     }
-  }, [isBatchRunning, dataModelsPath, domainName, addJob, updateJob]);
+  }, [isBatchRunning, getTargetTableNames, domainName, addJob, updateJob]);
 
   // Fetch categorical values for all tables in the domain (one by one)
   const handleFetchAllCategorical = useCallback(async () => {
     if (isBatchRunning) return;
 
+    const tableNames = getTargetTableNames();
+    if (tableNames.length === 0) return;
+
     const jobId = `fetch-categorical-${Date.now()}`;
     addJob({
       id: jobId,
-      name: `Fetch All Categorical (${domainName})`,
+      name: `Fetch Categorical (${tableNames.length} tables)`,
       status: "running",
       progress: 0,
       message: "Starting...",
     });
 
     try {
-      const entries = await invoke<Array<{ name: string; is_directory: boolean }>>("list_directory", { path: dataModelsPath });
-      const tableFolders = entries
-        .filter((e) => e.is_directory && e.name.startsWith("table_"))
-        .map((e) => e.name);
-
-      if (tableFolders.length === 0) {
-        updateJob(jobId, { status: "failed", message: "No tables found" });
-        return;
-      }
-
       let successCount = 0;
       let errorCount = 0;
 
-      for (let i = 0; i < tableFolders.length; i++) {
-        const folder = tableFolders[i];
-        const tableName = folder.replace("table_", "");
-        const progress = Math.round(((i + 1) / tableFolders.length) * 100);
+      for (let i = 0; i < tableNames.length; i++) {
+        const tableName = tableNames[i];
+        const progress = Math.round(((i + 1) / tableNames.length) * 100);
 
         updateJob(jobId, {
           progress,
-          message: `${i + 1}/${tableFolders.length}: ${tableName}`,
+          message: `${i + 1}/${tableNames.length}: ${tableName}`,
         });
 
         try {
@@ -524,43 +508,35 @@ export function DataModelsReviewView({
         message: e instanceof Error ? e.message : "Failed",
       });
     }
-  }, [isBatchRunning, dataModelsPath, domainName, addJob, updateJob]);
+  }, [isBatchRunning, getTargetTableNames, domainName, addJob, updateJob]);
 
   // Fetch details for all tables in the domain (one by one)
   const handleFetchAllDetails = useCallback(async () => {
     if (isBatchRunning) return;
 
+    const tableNames = getTargetTableNames();
+    if (tableNames.length === 0) return;
+
     const jobId = `fetch-details-${Date.now()}`;
     addJob({
       id: jobId,
-      name: `Fetch All Details (${domainName})`,
+      name: `Fetch Details (${tableNames.length} tables)`,
       status: "running",
       progress: 0,
       message: "Starting...",
     });
 
     try {
-      const entries = await invoke<Array<{ name: string; is_directory: boolean }>>("list_directory", { path: dataModelsPath });
-      const tableFolders = entries
-        .filter((e) => e.is_directory && e.name.startsWith("table_"))
-        .map((e) => e.name);
-
-      if (tableFolders.length === 0) {
-        updateJob(jobId, { status: "failed", message: "No tables found" });
-        return;
-      }
-
       let successCount = 0;
       let errorCount = 0;
 
-      for (let i = 0; i < tableFolders.length; i++) {
-        const folder = tableFolders[i];
-        const tableName = folder.replace("table_", "");
-        const progress = Math.round(((i + 1) / tableFolders.length) * 100);
+      for (let i = 0; i < tableNames.length; i++) {
+        const tableName = tableNames[i];
+        const progress = Math.round(((i + 1) / tableNames.length) * 100);
 
         updateJob(jobId, {
           progress,
-          message: `${i + 1}/${tableFolders.length}: ${tableName}`,
+          message: `${i + 1}/${tableNames.length}: ${tableName}`,
         });
 
         try {
@@ -589,64 +565,46 @@ export function DataModelsReviewView({
         message: e instanceof Error ? e.message : "Failed",
       });
     }
-  }, [isBatchRunning, dataModelsPath, domainName, addJob, updateJob]);
+  }, [isBatchRunning, getTargetTableNames, domainName, addJob, updateJob]);
 
-  // AI Analyze all tables in the domain (one by one)
+  // AI Analyze all filtered tables (one by one)
   const handleAnalyzeAll = useCallback(async () => {
-    console.log("[AI Analyze All] clicked", { isBatchRunning, dataModelsPath, domainName });
-    if (isBatchRunning) {
-      console.log("[AI Analyze All] blocked by isBatchRunning");
-      return;
-    }
+    if (isBatchRunning) return;
+
+    const tableNames = getTargetTableNames();
+    if (tableNames.length === 0) return;
 
     const jobId = `analyze-all-${Date.now()}`;
-    console.log("[AI Analyze All] creating job:", jobId);
     addJob({
       id: jobId,
-      name: `AI Analyze All (${domainName})`,
+      name: `AI Analyze (${tableNames.length} tables)`,
       status: "running",
       progress: 0,
       message: "Starting...",
     });
 
     try {
-      console.log("[AI Analyze All] listing directory:", dataModelsPath);
-      const entries = await invoke<Array<{ name: string; is_directory: boolean }>>("list_directory", { path: dataModelsPath });
-      const tableFolders = entries
-        .filter((e) => e.is_directory && e.name.startsWith("table_"))
-        .map((e) => e.name);
-
-      console.log("[AI Analyze All] found", tableFolders.length, "table folders");
-
-      if (tableFolders.length === 0) {
-        updateJob(jobId, { status: "failed", message: "No tables found" });
-        return;
-      }
-
       let successCount = 0;
       let errorCount = 0;
 
-      for (let i = 0; i < tableFolders.length; i++) {
-        const folder = tableFolders[i];
-        const tableName = folder.replace("table_", "");
-        const progress = Math.round(((i + 1) / tableFolders.length) * 100);
+      for (let i = 0; i < tableNames.length; i++) {
+        const tableName = tableNames[i];
+        const progress = Math.round(((i + 1) / tableNames.length) * 100);
 
         updateJob(jobId, {
           progress,
-          message: `${i + 1}/${tableFolders.length}: ${tableName}`,
+          message: `${i + 1}/${tableNames.length}: ${tableName}`,
         });
 
         try {
-          console.log(`[AI Analyze All] ${i + 1}/${tableFolders.length}: invoking for ${tableName}`);
           await invoke("val_analyze_table_data", {
             domain: domainName,
             tableName,
             overwrite: true,
           });
-          console.log(`[AI Analyze All] ${i + 1}/${tableFolders.length}: ${tableName} OK`);
           successCount++;
         } catch (e) {
-          console.error(`[AI Analyze All] ${i + 1}/${tableFolders.length}: ${tableName} FAILED:`, e);
+          console.error(`[AI Analyze] ${tableName} FAILED:`, e);
           errorCount++;
         }
       }
@@ -656,15 +614,13 @@ export function DataModelsReviewView({
         progress: 100,
         message: `Analyzed ${successCount}${errorCount > 0 ? `, ${errorCount} errors` : ""}`,
       });
-      console.log("[AI Analyze All] completed:", { successCount, errorCount });
     } catch (e) {
-      console.error("[AI Analyze All] outer error:", e);
       updateJob(jobId, {
         status: "failed",
         message: e instanceof Error ? e.message : "Failed",
       });
     }
-  }, [isBatchRunning, dataModelsPath, domainName, addJob, updateJob]);
+  }, [isBatchRunning, getTargetTableNames, domainName, addJob, updateJob]);
 
   const modifiedCount = modifiedRows.size;
 
@@ -718,7 +674,7 @@ export function DataModelsReviewView({
             onClick={handleFetchAllSamples}
             disabled={isBatchRunning}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Fetch sample rows for all tables (see Jobs in status bar)"
+            title="Fetch sample rows for filtered tables (applies to visible rows in grid)"
           >
             <Database size={14} />
             Fetch All Samples
@@ -729,7 +685,7 @@ export function DataModelsReviewView({
             onClick={handleFetchAllCategorical}
             disabled={isBatchRunning}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Fetch distinct categorical values for all tables from full data (see Jobs in status bar)"
+            title="Fetch categorical values for filtered tables (applies to visible rows in grid)"
           >
             <Tags size={14} />
             Fetch All Categorical
@@ -740,7 +696,7 @@ export function DataModelsReviewView({
             onClick={handleFetchAllDetails}
             disabled={isBatchRunning}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Fetch details for all tables (see Jobs in status bar)"
+            title="Fetch details for filtered tables (applies to visible rows in grid)"
           >
             <RefreshCw size={14} />
             Fetch All Details
@@ -751,7 +707,7 @@ export function DataModelsReviewView({
             onClick={handleAnalyzeAll}
             disabled={isBatchRunning}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Run AI analysis on all tables one at a time (see Jobs in status bar)"
+            title="Run AI analysis on filtered tables (applies to visible rows in grid)"
           >
             <Sparkles size={14} />
             AI Analyze All
@@ -762,7 +718,7 @@ export function DataModelsReviewView({
             onClick={handleGenerateAllOverviews}
             disabled={isBatchRunning}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Generate overview.md for all tables (see Jobs in status bar)"
+            title="Generate overviews for filtered tables (applies to visible rows in grid)"
           >
             <FileText size={14} />
             Generate All Overviews
@@ -803,6 +759,7 @@ export function DataModelsReviewView({
         {/* Left: AG Grid */}
         <div className="flex-1 overflow-hidden">
           <DataModelsAgGrid
+            ref={gridRef}
             dataModelsPath={dataModelsPath}
             domainName={domainName}
             onTableSelect={onTableSelect}

@@ -1,7 +1,7 @@
 // src/modules/library/DataModelsAgGrid.tsx
 // AG Grid Enterprise view for data models - full-featured table browser
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AgGridReact } from "ag-grid-react";
 import {
@@ -77,6 +77,11 @@ export interface TableInfo {
   lastDetailsAt: string | null;
   lastAnalyzeAt: string | null;
   lastOverviewAt: string | null;
+}
+
+export interface DataModelsAgGridHandle {
+  /** Returns table names currently visible after all grid filters are applied */
+  getFilteredTableNames: () => string[];
 }
 
 interface DataModelsAgGridProps {
@@ -328,7 +333,7 @@ const TagsCellRenderer = (params: ICellRendererParams<TableInfo>) => {
   );
 };
 
-export function DataModelsAgGrid({
+export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgGridProps>(function DataModelsAgGrid({
   dataModelsPath,
   domainName,
   onTableSelect,
@@ -336,8 +341,21 @@ export function DataModelsAgGrid({
   onRowSelected,
   onCellEdited,
   modifiedRows,
-}: DataModelsAgGridProps) {
+}, ref) {
   const gridRef = useRef<AgGridReact>(null);
+
+  useImperativeHandle(ref, () => ({
+    getFilteredTableNames: () => {
+      if (!gridRef.current?.api) return [];
+      const names: string[] = [];
+      gridRef.current.api.forEachNodeAfterFilterAndSort((node) => {
+        if (node.data?.name) {
+          names.push(node.data.name);
+        }
+      });
+      return names;
+    },
+  }));
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1871,4 +1889,4 @@ export function DataModelsAgGrid({
       )}
     </div>
   );
-}
+});
