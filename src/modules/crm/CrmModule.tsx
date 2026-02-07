@@ -11,6 +11,7 @@ import { DirectoryView } from "./DirectoryView";
 import { ClientsView } from "./ClientsView";
 import { ClosedDealsView } from "./ClosedDealsView";
 import { Building2, BookUser, Users, Archive } from "lucide-react";
+import { ViewTab } from "../../components/ViewTab";
 
 type CrmView = "pipeline" | "directory" | "clients" | "closed";
 
@@ -27,25 +28,6 @@ function setDetailPanelWidth(width: number): void {
   if (typeof window !== "undefined") {
     localStorage.setItem(CRM_DETAIL_PANEL_WIDTH_KEY, String(width));
   }
-}
-
-// ============================
-// Tab component
-// ============================
-function ViewTab({ label, icon: Icon, active, onClick }: {
-  label: string; icon: typeof Building2; active: boolean; onClick: () => void;
-}) {
-  return (
-    <button onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
-        active
-          ? "border-teal-500 text-zinc-800 dark:text-zinc-100"
-          : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-400"
-      }`}>
-      <Icon size={14} />
-      {label}
-    </button>
-  );
 }
 
 // ============================

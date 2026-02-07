@@ -1,5 +1,6 @@
 export { ProductModule } from "./ProductModule";
-export { ProductSidebar } from "./ProductSidebar";
+export { PlatformTabView } from "./PlatformTabView";
+export { BusinessTabView } from "./BusinessTabView";
 export { ModuleGridView } from "./ModuleGridView";
 export { ModuleDetailPanel } from "./ModuleDetailPanel";
 export { ConnectorListView } from "./ConnectorListView";
@@ -14,6 +15,7 @@ export { DeploymentListView } from "./DeploymentListView";
 export { DeploymentDetailPanel } from "./DeploymentDetailPanel";
 export { DomainListView } from "./DomainListView";
 export { DomainDetailPanel } from "./DomainDetailPanel";
+export { DomainTabView } from "./DomainTabView";
 export { StatusChip } from "./StatusChip";
 export { ProductActivityTimeline } from "./ProductActivityTimeline";
 export { EntityForm } from "./EntityForm";

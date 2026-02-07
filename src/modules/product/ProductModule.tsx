@@ -1,85 +1,88 @@
 // src/modules/product/ProductModule.tsx
-// Main Product module container with sidebar, list/grid, and detail panel
+// Product module — 4-tab layout: Platform, Business, Domains, Categories
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { Boxes, Package, Database, Tags, ArrowLeft } from "lucide-react";
+import { ViewTab } from "../../components/ViewTab";
 import { useProductStats } from "../../hooks/useProduct";
 import { useDiscoverDomains } from "../../hooks/useValSync";
 import { useRepository } from "../../stores/repositoryStore";
-import type { ProductView } from "../../lib/product/types";
-import { ProductSidebar } from "./ProductSidebar";
-import { ModuleGridView } from "./ModuleGridView";
-import { ModuleDetailPanel } from "./ModuleDetailPanel";
-import { ConnectorListView } from "./ConnectorListView";
-import { ConnectorDetailPanel } from "./ConnectorDetailPanel";
-import { FeatureListView } from "./FeatureListView";
-import { FeatureDetailPanel } from "./FeatureDetailPanel";
-import { SolutionCardView } from "./SolutionCardView";
-import { SolutionDetailPanel } from "./SolutionDetailPanel";
-import { ReleaseListView } from "./ReleaseListView";
-import { ReleaseDetailPanel } from "./ReleaseDetailPanel";
-import { DeploymentListView } from "./DeploymentListView";
-import { DeploymentDetailPanel } from "./DeploymentDetailPanel";
-import { DomainListView } from "./DomainListView";
-import { DomainDetailPanel } from "./DomainDetailPanel";
+import type { ProductEntityType } from "../../lib/product/types";
+import { PlatformTabView } from "./PlatformTabView";
+import { BusinessTabView } from "./BusinessTabView";
+import { DomainTabView } from "./DomainTabView";
 import { CategoryLibraryPanel } from "./CategoryLibraryPanel";
 import { EntityForm } from "./EntityForm";
 import { DataModelsReviewView } from "../library/DataModelsReviewView";
-import { ArrowLeft } from "lucide-react";
 
-const SIDEBAR_WIDTH_KEY = "tv-desktop-product-sidebar-width";
+type ProductTab = "platform" | "business" | "domains" | "category-library";
 
-function getSidebarWidth(): number {
-  if (typeof window === "undefined") return 240;
-  const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-  return stored ? parseInt(stored, 10) : 240;
+// ============================
+// Detail panel resize persistence
+// ============================
+const DETAIL_PANEL_WIDTH_KEY = "tv-desktop-product-detail-panel-width";
+
+function getDetailPanelWidth(): number {
+  if (typeof window === "undefined") return 50;
+  const stored = localStorage.getItem(DETAIL_PANEL_WIDTH_KEY);
+  return stored ? parseInt(stored, 10) : 50;
 }
 
-function saveSidebarWidth(width: number): void {
+function saveDetailPanelWidth(width: number): void {
   if (typeof window !== "undefined") {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+    localStorage.setItem(DETAIL_PANEL_WIDTH_KEY, String(width));
   }
 }
 
+// ============================
+// Main module
+// ============================
 export function ProductModule() {
-  const [activeView, setActiveView] = useState<ProductView>("modules");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<ProductTab>("platform");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [formEntityType, setFormEntityType] = useState<ProductEntityType>("module");
 
-  // Data models review mode - when set, shows full-screen review for this domain
+  // DataModelsReview escape hatch
   const [reviewingDomain, setReviewingDomain] = useState<string | null>(null);
 
-  // Sidebar resizing
-  const [sidebarWidth, setSidebarWidth] = useState(240);
-  const [isResizing, setIsResizing] = useState(false);
-  const startXRef = useRef(0);
-  const startWidthRef = useRef(240);
+  // Detail panel resize (percentage-based, CRM pattern) — used by Platform & Business tabs
+  const [detailPanelWidth, setDetailPanelWidthState] = useState(50);
+  const [isResizingDetail, setIsResizingDetail] = useState(false);
+  const detailStartXRef = useRef(0);
+  const detailStartWidthRef = useRef(50);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Load width on mount
   useEffect(() => {
-    setSidebarWidth(getSidebarWidth());
+    setDetailPanelWidthState(getDetailPanelWidth());
   }, []);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Resize handlers
+  const handleDetailMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsResizing(true);
-    startXRef.current = e.clientX;
-    startWidthRef.current = sidebarWidth;
-  };
+    setIsResizingDetail(true);
+    detailStartXRef.current = e.clientX;
+    detailStartWidthRef.current = detailPanelWidth;
+  }, [detailPanelWidth]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      const deltaX = e.clientX - startXRef.current;
-      const newWidth = startWidthRef.current + deltaX;
-      const clamped = Math.max(180, Math.min(360, newWidth));
-      setSidebarWidth(clamped);
-      saveSidebarWidth(clamped);
+      if (isResizingDetail && containerRef.current) {
+        const containerWidth = containerRef.current.offsetWidth;
+        const deltaX = e.clientX - detailStartXRef.current;
+        const deltaPercent = (deltaX / containerWidth) * 100;
+        const newWidth = detailStartWidthRef.current - deltaPercent;
+        const clamped = Math.max(25, Math.min(75, newWidth));
+        setDetailPanelWidthState(clamped);
+        saveDetailPanelWidth(clamped);
+      }
     };
     const handleMouseUp = () => {
-      if (isResizing) setIsResizing(false);
+      if (isResizingDetail) setIsResizingDetail(false);
     };
-    if (isResizing) {
+    if (isResizingDetail) {
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("mouseup", handleMouseUp);
       document.body.style.cursor = "col-resize";
@@ -91,111 +94,41 @@ export function ProductModule() {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
-  }, [isResizing]);
+  }, [isResizingDetail]);
 
-  // Data
+  // Data for stats & domain path (used for DataModelsReview escape hatch)
   const statsQuery = useProductStats();
   const { activeRepository } = useRepository();
-  const domainsPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/domains`
-    : null;
+  const domainsPath = activeRepository ? `${activeRepository.path}/0_Platform/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
 
-  // Merge domain count into stats
-  const statsWithDomains = statsQuery.data
-    ? { ...statsQuery.data, domains: domainsQuery.data?.length ?? 0 }
-    : null;
-
-  // Handlers
-  const handleViewChange = useCallback((view: ProductView) => {
-    setActiveView(view);
-    setSelectedId(null);
-    setSearchQuery("");
-  }, []);
-
-  const handleSelect = useCallback((id: string) => {
-    setSelectedId(id);
-  }, []);
-
-  const handleCloseDetail = useCallback(() => {
+  // Tab change resets selection
+  const handleTabChange = useCallback((tab: ProductTab) => {
+    setActiveTab(tab);
     setSelectedId(null);
   }, []);
 
-  const handleNew = useCallback(async () => {
-    if (activeView === "domains") {
-      // Domains are auto-discovered, refresh the query
-      domainsQuery.refetch();
-      return;
-    }
+  // Entity form
+  const handleNew = useCallback((entityType: ProductEntityType) => {
+    setFormEntityType(entityType);
     setShowForm(true);
-  }, [activeView, domainsQuery]);
-
-  const handleFormClose = useCallback(() => {
-    setShowForm(false);
   }, []);
 
+  const handleFormClose = useCallback(() => setShowForm(false), []);
   const handleFormSaved = useCallback(() => {
     setShowForm(false);
     statsQuery.refetch();
   }, [statsQuery]);
 
-  // Handle entering data models review mode
-  const handleReviewDataModels = useCallback((domain: string) => {
-    setReviewingDomain(domain);
-  }, []);
+  // Selection (Platform & Business tabs)
+  const handleSelect = useCallback((id: string | null) => setSelectedId(id), []);
 
-  // Handle exiting data models review mode
-  const handleExitReview = useCallback(() => {
-    setReviewingDomain(null);
-  }, []);
+  // DataModelsReview (full-screen escape hatch for domains)
+  const handleReviewDataModels = useCallback((domain: string) => setReviewingDomain(domain), []);
+  const handleExitReview = useCallback(() => setReviewingDomain(null), []);
 
-  // Render view content
-  const renderListView = () => {
-    switch (activeView) {
-      case "modules":
-        return <ModuleGridView search={searchQuery} selectedId={selectedId} onSelect={handleSelect} />;
-      case "connectors":
-        return <ConnectorListView search={searchQuery} selectedId={selectedId} onSelect={handleSelect} />;
-      case "features":
-        return <FeatureListView search={searchQuery} selectedId={selectedId} onSelect={handleSelect} />;
-      case "solutions":
-        return <SolutionCardView search={searchQuery} selectedId={selectedId} onSelect={handleSelect} />;
-      case "releases":
-        return <ReleaseListView search={searchQuery} selectedId={selectedId} onSelect={handleSelect} />;
-      case "deployments":
-        return <DeploymentListView search={searchQuery} selectedId={selectedId} onSelect={handleSelect} />;
-      case "domains":
-        return <DomainListView search={searchQuery} selectedId={selectedId} onSelect={handleSelect} />;
-      case "category-library":
-        return <CategoryLibraryPanel />;
-    }
-  };
-
-  const renderDetailPanel = () => {
-    if (!selectedId) return null;
-    switch (activeView) {
-      case "modules":
-        return <ModuleDetailPanel id={selectedId} onClose={handleCloseDetail} />;
-      case "connectors":
-        return <ConnectorDetailPanel id={selectedId} onClose={handleCloseDetail} />;
-      case "features":
-        return <FeatureDetailPanel id={selectedId} onClose={handleCloseDetail} />;
-      case "solutions":
-        return <SolutionDetailPanel id={selectedId} onClose={handleCloseDetail} />;
-      case "releases":
-        return <ReleaseDetailPanel id={selectedId} onClose={handleCloseDetail} />;
-      case "deployments":
-        return <DeploymentDetailPanel id={selectedId} onClose={handleCloseDetail} />;
-      case "domains":
-        return <DomainDetailPanel id={selectedId} onClose={handleCloseDetail} onReviewDataModels={() => handleReviewDataModels(selectedId)} />;
-      case "category-library":
-        return null; // No detail panel for category library
-    }
-  };
-
-  // If reviewing data models, show full-screen review view
+  // ── Full-screen DataModelsReview ──
   if (reviewingDomain) {
-    // Look up the domain's actual path from discovered domains (handles production/demo/template)
     const discoveredDomain = domainsQuery.data?.find((d) => d.domain === reviewingDomain);
     const domainPath = discoveredDomain
       ? `${discoveredDomain.global_path}/data_models`
@@ -205,7 +138,6 @@ export function ProductModule() {
 
     return (
       <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
-        {/* Back header */}
         <div className="px-4 py-2 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
           <button
             onClick={handleExitReview}
@@ -215,83 +147,65 @@ export function ProductModule() {
             Back to Domains
           </button>
           <span className="text-zinc-300 dark:text-zinc-700">|</span>
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            {reviewingDomain}
-          </span>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{reviewingDomain}</span>
         </div>
-
-        {/* Review view */}
         <div className="flex-1 overflow-hidden">
-          {domainPath && (
-            <DataModelsReviewView
-              dataModelsPath={domainPath}
-              domainName={reviewingDomain}
-            />
-          )}
+          {domainPath && <DataModelsReviewView dataModelsPath={domainPath} domainName={reviewingDomain} />}
         </div>
       </div>
     );
   }
 
+  // ── Normal layout ──
   return (
-    <div className="h-full flex bg-slate-50 dark:bg-zinc-950">
-      {/* Sidebar */}
-      <aside
-        className="relative flex-shrink-0 border-r border-slate-200 dark:border-zinc-800"
-        style={{
-          width: sidebarWidth,
-          transition: isResizing ? "none" : "width 200ms",
-        }}
-      >
-        <ProductSidebar
-          activeView={activeView}
-          onViewChange={handleViewChange}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          stats={statsWithDomains}
-          onNew={handleNew}
-        />
+    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+      {/* Tab bar */}
+      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
+        <ViewTab label="Platform" icon={Boxes} active={activeTab === "platform"} onClick={() => handleTabChange("platform")} />
+        <ViewTab label="Business" icon={Package} active={activeTab === "business"} onClick={() => handleTabChange("business")} />
+        <ViewTab label="Domains" icon={Database} active={activeTab === "domains"} onClick={() => handleTabChange("domains")} />
+        <ViewTab label="Categories" icon={Tags} active={activeTab === "category-library"} onClick={() => handleTabChange("category-library")} />
+      </div>
 
-        {/* Resize Handle */}
-        <div
-          onMouseDown={handleMouseDown}
-          className="absolute top-0 -right-1 w-3 h-full cursor-col-resize group z-50"
-        >
-          <div
-            className={`absolute left-1 w-0.5 h-full transition-all ${
-              isResizing
-                ? "bg-teal-500 w-1"
-                : "bg-transparent group-hover:bg-teal-500/60"
-            }`}
+      {/* Content */}
+      <div ref={containerRef} className="flex-1 flex overflow-hidden">
+        {activeTab === "platform" && (
+          <PlatformTabView
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            onNew={handleNew}
+            detailPanelWidth={detailPanelWidth}
+            isResizingDetail={isResizingDetail}
+            onDetailMouseDown={handleDetailMouseDown}
           />
-        </div>
-      </aside>
+        )}
 
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* List / Grid view */}
-        <div
-          className={`${
-            selectedId
-              ? "w-1/2 border-r border-slate-200 dark:border-zinc-800"
-              : "flex-1"
-          } overflow-hidden flex flex-col`}
-        >
-          {renderListView()}
-        </div>
+        {activeTab === "business" && (
+          <BusinessTabView
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            onNew={handleNew}
+            detailPanelWidth={detailPanelWidth}
+            isResizingDetail={isResizingDetail}
+            onDetailMouseDown={handleDetailMouseDown}
+          />
+        )}
 
-        {/* Detail panel */}
-        {selectedId && (
-          <div className="w-1/2 overflow-hidden">
-            {renderDetailPanel()}
+        {activeTab === "domains" && (
+          <DomainTabView onReviewDataModels={handleReviewDataModels} />
+        )}
+
+        {activeTab === "category-library" && (
+          <div className="flex-1 overflow-hidden">
+            <CategoryLibraryPanel />
           </div>
         )}
       </div>
 
-      {/* Create/Edit form modal (not for domains view) */}
-      {showForm && activeView !== "domains" && (
+      {/* Entity form modal */}
+      {showForm && (
         <EntityForm
-          entityType={activeView === "modules" ? "module" : activeView === "connectors" ? "connector" : activeView === "features" ? "feature" : activeView === "solutions" ? "solution" : activeView === "releases" ? "release" : "deployment"}
+          entityType={formEntityType}
           onClose={handleFormClose}
           onSaved={handleFormSaved}
         />

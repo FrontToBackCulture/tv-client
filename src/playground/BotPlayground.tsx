@@ -27,6 +27,7 @@ import { useBotSettingsStore } from "../stores/botSettingsStore";
 import { useAuth } from "../stores/authStore";
 import { useFolderFiles } from "../hooks/useFolderFiles";
 import { cn } from "../lib/cn";
+import { ViewTab } from "../components/ViewTab";
 
 // ============================
 // Types
@@ -715,25 +716,6 @@ function StatPill({ icon: Icon, label, count, color, clickable }: { icon: typeof
       <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">{count}</span>
       <span className="text-xs text-zinc-400">{label}</span>
     </div>
-  );
-}
-
-// ============================
-// Tab bar (CRM-style)
-// ============================
-function ViewTab({ label, icon: Icon, active, onClick }: {
-  label: string; icon: typeof Bot; active: boolean; onClick: () => void;
-}) {
-  return (
-    <button onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
-        active
-          ? "border-teal-500 text-zinc-800 dark:text-zinc-100"
-          : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-400"
-      }`}>
-      <Icon size={14} />
-      {label}
-    </button>
   );
 }
 
