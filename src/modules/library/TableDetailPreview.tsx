@@ -78,36 +78,17 @@ interface TableDetailPreviewProps {
   onSyncToGrid?: () => void;
 }
 
-// Dropdown options for classification fields - synced with CategoryLibraryPanel
-const CATEGORY_OPTIONS = [
-  "Mapping", "Master List", "Transaction", "Report", "Staging", "Archive", "System",
-  "GL", "AP", "AR", "Receipt", "Payment", "Fee", "Tax", "Product", "Stock",
-  "Order", "Delivery", "Customer", "Employee", "Other"
-];
-const SUB_CATEGORY_OPTIONS = [
-  "Outlet", "Brand", "Platform", "Fulfilment Type", "Other"
-];
-const TAG_OPTIONS = [
-  "Mapping", "Outlet", "Brand", "Platform", "Manual Upload", "Outlet Mapping",
-  "GL Entry", "Journal", "In Use", "Receipt", "Transaction", "POS", "Delivery",
-  "Payment", "Refund", "Settlement", "Commission", "Fee", "Tax", "Master Data",
-  "Configuration", "Historical", "Archive", "Sales", "Daily", "Monthly"
-];
-const STATUS_OPTIONS = ["In Use", "Not Used", "Historically Used", "I Dunno"];
-const ACTION_OPTIONS = ["None", "To Review", "To Delete", "Approved"];
-const DATA_SOURCE_OPTIONS = [
-  "POS", "ERP", "Bank", "Manual Upload", "API", "File Import",
-  "System Generated", "Integration", "Unknown"
-];
-const TABLE_TYPE_OPTIONS = [
-  "Transactional", "Master Data", "Mapping", "Configuration",
-  "Report", "Staging", "Archive", "System"
-];
-const SOURCE_SYSTEM_OPTIONS = [
-  "Dine Connect", "Square", "Revel", "Toast", "Lightspeed",
-  "Oracle", "SAP", "NetSuite", "QuickBooks", "Xero",
-  "Shopify", "WooCommerce", "Magento", "Custom", "Other"
-];
+// Classification values from shared constants
+import {
+  DATA_CATEGORY as CATEGORY_OPTIONS,
+  DATA_SUB_CATEGORY as SUB_CATEGORY_OPTIONS,
+  TAGS as TAG_OPTIONS,
+  USAGE_STATUS as STATUS_OPTIONS,
+  ACTION as ACTION_OPTIONS,
+  DATA_SOURCE as DATA_SOURCE_OPTIONS,
+  DATA_TYPE as TABLE_TYPE_OPTIONS,
+  SOURCE_SYSTEM as SOURCE_SYSTEM_OPTIONS,
+} from "../../lib/classificationValues";
 
 // TagsInput component - displays tags as pills with add/remove
 function TagsInput({
@@ -117,7 +98,7 @@ function TagsInput({
 }: {
   value: string;
   onChange: (val: string) => void;
-  suggestions: string[];
+  suggestions: readonly string[];
 }) {
   const [inputValue, setInputValue] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -217,7 +198,7 @@ function ComboBox({
 }: {
   value: string;
   onChange: (val: string) => void;
-  options: string[];
+  options: readonly string[];
   placeholder?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);

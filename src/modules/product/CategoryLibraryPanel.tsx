@@ -2,110 +2,33 @@
 // Panel showing the library of classification values for data models
 
 import { useState } from "react";
-import { Database, Tag, Folder, Activity, CheckCircle } from "lucide-react";
+import { Database, Tag, Folder, Activity, CheckCircle, Server } from "lucide-react";
 import { cn } from "../../lib/cn";
+import {
+  DATA_CATEGORY,
+  DATA_SUB_CATEGORY,
+  TAGS,
+  DATA_SOURCE,
+  SOURCE_SYSTEM,
+  DATA_TYPE,
+  USAGE_STATUS,
+  ACTION,
+} from "../../lib/classificationValues";
 
-// Standard classification values used across data models
-// These match the dropdown values in DataModelsAgGrid
-const CLASSIFICATION_VALUES = {
-  // Data Category - the business domain/entity type
-  category: [
-    "Mapping",
-    "Master List",
-    "Transaction",
-    "Report",
-    "Staging",
-    "Archive",
-    "System",
-    "GL",
-    "AP",
-    "AR",
-    "Receipt",
-    "Payment",
-    "Fee",
-    "Tax",
-    "Product",
-    "Stock",
-    "Order",
-    "Delivery",
-    "Customer",
-    "Employee",
-    "Other",
-  ],
-  // Data Sub Category - more specific classification within category
-  subCategory: [
-    "Outlet",
-    "Brand",
-    "Platform",
-    "Fulfilment Type",
-    "Other",
-  ],
-  // Tags - descriptive labels for the table
-  tags: [
-    "Mapping",
-    "Outlet",
-    "Brand",
-    "Platform",
-    "Manual Upload",
-    "Outlet Mapping",
-    "GL Entry",
-    "Journal",
-    "In Use",
-    "Receipt",
-    "Transaction",
-    "POS",
-    "Delivery",
-    "Payment",
-    "Refund",
-    "Settlement",
-    "Commission",
-    "Fee",
-    "Tax",
-    "Master Data",
-    "Configuration",
-    "Historical",
-    "Archive",
-  ],
-  // Data Source - where the data comes from
-  dataSource: [
-    "POS",
-    "ERP",
-    "Bank",
-    "Manual Upload",
-    "API",
-    "File Import",
-    "System Generated",
-    "Unknown",
-  ],
-  // Data Type - the nature/behavior of the data
-  dataType: [
-    "Static",
-    "Historical",
-    "Transactional",
-    "Mapping",
-    "Configuration",
-    "Report",
-    "Staging",
-  ],
-  // Usage Status
-  usageStatus: ["In Use", "Not Used", "Historically Used", "I Dunno"],
-  // Review Action
-  action: ["None", "To Review", "To Delete", "Approved"],
-};
-
-type TabType = "category" | "sub-category" | "tags" | "source" | "data-type" | "status" | "action";
+type TabType = "category" | "sub-category" | "tags" | "source" | "source-system" | "data-type" | "status" | "action";
 
 export function CategoryLibraryPanel() {
   const [activeTab, setActiveTab] = useState<TabType>("category");
 
-  const tabs: { id: TabType; label: string; icon: typeof Tag; values: string[] }[] = [
-    { id: "category", label: "Category", icon: Folder, values: CLASSIFICATION_VALUES.category },
-    { id: "sub-category", label: "Sub Category", icon: Tag, values: CLASSIFICATION_VALUES.subCategory },
-    { id: "tags", label: "Tags", icon: Tag, values: CLASSIFICATION_VALUES.tags },
-    { id: "source", label: "Data Source", icon: Activity, values: CLASSIFICATION_VALUES.dataSource },
-    { id: "data-type", label: "Data Type", icon: Database, values: CLASSIFICATION_VALUES.dataType },
-    { id: "status", label: "Usage Status", icon: CheckCircle, values: CLASSIFICATION_VALUES.usageStatus },
-    { id: "action", label: "Action", icon: CheckCircle, values: CLASSIFICATION_VALUES.action },
+  const tabs: { id: TabType; label: string; icon: typeof Tag; values: readonly string[] }[] = [
+    { id: "category", label: "Category", icon: Folder, values: DATA_CATEGORY },
+    { id: "sub-category", label: "Sub Category", icon: Tag, values: DATA_SUB_CATEGORY },
+    { id: "tags", label: "Tags", icon: Tag, values: TAGS },
+    { id: "source", label: "Data Source", icon: Activity, values: DATA_SOURCE },
+    { id: "source-system", label: "Source System", icon: Server, values: SOURCE_SYSTEM },
+    { id: "data-type", label: "Data Type", icon: Database, values: DATA_TYPE },
+    { id: "status", label: "Usage Status", icon: CheckCircle, values: USAGE_STATUS },
+    { id: "action", label: "Action", icon: CheckCircle, values: ACTION },
   ];
 
   const activeTabData = tabs.find(t => t.id === activeTab);

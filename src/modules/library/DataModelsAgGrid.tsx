@@ -95,72 +95,9 @@ interface DataModelsAgGridProps {
   modifiedRows?: Map<string, Partial<TableInfo>>;
 }
 
-// Dropdown values for editable columns (empty string first allows clearing)
-export const DROPDOWN_VALUES = {
-  dataCategory: [
-    "", // Clear option
-    "Mapping",
-    "Master List",
-    "Transaction",
-    "Report",
-    "Staging",
-    "Archive",
-    "System",
-    "GL",
-    "AP",
-    "AR",
-    "Receipt",
-    "Payment",
-    "Fee",
-    "Tax",
-    "Product",
-    "Stock",
-    "Order",
-    "Delivery",
-    "Customer",
-    "Employee",
-    "Other",
-  ],
-  dataSubCategory: [
-    "", // Clear option
-    "Outlet",
-    "Brand",
-    "Platform",
-    "Fulfilment Type",
-    "Other",
-  ],
-  usageStatus: ["", "In Use", "Not Used", "Historically Used", "I Dunno"],
-  action: ["", "None", "To Review", "To Delete", "Approved"],
-  dataSource: [
-    "", // Clear option
-    "POS",
-    "ERP",
-    "Bank",
-    "Manual Upload",
-    "API",
-    "File Import",
-    "System Generated",
-    "Unknown",
-  ],
-  sourceSystem: [
-    "", // Clear option
-    "Dine Connect",
-    "Square",
-    "Revel",
-    "Toast",
-    "Lightspeed",
-    "Oracle",
-    "SAP",
-    "NetSuite",
-    "QuickBooks",
-    "Xero",
-    "Shopify",
-    "WooCommerce",
-    "Magento",
-    "Custom",
-    "Other",
-  ],
-};
+// Import from shared constants (re-exported for consumers importing from this file)
+import { DROPDOWN_VALUES } from "../../lib/classificationValues";
+export { DROPDOWN_VALUES };
 
 
 // Name cell renderer with documentation indicator

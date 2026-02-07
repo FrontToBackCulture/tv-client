@@ -31,47 +31,6 @@ interface DataModelsReviewViewProps {
 }
 
 // Editable field values for dropdown editors
-export const DROPDOWN_VALUES = {
-  dataCategory: [
-    "Sales",
-    "Finance",
-    "Inventory",
-    "Customer",
-    "Operations",
-    "System",
-    "Master Data",
-    "Staging",
-    "Other",
-  ],
-  dataSubCategory: [
-    "Orders",
-    "Payments",
-    "GL",
-    "AP",
-    "AR",
-    "Stock",
-    "Products",
-    "Config",
-    "Import",
-    "Transactions",
-    "Reports",
-    "Mapping",
-    "Other",
-  ],
-  usageStatus: ["In Use", "Not Used", "Historically Used", "I Dunno"],
-  action: ["None", "To Review", "To Delete", "Approved"],
-  dataSource: [
-    "POS",
-    "ERP",
-    "Bank",
-    "Manual",
-    "API",
-    "File Import",
-    "System Generated",
-    "Unknown",
-  ],
-};
-
 export function DataModelsReviewView({
   dataModelsPath,
   domainName,
