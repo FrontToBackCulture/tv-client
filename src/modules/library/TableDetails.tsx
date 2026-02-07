@@ -59,8 +59,13 @@ interface TableAnalysis {
 }
 
 interface TableSample {
-  sampleData?: Array<Record<string, unknown>>;
-  rowCount?: number;
+  rows?: Array<Record<string, unknown>>;
+  meta?: {
+    totalRowCount?: number;
+    rowCount?: number;
+    sampledAt?: string;
+    orderBy?: string | null;
+  };
 }
 
 type TabType = "details" | "sample" | "analysis" | "sources";
@@ -381,11 +386,11 @@ function DetailsTab({ definition }: { definition: TableDefinition | null }) {
 
 // Sample tab
 function SampleTab({ sample }: { sample: TableSample | null }) {
-  if (!sample || !sample.sampleData || sample.sampleData.length === 0) {
+  if (!sample || !sample.rows || sample.rows.length === 0) {
     return <div className="text-zinc-500">No sample data available</div>;
   }
 
-  const data = sample.sampleData;
+  const data = sample.rows;
   const columns = Object.keys(data[0]);
 
   return (

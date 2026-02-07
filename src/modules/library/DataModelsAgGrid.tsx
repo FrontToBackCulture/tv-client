@@ -555,13 +555,8 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
                 tableType = details.meta?.tableType || null;
                 // Timestamp from meta
                 lastDetailsAt = details.meta?.generatedAt || null;
-                // Health section
+                // Health section (rowCount comes from sample, not here)
                 if (details.health) {
-                  if (details.health.rowCount !== undefined) {
-                    rowCount = typeof details.health.rowCount === "number"
-                      ? details.health.rowCount
-                      : parseInt(details.health.rowCount, 10) || null;
-                  }
                   if (details.health.daysSinceCreated !== undefined) {
                     daysSinceCreated = details.health.daysSinceCreated;
                   }
@@ -610,13 +605,16 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
                 // No details file
               }
 
-              // Read definition_sample.json for timestamp
+              // Read definition_sample.json for timestamp + rowCount
               try {
                 const sampleContent = await invoke<string>("read_file", {
                   path: `${dir.path}/definition_sample.json`,
                 });
                 const sample = JSON.parse(sampleContent);
                 lastSampleAt = sample.meta?.sampledAt || null;
+                if (sample.meta?.totalRowCount != null) {
+                  rowCount = sample.meta.totalRowCount;
+                }
               } catch {
                 // No sample file
               }
