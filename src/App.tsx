@@ -51,8 +51,8 @@ export default function App() {
         e.preventDefault();
         const moduleKeys: ModuleId[] = [
           "library",
-          "work",
           "crm",
+          "work",
           "inbox",
           "product",
           "bot",

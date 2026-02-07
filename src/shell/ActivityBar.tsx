@@ -35,8 +35,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: "library", icon: Library, label: "Library", shortcut: "⌘1" },
-  { id: "work", icon: CheckSquare, label: "Work", shortcut: "⌘2" },
-  { id: "crm", icon: Building2, label: "CRM", shortcut: "⌘3" },
+  { id: "crm", icon: Building2, label: "CRM", shortcut: "⌘2" },
+  { id: "work", icon: CheckSquare, label: "Work", shortcut: "⌘3" },
   { id: "inbox", icon: Mail, label: "Inbox", shortcut: "⌘4" },
   { id: "product", icon: Boxes, label: "Product", shortcut: "⌘5" },
   { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘6" },
