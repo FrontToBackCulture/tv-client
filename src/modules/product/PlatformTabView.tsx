@@ -1,8 +1,8 @@
 // src/modules/product/PlatformTabView.tsx
-// Platform tab: sidebar (Modules / Features / Connectors) + list + resizable detail
+// Platform tab: sidebar (Modules grouped by layer with nested features, Connectors) + list + resizable detail
 
-import { useState, useMemo } from "react";
-import { Search, X, Plus, Boxes, Star, Plug } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import { Search, X, Plus, ChevronRight } from "lucide-react";
 import { useProductModules, useProductFeatures, useProductConnectors } from "../../hooks/useProduct";
 import { ModuleGridView } from "./ModuleGridView";
 import { ModuleDetailPanel } from "./ModuleDetailPanel";
@@ -10,17 +10,17 @@ import { FeatureListView } from "./FeatureListView";
 import { FeatureDetailPanel } from "./FeatureDetailPanel";
 import { ConnectorListView } from "./ConnectorListView";
 import { ConnectorDetailPanel } from "./ConnectorDetailPanel";
-import type { ProductEntityType } from "../../lib/product/types";
+import type { ModuleLayer, ProductEntityType } from "../../lib/product/types";
 
 type EntityType = "modules" | "features" | "connectors";
 
-const ENTITY_META: Record<EntityType, { label: string; singular: ProductEntityType; icon: typeof Boxes }> = {
-  modules: { label: "Modules", singular: "module", icon: Boxes },
-  features: { label: "Features", singular: "feature", icon: Star },
-  connectors: { label: "Connectors", singular: "connector", icon: Plug },
-};
+const LAYER_ORDER: ModuleLayer[] = ["connectivity", "application", "experience"];
 
-const GROUP_ORDER: EntityType[] = ["modules", "features", "connectors"];
+const LAYER_LABELS: Record<ModuleLayer, string> = {
+  connectivity: "Connectivity Layer",
+  application: "Application Layer",
+  experience: "Experience Layer",
+};
 
 interface PlatformTabViewProps {
   selectedId: string | null;
@@ -41,27 +41,125 @@ export function PlatformTabView({
 }: PlatformTabViewProps) {
   const [activeType, setActiveType] = useState<EntityType>("modules");
   const [search, setSearch] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  // Fetch data for sidebar counts + items
+  // Fetch data
   const { data: modules = [] } = useProductModules();
   const { data: features = [] } = useProductFeatures();
   const { data: connectors = [] } = useProductConnectors();
 
-  const dataMap = useMemo(
-    () => ({
-      modules: modules.map((m) => ({ id: m.id, name: m.name })),
-      features: features.map((f) => ({ id: f.id, name: f.name })),
-      connectors: connectors.map((c) => ({ id: c.id, name: c.name })),
-    }),
-    [modules, features, connectors],
-  );
+  const searchLower = search.toLowerCase();
 
-  const handleSidebarSelect = (type: EntityType, id: string) => {
-    setActiveType(type);
+  // Group modules by layer
+  const modulesByLayer = useMemo(() => {
+    const map = new Map<ModuleLayer, typeof modules>();
+    for (const layer of LAYER_ORDER) {
+      map.set(layer, modules.filter((m) => m.layer === layer));
+    }
+    return map;
+  }, [modules]);
+
+  // Group features by module_id
+  const featuresByModule = useMemo(() => {
+    const map = new Map<string, typeof features>();
+    for (const f of features) {
+      if (!f.module_id) continue;
+      const list = map.get(f.module_id);
+      if (list) list.push(f);
+      else map.set(f.module_id, [f]);
+    }
+    return map;
+  }, [features]);
+
+  // Toggle collapse state
+  const toggle = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const isExpanded = useCallback((key: string) => !collapsed.has(key), [collapsed]);
+
+  // Determine "new" button context
+  const newButtonType = useMemo((): ProductEntityType => {
+    if (activeType === "connectors") return "connector";
+    return "module";
+  }, [activeType]);
+
+  const newButtonLabel = newButtonType === "connector" ? "New Connector" : "New Module";
+
+  // ── Selection handlers ──────────────────────────────────────
+  const handleSelectModule = (id: string) => {
+    setActiveType("modules");
     onSelect(id);
   };
 
-  // Render list view
+  const handleSelectFeature = (id: string) => {
+    setActiveType("features");
+    onSelect(id);
+  };
+
+  const handleSelectConnector = (id: string) => {
+    setActiveType("connectors");
+    onSelect(id);
+  };
+
+  // ── Search filtering ────────────────────────────────────────
+  // When searching, compute which modules/features/connectors match
+  const { filteredModuleIds, filteredFeatureIds, matchingLayers } = useMemo(() => {
+    if (!search) {
+      return {
+        filteredModuleIds: null,
+        filteredFeatureIds: null,
+        filteredConnectorIds: null,
+        matchingLayers: null,
+      };
+    }
+
+    const mIds = new Set<string>();
+    const fIds = new Set<string>();
+    const layers = new Set<ModuleLayer>();
+
+    // Match modules by name
+    for (const m of modules) {
+      if (m.name.toLowerCase().includes(searchLower)) {
+        mIds.add(m.id);
+        if (m.layer) layers.add(m.layer as ModuleLayer);
+      }
+    }
+
+    // Match features by name, also include their parent module
+    for (const f of features) {
+      if (f.name.toLowerCase().includes(searchLower)) {
+        fIds.add(f.id);
+        if (f.module_id) {
+          mIds.add(f.module_id);
+          const parentModule = modules.find((m) => m.id === f.module_id);
+          if (parentModule?.layer) layers.add(parentModule.layer as ModuleLayer);
+        }
+      }
+    }
+
+    return {
+      filteredModuleIds: mIds,
+      filteredFeatureIds: fIds,
+      matchingLayers: layers,
+    };
+  }, [search, searchLower, modules, features, connectors]);
+
+  // Check if a module is visible (either no search, or it matches)
+  const isModuleVisible = (id: string) => !filteredModuleIds || filteredModuleIds.has(id);
+
+  // Check if a feature is visible
+  const isFeatureVisible = (id: string) => !filteredFeatureIds || filteredFeatureIds.has(id);
+
+  // Check if a layer has any visible modules
+  const isLayerVisible = (layer: ModuleLayer) => !matchingLayers || matchingLayers.has(layer);
+
+  // ── Render list view ────────────────────────────────────────
   const renderListView = () => {
     const props = { search, selectedId, onSelect: (id: string) => onSelect(id) };
     switch (activeType) {
@@ -74,7 +172,7 @@ export function PlatformTabView({
     }
   };
 
-  // Render detail panel
+  // ── Render detail panel ─────────────────────────────────────
   const renderDetail = () => {
     if (!selectedId) return null;
     const close = () => onSelect(null);
@@ -86,6 +184,194 @@ export function PlatformTabView({
       case "connectors":
         return <ConnectorDetailPanel id={selectedId} onClose={close} />;
     }
+  };
+
+  // ── Sidebar: Modules section ────────────────────────────────
+  const renderModulesSection = () => {
+    const totalCount = modules.length;
+    const modulesExpanded = isExpanded("modules");
+
+    // When searching, hide entire section if no matches
+    if (search && filteredModuleIds && filteredModuleIds.size === 0 && filteredFeatureIds && filteredFeatureIds.size === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mb-2">
+        {/* MODULES header */}
+        <button
+          onClick={() => toggle("modules")}
+          className="w-full text-left px-2.5 mb-0.5 flex items-center gap-1"
+        >
+          <ChevronRight
+            size={10}
+            className={`text-zinc-400 transition-transform flex-shrink-0 ${modulesExpanded ? "rotate-90" : ""}`}
+          />
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Modules
+          </span>
+          <span className="text-[9px] text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums">
+            {totalCount}
+          </span>
+        </button>
+
+        {modulesExpanded && (
+          <div>
+            {LAYER_ORDER.map((layer) => {
+              if (!isLayerVisible(layer)) return null;
+              const layerModules = modulesByLayer.get(layer) || [];
+              if (layerModules.length === 0) return null;
+
+              const layerKey = `layer:${layer}`;
+              const layerExpanded = search ? true : isExpanded(layerKey);
+
+              return (
+                <div key={layer} className="mb-0.5">
+                  {/* Layer header */}
+                  <button
+                    onClick={() => toggle(layerKey)}
+                    className="w-full text-left pl-4 pr-2.5 py-0.5 flex items-center gap-1"
+                  >
+                    <ChevronRight
+                      size={9}
+                      className={`text-zinc-400 transition-transform flex-shrink-0 ${layerExpanded ? "rotate-90" : ""}`}
+                    />
+                    <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-500">
+                      {LAYER_LABELS[layer]}
+                    </span>
+                  </button>
+
+                  {layerExpanded && (
+                    <div>
+                      {layerModules.map((mod) => {
+                        if (!isModuleVisible(mod.id)) return null;
+
+                        const modFeatures = featuresByModule.get(mod.id) || [];
+                        const visibleFeatures = search
+                          ? modFeatures.filter((f) => isFeatureVisible(f.id))
+                          : modFeatures;
+                        const featureCount = modFeatures.length;
+                        const moduleExpanded = search ? true : isExpanded(mod.id);
+                        const isSelected = selectedId === mod.id && activeType === "modules";
+
+                        return (
+                          <div key={mod.id}>
+                            {/* Module row */}
+                            <button
+                              onClick={() => handleSelectModule(mod.id)}
+                              className={`w-full text-left flex items-center gap-1.5 px-2.5 pl-6 py-1 rounded-md text-xs transition-colors ${
+                                isSelected
+                                  ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
+                                  : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
+                              }`}
+                            >
+                              {featureCount > 0 && (
+                                <ChevronRight
+                                  size={9}
+                                  className={`text-zinc-400 transition-transform flex-shrink-0 ${moduleExpanded ? "rotate-90" : ""}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggle(mod.id);
+                                  }}
+                                />
+                              )}
+                              <span className="truncate">{mod.name}</span>
+                              {featureCount > 0 && (
+                                <span className="text-[9px] text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums flex-shrink-0">
+                                  {featureCount}
+                                </span>
+                              )}
+                            </button>
+
+                            {/* Nested features */}
+                            {moduleExpanded && visibleFeatures.length > 0 && (
+                              <div>
+                                {visibleFeatures.map((feat) => {
+                                  const isFeatSelected = selectedId === feat.id && activeType === "features";
+                                  return (
+                                    <button
+                                      key={feat.id}
+                                      onClick={() => handleSelectFeature(feat.id)}
+                                      className={`w-full text-left pl-10 pr-2.5 py-0.5 text-[11px] transition-colors rounded-md ${
+                                        isFeatSelected
+                                          ? "text-teal-600 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-950/20"
+                                          : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                                      }`}
+                                    >
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="text-zinc-300 dark:text-zinc-600">·</span>
+                                        <span className="truncate">{feat.name}</span>
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── Sidebar: Connectors section ─────────────────────────────
+  const renderConnectorsSection = () => {
+    const filteredConnectors = search
+      ? connectors.filter((c) => c.name.toLowerCase().includes(searchLower))
+      : connectors;
+
+    if (search && filteredConnectors.length === 0) return null;
+
+    const connectorsExpanded = isExpanded("connectors");
+
+    return (
+      <div className="mb-2">
+        {/* CONNECTORS header */}
+        <button
+          onClick={() => toggle("connectors")}
+          className="w-full text-left px-2.5 mb-0.5 flex items-center gap-1"
+        >
+          <ChevronRight
+            size={10}
+            className={`text-zinc-400 transition-transform flex-shrink-0 ${connectorsExpanded ? "rotate-90" : ""}`}
+          />
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Connectors
+          </span>
+          <span className="text-[9px] text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums">
+            {connectors.length}
+          </span>
+        </button>
+
+        {connectorsExpanded && (
+          <div>
+            {filteredConnectors.map((conn) => {
+              const isSelected = selectedId === conn.id && activeType === "connectors";
+              return (
+                <button
+                  key={conn.id}
+                  onClick={() => handleSelectConnector(conn.id)}
+                  className={`w-full text-left flex items-center gap-2 px-2.5 pl-5 py-1 rounded-md text-xs transition-colors ${
+                    isSelected
+                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
+                      : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
+                  }`}
+                >
+                  <span className="truncate">{conn.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -111,55 +397,20 @@ export function PlatformTabView({
           </div>
         </div>
 
-        {/* Grouped items */}
+        {/* Collapsible sections */}
         <div className="flex-1 overflow-y-auto px-2 py-1">
-          {GROUP_ORDER.map((type) => {
-            const meta = ENTITY_META[type];
-            const items = search
-              ? dataMap[type].filter((i) => i.name.toLowerCase().includes(search.toLowerCase()))
-              : dataMap[type];
-            if (search && items.length === 0) return null;
-
-            return (
-              <div key={type} className="mb-2">
-                <button
-                  onClick={() => { setActiveType(type); onSelect(null); }}
-                  className="w-full text-left"
-                >
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-2.5 mb-0.5 flex items-center gap-1.5">
-                    <meta.icon size={10} />
-                    {meta.label}
-                    <span className="text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums">{items.length}</span>
-                  </p>
-                </button>
-                <div>
-                  {items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleSidebarSelect(type, item.id)}
-                      className={`w-full text-left flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors ${
-                        selectedId === item.id && activeType === type
-                          ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
-                          : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
-                      }`}
-                    >
-                      <span className="truncate">{item.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {renderModulesSection()}
+          {renderConnectorsSection()}
         </div>
 
         {/* New button */}
         <div className="px-2 py-2 border-t border-slate-200 dark:border-zinc-800">
           <button
-            onClick={() => onNew(ENTITY_META[activeType].singular)}
+            onClick={() => onNew(newButtonType)}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs font-medium transition-colors"
           >
             <Plus size={14} />
-            New {ENTITY_META[activeType].label.replace(/s$/, "")}
+            {newButtonLabel}
           </button>
         </div>
       </div>

@@ -1,9 +1,8 @@
 // src/modules/system/hooks/useUnifiedCapabilities.ts
-// Combines MCP tools, Tauri commands, and REST APIs into a unified view
+// Combines MCP tools and Tauri commands into a unified documentation view
 
 import { useMemo } from "react";
 import { useMcpTools, McpTool } from "./useMcpTools";
-import { useOpenApi, ApiEndpoint } from "./useOpenApi";
 import generatedTauriCommands from "../generated/tauri-commands.json";
 
 // Unified capability that may exist in multiple systems
@@ -22,9 +21,6 @@ export interface UnifiedCapability {
     commandName: string;
     module: string;
   };
-  api?: {
-    endpoint: ApiEndpoint;
-  };
 }
 
 export interface CapabilityGroup {
@@ -39,8 +35,7 @@ interface TauriCommand {
 }
 
 // Mapping rules: how to match capabilities across systems
-// Format: { displayName: { mcp?: prefix, tauri?: prefix, api?: path pattern } }
-const CAPABILITY_MAPPINGS: Record<string, Record<string, { mcp?: string; tauri?: string; api?: string }>> = {
+const CAPABILITY_MAPPINGS: Record<string, Record<string, { mcp?: string; tauri?: string }>> = {
   "Work": {
     "List Tasks": { mcp: "list-work-tasks", tauri: "work_list_tasks" },
     "Get Task": { mcp: "get-work-task", tauri: "work_get_task" },
@@ -71,10 +66,10 @@ const CAPABILITY_MAPPINGS: Record<string, Record<string, { mcp?: string; tauri?:
     "Create Project Update": { mcp: "create-project-update", tauri: "work_create_project_update" },
   },
   "CRM": {
-    "List Companies": { mcp: "list-crm-companies", tauri: "crm_list_companies", api: "/api/v1/crm/companies" },
+    "List Companies": { mcp: "list-crm-companies", tauri: "crm_list_companies" },
     "Find Company": { mcp: "find-crm-company", tauri: "crm_find_company" },
     "Get Company": { mcp: "get-crm-company", tauri: "crm_get_company" },
-    "Create Company": { mcp: "create-crm-company", tauri: "crm_create_company", api: "/api/v1/crm/companies" },
+    "Create Company": { mcp: "create-crm-company", tauri: "crm_create_company" },
     "Update Company": { mcp: "update-crm-company", tauri: "crm_update_company" },
     "Delete Company": { mcp: "delete-crm-company", tauri: "crm_delete_company" },
     "List Contacts": { mcp: "list-crm-contacts", tauri: "crm_list_contacts" },
@@ -197,14 +192,12 @@ const CAPABILITY_MAPPINGS: Record<string, Record<string, { mcp?: string; tauri?:
 function buildUnifiedCapabilities(
   mcpTools: McpTool[] | undefined,
   tauriCommands: TauriCommand[],
-  apiEndpoints: ApiEndpoint[] | undefined
 ): CapabilityGroup[] {
   const groups: CapabilityGroup[] = [];
 
   // Track which items have been mapped
   const mappedMcp = new Set<string>();
   const mappedTauri = new Set<string>();
-  const mappedApi = new Set<string>();
 
   // Build capabilities from mappings
   for (const [categoryName, capabilities] of Object.entries(CAPABILITY_MAPPINGS)) {
@@ -237,18 +230,8 @@ function buildUnifiedCapabilities(
         }
       }
 
-      // Match API endpoint
-      if (mapping.api && apiEndpoints) {
-        const endpoint = apiEndpoints.find(e => e.path === mapping.api);
-        if (endpoint) {
-          capability.api = { endpoint };
-          capability.description = capability.description || endpoint.description;
-          mappedApi.add(endpoint.path);
-        }
-      }
-
       // Only add if at least one system has it
-      if (capability.mcp || capability.tauri || capability.api) {
+      if (capability.mcp || capability.tauri) {
         categoryCapabilities.push(capability);
       }
     }
@@ -297,27 +280,8 @@ function buildUnifiedCapabilities(
     }
   }
 
-  // Add unmapped API endpoints
-  if (apiEndpoints) {
-    const unmappedApiEndpoints = apiEndpoints.filter(e => !mappedApi.has(e.path));
-    if (unmappedApiEndpoints.length > 0) {
-      const otherApi = groups.find(g => g.name === "Other API") || { name: "Other API", capabilities: [] };
-      if (!groups.includes(otherApi)) groups.push(otherApi);
-
-      for (const endpoint of unmappedApiEndpoints) {
-        otherApi.capabilities.push({
-          id: `other-api-${endpoint.method}-${endpoint.path}`,
-          name: `${endpoint.method} ${endpoint.path}`,
-          description: endpoint.description,
-          category: "Other API",
-          api: { endpoint },
-        });
-      }
-    }
-  }
-
   // Sort groups by predefined order
-  const sortOrder = ["Work", "CRM", "Documents", "Generate", "Intercom", "VAL Sync", "Outlook", "Files", "Search", "Settings", "Terminal", "Auth", "MCP", "Other MCP", "Other Tauri", "Other API"];
+  const sortOrder = ["Work", "CRM", "Documents", "Generate", "Intercom", "VAL Sync", "Outlook", "Files", "Search", "Settings", "Terminal", "Auth", "MCP", "Other MCP", "Other Tauri"];
   groups.sort((a, b) => {
     const aIndex = sortOrder.indexOf(a.name);
     const bIndex = sortOrder.indexOf(b.name);
@@ -333,34 +297,29 @@ function buildUnifiedCapabilities(
 // React hook for unified capabilities
 export function useUnifiedCapabilities() {
   const mcpQuery = useMcpTools();
-  const apiQuery = useOpenApi();
   const tauriCommands = generatedTauriCommands.commands as TauriCommand[];
 
   const data = useMemo(() => {
-    return buildUnifiedCapabilities(mcpQuery.data, tauriCommands, apiQuery.data);
-  }, [mcpQuery.data, tauriCommands, apiQuery.data]);
+    return buildUnifiedCapabilities(mcpQuery.data, tauriCommands);
+  }, [mcpQuery.data, tauriCommands]);
 
   // Count totals
   const counts = useMemo(() => {
-    let mcp = 0, tauri = 0, api = 0;
+    let mcp = 0, tauri = 0;
     for (const group of data) {
       for (const cap of group.capabilities) {
         if (cap.mcp) mcp++;
         if (cap.tauri) tauri++;
-        if (cap.api) api++;
       }
     }
-    return { mcp, tauri, api, total: data.reduce((sum, g) => sum + g.capabilities.length, 0) };
+    return { mcp, tauri, total: data.reduce((sum, g) => sum + g.capabilities.length, 0) };
   }, [data]);
 
   return {
     data,
     counts,
-    isLoading: mcpQuery.isLoading || apiQuery.isLoading,
-    error: mcpQuery.error || apiQuery.error,
-    refetch: () => {
-      mcpQuery.refetch();
-      apiQuery.refetch();
-    },
+    isLoading: mcpQuery.isLoading,
+    error: mcpQuery.error,
+    refetch: () => { mcpQuery.refetch(); },
   };
 }
