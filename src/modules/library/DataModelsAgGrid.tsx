@@ -35,6 +35,7 @@ import {
   Filter,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { useAppStore } from "../../stores/appStore";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
@@ -95,9 +96,9 @@ interface DataModelsAgGridProps {
   modifiedRows?: Map<string, Partial<TableInfo>>;
 }
 
-// Import from shared constants (re-exported for consumers importing from this file)
-import { DROPDOWN_VALUES } from "../../lib/classificationValues";
-export { DROPDOWN_VALUES };
+// Re-export static defaults for consumers that need them
+export { DROPDOWN_VALUES } from "../../lib/classificationValues";
+import { useClassificationStore } from "../../stores/classificationStore";
 
 
 // Name cell renderer with documentation indicator
@@ -280,6 +281,8 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
   modifiedRows,
 }, ref) {
   const gridRef = useRef<AgGridReact>(null);
+  const theme = useAppStore((s) => s.theme);
+  const classificationValues = useClassificationStore((s) => s.values);
 
   useImperativeHandle(ref, () => ({
     getFilteredTableNames: () => {
@@ -800,7 +803,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       editable: reviewMode,
       cellEditor: "agTextCellEditor",
       cellEditorParams: {
-        values: DROPDOWN_VALUES.dataSource,
+        values: ["", ...classificationValues.dataSource],
       },
     },
     {
@@ -902,7 +905,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       editable: reviewMode,
       cellEditor: "agTextCellEditor",
       cellEditorParams: {
-        values: DROPDOWN_VALUES.dataCategory,
+        values: ["", ...classificationValues.dataCategory],
       },
     },
     {
@@ -913,7 +916,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       editable: reviewMode,
       cellEditor: "agTextCellEditor",
       cellEditorParams: {
-        values: DROPDOWN_VALUES.dataSubCategory,
+        values: ["", ...classificationValues.dataSubCategory],
       },
     },
     {
@@ -925,7 +928,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       editable: reviewMode,
       cellEditor: "agTextCellEditor",
       cellEditorParams: {
-        values: DROPDOWN_VALUES.usageStatus,
+        values: ["", ...classificationValues.usageStatus],
       },
     },
     {
@@ -937,7 +940,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       editable: reviewMode,
       cellEditor: "agTextCellEditor",
       cellEditorParams: {
-        values: DROPDOWN_VALUES.action,
+        values: ["", ...classificationValues.action],
       },
     },
     {
@@ -948,7 +951,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       editable: reviewMode,
       cellEditor: "agTextCellEditor",
       cellEditorParams: {
-        values: ["Transactional", "Master Data", "Mapping", "Configuration", "Report", "Staging", "Archive", "System"],
+        values: ["", ...classificationValues.dataType],
       },
       valueFormatter: (params: ValueFormatterParams) => {
         const val = params.value as string | null;
@@ -964,7 +967,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       editable: reviewMode,
       cellEditor: "agTextCellEditor",
       cellEditorParams: {
-        values: DROPDOWN_VALUES.sourceSystem,
+        values: ["", ...classificationValues.sourceSystem],
       },
     },
     {
@@ -1098,7 +1101,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       filter: "agSetColumnFilter",
       hide: true,
     },
-  ], [wrapSummary, reviewMode]);
+  ], [wrapSummary, reviewMode, classificationValues]);
 
   // Default column definitions
   const defaultColDef = useMemo<ColDef>(() => ({
@@ -1404,10 +1407,10 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
         }
         /* Dark mode group rows */
         .ag-theme-alpine-dark .ag-group-row-custom {
-          background-color: #27272a !important;
+          background-color: #18181b !important;
           font-weight: 600 !important;
-          border-top: 2px solid #3f3f46 !important;
-          border-bottom: 1px solid #3f3f46 !important;
+          border-top: 2px solid #27272a !important;
+          border-bottom: 1px solid #27272a !important;
         }
         .ag-theme-alpine-dark .ag-group-row-custom .ag-group-value {
           font-size: 13px !important;
@@ -1416,27 +1419,27 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
         }
         .ag-theme-alpine-dark .ag-group-row-custom .ag-group-child-count {
           font-weight: 500 !important;
-          color: #71717a !important;
+          color: #52525b !important;
         }
         .ag-theme-alpine-dark .ag-row-odd:not(.ag-group-row-custom) {
-          background-color: #1f1f23 !important;
+          background-color: #0f0f12 !important;
         }
         /* Dark mode modified row highlighting */
         .ag-theme-alpine-dark .ag-row-modified {
-          background-color: rgba(251, 191, 36, 0.15) !important;
+          background-color: rgba(251, 191, 36, 0.1) !important;
         }
         .ag-theme-alpine-dark .ag-row-modified.ag-row-odd {
-          background-color: rgba(251, 191, 36, 0.2) !important;
+          background-color: rgba(251, 191, 36, 0.12) !important;
         }
         .ag-theme-alpine-dark .ag-row-modified:hover {
-          background-color: rgba(251, 191, 36, 0.25) !important;
+          background-color: rgba(251, 191, 36, 0.18) !important;
         }
         /* Dark mode editable cell indicator */
         .ag-theme-alpine-dark .ag-cell-editable {
           cursor: pointer;
         }
         .ag-theme-alpine-dark .ag-cell-editable:hover {
-          background-color: rgba(45, 212, 191, 0.1);
+          background-color: rgba(45, 212, 191, 0.08);
         }
       `}</style>
 
@@ -1647,7 +1650,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
 
       {/* AG Grid */}
       <div
-        className="ag-theme-alpine dark:ag-theme-alpine-dark flex-1 min-h-0 overflow-hidden"
+        className={`${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"} flex-1 min-h-0 overflow-hidden`}
         style={{ width: "100%", height: isFullscreen ? "100%" : "calc(100vh - 200px)" }}
       >
         <style>{`
@@ -1676,16 +1679,30 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
           .ag-theme-alpine .ag-column-drop {
             pointer-events: auto !important;
           }
-          /* Dark mode */
+          /* Dark mode - core variables */
           .ag-theme-alpine-dark {
-            --ag-background-color: #18181b;
-            --ag-header-background-color: #27272a;
-            --ag-odd-row-background-color: #1f1f23;
-            --ag-row-hover-color: #3f3f46;
-            --ag-border-color: #3f3f46;
+            --ag-background-color: #09090b;
+            --ag-header-background-color: #18181b;
+            --ag-odd-row-background-color: #0f0f12;
+            --ag-row-hover-color: #1c1c20;
+            --ag-border-color: #27272a;
             --ag-header-foreground-color: #a1a1aa;
-            --ag-foreground-color: #e4e4e7;
+            --ag-foreground-color: #d4d4d8;
             --ag-secondary-foreground-color: #71717a;
+            --ag-selected-row-background-color: rgba(20, 184, 166, 0.12);
+            --ag-range-selection-background-color: rgba(20, 184, 166, 0.15);
+            --ag-range-selection-border-color: #14b8a6;
+            --ag-input-focus-border-color: #14b8a6;
+            --ag-checkbox-checked-color: #14b8a6;
+            --ag-row-border-color: #1e1e22;
+            --ag-control-panel-background-color: #0f0f12;
+            --ag-side-button-selected-background-color: #18181b;
+            --ag-column-hover-color: rgba(20, 184, 166, 0.06);
+            --ag-input-border-color: #3f3f46;
+            --ag-invalid-color: #ef4444;
+            --ag-chip-background-color: #27272a;
+            --ag-modal-overlay-background-color: rgba(0, 0, 0, 0.5);
+            --ag-popup-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
           }
           .ag-theme-alpine-dark .ag-row {
             cursor: pointer;
@@ -1700,6 +1717,110 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
           }
           .ag-theme-alpine-dark .ag-column-drop {
             pointer-events: auto !important;
+            background-color: #18181b !important;
+            border-bottom: 1px solid #27272a !important;
+          }
+          .ag-theme-alpine-dark .ag-column-drop-cell {
+            background-color: #27272a !important;
+            border: 1px solid #3f3f46 !important;
+            color: #a1a1aa !important;
+          }
+          /* Dark mode - filter popups */
+          .ag-theme-alpine-dark .ag-popup,
+          .ag-theme-alpine-dark .ag-menu {
+            background-color: #18181b !important;
+            border: 1px solid #27272a !important;
+          }
+          .ag-theme-alpine-dark .ag-filter-toolpanel,
+          .ag-theme-alpine-dark .ag-filter {
+            background-color: #18181b !important;
+          }
+          .ag-theme-alpine-dark .ag-text-field-input,
+          .ag-theme-alpine-dark .ag-select .ag-picker-field-wrapper {
+            background-color: #09090b !important;
+            border-color: #3f3f46 !important;
+            color: #d4d4d8 !important;
+          }
+          .ag-theme-alpine-dark .ag-text-field-input:focus {
+            border-color: #14b8a6 !important;
+          }
+          /* Dark mode - sidebar panels */
+          .ag-theme-alpine-dark .ag-side-bar {
+            background-color: #0f0f12 !important;
+            border-left: 1px solid #27272a !important;
+          }
+          .ag-theme-alpine-dark .ag-side-buttons {
+            background-color: #0f0f12 !important;
+          }
+          .ag-theme-alpine-dark .ag-side-button-button {
+            color: #71717a !important;
+          }
+          .ag-theme-alpine-dark .ag-side-button-button:hover {
+            color: #a1a1aa !important;
+          }
+          .ag-theme-alpine-dark .ag-tool-panel-wrapper {
+            background-color: #0f0f12 !important;
+            border-right: 1px solid #27272a !important;
+          }
+          .ag-theme-alpine-dark .ag-column-select-header {
+            border-bottom: 1px solid #27272a !important;
+          }
+          /* Dark mode - status bar */
+          .ag-theme-alpine-dark .ag-status-bar {
+            background-color: #18181b !important;
+            border-top: 1px solid #27272a !important;
+            color: #71717a !important;
+          }
+          .ag-theme-alpine-dark .ag-paging-panel {
+            background-color: #18181b !important;
+            color: #71717a !important;
+            border-top: 1px solid #27272a !important;
+          }
+          .ag-theme-alpine-dark .ag-paging-button {
+            color: #a1a1aa !important;
+          }
+          /* Dark mode - cell editors */
+          .ag-theme-alpine-dark .ag-cell-edit-wrapper,
+          .ag-theme-alpine-dark .ag-cell-editor {
+            background-color: #18181b !important;
+          }
+          .ag-theme-alpine-dark .ag-cell-inline-editing {
+            background-color: #18181b !important;
+            border-color: #14b8a6 !important;
+          }
+          .ag-theme-alpine-dark .ag-rich-select {
+            background-color: #18181b !important;
+          }
+          .ag-theme-alpine-dark .ag-rich-select-row {
+            color: #d4d4d8 !important;
+          }
+          .ag-theme-alpine-dark .ag-rich-select-row-selected {
+            background-color: rgba(20, 184, 166, 0.15) !important;
+          }
+          .ag-theme-alpine-dark .ag-rich-select-row:hover {
+            background-color: #27272a !important;
+          }
+          /* Dark mode - context menu */
+          .ag-theme-alpine-dark .ag-menu-option-active {
+            background-color: #27272a !important;
+          }
+          .ag-theme-alpine-dark .ag-menu-separator {
+            border-color: #27272a !important;
+          }
+          /* Dark mode - scrollbar */
+          .ag-theme-alpine-dark ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+          }
+          .ag-theme-alpine-dark ::-webkit-scrollbar-track {
+            background: #09090b;
+          }
+          .ag-theme-alpine-dark ::-webkit-scrollbar-thumb {
+            background: #3f3f46;
+            border-radius: 4px;
+          }
+          .ag-theme-alpine-dark ::-webkit-scrollbar-thumb:hover {
+            background: #52525b;
           }
         `}</style>
         <AgGridReact<TableInfo>

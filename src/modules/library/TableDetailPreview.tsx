@@ -78,17 +78,8 @@ interface TableDetailPreviewProps {
   onSyncToGrid?: () => void;
 }
 
-// Classification values from shared constants
-import {
-  DATA_CATEGORY as CATEGORY_OPTIONS,
-  DATA_SUB_CATEGORY as SUB_CATEGORY_OPTIONS,
-  TAGS as TAG_OPTIONS,
-  USAGE_STATUS as STATUS_OPTIONS,
-  ACTION as ACTION_OPTIONS,
-  DATA_SOURCE as DATA_SOURCE_OPTIONS,
-  DATA_TYPE as TABLE_TYPE_OPTIONS,
-  SOURCE_SYSTEM as SOURCE_SYSTEM_OPTIONS,
-} from "../../lib/classificationValues";
+// Classification values from store (editable, persisted)
+import { useClassificationStore } from "../../stores/classificationStore";
 
 // TagsInput component - displays tags as pills with add/remove
 function TagsInput({
@@ -1148,6 +1139,16 @@ function DetailsTab({
   onReloadFromFile?: () => void;
   onSyncToGrid?: () => void;
 }) {
+  const classificationValues = useClassificationStore((s) => s.values);
+  const CATEGORY_OPTIONS = classificationValues.dataCategory;
+  const SUB_CATEGORY_OPTIONS = classificationValues.dataSubCategory;
+  const TAG_OPTIONS = classificationValues.tags;
+  const STATUS_OPTIONS = classificationValues.usageStatus;
+  const ACTION_OPTIONS = classificationValues.action;
+  const DATA_SOURCE_OPTIONS = classificationValues.dataSource;
+  const TABLE_TYPE_OPTIONS = classificationValues.dataType;
+  const SOURCE_SYSTEM_OPTIONS = classificationValues.sourceSystem;
+
   const hasNoData = !details && !rowData;
 
   // State for column selection dropdowns

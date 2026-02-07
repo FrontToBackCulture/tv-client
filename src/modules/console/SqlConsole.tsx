@@ -2,6 +2,7 @@
 // SQL Console for executing queries against VAL domains with AI-powered generation
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useAppStore } from "../../stores/appStore";
 import { AgGridReact } from "ag-grid-react";
 import { ColDef } from "ag-grid-community";
 import {
@@ -30,6 +31,7 @@ interface SqlConsoleProps {
 }
 
 export function SqlConsole({ initialDomain, initialSql }: SqlConsoleProps) {
+  const theme = useAppStore((s) => s.theme);
   const { data: domains } = useValDomains();
   const executeSql = useValExecuteSql();
   const generateSql = useValGenerateSql();
@@ -420,7 +422,7 @@ export function SqlConsole({ initialDomain, initialSql }: SqlConsoleProps) {
           )}
 
           {/* Data Grid */}
-          <div className="flex-1 ag-theme-alpine dark:ag-theme-alpine-dark">
+          <div className={`flex-1 ${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}>
             {result && !result.error && result.data.length > 0 ? (
               <AgGridReact
                 rowData={result.data}

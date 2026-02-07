@@ -8,6 +8,7 @@ import { DataModelsAgGrid, DataModelsAgGridHandle, TableInfo } from "./DataModel
 import { TableDetailPreview } from "./TableDetailPreview";
 import { cn } from "../../lib/cn";
 import { useJobsStore } from "../../stores/jobsStore";
+import { useClassificationStore, type ClassificationField } from "../../stores/classificationStore";
 
 // Storage key for panel width
 const PANEL_WIDTH_KEY = "tv-desktop-review-panel-width";
@@ -51,6 +52,9 @@ export function DataModelsReviewView({
 
   // Grid ref for accessing filtered rows
   const gridRef = useRef<DataModelsAgGridHandle>(null);
+
+  // Classification store for auto-adding new values
+  const classificationStore = useClassificationStore();
 
   // Panel resizing
   const [panelWidth, setPanelWidth] = useState(400);
@@ -117,12 +121,61 @@ export function DataModelsReviewView({
     };
   }, [isResizing]);
 
+  // Sync new classification values from an analysis result file into the store
+  const syncAnalysisToStore = useCallback(async (filePath: string) => {
+    try {
+      const content = await invoke<string>("read_file", { path: filePath });
+      const analysis = JSON.parse(content);
+      if (analysis.dataCategory) {
+        classificationStore.addValue("dataCategory", analysis.dataCategory);
+      }
+      if (analysis.dataSubCategory) {
+        classificationStore.addValue("dataSubCategory", analysis.dataSubCategory);
+      }
+      if (analysis.tags) {
+        const tags = (analysis.tags as string).split(",").map((t: string) => t.trim()).filter(Boolean);
+        classificationStore.addValues("tags", tags);
+      }
+      if (analysis.classification?.dataType) {
+        classificationStore.addValue("dataType", analysis.classification.dataType);
+      }
+      if (analysis.usageStatus) {
+        classificationStore.addValue("usageStatus", analysis.usageStatus);
+      }
+    } catch {
+      // Non-critical - don't fail the batch
+    }
+  }, [classificationStore]);
+
   // Handle row selection (single click)
   const handleRowSelected = useCallback((tablePath: string | null, tableName: string | null, rowData: TableInfo | null) => {
     setSelectedTablePath(tablePath);
     setSelectedTableName(tableName);
     setSelectedRowData(rowData);
   }, []);
+
+  // Map grid field names to classification store fields
+  const FIELD_TO_STORE: Record<string, ClassificationField> = {
+    dataCategory: "dataCategory",
+    dataSubCategory: "dataSubCategory",
+    usageStatus: "usageStatus",
+    action: "action",
+    dataSource: "dataSource",
+    sourceSystem: "sourceSystem",
+    tags: "tags",
+  };
+
+  // Auto-add new values from edits to the classification store
+  const syncEditToStore = useCallback((field: string, value: unknown) => {
+    const storeField = FIELD_TO_STORE[field];
+    if (!storeField || !value || typeof value !== "string") return;
+    if (storeField === "tags") {
+      const tags = value.split(",").map((t: string) => t.trim()).filter(Boolean);
+      classificationStore.addValues("tags", tags);
+    } else {
+      classificationStore.addValue(storeField, value);
+    }
+  }, [classificationStore]);
 
   // Handle cell edit from grid
   const handleCellEdited = useCallback((tableName: string, field: string, newValue: unknown) => {
@@ -138,9 +191,12 @@ export function DataModelsReviewView({
       setSelectedRowData((prev) => prev ? { ...prev, [field]: newValue } as TableInfo : null);
     }
 
+    // Auto-add new values to classification store
+    syncEditToStore(field, newValue);
+
     // Clear success state when new edits are made
     setSaveSuccess(false);
-  }, [selectedTableName]);
+  }, [selectedTableName, syncEditToStore]);
 
   // Handle field change from detail panel (updates both selectedRowData and modifiedRows)
   const handleDetailFieldChange = useCallback((field: string, value: string | number | null) => {
@@ -157,9 +213,12 @@ export function DataModelsReviewView({
       return newMap;
     });
 
+    // Auto-add new values to classification store
+    syncEditToStore(field, value);
+
     // Clear success state when new edits are made
     setSaveSuccess(false);
-  }, [selectedTableName, selectedRowData]);
+  }, [selectedTableName, selectedRowData, syncEditToStore]);
 
   // Show toast
   const showToast = useCallback((message: string, type: "success" | "error") => {
@@ -556,12 +615,16 @@ export function DataModelsReviewView({
         });
 
         try {
-          await invoke("val_analyze_table_data", {
+          const result = await invoke<{ file_path?: string }>("val_analyze_table_data", {
             domain: domainName,
             tableName,
             overwrite: true,
           });
           successCount++;
+          // Sync new classification values from the analysis into the store
+          if (result.file_path) {
+            await syncAnalysisToStore(result.file_path);
+          }
         } catch (e) {
           console.error(`[AI Analyze] ${tableName} FAILED:`, e);
           errorCount++;
@@ -579,7 +642,7 @@ export function DataModelsReviewView({
         message: e instanceof Error ? e.message : "Failed",
       });
     }
-  }, [isBatchRunning, getTargetTableNames, domainName, addJob, updateJob]);
+  }, [isBatchRunning, getTargetTableNames, domainName, addJob, updateJob, syncAnalysisToStore]);
 
   const modifiedCount = modifiedRows.size;
 

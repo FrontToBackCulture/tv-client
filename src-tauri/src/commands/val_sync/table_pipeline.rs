@@ -2118,9 +2118,9 @@ pub async fn val_analyze_table_data(
 Standard data types to classify into:
 {}
 
-Data categories: Mapping, Master List, Transaction, Report, Staging, Archive, System, GL, AP, AR, Receipt, Payment, Fee, Tax, Product, Stock, Order, Delivery, Customer, Employee, Other
-Data sub-categories: Outlet, Brand, Platform, Fulfilment Type, Other
-Tags (use 3-6 relevant tags): Mapping, Outlet, Brand, Platform, Manual Upload, Outlet Mapping, GL Entry, Journal, In Use, Receipt, Transaction, POS, Delivery, Payment, Refund, Settlement, Commission, Fee, Tax, Master Data, Configuration, Historical, Archive
+Data categories (use one of these OR create a new one if none fit): Mapping, Master List, Transaction, Report, Staging, Archive, Configuration, Cost, Sales, Payment, Receipt, Receipts, Invoice, Balance, Collection, Payout, Targets, Navigation, Data Hygiene, Test, Unknown, AI Summary, AR Reconciliation, Interco Transfer, Usage, Utilisation, Appointment, Campaign & Appointment, Other
+Data sub-categories (use one of these OR create a new one if none fit): Outlet, Brand, Platform, Fulfilment Type, Channel, Customer, Employee, Staff, Product, GL, Sales, Payment, Raw, Aggregate, Status, Category, Resource, Stock, Other
+Tags (use 3-6 relevant tags - use existing tags where applicable but create new descriptive tags as needed)
 Usage status: In Use (table has recent data/actively used), Not Used (appears unused), Historically Used (has old data only), I Dunno (unclear)
 
 Respond ONLY with valid JSON in this exact format:
@@ -2132,7 +2132,7 @@ Respond ONLY with valid JSON in this exact format:
   }},
   "dataCategory": "one of the data categories above",
   "dataSubCategory": "one of the data sub-categories above",
-  "tags": "comma-separated tags describing the table (3-6 tags from the list above or new relevant tags)",
+  "tags": "comma-separated tags describing the table (3-6 tags, reuse existing tags where applicable, add new descriptive tags freely)",
   "usageStatus": "one of: In Use, Not Used, Historically Used, I Dunno - based on row count and data freshness",
   "suggestedName": "A clear, descriptive name for this table",
   "summary": {{
