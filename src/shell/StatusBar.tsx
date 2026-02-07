@@ -14,7 +14,7 @@ export function StatusBar() {
   const clearCompleted = useJobsStore((s) => s.clearCompleted);
   const removeJob = useJobsStore((s) => s.removeJob);
 
-  const { updateAvailable, version: updateVersion, downloading, progress, installUpdate } = useAppUpdate();
+  const { updateAvailable, version: updateVersion, downloading, installed, progress, error: updateError, installUpdate } = useAppUpdate();
   const [showJobsPanel, setShowJobsPanel] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -37,8 +37,14 @@ export function StatusBar() {
   return (
     <div className="h-6 bg-slate-100 dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative">
       <div className="flex items-center gap-4">
-        <span>TV Desktop v0.3.6</span>
-        {updateAvailable && !downloading && (
+        <span>TV Desktop v0.3.7</span>
+        {installed && (
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+            <CheckCircle2 size={10} />
+            <span>v{updateVersion} installed — restart to finish</span>
+          </span>
+        )}
+        {updateAvailable && !downloading && !installed && (
           <button
             onClick={installUpdate}
             className="flex items-center gap-1 px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors"
@@ -51,6 +57,12 @@ export function StatusBar() {
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400">
             <Loader2 size={10} className="animate-spin" />
             <span>Updating{progress > 0 ? ` ${progress}%` : "..."}</span>
+          </span>
+        )}
+        {updateError && (
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 max-w-xs truncate" title={updateError}>
+            <XCircle size={10} />
+            <span className="truncate">{updateError}</span>
           </span>
         )}
         {syncStatus !== "idle" && (
