@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "console" | "system" | "settings";
+export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "system" | "settings";
 export type Theme = "light" | "dark";
 
 // Get initial module from URL query param (for multi-window support)
@@ -10,7 +10,7 @@ function getInitialModule(): ModuleId {
   if (typeof window === "undefined") return "library";
   const params = new URLSearchParams(window.location.search);
   const module = params.get("module") as ModuleId | null;
-  if (module && ["library", "work", "inbox", "crm", "product", "bot", "console", "system", "settings"].includes(module)) {
+  if (module && ["library", "work", "inbox", "crm", "product", "bot", "system", "settings"].includes(module)) {
     return module;
   }
   return "library";

@@ -8,7 +8,6 @@ import { InboxModule } from "./modules/inbox/InboxModule";
 import { CrmModule } from "./modules/crm/CrmModule";
 import { BotModule } from "./modules/bot/BotModule";
 import { ProductModule } from "./modules/product/ProductModule";
-import { ConsoleModule } from "./modules/console/ConsoleModule";
 import { SettingsModule } from "./modules/settings/SettingsModule";
 import { SystemModule } from "./modules/system/SystemModule";
 import { Playground } from "./playground/Playground";
@@ -27,7 +26,6 @@ const modules: Record<ModuleId, React.ComponentType> = {
   crm: CrmModule,
   product: ProductModule,
   bot: BotModule,
-  console: ConsoleModule,
   system: SystemModule,
   settings: SettingsModule,
 };
@@ -47,7 +45,7 @@ export default function App() {
   // Keyboard shortcuts: ⌘1-7 to switch modules, ⌘, for settings
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "8") {
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "7") {
         e.preventDefault();
         const moduleKeys: ModuleId[] = [
           "library",
@@ -56,7 +54,6 @@ export default function App() {
           "product",
           "bot",
           "inbox",
-          "console",
           "system",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);

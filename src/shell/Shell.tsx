@@ -17,7 +17,6 @@ const moduleLabels: Record<ModuleId, string> = {
   crm: "CRM",
   product: "Product",
   bot: "Bots",
-  console: "Console",
   system: "System",
   settings: "Settings",
 };

@@ -51,12 +51,6 @@ export function CommandPalette() {
       action: () => setActiveModule("inbox"),
     },
     {
-      id: "console",
-      label: "Go to Console",
-      shortcut: "⌘5",
-      action: () => setActiveModule("console"),
-    },
-    {
       id: "theme",
       label: `Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`,
       action: () => toggleTheme(),
@@ -65,7 +59,7 @@ export function CommandPalette() {
     {
       id: "settings",
       label: "Open Settings",
-      action: () => setActiveModule("console"),
+      action: () => setActiveModule("settings"),
     },
     {
       id: "toggle-side-panel",

@@ -129,7 +129,6 @@ export function FloatingTerminal({ activeModule }: FloatingTerminalProps) {
     crm: "CRM",
     inbox: "Inbox",
     bot: "Bots",
-    console: "Console",
     settings: "Settings",
   };
 
