@@ -1,15 +1,18 @@
 // src/playground/Playground.tsx
-// Prototype: CRM with 3 views — Pipeline, Directory, Clients
+// Prototype playground — CRM + Bots prototypes
 // Toggle with Shift+Cmd+X
 
 import { useState, useMemo } from "react";
 import {
   Search, Plus, ArrowUpDown, X,
   Globe, Phone, Mail, Calendar, FileText, MessageSquare,
-  ExternalLink, Building2, BookUser, Users, User,
+  ExternalLink, BookUser, Users, User,
   AlertTriangle, CheckCircle2, Clock,
   Target, Zap, Activity as ActivityIcon, AlignLeft, Columns3,
 } from "lucide-react";
+import { BotPlayground } from "./BotPlayground";
+import { WorkPlayground } from "./WorkPlayground";
+import { useAppStore } from "../stores/appStore";
 import { useCompanies, usePipelineStats, useCompanyWithRelations, useContacts, useDealsWithTasks, useActivities } from "../hooks/useCRM";
 import type { Company, DealWithTaskInfo } from "../lib/crm/types";
 
@@ -1189,7 +1192,7 @@ function ClientsList({ selectedId, onSelect }: { selectedId: string | null; onSe
 // View nav tab
 // ============================
 function ViewTab({ label, icon: Icon, active, count, onClick }: {
-  label: string; icon: typeof Building2; active: boolean; count?: number; onClick: () => void;
+  label: string; icon: typeof Columns3; active: boolean; count?: number; onClick: () => void;
 }) {
   return (
     <button onClick={onClick}
@@ -1211,6 +1214,7 @@ function ViewTab({ label, icon: Icon, active, count, onClick }: {
 // Main Playground
 // ============================
 export function Playground() {
+  const activeModule = useAppStore((s) => s.activeModule);
   const [view, setView] = useState<CrmView>("pipeline");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -1220,11 +1224,30 @@ export function Playground() {
     setSelectedId(null);
   };
 
+  // Work playground — Activity Bar "work" icon
+  if (activeModule === "work") {
+    return (
+      <div className="h-full bg-white dark:bg-zinc-950">
+        <WorkPlayground />
+      </div>
+    );
+  }
+
+  // Bot playground — Activity Bar "bot" icon
+  if (activeModule === "bot") {
+    return (
+      <div className="h-full bg-white dark:bg-zinc-950">
+        <BotPlayground />
+      </div>
+    );
+  }
+
+  // CRM playground — Activity Bar "crm" icon (default for other modules too)
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* View tabs */}
       <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <ViewTab label="Pipeline" icon={Building2} active={view === "pipeline"} onClick={() => handleViewChange("pipeline")} />
+        <ViewTab label="Pipeline" icon={Columns3} active={view === "pipeline"} onClick={() => handleViewChange("pipeline")} />
         <ViewTab label="Directory" icon={BookUser} active={view === "directory"} onClick={() => handleViewChange("directory")} />
         <ViewTab label="Clients" icon={Users} active={view === "clients"} onClick={() => handleViewChange("clients")} />
       </div>
