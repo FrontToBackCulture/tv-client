@@ -1214,6 +1214,25 @@ pub async fn val_prepare_table_overview(
                 }));
             }
         }
+
+        // Fallback: if the chosen date column failed (e.g. computed/rules column),
+        // retry with just created_date
+        if sql_data.is_none() && date_col != "created_date" {
+            eprintln!("[val_prepare_table_overview] Date column '{}' query failed, retrying with created_date", date_col);
+            date_col_used = "created_date".to_string();
+            let fallback_query = format!(
+                "SELECT MIN(created_date) as earliest, MAX(created_date) as latest, MIN(created_date) as first_created, MAX(created_date) as last_created, COUNT(*) as total FROM {}",
+                table_name
+            );
+            if let Ok(result) = val_execute_sql(domain.clone(), fallback_query, Some(1)).await {
+                if result.error.is_none() && !result.data.is_empty() {
+                    sql_data = Some(json!({
+                        "dateColumn": "created_date",
+                        "range": result.data.first()
+                    }));
+                }
+            }
+        }
     }
 
     // Calculate health data inline if not available from health-check-results.json
