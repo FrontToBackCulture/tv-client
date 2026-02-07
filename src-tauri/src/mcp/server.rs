@@ -13,7 +13,10 @@ use axum::{
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 
-/// Default port for the MCP HTTP server
+/// Default port for the MCP HTTP server (dev uses +1 to avoid conflict with installed app)
+#[cfg(debug_assertions)]
+pub const DEFAULT_PORT: u16 = 23817;
+#[cfg(not(debug_assertions))]
 pub const DEFAULT_PORT: u16 = 23816;
 
 /// Run the MCP server on HTTP (for testing)

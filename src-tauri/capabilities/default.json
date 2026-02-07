@@ -26,6 +26,7 @@
     "fs:write-all",
     "os:default",
     "process:default",
-    "notification:default"
+    "notification:default",
+    "updater:default"
   ]
 }

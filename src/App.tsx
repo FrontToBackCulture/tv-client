@@ -11,6 +11,7 @@ import { ProductModule } from "./modules/product/ProductModule";
 import { ConsoleModule } from "./modules/console/ConsoleModule";
 import { SettingsModule } from "./modules/settings/SettingsModule";
 import { SystemModule } from "./modules/system/SystemModule";
+import { Playground } from "./playground/Playground";
 import { Login } from "./components/Login";
 import { useAppStore, ModuleId } from "./stores/appStore";
 import { useSidePanelStore } from "./stores/sidePanelStore";
@@ -32,7 +33,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
 };
 
 export default function App() {
-  const { activeModule, setActiveModule } = useAppStore();
+  const { activeModule, setActiveModule, playgroundMode, togglePlayground } = useAppStore();
   const { user, isLoading, isInitialized, initialize } = useAuth();
 
   // Initialize auth on mount
@@ -75,6 +76,11 @@ export default function App() {
         e.preventDefault();
         openModuleInNewWindow(useAppStore.getState().activeModule);
       }
+      // ⇧⌘X — Toggle playground mode
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "X" || e.key === "x")) {
+        e.preventDefault();
+        togglePlayground();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -116,7 +122,7 @@ export default function App() {
 
   return (
     <Shell activeModule={activeModule} onModuleChange={setActiveModule}>
-      <ActiveModule />
+      {playgroundMode ? <Playground /> : <ActiveModule />}
     </Shell>
   );
 }

@@ -20,6 +20,7 @@ fn main() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             eprintln!("[tv-desktop] Setup starting...");
             // Default knowledge path (can be configured in settings)

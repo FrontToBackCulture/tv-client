@@ -299,69 +299,49 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-zinc-950">
-      {/* Stage header row */}
-      <div className="flex-shrink-0 flex border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        {/* Solution column header with sort */}
-        <div className="w-44 flex-shrink-0 px-3 py-2 border-r border-slate-200 dark:border-zinc-800">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
-              Solution
-            </span>
-            <div className="flex items-center gap-1">
-              <select
-                value={sortField}
-                onChange={(e) => setSortField(e.target.value as SortField)}
-                className="text-[10px] px-1 py-0.5 rounded border border-slate-300 dark:border-zinc-700 bg-slate-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() =>
-                  setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
-                }
-                className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded"
-              >
-                <ArrowUpDown size={12} />
-              </button>
-              <button
-                onClick={() => {
-                  refetch();
-                  onRefresh?.();
-                }}
-                className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded"
-                title="Refresh pipeline"
-              >
-                <RefreshCw size={12} />
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Controls bar */}
+      <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+        <span className="text-[11px] text-zinc-400">Sort</span>
+        <select
+          value={sortField}
+          onChange={(e) => setSortField(e.target.value as SortField)}
+          className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-zinc-700 bg-slate-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+        >
+          {SORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
+          className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded"
+        >
+          <ArrowUpDown size={12} />
+        </button>
+        <div className="flex-1" />
+        <button
+          onClick={() => { refetch(); onRefresh?.(); }}
+          className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded"
+          title="Refresh pipeline"
+        >
+          <RefreshCw size={12} />
+        </button>
+      </div>
 
-        {/* Stage column headers */}
+      {/* Stage column headers — sticky */}
+      <div className="flex-shrink-0 flex border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-20">
         {activeStages.map((stage) => {
           const stageDeals = deals.filter((d) => d.stage === stage.value);
           const stageValue = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
-
           return (
-            <div
-              key={stage.value}
-              className="flex-1 min-w-[140px] px-3 py-2 border-r border-slate-200 dark:border-zinc-800 last:border-r-0"
-            >
+            <div key={stage.value}
+              className="flex-1 min-w-[140px] px-3 py-2 border-r border-slate-200 dark:border-zinc-800 last:border-r-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <StageIndicator color={stage.color} />
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                    {stage.label}
-                  </span>
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{stage.label}</span>
                   <span className="text-xs text-zinc-500">{stageDeals.length}</span>
                 </div>
-                <span className="text-xs text-zinc-500">
-                  ${(stageValue / 1000).toFixed(0)}K
-                </span>
+                <span className="text-xs text-zinc-500">${(stageValue / 1000).toFixed(0)}K</span>
               </div>
             </div>
           );
@@ -393,80 +373,60 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                 onDragLeave={handleSwimlaneDragLeave}
                 onDrop={(e) => handleSwimlaneDrop(e, solution.value)}
               >
-                {/* Swimlane header */}
-                <div className="flex bg-slate-100 dark:bg-zinc-950">
-                  {/* Solution label cell with drag handle */}
-                  <div className="w-44 flex-shrink-0 flex items-center border-r border-slate-200 dark:border-zinc-800">
-                    {/* Drag handle */}
-                    <div
-                      draggable
-                      onDragStart={(e) => handleSwimlaneDragStart(e, solution.value)}
-                      onDragEnd={handleSwimlaneDragEnd}
-                      className="flex items-center px-1.5 py-2 cursor-grab active:cursor-grabbing text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                    >
-                      <GripVertical size={14} />
-                    </div>
-                    <button
-                      onClick={() => toggleSwimlane(solution.value)}
-                      className="flex-1 px-1 py-2 flex items-center gap-2 hover:bg-slate-200 dark:hover:bg-zinc-900 transition-colors text-left"
-                    >
+                {/* Full-width swimlane header */}
+                <div className="flex items-center gap-1 px-1.5 py-1.5 bg-slate-100 dark:bg-zinc-950">
+                  <div
+                    draggable
+                    onDragStart={(e) => handleSwimlaneDragStart(e, solution.value)}
+                    onDragEnd={handleSwimlaneDragEnd}
+                    className="flex items-center px-1 cursor-grab active:cursor-grabbing text-zinc-300 hover:text-zinc-500 dark:text-zinc-700 dark:hover:text-zinc-500"
+                  >
+                    <GripVertical size={12} />
+                  </div>
+                  <button
+                    onClick={() => toggleSwimlane(solution.value)}
+                    className="flex items-center gap-1.5 px-1 py-0.5 hover:bg-slate-200 dark:hover:bg-zinc-900 rounded transition-colors"
+                  >
                     <ChevronRight
-                      size={14}
-                      className={`text-zinc-500 transition-transform ${
-                        isCollapsed ? "" : "rotate-90"
-                      }`}
+                      size={12}
+                      className={`text-zinc-400 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
                     />
                     <SolutionBadge color={solution.color} />
-                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">
+                    <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                       {solution.label}
                     </span>
-                    <span className="text-xs text-zinc-500 ml-auto">
-                      {stats?.count || 0}
-                    </span>
                   </button>
-                  </div>
+                  <span className="text-[11px] text-zinc-400 tabular-nums">
+                    {stats?.count || 0} · ${((stats?.value || 0) / 1000).toFixed(0)}K
+                  </span>
 
-                  {/* Stage cells summary (when collapsed) */}
+                  {/* Collapsed: stage distribution inline */}
                   {isCollapsed && (
-                    <>
+                    <div className="flex items-center gap-2 ml-auto pr-2">
                       {activeStages.map((stage) => {
-                        const cellDeals = solutionDeals.filter(
-                          (d) => d.stage === stage.value
-                        );
+                        const cellCount = solutionDeals.filter((d) => d.stage === stage.value).length;
+                        if (cellCount === 0) return null;
                         return (
-                          <div
-                            key={stage.value}
-                            className="flex-1 min-w-[140px] px-3 py-2 border-r border-slate-200 dark:border-zinc-800 last:border-r-0 flex items-center justify-center"
-                          >
-                            {cellDeals.length > 0 && (
-                              <span className="text-xs text-zinc-500 bg-slate-200 dark:bg-zinc-800 px-2 py-0.5 rounded">
-                                {cellDeals.length} deal
-                                {cellDeals.length !== 1 ? "s" : ""}
-                              </span>
-                            )}
-                          </div>
+                          <span key={stage.value} className="flex items-center gap-1 text-[10px] text-zinc-400">
+                            <StageIndicator color={stage.color} /> {cellCount}
+                          </span>
                         );
                       })}
-                    </>
+                    </div>
                   )}
                 </div>
 
-                {/* Swimlane content (expanded) */}
+                {/* Expanded: stage cells — full width, no solution column */}
                 {!isCollapsed && (
                   <div className="flex bg-slate-50/50 dark:bg-zinc-900/30">
-                    {/* Empty cell under solution label */}
-                    <div className="w-44 flex-shrink-0 border-r border-slate-200 dark:border-zinc-800" />
-
-                    {/* Stage cells with cards */}
                     {activeStages.map((stage) => {
                       const cellDeals = sortDeals(
                         solutionDeals.filter((d) => d.stage === stage.value)
                       );
-
                       return (
                         <div
                           key={stage.value}
-                          className="flex-1 min-w-[140px] p-2 border-r border-slate-200 dark:border-zinc-800 last:border-r-0 min-h-[100px]"
+                          className="flex-1 min-w-[140px] p-2 border-r border-slate-200 dark:border-zinc-800 last:border-r-0 min-h-[80px]"
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => {
                             const dealId = e.dataTransfer.getData("dealId");
@@ -478,27 +438,17 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                               <div
                                 key={deal.id}
                                 draggable
-                                onDragStart={(e) =>
-                                  e.dataTransfer.setData("dealId", deal.id)
-                                }
+                                onDragStart={(e) => e.dataTransfer.setData("dealId", deal.id)}
                                 className="cursor-grab active:cursor-grabbing"
                               >
                                 <DealCard
                                   deal={deal}
                                   compact
                                   onClick={() => onDealClick?.(deal)}
-                                  onDealUpdated={() => {
-                                    refetch();
-                                    onRefresh?.();
-                                  }}
+                                  onDealUpdated={() => { refetch(); onRefresh?.(); }}
                                 />
                               </div>
                             ))}
-                            {cellDeals.length === 0 && (
-                              <div className="text-center py-4 text-zinc-400 dark:text-zinc-600 text-xs">
-                                Drop here
-                              </div>
-                            )}
                           </div>
                         </div>
                       );

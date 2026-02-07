@@ -63,6 +63,10 @@ interface AppState {
   terminalOpen: boolean;
   setTerminalOpen: (open: boolean) => void;
   toggleTerminal: () => void;
+
+  // Playground
+  playgroundMode: boolean;
+  togglePlayground: () => void;
 }
 
 // Initialize theme on load
@@ -95,6 +99,10 @@ export const useAppStore = create<AppState>((set) => ({
   terminalOpen: false,
   setTerminalOpen: (open) => set({ terminalOpen: open }),
   toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
+
+  // Playground
+  playgroundMode: false,
+  togglePlayground: () => set((state) => ({ playgroundMode: !state.playgroundMode })),
 }));
 
 // Sync theme across windows via localStorage storage event

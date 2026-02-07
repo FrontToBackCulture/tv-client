@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "TV Client",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "identifier": "com.thinkval.tv-client",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -34,9 +34,18 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/FrontToBackCulture/tv-client/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzRDk0MEJBMTMzNEI4RDkKUldUWnVEUVR1a0RaZzZadnFnUFNTNDIxenlEdFpSZ3dOajBMd2VZVElteWI5bFpQQm1OcUR2dW4K"
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "macOS": {
       "minimumSystemVersion": "10.15"
     }
