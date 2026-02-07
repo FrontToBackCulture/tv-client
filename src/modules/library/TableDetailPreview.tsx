@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
 import "ag-grid-community/styles/ag-theme-alpine.css";
+import { useAppStore } from "../../stores/appStore";
 import {
   X,
   ExternalLink,
@@ -2289,7 +2290,7 @@ function DetailsTab({
 
 // Sample data AG Grid component
 function SampleDataGrid({ sample }: { sample: TableSample }) {
-
+  const theme = useAppStore((s) => s.theme);
   const rowData = sample.rows || [];
 
   // Build column name lookup from sample.columns
@@ -2344,7 +2345,7 @@ function SampleDataGrid({ sample }: { sample: TableSample }) {
       </div>
       <div
         style={{ height: 400 }}
-        className="w-full ag-theme-alpine dark:ag-theme-alpine-dark"
+        className={`w-full ${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
       >
         <AgGridReact
           theme="legacy"
