@@ -59,4 +59,9 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.VITE_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.VITE_GITHUB_CLIENT_SECRET }}
+          VITE_AG_GRID_LICENSE_KEY: ${{ secrets.VITE_AG_GRID_LICENSE_KEY }}
         run: npx tauri build --target ${{ matrix.target }}
