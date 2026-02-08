@@ -9,6 +9,7 @@ import {
   Check,
   Trash2,
   Database,
+  Pencil,
 } from "lucide-react";
 import { useRepository, Repository } from "../../stores/repositoryStore";
 import { cn } from "../../lib/cn";
@@ -23,10 +24,13 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
     activeRepository,
     addRepository,
     removeRepository,
+    renameRepository,
     setActiveRepository,
   } = useRepository();
   const [isOpen, setIsOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const [newName, setNewName] = useState("");
   const [newPath, setNewPath] = useState("");
 
@@ -72,6 +76,21 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
     if (repositories.length > 1) {
       removeRepository(repoId);
     }
+  };
+
+  const handleStartRename = (e: React.MouseEvent, repo: Repository) => {
+    e.stopPropagation();
+    setEditingId(repo.id);
+    setEditName(repo.name);
+  };
+
+  const handleConfirmRename = (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (editingId && editName.trim()) {
+      renameRepository(editingId, editName.trim());
+    }
+    setEditingId(null);
+    setEditName("");
   };
 
   return (
@@ -123,24 +142,67 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
                 >
                   <FolderOpen size={14} className="flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">
-                      {repo.name}
-                    </div>
+                    {editingId === repo.id ? (
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleConfirmRename(e);
+                          if (e.key === "Escape") { setEditingId(null); setEditName(""); }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full px-2 py-0.5 bg-white dark:bg-zinc-800 border border-teal-500 rounded text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none"
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="text-sm font-medium truncate">
+                        {repo.name}
+                      </div>
+                    )}
                     <div className="text-xs text-zinc-500 dark:text-zinc-500 truncate">
                       {repo.path}
                     </div>
                   </div>
-                  {repo.id === activeRepository?.id ? (
-                    <Check size={14} className="text-teal-500 dark:text-teal-400 flex-shrink-0" />
-                  ) : repositories.length > 1 ? (
+                  {editingId === repo.id ? (
                     <button
-                      onClick={(e) => handleRemove(e, repo.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-opacity"
-                      title="Remove repository"
+                      onClick={handleConfirmRename}
+                      className="p-1 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded"
+                      title="Confirm rename"
                     >
-                      <Trash2 size={12} className="text-zinc-500 dark:text-zinc-400" />
+                      <Check size={12} className="text-teal-500" />
                     </button>
-                  ) : null}
+                  ) : repo.id === activeRepository?.id ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => handleStartRename(e, repo)}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-opacity"
+                        title="Rename repository"
+                      >
+                        <Pencil size={12} className="text-zinc-500 dark:text-zinc-400" />
+                      </button>
+                      <Check size={14} className="text-teal-500 dark:text-teal-400 flex-shrink-0" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => handleStartRename(e, repo)}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-opacity"
+                        title="Rename repository"
+                      >
+                        <Pencil size={12} className="text-zinc-500 dark:text-zinc-400" />
+                      </button>
+                      {repositories.length > 1 && (
+                        <button
+                          onClick={(e) => handleRemove(e, repo.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-opacity"
+                          title="Remove repository"
+                        >
+                          <Trash2 size={12} className="text-zinc-500 dark:text-zinc-400" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

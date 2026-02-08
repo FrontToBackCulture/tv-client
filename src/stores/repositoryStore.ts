@@ -18,6 +18,7 @@ interface RepositoryState {
   // Actions
   addRepository: (name: string, path: string) => void;
   removeRepository: (id: string) => void;
+  renameRepository: (id: string, newName: string) => void;
   setActiveRepository: (id: string) => void;
   getActiveRepository: () => Repository | null;
 }
@@ -67,6 +68,14 @@ export const useRepositoryStore = create<RepositoryState>()(
         });
       },
 
+      renameRepository: (id: string, newName: string) => {
+        set((state) => ({
+          repositories: state.repositories.map((r) =>
+            r.id === id ? { ...r, name: newName } : r
+          ),
+        }));
+      },
+
       setActiveRepository: (id: string) => {
         set({ activeRepositoryId: id });
       },
@@ -97,6 +106,7 @@ export function useRepository() {
     activeRepository: activeRepo || null,
     addRepository: store.addRepository,
     removeRepository: store.removeRepository,
+    renameRepository: store.renameRepository,
     setActiveRepository: store.setActiveRepository,
   };
 }
