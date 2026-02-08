@@ -18,16 +18,20 @@ fn create_new_window(app: &tauri::AppHandle) {
         .as_millis();
     let label = format!("main-{}", millis);
 
-    match tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App("/".into()))
+    let builder = tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App("/".into()))
         .title("TV Client")
         .inner_size(1400.0, 900.0)
         .min_inner_size(1000.0, 600.0)
         .resizable(true)
         .fullscreen(false)
-        .decorations(true)
+        .decorations(true);
+
+    #[cfg(target_os = "macos")]
+    let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .build()
+        .hidden_title(true);
+
+    match builder.build()
     {
         Ok(_) => eprintln!("[tv-desktop] New window created: {}", label),
         Err(e) => eprintln!("[tv-desktop] Failed to create window: {}", e),
