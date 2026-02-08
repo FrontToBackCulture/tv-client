@@ -1,0 +1,220 @@
+name: Release (Windows + macOS)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            label: macOS-arm64
+            suffix: arm64
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            label: macOS-x64
+            suffix: x64
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: Windows-x64
+            suffix: win-x64
+
+    runs-on: ${{ matrix.platform }}
+    name: Build (${{ matrix.label }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Tauri
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build --target ${{ matrix.target }}
+
+      # Collect platform-specific artifacts into a flat folder
+      - name: Collect artifacts (macOS)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          mkdir -p collected
+          BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
+
+          # DMG for fresh install
+          find "$BUNDLE/dmg" -name "*.dmg" -exec cp {} collected/ \;
+
+          # .app.tar.gz + .sig for auto-update
+          find "$BUNDLE/macos" -name "*.tar.gz" -exec cp {} collected/ \;
+          find "$BUNDLE/macos" -name "*.tar.gz.sig" -exec cp {} collected/ \;
+
+          echo "Collected artifacts:"
+          ls -la collected/
+
+      - name: Collect artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          mkdir -p collected
+          BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
+
+          # NSIS .exe for fresh install
+          find "$BUNDLE/nsis" -name "*.exe" -exec cp {} collected/ \;
+
+          # .nsis.zip + .sig for auto-update
+          find "$BUNDLE/nsis" -name "*.nsis.zip" -exec cp {} collected/ \;
+          find "$BUNDLE/nsis" -name "*.nsis.zip.sig" -exec cp {} collected/ \;
+
+          echo "Collected artifacts:"
+          ls -la collected/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.suffix }}
+          path: collected/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Create Release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download macOS ARM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-arm64
+          path: dl/arm64
+
+      - name: Download macOS x64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-x64
+          path: dl/x64
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-win-x64
+          path: dl/win-x64
+
+      - name: List all downloaded files
+        run: find dl -type f | sort
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # macOS ARM — rename to distinguish from x64
+          for f in dl/arm64/*.dmg; do [ -f "$f" ] && cp "$f" "release/TV.Client_${VERSION}_arm64.dmg"; done
+          for f in dl/arm64/*.tar.gz; do [ -f "$f" ] && cp "$f" "release/TV.Client.app.tar.gz"; done
+          for f in dl/arm64/*.tar.gz.sig; do [ -f "$f" ] && cp "$f" "release/TV.Client.app.tar.gz.sig"; done
+
+          # macOS x64 — rename to distinguish from ARM
+          for f in dl/x64/*.dmg; do [ -f "$f" ] && cp "$f" "release/TV.Client_${VERSION}_x64.dmg"; done
+          for f in dl/x64/*.tar.gz; do [ -f "$f" ] && cp "$f" "release/TV.Client_x64.app.tar.gz"; done
+          for f in dl/x64/*.tar.gz.sig; do [ -f "$f" ] && cp "$f" "release/TV.Client_x64.app.tar.gz.sig"; done
+
+          # Windows — keep original names
+          for f in dl/win-x64/*.exe; do [ -f "$f" ] && cp "$f" release/; done
+          for f in dl/win-x64/*.nsis.zip; do [ -f "$f" ] && cp "$f" release/; done
+          for f in dl/win-x64/*.nsis.zip.sig; do [ -f "$f" ] && cp "$f" release/; done
+
+          echo "Release files:"
+          ls -la release/
+
+      - name: Build latest.json
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+
+          # Read signatures
+          MAC_ARM_SIG=$(cat release/TV.Client.app.tar.gz.sig 2>/dev/null || echo "")
+          MAC_X64_SIG=$(cat release/TV.Client_x64.app.tar.gz.sig 2>/dev/null || echo "")
+
+          # Find Windows .nsis.zip.sig file
+          WIN_SIG_FILE=$(find release -name "*.nsis.zip.sig" | head -1)
+          WIN_X64_SIG=$(cat "$WIN_SIG_FILE" 2>/dev/null || echo "")
+
+          # Find Windows .nsis.zip filename for URL
+          WIN_ZIP_FILE=$(find release -name "*.nsis.zip" ! -name "*.sig" | head -1)
+          WIN_ZIP_NAME=$(basename "$WIN_ZIP_FILE" 2>/dev/null || echo "")
+
+          cat > release/latest.json << ENDJSON
+          {
+            "version": "${VERSION}",
+            "notes": "Release v${VERSION}",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${MAC_ARM_SIG}",
+                "url": "https://github.com/FrontToBackCulture/tv-client/releases/download/v${VERSION}/TV.Client.app.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "${MAC_X64_SIG}",
+                "url": "https://github.com/FrontToBackCulture/tv-client/releases/download/v${VERSION}/TV.Client_x64.app.tar.gz"
+              },
+              "windows-x86_64": {
+                "signature": "${WIN_X64_SIG}",
+                "url": "https://github.com/FrontToBackCulture/tv-client/releases/download/v${VERSION}/${WIN_ZIP_NAME}"
+              }
+            }
+          }
+          ENDJSON
+
+          echo "latest.json:"
+          cat release/latest.json
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: |
+            ## Downloads
+
+            | Platform | Installer |
+            |----------|-----------|
+            | macOS (Apple Silicon) | `TV.Client_${{ steps.version.outputs.version }}_arm64.dmg` |
+            | macOS (Intel) | `TV.Client_${{ steps.version.outputs.version }}_x64.dmg` |
+            | Windows (x64) | `.exe` installer |
+
+            Existing installations will auto-update.
+          files: release/*
+          draft: false
+          prerelease: false
