@@ -1769,7 +1769,55 @@ export function useFetchCategoricalValues() {
   });
 }
 
-/** Step 3: Analyze table data with AI (definition_analysis.json) */
+/** Step 3a: Describe table data with AI (naming, summary, useCases, columnDescriptions) */
+export function useDescribeTableData() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      domain,
+      tableName,
+      overwrite = false,
+    }: {
+      domain: string;
+      tableName: string;
+      overwrite?: boolean;
+    }) =>
+      invoke<TablePipelineResult>("val_describe_table_data", {
+        domain,
+        tableName,
+        overwrite,
+      }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+    },
+  });
+}
+
+/** Step 3b: Classify table data with AI (dataType, category, tags, usageStatus) */
+export function useClassifyTableData() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      domain,
+      tableName,
+      overwrite = false,
+    }: {
+      domain: string;
+      tableName: string;
+      overwrite?: boolean;
+    }) =>
+      invoke<TablePipelineResult>("val_classify_table_data", {
+        domain,
+        tableName,
+        overwrite,
+      }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
+    },
+  });
+}
+
+/** Step 3 (legacy): Analyze table data with AI - runs both describe + classify */
 export function useAnalyzeTableData() {
   const qc = useQueryClient();
   return useMutation({

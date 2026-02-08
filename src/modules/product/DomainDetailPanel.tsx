@@ -14,7 +14,8 @@ import {
   useRunTablePipeline,
   usePrepareTableOverview,
   useSampleTableData,
-  useAnalyzeTableData,
+  useDescribeTableData,
+  useClassifyTableData,
   useExtractTableCalcFields,
   useGenerateTableOverviewMd,
   useListDomainTables,
@@ -121,7 +122,8 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, dis
   const runPipelineMutation = useRunTablePipeline();
   const prepareOverviewMutation = usePrepareTableOverview();
   const sampleDataMutation = useSampleTableData();
-  const analyzeDataMutation = useAnalyzeTableData();
+  const describeDataMutation = useDescribeTableData();
+  const classifyDataMutation = useClassifyTableData();
   const extractCalcFieldsMutation = useExtractTableCalcFields();
   const generateOverviewMdMutation = useGenerateTableOverviewMd();
   const domainTablesQuery = useListDomainTables(domain);
@@ -138,7 +140,8 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, dis
     runPipelineMutation.isPending ||
     prepareOverviewMutation.isPending ||
     sampleDataMutation.isPending ||
-    analyzeDataMutation.isPending ||
+    describeDataMutation.isPending ||
+    classifyDataMutation.isPending ||
     extractCalcFieldsMutation.isPending ||
     generateOverviewMdMutation.isPending;
 
@@ -262,13 +265,14 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, dis
   };
 
   const handlePipelineStep = (
-    step: "prepare" | "sample" | "analyze" | "calc" | "overview",
+    step: "prepare" | "sample" | "describe" | "classify" | "calc" | "overview",
     tableName: string
   ) => {
     const stepLabels = {
       prepare: "Prepare Overview",
       sample: "Sample Data",
-      analyze: "Analyze Data",
+      describe: "Describe (AI)",
+      classify: "Classify (AI)",
       calc: "Extract Calc Fields",
       overview: "Generate Overview MD",
     };
@@ -301,8 +305,11 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, dis
       case "sample":
         sampleDataMutation.mutate({ domain, tableName, overwrite: false }, callbacks);
         break;
-      case "analyze":
-        analyzeDataMutation.mutate({ domain, tableName, overwrite: false }, callbacks);
+      case "describe":
+        describeDataMutation.mutate({ domain, tableName, overwrite: false }, callbacks);
+        break;
+      case "classify":
+        classifyDataMutation.mutate({ domain, tableName, overwrite: false }, callbacks);
         break;
       case "calc":
         extractCalcFieldsMutation.mutate({ domain, tableName, overwrite: false }, callbacks);
@@ -1078,7 +1085,8 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, dis
                 {[
                   { step: "prepare" as const, label: "1. Prepare Overview", icon: Database, desc: "definition_details.json" },
                   { step: "sample" as const, label: "2. Sample Data", icon: Database, desc: "definition_sample.json" },
-                  { step: "analyze" as const, label: "3. Analyze (AI)", icon: Sparkles, desc: "definition_analysis.json" },
+                  { step: "describe" as const, label: "3a. Describe (AI)", icon: Sparkles, desc: "definition_analysis.json" },
+                  { step: "classify" as const, label: "3b. Classify (AI)", icon: Sparkles, desc: "definition_analysis.json" },
                   { step: "calc" as const, label: "4. Extract Calc Fields", icon: Calculator, desc: "definition_calculated_fields.json" },
                   { step: "overview" as const, label: "5. Generate MD", icon: FileOutput, desc: "overview.md" },
                 ].map(({ step, label, icon: Icon, desc }) => (

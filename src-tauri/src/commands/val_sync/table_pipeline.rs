@@ -1,10 +1,11 @@
 // VAL Sync Table Pipeline - Generate table documentation (overview.md)
 // Ported from tv-tools/mcp-server table pipeline
 //
-// 5-step pipeline:
+// 6-step pipeline:
 // 1. prepare-table-overview → definition_details.json
 // 2. sample-table-data → definition_sample.json
-// 3. analyze-table-data → definition_analysis.json (AI via Claude)
+// 3a. describe-table-data → definition_analysis.json (AI - naming/summary)
+// 3b. classify-table-data → definition_analysis.json (AI - classification/tags)
 // 4. extract-table-calc-fields → definition_calculated_fields.json
 // 5. generate-table-overview → overview.md
 
@@ -1887,68 +1888,19 @@ pub async fn val_fetch_categorical_values(
 }
 
 // ============================================================================
-// Step 3: Analyze Table Data (definition_analysis.json) - AI-powered
+// Step 3: Shared AI helpers (context builder, JSON parser, merge writer)
 // ============================================================================
 
-#[command]
-pub async fn val_analyze_table_data(
-    domain: String,
-    table_name: String,
-    overwrite: bool,
-) -> Result<TablePipelineResult, String> {
-    let start = std::time::Instant::now();
-    eprintln!("[tv-client] val_analyze_table_data: domain={}, table={}, overwrite={}", domain, table_name, overwrite);
-    let domain_config = get_domain_config(&domain)?;
-    let global_path = &domain_config.global_path;
-    eprintln!("[tv-client]   global_path={}", global_path);
-
-    let table_folder = Path::new(global_path)
-        .join("data_models")
-        .join(format!("table_{}", table_name));
-    let analysis_path = table_folder.join("definition_analysis.json");
-    let details_path = table_folder.join("definition_details.json");
-    let sample_path = table_folder.join("definition_sample.json");
-
-    // Skip if exists and not overwriting
-    if !overwrite && analysis_path.exists() {
-        return Ok(TablePipelineResult {
-            domain,
-            table_name,
-            step: "analyze-table-data".to_string(),
-            status: "skipped".to_string(),
-            file_path: Some(analysis_path.to_string_lossy().to_string()),
-            message: "definition_analysis.json already exists".to_string(),
-            duration_ms: start.elapsed().as_millis() as u64,
-        });
-    }
-
-    // Check prerequisites
-    if !details_path.exists() {
-        return Ok(TablePipelineResult {
-            domain,
-            table_name,
-            step: "analyze-table-data".to_string(),
-            status: "skipped".to_string(),
-            file_path: None,
-            message: "definition_details.json not found - run prepare-table-overview first".to_string(),
-            duration_ms: start.elapsed().as_millis() as u64,
-        });
-    }
-
-    // Get API key
-    let api_key = settings::settings_get_anthropic_key()?
-        .ok_or("Anthropic API key not configured. Add it in Settings.")?;
-
-    // Load details and sample
-    let details: Value =
-        load_json_file(&details_path).ok_or("Failed to parse definition_details.json")?;
-    let sample: Option<Value> = load_json_file(&sample_path);
-
-    // Build context for AI
+/// Build the table context string used as input for AI prompts.
+fn build_table_analysis_context(
+    table_name: &str,
+    details: &Value,
+    sample: &Option<Value>,
+) -> String {
     let mut context_parts = Vec::new();
     context_parts.push(format!(
         "## Table: {} ({})",
-        details["meta"]["displayName"].as_str().unwrap_or(&table_name),
+        details["meta"]["displayName"].as_str().unwrap_or(table_name),
         table_name
     ));
     context_parts.push(format!(
@@ -2021,8 +1973,7 @@ pub async fn val_analyze_table_data(
         }
     }
 
-    // Build mapping from db column ID to field name (from definition_details.json)
-    // This ensures AI uses exact field names that appear in overview.md
+    // Build mapping from db column ID to field name
     let mut db_col_to_field_name: HashMap<String, String> = HashMap::new();
     if let Some(data_cols) = details["columns"]["data"].as_array() {
         for col in data_cols {
@@ -2037,17 +1988,14 @@ pub async fn val_analyze_table_data(
 
     // Add sample data and column stats for field descriptions
     if let Some(ref s) = sample {
-        // Add column stats with sample values for AI to describe
         if let Some(stats) = s["columnStats"].as_object() {
             context_parts.push(String::new());
             context_parts.push("### Column Details (use exact field name as key):".to_string());
 
-            // Collect and sort by field name
             let mut col_entries: Vec<_> = stats.iter().collect();
             col_entries.sort_by(|(a, _), (b, _)| a.cmp(b));
 
             for (col_id, stat) in col_entries.iter() {
-                // Use field name from definition_details.json (exact match for overview.md)
                 let field_name = db_col_to_field_name
                     .get(&col_id.to_lowercase())
                     .map(|s| s.as_str())
@@ -2069,7 +2017,6 @@ pub async fn val_analyze_table_data(
                     String::new()
                 };
 
-                // Show field name exactly as it appears in definition_details.json
                 context_parts.push(format!(
                     "- {}: {} type, {} distinct{}",
                     field_name, col_type, distinct_count, values_str
@@ -2122,69 +2069,98 @@ pub async fn val_analyze_table_data(
         }
     }
 
-    let table_context = context_parts.join("\n");
+    context_parts.join("\n")
+}
 
-    // Build system prompt
-    let data_types_list = STANDARD_DATA_TYPES
-        .iter()
-        .map(|t| format!("- {}", t))
-        .collect::<Vec<_>>()
-        .join("\n");
+/// Extract JSON from an AI response that may be wrapped in markdown code blocks.
+fn parse_ai_json_response(ai_text: &str) -> Result<Value, String> {
+    let text = ai_text.trim();
+    let json_str = if let Some(start) = text.find("```json") {
+        let after = &text[start + 7..];
+        if let Some(end) = after.find("```") {
+            &after[..end]
+        } else {
+            text
+        }
+    } else if let Some(start) = text.find("```") {
+        let after = &text[start + 3..];
+        let json_start = after.find('\n').map(|i| i + 1).unwrap_or(0);
+        let after = &after[json_start..];
+        if let Some(end) = after.find("```") {
+            &after[..end]
+        } else {
+            text
+        }
+    } else {
+        text
+    };
 
-    let system_prompt = format!(
-        r#"You are a data analyst expert. Analyze the provided table metadata and sample data to classify and describe the table AND its columns.
+    serde_json::from_str(json_str.trim())
+        .map_err(|e| format!("Failed to parse AI response as JSON: {}", e))
+}
 
-Standard data types to classify into:
-{}
+/// Read existing analysis file (if any), merge new fields, and write back.
+fn merge_and_write_analysis(
+    analysis_path: &Path,
+    new_fields: Value,
+    table_name: &str,
+    details: &Value,
+    sample_exists: bool,
+) -> Result<(), String> {
+    let now: DateTime<Utc> = Utc::now();
 
-Data categories (use one of these OR create a new one if none fit): Mapping, Master List, Transaction, Report, Staging, Archive, Configuration, Cost, Sales, Payment, Receipt, Receipts, Invoice, Balance, Collection, Payout, Targets, Navigation, Data Hygiene, Test, Unknown, AI Summary, AR Reconciliation, Interco Transfer, Usage, Utilisation, Appointment, Campaign & Appointment, Other
-Data sub-categories (use one of these OR create a new one if none fit): Outlet, Brand, Platform, Fulfilment Type, Channel, Customer, Employee, Staff, Product, GL, Sales, Payment, Raw, Aggregate, Status, Category, Resource, Stock, Other
-Tags (use 3-6 relevant tags - use existing tags where applicable but create new descriptive tags as needed)
-Usage status: In Use (table has recent data/actively used), Not Used (appears unused), Historically Used (has old data only), I Dunno (unclear)
+    // Read existing file if present
+    let mut existing: Value = if analysis_path.exists() {
+        load_json_file(analysis_path).unwrap_or_else(|| json!({}))
+    } else {
+        json!({})
+    };
 
-Respond ONLY with valid JSON in this exact format:
-{{
-  "classification": {{
-    "dataType": "one of the standard types above",
-    "confidence": "high | medium | low",
-    "reasoning": "brief explanation"
-  }},
-  "dataCategory": "one of the data categories above",
-  "dataSubCategory": "one of the data sub-categories above",
-  "tags": "comma-separated tags describing the table (3-6 tags, reuse existing tags where applicable, add new descriptive tags freely)",
-  "usageStatus": "one of: In Use, Not Used, Historically Used, I Dunno - based on row count and data freshness",
-  "suggestedName": "A clear, descriptive name for this table",
-  "summary": {{
-    "short": "One line description (max 100 chars)",
-    "full": "2-3 sentence detailed description"
-  }},
-  "useCases": {{
-    "operational": ["3-5 operational use cases"],
-    "strategic": ["3-5 strategic/analytical use cases"]
-  }},
-  "columnDescriptions": {{
-    "Fieldname": "Brief description of what this column contains and its purpose",
-    "Anotherfield": "Description based on the name and sample values"
-  }}
-}}
+    // Ensure existing is an object
+    if !existing.is_object() {
+        existing = json!({});
+    }
 
-For columnDescriptions:
-- Use the EXACT field name as the key (e.g., "Businessdate", "Totalamount" - exactly as shown in the column list)
-- Describe what the column stores based on its name and sample values
-- Keep descriptions concise (1 sentence)
-- Describe ALL columns provided, not just a subset"#,
-        data_types_list
-    );
+    // Merge new fields into existing
+    if let (Some(existing_obj), Some(new_obj)) = (existing.as_object_mut(), new_fields.as_object()) {
+        for (key, value) in new_obj {
+            existing_obj.insert(key.clone(), value.clone());
+        }
+        // Update meta
+        let meta = existing_obj.entry("meta").or_insert_with(|| json!({}));
+        if let Some(meta_obj) = meta.as_object_mut() {
+            meta_obj.insert("tableName".to_string(), json!(table_name));
+            meta_obj.insert("displayName".to_string(), details["meta"]["displayName"].clone());
+            meta_obj.insert("analyzedAt".to_string(), json!(now.to_rfc3339()));
+            meta_obj.insert("model".to_string(), json!("claude-haiku-4-5-20251001"));
+            meta_obj.insert("basedOn".to_string(), json!({
+                "detailsJson": true,
+                "sampleJson": sample_exists
+            }));
+        }
+    }
 
-    let user_prompt = format!("Analyze this table:\n\n{}", table_context);
+    let content = serde_json::to_string_pretty(&existing)
+        .map_err(|e| format!("Failed to serialize: {}", e))?;
+    fs::write(analysis_path, content)
+        .map_err(|e| format!("Failed to write file: {}", e))?;
+    Ok(())
+}
 
-    // Call Anthropic API
-    eprintln!("[tv-client]   Calling Anthropic API for table: {} (context len: {} chars)", table_name, table_context.len());
+/// Call the Anthropic API with the given prompts.
+async fn call_anthropic_api(
+    api_key: &str,
+    system_prompt: &str,
+    user_prompt: &str,
+    table_name: &str,
+    context_len: usize,
+) -> Result<String, String> {
+    eprintln!("[tv-client]   Calling Anthropic API for table: {} (context len: {} chars)", table_name, context_len);
     let client = reqwest::Client::new();
     let response = client
         .post("https://api.anthropic.com/v1/messages")
         .header("Content-Type", "application/json")
-        .header("x-api-key", &api_key)
+        .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
         .json(&json!({
             "model": "claude-haiku-4-5-20251001",
@@ -2218,69 +2194,237 @@ For columnDescriptions:
         .await
         .map_err(|e| format!("Failed to parse API response: {}", e))?;
 
-    let ai_text = api_response
+    api_response
         .content
         .first()
         .and_then(|c| c.text.clone())
-        .ok_or("No text in API response")?;
+        .ok_or_else(|| "No text in API response".to_string())
+}
 
-    // Parse AI response
-    let analysis: Value = {
-        let text = ai_text.trim();
-        // Try to extract JSON from markdown code blocks
-        let json_str = if let Some(start) = text.find("```json") {
-            let after = &text[start + 7..];
-            if let Some(end) = after.find("```") {
-                &after[..end]
-            } else {
-                text
-            }
-        } else if let Some(start) = text.find("```") {
-            let after = &text[start + 3..];
-            let json_start = after.find('\n').map(|i| i + 1).unwrap_or(0);
-            let after = &after[json_start..];
-            if let Some(end) = after.find("```") {
-                &after[..end]
-            } else {
-                text
-            }
-        } else {
-            text
-        };
+// ============================================================================
+// Step 3a: Describe Table Data (naming, summary, use cases, column descriptions)
+// ============================================================================
 
-        serde_json::from_str(json_str.trim())
-            .map_err(|e| format!("Failed to parse AI response as JSON: {}", e))?
-    };
+#[command]
+pub async fn val_describe_table_data(
+    domain: String,
+    table_name: String,
+    overwrite: bool,
+) -> Result<TablePipelineResult, String> {
+    let start = std::time::Instant::now();
+    eprintln!("[tv-client] val_describe_table_data: domain={}, table={}, overwrite={}", domain, table_name, overwrite);
+    let domain_config = get_domain_config(&domain)?;
+    let global_path = &domain_config.global_path;
 
-    // Build output
-    let now: DateTime<Utc> = Utc::now();
-    let analysis_data = json!({
-        "meta": {
-            "tableName": table_name,
-            "displayName": details["meta"]["displayName"],
-            "analyzedAt": now.to_rfc3339(),
-            "model": "claude-haiku-4-5-20251001",
-            "basedOn": {
-                "detailsJson": true,
-                "sampleJson": sample.is_some()
+    let table_folder = Path::new(global_path)
+        .join("data_models")
+        .join(format!("table_{}", table_name));
+    let analysis_path = table_folder.join("definition_analysis.json");
+    let details_path = table_folder.join("definition_details.json");
+    let sample_path = table_folder.join("definition_sample.json");
+
+    // Skip if suggestedName already exists and not overwriting
+    if !overwrite && analysis_path.exists() {
+        let existing: Option<Value> = load_json_file(&analysis_path);
+        if let Some(ref v) = existing {
+            if v["suggestedName"].as_str().is_some() {
+                return Ok(TablePipelineResult {
+                    domain,
+                    table_name,
+                    step: "describe-table-data".to_string(),
+                    status: "skipped".to_string(),
+                    file_path: Some(analysis_path.to_string_lossy().to_string()),
+                    message: "suggestedName already exists in definition_analysis.json".to_string(),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
             }
-        },
-        "classification": analysis["classification"],
-        "dataCategory": analysis["dataCategory"],
-        "dataSubCategory": analysis["dataSubCategory"],
-        "tags": analysis["tags"],
-        "usageStatus": analysis["usageStatus"],
+        }
+    }
+
+    // Check prerequisites
+    if !details_path.exists() {
+        return Ok(TablePipelineResult {
+            domain,
+            table_name,
+            step: "describe-table-data".to_string(),
+            status: "skipped".to_string(),
+            file_path: None,
+            message: "definition_details.json not found - run prepare-table-overview first".to_string(),
+            duration_ms: start.elapsed().as_millis() as u64,
+        });
+    }
+
+    let api_key = settings::settings_get_anthropic_key()?
+        .ok_or("Anthropic API key not configured. Add it in Settings.")?;
+
+    let details: Value =
+        load_json_file(&details_path).ok_or("Failed to parse definition_details.json")?;
+    let sample: Option<Value> = load_json_file(&sample_path);
+    let table_context = build_table_analysis_context(&table_name, &details, &sample);
+
+    let system_prompt = r#"You are a data analyst expert. Analyze the provided table metadata and sample data to describe and name the table AND its columns.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "suggestedName": "A clear, descriptive name for this table",
+  "summary": {
+    "short": "One line description (max 100 chars)",
+    "full": "2-3 sentence detailed description"
+  },
+  "useCases": {
+    "operational": ["3-5 operational use cases"],
+    "strategic": ["3-5 strategic/analytical use cases"]
+  },
+  "columnDescriptions": {
+    "Fieldname": "Brief description of what this column contains and its purpose",
+    "Anotherfield": "Description based on the name and sample values"
+  }
+}
+
+For columnDescriptions:
+- Use the EXACT field name as the key (e.g., "Businessdate", "Totalamount" - exactly as shown in the column list)
+- Describe what the column stores based on its name and sample values
+- Keep descriptions concise (1 sentence)
+- Describe ALL columns provided, not just a subset"#.to_string();
+
+    let user_prompt = format!("Describe this table:\n\n{}", table_context);
+    let context_len = table_context.len();
+
+    let ai_text = call_anthropic_api(&api_key, &system_prompt, &user_prompt, &table_name, context_len).await?;
+    let analysis = parse_ai_json_response(&ai_text)?;
+
+    // Build fields to merge
+    let new_fields = json!({
         "suggestedName": analysis["suggestedName"],
         "summary": analysis["summary"],
         "useCases": analysis["useCases"],
         "columnDescriptions": analysis["columnDescriptions"]
     });
 
-    // Write definition_analysis.json
-    let content = serde_json::to_string_pretty(&analysis_data)
-        .map_err(|e| format!("Failed to serialize: {}", e))?;
-    fs::write(&analysis_path, content)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+    merge_and_write_analysis(&analysis_path, new_fields, &table_name, &details, sample.is_some())?;
+
+    let suggested = analysis["suggestedName"].as_str().unwrap_or("(unnamed)");
+
+    Ok(TablePipelineResult {
+        domain,
+        table_name,
+        step: "describe-table-data".to_string(),
+        status: "created".to_string(),
+        file_path: Some(analysis_path.to_string_lossy().to_string()),
+        message: format!("Described as: {}", suggested),
+        duration_ms: start.elapsed().as_millis() as u64,
+    })
+}
+
+// ============================================================================
+// Step 3b: Classify Table Data (dataType, category, subcategory, tags, usage)
+// ============================================================================
+
+#[command]
+pub async fn val_classify_table_data(
+    domain: String,
+    table_name: String,
+    overwrite: bool,
+) -> Result<TablePipelineResult, String> {
+    let start = std::time::Instant::now();
+    eprintln!("[tv-client] val_classify_table_data: domain={}, table={}, overwrite={}", domain, table_name, overwrite);
+    let domain_config = get_domain_config(&domain)?;
+    let global_path = &domain_config.global_path;
+
+    let table_folder = Path::new(global_path)
+        .join("data_models")
+        .join(format!("table_{}", table_name));
+    let analysis_path = table_folder.join("definition_analysis.json");
+    let details_path = table_folder.join("definition_details.json");
+    let sample_path = table_folder.join("definition_sample.json");
+
+    // Skip if classification.dataType already exists and not overwriting
+    if !overwrite && analysis_path.exists() {
+        let existing: Option<Value> = load_json_file(&analysis_path);
+        if let Some(ref v) = existing {
+            if v["classification"]["dataType"].as_str().is_some() {
+                return Ok(TablePipelineResult {
+                    domain,
+                    table_name,
+                    step: "classify-table-data".to_string(),
+                    status: "skipped".to_string(),
+                    file_path: Some(analysis_path.to_string_lossy().to_string()),
+                    message: "classification.dataType already exists in definition_analysis.json".to_string(),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+        }
+    }
+
+    // Check prerequisites
+    if !details_path.exists() {
+        return Ok(TablePipelineResult {
+            domain,
+            table_name,
+            step: "classify-table-data".to_string(),
+            status: "skipped".to_string(),
+            file_path: None,
+            message: "definition_details.json not found - run prepare-table-overview first".to_string(),
+            duration_ms: start.elapsed().as_millis() as u64,
+        });
+    }
+
+    let api_key = settings::settings_get_anthropic_key()?
+        .ok_or("Anthropic API key not configured. Add it in Settings.")?;
+
+    let details: Value =
+        load_json_file(&details_path).ok_or("Failed to parse definition_details.json")?;
+    let sample: Option<Value> = load_json_file(&sample_path);
+    let table_context = build_table_analysis_context(&table_name, &details, &sample);
+
+    let data_types_list = STANDARD_DATA_TYPES
+        .iter()
+        .map(|t| format!("- {}", t))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let system_prompt = format!(
+        r#"You are a data analyst expert. Classify the provided table based on its metadata and sample data.
+
+Standard data types to classify into:
+{}
+
+Data categories (use one of these OR create a new one if none fit): Mapping, Master List, Transaction, Report, Staging, Archive, Configuration, Cost, Sales, Payment, Receipt, Receipts, Invoice, Balance, Collection, Payout, Targets, Navigation, Data Hygiene, Test, Unknown, AI Summary, AR Reconciliation, Interco Transfer, Usage, Utilisation, Appointment, Campaign & Appointment, Other
+Data sub-categories (use one of these OR create a new one if none fit): Outlet, Brand, Platform, Fulfilment Type, Channel, Customer, Employee, Staff, Product, GL, Sales, Payment, Raw, Aggregate, Status, Category, Resource, Stock, Other
+Tags (use 3-6 relevant tags - use existing tags where applicable but create new descriptive tags as needed)
+Usage status: In Use (table has recent data/actively used), Not Used (appears unused), Historically Used (has old data only), I Dunno (unclear)
+
+Respond ONLY with valid JSON in this exact format:
+{{
+  "classification": {{
+    "dataType": "one of the standard types above",
+    "confidence": "high | medium | low",
+    "reasoning": "brief explanation"
+  }},
+  "dataCategory": "one of the data categories above",
+  "dataSubCategory": "one of the data sub-categories above",
+  "tags": "comma-separated tags describing the table (3-6 tags, reuse existing tags where applicable, add new descriptive tags freely)",
+  "usageStatus": "one of: In Use, Not Used, Historically Used, I Dunno - based on row count and data freshness"
+}}"#,
+        data_types_list
+    );
+
+    let user_prompt = format!("Classify this table:\n\n{}", table_context);
+    let context_len = table_context.len();
+
+    let ai_text = call_anthropic_api(&api_key, &system_prompt, &user_prompt, &table_name, context_len).await?;
+    let analysis = parse_ai_json_response(&ai_text)?;
+
+    // Build fields to merge
+    let new_fields = json!({
+        "classification": analysis["classification"],
+        "dataCategory": analysis["dataCategory"],
+        "dataSubCategory": analysis["dataSubCategory"],
+        "tags": analysis["tags"],
+        "usageStatus": analysis["usageStatus"]
+    });
+
+    merge_and_write_analysis(&analysis_path, new_fields, &table_name, &details, sample.is_some())?;
 
     let data_type = analysis["classification"]["dataType"]
         .as_str()
@@ -2289,10 +2433,39 @@ For columnDescriptions:
     Ok(TablePipelineResult {
         domain,
         table_name,
-        step: "analyze-table-data".to_string(),
+        step: "classify-table-data".to_string(),
         status: "created".to_string(),
         file_path: Some(analysis_path.to_string_lossy().to_string()),
         message: format!("Classified as: {}", data_type),
+        duration_ms: start.elapsed().as_millis() as u64,
+    })
+}
+
+// ============================================================================
+// Step 3 (legacy): Analyze Table Data - convenience wrapper calling both
+// ============================================================================
+
+#[command]
+pub async fn val_analyze_table_data(
+    domain: String,
+    table_name: String,
+    overwrite: bool,
+) -> Result<TablePipelineResult, String> {
+    let start = std::time::Instant::now();
+    eprintln!("[tv-client] val_analyze_table_data: domain={}, table={}, overwrite={}", domain, table_name, overwrite);
+
+    // Run describe first
+    val_describe_table_data(domain.clone(), table_name.clone(), overwrite).await?;
+    // Then classify (merges into same file)
+    let classify_result = val_classify_table_data(domain.clone(), table_name.clone(), overwrite).await?;
+
+    Ok(TablePipelineResult {
+        domain,
+        table_name,
+        step: "analyze-table-data".to_string(),
+        status: classify_result.status,
+        file_path: classify_result.file_path,
+        message: format!("Described + {}", classify_result.message),
         duration_ms: start.elapsed().as_millis() as u64,
     })
 }
@@ -3270,28 +3443,53 @@ pub async fn val_run_table_pipeline(
             table_result.steps.insert("2_sample".to_string(), "skipped".to_string());
         }
 
-        // Step 3: analyze-table-data (requires Anthropic key)
+        // Step 3a: describe-table-data (requires Anthropic key)
         if !steps_to_skip.contains("3") && table_result.status != "error" {
-            eprintln!("[tv-client]   Step 3: analyze-table-data");
-            match val_analyze_table_data(domain.clone(), tbl.clone(), overwrite).await {
+            eprintln!("[tv-client]   Step 3a: describe-table-data");
+            match val_describe_table_data(domain.clone(), tbl.clone(), overwrite).await {
                 Ok(r) => {
-                    table_result.steps.insert("3_analyze".to_string(), r.status);
+                    table_result.steps.insert("3a_describe".to_string(), r.status);
                     if let Some(fp) = r.file_path {
                         table_result.output_files.push(fp);
                     }
                 }
                 Err(e) => {
-                    // Don't fail the whole pipeline if AI analysis fails
                     if e.contains("API key") {
-                        table_result.steps.insert("3_analyze".to_string(), "skipped (no API key)".to_string());
+                        table_result.steps.insert("3a_describe".to_string(), "skipped (no API key)".to_string());
                     } else {
-                        table_result.steps.insert("3_analyze".to_string(), "error".to_string());
-                        eprintln!("[tv-client]   Warning: analyze step failed: {}", e);
+                        table_result.steps.insert("3a_describe".to_string(), "error".to_string());
+                        eprintln!("[tv-client]   Warning: describe step failed: {}", e);
                     }
                 }
             }
         } else if steps_to_skip.contains("3") {
-            table_result.steps.insert("3_analyze".to_string(), "skipped".to_string());
+            table_result.steps.insert("3a_describe".to_string(), "skipped".to_string());
+        }
+
+        // Step 3b: classify-table-data (requires Anthropic key)
+        if !steps_to_skip.contains("3") && table_result.status != "error" {
+            eprintln!("[tv-client]   Step 3b: classify-table-data");
+            match val_classify_table_data(domain.clone(), tbl.clone(), overwrite).await {
+                Ok(r) => {
+                    table_result.steps.insert("3b_classify".to_string(), r.status);
+                    if let Some(fp) = r.file_path {
+                        // Don't double-push same file path
+                        if !table_result.output_files.contains(&fp) {
+                            table_result.output_files.push(fp);
+                        }
+                    }
+                }
+                Err(e) => {
+                    if e.contains("API key") {
+                        table_result.steps.insert("3b_classify".to_string(), "skipped (no API key)".to_string());
+                    } else {
+                        table_result.steps.insert("3b_classify".to_string(), "error".to_string());
+                        eprintln!("[tv-client]   Warning: classify step failed: {}", e);
+                    }
+                }
+            }
+        } else if steps_to_skip.contains("3") {
+            table_result.steps.insert("3b_classify".to_string(), "skipped".to_string());
         }
 
         // Step 4: extract-table-calc-fields

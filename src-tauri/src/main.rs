@@ -16,7 +16,7 @@ fn create_new_window(app: &tauri::AppHandle) {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let label = format!("main-{}", millis);
+    let label = format!("module-main-{}", millis);
 
     let builder = tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App("/".into()))
         .title("TV Client")
@@ -319,6 +319,8 @@ fn main() {
             commands::val_sync::table_pipeline::val_prepare_table_overview,
             commands::val_sync::table_pipeline::val_sample_table_data,
             commands::val_sync::table_pipeline::val_fetch_categorical_values,
+            commands::val_sync::table_pipeline::val_describe_table_data,
+            commands::val_sync::table_pipeline::val_classify_table_data,
             commands::val_sync::table_pipeline::val_analyze_table_data,
             commands::val_sync::table_pipeline::val_extract_table_calc_fields,
             commands::val_sync::table_pipeline::val_generate_table_overview_md,

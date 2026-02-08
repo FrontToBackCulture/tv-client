@@ -585,17 +585,17 @@ export function DataModelsReviewView({
     }
   }, [isBatchRunning, getTargetTableNames, domainName, addJob, updateJob]);
 
-  // AI Analyze all filtered tables (one by one)
-  const handleAnalyzeAll = useCallback(async () => {
+  // AI Describe all filtered tables (naming, summary, column descriptions)
+  const handleDescribeAll = useCallback(async () => {
     if (isBatchRunning) return;
 
     const tableNames = getTargetTableNames();
     if (tableNames.length === 0) return;
 
-    const jobId = `analyze-all-${Date.now()}`;
+    const jobId = `describe-all-${Date.now()}`;
     addJob({
       id: jobId,
-      name: `AI Analyze (${tableNames.length} tables)`,
+      name: `AI Describe (${tableNames.length} tables)`,
       status: "running",
       progress: 0,
       message: "Starting...",
@@ -615,7 +615,62 @@ export function DataModelsReviewView({
         });
 
         try {
-          const result = await invoke<{ file_path?: string }>("val_analyze_table_data", {
+          await invoke<{ file_path?: string }>("val_describe_table_data", {
+            domain: domainName,
+            tableName,
+            overwrite: true,
+          });
+          successCount++;
+        } catch (e) {
+          console.error(`[AI Describe] ${tableName} FAILED:`, e);
+          errorCount++;
+        }
+      }
+
+      updateJob(jobId, {
+        status: errorCount > 0 ? "failed" : "completed",
+        progress: 100,
+        message: `Described ${successCount}${errorCount > 0 ? `, ${errorCount} errors` : ""}`,
+      });
+    } catch (e) {
+      updateJob(jobId, {
+        status: "failed",
+        message: e instanceof Error ? e.message : "Failed",
+      });
+    }
+  }, [isBatchRunning, getTargetTableNames, domainName, addJob, updateJob]);
+
+  // AI Classify all filtered tables (dataType, category, tags, usage)
+  const handleClassifyAll = useCallback(async () => {
+    if (isBatchRunning) return;
+
+    const tableNames = getTargetTableNames();
+    if (tableNames.length === 0) return;
+
+    const jobId = `classify-all-${Date.now()}`;
+    addJob({
+      id: jobId,
+      name: `AI Classify (${tableNames.length} tables)`,
+      status: "running",
+      progress: 0,
+      message: "Starting...",
+    });
+
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (let i = 0; i < tableNames.length; i++) {
+        const tableName = tableNames[i];
+        const progress = Math.round(((i + 1) / tableNames.length) * 100);
+
+        updateJob(jobId, {
+          progress,
+          message: `${i + 1}/${tableNames.length}: ${tableName}`,
+        });
+
+        try {
+          const result = await invoke<{ file_path?: string }>("val_classify_table_data", {
             domain: domainName,
             tableName,
             overwrite: true,
@@ -626,7 +681,7 @@ export function DataModelsReviewView({
             await syncAnalysisToStore(result.file_path);
           }
         } catch (e) {
-          console.error(`[AI Analyze] ${tableName} FAILED:`, e);
+          console.error(`[AI Classify] ${tableName} FAILED:`, e);
           errorCount++;
         }
       }
@@ -634,7 +689,7 @@ export function DataModelsReviewView({
       updateJob(jobId, {
         status: errorCount > 0 ? "failed" : "completed",
         progress: 100,
-        message: `Analyzed ${successCount}${errorCount > 0 ? `, ${errorCount} errors` : ""}`,
+        message: `Classified ${successCount}${errorCount > 0 ? `, ${errorCount} errors` : ""}`,
       });
     } catch (e) {
       updateJob(jobId, {
@@ -724,15 +779,26 @@ export function DataModelsReviewView({
             Fetch All Details
           </button>
 
-          {/* AI Analyze All button */}
+          {/* AI Describe All button */}
           <button
-            onClick={handleAnalyzeAll}
+            onClick={handleDescribeAll}
             disabled={isBatchRunning}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Run AI analysis on filtered tables (applies to visible rows in grid)"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="AI naming, summary, and column descriptions for filtered tables"
           >
             <Sparkles size={14} />
-            AI Analyze All
+            AI Describe All
+          </button>
+
+          {/* AI Classify All button */}
+          <button
+            onClick={handleClassifyAll}
+            disabled={isBatchRunning}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="AI classification, tags, and usage status for filtered tables"
+          >
+            <Sparkles size={14} />
+            AI Classify All
           </button>
 
           {/* Generate All Overviews button */}

@@ -44,7 +44,8 @@ import {
   usePrepareTableOverview,
   useSampleTableData,
   useFetchCategoricalValues,
-  useAnalyzeTableData,
+  useDescribeTableData,
+  useClassifyTableData,
   useGenerateTableOverviewMd,
 } from "../../hooks/useValSync";
 
@@ -490,7 +491,8 @@ export function TableDetailPreview({
   const prepareOverviewMutation = usePrepareTableOverview();
   const sampleDataMutation = useSampleTableData();
   const fetchCategoricalMutation = useFetchCategoricalValues();
-  const analyzeDataMutation = useAnalyzeTableData();
+  const describeDataMutation = useDescribeTableData();
+  const classifyDataMutation = useClassifyTableData();
   const generateOverviewMdMutation = useGenerateTableOverviewMd();
 
   // Extract domain from path
@@ -644,9 +646,33 @@ export function TableDetailPreview({
     };
   }, [tablePath]);
 
+  // Reload analysis from file after describe or classify
+  const reloadAnalysisAfterAI = useCallback(async () => {
+    try {
+      const content = await invoke<string>("read_file", {
+        path: `${tablePath}/definition_analysis.json`,
+      });
+      const analysisData = JSON.parse(content);
+      setAnalysis(analysisData);
+      // Push AI values to grid so they appear in the table
+      if (onFieldChange) {
+        if (analysisData.suggestedName) onFieldChange("suggestedName", analysisData.suggestedName);
+        if (analysisData.summary?.short) onFieldChange("summaryShort", analysisData.summary.short);
+        if (analysisData.summary?.full) onFieldChange("summaryFull", analysisData.summary.full);
+        if (analysisData.dataCategory) onFieldChange("dataCategory", analysisData.dataCategory);
+        if (analysisData.dataSubCategory) onFieldChange("dataSubCategory", analysisData.dataSubCategory);
+        if (analysisData.usageStatus) onFieldChange("usageStatus", analysisData.usageStatus);
+        if (analysisData.tags) onFieldChange("tags", analysisData.tags);
+        if (analysisData.classification?.dataType) onFieldChange("dataType", analysisData.classification.dataType);
+      }
+    } catch {
+      // ignore
+    }
+  }, [tablePath, onFieldChange]);
+
   // Handle pipeline step execution
   const handlePipelineStep = useCallback(
-    async (step: "prepare" | "sample" | "categorical" | "analyze" | "overview", freshnessColumn?: string) => {
+    async (step: "prepare" | "sample" | "categorical" | "describe" | "classify" | "overview", freshnessColumn?: string) => {
       if (!domain) return;
 
       const callbacks = {
@@ -756,27 +782,8 @@ export function TableDetailPreview({
             } catch {
               // ignore
             }
-          } else if (step === "analyze") {
-            try {
-              const content = await invoke<string>("read_file", {
-                path: `${tablePath}/definition_analysis.json`,
-              });
-              const analysisData = JSON.parse(content);
-              setAnalysis(analysisData);
-              // Push AI values to grid so they appear in the table
-              if (onFieldChange) {
-                if (analysisData.suggestedName) onFieldChange("suggestedName", analysisData.suggestedName);
-                if (analysisData.summary?.short) onFieldChange("summaryShort", analysisData.summary.short);
-                if (analysisData.summary?.full) onFieldChange("summaryFull", analysisData.summary.full);
-                if (analysisData.dataCategory) onFieldChange("dataCategory", analysisData.dataCategory);
-                if (analysisData.dataSubCategory) onFieldChange("dataSubCategory", analysisData.dataSubCategory);
-                if (analysisData.usageStatus) onFieldChange("usageStatus", analysisData.usageStatus);
-                if (analysisData.tags) onFieldChange("tags", analysisData.tags);
-                if (analysisData.classification?.dataType) onFieldChange("dataType", analysisData.classification.dataType);
-              }
-            } catch {
-              // ignore
-            }
+          } else if (step === "describe" || step === "classify") {
+            await reloadAnalysisAfterAI();
           }
         },
       };
@@ -794,8 +801,11 @@ export function TableDetailPreview({
         case "categorical":
           fetchCategoricalMutation.mutate({ domain, tableName, overwrite: true }, callbacks);
           break;
-        case "analyze":
-          analyzeDataMutation.mutate({ domain, tableName, overwrite: true }, callbacks);
+        case "describe":
+          describeDataMutation.mutate({ domain, tableName, overwrite: true }, callbacks);
+          break;
+        case "classify":
+          classifyDataMutation.mutate({ domain, tableName, overwrite: true }, callbacks);
           break;
         case "overview":
           // Save any pending changes before generating overview
@@ -813,10 +823,12 @@ export function TableDetailPreview({
       prepareOverviewMutation,
       sampleDataMutation,
       fetchCategoricalMutation,
-      analyzeDataMutation,
+      describeDataMutation,
+      classifyDataMutation,
       generateOverviewMdMutation,
       onFieldChange,
       onSaveBeforeGenerate,
+      reloadAnalysisAfterAI,
     ]
   );
 
@@ -982,8 +994,10 @@ export function TableDetailPreview({
             onRefresh={() => handlePipelineStep("prepare")}
             onRefreshWithColumn={(col) => handlePipelineStep("prepare", col)}
             isRefreshing={prepareOverviewMutation.isPending}
-            onAnalyze={() => handlePipelineStep("analyze")}
-            isAnalyzing={analyzeDataMutation.isPending}
+            onDescribe={() => handlePipelineStep("describe")}
+            isDescribing={describeDataMutation.isPending}
+            onClassify={() => handlePipelineStep("classify")}
+            isClassifying={classifyDataMutation.isPending}
             onFieldChange={onFieldChange}
             onReloadFromFile={() => reloadAnalysisFromFile(true)}
             onSyncToGrid={onSyncToGrid}
@@ -1122,8 +1136,10 @@ function DetailsTab({
   onRefresh,
   onRefreshWithColumn,
   isRefreshing,
-  onAnalyze,
-  isAnalyzing,
+  onDescribe,
+  isDescribing,
+  onClassify,
+  isClassifying,
   onFieldChange,
   onReloadFromFile,
   onSyncToGrid,
@@ -1134,8 +1150,10 @@ function DetailsTab({
   onRefresh?: () => void;
   onRefreshWithColumn?: (column: string) => void;
   isRefreshing?: boolean;
-  onAnalyze?: () => void;
-  isAnalyzing?: boolean;
+  onDescribe?: () => void;
+  isDescribing?: boolean;
+  onClassify?: () => void;
+  isClassifying?: boolean;
   onFieldChange?: (field: string, value: string | number | null) => void;
   onReloadFromFile?: () => void;
   onSyncToGrid?: () => void;
@@ -1249,7 +1267,7 @@ function DetailsTab({
   return (
     <div className="p-4 space-y-4">
       {/* Action buttons */}
-      {(onRefresh || onAnalyze) && (
+      {(onRefresh || onDescribe || onClassify) && (
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-zinc-800">
           <div className="text-xs text-zinc-500">
             {hasNoData ? (
@@ -1267,7 +1285,7 @@ function DetailsTab({
             {onRefresh && (
               <button
                 onClick={onRefresh}
-                disabled={isRefreshing || isAnalyzing}
+                disabled={isRefreshing || isDescribing || isClassifying}
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-colors",
                   isRefreshing
@@ -1284,24 +1302,44 @@ function DetailsTab({
                 {isRefreshing ? "Fetching..." : "Fetch Details"}
               </button>
             )}
-            {onAnalyze && (
+            {onDescribe && (
               <button
-                onClick={onAnalyze}
-                disabled={isRefreshing || isAnalyzing}
+                onClick={onDescribe}
+                disabled={isRefreshing || isDescribing || isClassifying}
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-colors",
-                  isAnalyzing
-                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
-                    : "border border-amber-500 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-50"
+                  isDescribing
+                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                    : "border border-blue-500 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
                 )}
-                title="AI analysis to generate summary and classification"
+                title="AI naming, summary, and column descriptions"
               >
-                {isAnalyzing ? (
+                {isDescribing ? (
                   <Loader2 size={12} className="animate-spin" />
                 ) : (
                   <Sparkles size={12} />
                 )}
-                {isAnalyzing ? "Analyzing..." : "AI Analyze"}
+                {isDescribing ? "Describing..." : "AI Describe"}
+              </button>
+            )}
+            {onClassify && (
+              <button
+                onClick={onClassify}
+                disabled={isRefreshing || isDescribing || isClassifying}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-colors",
+                  isClassifying
+                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+                    : "border border-amber-500 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-50"
+                )}
+                title="AI classification, tags, and usage status"
+              >
+                {isClassifying ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Sparkles size={12} />
+                )}
+                {isClassifying ? "Classifying..." : "AI Classify"}
               </button>
             )}
           </div>
