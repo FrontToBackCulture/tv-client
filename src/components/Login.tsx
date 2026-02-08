@@ -2,6 +2,7 @@
 // Login page with GitHub OAuth
 
 import { useEffect } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Loader2 } from "lucide-react";
 import { useAuth, isGitHubConfigured } from "../stores/authStore";
 
@@ -76,11 +77,11 @@ export function Login() {
       <div
         data-tauri-drag-region
         className="h-10 flex-shrink-0 flex items-center"
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        onMouseDown={() => getCurrentWindow().startDragging()}
       >
         <div className="w-20 flex-shrink-0" />
-        <div className="flex-1 flex justify-center">
-          <span className="text-xs text-zinc-500 pointer-events-none">TV Desktop</span>
+        <div className="flex-1 flex justify-center pointer-events-none">
+          <span className="text-xs text-zinc-500">TV Desktop</span>
         </div>
         <div className="w-20 flex-shrink-0" />
       </div>

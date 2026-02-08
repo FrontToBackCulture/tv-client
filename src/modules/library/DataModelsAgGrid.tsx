@@ -575,15 +575,10 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
                     ).length;
                   } else {
                     const systemCols = details.columns.system?.length || 0;
-                    const customCols = details.columns.custom?.length || 0;
-                    columnCount = systemCols + customCols;
-                    // Count calculated from custom columns
-                    if (details.columns.custom) {
-                      calculatedColumnCount = details.columns.custom.filter(
-                        (col: { formula?: string; isCalculated?: boolean }) =>
-                          col.formula || col.isCalculated
-                      ).length;
-                    }
+                    const dataCols = details.columns.data?.length || details.columns.custom?.length || 0;
+                    const calcCols = details.columns.calculated?.length || 0;
+                    columnCount = systemCols + dataCols + calcCols;
+                    calculatedColumnCount = calcCols;
                   }
                 }
                 // Count relationships
@@ -1260,13 +1255,16 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
     });
   }, []);
 
-  // Reset layout
+  // Reset layout + clear all filters
   const resetLayout = useCallback(() => {
     const api = gridRef.current?.api;
     if (!api) return;
 
+    api.setFilterModel(null);
     api.resetColumnState();
     api.setRowGroupColumns(["dataCategory"]);
+    setQuickFilterText("");
+    setReviewFilter("all");
   }, []);
 
   // Auto-size all columns

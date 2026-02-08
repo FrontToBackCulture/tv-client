@@ -1,6 +1,7 @@
 // src/App.tsx
 
 import { useEffect } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Shell } from "./shell/Shell";
 import { LibraryModule } from "./modules/library/LibraryModule";
 import { WorkModule } from "./modules/work/WorkModule";
@@ -89,13 +90,12 @@ export default function App() {
       <div className="h-screen flex flex-col bg-slate-50 dark:bg-zinc-950">
         {/* Draggable title bar */}
         <div
-          data-tauri-drag-region
+          onMouseDown={() => getCurrentWindow().startDragging()}
           className="h-10 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center flex-shrink-0"
-          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
           <div className="w-20 flex-shrink-0" />
-          <div className="flex-1 flex justify-center">
-            <span className="text-xs text-zinc-500 pointer-events-none">TV Desktop</span>
+          <div className="flex-1 flex justify-center pointer-events-none">
+            <span className="text-xs text-zinc-500">TV Desktop</span>
           </div>
           <div className="w-20 flex-shrink-0" />
         </div>
