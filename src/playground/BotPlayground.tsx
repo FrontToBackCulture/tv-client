@@ -209,11 +209,13 @@ function SkillModal({
   skillPath,
   skillName,
   title,
+  usage,
   onClose,
 }: {
   skillPath: string;
   skillName: string;
   title: string;
+  usage?: { invocations: number; mentions: number };
   onClose: () => void;
 }) {
   const filePath = `${skillPath}/SKILL.md`;
@@ -316,6 +318,13 @@ function SkillModal({
                 </div>
                 {lastRevised && (
                   <span className="text-[10px] text-zinc-400 dark:text-zinc-500">revised {relativeDate(lastRevised)}</span>
+                )}
+                {usage && (usage.invocations > 0 || usage.mentions > 0) && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 tabular-nums">
+                    {usage.invocations > 0 ? `${usage.invocations} invoked` : ""}
+                    {usage.invocations > 0 && usage.mentions > 0 ? " · " : ""}
+                    {usage.mentions > 0 ? `${usage.mentions} mentioned` : ""}
+                  </span>
                 )}
                 {isDirty && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">Unsaved</span>
@@ -808,6 +817,7 @@ function BotOverview({
   onSkillClick,
   onSessionClick,
   onCommandsClick,
+  skillUsage,
 }: {
   bot: BotEntry;
   profile: BotProfile;
@@ -817,6 +827,7 @@ function BotOverview({
   commandCount: number;
   recentSessions: { date: string; title: string | null; summary: string | null; path: string }[];
   skillList: { name: string; path: string; title: string; summary: string; subfolders: string[]; status: SkillStatus; lastRevised: string | null }[];
+  skillUsage: Record<string, { invocations: number; mentions: number }>;
   onSkillClick: (skill: { name: string; path: string; title: string }) => void;
   onSessionClick: (session: { path: string; date: string; title: string | null }) => void;
   onCommandsClick: () => void;
@@ -916,6 +927,8 @@ function BotOverview({
                   <div className="grid grid-cols-2 gap-2">
                     {skillList.map((skill) => {
                       const sc = SKILL_STATUS_CONFIG[skill.status];
+                      const usage = skillUsage[skill.name];
+                      const totalUses = (usage?.invocations || 0) + (usage?.mentions || 0);
                       return (
                         <button
                           key={skill.name}
@@ -932,6 +945,11 @@ function BotOverview({
                             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors flex-1">
                               {skill.title}
                             </span>
+                            {totalUses > 0 && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 tabular-nums flex-shrink-0">
+                                {totalUses}x
+                              </span>
+                            )}
                             <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", sc.dot)} title={sc.label} />
                           </div>
                           {skill.summary && (
@@ -944,7 +962,14 @@ function BotOverview({
                                 {sub}
                               </span>
                             ))}
-                            {skill.lastRevised && (
+                            {usage && (usage.invocations > 0 || usage.mentions > 0) && (
+                              <span className="text-[9px] text-zinc-400 dark:text-zinc-500 ml-auto">
+                                {usage.invocations > 0 ? `${usage.invocations} invoked` : ""}
+                                {usage.invocations > 0 && usage.mentions > 0 ? " · " : ""}
+                                {usage.mentions > 0 ? `${usage.mentions} mentioned` : ""}
+                              </span>
+                            )}
+                            {!usage && skill.lastRevised && (
                               <span className="text-[9px] text-zinc-400 dark:text-zinc-500 ml-auto">
                                 revised {relativeDate(skill.lastRevised)}
                               </span>
@@ -1426,6 +1451,21 @@ export function BotPlayground() {
     });
   }, [skillFolders, skillContentQueries, skillSubfolderQueries]);
 
+  // ── Skill Usage Tracking ──
+  // Option A: Read JSONL log files from .claude/skill-usage/
+  const tvKnowledgeRoot = botsPath ? botsPath.replace(/\/_team\/?$/, "") : null;
+  const skillUsageDir = tvKnowledgeRoot ? `${tvKnowledgeRoot}/.claude/skill-usage` : undefined;
+  const { data: usageLogFiles = [] } = useListDirectory(skillUsageDir);
+  const jsonlFiles = usageLogFiles.filter((f) => f.name.endsWith(".jsonl"));
+
+  const usageLogQueries = useQueries({
+    queries: jsonlFiles.map((f) => ({
+      queryKey: ["file", f.path],
+      queryFn: () => invoke<string>("read_file", { path: f.path }),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
   // Sessions — scoped to the selected bot's owner
   const sessionsPath = useMemo(() => {
     if (!selectedBot) return null;
@@ -1448,6 +1488,51 @@ export function BotPlayground() {
       .filter((s) => s.date)
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [sessionFiles]);
+
+  // Option B: Scan recent session notes for /skill-name mentions
+  const sessionNoteQueries = useQueries({
+    queries: botSessions.slice(0, 20).map((s) => ({
+      queryKey: ["file", s.path],
+      queryFn: () => invoke<string>("read_file", { path: s.path }),
+      staleTime: 10 * 60 * 1000,
+    })),
+  });
+
+  // Aggregate usage counts from both sources
+  const skillUsage = useMemo(() => {
+    const result: Record<string, { invocations: number; mentions: number }> = {};
+
+    // Option A: Count from JSONL logs
+    usageLogQueries.forEach((q) => {
+      if (!q.data) return;
+      for (const line of q.data.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const entry = JSON.parse(line);
+          if (entry.skill) {
+            if (!result[entry.skill]) result[entry.skill] = { invocations: 0, mentions: 0 };
+            result[entry.skill].invocations++;
+          }
+        } catch { /* skip malformed lines */ }
+      }
+    });
+
+    // Option B: Count /skill-name mentions in session notes
+    const skillNames = skillList.map((s) => s.name);
+    sessionNoteQueries.forEach((q) => {
+      if (!q.data) return;
+      for (const name of skillNames) {
+        const regex = new RegExp(`\\/${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi");
+        const matches = q.data.match(regex);
+        if (matches) {
+          if (!result[name]) result[name] = { invocations: 0, mentions: 0 };
+          result[name].mentions += matches.length;
+        }
+      }
+    });
+
+    return result;
+  }, [usageLogQueries, sessionNoteQueries, skillList]);
 
   // All sessions — aggregated across all member + team bot session folders (for Sessions tab)
   const allSessionSources = useMemo(() => {
@@ -1534,6 +1619,7 @@ export function BotPlayground() {
           commandCount={commandCount}
           recentSessions={botSessions.slice(0, 5)}
           skillList={skillList}
+          skillUsage={skillUsage}
           onSkillClick={(skill) => setSkillModal({ skillName: skill.name, skillPath: skill.path, title: skill.title })}
           onSessionClick={(session) => setDetailView({ type: "session", sessionPath: session.path, date: session.date, title: session.title })}
           onCommandsClick={() => setDetailView({ type: "commands" })}
@@ -1608,6 +1694,7 @@ export function BotPlayground() {
           skillPath={skillModal.skillPath}
           skillName={skillModal.skillName}
           title={skillModal.title}
+          usage={skillUsage[skillModal.skillName]}
           onClose={() => setSkillModal(null)}
         />
       )}
