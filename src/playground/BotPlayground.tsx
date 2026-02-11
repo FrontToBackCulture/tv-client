@@ -138,6 +138,39 @@ function parseBotProfile(content: string | undefined): BotProfile {
   return { description, mission, role, department, focus };
 }
 
+type SkillStatus = "active" | "inactive" | "deprecated";
+
+const SKILL_STATUS_CONFIG: Record<SkillStatus, { label: string; dot: string; badge: string; text: string }> = {
+  active: { label: "Active", dot: "bg-green-500", badge: "bg-green-50 dark:bg-green-900/20", text: "text-green-700 dark:text-green-400" },
+  inactive: { label: "Inactive", dot: "bg-zinc-400", badge: "bg-zinc-100 dark:bg-zinc-800", text: "text-zinc-500 dark:text-zinc-400" },
+  deprecated: { label: "Deprecated", dot: "bg-red-400", badge: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400" },
+};
+
+function parseSkillFrontmatter(content: string | undefined): { status: SkillStatus; lastRevised: string | null } {
+  if (!content) return { status: "active", lastRevised: null };
+  const statusMatch = content.match(/^status:\s*["']?(\w+)["']?\s*$/m);
+  const revisedMatch = content.match(/^last_revised:\s*["']?(\d{4}-\d{2}-\d{2})["']?\s*$/m);
+  const raw = statusMatch?.[1]?.toLowerCase();
+  const status: SkillStatus = raw === "inactive" ? "inactive" : raw === "deprecated" ? "deprecated" : "active";
+  return { status, lastRevised: revisedMatch?.[1] || null };
+}
+
+function updateFrontmatterField(content: string, key: string, value: string): string {
+  const fmMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+  if (fmMatch) {
+    const yaml = fmMatch[2];
+    const fieldRegex = new RegExp(`^${key}:.*$`, "m");
+    if (fieldRegex.test(yaml)) {
+      const updated = yaml.replace(fieldRegex, `${key}: ${value}`);
+      return `${fmMatch[1]}${updated}${fmMatch[3]}${content.slice(fmMatch[0].length)}`;
+    }
+    // Field doesn't exist — add before closing ---
+    return `${fmMatch[1]}${yaml}\n${key}: ${value}${fmMatch[3]}${content.slice(fmMatch[0].length)}`;
+  }
+  // No frontmatter — prepend
+  return `---\n${key}: ${value}\n---\n${content}`;
+}
+
 function relativeDate(dateStr: string): string {
   const now = new Date();
   const d = new Date(dateStr + "T00:00:00");
@@ -216,12 +249,24 @@ function SkillModal({
     onClose();
   };
 
-  // Extract summary from frontmatter for the description line
+  // Parse frontmatter
   const summary = useMemo(() => {
     if (!skillMd) return "";
     const match = skillMd.match(/^summary:\s*"?([^"\n]+)"?/m);
     return match?.[1]?.trim() || "";
   }, [skillMd]);
+
+  const { status: currentStatus, lastRevised } = useMemo(() => parseSkillFrontmatter(skillMd), [skillMd]);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+
+  const handleStatusChange = (newStatus: SkillStatus) => {
+    if (!skillMd) return;
+    const today = new Date().toISOString().slice(0, 10);
+    let updated = updateFrontmatterField(skillMd, "status", newStatus);
+    updated = updateFrontmatterField(updated, "last_revised", today);
+    writeFile.mutate({ path: filePath, content: updated });
+    setShowStatusMenu(false);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
@@ -229,7 +274,7 @@ function SkillModal({
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={handleClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100 dark:border-zinc-800">
           <div className="flex items-start justify-between gap-3">
@@ -238,6 +283,40 @@ function SkillModal({
                 <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500">&middot;</span>
                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{skillName}</span>
+                {/* Status badge with dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowStatusMenu(!showStatusMenu)}
+                    className={cn(
+                      "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors",
+                      SKILL_STATUS_CONFIG[currentStatus].badge,
+                      SKILL_STATUS_CONFIG[currentStatus].text
+                    )}
+                  >
+                    <span className={cn("w-1.5 h-1.5 rounded-full", SKILL_STATUS_CONFIG[currentStatus].dot)} />
+                    {SKILL_STATUS_CONFIG[currentStatus].label}
+                  </button>
+                  {showStatusMenu && (
+                    <div className="absolute top-full left-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden z-10">
+                      {(["active", "inactive", "deprecated"] as SkillStatus[]).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => handleStatusChange(s)}
+                          className={cn(
+                            "w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-zinc-700",
+                            s === currentStatus && "bg-slate-50 dark:bg-zinc-700"
+                          )}
+                        >
+                          <span className={cn("w-1.5 h-1.5 rounded-full", SKILL_STATUS_CONFIG[s].dot)} />
+                          <span className="text-zinc-700 dark:text-zinc-300">{SKILL_STATUS_CONFIG[s].label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {lastRevised && (
+                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500">revised {relativeDate(lastRevised)}</span>
+                )}
                 {isDirty && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">Unsaved</span>
                 )}
@@ -737,7 +816,7 @@ function BotOverview({
   skillCount: number;
   commandCount: number;
   recentSessions: { date: string; title: string | null; summary: string | null; path: string }[];
-  skillList: { name: string; path: string; title: string; summary: string; subfolders: string[] }[];
+  skillList: { name: string; path: string; title: string; summary: string; subfolders: string[]; status: SkillStatus; lastRevised: string | null }[];
   onSkillClick: (skill: { name: string; path: string; title: string }) => void;
   onSessionClick: (session: { path: string; date: string; title: string | null }) => void;
   onCommandsClick: () => void;
@@ -829,37 +908,51 @@ function BotOverview({
                   <ChevronRight size={12} className={cn("transition-transform", skillsExpanded && "rotate-90")} />
                   <Sparkles size={12} className="text-amber-500" />
                   Skills
-                  <span className="text-[10px] font-normal tabular-nums ml-1">{skillList.length}</span>
+                  <span className="text-[10px] font-normal tabular-nums ml-1">
+                    {skillList.filter((s) => s.status === "active").length} active / {skillList.length}
+                  </span>
                 </button>
                 {skillsExpanded && (
                   <div className="grid grid-cols-2 gap-2">
-                    {skillList.map((skill) => (
-                      <button
-                        key={skill.name}
-                        onClick={() => onSkillClick({ name: skill.name, path: skill.path, title: skill.title })}
-                        className="text-left px-4 py-3 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-sm transition-all cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <Sparkles size={13} className="text-amber-500 flex-shrink-0" />
-                          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                            {skill.title}
-                          </span>
-                        </div>
-                        {skill.summary && (
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-2">{skill.summary}</p>
-                        )}
-                        {skill.subfolders.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
+                    {skillList.map((skill) => {
+                      const sc = SKILL_STATUS_CONFIG[skill.status];
+                      return (
+                        <button
+                          key={skill.name}
+                          onClick={() => onSkillClick({ name: skill.name, path: skill.path, title: skill.title })}
+                          className={cn(
+                            "text-left px-4 py-3 rounded-lg border bg-white dark:bg-zinc-900 hover:shadow-sm transition-all cursor-pointer group",
+                            skill.status === "active"
+                              ? "border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700"
+                              : "border-slate-200/60 dark:border-zinc-800/60 opacity-60 hover:opacity-80"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Sparkles size={13} className="text-amber-500 flex-shrink-0" />
+                            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors flex-1">
+                              {skill.title}
+                            </span>
+                            <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", sc.dot)} title={sc.label} />
+                          </div>
+                          {skill.summary && (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-2">{skill.summary}</p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-1">
                             {skill.subfolders.map((sub) => (
                               <span key={sub} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] rounded bg-slate-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
                                 {sub === "templates" ? <FileCode size={8} /> : sub === "playbooks" ? <BookOpen size={8} /> : <Folder size={8} />}
                                 {sub}
                               </span>
                             ))}
+                            {skill.lastRevised && (
+                              <span className="text-[9px] text-zinc-400 dark:text-zinc-500 ml-auto">
+                                revised {relativeDate(skill.lastRevised)}
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -1320,12 +1413,15 @@ export function BotPlayground() {
       const subfolders = skillSubfolderQueries[i]?.data || [];
       const titleMatch = content?.match(/^#\s+(.+)$/m);
       const summaryMatch = content?.match(/^summary:\s*"?([^"\n]+)"?/m) || content?.match(/^>\s*(.+)$/m);
+      const { status, lastRevised } = parseSkillFrontmatter(content);
       return {
         name: f.name,
         path: f.path,
         title: titleMatch?.[1] || f.name,
         summary: summaryMatch?.[1]?.trim() || "",
         subfolders: subfolders.filter((s) => s.is_directory && !s.name.startsWith(".")).map((s) => s.name),
+        status,
+        lastRevised,
       };
     });
   }, [skillFolders, skillContentQueries, skillSubfolderQueries]);
