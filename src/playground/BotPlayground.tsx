@@ -23,6 +23,7 @@ import {
   Eye,
   Pencil,
   Save,
+  ArrowUpDown,
 } from "lucide-react";
 import { useListDirectory, useReadFile, useWriteFile, FileEntry } from "../hooks/useFiles";
 import { useQueries } from "@tanstack/react-query";
@@ -837,6 +838,23 @@ function BotOverview({
   const [showFullInstructions, setShowFullInstructions] = useState(false);
   const [skillsExpanded, setSkillsExpanded] = useState(true);
   const [sessionsExpanded, setSessionsExpanded] = useState(true);
+  const [skillSort, setSkillSort] = useState<"name" | "usage">("name");
+  const [skillFilter, setSkillFilter] = useState<"all" | SkillStatus>("all");
+
+  // Sort and filter skills
+  const filteredSkills = useMemo(() => {
+    let list = skillFilter === "all" ? skillList : skillList.filter((s) => s.status === skillFilter);
+    if (skillSort === "usage") {
+      list = [...list].sort((a, b) => {
+        const aUse = (skillUsage[a.name]?.invocations || 0) + (skillUsage[a.name]?.mentions || 0);
+        const bUse = (skillUsage[b.name]?.invocations || 0) + (skillUsage[b.name]?.mentions || 0);
+        return bUse - aUse || a.title.localeCompare(b.title);
+      });
+    } else {
+      list = [...list].sort((a, b) => a.title.localeCompare(b.title));
+    }
+    return list;
+  }, [skillList, skillUsage, skillSort, skillFilter]);
 
   // Truncate CLAUDE.md for preview
   const instructionsPreview = useMemo(() => {
@@ -912,20 +930,59 @@ function BotOverview({
             {/* Skills */}
             {skillList.length > 0 && (
               <section>
-                <button
-                  onClick={() => setSkillsExpanded(!skillsExpanded)}
-                  className="w-full text-left text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3 flex items-center gap-1.5 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                >
-                  <ChevronRight size={12} className={cn("transition-transform", skillsExpanded && "rotate-90")} />
-                  <Sparkles size={12} className="text-amber-500" />
-                  Skills
-                  <span className="text-[10px] font-normal tabular-nums ml-1">
-                    {skillList.filter((s) => s.status === "active").length} active / {skillList.length}
-                  </span>
-                </button>
+                <div className="flex items-center gap-2 mb-3">
+                  <button
+                    onClick={() => setSkillsExpanded(!skillsExpanded)}
+                    className="text-left text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    <ChevronRight size={12} className={cn("transition-transform", skillsExpanded && "rotate-90")} />
+                    <Sparkles size={12} className="text-amber-500" />
+                    Skills
+                    <span className="text-[10px] font-normal tabular-nums ml-1">
+                      {skillFilter === "all"
+                        ? `${skillList.filter((s) => s.status === "active").length} active / ${skillList.length}`
+                        : `${filteredSkills.length} ${skillFilter}`}
+                    </span>
+                  </button>
+                  {skillsExpanded && (
+                    <div className="flex items-center gap-1 ml-auto">
+                      {/* Filter pills */}
+                      {(["all", "active", "inactive", "deprecated"] as const).map((f) => {
+                        const count = f === "all" ? skillList.length : skillList.filter((s) => s.status === f).length;
+                        if (f !== "all" && count === 0) return null;
+                        return (
+                          <button
+                            key={f}
+                            onClick={() => setSkillFilter(f)}
+                            className={cn(
+                              "px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors",
+                              skillFilter === f
+                                ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200"
+                                : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                            )}
+                          >
+                            {f === "all" ? "All" : SKILL_STATUS_CONFIG[f].label}
+                          </button>
+                        );
+                      })}
+                      {/* Sort toggle */}
+                      <button
+                        onClick={() => setSkillSort(skillSort === "name" ? "usage" : "name")}
+                        className={cn(
+                          "flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ml-1",
+                          "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                        )}
+                        title={`Sort by ${skillSort === "name" ? "usage" : "name"}`}
+                      >
+                        <ArrowUpDown size={9} />
+                        {skillSort === "name" ? "A-Z" : "Usage"}
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {skillsExpanded && (
                   <div className="grid grid-cols-2 gap-2">
-                    {skillList.map((skill) => {
+                    {filteredSkills.map((skill) => {
                       const sc = SKILL_STATUS_CONFIG[skill.status];
                       const usage = skillUsage[skill.name];
                       const totalUses = (usage?.invocations || 0) + (usage?.mentions || 0);
