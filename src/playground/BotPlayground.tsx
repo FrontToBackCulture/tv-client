@@ -859,7 +859,7 @@ function BotOverview({
       list = [...list].sort((a, b) => a.title.localeCompare(b.title));
     }
     return list;
-  }, [skillList, skillUsage, skillSort, skillFilter]);
+  }, [skillList, skillUsage, skillSort, skillFilter, skillSearch]);
 
   // Truncate CLAUDE.md for preview
   const instructionsPreview = useMemo(() => {
