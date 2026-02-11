@@ -840,10 +840,15 @@ function BotOverview({
   const [sessionsExpanded, setSessionsExpanded] = useState(true);
   const [skillSort, setSkillSort] = useState<"name" | "usage">("name");
   const [skillFilter, setSkillFilter] = useState<"all" | SkillStatus>("all");
+  const [skillSearch, setSkillSearch] = useState("");
 
   // Sort and filter skills
   const filteredSkills = useMemo(() => {
     let list = skillFilter === "all" ? skillList : skillList.filter((s) => s.status === skillFilter);
+    if (skillSearch) {
+      const q = skillSearch.toLowerCase();
+      list = list.filter((s) => s.title.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || s.summary.toLowerCase().includes(q));
+    }
     if (skillSort === "usage") {
       list = [...list].sort((a, b) => {
         const aUse = (skillUsage[a.name]?.invocations || 0) + (skillUsage[a.name]?.mentions || 0);
@@ -939,13 +944,31 @@ function BotOverview({
                     <Sparkles size={12} className="text-amber-500" />
                     Skills
                     <span className="text-[10px] font-normal tabular-nums ml-1">
-                      {skillFilter === "all"
-                        ? `${skillList.filter((s) => s.status === "active").length} active / ${skillList.length}`
-                        : `${filteredSkills.length} ${skillFilter}`}
+                      {skillSearch
+                        ? `${filteredSkills.length} result${filteredSkills.length !== 1 ? "s" : ""}`
+                        : skillFilter === "all"
+                          ? `${skillList.filter((s) => s.status === "active").length} active / ${skillList.length}`
+                          : `${filteredSkills.length} ${skillFilter}`}
                     </span>
                   </button>
                   {skillsExpanded && (
                     <div className="flex items-center gap-1 ml-auto">
+                      {/* Search */}
+                      <div className="relative mr-1">
+                        <Search size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                        <input
+                          type="text"
+                          placeholder="Search..."
+                          value={skillSearch}
+                          onChange={(e) => setSkillSearch(e.target.value)}
+                          className="w-[100px] pl-5 pr-5 py-0.5 text-[10px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500/50 focus:w-[140px] transition-all"
+                        />
+                        {skillSearch && (
+                          <button onClick={() => setSkillSearch("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                            <X size={9} />
+                          </button>
+                        )}
+                      </div>
                       {/* Filter pills */}
                       {(["all", "active", "inactive", "deprecated"] as const).map((f) => {
                         const count = f === "all" ? skillList.length : skillList.filter((s) => s.status === f).length;
