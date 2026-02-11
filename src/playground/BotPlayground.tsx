@@ -21,13 +21,13 @@ import {
   Users,
   Copy,
   Eye,
-  Code,
+  Pencil,
+  Save,
 } from "lucide-react";
-import { useListDirectory, useReadFile, FileEntry } from "../hooks/useFiles";
+import { useListDirectory, useReadFile, useWriteFile, FileEntry } from "../hooks/useFiles";
 import { useQueries } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useBotSettingsStore } from "../stores/botSettingsStore";
-import { useAuth } from "../stores/authStore";
 import { useFolderFiles } from "../hooks/useFolderFiles";
 import { cn } from "../lib/cn";
 import { ViewTab } from "../components/ViewTab";
@@ -183,15 +183,37 @@ function SkillModal({
   title: string;
   onClose: () => void;
 }) {
-  const { data: skillMd, isLoading: loadingMd } = useReadFile(`${skillPath}/SKILL.md`);
+  const filePath = `${skillPath}/SKILL.md`;
+  const { data: skillMd, isLoading: loadingMd } = useReadFile(filePath);
   const { data: entries = [], isLoading: loadingDir } = useListDirectory(skillPath);
-  const [viewMode, setViewMode] = useState<"rendered" | "source">("rendered");
+  const [viewMode, setViewMode] = useState<"rendered" | "edit">("rendered");
+  const [editContent, setEditContent] = useState<string>("");
+  const [isDirty, setIsDirty] = useState(false);
+  const writeFile = useWriteFile();
 
   const files = entries.filter((e) => !e.is_directory && !e.name.startsWith("."));
   const folders = entries.filter((e) => e.is_directory && !e.name.startsWith("."));
 
   const handleCopy = () => {
     if (skillMd) navigator.clipboard.writeText(skillMd);
+  };
+
+  const handleEdit = () => {
+    setEditContent(skillMd || "");
+    setIsDirty(false);
+    setViewMode("edit");
+  };
+
+  const handleSave = () => {
+    writeFile.mutate(
+      { path: filePath, content: editContent },
+      { onSuccess: () => { setIsDirty(false); setViewMode("rendered"); } }
+    );
+  };
+
+  const handleClose = () => {
+    if (isDirty && !confirm("You have unsaved changes. Discard?")) return;
+    onClose();
   };
 
   // Extract summary from frontmatter for the description line
@@ -204,7 +226,7 @@ function SkillModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={handleClose} />
 
       {/* Modal */}
       <div className="relative w-full max-w-2xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
@@ -216,13 +238,19 @@ function SkillModal({
                 <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500">&middot;</span>
                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{skillName}</span>
+                {isDirty && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">Unsaved</span>
+                )}
+                {writeFile.isPending && (
+                  <span className="text-[10px] text-zinc-400 flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Saving...</span>
+                )}
               </div>
               {summary && (
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-1">{summary}</p>
               )}
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
             >
               <X size={16} />
@@ -238,55 +266,84 @@ function SkillModal({
             </div>
           )}
 
-          {skillMd && (
+          {skillMd !== undefined && (
             <div className="overflow-hidden">
               {/* View toggle bar */}
               <div className="px-5 py-2 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between bg-slate-50/50 dark:bg-zinc-900/50">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Description</span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                  {viewMode === "edit" ? "Editing" : "Description"}
+                </span>
                 <div className="flex items-center gap-0.5">
-                  <button
-                    onClick={() => setViewMode("rendered")}
-                    className={cn(
-                      "p-1.5 rounded transition-colors",
-                      viewMode === "rendered"
-                        ? "bg-slate-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
-                        : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                    )}
-                    title="Preview"
-                  >
-                    <Eye size={13} />
-                  </button>
-                  <button
-                    onClick={() => setViewMode("source")}
-                    className={cn(
-                      "p-1.5 rounded transition-colors",
-                      viewMode === "source"
-                        ? "bg-slate-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
-                        : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                    )}
-                    title="Source"
-                  >
-                    <Code size={13} />
-                  </button>
-                  <button
-                    onClick={handleCopy}
-                    className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                    title="Copy to clipboard"
-                  >
-                    <Copy size={13} />
-                  </button>
+                  {viewMode === "edit" ? (
+                    <>
+                      <button
+                        onClick={handleSave}
+                        disabled={!isDirty || writeFile.isPending}
+                        className={cn(
+                          "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors",
+                          isDirty
+                            ? "bg-teal-500 text-white hover:bg-teal-600"
+                            : "bg-slate-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
+                        )}
+                      >
+                        <Save size={12} />
+                        Save
+                      </button>
+                      <button
+                        onClick={() => { setViewMode("rendered"); setIsDirty(false); }}
+                        className="px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setViewMode("rendered")}
+                        className={cn(
+                          "p-1.5 rounded transition-colors",
+                          viewMode === "rendered"
+                            ? "bg-slate-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                            : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                        )}
+                        title="Preview"
+                      >
+                        <Eye size={13} />
+                      </button>
+                      <button
+                        onClick={handleEdit}
+                        className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={handleCopy}
+                        className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                        title="Copy to clipboard"
+                      >
+                        <Copy size={13} />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Rendered or source content */}
+              {/* Content: rendered, or edit */}
               {viewMode === "rendered" ? (
                 <div className="px-6 py-5">
                   <MarkdownViewer content={skillMd} filename="SKILL.md" />
                 </div>
               ) : (
-                <pre className="px-5 py-4 text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
-                  {skillMd}
-                </pre>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => { setEditContent(e.target.value); setIsDirty(true); }}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); handleSave(); }
+                  }}
+                  className="w-full min-h-[400px] px-5 py-4 text-sm text-zinc-700 dark:text-zinc-300 bg-transparent font-mono leading-relaxed resize-none focus:outline-none"
+                  spellCheck={false}
+                />
               )}
             </div>
           )}
@@ -359,7 +416,24 @@ function SkillSubfolder({ path, name }: { path: string; name: string }) {
 
 function SkillFileRow({ path, name }: { path: string; name: string }) {
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
   const { data: content, isLoading } = useReadFile(expanded ? path : undefined);
+  const writeFile = useWriteFile();
+
+  const handleEdit = () => {
+    setEditContent(content || "");
+    setIsDirty(false);
+    setEditing(true);
+  };
+
+  const handleSave = () => {
+    writeFile.mutate(
+      { path, content: editContent },
+      { onSuccess: () => { setIsDirty(false); setEditing(false); } }
+    );
+  };
 
   return (
     <div>
@@ -369,6 +443,9 @@ function SkillFileRow({ path, name }: { path: string; name: string }) {
       >
         <FileText size={13} className="text-zinc-400 flex-shrink-0" />
         <span className="text-sm text-zinc-600 dark:text-zinc-400 flex-1 truncate">{name}</span>
+        {isDirty && (
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+        )}
         {name.endsWith(".md") && (
           <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-zinc-400">MD</span>
         )}
@@ -381,10 +458,50 @@ function SkillFileRow({ path, name }: { path: string; name: string }) {
               <Loader2 size={12} className="animate-spin" />
               <span className="text-xs">Loading...</span>
             </div>
+          ) : editing ? (
+            <div>
+              <div className="px-3 py-1.5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-end gap-1">
+                <button
+                  onClick={handleSave}
+                  disabled={!isDirty || writeFile.isPending}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
+                    isDirty ? "bg-teal-500 text-white hover:bg-teal-600" : "bg-slate-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
+                  )}
+                >
+                  <Save size={10} />
+                  Save
+                </button>
+                <button
+                  onClick={() => { setEditing(false); setIsDirty(false); }}
+                  className="px-2 py-0.5 rounded text-[11px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                >
+                  Cancel
+                </button>
+              </div>
+              <textarea
+                value={editContent}
+                onChange={(e) => { setEditContent(e.target.value); setIsDirty(true); }}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); handleSave(); }
+                }}
+                className="w-full min-h-[200px] max-h-[400px] px-4 py-3 text-xs text-zinc-600 dark:text-zinc-400 bg-transparent font-mono leading-relaxed resize-none focus:outline-none"
+                spellCheck={false}
+              />
+            </div>
           ) : (
-            <pre className="px-4 py-3 text-xs text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto max-h-[400px] overflow-y-auto">
-              {content || "(empty)"}
-            </pre>
+            <div className="relative group">
+              <button
+                onClick={handleEdit}
+                className="absolute top-2 right-2 p-1 rounded text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Edit"
+              >
+                <Pencil size={12} />
+              </button>
+              <pre className="px-4 py-3 text-xs text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto max-h-[400px] overflow-y-auto">
+                {content || "(empty)"}
+              </pre>
+            </div>
           )}
         </div>
       )}
@@ -407,21 +524,87 @@ function SessionDetail({
   onBack: () => void;
 }) {
   const { data: content, isLoading } = useReadFile(sessionPath);
+  const [viewMode, setViewMode] = useState<"preview" | "edit">("preview");
+  const [editContent, setEditContent] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
+  const writeFile = useWriteFile();
+
+  const handleEdit = () => {
+    setEditContent(content || "");
+    setIsDirty(false);
+    setViewMode("edit");
+  };
+
+  const handleSave = () => {
+    writeFile.mutate(
+      { path: sessionPath, content: editContent },
+      { onSuccess: () => { setIsDirty(false); setViewMode("preview"); } }
+    );
+  };
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-4xl mx-auto px-6 py-6">
         <BackButton label="Back to overview" onClick={onBack} />
 
-        <div className="flex items-center gap-3 mb-1">
-          <Clock size={16} className="text-blue-500" />
-          <div>
-            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              {title || `Session Notes - ${date}`}
-            </h1>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              {relativeDate(date)} &middot; {date}
-            </p>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-3">
+            <Clock size={16} className="text-blue-500" />
+            <div>
+              <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                {title || `Session Notes - ${date}`}
+              </h1>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {relativeDate(date)} &middot; {date}
+                {isDirty && <span className="ml-2 text-amber-500">Unsaved</span>}
+                {writeFile.isPending && <span className="ml-2">Saving...</span>}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            {viewMode === "edit" ? (
+              <>
+                <button
+                  onClick={handleSave}
+                  disabled={!isDirty || writeFile.isPending}
+                  className={cn(
+                    "flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                    isDirty ? "bg-teal-500 text-white hover:bg-teal-600" : "bg-slate-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
+                  )}
+                >
+                  <Save size={12} />
+                  Save
+                </button>
+                <button
+                  onClick={() => { setViewMode("preview"); setIsDirty(false); }}
+                  className="px-2.5 py-1 rounded text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setViewMode("preview")}
+                  className={cn(
+                    "p-1.5 rounded transition-colors",
+                    viewMode === "preview"
+                      ? "bg-slate-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                      : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  )}
+                  title="Preview"
+                >
+                  <Eye size={14} />
+                </button>
+                <button
+                  onClick={handleEdit}
+                  className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                  title="Edit"
+                >
+                  <Pencil size={14} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -429,11 +612,21 @@ function SessionDetail({
           <div className="flex items-center justify-center py-12">
             <Loader2 size={20} className="animate-spin text-zinc-400" />
           </div>
-        ) : (
+        ) : viewMode === "edit" ? (
           <div className="mt-4 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-            <pre className="px-5 py-4 text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
-              {content || "(empty)"}
-            </pre>
+            <textarea
+              value={editContent}
+              onChange={(e) => { setEditContent(e.target.value); setIsDirty(true); }}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); handleSave(); }
+              }}
+              className="w-full min-h-[500px] px-5 py-4 text-sm text-zinc-700 dark:text-zinc-300 bg-transparent font-mono leading-relaxed resize-none focus:outline-none"
+              spellCheck={false}
+            />
+          </div>
+        ) : (
+          <div className="mt-4 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden px-6 py-5">
+            <MarkdownViewer content={content || "(empty)"} filename="notes.md" />
           </div>
         )}
       </div>
@@ -1000,8 +1193,6 @@ function BotSidebar({
 // ============================
 export function BotPlayground() {
   const botsPath = useBotSettingsStore((s) => s.botsPath);
-  const storedSessionsPath = useBotSettingsStore((s) => s.sessionsPath);
-  const user = useAuth((s) => s.user);
   const teamPath = botsPath || undefined;
 
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -1014,20 +1205,7 @@ export function BotPlayground() {
   // Load team directory
   const { data: teamEntries = [], isLoading: loadingTeam } = useListDirectory(teamPath);
 
-  // Detect personal folder
-  const personalFolderPath = useMemo(() => {
-    if (storedSessionsPath) {
-      const normalized = storedSessionsPath.replace(/\/+$/, "");
-      if (normalized.endsWith("/sessions")) return normalized.slice(0, -"/sessions".length);
-    }
-    if (user) {
-      const candidates = [user.login?.toLowerCase(), user.name?.split(" ")[0]?.toLowerCase()].filter(Boolean) as string[];
-      const memberFolders = teamEntries.filter((e) => e.is_directory && !e.name.startsWith("bot-") && !e.name.startsWith("_"));
-      const match = memberFolders.find((f) => candidates.includes(f.name.toLowerCase()));
-      if (match) return match.path;
-    }
-    return null;
-  }, [teamEntries, user, storedSessionsPath]);
+
 
   // Scan all member folders for personal bots
   const memberFolders = useMemo(
@@ -1131,8 +1309,16 @@ export function BotPlayground() {
     });
   }, [skillFolders, skillContentQueries, skillSubfolderQueries]);
 
-  // Sessions
-  const sessionsPath = storedSessionsPath || (personalFolderPath ? `${personalFolderPath}/sessions` : null);
+  // Sessions — scoped to the selected bot's owner
+  const sessionsPath = useMemo(() => {
+    if (!selectedBot) return null;
+    // Personal bots (e.g. bot-gloria under _team/gloria/) → use owner's sessions folder
+    if (selectedBot.owner && teamPath) {
+      return `${teamPath}/${selectedBot.owner}/sessions`;
+    }
+    // Team bots (e.g. bot-eng-tauri under _team/) → use bot's own sessions folder
+    return `${selectedBot.dirPath}/sessions`;
+  }, [selectedBot, teamPath]);
   const { data: sessionFiles = [] } = useFolderFiles(sessionsPath, 100);
 
   const sessions = useMemo(() => {
