@@ -72,6 +72,10 @@ jobs:
           VITE_AG_GRID_LICENSE_KEY: ${{ secrets.VITE_AG_GRID_LICENSE_KEY }}
         run: npx tauri build --target ${{ matrix.target }}
 
+      - name: Build tv-mcp binary
+        run: cargo build --release --bin tv-mcp --target ${{ matrix.target }}
+        working-directory: src-tauri
+
       # Collect platform-specific artifacts into a flat folder
       - name: Collect artifacts (macOS)
         if: matrix.platform == 'macos-latest'
@@ -86,6 +90,9 @@ jobs:
           # .app.tar.gz + .sig for auto-update
           find "$BUNDLE/macos" -name "*.tar.gz" -exec cp {} collected/ \;
           find "$BUNDLE/macos" -name "*.tar.gz.sig" -exec cp {} collected/ \;
+
+          # tv-mcp binary
+          cp "src-tauri/target/${{ matrix.target }}/release/tv-mcp" collected/tv-mcp
 
           echo "Collected artifacts:"
           ls -la collected/
@@ -102,6 +109,9 @@ jobs:
 
           # .exe.sig for auto-update signature verification
           find "$BUNDLE/nsis" -name "*.exe.sig" -exec cp {} collected/ \;
+
+          # tv-mcp binary
+          cp "src-tauri/target/${{ matrix.target }}/release/tv-mcp.exe" collected/tv-mcp.exe
 
           echo "Collected artifacts:"
           ls -la collected/
@@ -162,11 +172,18 @@ jobs:
 
           # Windows — rename to URL-safe names (no spaces)
           for f in dl/win-x64/*.exe; do
+            # Skip tv-mcp.exe — handled separately
+            [[ "$(basename "$f")" == "tv-mcp.exe" ]] && continue
             [ -f "$f" ] && cp "$f" "release/TV.Client_${VERSION}_x64-setup.exe"
           done
           for f in dl/win-x64/*.exe.sig; do
             [ -f "$f" ] && cp "$f" "release/TV.Client_${VERSION}_x64-setup.exe.sig"
           done
+
+          # tv-mcp binaries
+          [ -f dl/arm64/tv-mcp ] && cp dl/arm64/tv-mcp "release/tv-mcp-darwin-arm64"
+          [ -f dl/x64/tv-mcp ] && cp dl/x64/tv-mcp "release/tv-mcp-darwin-x64"
+          [ -f dl/win-x64/tv-mcp.exe ] && cp dl/win-x64/tv-mcp.exe "release/tv-mcp-windows-x64.exe"
 
           echo "Release files:"
           ls -la release/
@@ -225,6 +242,16 @@ jobs:
             | Windows (x64) | `.exe` installer |
 
             Existing installations will auto-update.
+
+            ## MCP Server (for Claude Code)
+
+            | Platform | Binary |
+            |----------|--------|
+            | macOS (Apple Silicon) | `tv-mcp-darwin-arm64` |
+            | macOS (Intel) | `tv-mcp-darwin-x64` |
+            | Windows (x64) | `tv-mcp-windows-x64.exe` |
+
+            Download, make executable (`chmod +x`), and add to your Claude Code MCP config.
           files: release/*
           draft: false
           prerelease: false
