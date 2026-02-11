@@ -19,8 +19,11 @@ import {
   FileText,
   MoreHorizontal,
   Users,
+  Copy,
+  Eye,
+  Code,
 } from "lucide-react";
-import { useListDirectory, useReadFile } from "../hooks/useFiles";
+import { useListDirectory, useReadFile, FileEntry } from "../hooks/useFiles";
 import { useQueries } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useBotSettingsStore } from "../stores/botSettingsStore";
@@ -28,6 +31,7 @@ import { useAuth } from "../stores/authStore";
 import { useFolderFiles } from "../hooks/useFolderFiles";
 import { cn } from "../lib/cn";
 import { ViewTab } from "../components/ViewTab";
+import { MarkdownViewer } from "../modules/library/MarkdownViewer";
 
 // ============================
 // Types
@@ -36,6 +40,7 @@ interface BotEntry {
   name: string;
   dirPath: string;
   group: string;
+  owner?: string; // team member name for personal bots
 }
 
 interface BotProfile {
@@ -165,81 +170,157 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
 }
 
 // ============================
-// Skill Detail View
+// Skill Modal
 // ============================
-function SkillDetail({
+function SkillModal({
   skillPath,
+  skillName,
   title,
-  onBack,
+  onClose,
 }: {
   skillPath: string;
+  skillName: string;
   title: string;
-  onBack: () => void;
+  onClose: () => void;
 }) {
   const { data: skillMd, isLoading: loadingMd } = useReadFile(`${skillPath}/SKILL.md`);
   const { data: entries = [], isLoading: loadingDir } = useListDirectory(skillPath);
+  const [viewMode, setViewMode] = useState<"rendered" | "source">("rendered");
 
   const files = entries.filter((e) => !e.is_directory && !e.name.startsWith("."));
   const folders = entries.filter((e) => e.is_directory && !e.name.startsWith("."));
 
-  return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto px-6 py-6">
-        <BackButton label="Back to overview" onClick={onBack} />
+  const handleCopy = () => {
+    if (skillMd) navigator.clipboard.writeText(skillMd);
+  };
 
-        <div className="flex items-center gap-2 mb-1">
-          <Sparkles size={16} className="text-amber-500" />
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
+  // Extract summary from frontmatter for the description line
+  const summary = useMemo(() => {
+    if (!skillMd) return "";
+    const match = skillMd.match(/^summary:\s*"?([^"\n]+)"?/m);
+    return match?.[1]?.trim() || "";
+  }, [skillMd]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-2xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100 dark:border-zinc-800">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
+                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">&middot;</span>
+                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{skillName}</span>
+              </div>
+              {summary && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-1">{summary}</p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
-        {(loadingMd || loadingDir) && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 size={20} className="animate-spin text-zinc-400" />
-          </div>
-        )}
-
-        {/* SKILL.md content */}
-        {skillMd && (
-          <div className="mt-4 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-            <div className="px-4 py-2 border-b border-slate-100 dark:border-zinc-800 flex items-center gap-2">
-              <FileText size={12} className="text-zinc-400" />
-              <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">SKILL.md</span>
+        {/* Content area */}
+        <div className="flex-1 overflow-y-auto">
+          {(loadingMd || loadingDir) && (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 size={20} className="animate-spin text-zinc-400" />
             </div>
-            <pre className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
-              {skillMd}
-            </pre>
-          </div>
-        )}
+          )}
 
-        {/* Subfolders */}
-        {folders.length > 0 && (
-          <section className="mt-6">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
-              Folders
-            </h2>
-            <div className="space-y-1">
-              {folders.map((f) => (
-                <SkillSubfolder key={f.path} path={f.path} name={f.name} />
-              ))}
+          {skillMd && (
+            <div className="overflow-hidden">
+              {/* View toggle bar */}
+              <div className="px-5 py-2 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between bg-slate-50/50 dark:bg-zinc-900/50">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Description</span>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => setViewMode("rendered")}
+                    className={cn(
+                      "p-1.5 rounded transition-colors",
+                      viewMode === "rendered"
+                        ? "bg-slate-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                        : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                    )}
+                    title="Preview"
+                  >
+                    <Eye size={13} />
+                  </button>
+                  <button
+                    onClick={() => setViewMode("source")}
+                    className={cn(
+                      "p-1.5 rounded transition-colors",
+                      viewMode === "source"
+                        ? "bg-slate-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                        : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                    )}
+                    title="Source"
+                  >
+                    <Code size={13} />
+                  </button>
+                  <button
+                    onClick={handleCopy}
+                    className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    <Copy size={13} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Rendered or source content */}
+              {viewMode === "rendered" ? (
+                <div className="px-6 py-5">
+                  <MarkdownViewer content={skillMd} filename="SKILL.md" />
+                </div>
+              ) : (
+                <pre className="px-5 py-4 text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
+                  {skillMd}
+                </pre>
+              )}
             </div>
-          </section>
-        )}
+          )}
 
-        {/* Root files (non-SKILL.md) */}
-        {files.filter((f) => f.name !== "SKILL.md").length > 0 && (
-          <section className="mt-6">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
-              Files
-            </h2>
-            <div className="space-y-1">
-              {files
-                .filter((f) => f.name !== "SKILL.md")
-                .map((f) => (
-                  <SkillFileRow key={f.path} path={f.path} name={f.name} />
+          {/* Subfolders */}
+          {folders.length > 0 && (
+            <section className="px-5 py-4 border-t border-slate-100 dark:border-zinc-800">
+              <h2 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
+                Folders
+              </h2>
+              <div className="space-y-1">
+                {folders.map((f) => (
+                  <SkillSubfolder key={f.path} path={f.path} name={f.name} />
                 ))}
-            </div>
-          </section>
-        )}
+              </div>
+            </section>
+          )}
+
+          {/* Root files (non-SKILL.md) */}
+          {files.filter((f) => f.name !== "SKILL.md").length > 0 && (
+            <section className="px-5 py-4 border-t border-slate-100 dark:border-zinc-800">
+              <h2 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
+                Files
+              </h2>
+              <div className="space-y-1">
+                {files
+                  .filter((f) => f.name !== "SKILL.md")
+                  .map((f) => (
+                    <SkillFileRow key={f.path} path={f.path} name={f.name} />
+                  ))}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -813,6 +894,9 @@ function BotSidebarItem({
         {initials}
       </div>
       <span className="text-xs font-medium truncate">{formatBotName(bot.name)}</span>
+      {bot.owner && (
+        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0">@{bot.owner}</span>
+      )}
     </button>
   );
 }
@@ -833,9 +917,10 @@ function BotSidebar({
   onSelect: (path: string) => void;
 }) {
   const filtered = search
-    ? bots.filter((b) =>
-        formatBotName(b.name).toLowerCase().includes(search.toLowerCase())
-      )
+    ? bots.filter((b) => {
+        const q = search.toLowerCase();
+        return formatBotName(b.name).toLowerCase().includes(q) || (b.owner && b.owner.toLowerCase().includes(q));
+      })
     : null;
 
   return (
@@ -924,6 +1009,7 @@ export function BotPlayground() {
   const [activeView, setActiveView] = useState<"directory" | "sessions">("directory");
   const [detailView, setDetailView] = useState<DetailView>(null);
   const [sessionDetailView, setSessionDetailView] = useState<{ date: string; title: string | null; summary: string | null; path: string } | null>(null);
+  const [skillModal, setSkillModal] = useState<{ skillName: string; skillPath: string; title: string } | null>(null);
 
   // Load team directory
   const { data: teamEntries = [], isLoading: loadingTeam } = useListDirectory(teamPath);
@@ -943,24 +1029,43 @@ export function BotPlayground() {
     return null;
   }, [teamEntries, user, storedSessionsPath]);
 
-  const { data: personalEntries = [] } = useListDirectory(personalFolderPath || undefined);
+  // Scan all member folders for personal bots
+  const memberFolders = useMemo(
+    () => teamEntries.filter((e) => e.is_directory && !e.name.startsWith("bot-") && !e.name.startsWith("_")),
+    [teamEntries]
+  );
+
+  const memberQueries = useQueries({
+    queries: memberFolders.map((folder) => ({
+      queryKey: ["directory", folder.path],
+      queryFn: () => invoke<FileEntry[]>("list_directory", { path: folder.path }),
+    })),
+  });
 
   // Build bot list
   const allBots = useMemo(() => {
     const teamBots: BotEntry[] = teamEntries
       .filter((e) => e.is_directory && e.name.startsWith("bot-"))
       .map((e) => ({ name: e.name, dirPath: e.path, group: getDeptGroup(e.name) }));
-    const myBots: BotEntry[] = personalEntries
-      .filter((e) => e.is_directory && e.name.startsWith("bot-"))
-      .map((e) => ({ name: e.name, dirPath: e.path, group: "personal" }));
-    return [...myBots, ...teamBots].sort((a, b) => {
+
+    // Collect personal bots from all member folders
+    const allPersonalBots: BotEntry[] = [];
+    memberFolders.forEach((folder, i) => {
+      const entries = memberQueries[i]?.data || [];
+      const bots = entries
+        .filter((e) => e.is_directory && e.name.startsWith("bot-"))
+        .map((e) => ({ name: e.name, dirPath: e.path, group: "personal", owner: folder.name }));
+      allPersonalBots.push(...bots);
+    });
+
+    return [...allPersonalBots, ...teamBots].sort((a, b) => {
       const aOrder = GROUP_ORDER.indexOf(a.group);
       const bOrder = GROUP_ORDER.indexOf(b.group);
       if ((aOrder >= 0 ? aOrder : 999) !== (bOrder >= 0 ? bOrder : 999))
         return (aOrder >= 0 ? aOrder : 999) - (bOrder >= 0 ? bOrder : 999);
       return a.name.localeCompare(b.name);
     });
-  }, [teamEntries, personalEntries]);
+  }, [teamEntries, memberFolders, memberQueries]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, BotEntry[]> = {};
@@ -1075,9 +1180,7 @@ export function BotPlayground() {
   let content: React.ReactNode;
 
   if (detailView && selectedBot) {
-    if (detailView.type === "skill") {
-      content = <SkillDetail skillPath={detailView.skillPath} title={detailView.title} onBack={handleBackToOverview} />;
-    } else if (detailView.type === "session") {
+    if (detailView.type === "session") {
       content = <SessionDetail sessionPath={detailView.sessionPath} date={detailView.date} title={detailView.title} onBack={handleBackToOverview} />;
     } else if (detailView.type === "commands" && commandsDir) {
       content = <CommandListView commandsDir={commandsDir} onBack={handleBackToOverview} />;
@@ -1094,7 +1197,7 @@ export function BotPlayground() {
           commandCount={commandCount}
           recentSessions={sessions.slice(0, 5)}
           skillList={skillList}
-          onSkillClick={(skill) => setDetailView({ type: "skill", skillName: skill.name, skillPath: skill.path, title: skill.title })}
+          onSkillClick={(skill) => setSkillModal({ skillName: skill.name, skillPath: skill.path, title: skill.title })}
           onSessionClick={(session) => setDetailView({ type: "session", sessionPath: session.path, date: session.date, title: session.title })}
           onCommandsClick={() => setDetailView({ type: "commands" })}
         />
@@ -1161,6 +1264,16 @@ export function BotPlayground() {
           </>
         )}
       </div>
+
+      {/* Skill modal overlay */}
+      {skillModal && (
+        <SkillModal
+          skillPath={skillModal.skillPath}
+          skillName={skillModal.skillName}
+          title={skillModal.title}
+          onClose={() => setSkillModal(null)}
+        />
+      )}
     </div>
   );
 }

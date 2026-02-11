@@ -69,6 +69,16 @@ pub fn tools() -> Vec<Tool> {
                 vec!["project_id".to_string()],
             ),
         },
+        Tool {
+            name: "delete-work-project".to_string(),
+            description: "Delete a project (soft delete via archived_at).".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "project_id": { "type": "string", "description": "The project UUID (required)" }
+                }),
+                vec!["project_id".to_string()],
+            ),
+        },
         // Tasks
         Tool {
             name: "list-work-tasks".to_string(),
@@ -218,6 +228,49 @@ pub fn tools() -> Vec<Tool> {
                 vec!["initiative_id".to_string()],
             ),
         },
+        Tool {
+            name: "delete-work-initiative".to_string(),
+            description: "Delete an initiative (soft delete via archived_at).".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "initiative_id": { "type": "string", "description": "The initiative UUID (required)" }
+                }),
+                vec!["initiative_id".to_string()],
+            ),
+        },
+        // Initiative-Project linking
+        Tool {
+            name: "add-project-to-initiative".to_string(),
+            description: "Link a project to an initiative. A project can only belong to one initiative.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "initiative_id": { "type": "string", "description": "The initiative UUID (required)" },
+                    "project_id": { "type": "string", "description": "The project UUID to add (required)" }
+                }),
+                vec!["initiative_id".to_string(), "project_id".to_string()],
+            ),
+        },
+        Tool {
+            name: "remove-project-from-initiative".to_string(),
+            description: "Remove a project from an initiative.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "initiative_id": { "type": "string", "description": "The initiative UUID (required)" },
+                    "project_id": { "type": "string", "description": "The project UUID to remove (required)" }
+                }),
+                vec!["initiative_id".to_string(), "project_id".to_string()],
+            ),
+        },
+        Tool {
+            name: "list-initiative-projects".to_string(),
+            description: "List all projects within an initiative.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "initiative_id": { "type": "string", "description": "The initiative UUID (required)" }
+                }),
+                vec!["initiative_id".to_string()],
+            ),
+        },
         // Labels
         Tool {
             name: "list-work-labels".to_string(),
@@ -320,6 +373,16 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_update_project(project_id, data).await {
                 Ok(project) => ToolResult::json(&project),
+                Err(e) => ToolResult::error(e),
+            }
+        }
+        "delete-work-project" => {
+            let project_id = match args.get("project_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("project_id is required".to_string()),
+            };
+            match work::work_delete_project(project_id).await {
+                Ok(()) => ToolResult::text("Project deleted successfully.".to_string()),
                 Err(e) => ToolResult::error(e),
             }
         }
@@ -448,6 +511,57 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_update_initiative(initiative_id, data).await {
                 Ok(initiative) => ToolResult::json(&initiative),
+                Err(e) => ToolResult::error(e),
+            }
+        }
+
+        "delete-work-initiative" => {
+            let initiative_id = match args.get("initiative_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("initiative_id is required".to_string()),
+            };
+            match work::work_delete_initiative(initiative_id, Some(true)).await {
+                Ok(()) => ToolResult::text("Initiative deleted successfully.".to_string()),
+                Err(e) => ToolResult::error(e),
+            }
+        }
+
+        // Initiative-Project linking
+        "add-project-to-initiative" => {
+            let initiative_id = match args.get("initiative_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("initiative_id is required".to_string()),
+            };
+            let project_id = match args.get("project_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("project_id is required".to_string()),
+            };
+            match work::work_add_project_to_initiative(initiative_id, project_id).await {
+                Ok(link) => ToolResult::json(&link),
+                Err(e) => ToolResult::error(e),
+            }
+        }
+        "remove-project-from-initiative" => {
+            let initiative_id = match args.get("initiative_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("initiative_id is required".to_string()),
+            };
+            let project_id = match args.get("project_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("project_id is required".to_string()),
+            };
+            match work::work_remove_project_from_initiative(initiative_id, project_id).await {
+                Ok(()) => ToolResult::text("Project removed from initiative successfully.".to_string()),
+                Err(e) => ToolResult::error(e),
+            }
+        }
+        "list-initiative-projects" => {
+            let initiative_id = match args.get("initiative_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("initiative_id is required".to_string()),
+            };
+            match work::work_list_initiative_projects(initiative_id).await {
+                Ok(projects) => ToolResult::json(&projects),
                 Err(e) => ToolResult::error(e),
             }
         }

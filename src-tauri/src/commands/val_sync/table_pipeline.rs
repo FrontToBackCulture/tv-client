@@ -1925,16 +1925,13 @@ fn build_table_analysis_context(
     // Add data columns
     context_parts.push("### Data Columns:".to_string());
     if let Some(cols) = details["columns"]["data"].as_array() {
-        for col in cols.iter().take(30) {
+        for col in cols.iter() {
             context_parts.push(format!(
                 "- {} ({}): {}",
                 col["name"].as_str().unwrap_or("?"),
                 col["column"].as_str().unwrap_or("?"),
                 col["type"].as_str().unwrap_or("?")
             ));
-        }
-        if cols.len() > 30 {
-            context_parts.push(format!("... and {} more columns", cols.len() - 30));
         }
     }
 
@@ -1943,7 +1940,7 @@ fn build_table_analysis_context(
         if !cols.is_empty() {
             context_parts.push(String::new());
             context_parts.push("### Calculated Columns:".to_string());
-            for col in cols.iter().take(20) {
+            for col in cols.iter() {
                 let lookup_info = col["lookupTable"]
                     .as_object()
                     .map(|lt| format!(" from {}", lt.get("displayName").and_then(|v| v.as_str()).unwrap_or("?")))
@@ -2164,7 +2161,7 @@ async fn call_anthropic_api(
         .header("anthropic-version", "2023-06-01")
         .json(&json!({
             "model": "claude-haiku-4-5-20251001",
-            "max_tokens": 16000,
+            "max_tokens": 32000,
             "temperature": 0.3,
             "system": system_prompt,
             "messages": [
@@ -3056,7 +3053,7 @@ pub async fn val_generate_table_overview_md(
                 lines.push("|------------|--------|------|".to_string());
             }
 
-            for col in cols.iter().take(30) {
+            for col in cols.iter() {
                 let field_name = col["name"].as_str().unwrap_or("?");
                 let col_name = col["column"].as_str().unwrap_or("?");
                 let col_type = col["type"].as_str().unwrap_or("?");
@@ -3078,13 +3075,6 @@ pub async fn val_generate_table_overview_md(
                     ));
                 }
             }
-            if cols.len() > 30 {
-                if has_descriptions {
-                    lines.push(format!("| ... | | ({} more fields) | |", cols.len() - 30));
-                } else {
-                    lines.push(format!("| ... | ({} more fields) | |", cols.len() - 30));
-                }
-            }
             lines.push(String::new());
         }
     }
@@ -3104,41 +3094,80 @@ pub async fn val_generate_table_overview_md(
         lines.push(format!("### Calculated Fields ({})", calc_field_count));
         lines.push(String::new());
 
+        let calc_descriptions = analysis
+            .as_ref()
+            .and_then(|a| a["columnDescriptions"].as_object());
+        let has_calc_desc = calc_descriptions.is_some();
+
         if let Some(ref cf) = calc_fields {
             if let Some(fields) = cf["fields"].as_array() {
-                lines.push("| Field Name | Rule Type | Lookup Table |".to_string());
-                lines.push("|------------|-----------|--------------|".to_string());
-                for field in fields.iter().take(20) {
+                if has_calc_desc {
+                    lines.push("| Field Name | Rule Type | Lookup Table | Description |".to_string());
+                    lines.push("|------------|-----------|--------------|-------------|".to_string());
+                } else {
+                    lines.push("| Field Name | Rule Type | Lookup Table |".to_string());
+                    lines.push("|------------|-----------|--------------|".to_string());
+                }
+                for field in fields.iter() {
+                    let field_name = field["name"].as_str().unwrap_or("?");
                     let lookup_info = field["lookup"]["displayName"]
                         .as_str()
                         .unwrap_or("-");
-                    lines.push(format!(
-                        "| {} | {} | {} |",
-                        field["name"].as_str().unwrap_or("?"),
-                        field["ruleType"].as_str().unwrap_or("?"),
-                        lookup_info
-                    ));
-                }
-                if fields.len() > 20 {
-                    lines.push(format!("| ... | ({} more) | |", fields.len() - 20));
+                    if has_calc_desc {
+                        let desc = calc_descriptions
+                            .and_then(|d| d.get(field_name))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-");
+                        lines.push(format!(
+                            "| {} | {} | {} | {} |",
+                            field_name,
+                            field["ruleType"].as_str().unwrap_or("?"),
+                            lookup_info,
+                            desc
+                        ));
+                    } else {
+                        lines.push(format!(
+                            "| {} | {} | {} |",
+                            field_name,
+                            field["ruleType"].as_str().unwrap_or("?"),
+                            lookup_info
+                        ));
+                    }
                 }
             }
         } else if let Some(cols) = details["columns"]["calculated"].as_array() {
-            lines.push("| Field Name | Rule Type | Lookup Table |".to_string());
-            lines.push("|------------|-----------|--------------|".to_string());
-            for col in cols.iter().take(20) {
+            if has_calc_desc {
+                lines.push("| Field Name | Rule Type | Lookup Table | Description |".to_string());
+                lines.push("|------------|-----------|--------------|-------------|".to_string());
+            } else {
+                lines.push("| Field Name | Rule Type | Lookup Table |".to_string());
+                lines.push("|------------|-----------|--------------|".to_string());
+            }
+            for col in cols.iter() {
+                let field_name = col["name"].as_str().unwrap_or("?");
                 let lookup_info = col["lookupTable"]["displayName"]
                     .as_str()
                     .unwrap_or("-");
-                lines.push(format!(
-                    "| {} | {} | {} |",
-                    col["name"].as_str().unwrap_or("?"),
-                    col["ruleType"].as_str().unwrap_or("?"),
-                    lookup_info
-                ));
-            }
-            if cols.len() > 20 {
-                lines.push(format!("| ... | ({} more) | |", cols.len() - 20));
+                if has_calc_desc {
+                    let desc = calc_descriptions
+                        .and_then(|d| d.get(field_name))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("-");
+                    lines.push(format!(
+                        "| {} | {} | {} | {} |",
+                        field_name,
+                        col["ruleType"].as_str().unwrap_or("?"),
+                        lookup_info,
+                        desc
+                    ));
+                } else {
+                    lines.push(format!(
+                        "| {} | {} | {} |",
+                        field_name,
+                        col["ruleType"].as_str().unwrap_or("?"),
+                        lookup_info
+                    ));
+                }
             }
         }
         lines.push(String::new());

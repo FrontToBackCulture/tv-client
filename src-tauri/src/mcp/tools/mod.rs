@@ -41,7 +41,9 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
     // Work module tools
     if name.starts_with("list-work-") || name.starts_with("get-work-") ||
        name.starts_with("create-work-") || name.starts_with("update-work-") ||
-       name.starts_with("delete-work-") {
+       name.starts_with("delete-work-") ||
+       name == "add-project-to-initiative" || name == "remove-project-from-initiative" ||
+       name == "list-initiative-projects" {
         return work::call(name, arguments).await;
     }
 
