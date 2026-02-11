@@ -97,12 +97,11 @@ jobs:
           mkdir -p collected
           BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
 
-          # NSIS .exe for fresh install
+          # NSIS .exe installer (used for both fresh install AND auto-update)
           find "$BUNDLE/nsis" -name "*.exe" -exec cp {} collected/ \;
 
-          # .nsis.zip + .sig for auto-update
-          find "$BUNDLE/nsis" -name "*.nsis.zip" -exec cp {} collected/ \;
-          find "$BUNDLE/nsis" -name "*.nsis.zip.sig" -exec cp {} collected/ \;
+          # .exe.sig for auto-update signature verification
+          find "$BUNDLE/nsis" -name "*.exe.sig" -exec cp {} collected/ \;
 
           echo "Collected artifacts:"
           ls -la collected/
@@ -161,10 +160,13 @@ jobs:
           for f in dl/x64/*.tar.gz; do [ -f "$f" ] && cp "$f" "release/TV.Client_x64.app.tar.gz"; done
           for f in dl/x64/*.tar.gz.sig; do [ -f "$f" ] && cp "$f" "release/TV.Client_x64.app.tar.gz.sig"; done
 
-          # Windows — keep original names
-          for f in dl/win-x64/*.exe; do [ -f "$f" ] && cp "$f" release/; done
-          for f in dl/win-x64/*.nsis.zip; do [ -f "$f" ] && cp "$f" release/; done
-          for f in dl/win-x64/*.nsis.zip.sig; do [ -f "$f" ] && cp "$f" release/; done
+          # Windows — rename to URL-safe names (no spaces)
+          for f in dl/win-x64/*.exe; do
+            [ -f "$f" ] && cp "$f" "release/TV.Client_${VERSION}_x64-setup.exe"
+          done
+          for f in dl/win-x64/*.exe.sig; do
+            [ -f "$f" ] && cp "$f" "release/TV.Client_${VERSION}_x64-setup.exe.sig"
+          done
 
           echo "Release files:"
           ls -la release/
@@ -178,13 +180,10 @@ jobs:
           MAC_ARM_SIG=$(cat release/TV.Client.app.tar.gz.sig 2>/dev/null || echo "")
           MAC_X64_SIG=$(cat release/TV.Client_x64.app.tar.gz.sig 2>/dev/null || echo "")
 
-          # Find Windows .nsis.zip.sig file
-          WIN_SIG_FILE=$(find release -name "*.nsis.zip.sig" | head -1)
+          # Windows .exe.sig for auto-update
+          WIN_SIG_FILE=$(find release -name "*x64-setup.exe.sig" | head -1)
           WIN_X64_SIG=$(cat "$WIN_SIG_FILE" 2>/dev/null || echo "")
-
-          # Find Windows .nsis.zip filename for URL
-          WIN_ZIP_FILE=$(find release -name "*.nsis.zip" ! -name "*.sig" | head -1)
-          WIN_ZIP_NAME=$(basename "$WIN_ZIP_FILE" 2>/dev/null || echo "")
+          WIN_EXE_NAME="TV.Client_${VERSION}_x64-setup.exe"
 
           cat > release/latest.json << ENDJSON
           {
@@ -202,7 +201,7 @@ jobs:
               },
               "windows-x86_64": {
                 "signature": "${WIN_X64_SIG}",
-                "url": "https://github.com/FrontToBackCulture/tv-client/releases/download/v${VERSION}/${WIN_ZIP_NAME}"
+                "url": "https://github.com/FrontToBackCulture/tv-client/releases/download/v${VERSION}/${WIN_EXE_NAME}"
               }
             }
           }
