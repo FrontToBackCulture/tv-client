@@ -46,6 +46,9 @@ function getFileIcon(name: string) {
   if (lowerName.endsWith(".veo.json")) {
     return <Video size={14} className="text-red-400" />;
   }
+  if (lowerName.endsWith(".excalidraw") || lowerName.endsWith(".excalidraw.json")) {
+    return <Presentation size={14} className="text-indigo-400" />;
+  }
 
   const ext = name.split(".").pop()?.toLowerCase() || "";
 

@@ -12,7 +12,7 @@ import { useTabStore } from "../../stores/tabStore";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileActions } from "./FileActions";
-import { JSONEditor, SQLEditor, ImageViewer, CSVViewer, HTMLViewer, PDFViewer } from "./viewers";
+import { JSONEditor, SQLEditor, ImageViewer, CSVViewer, HTMLViewer, PDFViewer, ExcalidrawViewer } from "./viewers";
 import { IntercomModal } from "./IntercomModal";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
 
@@ -23,13 +23,14 @@ interface FileViewerProps {
 }
 
 // File type detection
-type FileType = "markdown" | "json" | "sql" | "csv" | "image" | "html" | "pdf" | "code" | "text";
+type FileType = "markdown" | "json" | "sql" | "csv" | "image" | "html" | "pdf" | "excalidraw" | "code" | "text";
 
 function getFileType(path: string): FileType {
   const lowerPath = path.toLowerCase();
   const ext = lowerPath.split(".").pop() || "";
 
-  // Check by extension
+  // Check by extension (excalidraw before json since .excalidraw is technically JSON)
+  if (ext === "excalidraw" || lowerPath.endsWith(".excalidraw.json")) return "excalidraw";
   if (ext === "md" || ext === "markdown") return "markdown";
   if (ext === "json") return "json";
   if (ext === "sql") return "sql";
@@ -749,6 +750,18 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <HTMLViewer content={content} filename={filename} />
+        </div>
+        {renderToast()}
+      </div>
+    );
+  }
+
+  if (fileType === "excalidraw") {
+    return (
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+        {renderHeader()}
+        <div className="flex-1 overflow-hidden">
+          <ExcalidrawViewer content={content} filename={filename} />
         </div>
         {renderToast()}
       </div>

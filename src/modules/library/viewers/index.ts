@@ -9,3 +9,4 @@ export { HTMLViewer } from "./HTMLViewer";
 export { PDFViewer } from "./PDFViewer";
 export { JSONEditor } from "./JSONEditor";
 export { SQLEditor } from "./SQLEditor";
+export { ExcalidrawViewer } from "./ExcalidrawViewer";
