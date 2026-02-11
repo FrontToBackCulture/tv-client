@@ -28,7 +28,7 @@ import { useListDirectory, useReadFile, useWriteFile, FileEntry } from "../hooks
 import { useQueries } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useBotSettingsStore } from "../stores/botSettingsStore";
-import { useFolderFiles } from "../hooks/useFolderFiles";
+import { useFolderFiles, FolderFile } from "../hooks/useFolderFiles";
 import { cn } from "../lib/cn";
 import { ViewTab } from "../components/ViewTab";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
@@ -1312,16 +1312,14 @@ export function BotPlayground() {
   // Sessions — scoped to the selected bot's owner
   const sessionsPath = useMemo(() => {
     if (!selectedBot) return null;
-    // Personal bots (e.g. bot-gloria under _team/gloria/) → use owner's sessions folder
     if (selectedBot.owner && teamPath) {
       return `${teamPath}/${selectedBot.owner}/sessions`;
     }
-    // Team bots (e.g. bot-eng-tauri under _team/) → use bot's own sessions folder
     return `${selectedBot.dirPath}/sessions`;
   }, [selectedBot, teamPath]);
   const { data: sessionFiles = [] } = useFolderFiles(sessionsPath, 100);
 
-  const sessions = useMemo(() => {
+  const botSessions = useMemo(() => {
     return sessionFiles
       .filter((f) => f.name === "notes.md")
       .map((f) => ({
@@ -1333,6 +1331,43 @@ export function BotPlayground() {
       .filter((s) => s.date)
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [sessionFiles]);
+
+  // All sessions — aggregated across all member + team bot session folders (for Sessions tab)
+  const allSessionPaths = useMemo(() => {
+    if (!teamPath) return [];
+    const paths: string[] = [];
+    // Member folders (personal bot owners)
+    for (const folder of memberFolders) {
+      paths.push(`${folder.path}/sessions`);
+    }
+    // Team bots with their own sessions
+    for (const entry of teamEntries) {
+      if (entry.is_directory && entry.name.startsWith("bot-")) {
+        paths.push(`${entry.path}/sessions`);
+      }
+    }
+    return paths;
+  }, [teamPath, memberFolders, teamEntries]);
+
+  const allSessionQueries = useQueries({
+    queries: allSessionPaths.map((path) => ({
+      queryKey: ["folder-files", path, 100],
+      queryFn: () => invoke<FolderFile[]>("get_folder_files", { path, limit: 100 }).catch(() => [] as FolderFile[]),
+    })),
+  });
+
+  const allSessions = useMemo(() => {
+    const all: { date: string; title: string | null; summary: string | null; path: string }[] = [];
+    for (const q of allSessionQueries) {
+      if (!q.data) continue;
+      for (const f of q.data) {
+        if (f.name !== "notes.md") continue;
+        const date = extractDateFromPath(f.path);
+        if (date) all.push({ date, title: f.title, summary: f.summary, path: f.path });
+      }
+    }
+    return all.sort((a, b) => b.date.localeCompare(a.date));
+  }, [allSessionQueries]);
 
   // Navigation
   const handleSelectBot = (path: string) => {
@@ -1381,7 +1416,7 @@ export function BotPlayground() {
           isLoading={loadingClaude}
           skillCount={skillList.length}
           commandCount={commandCount}
-          recentSessions={sessions.slice(0, 5)}
+          recentSessions={botSessions.slice(0, 5)}
           skillList={skillList}
           onSkillClick={(skill) => setSkillModal({ skillName: skill.name, skillPath: skill.path, title: skill.title })}
           onSessionClick={(session) => setDetailView({ type: "session", sessionPath: session.path, date: session.date, title: session.title })}
@@ -1426,7 +1461,7 @@ export function BotPlayground() {
         ) : (
           <>
             <SessionsTimeline
-              sessions={sessions}
+              sessions={allSessions}
               selectedPath={sessionDetailView?.path ?? null}
               onSessionClick={(s) => setSessionDetailView(s)}
             />
