@@ -745,6 +745,8 @@ function BotOverview({
   const colors = DEPT_COLORS[bot.group] || DEPT_COLORS.personal;
   const initials = getBotInitials(bot.name);
   const [showFullInstructions, setShowFullInstructions] = useState(false);
+  const [skillsExpanded, setSkillsExpanded] = useState(true);
+  const [sessionsExpanded, setSessionsExpanded] = useState(true);
 
   // Truncate CLAUDE.md for preview
   const instructionsPreview = useMemo(() => {
@@ -820,78 +822,94 @@ function BotOverview({
             {/* Skills */}
             {skillList.length > 0 && (
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3 flex items-center gap-1.5">
+                <button
+                  onClick={() => setSkillsExpanded(!skillsExpanded)}
+                  className="w-full text-left text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3 flex items-center gap-1.5 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                >
+                  <ChevronRight size={12} className={cn("transition-transform", skillsExpanded && "rotate-90")} />
                   <Sparkles size={12} className="text-amber-500" />
                   Skills
-                </h2>
-                <div className="grid grid-cols-2 gap-2">
-                  {skillList.map((skill) => (
-                    <button
-                      key={skill.name}
-                      onClick={() => onSkillClick({ name: skill.name, path: skill.path, title: skill.title })}
-                      className="text-left px-4 py-3 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-sm transition-all cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Sparkles size={13} className="text-amber-500 flex-shrink-0" />
-                        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                          {skill.title}
-                        </span>
-                      </div>
-                      {skill.summary && (
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-2">{skill.summary}</p>
-                      )}
-                      {skill.subfolders.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {skill.subfolders.map((sub) => (
-                            <span key={sub} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] rounded bg-slate-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
-                              {sub === "templates" ? <FileCode size={8} /> : sub === "playbooks" ? <BookOpen size={8} /> : <Folder size={8} />}
-                              {sub}
-                            </span>
-                          ))}
+                  <span className="text-[10px] font-normal tabular-nums ml-1">{skillList.length}</span>
+                </button>
+                {skillsExpanded && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {skillList.map((skill) => (
+                      <button
+                        key={skill.name}
+                        onClick={() => onSkillClick({ name: skill.name, path: skill.path, title: skill.title })}
+                        className="text-left px-4 py-3 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-sm transition-all cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <Sparkles size={13} className="text-amber-500 flex-shrink-0" />
+                          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                            {skill.title}
+                          </span>
                         </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                        {skill.summary && (
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-2">{skill.summary}</p>
+                        )}
+                        {skill.subfolders.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {skill.subfolders.map((sub) => (
+                              <span key={sub} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] rounded bg-slate-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+                                {sub === "templates" ? <FileCode size={8} /> : sub === "playbooks" ? <BookOpen size={8} /> : <Folder size={8} />}
+                                {sub}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </section>
             )}
 
             {/* Recent Sessions */}
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3 flex items-center gap-1.5">
+              <button
+                onClick={() => setSessionsExpanded(!sessionsExpanded)}
+                className="w-full text-left text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3 flex items-center gap-1.5 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+              >
+                <ChevronRight size={12} className={cn("transition-transform", sessionsExpanded && "rotate-90")} />
                 <Clock size={12} className="text-blue-500" />
                 Recent Sessions
-              </h2>
-              {recentSessions.length === 0 ? (
-                <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-lg">
-                  <Clock size={20} className="mx-auto mb-2 text-zinc-300 dark:text-zinc-700" />
-                  <p className="text-xs text-zinc-400">No sessions yet</p>
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {recentSessions.slice(0, 5).map((s) => (
-                    <button
-                      key={s.path}
-                      onClick={() => onSessionClick(s)}
-                      className="w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-sm transition-all cursor-pointer group"
-                    >
-                      <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-700 mt-1.5 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{relativeDate(s.date)}</span>
-                          <span className="text-[10px] text-zinc-400 dark:text-zinc-600">{s.date}</span>
+                {recentSessions.length > 0 && (
+                  <span className="text-[10px] font-normal tabular-nums ml-1">{recentSessions.length}</span>
+                )}
+              </button>
+              {sessionsExpanded && (
+                recentSessions.length === 0 ? (
+                  <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-lg">
+                    <Clock size={20} className="mx-auto mb-2 text-zinc-300 dark:text-zinc-700" />
+                    <p className="text-xs text-zinc-400">No sessions yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {recentSessions.slice(0, 5).map((s) => (
+                      <button
+                        key={s.path}
+                        onClick={() => onSessionClick(s)}
+                        className="w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-sm transition-all cursor-pointer group"
+                      >
+                        <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-700 mt-1.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{relativeDate(s.date)}</span>
+                            <span className="text-[10px] text-zinc-400 dark:text-zinc-600">{s.date}</span>
+                          </div>
+                          {s.title && (
+                            <p className="text-sm text-zinc-700 dark:text-zinc-300 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{s.title}</p>
+                          )}
+                          {s.summary && (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5">{s.summary}</p>
+                          )}
                         </div>
-                        {s.title && (
-                          <p className="text-sm text-zinc-700 dark:text-zinc-300 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{s.title}</p>
-                        )}
-                        {s.summary && (
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5">{s.summary}</p>
-                        )}
-                      </div>
-                      <ChevronRight size={14} className="text-zinc-300 dark:text-zinc-700 mt-1 flex-shrink-0 group-hover:text-zinc-500 transition-colors" />
-                    </button>
-                  ))}
-                </div>
+                        <ChevronRight size={14} className="text-zinc-300 dark:text-zinc-700 mt-1 flex-shrink-0 group-hover:text-zinc-500 transition-colors" />
+                      </button>
+                    ))}
+                  </div>
+                )
               )}
             </section>
           </div>
@@ -1001,7 +1019,7 @@ function SessionsTimeline({
   selectedPath,
   onSessionClick,
 }: {
-  sessions: { date: string; title: string | null; summary: string | null; path: string }[];
+  sessions: { date: string; title: string | null; summary: string | null; path: string; owner?: string }[];
   selectedPath: string | null;
   onSessionClick: (s: { date: string; title: string | null; summary: string | null; path: string }) => void;
 }) {
@@ -1033,6 +1051,9 @@ function SessionsTimeline({
             <div className="flex items-center gap-1.5 mb-0.5">
               <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{relativeDate(s.date)}</span>
               <span className="text-[10px] text-zinc-400 dark:text-zinc-600">{s.date}</span>
+              {s.owner && (
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 capitalize">{s.owner}</span>
+              )}
             </div>
             {s.title && (
               <p className={cn(
@@ -1333,41 +1354,40 @@ export function BotPlayground() {
   }, [sessionFiles]);
 
   // All sessions — aggregated across all member + team bot session folders (for Sessions tab)
-  const allSessionPaths = useMemo(() => {
+  const allSessionSources = useMemo(() => {
     if (!teamPath) return [];
-    const paths: string[] = [];
-    // Member folders (personal bot owners)
+    const sources: { path: string; owner: string }[] = [];
     for (const folder of memberFolders) {
-      paths.push(`${folder.path}/sessions`);
+      sources.push({ path: `${folder.path}/sessions`, owner: folder.name });
     }
-    // Team bots with their own sessions
     for (const entry of teamEntries) {
       if (entry.is_directory && entry.name.startsWith("bot-")) {
-        paths.push(`${entry.path}/sessions`);
+        sources.push({ path: `${entry.path}/sessions`, owner: formatBotName(entry.name) });
       }
     }
-    return paths;
+    return sources;
   }, [teamPath, memberFolders, teamEntries]);
 
   const allSessionQueries = useQueries({
-    queries: allSessionPaths.map((path) => ({
-      queryKey: ["folder-files", path, 100],
-      queryFn: () => invoke<FolderFile[]>("get_folder_files", { path, limit: 100 }).catch(() => [] as FolderFile[]),
+    queries: allSessionSources.map((src) => ({
+      queryKey: ["folder-files", src.path, 100],
+      queryFn: () => invoke<FolderFile[]>("get_folder_files", { path: src.path, limit: 100 }).catch(() => [] as FolderFile[]),
     })),
   });
 
   const allSessions = useMemo(() => {
-    const all: { date: string; title: string | null; summary: string | null; path: string }[] = [];
-    for (const q of allSessionQueries) {
-      if (!q.data) continue;
+    const all: { date: string; title: string | null; summary: string | null; path: string; owner?: string }[] = [];
+    allSessionSources.forEach((src, i) => {
+      const q = allSessionQueries[i];
+      if (!q?.data) return;
       for (const f of q.data) {
         if (f.name !== "notes.md") continue;
         const date = extractDateFromPath(f.path);
-        if (date) all.push({ date, title: f.title, summary: f.summary, path: f.path });
+        if (date) all.push({ date, title: f.title, summary: f.summary, path: f.path, owner: src.owner });
       }
-    }
+    });
     return all.sort((a, b) => b.date.localeCompare(a.date));
-  }, [allSessionQueries]);
+  }, [allSessionSources, allSessionQueries]);
 
   // Navigation
   const handleSelectBot = (path: string) => {
