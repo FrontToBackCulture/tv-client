@@ -29,6 +29,9 @@ const EMPTY_COUNTS: CountsMap = {
   dataSource: new Map(),
   sourceSystem: new Map(),
   tags: new Map(),
+  solution: new Map(),
+  sitemapGroup1: new Map(),
+  sitemapGroup2: new Map(),
 };
 
 /** Parse a markdown table row like | **Data Category** | Mapping | */
@@ -104,6 +107,9 @@ function useClassificationCounts() {
         dataSource: new Map(),
         sourceSystem: new Map(),
         tags: new Map(),
+        solution: new Map(),
+        sitemapGroup1: new Map(),
+        sitemapGroup2: new Map(),
       };
       let totalTables = 0;
 

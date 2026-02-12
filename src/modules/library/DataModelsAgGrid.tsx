@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useAppStore } from "../../stores/appStore";
+import { buildDomainUrl } from "../../lib/domainUrl";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
@@ -68,6 +69,12 @@ export interface TableInfo {
   action: string | null;
   tags: string | null;
   tableType: string | null;
+  // Sitemap & solution
+  includeSitemap: boolean;
+  sitemapGroup1: string | null;
+  sitemapGroup2: string | null;
+  solution: string | null;
+  resourceUrl: string | null;
   // Relationship counts
   workflowCount: number | null;
   scheduledWorkflowCount: number | null;
@@ -83,6 +90,8 @@ export interface TableInfo {
 export interface DataModelsAgGridHandle {
   /** Returns table names currently visible after all grid filters are applied */
   getFilteredTableNames: () => string[];
+  /** Returns all row data (unfiltered) */
+  getAllRows: () => TableInfo[];
 }
 
 interface DataModelsAgGridProps {
@@ -295,6 +304,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       });
       return names;
     },
+    getAllRows: () => tables,
   }));
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -413,6 +423,11 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
               action: t.action as string | null,
               tags: t.tags as string | null,
               tableType: t.tableType as string | null,
+              includeSitemap: t.includeSitemap === true,
+              sitemapGroup1: t.sitemapGroup1 as string | null,
+              sitemapGroup2: t.sitemapGroup2 as string | null,
+              solution: t.solution as string | null,
+              resourceUrl: (t as Record<string, unknown>).resourceUrl as string | null,
               workflowCount: t.workflowCount as number | null,
               scheduledWorkflowCount: t.scheduledWorkflowCount as number | null,
               queryCount: t.queryCount as number | null,
@@ -532,6 +547,12 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
               let summaryFull: string | null = null;
               let tags: string | null = null;
               let tableType: string | null = null;
+              // Sitemap & solution
+              let includeSitemap = false;
+              let sitemapGroup1: string | null = null;
+              let sitemapGroup2: string | null = null;
+              let solution: string | null = null;
+              let resourceUrl: string | null = null;
               // Relationship counts
               let workflowCount: number | null = null;
               let scheduledWorkflowCount: number | null = null;
@@ -614,39 +635,17 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
                 // No sample file
               }
 
-              // Read overview.md for metadata
+              // Check if overview.md exists (for status indicator only)
               try {
-                const overviewContent = await invoke<string>("read_file", {
+                await invoke<string>("read_file", {
                   path: `${dir.path}/overview.md`,
                 });
                 hasOverview = true;
-
-                // Parse markdown table for metadata
-                const categoryMatch = overviewContent.match(/\| \*\*Data Category\*\* \| ([^|]+) \|/);
-                if (categoryMatch) dataCategory = categoryMatch[1].trim();
-
-                const subCategoryMatch = overviewContent.match(/\| \*\*Data Sub Category\*\* \| ([^|]+) \|/);
-                if (subCategoryMatch) {
-                  const val = subCategoryMatch[1].trim();
-                  dataSubCategory = val === "-" ? null : val;
-                }
-
-                const sourceMatch = overviewContent.match(/\| \*\*Data Source\*\* \| ([^|]+) \|/);
-                if (sourceMatch) {
-                  const val = sourceMatch[1].trim();
-                  dataSource = val === "-" ? null : val;
-                }
-
-                const statusMatch = overviewContent.match(/\| \*\*Usage Status\*\* \| ([^|]+) \|/);
-                if (statusMatch) usageStatus = statusMatch[1].trim();
-
-                const actionMatch = overviewContent.match(/\| \*\*Action\*\* \| ([^|]+) \|/);
-                if (actionMatch) action = actionMatch[1].trim();
               } catch {
                 // No overview file
               }
 
-              // Read definition_analysis.json
+              // Read definition_analysis.json — single source of truth for classification
               try {
                 const analysisContent = await invoke<string>("read_file", {
                   path: `${dir.path}/definition_analysis.json`,
@@ -656,34 +655,26 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
                 dataType = analysis.dataType || analysis.classification?.dataType || null;
                 summaryShort = analysis.summary?.short || null;
                 summaryFull = analysis.summary?.full || null;
-                // Timestamp from meta
                 lastAnalyzeAt = analysis.meta?.analyzedAt || null;
-                // Category from analysis can override if not found in overview
-                if (!dataCategory && analysis.dataCategory) {
-                  dataCategory = analysis.dataCategory;
-                }
-                // Sub Category from analysis if not found in overview
-                if (!dataSubCategory && analysis.dataSubCategory) {
-                  dataSubCategory = analysis.dataSubCategory;
-                }
-                // Usage Status from analysis if not found in overview
-                if (!usageStatus && analysis.usageStatus) {
-                  usageStatus = analysis.usageStatus;
-                }
-                // Action from analysis if not found in overview
-                if (!action && analysis.action) {
-                  action = analysis.action;
-                }
-                // Tags from analysis
-                if (analysis.tags) {
-                  tags = analysis.tags;
-                }
-                // Source System from analysis
-                if (analysis.sourceSystem) {
-                  sourceSystem = analysis.sourceSystem;
-                }
+                dataCategory = analysis.dataCategory || null;
+                dataSubCategory = analysis.dataSubCategory || null;
+                dataSource = analysis.dataSource || null;
+                usageStatus = analysis.usageStatus || null;
+                action = analysis.action || null;
+                tags = analysis.tags || null;
+                sourceSystem = analysis.sourceSystem || null;
+                includeSitemap = analysis.includeSitemap === true;
+                sitemapGroup1 = analysis.sitemapGroup1 || null;
+                sitemapGroup2 = analysis.sitemapGroup2 || null;
+                solution = analysis.solution || null;
+                resourceUrl = analysis.resourceUrl || null;
               } catch {
                 // No analysis file
+              }
+
+              // Auto-populate resourceUrl from folder path if not set
+              if (!resourceUrl) {
+                resourceUrl = buildDomainUrl(dir.path) || null;
               }
 
               // Get overview.md file modified time
@@ -721,6 +712,11 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
                 action,
                 tags,
                 tableType,
+                includeSitemap,
+                sitemapGroup1,
+                sitemapGroup2,
+                solution,
+                resourceUrl,
                 workflowCount,
                 scheduledWorkflowCount,
                 queryCount,
@@ -962,6 +958,52 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
       cellEditorParams: {
         values: ["", ...classificationValues.sourceSystem],
       },
+    },
+    {
+      field: "includeSitemap",
+      headerName: "Sitemap",
+      width: 85,
+      filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellRenderer: (params: { value: boolean }) =>
+        params.value ? "Yes" : "",
+      cellEditor: "agCheckboxCellEditor",
+      headerTooltip: "Include this table on the client portal sitemap",
+    },
+    {
+      field: "sitemapGroup1",
+      headerName: "Sitemap Grp 1",
+      width: 120,
+      filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      headerTooltip: "Primary grouping on the portal sitemap",
+    },
+    {
+      field: "sitemapGroup2",
+      headerName: "Sitemap Grp 2",
+      width: 120,
+      filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      headerTooltip: "Secondary grouping on the portal sitemap",
+    },
+    {
+      field: "solution",
+      headerName: "Solution",
+      width: 140,
+      filter: "agSetColumnFilter",
+      editable: reviewMode,
+      cellEditor: "agTextCellEditor",
+      headerTooltip: "Which VAL solution this resource belongs to",
+    },
+    {
+      field: "resourceUrl",
+      headerName: "URL",
+      width: 250,
+      filter: "agTextColumnFilter",
+      editable: reviewMode,
+      headerTooltip: "URL to access this resource in VAL",
     },
     {
       field: "workflowCount",

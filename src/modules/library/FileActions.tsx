@@ -50,6 +50,7 @@ interface FileActionsProps {
   onGenerateVideo?: () => void;
   onExportPdf?: () => void;
   onPublishIntercom?: () => void;
+  onPublishPortal?: () => void;
   // Loading states for async actions
   isGeneratingImage?: boolean;
   isGeneratingDeck?: boolean;
@@ -87,6 +88,7 @@ export function FileActions({
   onGenerateVideo,
   onExportPdf,
   onPublishIntercom,
+  onPublishPortal,
   isGeneratingImage = false,
   isGeneratingDeck = false,
   isGeneratingVideo = false,
@@ -247,6 +249,18 @@ export function FileActions({
       icon: <BookOpen className="w-4 h-4" />,
       onClick: () => {
         onPublishIntercom();
+        setIsOpen(false);
+      },
+    });
+  }
+
+  // Publish to Portal (markdown files)
+  if (fileType === "markdown" && onPublishPortal) {
+    items.push({
+      label: "Publish to Portal",
+      icon: <Globe className="w-4 h-4" />,
+      onClick: () => {
+        onPublishPortal();
         setIsOpen(false);
       },
       dividerAfter: true,

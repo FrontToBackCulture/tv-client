@@ -14,8 +14,10 @@ import { DomainTabView } from "./DomainTabView";
 import { CategoryLibraryPanel } from "./CategoryLibraryPanel";
 import { EntityForm } from "./EntityForm";
 import { DataModelsReviewView } from "../library/DataModelsReviewView";
+import { ArtifactReviewView, type ArtifactType } from "../library/ArtifactReviewView";
 
 type ProductTab = "platform" | "business" | "domains" | "category-library";
+type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
 
 // ============================
 // Detail panel resize persistence
@@ -43,8 +45,9 @@ export function ProductModule() {
   const [showForm, setShowForm] = useState(false);
   const [formEntityType, setFormEntityType] = useState<ProductEntityType>("module");
 
-  // DataModelsReview escape hatch
+  // Review escape hatch (full-screen review for domains)
   const [reviewingDomain, setReviewingDomain] = useState<string | null>(null);
+  const [reviewType, setReviewType] = useState<ReviewType>("data-models");
 
   // Detail panel resize (percentage-based, CRM pattern) — used by Platform & Business tabs
   const [detailPanelWidth, setDetailPanelWidthState] = useState(50);
@@ -123,18 +126,55 @@ export function ProductModule() {
   // Selection (Platform & Business tabs)
   const handleSelect = useCallback((id: string | null) => setSelectedId(id), []);
 
-  // DataModelsReview (full-screen escape hatch for domains)
-  const handleReviewDataModels = useCallback((domain: string) => setReviewingDomain(domain), []);
+  // Review (full-screen escape hatch for domains)
+  const handleReviewDataModels = useCallback((domain: string) => {
+    setReviewType("data-models");
+    setReviewingDomain(domain);
+  }, []);
+  const handleReviewQueries = useCallback((domain: string) => {
+    setReviewType("queries");
+    setReviewingDomain(domain);
+  }, []);
+  const handleReviewWorkflows = useCallback((domain: string) => {
+    setReviewType("workflows");
+    setReviewingDomain(domain);
+  }, []);
+  const handleReviewDashboards = useCallback((domain: string) => {
+    setReviewType("dashboards");
+    setReviewingDomain(domain);
+  }, []);
   const handleExitReview = useCallback(() => setReviewingDomain(null), []);
 
-  // ── Full-screen DataModelsReview ──
+  // ── Full-screen Review ──
   if (reviewingDomain) {
     const discoveredDomain = domainsQuery.data?.find((d) => d.domain === reviewingDomain);
-    const domainPath = discoveredDomain
-      ? `${discoveredDomain.global_path}/data_models`
+    const basePath = discoveredDomain
+      ? discoveredDomain.global_path
       : activeRepository
-        ? `${activeRepository.path}/0_Platform/domains/production/${reviewingDomain}/data_models`
+        ? `${activeRepository.path}/0_Platform/domains/production/${reviewingDomain}`
         : null;
+
+    const REVIEW_FOLDER: Record<ReviewType, string> = {
+      "data-models": "data_models",
+      queries: "queries",
+      workflows: "workflows",
+      dashboards: "dashboards",
+    };
+
+    const REVIEW_LABEL: Record<ReviewType, string> = {
+      "data-models": "Data Models",
+      queries: "Queries",
+      workflows: "Workflows",
+      dashboards: "Dashboards",
+    };
+
+    const REVIEW_ARTIFACT: Record<string, ArtifactType> = {
+      queries: "query",
+      workflows: "workflow",
+      dashboards: "dashboard",
+    };
+
+    const folderPath = basePath ? `${basePath}/${REVIEW_FOLDER[reviewType]}` : null;
 
     return (
       <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
@@ -147,10 +187,21 @@ export function ProductModule() {
             Back to Domains
           </button>
           <span className="text-zinc-300 dark:text-zinc-700">|</span>
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{reviewingDomain}</span>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {reviewingDomain} — {REVIEW_LABEL[reviewType]}
+          </span>
         </div>
         <div className="flex-1 overflow-hidden">
-          {domainPath && <DataModelsReviewView dataModelsPath={domainPath} domainName={reviewingDomain} />}
+          {folderPath && reviewType === "data-models" && (
+            <DataModelsReviewView dataModelsPath={folderPath} domainName={reviewingDomain} />
+          )}
+          {folderPath && reviewType !== "data-models" && (
+            <ArtifactReviewView
+              artifactType={REVIEW_ARTIFACT[reviewType]}
+              folderPath={folderPath}
+              domainName={reviewingDomain}
+            />
+          )}
         </div>
       </div>
     );
@@ -192,7 +243,12 @@ export function ProductModule() {
         )}
 
         {activeTab === "domains" && (
-          <DomainTabView onReviewDataModels={handleReviewDataModels} />
+          <DomainTabView
+            onReviewDataModels={handleReviewDataModels}
+            onReviewQueries={handleReviewQueries}
+            onReviewWorkflows={handleReviewWorkflows}
+            onReviewDashboards={handleReviewDashboards}
+          />
         )}
 
         {activeTab === "category-library" && (

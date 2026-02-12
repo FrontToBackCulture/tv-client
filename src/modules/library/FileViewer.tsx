@@ -15,6 +15,7 @@ import { Breadcrumbs } from "./Breadcrumbs";
 import { FileActions } from "./FileActions";
 import { JSONEditor, SQLEditor, ImageViewer, CSVViewer, HTMLViewer, PDFViewer, ExcalidrawViewer } from "./viewers";
 import { IntercomModal } from "./IntercomModal";
+import { PortalPublishModal } from "./PortalPublishModal";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
 
 interface FileViewerProps {
@@ -103,6 +104,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [intercomModalOpen, setIntercomModalOpen] = useState(false);
+  const [portalModalOpen, setPortalModalOpen] = useState(false);
 
   // Auto-save state for markdown files
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
@@ -133,6 +135,16 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     return idMatch ? idMatch[1].trim() : undefined;
   }, [content]);
 
+  // Extract portal_doc_id from frontmatter
+  const portalDocId = useMemo(() => {
+    if (!content) return undefined;
+    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!match) return undefined;
+    const yaml = match[1];
+    const idMatch = yaml.match(/^portal_doc_id:\s*["']?([^"'\n]+)["']?\s*$/m);
+    return idMatch ? idMatch[1].trim() : undefined;
+  }, [content]);
+
   // Handle intercom publish: add intercom_article_id to frontmatter
   const handleIntercomPublished = useCallback(async (articleId: string, _articleUrl: string) => {
     if (!content) return;
@@ -154,6 +166,38 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
       await invoke("write_file", { path, content: updated });
       lastSavedContentRef.current = updated;
       showToast("Article deleted from Help Center", "success");
+    } catch (err) {
+      showToast(`Failed to update frontmatter: ${err}`, "error");
+    }
+  }, [content, path]);
+
+  // Handle portal publish: add portal_doc_id, portal_domain, portal_doc_type to frontmatter
+  const handlePortalPublished = useCallback(async (docId: string, domain: string | null, docType: string) => {
+    if (!content) return;
+    let updated = addFrontmatterField(content, "portal_doc_id", docId);
+    if (domain) {
+      updated = addFrontmatterField(updated, "portal_domain", domain);
+    }
+    updated = addFrontmatterField(updated, "portal_doc_type", docType);
+    try {
+      await invoke("write_file", { path, content: updated });
+      lastSavedContentRef.current = updated;
+      showToast("Published to Portal", "success");
+    } catch (err) {
+      showToast(`Failed to update frontmatter: ${err}`, "error");
+    }
+  }, [content, path]);
+
+  // Handle portal delete: remove portal fields from frontmatter
+  const handlePortalDeleted = useCallback(async () => {
+    if (!content) return;
+    let updated = removeFrontmatterField(content, "portal_doc_id");
+    updated = removeFrontmatterField(updated, "portal_domain");
+    updated = removeFrontmatterField(updated, "portal_doc_type");
+    try {
+      await invoke("write_file", { path, content: updated });
+      lastSavedContentRef.current = updated;
+      showToast("Removed from Portal", "success");
     } catch (err) {
       showToast(`Failed to update frontmatter: ${err}`, "error");
     }
@@ -546,6 +590,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
             onGenerateVideo={handleGenerateVideo}
             onExportPdf={handleExportPdf}
             onPublishIntercom={() => setIntercomModalOpen(true)}
+            onPublishPortal={() => setPortalModalOpen(true)}
             isGeneratingImage={isGenerating}
             isGeneratingDeck={isGenerating}
             isExportingPdf={isGenerating}
@@ -689,6 +734,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
                 onGenerateVideo={handleGenerateVideo}
                 onExportPdf={handleExportPdf}
                 onPublishIntercom={() => setIntercomModalOpen(true)}
+                onPublishPortal={() => setPortalModalOpen(true)}
                 isGeneratingImage={isGenerating}
                 isGeneratingDeck={isGenerating}
                 isExportingPdf={isGenerating}
@@ -715,6 +761,16 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           intercomArticleId={intercomArticleId}
           onPublished={handleIntercomPublished}
           onDeleted={handleIntercomDeleted}
+        />
+        <PortalPublishModal
+          isOpen={portalModalOpen}
+          onClose={() => setPortalModalOpen(false)}
+          filePath={path}
+          content={content}
+          filename={filename}
+          portalDocId={portalDocId}
+          onPublished={handlePortalPublished}
+          onDeleted={handlePortalDeleted}
         />
       </div>
     );

@@ -165,6 +165,35 @@ export const SOURCE_SYSTEM = [
   "Xilnex",
 ] as const;
 
+/** Solution this resource relates to */
+export const SOLUTION = [
+  "Accounting Automation",
+  "Analytics & BI",
+  "AP Automation",
+  "Revenue Reconciliation",
+] as const;
+
+/** Sitemap grouping level 1 */
+export const SITEMAP_GROUP_1 = [
+  "Accounting",
+  "Analytics",
+  "AP",
+  "Operations",
+  "Revenue",
+] as const;
+
+/** Sitemap grouping level 2 */
+export const SITEMAP_GROUP_2 = [
+  "Daily",
+  "Monthly",
+  "Weekly",
+  "Delivery Platforms",
+  "Payment Processors",
+  "Banks",
+  "GL",
+  "Reports",
+] as const;
+
 /** Descriptive labels for tables (merged LAG + SEG) */
 export const TAGS = [
   "2C2P",
@@ -404,4 +433,7 @@ export const DROPDOWN_VALUES = {
   action: ["", ...ACTION],
   dataSource: ["", ...DATA_SOURCE],
   sourceSystem: ["", ...SOURCE_SYSTEM],
+  solution: ["", ...SOLUTION],
+  sitemapGroup1: ["", ...SITEMAP_GROUP_1],
+  sitemapGroup2: ["", ...SITEMAP_GROUP_2],
 } as const;

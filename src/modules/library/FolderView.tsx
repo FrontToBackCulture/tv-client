@@ -23,6 +23,7 @@ import { WorkflowDetails } from "./WorkflowDetails";
 import { DashboardsList } from "./DashboardsList";
 import { DashboardDetails } from "./DashboardDetails";
 import { QueriesList } from "./QueriesList";
+import { ArtifactReviewView } from "./ArtifactReviewView";
 import { QueryDetails } from "./QueryDetails";
 import { MonitoringOverview } from "./MonitoringOverview";
 import { AnalyticsOverview } from "./AnalyticsOverview";
@@ -61,8 +62,11 @@ type ViewMode =
   | "tables-list"
   | "tables-review"
   | "workflows-list"
+  | "workflows-review"
   | "dashboards-list"
+  | "dashboards-review"
   | "queries-list"
+  | "queries-review"
   // Individual artifact viewers
   | "table-details"
   | "workflow-details"
@@ -689,7 +693,7 @@ export function FolderView({
             )}
 
             {/* Workflows viewer tabs */}
-            {(viewMode === "workflows-list" || folderType === "workflows-list") && viewMode !== "files" && viewMode !== "chat" && (
+            {(viewMode === "workflows-list" || viewMode === "workflows-review" || folderType === "workflows-list") && viewMode !== "files" && viewMode !== "chat" && (
               <>
                 <div className="w-px h-4 bg-zinc-700 mx-1" />
                 <button
@@ -703,6 +707,18 @@ export function FolderView({
                   title="Workflows List"
                 >
                   <Workflow size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("workflows-review")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    viewMode === "workflows-review"
+                      ? "bg-teal-600 text-white"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                  title="Review Mode"
+                >
+                  <ClipboardCheck size={14} />
                 </button>
                 <button
                   onClick={() => setViewMode("files")}
@@ -741,7 +757,7 @@ export function FolderView({
             )}
 
             {/* Dashboards list viewer tabs */}
-            {(viewMode === "dashboards-list" || folderType === "dashboards-list") && viewMode !== "files" && viewMode !== "chat" && (
+            {(viewMode === "dashboards-list" || viewMode === "dashboards-review" || folderType === "dashboards-list") && viewMode !== "files" && viewMode !== "chat" && (
               <>
                 <div className="w-px h-4 bg-zinc-700 mx-1" />
                 <button
@@ -755,6 +771,18 @@ export function FolderView({
                   title="Dashboards List"
                 >
                   <BarChart3 size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("dashboards-review")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    viewMode === "dashboards-review"
+                      ? "bg-teal-600 text-white"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                  title="Review Mode"
+                >
+                  <ClipboardCheck size={14} />
                 </button>
                 <button
                   onClick={() => setViewMode("files")}
@@ -793,7 +821,7 @@ export function FolderView({
             )}
 
             {/* Queries list viewer tabs */}
-            {(viewMode === "queries-list" || folderType === "queries-list") && viewMode !== "files" && viewMode !== "chat" && (
+            {(viewMode === "queries-list" || viewMode === "queries-review" || folderType === "queries-list") && viewMode !== "files" && viewMode !== "chat" && (
               <>
                 <div className="w-px h-4 bg-zinc-700 mx-1" />
                 <button
@@ -807,6 +835,18 @@ export function FolderView({
                   title="Queries List"
                 >
                   <FileCode size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("queries-review")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    viewMode === "queries-review"
+                      ? "bg-teal-600 text-white"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                  title="Review Mode"
+                >
+                  <ClipboardCheck size={14} />
                 </button>
                 <button
                   onClick={() => setViewMode("files")}
@@ -1031,6 +1071,15 @@ export function FolderView({
             onNavigate(workflowPath);
           }}
         />
+      ) : viewMode === "workflows-review" ? (
+        <ArtifactReviewView
+          artifactType="workflow"
+          folderPath={path}
+          domainName={domainName}
+          onItemSelect={(itemPath) => {
+            onNavigate(itemPath);
+          }}
+        />
       ) : viewMode === "workflow-details" ? (
         <WorkflowDetails workflowPath={path} workflowName={folderName.replace(/^workflow_/, "")} />
       ) : viewMode === "dashboards-list" ? (
@@ -1041,6 +1090,15 @@ export function FolderView({
             onNavigate(dashboardPath);
           }}
         />
+      ) : viewMode === "dashboards-review" ? (
+        <ArtifactReviewView
+          artifactType="dashboard"
+          folderPath={path}
+          domainName={domainName}
+          onItemSelect={(itemPath) => {
+            onNavigate(itemPath);
+          }}
+        />
       ) : viewMode === "dashboard-details" ? (
         <DashboardDetails dashboardPath={path} dashboardName={folderName} />
       ) : viewMode === "queries-list" ? (
@@ -1049,6 +1107,15 @@ export function FolderView({
           domainName={domainName}
           onQuerySelect={(queryPath) => {
             onNavigate(queryPath);
+          }}
+        />
+      ) : viewMode === "queries-review" ? (
+        <ArtifactReviewView
+          artifactType="query"
+          folderPath={path}
+          domainName={domainName}
+          onItemSelect={(itemPath) => {
+            onNavigate(itemPath);
           }}
         />
       ) : viewMode === "query-details" ? (

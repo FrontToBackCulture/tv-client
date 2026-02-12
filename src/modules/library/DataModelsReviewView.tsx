@@ -1,14 +1,15 @@
 // src/modules/library/DataModelsReviewView.tsx
 // Split-view review mode for data models - grid on left, detail preview on right
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Download, CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles } from "lucide-react";
+import { Download, CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles, Globe } from "lucide-react";
 import { DataModelsAgGrid, DataModelsAgGridHandle, TableInfo } from "./DataModelsAgGrid";
 import { TableDetailPreview } from "./TableDetailPreview";
 import { cn } from "../../lib/cn";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClassificationStore, type ClassificationField } from "../../stores/classificationStore";
+import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 
 // Storage key for panel width
 const PANEL_WIDTH_KEY = "tv-desktop-review-panel-width";
@@ -226,6 +227,88 @@ export function DataModelsReviewView({
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // Portal sync state
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Extract domain slug from dataModelsPath (e.g. .../domains/production/mb/data_models → mb)
+  const domainSlug = useMemo(() => {
+    const parts = dataModelsPath.split("/");
+    const prodIdx = parts.indexOf("production");
+    return prodIdx !== -1 && prodIdx + 1 < parts.length ? parts[prodIdx + 1] : null;
+  }, [dataModelsPath]);
+
+  // Sync portal resources to Supabase
+  const handleSyncToPortal = useCallback(async () => {
+    if (!isSupabaseConfigured || !domainSlug) {
+      showToast("Supabase not configured or domain not detected", "error");
+      return;
+    }
+
+    const allRows = gridRef.current?.getAllRows() ?? [];
+    if (allRows.length === 0) {
+      showToast("No data to sync", "error");
+      return;
+    }
+
+    setIsSyncing(true);
+
+    try {
+      const resourcesToInclude = allRows
+        .filter((r) => r.includeSitemap && r.sitemapGroup1)
+        .map((r) => ({
+          domain: domainSlug,
+          resource_id: r.name,
+          name: r.displayName || r.name,
+          description: r.summaryShort || null,
+          resource_type: "table",
+          resource_url: r.resourceUrl || null,
+          sitemap_group1: r.sitemapGroup1,
+          sitemap_group2: r.sitemapGroup2 || r.sitemapGroup1,
+          solution: r.solution || null,
+          include_sitemap: true,
+        }));
+
+      // Get existing table resources for this domain in Supabase
+      const { data: existing, error: fetchErr } = await supabase
+        .from("portal_resources")
+        .select("resource_id")
+        .eq("domain", domainSlug)
+        .eq("resource_type", "table");
+      if (fetchErr) throw new Error(fetchErr.message);
+
+      const includedIds = new Set(resourcesToInclude.map((r) => r.resource_id));
+      const toDelete = (existing || [])
+        .map((e: { resource_id: string }) => e.resource_id)
+        .filter((id: string) => !includedIds.has(id));
+
+      if (resourcesToInclude.length > 0) {
+        const { error: upsertErr } = await supabase
+          .from("portal_resources")
+          .upsert(resourcesToInclude, { onConflict: "domain,resource_id" });
+        if (upsertErr) throw new Error(upsertErr.message);
+      }
+
+      if (toDelete.length > 0) {
+        const { error: delErr } = await supabase
+          .from("portal_resources")
+          .delete()
+          .eq("domain", domainSlug)
+          .eq("resource_type", "table")
+          .in("resource_id", toDelete);
+        if (delErr) throw new Error(delErr.message);
+      }
+
+      const msg = [];
+      if (resourcesToInclude.length > 0) msg.push(`${resourcesToInclude.length} synced`);
+      if (toDelete.length > 0) msg.push(`${toDelete.length} removed`);
+      showToast(`Portal: ${msg.join(", ") || "no changes"}`, "success");
+    } catch (err) {
+      showToast(`Sync failed: ${err instanceof Error ? err.message : err}`, "error");
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [domainSlug, showToast]);
+
   // Save changes to definition_analysis.json files and regenerate overview.md
   const handleSave = useCallback(async () => {
     if (modifiedRows.size === 0) return;
@@ -271,6 +354,16 @@ export function DataModelsReviewView({
             (analysis.classification as Record<string, unknown>).dataType = value;
           } else if (field === "tags") {
             analysis.tags = value;
+          } else if (field === "includeSitemap") {
+            analysis.includeSitemap = value === true || value === "true";
+          } else if (field === "sitemapGroup1") {
+            analysis.sitemapGroup1 = value;
+          } else if (field === "sitemapGroup2") {
+            analysis.sitemapGroup2 = value;
+          } else if (field === "solution") {
+            analysis.solution = value;
+          } else if (field === "resourceUrl") {
+            analysis.resourceUrl = value;
           } else if (field === "suggestedName") {
             analysis.suggestedName = value;
           } else if (field === "summaryShort") {
@@ -811,6 +904,28 @@ export function DataModelsReviewView({
             <FileText size={14} />
             Generate All Overviews
           </button>
+
+          {/* Sync to Portal */}
+          {domainSlug && (
+            <button
+              onClick={handleSyncToPortal}
+              disabled={isSyncing || modifiedCount > 0}
+              title={modifiedCount > 0 ? "Save changes before syncing" : "Sync resources to portal"}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors",
+                isSyncing
+                  ? "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
+                  : "border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              {isSyncing ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Globe size={14} />
+              )}
+              {isSyncing ? "Syncing..." : "Sync to Portal"}
+            </button>
+          )}
 
           {/* Export dropdown */}
           <div className="relative group">

@@ -38,6 +38,9 @@ import { DomainDetailPanel } from "./DomainDetailPanel";
 
 interface DomainTabViewProps {
   onReviewDataModels: (domain: string) => void;
+  onReviewQueries: (domain: string) => void;
+  onReviewWorkflows: (domain: string) => void;
+  onReviewDashboards: (domain: string) => void;
 }
 
 // ============================
@@ -154,7 +157,7 @@ function DropdownMenu({
 // Main component
 // ============================
 
-export function DomainTabView({ onReviewDataModels }: DomainTabViewProps) {
+export function DomainTabView({ onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards }: DomainTabViewProps) {
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -428,6 +431,9 @@ export function DomainTabView({ onReviewDataModels }: DomainTabViewProps) {
             id={selectedDomain}
             onClose={() => setSelectedDomain(null)}
             onReviewDataModels={() => onReviewDataModels(selectedDomain)}
+            onReviewQueries={() => onReviewQueries(selectedDomain)}
+            onReviewWorkflows={() => onReviewWorkflows(selectedDomain)}
+            onReviewDashboards={() => onReviewDashboards(selectedDomain)}
             discoveredDomain={selectedDiscoveredDomain}
           />
         ) : (

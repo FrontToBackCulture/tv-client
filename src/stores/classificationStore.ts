@@ -13,6 +13,9 @@ import {
   DATA_SOURCE,
   SOURCE_SYSTEM,
   TAGS,
+  SOLUTION,
+  SITEMAP_GROUP_1,
+  SITEMAP_GROUP_2,
 } from "../lib/classificationValues";
 
 /** All classification field names */
@@ -24,7 +27,10 @@ export type ClassificationField =
   | "action"
   | "dataSource"
   | "sourceSystem"
-  | "tags";
+  | "tags"
+  | "solution"
+  | "sitemapGroup1"
+  | "sitemapGroup2";
 
 /** Map of field name to its values array */
 export type ClassificationValues = Record<ClassificationField, string[]>;
@@ -38,6 +44,9 @@ const DEFAULTS: ClassificationValues = {
   dataSource: [...DATA_SOURCE],
   sourceSystem: [...SOURCE_SYSTEM],
   tags: [...TAGS],
+  solution: [...SOLUTION],
+  sitemapGroup1: [...SITEMAP_GROUP_1],
+  sitemapGroup2: [...SITEMAP_GROUP_2],
 };
 
 interface ClassificationState {
@@ -132,6 +141,20 @@ export const useClassificationStore = create<ClassificationState>()(
     }),
     {
       name: "tv-classification-values",
+      merge: (persisted, current) => {
+        const p = persisted as Partial<ClassificationState> | undefined;
+        const c = current as ClassificationState;
+        if (!p || !p.values) return c;
+        // Ensure every field from DEFAULTS exists — fills in new fields added after
+        // the user's localStorage was last written.
+        const mergedValues = { ...DEFAULTS } as ClassificationValues;
+        for (const key of Object.keys(DEFAULTS) as ClassificationField[]) {
+          if (Array.isArray(p.values[key])) {
+            mergedValues[key] = p.values[key];
+          }
+        }
+        return { ...c, values: mergedValues };
+      },
     }
   )
 );

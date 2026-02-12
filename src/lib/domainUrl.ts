@@ -1,5 +1,11 @@
 // src/lib/domainUrl.ts
 // Utilities for generating VAL domain URLs from file paths
+//
+// URL patterns match the actual VAL platform routes (val-react):
+//   Dashboard:  /dashboard/{category}/{id}        e.g. /dashboard/private/100
+//   Query:      /admin/querybuilder/{id}           e.g. /admin/querybuilder/100
+//   Workflow:   /workflow/detail/{id}              e.g. /workflow/detail/10034
+//   Table:      /workspace/default/{s}/{z}/{p}/{t} e.g. /workspace/default/2/562/232/custom_tbl_232_430
 
 /**
  * Extract domain name from a file path
@@ -11,21 +17,31 @@ export function extractDomainFromPath(path: string): string | null {
 }
 
 /**
- * Extract artifact ID from path based on prefix
- * e.g., extractArtifactId("/path/to/dashboard_123/...", "dashboard_") returns "123"
+ * Extract artifact folder name from path based on directory prefix.
+ * e.g., extractArtifactFolder("/path/to/dashboards/dashboard_123", "dashboard_") → "dashboard_123"
  */
-function extractArtifactId(path: string, prefix: string): string | null {
-  const regex = new RegExp(`${prefix}(\\d+)`);
+function extractArtifactFolder(path: string, prefix: string): string | null {
+  const regex = new RegExp(`(${prefix}[^/]+)`);
   const match = path.match(regex);
   return match ? match[1] : null;
 }
 
 /**
- * Extract table name from path
- * Matches data-models folder structure
+ * Extract table name from path (strips table_ prefix).
+ * e.g., /data_models/table_custom_tbl_1_1 → "custom_tbl_1_1"
  */
 function extractTableName(path: string): string | null {
-  const match = path.match(/\/data-models\/([^/]+)/);
+  const match = path.match(/\/data_models\/table_([^/]+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Extract numeric ID from a folder name.
+ * e.g., "workflow_10034" → "10034", "dashboard_100" → "100", "query_50" → "50"
+ */
+function extractNumericId(folderName: string, prefix: string): string | null {
+  const regex = new RegExp(`^${prefix}(\\d+)$`);
+  const match = folderName.match(regex);
   return match ? match[1] : null;
 }
 
@@ -47,7 +63,7 @@ export function detectArtifactType(path: string): ArtifactType {
   if (path.includes('/workflows/') || path.includes('workflow_')) {
     return 'workflow';
   }
-  if (path.includes('/data-models/')) {
+  if (path.includes('/data_models/') || path.includes('/data-models/')) {
     return 'data-model';
   }
   if (extractDomainFromPath(path)) {
@@ -57,7 +73,13 @@ export function detectArtifactType(path: string): ArtifactType {
 }
 
 /**
- * Build VAL domain URL based on file path and artifact type
+ * Build VAL domain URL based on file path and artifact type.
+ *
+ * Note: For dashboards, this uses a default category of "private" since
+ * the category isn't available from the path alone. The backfill script
+ * reads definition.json for the correct category. For tables, the full
+ * workspace URL requires all_tables.json data — this function returns
+ * null for tables (the backfill script handles it properly).
  */
 export function buildDomainUrl(path: string): string | null {
   const domainName = extractDomainFromPath(path);
@@ -67,31 +89,34 @@ export function buildDomainUrl(path: string): string | null {
 
   const baseUrl = `https://${domainName}.thinkval.io`;
 
-  // Check for dashboard
-  const dashboardId = extractArtifactId(path, 'dashboard_');
-  if (dashboardId) {
-    return `${baseUrl}/dashboard/private/${dashboardId}`;
+  // Dashboard — /dashboard/{category}/{id}
+  const dashboardFolder = extractArtifactFolder(path, 'dashboard_');
+  if (dashboardFolder) {
+    const id = extractNumericId(dashboardFolder, 'dashboard_');
+    // Default to "private" category — backfill reads actual category from definition.json
+    return id ? `${baseUrl}/dashboard/private/${id}` : baseUrl;
   }
 
-  // Check for query
-  const queryId = extractArtifactId(path, 'query_');
-  if (queryId) {
-    return `${baseUrl}/admin/querybuilder/${queryId}`;
+  // Query — /admin/querybuilder/{id}
+  const queryFolder = extractArtifactFolder(path, 'query_');
+  if (queryFolder) {
+    const id = extractNumericId(queryFolder, 'query_');
+    return id ? `${baseUrl}/admin/querybuilder/${id}` : baseUrl;
   }
 
-  // Check for workflow
-  const workflowId = extractArtifactId(path, 'workflow_');
-  if (workflowId) {
-    return `${baseUrl}/workflow/detail/${workflowId}`;
+  // Workflow — /workflow/detail/{id}
+  const workflowFolder = extractArtifactFolder(path, 'workflow_');
+  if (workflowFolder) {
+    const id = extractNumericId(workflowFolder, 'workflow_');
+    return id ? `${baseUrl}/workflow/detail/${id}` : baseUrl;
   }
 
-  // Check for data model (table)
-  // Note: Full table URL requires metadata (space, zone, parentId)
-  // For now, just return domain home - can enhance later with metadata lookup
+  // Data model (table) — needs all_tables.json for full workspace URL.
+  // Return null here; the resourceUrl should be set by the backfill script
+  // which has access to the table tree data.
   const tableName = extractTableName(path);
   if (tableName) {
-    // Could enhance to read definition.json for full URL
-    return baseUrl;
+    return null;
   }
 
   // Default to domain home
@@ -115,7 +140,7 @@ export function getDomainLinkLabel(path: string): string {
     case 'workflow':
       return `Open workflow in ${domainName}`;
     case 'data-model':
-      return `Open ${domainName} VAL`;
+      return `Open table in ${domainName}`;
     case 'domain':
       return `Open ${domainName} VAL`;
     default:

@@ -57,6 +57,9 @@ interface DomainDetailPanelProps {
   id: string; // domain name
   onClose: () => void;
   onReviewDataModels?: () => void;
+  onReviewQueries?: () => void;
+  onReviewWorkflows?: () => void;
+  onReviewDashboards?: () => void;
   discoveredDomain?: DiscoveredDomain;
 }
 
@@ -102,7 +105,7 @@ function formatRelativeShort(isoString: string | null): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, discoveredDomain }: DomainDetailPanelProps) {
+export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards, discoveredDomain }: DomainDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [showCredForm, setShowCredForm] = useState(false);
   const [credEmail, setCredEmail] = useState("");
@@ -912,36 +915,65 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, dis
               </button>
             )}
 
-            {/* Placeholder for future review types */}
-            <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed border-slate-200 dark:border-zinc-800 opacity-50">
-              <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                <Database size={18} className="text-zinc-400" />
-              </div>
-              <div>
-                <span className="text-sm font-medium text-zinc-500 block">Review Queries</span>
-                <span className="text-xs text-zinc-400">Coming soon</span>
-              </div>
-            </div>
+            {/* Review Queries */}
+            {onReviewQueries && (
+              <button
+                onClick={onReviewQueries}
+                className="w-full flex items-center gap-3 p-4 text-left rounded-lg border border-slate-200 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
+                  <Database size={18} className="text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 block">
+                    Review Queries
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    Review query definitions, categories, and classification
+                  </span>
+                </div>
+              </button>
+            )}
 
-            <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed border-slate-200 dark:border-zinc-800 opacity-50">
-              <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                <RefreshCw size={18} className="text-zinc-400" />
-              </div>
-              <div>
-                <span className="text-sm font-medium text-zinc-500 block">Review Workflows</span>
-                <span className="text-xs text-zinc-400">Coming soon</span>
-              </div>
-            </div>
+            {/* Review Workflows */}
+            {onReviewWorkflows && (
+              <button
+                onClick={onReviewWorkflows}
+                className="w-full flex items-center gap-3 p-4 text-left rounded-lg border border-slate-200 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                  <RefreshCw size={18} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 block">
+                    Review Workflows
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    Review workflow definitions, schedules, and classification
+                  </span>
+                </div>
+              </button>
+            )}
 
-            <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed border-slate-200 dark:border-zinc-800 opacity-50">
-              <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                <FileText size={18} className="text-zinc-400" />
-              </div>
-              <div>
-                <span className="text-sm font-medium text-zinc-500 block">Review Dashboards</span>
-                <span className="text-xs text-zinc-400">Coming soon</span>
-              </div>
-            </div>
+            {/* Review Dashboards */}
+            {onReviewDashboards && (
+              <button
+                onClick={onReviewDashboards}
+                className="w-full flex items-center gap-3 p-4 text-left rounded-lg border border-slate-200 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+                  <FileText size={18} className="text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 block">
+                    Review Dashboards
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    Review dashboard definitions, widgets, and classification
+                  </span>
+                </div>
+              </button>
+            )}
           </div>
         )}
 
