@@ -1637,7 +1637,7 @@ function ClaudeCodeSetupView() {
                 )}
               </div>
               <p className="text-xs text-zinc-400 mt-2 font-mono">
-                ~/.claude/mcp.json
+                ~/.claude.json
               </p>
             </div>
           </div>

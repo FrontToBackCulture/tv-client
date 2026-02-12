@@ -43,7 +43,7 @@ fn binary_path() -> Result<PathBuf, String> {
 
 fn claude_config_path() -> Result<PathBuf, String> {
     dirs::home_dir()
-        .map(|h| h.join(".claude").join("mcp.json"))
+        .map(|h| h.join(".claude.json"))
         .ok_or_else(|| "Cannot determine home directory".to_string())
 }
 
@@ -78,11 +78,8 @@ fn read_mcp_config() -> Result<McpConfig, String> {
 
 fn write_mcp_config(config: &McpConfig) -> Result<(), String> {
     let path = claude_config_path()?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("Create .claude dir: {e}"))?;
-    }
     let json = serde_json::to_string_pretty(config).map_err(|e| format!("Serialize: {e}"))?;
-    std::fs::write(&path, json).map_err(|e| format!("Write mcp.json: {e}"))
+    std::fs::write(&path, json).map_err(|e| format!("Write ~/.claude.json: {e}"))
 }
 
 // ── Commands ─────────────────────────────────────────────
