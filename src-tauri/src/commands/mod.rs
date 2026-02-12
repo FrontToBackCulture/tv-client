@@ -1,6 +1,7 @@
 // Tauri IPC command handlers
 
 pub mod auth;
+pub mod claude_setup;
 pub mod crm;
 pub mod files;
 pub mod mcp;

@@ -123,6 +123,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             // Test command
             commands::greet,
+            // Claude Code MCP setup
+            commands::claude_setup::claude_mcp_status,
+            commands::claude_setup::claude_mcp_install,
+            commands::claude_setup::claude_mcp_uninstall,
             // MCP commands (for UI capability explorer)
             commands::mcp::mcp_list_tools,
             commands::mcp::mcp_call_tool,
