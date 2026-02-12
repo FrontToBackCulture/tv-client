@@ -37,7 +37,7 @@ export function StatusBar() {
   return (
     <div className="h-6 bg-slate-100 dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative">
       <div className="flex items-center gap-4">
-        <span>TV Desktop v0.5.2</span>
+        <span>TV Desktop v0.5.3</span>
         {installed && (
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
             <CheckCircle2 size={10} />
