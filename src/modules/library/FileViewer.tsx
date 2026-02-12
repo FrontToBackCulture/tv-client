@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
-import { FileText, FileCode, AlertCircle } from "lucide-react";
+import { FileText, FileCode, AlertCircle, RefreshCw } from "lucide-react";
 import { useReadFile } from "../../hooks/useFiles";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRecentFiles } from "../../hooks/useRecentFiles";
 import { useFavorites } from "../../hooks/useFavorites";
 import { useJobsStore } from "../../stores/jobsStore";
@@ -109,7 +110,14 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const lastSavedContentRef = useRef<string>("");
 
   const pinTab = useTabStore((s) => s.pinTab);
+  const queryClient = useQueryClient();
   const favorite = isFavorite(path);
+
+  // Manual refresh — re-fetch file content from disk
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["file", path] });
+    queryClient.invalidateQueries({ queryKey: ["fileInfo", path] });
+  }, [queryClient, path]);
 
   // Domain URL for "Open in VAL" action
   const domainUrl = useMemo(() => buildDomainUrl(path), [path]);
@@ -515,25 +523,34 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           onNavigate={onNavigate}
           isFile={true}
         />
-        <FileActions
-          path={path}
-          isDirectory={false}
-          isFavorite={favorite}
-          onToggleFavorite={handleToggleFavorite}
-          onDelete={handleDelete}
-          onShowToast={showToast}
-          domainUrl={domainUrl}
-          domainLabel={domainLabel}
-          onGenerateImage={handleGenerateImage}
-          onGenerateImageWithLogo={handleGenerateImageWithLogo}
-          onGenerateDeck={handleGenerateDeck}
-          onGenerateVideo={handleGenerateVideo}
-          onExportPdf={handleExportPdf}
-          onPublishIntercom={() => setIntercomModalOpen(true)}
-          isGeneratingImage={isGenerating}
-          isGeneratingDeck={isGenerating}
-          isExportingPdf={isGenerating}
-        />
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleRefresh}
+            className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+            title="Refresh file content"
+          >
+            <RefreshCw className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
+          </button>
+          <FileActions
+            path={path}
+            isDirectory={false}
+            isFavorite={favorite}
+            onToggleFavorite={handleToggleFavorite}
+            onDelete={handleDelete}
+            onShowToast={showToast}
+            domainUrl={domainUrl}
+            domainLabel={domainLabel}
+            onGenerateImage={handleGenerateImage}
+            onGenerateImageWithLogo={handleGenerateImageWithLogo}
+            onGenerateDeck={handleGenerateDeck}
+            onGenerateVideo={handleGenerateVideo}
+            onExportPdf={handleExportPdf}
+            onPublishIntercom={() => setIntercomModalOpen(true)}
+            isGeneratingImage={isGenerating}
+            isGeneratingDeck={isGenerating}
+            isExportingPdf={isGenerating}
+          />
+        </div>
       </div>
     </div>
   );
@@ -649,7 +666,14 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
                  "Saved"}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleRefresh}
+                className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+                title="Refresh file content"
+              >
+                <RefreshCw className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
+              </button>
               <FileActions
                 path={path}
                 isDirectory={false}

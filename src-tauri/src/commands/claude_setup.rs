@@ -49,13 +49,13 @@ fn claude_config_path() -> Result<PathBuf, String> {
 
 fn platform_suffix() -> &'static str {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    { "aarch64-apple-darwin" }
+    { "darwin-arm64" }
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    { "x86_64-apple-darwin" }
+    { "darwin-x64" }
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    { "x86_64-pc-windows-msvc.exe" }
+    { "windows-x64.exe" }
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    { "x86_64-unknown-linux-gnu" }
+    { "linux-x64" }
     #[cfg(not(any(
         all(target_os = "macos", target_arch = "aarch64"),
         all(target_os = "macos", target_arch = "x86_64"),

@@ -186,6 +186,12 @@ export function useWatchDirectory(
       queryClient.invalidateQueries({ queryKey: ["folderChildren"] });
       queryClient.invalidateQueries({ queryKey: ["directory"] });
 
+      // Invalidate individual file content and info for changed paths
+      for (const changedPath of event.payload) {
+        queryClient.invalidateQueries({ queryKey: ["file", changedPath] });
+        queryClient.invalidateQueries({ queryKey: ["fileInfo", changedPath] });
+      }
+
       // Call callback if provided
       if (onFileChange) {
         onFileChange(event.payload);
