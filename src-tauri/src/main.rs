@@ -315,6 +315,14 @@ fn main() {
             commands::val_sync::query_health::val_run_query_health,
             commands::val_sync::dashboard_health::val_run_dashboard_health,
             commands::val_sync::overview::val_generate_overview,
+            // VAL Sync - Domain Model (entity scan across domains)
+            commands::val_sync::domain_model::val_list_domain_model_entities,
+            commands::val_sync::domain_model::val_scan_domain_model_table,
+            commands::val_sync::domain_model::val_read_domain_model_file,
+            commands::val_sync::domain_model::val_generate_schema_md,
+            commands::val_sync::domain_model::val_create_domain_model_schema,
+            commands::val_sync::domain_model::val_build_field_master,
+            commands::val_sync::domain_model::val_save_field_master,
             // VAL Sync - SQL execution
             commands::val_sync::sql::val_execute_sql,
             // VAL Sync - SQL generation (AI)

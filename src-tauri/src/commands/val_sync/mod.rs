@@ -7,6 +7,7 @@ pub mod audit;
 pub mod auth;
 pub mod config;
 pub mod dashboard_health;
+pub mod domain_model;
 pub mod errors;
 pub mod extract;
 pub mod health;
