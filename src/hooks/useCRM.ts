@@ -417,10 +417,10 @@ export function useDeals(filters?: DealFilters) {
     queryKey: filters?.companyId
       ? crmKeys.dealsByCompany(filters.companyId)
       : [...crmKeys.deals(), filters],
-    queryFn: async (): Promise<(Deal & { company?: { name: string } })[]> => {
+    queryFn: async (): Promise<(Deal & { company?: { name: string; referred_by?: string | null } })[]> => {
       let query = supabase
         .from("crm_deals")
-        .select("*, company:crm_companies(name)");
+        .select("*, company:crm_companies(name, referred_by)");
 
       if (filters?.companyId) {
         query = query.eq("company_id", filters.companyId);

@@ -183,6 +183,12 @@ export const DEAL_SOLUTIONS = [
     icon: "calendar-days",
   },
   {
+    value: "byoai" as const,
+    label: "BYOAI",
+    color: "emerald",
+    icon: "sparkles",
+  },
+  {
     value: "general" as const,
     label: "General",
     color: "gray",

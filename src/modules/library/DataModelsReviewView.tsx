@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Download, CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles, Globe } from "lucide-react";
 import { DataModelsAgGrid, DataModelsAgGridHandle, TableInfo } from "./DataModelsAgGrid";
 import { TableDetailPreview } from "./TableDetailPreview";
+import { AddToDataModelDialog } from "./AddToDataModelDialog";
 import { cn } from "../../lib/cn";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClassificationStore, type ClassificationField } from "../../stores/classificationStore";
@@ -62,6 +63,9 @@ export function DataModelsReviewView({
   const [isResizing, setIsResizing] = useState(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(400);
+
+  // Add to Data Model dialog state
+  const [addToDataModelTable, setAddToDataModelTable] = useState<TableInfo | null>(null);
 
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -970,6 +974,7 @@ export function DataModelsReviewView({
             onRowSelected={handleRowSelected}
             onCellEdited={handleCellEdited}
             modifiedRows={modifiedRows}
+            onAddToDataModel={setAddToDataModelTable}
           />
         </div>
 
@@ -1012,6 +1017,15 @@ export function DataModelsReviewView({
           </div>
         )}
       </div>
+
+      {/* Add to Data Model dialog */}
+      {addToDataModelTable && (
+        <AddToDataModelDialog
+          table={addToDataModelTable}
+          dataModelsPath={dataModelsPath}
+          onClose={() => setAddToDataModelTable(null)}
+        />
+      )}
 
       {/* Toast notification */}
       {toast && (

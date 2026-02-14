@@ -16,6 +16,7 @@ export { DeploymentDetailPanel } from "./DeploymentDetailPanel";
 export { DomainListView } from "./DomainListView";
 export { DomainDetailPanel } from "./DomainDetailPanel";
 export { DomainTabView } from "./DomainTabView";
+export { DataModelTabView } from "./DataModelTabView";
 export { StatusChip } from "./StatusChip";
 export { ProductActivityTimeline } from "./ProductActivityTimeline";
 export { EntityForm } from "./EntityForm";

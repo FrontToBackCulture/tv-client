@@ -15,6 +15,7 @@ import {
   CellValueChangedEvent,
   RowClickedEvent,
   PasteEndEvent,
+  MenuItemDef,
 } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
@@ -103,6 +104,7 @@ interface DataModelsAgGridProps {
   onRowSelected?: (tablePath: string | null, tableName: string | null, rowData: TableInfo | null) => void;
   onCellEdited?: (tableName: string, field: string, newValue: unknown) => void;
   modifiedRows?: Map<string, Partial<TableInfo>>;
+  onAddToDataModel?: (table: TableInfo) => void;
 }
 
 // Re-export static defaults for consumers that need them
@@ -288,6 +290,7 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
   onRowSelected,
   onCellEdited,
   modifiedRows,
+  onAddToDataModel,
 }, ref) {
   const gridRef = useRef<AgGridReact>(null);
   const theme = useAppStore((s) => s.theme);
@@ -1886,19 +1889,30 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
           rowGroupPanelShow={reviewMode ? "never" : "always"}
           singleClickEdit={reviewMode}
           stopEditingWhenCellsLoseFocus={true}
-          getContextMenuItems={() => [
-            "copy",
-            "copyWithHeaders",
-            "paste",
-            "separator",
-            "export",
-            "separator",
-            "autoSizeAll",
-            "resetColumns",
-            "separator",
-            "expandAll",
-            "contractAll",
-          ]}
+          getContextMenuItems={(params) => {
+            const custom: (MenuItemDef<TableInfo> | "separator")[] = [];
+            if (params.node?.data && onAddToDataModel) {
+              custom.push({
+                name: "Add to Data Model...",
+                action: () => onAddToDataModel(params.node!.data!),
+              });
+              custom.push("separator");
+            }
+            return [
+              ...custom,
+              "copy" as const,
+              "copyWithHeaders" as const,
+              "paste" as const,
+              "separator" as const,
+              "export" as const,
+              "separator" as const,
+              "autoSizeAll" as const,
+              "resetColumns" as const,
+              "separator" as const,
+              "expandAll" as const,
+              "contractAll" as const,
+            ];
+          }}
           sideBar={{
             toolPanels: [
               {

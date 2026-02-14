@@ -21,6 +21,7 @@ const DEFAULT_SWIMLANE_ORDER = [
   "events_ai",
   "general",
   "other",
+  "byoai",
   "free_invoice_scan",
   "partnership",
   "unassigned",
@@ -47,9 +48,9 @@ type SolutionValue = (typeof DEAL_SOLUTIONS)[number]["value"] | "unassigned";
 
 // Get solution from deal
 function getDealSolution(deal: DealWithTaskInfo): SolutionValue {
-  if (deal.solution && deal.solution !== "other") {
-    return deal.solution as SolutionValue;
-  }
+  // Map "other" to "general" swimlane
+  if (deal.solution === "other") return "general";
+  if (deal.solution) return deal.solution as SolutionValue;
 
   // Fall back to parsing from deal name
   const lowerName = deal.name.toLowerCase();
@@ -61,6 +62,7 @@ function getDealSolution(deal: DealWithTaskInfo): SolutionValue {
   if (lowerName.includes("professional service") || lowerName.includes("sow"))
     return "professional_services";
   if (lowerName.startsWith("events ai")) return "events_ai";
+  if (lowerName.startsWith("byoai")) return "byoai";
   if (lowerName.startsWith("general")) return "general";
 
   return "unassigned";
@@ -131,6 +133,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
       partnership: [],
       data_extraction: [],
       events_ai: [],
+      byoai: [],
       general: [],
       other: [],
       unassigned: [],
@@ -512,6 +515,8 @@ function SolutionBadge({ color }: { color: string }) {
     amber: "bg-amber-500",
     rose: "bg-rose-500",
     orange: "bg-orange-500",
+    emerald: "bg-emerald-500",
+    pink: "bg-pink-500",
   };
 
   return (

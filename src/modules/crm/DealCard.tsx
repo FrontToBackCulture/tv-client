@@ -9,7 +9,7 @@ import { Pencil, Trash2, User, Calendar, ClipboardList, Circle, CheckCircle2 } f
 
 interface DealCardProps {
   deal: Deal & {
-    company?: { name: string };
+    company?: { name: string; referred_by?: string | null };
     primaryContact?: { name: string } | null;
     tasks?: DealTask[];
     openTaskCount?: number;
@@ -138,6 +138,9 @@ export function DealCard({
               {deal.company?.name && (
                 <p className="text-[11px] text-teal-600 dark:text-teal-400/80 leading-tight">
                   {deal.company.name}
+                  {deal.company.referred_by && (
+                    <span className="text-blue-500/70 dark:text-blue-400/60"> (via {deal.company.referred_by})</span>
+                  )}
                 </p>
               )}
               <h4 className="text-sm font-medium text-zinc-800 dark:text-zinc-200 line-clamp-1 leading-tight">
