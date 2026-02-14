@@ -332,7 +332,7 @@ interface TableDetails {
       column: string;
       type: string;
       ruleType?: string;
-      lookupTable?: { tableName: string; displayName: string } | null;
+      lookupTable?: { tableName: string; displayName: string; aggType?: string; relation?: string } | null;
       rules?: Record<string, unknown> | null;
     }>;
   };
@@ -1199,7 +1199,7 @@ function DetailsTab({
     type: string;
     category: 'data' | 'system' | 'calculated';
     ruleType?: string;
-    lookupTable?: { tableName: string; displayName: string } | null;
+    lookupTable?: { tableName: string; displayName: string; aggType?: string; relation?: string } | null;
     rules?: Record<string, unknown> | null;
   }> = details ? [
     ...(details.columns?.data || []).map(c => ({ ...c, category: 'data' as const })),
@@ -2260,8 +2260,11 @@ function DetailsTab({
                               <div className="mt-2 ml-4 p-2 bg-white dark:bg-zinc-800 rounded border border-orange-200 dark:border-orange-900/50 text-[10px]">
                                 {col.lookupTable && (
                                   <div className="text-zinc-500 mb-1">
-                                    <span className="font-medium">Lookup Table:</span>{' '}
+                                    <span className="font-medium">{col.ruleType === 'rollup' || col.ruleType === 'rollupv2' ? 'Rollup From:' : 'Lookup Table:'}</span>{' '}
                                     <span className="text-orange-600 dark:text-orange-400">{col.lookupTable.displayName}</span>
+                                    {col.lookupTable.aggType && (
+                                      <span className="text-zinc-400 ml-1">({col.lookupTable.aggType})</span>
+                                    )}
                                   </div>
                                 )}
                                 {col.rules ? (

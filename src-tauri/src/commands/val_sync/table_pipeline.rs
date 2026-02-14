@@ -235,6 +235,8 @@ struct ColumnDef {
     #[serde(rename = "type")]
     col_type: Option<String>,
     raw_data_type: Option<String>,
+    calc_field_display: Option<String>,
+    settings: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -798,7 +800,7 @@ fn classify_columns(
 
         if SYSTEM_COLUMNS.contains(&col_name) {
             system_cols.push(col);
-        } else if col_type == "rule" || (col_name.starts_with("usr_") && col_type == "rule") {
+        } else if matches!(col_type, "rule" | "rules" | "formula" | "rollupv2" | "linked" | "linked_multiselect" | "array_assoc") {
             calc_cols.push(col);
         } else {
             data_cols.push(col);
@@ -1055,6 +1057,48 @@ pub async fn val_prepare_table_overview(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // Enrich lookup tables from rollupv2/formula columns that have settings.relationForm
+    // (these aren't in all_calculated_fields.json but have target table info in definition.json)
+    for col in &calc_cols {
+        if let Some(settings) = &col.settings {
+            let target_table = settings
+                .get("relationForm")
+                .and_then(|rf| rf.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|first| first.get("table"))
+                .and_then(|v| v.as_str());
+            if let Some(lt) = target_table {
+                let field_name = col.name.clone().or(col.column_name.clone()).unwrap_or_default();
+                let col_type = col.col_type.as_deref().unwrap_or("");
+                let agg_type = settings.get("aggType").and_then(|v| v.as_str());
+                let display = table_metadata
+                    .get(lt)
+                    .map(|m| m.display_name.clone())
+                    .unwrap_or_else(|| lt.to_string());
+
+                let entry = lookup_tables.entry(lt.to_string()).or_insert_with(|| {
+                    json!({
+                        "tableName": lt,
+                        "displayName": display,
+                        "fieldCount": 0
+                    })
+                });
+                if let Some(count) = entry.get_mut("fieldCount") {
+                    *count = json!(count.as_i64().unwrap_or(0) + 1);
+                }
+
+                lookup_table_fields
+                    .entry(lt.to_string())
+                    .or_default()
+                    .push(json!({
+                        "fieldName": field_name,
+                        "ruleType": col_type,
+                        "aggType": agg_type
+                    }));
             }
         }
     }
@@ -1432,12 +1476,55 @@ pub async fn val_prepare_table_overview(
             "calculated": calc_cols.iter().map(|c| {
                 let field_name = c.name.clone().or(c.column_name.clone()).unwrap_or_default();
                 let details = calc_field_details.get(&field_name);
+                // Use calc_field_details ruleType if available, otherwise fall back to
+                // calc_field_display (e.g. "Rollup", "Formula") or col_type (e.g. "rollupv2")
+                let fallback_rule_type = c.calc_field_display.clone()
+                    .map(|d| d.to_lowercase())
+                    .or_else(|| c.col_type.clone())
+                    .unwrap_or_else(|| "rule".to_string());
+                let rule_type = details
+                    .and_then(|d| d.get("ruleType"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or(fallback_rule_type);
+
+                // Get lookup table info from calc_field_details or from column settings
+                let lookup_from_details = details.and_then(|d| d.get("lookupTable")).cloned();
+                let lookup_table_val = if lookup_from_details.is_some() {
+                    lookup_from_details
+                } else if let Some(settings) = &c.settings {
+                    // For rollupv2/formula: extract from settings.relationForm[0].table
+                    let target_table = settings
+                        .get("relationForm")
+                        .and_then(|rf| rf.as_array())
+                        .and_then(|arr| arr.first())
+                        .and_then(|first| first.get("table"))
+                        .and_then(|v| v.as_str());
+                    let agg_type = settings.get("aggType").and_then(|v| v.as_str());
+                    let relation = settings.get("relation").and_then(|v| v.as_str());
+                    target_table.map(|lt| {
+                        let display = table_metadata
+                            .get(lt)
+                            .map(|m| m.display_name.clone())
+                            .unwrap_or_else(|| lt.to_string());
+                        json!({
+                            "tableName": lt,
+                            "displayName": display,
+                            "aggType": agg_type,
+                            "relation": relation
+                        })
+                    })
+                } else {
+                    None
+                };
+
                 json!({
                     "name": field_name,
                     "column": c.column_name,
                     "type": c.raw_data_type.clone().or(c.col_type.clone()),
-                    "ruleType": details.and_then(|d| d.get("ruleType")).unwrap_or(&json!("rule")),
-                    "lookupTable": details.and_then(|d| d.get("lookupTable")),
+                    "ruleType": rule_type,
+                    "colType": c.col_type,
+                    "lookupTable": lookup_table_val,
                     "rules": details.and_then(|d| d.get("rules"))
                 })
             }).collect::<Vec<_>>()
