@@ -335,6 +335,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
         {activeStages.map((stage) => {
           const stageDeals = deals.filter((d) => d.stage === stage.value);
           const stageValue = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+          const weightPct = Math.round(stage.weight * 100);
           return (
             <div key={stage.value}
               className="flex-1 min-w-[140px] px-3 py-2 border-r border-slate-200 dark:border-zinc-800 last:border-r-0">
@@ -342,9 +343,12 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                 <div className="flex items-center gap-2">
                   <StageIndicator color={stage.color} />
                   <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{stage.label}</span>
+                  <span className="text-[10px] text-zinc-400">{weightPct}%</span>
                   <span className="text-xs text-zinc-500">{stageDeals.length}</span>
                 </div>
-                <span className="text-xs text-zinc-500">${(stageValue / 1000).toFixed(0)}K</span>
+                {stageValue > 0 && (
+                  <span className="text-xs text-zinc-500">${(stageValue / 1000).toFixed(0)}K</span>
+                )}
               </div>
             </div>
           );
@@ -474,7 +478,16 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
             <strong className="text-zinc-700 dark:text-zinc-300">
               ${(deals.reduce((sum, d) => sum + (d.value || 0), 0) / 1000).toFixed(0)}K
             </strong>{" "}
-            total value
+            total
+          </span>
+          <span>
+            <strong className="text-teal-600 dark:text-teal-400">
+              ${(deals.reduce((sum, d) => {
+                const stage = DEAL_STAGES.find((s) => s.value === d.stage);
+                return sum + (d.value || 0) * (stage?.weight ?? 0);
+              }, 0) / 1000).toFixed(0)}K
+            </strong>{" "}
+            weighted
           </span>
         </div>
       </div>

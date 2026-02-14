@@ -29,6 +29,12 @@ export function PipelineStatsBar({ stats, loading, onRefresh }: PipelineStatsBar
   const totalDeals = stats.totalDeals ?? 0;
   const byStage = stats.byStage ?? [];
 
+  // Calculate weighted pipeline value
+  const weightedValue = byStage.reduce((sum, stage) => {
+    const stageConfig = DEAL_STAGES.find((s) => s.value === stage.stage);
+    return sum + (stage.value ?? 0) * (stageConfig?.weight ?? 0);
+  }, 0);
+
   const stageColors: Record<string, string> = {
     qualified: "bg-zinc-500",
     proposal: "bg-blue-500",
@@ -55,9 +61,12 @@ export function PipelineStatsBar({ stats, loading, onRefresh }: PipelineStatsBar
         </div>
         <div className="text-right">
           <p className="text-xl font-bold text-teal-600 dark:text-teal-400">
-            ${totalValue.toLocaleString()}
+            ${weightedValue.toLocaleString()}
+            <span className="text-sm font-normal text-zinc-400 ml-1.5">weighted</span>
           </p>
-          <p className="text-xs text-zinc-500">{totalDeals} deals in pipeline</p>
+          <p className="text-xs text-zinc-500">
+            ${totalValue.toLocaleString()} total · {totalDeals} deals
+          </p>
         </div>
       </div>
 
@@ -93,7 +102,10 @@ export function PipelineStatsBar({ stats, loading, onRefresh }: PipelineStatsBar
                 }`}
               />
               <div>
-                <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{stageConfig.label}</p>
+                <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  {stageConfig.label}
+                  <span className="text-[10px] text-zinc-400 ml-1">{Math.round((stageConfig.weight ?? 0) * 100)}%</span>
+                </p>
                 <p className="text-[11px] text-zinc-500">
                   {stage.count ?? 0} · ${(stage.value ?? 0).toLocaleString()}
                 </p>

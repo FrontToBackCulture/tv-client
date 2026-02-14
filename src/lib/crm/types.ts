@@ -116,15 +116,15 @@ export const COMPANY_STAGES = [
 ];
 
 export const DEAL_STAGES = [
-  { value: "target" as const, label: "Target", color: "zinc" },
-  { value: "prospect" as const, label: "Prospect", color: "slate" },
-  { value: "lead" as const, label: "Lead", color: "gray" },
-  { value: "qualified" as const, label: "Qualified", color: "blue" },
-  { value: "pilot" as const, label: "Pilot", color: "purple" },
-  { value: "proposal" as const, label: "Proposal", color: "cyan" },
-  { value: "negotiation" as const, label: "Negotiation", color: "yellow" },
-  { value: "won" as const, label: "Won", color: "green" },
-  { value: "lost" as const, label: "Lost", color: "red" },
+  { value: "target" as const, label: "Target", color: "zinc", weight: 0.05 },
+  { value: "prospect" as const, label: "Prospect", color: "slate", weight: 0.1 },
+  { value: "lead" as const, label: "Lead", color: "gray", weight: 0.2 },
+  { value: "qualified" as const, label: "Qualified", color: "blue", weight: 0.3 },
+  { value: "pilot" as const, label: "Pilot", color: "purple", weight: 0.5 },
+  { value: "proposal" as const, label: "Proposal", color: "cyan", weight: 0.6 },
+  { value: "negotiation" as const, label: "Negotiation", color: "yellow", weight: 0.8 },
+  { value: "won" as const, label: "Won", color: "green", weight: 1.0 },
+  { value: "lost" as const, label: "Lost", color: "red", weight: 0 },
 ];
 
 export const DEAL_SOLUTIONS = [
@@ -148,7 +148,7 @@ export const DEAL_SOLUTIONS = [
   },
   {
     value: "analytics" as const,
-    label: "Analytics & BI",
+    label: "Analytics",
     color: "purple",
     icon: "chart",
   },
