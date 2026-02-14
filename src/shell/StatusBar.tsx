@@ -37,7 +37,7 @@ export function StatusBar() {
   return (
     <div className="h-6 bg-slate-100 dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative">
       <div className="flex items-center gap-4">
-        <span>TV Desktop v0.5.3</span>
+        <span>TV Desktop v0.5.4</span>
         {import.meta.env.DEV && (
           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400">
             DEV
