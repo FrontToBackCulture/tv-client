@@ -19,33 +19,33 @@ use tauri::command;
 
 /// Schema field definition (from schema.json)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SchemaField {
-    name: String,
-    column: String,
+pub struct SchemaField {
+    pub name: String,
+    pub column: String,
     #[serde(rename = "type")]
-    field_type: String,
-    field_id: Option<u64>,
-    group: Option<String>,
+    pub field_type: String,
+    pub field_id: Option<u64>,
+    pub group: Option<String>,
     #[serde(default)]
-    is_key: bool,
+    pub is_key: bool,
     #[serde(default)]
-    is_categorical: bool,
-    description: Option<String>,
+    pub is_categorical: bool,
+    pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    tags: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 /// Schema.json structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SchemaJson {
-    table_name: String,
-    display_name: String,
-    fuel_stage: Option<String>,
-    model: Option<String>,
-    description: Option<String>,
-    status: Option<String>,
-    resource_url: Option<String>,
-    fields: Vec<SchemaField>,
+pub struct SchemaJson {
+    pub table_name: String,
+    pub display_name: String,
+    pub fuel_stage: Option<String>,
+    pub model: Option<String>,
+    pub description: Option<String>,
+    pub status: Option<String>,
+    pub resource_url: Option<String>,
+    pub fields: Vec<SchemaField>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

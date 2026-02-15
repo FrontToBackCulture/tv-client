@@ -1,5 +1,4 @@
 // VAL Sync Table Pipeline - Generate table documentation (overview.md)
-// Ported from tv-tools/mcp-server table pipeline
 //
 // 6-step pipeline:
 // 1. prepare-table-overview → definition_details.json
@@ -10,6 +9,7 @@
 // 5. generate-table-overview → overview.md
 
 use super::config::get_domain_config;
+use super::domain_model::SchemaJson;
 use super::sql::val_execute_sql;
 use crate::commands::settings;
 use crate::AppState;
@@ -2240,7 +2240,7 @@ async fn call_anthropic_api(
         .header("anthropic-version", "2023-06-01")
         .json(&json!({
             "model": "claude-haiku-4-5-20251001",
-            "max_tokens": 32000,
+            "max_tokens": 8192,
             "temperature": 0.3,
             "system": system_prompt,
             "messages": [
@@ -2338,7 +2338,28 @@ pub async fn val_describe_table_data(
     let sample: Option<Value> = load_json_file(&sample_path);
     let table_context = build_table_analysis_context(&table_name, &details, &sample);
 
-    let system_prompt = r#"You are a data analyst expert. Analyze the provided table metadata and sample data to describe and name the table AND its columns.
+    // Collect all column field names for batching
+    let all_field_names: Vec<String> = {
+        let mut names = Vec::new();
+        if let Some(cols) = details["columns"]["data"].as_array() {
+            for col in cols {
+                if let Some(name) = col["name"].as_str() {
+                    names.push(name.to_string());
+                }
+            }
+        }
+        if let Some(cols) = details["columns"]["calculated"].as_array() {
+            for col in cols {
+                if let Some(name) = col["name"].as_str() {
+                    names.push(name.to_string());
+                }
+            }
+        }
+        names
+    };
+
+    // Step 1: Get table-level info (name, summary, use cases) without column descriptions
+    let system_prompt = r#"You are a data analyst expert. Analyze the provided table metadata and sample data to name and describe the table.
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -2350,18 +2371,8 @@ Respond ONLY with valid JSON in this exact format:
   "useCases": {
     "operational": ["3-5 operational use cases"],
     "strategic": ["3-5 strategic/analytical use cases"]
-  },
-  "columnDescriptions": {
-    "Fieldname": "Brief description of what this column contains and its purpose",
-    "Anotherfield": "Description based on the name and sample values"
   }
-}
-
-For columnDescriptions:
-- Use the EXACT field name as the key (e.g., "Businessdate", "Totalamount" - exactly as shown in the column list)
-- Describe what the column stores based on its name and sample values
-- Keep descriptions concise (1 sentence)
-- Describe ALL columns provided, not just a subset"#.to_string();
+}"#.to_string();
 
     let user_prompt = format!("Describe this table:\n\n{}", table_context);
     let context_len = table_context.len();
@@ -2369,12 +2380,96 @@ For columnDescriptions:
     let ai_text = call_anthropic_api(&api_key, &system_prompt, &user_prompt, &table_name, context_len).await?;
     let analysis = parse_ai_json_response(&ai_text)?;
 
+    // Step 2: Describe columns in batches of 30 with a dedicated prompt
+    const BATCH_SIZE: usize = 30;
+    let mut all_col_descriptions = serde_json::Map::new();
+
+    let col_batch_system = r#"You are a data analyst. Describe each column listed below. You MUST describe every single column - do not skip any.
+
+Respond ONLY with valid JSON:
+{
+  "columnDescriptions": {
+    "ExactFieldName": "Brief description (1 sentence)"
+  }
+}
+
+CRITICAL RULES:
+- You MUST have exactly one entry for EVERY column listed
+- Use the EXACT field name as the JSON key (copy-paste, preserve case and special characters)
+- If unsure about a column, still provide your best guess based on the name
+- Do NOT skip any column"#.to_string();
+
+    let total_batches = (all_field_names.len() + BATCH_SIZE - 1) / BATCH_SIZE;
+
+    for (batch_idx, batch) in all_field_names.chunks(BATCH_SIZE).enumerate() {
+        eprintln!("[tv-client]   Describing column batch {}/{} ({} columns)", batch_idx + 1, total_batches, batch.len());
+
+        // Build a numbered list so the AI can clearly see each field
+        let numbered_list: String = batch.iter()
+            .enumerate()
+            .map(|(i, name)| format!("{}. {}", i + 1, name))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let batch_prompt = format!(
+            "Table: {} ({})\n\nDescribe ALL {} columns below. Every column MUST have a description.\n\n{}\n\nTable context for reference:\n{}",
+            details["meta"]["displayName"].as_str().unwrap_or(&table_name),
+            table_name,
+            batch.len(),
+            numbered_list,
+            table_context
+        );
+
+        let batch_text = call_anthropic_api(&api_key, &col_batch_system, &batch_prompt, &table_name, batch_prompt.len()).await?;
+        if let Ok(batch_result) = parse_ai_json_response(&batch_text) {
+            if let Some(descs) = batch_result["columnDescriptions"].as_object() {
+                for (k, v) in descs {
+                    all_col_descriptions.insert(k.clone(), v.clone());
+                }
+            }
+        }
+
+        // Check for missing fields and retry once
+        let missing: Vec<&String> = batch.iter()
+            .filter(|name| !all_col_descriptions.contains_key(name.as_str()))
+            .collect();
+
+        if !missing.is_empty() {
+            eprintln!("[tv-client]   Retry: {} missing columns from batch {}", missing.len(), batch_idx + 1);
+            let retry_list: String = missing.iter()
+                .enumerate()
+                .map(|(i, name)| format!("{}. {}", i + 1, name))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            let retry_prompt = format!(
+                "Table: {} ({})\n\nYou missed these {} columns. Describe ALL of them:\n\n{}",
+                details["meta"]["displayName"].as_str().unwrap_or(&table_name),
+                table_name,
+                missing.len(),
+                retry_list
+            );
+
+            if let Ok(retry_text) = call_anthropic_api(&api_key, &col_batch_system, &retry_prompt, &table_name, retry_prompt.len()).await {
+                if let Ok(retry_result) = parse_ai_json_response(&retry_text) {
+                    if let Some(descs) = retry_result["columnDescriptions"].as_object() {
+                        for (k, v) in descs {
+                            all_col_descriptions.insert(k.clone(), v.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    eprintln!("[tv-client]   Total column descriptions: {}/{}", all_col_descriptions.len(), all_field_names.len());
+
     // Build fields to merge
     let new_fields = json!({
         "suggestedName": analysis["suggestedName"],
         "summary": analysis["summary"],
         "useCases": analysis["useCases"],
-        "columnDescriptions": analysis["columnDescriptions"]
+        "columnDescriptions": all_col_descriptions
     });
 
     merge_and_write_analysis(&analysis_path, new_fields, &table_name, &details, sample.is_some())?;
@@ -2808,6 +2903,47 @@ pub async fn val_extract_table_calc_fields(
 // Step 5: Generate Table Overview (overview.md)
 // ============================================================================
 
+/// Find a matching standard schema for a given table name by scanning
+/// the domain-model entities folder. Returns the parsed SchemaJson if found.
+fn find_standard_schema(global_path: &str, table_name: &str) -> Option<SchemaJson> {
+    // Navigate from domain global_path to 0_Platform:
+    // global_path = {repo}/0_Platform/domains/{type}/{domain}
+    // We need:     {repo}/0_Platform/architecture/domain-model/entities
+    let domain_path = Path::new(global_path);
+    let platform_dir = domain_path.parent()?.parent()?.parent()?;
+    let entities_dir = platform_dir.join("architecture").join("domain-model").join("entities");
+
+    if !entities_dir.is_dir() {
+        return None;
+    }
+
+    // Scan all entities/*/model/schema.json files
+    let entries = fs::read_dir(&entities_dir).ok()?;
+    for entity_entry in entries.flatten() {
+        if !entity_entry.file_type().ok()?.is_dir() {
+            continue;
+        }
+        let model_entries = fs::read_dir(entity_entry.path()).ok()?;
+        for model_entry in model_entries.flatten() {
+            if !model_entry.file_type().ok()?.is_dir() {
+                continue;
+            }
+            let schema_path = model_entry.path().join("schema.json");
+            if !schema_path.exists() {
+                continue;
+            }
+            if let Ok(content) = fs::read_to_string(&schema_path) {
+                if let Ok(schema) = serde_json::from_str::<SchemaJson>(&content) {
+                    if schema.table_name == table_name {
+                        return Some(schema);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 #[command]
 pub async fn val_generate_table_overview_md(
     domain: String,
@@ -2861,6 +2997,20 @@ pub async fn val_generate_table_overview_md(
     let sample: Option<Value> = load_json_file(&sample_path);
     let categorical: Option<Value> = load_json_file(&categorical_path);
 
+    // Look up standard schema for this table
+    let standard_schema = find_standard_schema(global_path, &table_name);
+
+    // Build a column→field lookup from standard schema for merging
+    let standard_field_map: HashMap<String, &super::domain_model::SchemaField> = standard_schema
+        .as_ref()
+        .map(|s| {
+            s.fields
+                .iter()
+                .map(|f| (f.column.clone(), f))
+                .collect()
+        })
+        .unwrap_or_default();
+
     // Get today's date
     let today = Utc::now().format("%Y-%m-%d").to_string();
 
@@ -2913,6 +3063,8 @@ pub async fn val_generate_table_overview_md(
     lines.push(String::new());
 
     // Metadata table
+    lines.push("*Source: definition_details.json, definition_analysis.json*".to_string());
+    lines.push(String::new());
     lines.push("| Property | Value |".to_string());
     lines.push("|----------|-------|".to_string());
     lines.push(format!("| **Table Name** | `{}` |", table_name));
@@ -2965,6 +3117,8 @@ pub async fn val_generate_table_overview_md(
     // Summary section
     lines.push("## Summary".to_string());
     lines.push(String::new());
+    lines.push("*Source: definition_analysis.json (AI-generated)*".to_string());
+    lines.push(String::new());
     if let Some(full_summary) = analysis
         .as_ref()
         .and_then(|a| a["summary"]["full"].as_str())
@@ -2977,11 +3131,40 @@ pub async fn val_generate_table_overview_md(
         ));
     }
     lines.push(String::new());
+
+    // Standard Model section (if matched)
+    if let Some(ref schema) = standard_schema {
+        lines.push("## Standard Model".to_string());
+        lines.push(String::new());
+        lines.push("*Source: domain-model schema.json (standardized)*".to_string());
+        lines.push(String::new());
+        lines.push("| Property | Value |".to_string());
+        lines.push("|----------|-------|".to_string());
+        lines.push(format!("| **Entity** | {} |", schema.display_name.replace('|', "\\|")));
+        if let Some(ref model) = schema.model {
+            lines.push(format!("| **Model** | {} |", model.to_uppercase()));
+        }
+        if let Some(ref stage) = schema.fuel_stage {
+            lines.push(format!("| **FUEL Stage** | {} |", capitalize_first(stage)));
+        }
+        if let Some(ref status) = schema.status {
+            lines.push(format!("| **Status** | {} |", status));
+        }
+        lines.push(format!("| **Standard Fields** | {} |", schema.fields.len()));
+        lines.push(String::new());
+        if let Some(ref desc) = schema.description {
+            lines.push(desc.to_string());
+            lines.push(String::new());
+        }
+    }
+
     lines.push("---".to_string());
     lines.push(String::new());
 
     // Health Status
     lines.push("## Health Status".to_string());
+    lines.push(String::new());
+    lines.push("*Source: definition_details.json (live domain data)*".to_string());
     lines.push(String::new());
     let health_score = details["health"]["score"].as_i64();
     let health_status = match health_score {
@@ -3086,6 +3269,16 @@ pub async fn val_generate_table_overview_md(
     // Column Reference
     lines.push("## Column Reference".to_string());
     lines.push(String::new());
+    if standard_schema.is_some() {
+        lines.push("*Source: definition_details.json + domain-model schema.json (merged)*".to_string());
+    } else {
+        lines.push("*Source: definition_details.json, definition_analysis.json*".to_string());
+    }
+    lines.push(String::new());
+
+    // Track which standard fields are present in this domain (across system + data columns)
+    let has_standard = !standard_field_map.is_empty();
+    let mut seen_standard_columns: HashSet<String> = HashSet::new();
 
     // System columns
     if let Some(cols) = details["columns"]["system"].as_array() {
@@ -3106,25 +3299,42 @@ pub async fn val_generate_table_overview_md(
                     col_name,
                     col["type"].as_str().unwrap_or("?")
                 ));
+                // Track system columns for standard model coverage
+                if let Some(c) = col["column"].as_str().or(col["name"].as_str()) {
+                    seen_standard_columns.insert(c.to_string());
+                }
             }
             lines.push(String::new());
         }
     }
 
-    // Data fields - include AI descriptions if available
+    // Build case-insensitive lookup for AI column descriptions (used by data + calculated fields)
+    let col_desc_map: HashMap<String, &str> = {
+        let mut map = HashMap::new();
+        if let Some(descs) = analysis.as_ref().and_then(|a| a["columnDescriptions"].as_object()) {
+            for (k, v) in descs {
+                if let Some(s) = v.as_str() {
+                    map.insert(k.to_lowercase(), s);
+                }
+            }
+        }
+        map
+    };
+
+    // Data fields - merge standard schema descriptions when available, fall back to AI descriptions
     // Always show column name (usr_xxx) for AI to map sample data
     if let Some(cols) = details["columns"]["data"].as_array() {
         if !cols.is_empty() {
             lines.push(format!("### Data Fields ({})", cols.len()));
             lines.push(String::new());
 
-            // Check if we have column descriptions
-            let col_descriptions = analysis
-                .as_ref()
-                .and_then(|a| a["columnDescriptions"].as_object());
-            let has_descriptions = col_descriptions.is_some();
+            let has_descriptions = !col_desc_map.is_empty() || has_standard;
 
-            if has_descriptions {
+            if has_standard {
+                // Enhanced table with Group and Field ID from standard schema
+                lines.push("| Field Name | Column | Type | Group | Field ID | Description |".to_string());
+                lines.push("|------------|--------|------|-------|----------|-------------|".to_string());
+            } else if has_descriptions {
                 lines.push("| Field Name | Column | Type | Description |".to_string());
                 lines.push("|------------|--------|------|-------------|".to_string());
             } else {
@@ -3137,11 +3347,33 @@ pub async fn val_generate_table_overview_md(
                 let col_name = col["column"].as_str().unwrap_or("?");
                 let col_type = col["type"].as_str().unwrap_or("?");
 
-                if has_descriptions {
-                    // Look up by exact field name (AI now uses exact field names from definition_details.json)
-                    let desc = col_descriptions
-                        .and_then(|d| d.get(field_name))
-                        .and_then(|v| v.as_str())
+                if has_standard {
+                    seen_standard_columns.insert(col_name.to_string());
+                    // Merge: prefer standard schema description, fall back to AI
+                    let std_field = standard_field_map.get(col_name);
+                    let desc = std_field
+                        .and_then(|f| f.description.as_deref())
+                        .filter(|d| !d.is_empty())
+                        .or_else(|| {
+                            col_desc_map.get(&field_name.to_lowercase()).copied()
+                        })
+                        .unwrap_or("-")
+                        .replace('|', "\\|");
+                    let group = std_field
+                        .and_then(|f| f.group.as_deref())
+                        .unwrap_or("-");
+                    let field_id = std_field
+                        .and_then(|f| f.field_id)
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "-".to_string());
+                    lines.push(format!(
+                        "| {} | `{}` | {} | {} | {} | {} |",
+                        field_name, col_name, col_type, group, field_id, desc
+                    ));
+                } else if has_descriptions {
+                    let desc = col_desc_map
+                        .get(&field_name.to_lowercase())
+                        .copied()
                         .unwrap_or("-");
                     lines.push(format!(
                         "| {} | `{}` | {} | {} |",
@@ -3154,6 +3386,35 @@ pub async fn val_generate_table_overview_md(
                     ));
                 }
             }
+
+            // Append standard fields missing from this domain
+            if has_standard {
+                if let Some(ref schema) = standard_schema {
+                    let missing: Vec<_> = schema.fields.iter()
+                        .filter(|f| !seen_standard_columns.contains(&f.column))
+                        .collect();
+                    if !missing.is_empty() {
+                        lines.push(String::new());
+                        lines.push(format!("**Missing from standard model ({}):**", missing.len()));
+                        lines.push(String::new());
+                        lines.push("| Field Name | Column | Type | Group | Field ID | Description |".to_string());
+                        lines.push("|------------|--------|------|-------|----------|-------------|".to_string());
+                        for f in &missing {
+                            let desc = f.description.as_deref().unwrap_or("-").replace('|', "\\|");
+                            lines.push(format!(
+                                "| {} | `{}` | {} | {} | {} | {} |",
+                                f.name,
+                                f.column,
+                                f.field_type,
+                                f.group.as_deref().unwrap_or("-"),
+                                f.field_id.map(|id| id.to_string()).unwrap_or_else(|| "-".to_string()),
+                                desc
+                            ));
+                        }
+                    }
+                }
+            }
+
             lines.push(String::new());
         }
     }
@@ -3173,10 +3434,7 @@ pub async fn val_generate_table_overview_md(
         lines.push(format!("### Calculated Fields ({})", calc_field_count));
         lines.push(String::new());
 
-        let calc_descriptions = analysis
-            .as_ref()
-            .and_then(|a| a["columnDescriptions"].as_object());
-        let has_calc_desc = calc_descriptions.is_some();
+        let has_calc_desc = !col_desc_map.is_empty();
 
         if let Some(ref cf) = calc_fields {
             if let Some(fields) = cf["fields"].as_array() {
@@ -3193,9 +3451,9 @@ pub async fn val_generate_table_overview_md(
                         .as_str()
                         .unwrap_or("-");
                     if has_calc_desc {
-                        let desc = calc_descriptions
-                            .and_then(|d| d.get(field_name))
-                            .and_then(|v| v.as_str())
+                        let desc = col_desc_map
+                            .get(&field_name.to_lowercase())
+                            .copied()
                             .unwrap_or("-");
                         lines.push(format!(
                             "| {} | {} | {} | {} |",
@@ -3228,9 +3486,9 @@ pub async fn val_generate_table_overview_md(
                     .as_str()
                     .unwrap_or("-");
                 if has_calc_desc {
-                    let desc = calc_descriptions
-                        .and_then(|d| d.get(field_name))
-                        .and_then(|v| v.as_str())
+                    let desc = col_desc_map
+                        .get(&field_name.to_lowercase())
+                        .copied()
                         .unwrap_or("-");
                     lines.push(format!(
                         "| {} | {} | {} | {} |",
@@ -3267,6 +3525,8 @@ pub async fn val_generate_table_overview_md(
         lines.push("---".to_string());
         lines.push(String::new());
         lines.push("## Lineage".to_string());
+        lines.push(String::new());
+        lines.push("*Source: definition_details.json (live domain data)*".to_string());
         lines.push(String::new());
 
         if has_source {
@@ -3347,6 +3607,8 @@ pub async fn val_generate_table_overview_md(
         if !categorical_cols.is_empty() {
             lines.push("## Categorical Columns".to_string());
             lines.push(String::new());
+            lines.push("*Source: definition_categorical.json (live domain data)*".to_string());
+            lines.push(String::new());
             lines.push("Columns with a limited set of distinct values:".to_string());
             lines.push(String::new());
 
@@ -3376,6 +3638,8 @@ pub async fn val_generate_table_overview_md(
         if let Some(rows) = sample_data["rows"].as_array() {
             if !rows.is_empty() {
                 lines.push("## Sample Data".to_string());
+                lines.push(String::new());
+                lines.push("*Source: definition_sample.json (live domain data)*".to_string());
                 lines.push(String::new());
                 lines.push(format!(
                     "Representative sample of {} rows for AI/documentation purposes:",
