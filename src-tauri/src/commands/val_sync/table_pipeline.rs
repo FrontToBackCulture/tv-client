@@ -151,7 +151,8 @@ struct WorkflowEntry {
     name: Option<String>,
     cron_expression: Option<String>,
     latest_run_status: Option<String>,
-    run_started_at: Option<String>,
+    #[serde(rename = "run_started_at")]
+    _run_started_at: Option<String>,
     run_completed_at: Option<String>,
     updated_date: Option<String>,
     data: Option<WorkflowData>,
@@ -214,15 +215,6 @@ struct DashboardEntry {
     widgets: Option<Value>, // Can be array or empty object {}
 }
 
-#[derive(Debug, Deserialize)]
-struct DashboardWidget {
-    settings: Option<DashboardWidgetSettings>,
-}
-
-#[derive(Debug, Deserialize)]
-struct DashboardWidgetSettings {
-    datasource: Option<Value>, // Complex structure, we'll parse manually
-}
 
 // ============================================================================
 // Column Definition Types

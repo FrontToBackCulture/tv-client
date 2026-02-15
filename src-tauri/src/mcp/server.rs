@@ -127,6 +127,7 @@ async fn handle_call_tool(
 use std::io::{self, BufRead, Write};
 
 /// Run the MCP server on stdio (for Claude Desktop)
+#[allow(dead_code)]
 pub async fn run_stdio() -> io::Result<()> {
     let stdin = io::stdin();
     let mut stdout = io::stdout();

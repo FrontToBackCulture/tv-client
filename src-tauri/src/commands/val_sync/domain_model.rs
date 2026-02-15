@@ -97,7 +97,7 @@ struct SqlQueryResponse {
 struct ColumnInfo {
     column_name: String,
     ordinal_position: i64,
-    data_type: String,
+    _data_type: String,
 }
 
 // ============================================================================
@@ -187,7 +187,7 @@ async fn query_columns(token: &str, api_domain: &str, table_name: &str) -> Resul
             .unwrap_or(0);
         let dtype = row.get("data_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
         if !name.is_empty() {
-            cols.push(ColumnInfo { column_name: name, ordinal_position: pos, data_type: dtype });
+            cols.push(ColumnInfo { column_name: name, ordinal_position: pos, _data_type: dtype });
         }
     }
     Ok(cols)
@@ -908,22 +908,6 @@ pub struct CreateSchemaResult {
     pub field_count: usize,
 }
 
-/// System columns to exclude when generating schema from definition.json
-const SYSTEM_COLUMNS: &[&str] = &[
-    "seq_id",
-    "created_date",
-    "updated_date",
-    "business_date",
-    "is_deleted",
-    "source_id",
-    "batch_id",
-    "dft_source_id",
-    "process_status",
-    "error_message",
-    "dft_batch_id",
-    "dft_process_status",
-    "dft_error_message",
-];
 
 /// Create a schema.json for a domain model entity from a domain's definition.json.
 /// Reads the definition, filters to user columns (usr_* + general_record_id),
