@@ -6,7 +6,7 @@ import { ActivityBar } from "./ActivityBar";
 import { StatusBar } from "./StatusBar";
 import { CommandPalette } from "./CommandPalette";
 import { SidePanel } from "./SidePanel";
-import { FloatingTerminal } from "../components/FloatingTerminal";
+
 import { ModuleId, isSecondaryWindow } from "../stores/appStore";
 import { useSidePanelStore } from "../stores/sidePanelStore";
 
@@ -70,7 +70,6 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
         {/* Module content */}
         <div className="flex-1 overflow-hidden min-w-0 relative">
           {children}
-          <FloatingTerminal activeModule={activeModule} />
         </div>
 
         {/* Side document panel (hidden in Library which has its own viewer) */}

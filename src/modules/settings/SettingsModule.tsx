@@ -3,9 +3,9 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettings, API_KEYS, ApiKeyInfo } from "../../hooks/useSettings";
-import { useTerminalSettingsStore } from "../../stores/terminalSettingsStore";
+
 import { useBotSettingsStore } from "../../stores/botSettingsStore";
-import { ModuleId } from "../../stores/appStore";
+
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Settings,
@@ -16,14 +16,9 @@ import {
   X,
   Loader2,
   RefreshCw,
-  Terminal,
   FolderOpen,
   FileText,
   Trash2,
-  Library,
-  CheckSquare,
-  Building2,
-  Mail,
   Bot,
   Clock,
   Database,
@@ -47,21 +42,7 @@ import {
 } from "../../hooks/useValSync";
 import { cn } from "../../lib/cn";
 
-type SettingsView = "keys" | "val" | "sync" | "mcp" | "claude" | "terminal" | "bots";
-
-// Module info for terminal path config
-interface ModuleInfo {
-  id: ModuleId;
-  label: string;
-  icon: LucideIcon;
-}
-
-const terminalModules: ModuleInfo[] = [
-  { id: "work", label: "Work", icon: CheckSquare },
-  { id: "crm", label: "CRM", icon: Building2 },
-  { id: "inbox", label: "Inbox", icon: Mail },
-  { id: "bot", label: "Bots", icon: Bot },
-];
+type SettingsView = "keys" | "val" | "sync" | "mcp" | "claude" | "bots";
 
 // ── KeyEditor ──────────────────────────────────────────────
 
@@ -340,126 +321,6 @@ function ApiKeysView() {
           ))}
         </div>
       </section>
-    </div>
-  );
-}
-
-// ── Terminal Paths View ────────────────────────────────────
-
-function TerminalPathsView() {
-  const paths = useTerminalSettingsStore((s) => s.paths);
-  const setPath = useTerminalSettingsStore((s) => s.setPath);
-  const removePath = useTerminalSettingsStore((s) => s.removePath);
-  const { activeRepository } = useRepository();
-
-  const handleBrowse = useCallback(
-    async (moduleId: ModuleId) => {
-      try {
-        const selected = await open({
-          directory: true,
-          multiple: false,
-          title: `Select default terminal directory`,
-          defaultPath: paths[moduleId] || undefined,
-        });
-        if (selected && typeof selected === "string") {
-          setPath(moduleId, selected);
-        }
-      } catch (e) {
-        console.error("Folder picker error:", e);
-      }
-    },
-    [paths, setPath]
-  );
-
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-          Terminal
-        </h2>
-        <p className="text-sm text-zinc-500 mt-1">
-          Set the default working directory when opening the terminal in each module
-        </p>
-      </div>
-
-      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-        <p className="text-sm text-blue-700 dark:text-blue-400">
-          The floating terminal is available on every module. If no path is set, the
-          terminal opens in your home directory.
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        {/* Library — path follows active repository */}
-        <div className="border border-slate-200 dark:border-zinc-800 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Library size={16} className="text-teal-500 flex-shrink-0" />
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">
-              Library
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-lg bg-slate-100 dark:bg-zinc-800 font-mono text-sm text-zinc-500 dark:text-zinc-400">
-              {activeRepository?.path || "No repository selected"}
-            </div>
-          </div>
-          <p className="text-xs text-zinc-400 mt-2">
-            Follows the active repository. Change it from the Library sidebar.
-          </p>
-        </div>
-
-        {terminalModules.map((mod) => {
-          const Icon = mod.icon;
-          const currentPath = paths[mod.id];
-
-          return (
-            <div
-              key={mod.id}
-              className="border border-slate-200 dark:border-zinc-800 rounded-lg p-4"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Icon size={16} className="text-teal-500 flex-shrink-0" />
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {mod.label}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={currentPath || ""}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setPath(mod.id, e.target.value);
-                    } else {
-                      removePath(mod.id);
-                    }
-                  }}
-                  placeholder="~/  (home directory)"
-                  className="flex-1 px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm placeholder:text-zinc-400"
-                />
-                <button
-                  onClick={() => handleBrowse(mod.id)}
-                  className="p-2 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
-                  title="Browse..."
-                >
-                  <FolderOpen size={16} />
-                </button>
-                {currentPath && (
-                  <button
-                    onClick={() => removePath(mod.id)}
-                    className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-zinc-400 hover:text-red-500 transition-colors"
-                    title="Clear path"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -1706,7 +1567,6 @@ const sidebarItems: SidebarItem[] = [
   { id: "sync", label: "Sync Paths", icon: RefreshCw },
   { id: "mcp", label: "MCP Endpoints", icon: Globe },
   { id: "claude", label: "Claude Code", icon: Cpu },
-  { id: "terminal", label: "Terminal", icon: Terminal },
   { id: "bots", label: "Bots", icon: Bot },
 ];
 
@@ -1756,7 +1616,6 @@ export function SettingsModule() {
           {activeView === "sync" && <SyncPathsView />}
           {activeView === "mcp" && <McpEndpointsView />}
           {activeView === "claude" && <ClaudeCodeSetupView />}
-          {activeView === "terminal" && <TerminalPathsView />}
           {activeView === "bots" && <BotsPathView />}
         </div>
       </div>
