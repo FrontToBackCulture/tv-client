@@ -1,6 +1,6 @@
 export { ProductModule } from "./ProductModule";
 export { PlatformTabView } from "./PlatformTabView";
-export { BusinessTabView } from "./BusinessTabView";
+export { SolutionsTabView } from "./SolutionsTabView";
 export { ModuleGridView } from "./ModuleGridView";
 export { ModuleDetailPanel } from "./ModuleDetailPanel";
 export { ConnectorListView } from "./ConnectorListView";

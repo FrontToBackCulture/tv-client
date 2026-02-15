@@ -2,25 +2,22 @@
 // Business tab: sidebar (Solutions / Releases / Deployments) + list + resizable detail
 
 import { useState, useMemo } from "react";
-import { Search, X, Plus, Package, Rocket, Globe } from "lucide-react";
-import { useProductSolutions, useProductReleases, useProductDeployments } from "../../hooks/useProduct";
-import { SolutionCardView } from "./SolutionCardView";
-import { SolutionDetailPanel } from "./SolutionDetailPanel";
+import { Search, X, Plus, Rocket, Globe } from "lucide-react";
+import { useProductReleases, useProductDeployments } from "../../hooks/useProduct";
 import { ReleaseListView } from "./ReleaseListView";
 import { ReleaseDetailPanel } from "./ReleaseDetailPanel";
 import { DeploymentListView } from "./DeploymentListView";
 import { DeploymentDetailPanel } from "./DeploymentDetailPanel";
 import type { ProductEntityType } from "../../lib/product/types";
 
-type EntityType = "solutions" | "releases" | "deployments";
+type EntityType = "releases" | "deployments";
 
-const ENTITY_META: Record<EntityType, { label: string; singular: ProductEntityType; icon: typeof Package }> = {
-  solutions: { label: "Solutions", singular: "solution", icon: Package },
+const ENTITY_META: Record<EntityType, { label: string; singular: ProductEntityType; icon: typeof Rocket }> = {
   releases: { label: "Releases", singular: "release", icon: Rocket },
   deployments: { label: "Deployments", singular: "deployment", icon: Globe },
 };
 
-const GROUP_ORDER: EntityType[] = ["solutions", "releases", "deployments"];
+const GROUP_ORDER: EntityType[] = ["releases", "deployments"];
 
 interface BusinessTabViewProps {
   selectedId: string | null;
@@ -39,21 +36,19 @@ export function BusinessTabView({
   isResizingDetail,
   onDetailMouseDown,
 }: BusinessTabViewProps) {
-  const [activeType, setActiveType] = useState<EntityType>("solutions");
+  const [activeType, setActiveType] = useState<EntityType>("releases");
   const [search, setSearch] = useState("");
 
   // Fetch data for sidebar
-  const { data: solutions = [] } = useProductSolutions();
   const { data: releases = [] } = useProductReleases();
   const { data: deployments = [] } = useProductDeployments();
 
   const dataMap = useMemo(
     () => ({
-      solutions: solutions.map((s) => ({ id: s.id, name: s.name })),
       releases: releases.map((r) => ({ id: r.id, name: r.name ? `v${r.version} — ${r.name}` : `v${r.version}` })),
       deployments: deployments.map((d) => ({ id: d.id, name: d.domain_id || d.description || d.id.slice(0, 8) })),
     }),
-    [solutions, releases, deployments],
+    [releases, deployments],
   );
 
   const handleSidebarSelect = (type: EntityType, id: string) => {
@@ -65,8 +60,6 @@ export function BusinessTabView({
   const renderListView = () => {
     const props = { search, selectedId, onSelect: (id: string) => onSelect(id) };
     switch (activeType) {
-      case "solutions":
-        return <SolutionCardView {...props} />;
       case "releases":
         return <ReleaseListView {...props} />;
       case "deployments":
@@ -79,8 +72,6 @@ export function BusinessTabView({
     if (!selectedId) return null;
     const close = () => onSelect(null);
     switch (activeType) {
-      case "solutions":
-        return <SolutionDetailPanel id={selectedId} onClose={close} />;
       case "releases":
         return <ReleaseDetailPanel id={selectedId} onClose={close} />;
       case "deployments":

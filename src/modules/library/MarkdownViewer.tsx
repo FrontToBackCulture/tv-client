@@ -23,7 +23,7 @@ interface CodeProps extends ChildrenProps {
   className?: string;
 }
 
-interface Frontmatter {
+export interface Frontmatter {
   title?: string;
   summary?: string;
   created?: string;
@@ -37,7 +37,7 @@ interface Frontmatter {
 }
 
 /** Parse YAML frontmatter from markdown content */
-function parseFrontmatter(content: string): { frontmatter: Frontmatter | null; body: string } {
+export function parseFrontmatter(content: string): { frontmatter: Frontmatter | null; body: string } {
   const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
   if (!match) return { frontmatter: null, body: content };
 

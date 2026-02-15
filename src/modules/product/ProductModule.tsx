@@ -9,7 +9,7 @@ import { useDiscoverDomains } from "../../hooks/useValSync";
 import { useRepository } from "../../stores/repositoryStore";
 import type { ProductEntityType } from "../../lib/product/types";
 import { PlatformTabView } from "./PlatformTabView";
-import { BusinessTabView } from "./BusinessTabView";
+import { SolutionsTabView } from "./SolutionsTabView";
 import { DomainTabView } from "./DomainTabView";
 import { CategoryLibraryPanel } from "./CategoryLibraryPanel";
 import { DataModelTabView } from "./DataModelTabView";
@@ -17,7 +17,7 @@ import { EntityForm } from "./EntityForm";
 import { DataModelsReviewView } from "../library/DataModelsReviewView";
 import { ArtifactReviewView, type ArtifactType } from "../library/ArtifactReviewView";
 
-type ProductTab = "platform" | "business" | "domains" | "data-models" | "category-library";
+type ProductTab = "platform" | "solutions" | "domains" | "data-models" | "category-library";
 type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
 
 // ============================
@@ -214,7 +214,7 @@ export function ProductModule() {
       {/* Tab bar */}
       <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
         <ViewTab label="Platform" icon={Boxes} active={activeTab === "platform"} onClick={() => handleTabChange("platform")} />
-        <ViewTab label="Business" icon={Package} active={activeTab === "business"} onClick={() => handleTabChange("business")} />
+        <ViewTab label="Solutions" icon={Package} active={activeTab === "solutions"} onClick={() => handleTabChange("solutions")} />
         <ViewTab label="Domains" icon={Database} active={activeTab === "domains"} onClick={() => handleTabChange("domains")} />
         <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-models"} onClick={() => handleTabChange("data-models")} />
         <ViewTab label="Categories" icon={Tags} active={activeTab === "category-library"} onClick={() => handleTabChange("category-library")} />
@@ -233,11 +233,10 @@ export function ProductModule() {
           />
         )}
 
-        {activeTab === "business" && (
-          <BusinessTabView
-            selectedId={selectedId}
+        {activeTab === "solutions" && (
+          <SolutionsTabView
             onSelect={handleSelect}
-            onNew={handleNew}
+            solutionsPath={activeRepository ? `${activeRepository.path}/2_Solutions` : undefined}
             detailPanelWidth={detailPanelWidth}
             isResizingDetail={isResizingDetail}
             onDetailMouseDown={handleDetailMouseDown}
