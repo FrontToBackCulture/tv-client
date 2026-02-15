@@ -1216,8 +1216,11 @@ pub async fn val_prepare_table_overview(
     let mut date_col_used = "created_date".to_string();
 
     if !skip_sql {
-        // Find best date column - check user-specified first, then health config, then look for common date columns
+        // Find best date column - check user-specified first, then schema.json, then health config, then common date columns
+        let schema_freshness = find_standard_schema(global_path, &table_name)
+            .and_then(|s| s.freshness_column);
         let date_col = freshness_column.clone()
+            .or(schema_freshness)
             .or_else(|| health
                 .and_then(|h| h.freshness.as_ref())
                 .and_then(|f| f.date_column.clone()))
@@ -1804,115 +1807,37 @@ pub async fn val_fetch_categorical_values(
         })
         .collect();
 
-    // Helper: check if a column name looks like an ID/key field (not categorical)
-    let is_id_like = |name: &str| -> bool {
-        let lower = name.to_lowercase();
-        // Exact matches
-        if matches!(lower.as_str(), "id" | "uuid" | "guid" | "key" | "hash" | "token"
-            | "rowid" | "row_id" | "pk" | "primary_key") {
-            return true;
-        }
-        // Suffix patterns
-        if lower.ends_with("_id") || lower.ends_with("_uuid") || lower.ends_with("_guid")
-            || lower.ends_with("_key") || lower.ends_with("_ref") || lower.ends_with("_hash")
-            || lower.ends_with("_token") || lower.ends_with("_code")
-            || lower.ends_with("_number") || lower.ends_with("_no")
-            || lower.ends_with("_num") || lower.ends_with("_pk")
-            || lower.ends_with("id") && lower.len() > 2 && lower.chars().nth(lower.len() - 3).map_or(false, |c| c == '_' || c.is_uppercase())
-        {
-            return true;
-        }
-        // Prefix patterns
-        if lower.starts_with("id_") || lower.starts_with("fk_") || lower.starts_with("pk_")
-            || lower.starts_with("ref_")
-        {
-            return true;
-        }
-        // Contains patterns for paths, urls, descriptions (high cardinality)
-        if lower.contains("path") || lower.contains("url") || lower.contains("uri")
-            || lower.contains("description") || lower.contains("comment")
-            || lower.contains("note") || lower.contains("remark")
-            || lower.contains("address") || lower.contains("email")
-            || lower.contains("filename") || lower.contains("file_name")
-        {
-            return true;
-        }
-        false
-    };
-
-    // Count all text-type columns before filtering
-    let all_text_count = column_types
-        .iter()
-        .filter(|(_, col_type)| {
-            col_type.contains("varchar")
-                || col_type.contains("text")
-                || col_type.contains("character")
-        })
-        .count();
-
-    // Identify text-type columns, excluding ID-like columns
-    let text_columns: Vec<String> = column_types
-        .iter()
-        .filter(|(col_name, col_type)| {
-            (col_type.contains("varchar")
-                || col_type.contains("text")
-                || col_type.contains("character"))
-                && !is_id_like(col_name)
-        })
-        .map(|(col_name, _)| col_name.clone())
-        .collect();
-
-    let skipped_count = all_text_count - text_columns.len();
+    // Check if a standard schema exists with curated is_categorical flags
+    let standard_schema = find_standard_schema(global_path, &table_name);
+    let schema_categoricals: Option<HashSet<String>> = standard_schema.as_ref().map(|schema| {
+        schema.fields.iter()
+            .filter(|f| f.is_categorical)
+            .map(|f| f.column.clone())
+            .collect()
+    });
+    let using_schema = schema_categoricals.is_some();
 
     let mut categorical_columns: HashMap<String, Value> = HashMap::new();
     let mut categorical_count = 0;
+    let text_columns_analyzed: usize;
+    let mut skipped_count = 0usize;
 
-    // Batch: get distinct counts for all text columns in a single query
-    let mut distinct_counts: HashMap<String, i64> = HashMap::new();
-    if !text_columns.is_empty() {
-        // Build batches of up to 50 columns per query to avoid SQL length limits
-        for chunk in text_columns.chunks(50) {
-            let select_parts: Vec<String> = chunk
-                .iter()
-                .map(|col| format!("COUNT(DISTINCT \"{}\") as \"cnt_{}\"", col, col))
-                .collect();
-            let batch_query = format!("SELECT {} FROM {}", select_parts.join(", "), table_name);
-            if let Ok(result) = val_execute_sql(domain.clone(), batch_query, Some(1)).await {
-                if let Some(row) = result.data.first() {
-                    for col in chunk {
-                        let key = format!("cnt_{}", col);
-                        let count = row.get(&key)
-                            .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
-                            .unwrap_or(0);
-                        distinct_counts.insert(col.clone(), count);
-                    }
-                }
-            }
-        }
-    }
+    if let Some(ref cat_cols) = schema_categoricals {
+        // ── Schema-driven mode: use is_categorical from schema.json ──
+        eprintln!("[tv-client]   Using schema.json categoricals: {} fields marked", cat_cols.len());
 
-    // Categorical threshold: distinct count < 10% of total rows (or max 1000 if unknown)
-    let ratio_threshold = total_row_count
-        .map(|total| (total as f64 * 0.10).max(1.0) as i64)
-        .unwrap_or(1000);
+        for col_name in cat_cols {
+            let display_name = column_names.get(col_name).cloned().unwrap_or(col_name.clone());
+            let col_type = column_types.get(col_name).cloned().unwrap_or_default();
 
-    // For each text column, check if categorical and fetch distinct values if so
-    for col_name in &text_columns {
-        let display_name = column_names.get(col_name).cloned().unwrap_or(col_name.clone());
-        let col_type = column_types.get(col_name).cloned().unwrap_or_default();
-        let distinct_count = distinct_counts.get(col_name).copied().unwrap_or(0);
-        let is_categorical = distinct_count > 0 && distinct_count <= ratio_threshold;
+            let mut stat = json!({
+                "type": col_type,
+                "displayName": display_name,
+                "isCategorical": true,
+                "source": "schema"
+            });
 
-        let mut stat = json!({
-            "type": col_type,
-            "displayName": display_name,
-            "distinctCount": distinct_count,
-            "isCategorical": is_categorical
-        });
-
-        // Get actual distinct values if categorical
-        if is_categorical {
-            categorical_count += 1;
+            // Fetch distinct values
             let values_query = format!(
                 "SELECT DISTINCT \"{}\" as val FROM {} WHERE \"{}\" IS NOT NULL ORDER BY \"{}\" LIMIT 1000",
                 col_name, table_name, col_name, col_name
@@ -1928,11 +1853,137 @@ pub async fn val_fetch_categorical_values(
                         })
                     })
                     .collect();
+                stat["distinctCount"] = json!(values.len());
                 stat["distinctValues"] = json!(values);
+            }
+
+            categorical_columns.insert(col_name.clone(), stat);
+            categorical_count += 1;
+        }
+        text_columns_analyzed = cat_cols.len();
+    } else {
+        // ── Fallback: threshold-based detection (no schema.json found) ──
+        eprintln!("[tv-client]   No schema.json found, using threshold-based categorical detection");
+
+        // Helper: check if a column name looks like an ID/key field (not categorical)
+        let is_id_like = |name: &str| -> bool {
+            let lower = name.to_lowercase();
+            if matches!(lower.as_str(), "id" | "uuid" | "guid" | "key" | "hash" | "token"
+                | "rowid" | "row_id" | "pk" | "primary_key") {
+                return true;
+            }
+            if lower.ends_with("_id") || lower.ends_with("_uuid") || lower.ends_with("_guid")
+                || lower.ends_with("_key") || lower.ends_with("_ref") || lower.ends_with("_hash")
+                || lower.ends_with("_token") || lower.ends_with("_code")
+                || lower.ends_with("_number") || lower.ends_with("_no")
+                || lower.ends_with("_num") || lower.ends_with("_pk")
+                || lower.ends_with("id") && lower.len() > 2 && lower.chars().nth(lower.len() - 3).map_or(false, |c| c == '_' || c.is_uppercase())
+            {
+                return true;
+            }
+            if lower.starts_with("id_") || lower.starts_with("fk_") || lower.starts_with("pk_")
+                || lower.starts_with("ref_")
+            {
+                return true;
+            }
+            if lower.contains("path") || lower.contains("url") || lower.contains("uri")
+                || lower.contains("description") || lower.contains("comment")
+                || lower.contains("note") || lower.contains("remark")
+                || lower.contains("address") || lower.contains("email")
+                || lower.contains("filename") || lower.contains("file_name")
+            {
+                return true;
+            }
+            false
+        };
+
+        let all_text_count = column_types
+            .iter()
+            .filter(|(_, col_type)| {
+                col_type.contains("varchar")
+                    || col_type.contains("text")
+                    || col_type.contains("character")
+            })
+            .count();
+
+        let text_columns: Vec<String> = column_types
+            .iter()
+            .filter(|(col_name, col_type)| {
+                (col_type.contains("varchar")
+                    || col_type.contains("text")
+                    || col_type.contains("character"))
+                    && !is_id_like(col_name)
+            })
+            .map(|(col_name, _)| col_name.clone())
+            .collect();
+
+        skipped_count = all_text_count - text_columns.len();
+        text_columns_analyzed = text_columns.len();
+
+        // Batch: get distinct counts for all text columns in a single query
+        let mut distinct_counts: HashMap<String, i64> = HashMap::new();
+        if !text_columns.is_empty() {
+            for chunk in text_columns.chunks(50) {
+                let select_parts: Vec<String> = chunk
+                    .iter()
+                    .map(|col| format!("COUNT(DISTINCT \"{}\") as \"cnt_{}\"", col, col))
+                    .collect();
+                let batch_query = format!("SELECT {} FROM {}", select_parts.join(", "), table_name);
+                if let Ok(result) = val_execute_sql(domain.clone(), batch_query, Some(1)).await {
+                    if let Some(row) = result.data.first() {
+                        for col in chunk {
+                            let key = format!("cnt_{}", col);
+                            let count = row.get(&key)
+                                .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+                                .unwrap_or(0);
+                            distinct_counts.insert(col.clone(), count);
+                        }
+                    }
+                }
             }
         }
 
-        categorical_columns.insert(col_name.clone(), stat);
+        let ratio_threshold = total_row_count
+            .map(|total| (total as f64 * 0.10).max(1.0) as i64)
+            .unwrap_or(1000);
+
+        for col_name in &text_columns {
+            let display_name = column_names.get(col_name).cloned().unwrap_or(col_name.clone());
+            let col_type = column_types.get(col_name).cloned().unwrap_or_default();
+            let distinct_count = distinct_counts.get(col_name).copied().unwrap_or(0);
+            let is_categorical = distinct_count > 0 && distinct_count <= ratio_threshold;
+
+            let mut stat = json!({
+                "type": col_type,
+                "displayName": display_name,
+                "distinctCount": distinct_count,
+                "isCategorical": is_categorical,
+                "source": "threshold"
+            });
+
+            if is_categorical {
+                categorical_count += 1;
+                let values_query = format!(
+                    "SELECT DISTINCT \"{}\" as val FROM {} WHERE \"{}\" IS NOT NULL ORDER BY \"{}\" LIMIT 1000",
+                    col_name, table_name, col_name, col_name
+                );
+                if let Ok(result) = val_execute_sql(domain.clone(), values_query, Some(1000)).await {
+                    let values: Vec<String> = result.data
+                        .iter()
+                        .filter_map(|row| {
+                            row.get("val").and_then(|v| match v {
+                                Value::String(s) => Some(s.clone()),
+                                Value::Number(n) => Some(n.to_string()),
+                                _ => None
+                            })
+                        })
+                        .collect();
+                    stat["distinctValues"] = json!(values);
+                }
+            }
+
+            categorical_columns.insert(col_name.clone(), stat);
+        }
     }
 
     let now: DateTime<Utc> = Utc::now();
@@ -1941,9 +1992,9 @@ pub async fn val_fetch_categorical_values(
             "tableName": table_name,
             "fetchedAt": now.to_rfc3339(),
             "totalRowCount": total_row_count,
-            "totalTextColumns": all_text_count,
+            "source": if using_schema { "schema" } else { "threshold" },
+            "textColumnsAnalyzed": text_columns_analyzed,
             "skippedIdLikeColumns": skipped_count,
-            "textColumnsAnalyzed": text_columns.len(),
             "categoricalColumnsFound": categorical_count
         },
         "columns": categorical_columns
@@ -1961,7 +2012,9 @@ pub async fn val_fetch_categorical_values(
         step: "fetch-categorical-values".to_string(),
         status: "created".to_string(),
         file_path: Some(categorical_path.to_string_lossy().to_string()),
-        message: format!("{} categorical found ({} analyzed, {} id-like skipped)", categorical_count, text_columns.len(), skipped_count),
+        message: format!("{} categorical found ({} analyzed, {} id-like skipped, source: {})",
+            categorical_count, text_columns_analyzed, skipped_count,
+            if using_schema { "schema" } else { "threshold" }),
         duration_ms: start.elapsed().as_millis() as u64,
     })
 }
@@ -2474,6 +2527,9 @@ CRITICAL RULES:
 
     merge_and_write_analysis(&analysis_path, new_fields, &table_name, &details, sample.is_some())?;
 
+    // Backfill AI descriptions into matching schema.json (domain-model entities)
+    backfill_schema_descriptions(global_path, &table_name, &all_col_descriptions);
+
     let suggested = analysis["suggestedName"].as_str().unwrap_or("(unnamed)");
 
     Ok(TablePipelineResult {
@@ -2942,6 +2998,93 @@ fn find_standard_schema(global_path: &str, table_name: &str) -> Option<SchemaJso
         }
     }
     None
+}
+
+/// Backfill AI-generated descriptions into matching schema.json files.
+/// Only fills fields where description is null or empty.
+fn backfill_schema_descriptions(global_path: &str, table_name: &str, col_descriptions: &serde_json::Map<String, Value>) {
+    if col_descriptions.is_empty() {
+        return;
+    }
+
+    // Build case-insensitive lookup: display_name(lowercase) → description
+    let desc_map: HashMap<String, &str> = col_descriptions.iter()
+        .filter_map(|(k, v)| v.as_str().map(|s| (k.to_lowercase(), s)))
+        .collect();
+
+    let domain_path = Path::new(global_path);
+    let platform_dir = match domain_path.parent().and_then(|p| p.parent()).and_then(|p| p.parent()) {
+        Some(p) => p,
+        None => return,
+    };
+    let entities_dir = platform_dir.join("architecture").join("domain-model").join("entities");
+    if !entities_dir.is_dir() {
+        return;
+    }
+
+    let entries = match fs::read_dir(&entities_dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entity_entry in entries.flatten() {
+        if !entity_entry.path().is_dir() { continue; }
+        let model_entries = match fs::read_dir(entity_entry.path()) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for model_entry in model_entries.flatten() {
+            if !model_entry.path().is_dir() { continue; }
+            let schema_path = model_entry.path().join("schema.json");
+            if !schema_path.exists() { continue; }
+
+            let content = match fs::read_to_string(&schema_path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let mut schema_val: Value = match serde_json::from_str(&content) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            // Check table_name matches
+            if schema_val["table_name"].as_str() != Some(table_name) { continue; }
+
+            let fields = match schema_val["fields"].as_array_mut() {
+                Some(f) => f,
+                None => continue,
+            };
+
+            let mut updated = 0usize;
+            for field in fields.iter_mut() {
+                let desc = field.get("description");
+                let is_empty = match desc {
+                    None => true,
+                    Some(Value::Null) => true,
+                    Some(Value::String(s)) => s.is_empty(),
+                    _ => false,
+                };
+                if !is_empty { continue; }
+
+                // Look up by display name (the "name" field in schema.json)
+                let name = field.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                if let Some(ai_desc) = desc_map.get(&name.to_lowercase()) {
+                    field.as_object_mut().unwrap().insert(
+                        "description".to_string(),
+                        Value::String(ai_desc.to_string()),
+                    );
+                    updated += 1;
+                }
+            }
+
+            if updated > 0 {
+                if let Ok(json_str) = serde_json::to_string_pretty(&schema_val) {
+                    let _ = fs::write(&schema_path, json_str);
+                    eprintln!("[tv-client]   Backfilled {} descriptions into {}", updated, schema_path.display());
+                }
+            }
+        }
+    }
 }
 
 #[command]

@@ -4,6 +4,7 @@ pub mod auth;
 pub mod claude_setup;
 pub mod crm;
 pub mod files;
+pub mod folder_chat;
 pub mod mcp;
 pub mod outlook;
 pub mod search;

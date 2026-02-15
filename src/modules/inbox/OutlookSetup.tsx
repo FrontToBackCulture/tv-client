@@ -1,5 +1,5 @@
 // First-time Outlook OAuth setup UI
-// Auto-imports credentials from tv-tools/mcp-server/.env
+// Credentials stored in tv-client settings (~/.tv-desktop/settings.json)
 
 import { useState, useEffect } from "react";
 import { Mail, CheckCircle, Loader2, AlertTriangle } from "lucide-react";
@@ -40,89 +40,12 @@ export function OutlookSetup() {
       setClientId(existingId);
       setTenantId(existingTenant);
       setClientSecret(existingSecret);
-
-      // Try to import existing tokens from msteams-sync (avoids re-auth)
-      const homeDir = await getHomeDir();
-      const tokenPaths = [
-        `${homeDir}/Code/SkyNet/tv-tools/msteams-sync/.tokens/user-tokens.json`,
-      ];
-      for (const tokenPath of tokenPaths) {
-        try {
-          await invoke("outlook_auth_import", { tokenFilePath: tokenPath });
-          // Tokens imported successfully - auth check will see them
-          setState("ready");
-          return;
-        } catch {
-          // No tokens to import, continue to manual connect
-        }
-      }
-
       setState("ready");
       return;
     }
 
-    // 2. Auto-import from mcp-server .env
-    // Try absolute paths based on common locations
-    const homeDir = await getHomeDir();
-    const absolutePaths = [
-      `${homeDir}/Code/SkyNet/tv-tools/mcp-server/.env`,
-      `${homeDir}/code/SkyNet/tv-tools/mcp-server/.env`,
-    ];
-
-    for (const envPath of absolutePaths) {
-      try {
-        const imported = await invoke<string[]>("settings_import_from_file", {
-          filePath: envPath,
-        });
-
-        if (imported.length > 0) {
-          // Re-read the newly imported credentials
-          const id = await invoke<string | null>("settings_get_key", {
-            keyName: "ms_graph_client_id",
-          }).catch(() => null);
-          const tenant = await invoke<string | null>("settings_get_key", {
-            keyName: "ms_graph_tenant_id",
-          }).catch(() => null);
-          const secret = await invoke<string | null>("settings_get_key", {
-            keyName: "ms_graph_client_secret",
-          }).catch(() => null);
-
-          if (id && tenant && secret) {
-            setClientId(id);
-            setTenantId(tenant);
-            setClientSecret(secret);
-
-            // Also try to import existing tokens from msteams-sync
-            const tokenPath = `${homeDir}/Code/SkyNet/tv-tools/msteams-sync/.tokens/user-tokens.json`;
-            try {
-              await invoke("outlook_auth_import", { tokenFilePath: tokenPath });
-            } catch {
-              // No tokens to import, user will need to connect via browser
-            }
-
-            setState("ready");
-            return;
-          }
-        }
-      } catch {
-        // Path doesn't exist, try next
-        continue;
-      }
-    }
-
-    // 3. No credentials found anywhere
+    // 2. No credentials found in settings
     setState("no-credentials");
-  }
-
-  async function getHomeDir(): Promise<string> {
-    try {
-      const path = await invoke<string>("settings_get_path");
-      // path is like /Users/melvinwang/.tv-desktop/settings.json
-      const match = path.match(/^(\/Users\/[^/]+|\/home\/[^/]+)/);
-      return match ? match[1] : "";
-    } catch {
-      return "";
-    }
   }
 
   const handleConnect = async () => {
@@ -186,11 +109,11 @@ export function OutlookSetup() {
           </h2>
           {state === "ready" ? (
             <p className="text-zinc-500 text-sm">
-              Credentials loaded from tv-tools. Click connect to sign in.
+              Credentials found in settings. Click connect to sign in.
             </p>
           ) : (
             <p className="text-zinc-500 text-sm">
-              Could not find credentials in tv-tools. Enter them manually.
+              No credentials found. Enter them manually below.
             </p>
           )}
         </div>

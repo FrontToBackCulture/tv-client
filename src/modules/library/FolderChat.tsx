@@ -79,7 +79,7 @@ function MessageBubble({
 }
 
 export function FolderChat({ folderPath, folderName, onFileClick }: FolderChatProps) {
-  const { messages, isLoading, progress, sendMessage } = useFolderChat(folderPath);
+  const { messages, isLoading, sendMessage } = useFolderChat(folderPath);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -89,7 +89,7 @@ export function FolderChat({ folderPath, folderName, onFileClick }: FolderChatPr
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, progress]);
+  }, [messages]);
 
   // Reset input when folder changes
   useEffect(() => {
@@ -149,7 +149,7 @@ export function FolderChat({ folderPath, folderName, onFileClick }: FolderChatPr
         {isLoading && (
           <div className="flex items-center gap-2 text-zinc-500 mb-4">
             <Loader2 size={16} className="animate-spin" />
-            <span className="text-sm">{progress || "Thinking..."}</span>
+            <span className="text-sm">Thinking...</span>
           </div>
         )}
 

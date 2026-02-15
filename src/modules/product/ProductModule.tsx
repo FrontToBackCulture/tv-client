@@ -48,6 +48,7 @@ export function ProductModule() {
 
   // Review escape hatch (full-screen review for domains)
   const [reviewingDomain, setReviewingDomain] = useState<string | null>(null);
+  const lastReviewedDomainRef = useRef<string | null>(null);
   const [reviewType, setReviewType] = useState<ReviewType>("data-models");
 
   // Detail panel resize (percentage-based, CRM pattern) — used by Platform & Business tabs
@@ -131,18 +132,22 @@ export function ProductModule() {
   const handleReviewDataModels = useCallback((domain: string) => {
     setReviewType("data-models");
     setReviewingDomain(domain);
+    lastReviewedDomainRef.current = domain;
   }, []);
   const handleReviewQueries = useCallback((domain: string) => {
     setReviewType("queries");
     setReviewingDomain(domain);
+    lastReviewedDomainRef.current = domain;
   }, []);
   const handleReviewWorkflows = useCallback((domain: string) => {
     setReviewType("workflows");
     setReviewingDomain(domain);
+    lastReviewedDomainRef.current = domain;
   }, []);
   const handleReviewDashboards = useCallback((domain: string) => {
     setReviewType("dashboards");
     setReviewingDomain(domain);
+    lastReviewedDomainRef.current = domain;
   }, []);
   const handleExitReview = useCallback(() => setReviewingDomain(null), []);
 
@@ -245,6 +250,7 @@ export function ProductModule() {
 
         {activeTab === "domains" && (
           <DomainTabView
+            initialDomain={lastReviewedDomainRef.current}
             onReviewDataModels={handleReviewDataModels}
             onReviewQueries={handleReviewQueries}
             onReviewWorkflows={handleReviewWorkflows}

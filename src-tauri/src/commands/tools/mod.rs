@@ -1,5 +1,4 @@
-// Tools module - Ported from tv-tools
-// Provides generation tools: Gamma (presentations), Nanobanana (images), Document generation (PDFs)
+// Tools module - Generation tools: Gamma (presentations), Nanobanana (images), Document generation (PDFs)
 
 pub mod gamma;
 pub mod nanobanana;

@@ -145,6 +145,8 @@ fn main() {
             commands::files::open_with_default_app,
             commands::files::read_file_binary,
             commands::files::get_folder_files,
+            // Folder Chat (AI-powered folder Q&A)
+            commands::folder_chat::folder_chat_ask,
             // Search operations (Rust native)
             commands::search::search_files,
             commands::search::search_content,
@@ -321,6 +323,7 @@ fn main() {
             commands::val_sync::domain_model::val_read_domain_model_file,
             commands::val_sync::domain_model::val_generate_schema_md,
             commands::val_sync::domain_model::val_create_domain_model_schema,
+            commands::val_sync::domain_model::val_enrich_schema_descriptions,
             commands::val_sync::domain_model::val_build_field_master,
             commands::val_sync::domain_model::val_save_field_master,
             // VAL Sync - SQL execution

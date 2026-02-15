@@ -22,7 +22,8 @@ import type {
 } from "ag-grid-community";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../../stores/appStore";
-import { Loader2, Check } from "lucide-react";
+import { useEnrichSchemaDescriptions } from "../../hooks/useValSync";
+import { Loader2, Check, Sparkles } from "lucide-react";
 
 // ============================================================================
 // Types
@@ -48,6 +49,7 @@ export interface SchemaFile {
   description: string | null;
   status: string | null;
   resource_url: string | null;
+  freshness_column?: string | null;
   fields: SchemaField[];
 }
 
@@ -229,16 +231,52 @@ export function SchemaFieldsGrid({
   const theme = useAppStore((s) => s.theme);
   const queryClient = useQueryClient();
   const [fields, setFields] = useState<SchemaField[]>(schemaData.fields);
+  const [freshnessColumn, setFreshnessColumn] = useState<string | null>(schemaData.freshness_column ?? null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
   );
   const dirtyRef = useRef(false);
   const fieldsRef = useRef(fields);
+  const freshnessRef = useRef(freshnessColumn);
+  const enrichMutation = useEnrichSchemaDescriptions();
+
+  // Derive domains base path from schema file path
+  // schemaFilePath: .../0_Platform/architecture/domain-model/entities/{entity}/{model}/schema.json
+  // domainsBasePath: .../0_Platform/domains/production/
+  const domainsBasePath = useMemo(() => {
+    const idx = schemaFilePath.indexOf("/0_Platform/");
+    if (idx === -1) return null;
+    return schemaFilePath.substring(0, idx) + "/0_Platform/domains/production";
+  }, [schemaFilePath]);
+
+  // Count how many fields have empty descriptions (to show enrich button)
+  const emptyDescCount = useMemo(
+    () => fields.filter((f) => !f.description?.trim()).length,
+    [fields]
+  );
+
+  const handleEnrich = useCallback(() => {
+    if (!domainsBasePath) return;
+    enrichMutation.mutate(
+      { schemaJsonPath: schemaFilePath, domainsBasePath },
+      {
+        onSuccess: (result) => {
+          if (result.enriched > 0) {
+            // Reload schema data from file
+            queryClient.invalidateQueries({ queryKey: ["domain-model-file"] });
+            queryClient.invalidateQueries({ queryKey: ["domain-model-entities"] });
+          }
+        },
+      }
+    );
+  }, [domainsBasePath, schemaFilePath, enrichMutation, queryClient]);
 
   // Sync when schemaData changes (different entity selected)
   useEffect(() => {
     setFields(schemaData.fields);
     fieldsRef.current = schemaData.fields;
+    setFreshnessColumn(schemaData.freshness_column ?? null);
+    freshnessRef.current = schemaData.freshness_column ?? null;
     dirtyRef.current = false;
     setSaveStatus("idle");
   }, [schemaData]);
@@ -252,6 +290,7 @@ export function SchemaFieldsGrid({
       try {
         const updated: SchemaFile = {
           ...schemaData,
+          freshness_column: freshnessRef.current,
           fields: fieldsRef.current,
         };
         await invoke("write_file", {
@@ -271,7 +310,7 @@ export function SchemaFieldsGrid({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [fields, schemaData, schemaFilePath, queryClient]);
+  }, [fields, freshnessColumn, schemaData, schemaFilePath, queryClient]);
 
   const onCellValueChanged = useCallback((event: CellValueChangedEvent) => {
     const { data, colDef } = event;
@@ -317,6 +356,18 @@ export function SchemaFieldsGrid({
     [theme]
   );
 
+  const isDateType = useCallback((type: string) => {
+    const t = type.toLowerCase();
+    return t.includes("date") || t.includes("timestamp");
+  }, []);
+
+  const handleFreshnessClick = useCallback((column: string) => {
+    const newVal = freshnessColumn === column ? null : column;
+    setFreshnessColumn(newVal);
+    freshnessRef.current = newVal;
+    dirtyRef.current = true;
+  }, [freshnessColumn]);
+
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
@@ -359,19 +410,85 @@ export function SchemaFieldsGrid({
       {
         field: "is_key",
         headerName: "Key",
-        width: 60,
-        cellRenderer: (params: ICellRendererParams) =>
-          params.value ? "Y" : "",
+        width: 50,
+        cellRenderer: (params: ICellRendererParams) => {
+          const val = params.value as boolean;
+          return (
+            <button
+              onClick={() => {
+                const newVal = !val;
+                params.node?.setDataValue("is_key", newVal);
+              }}
+              className="w-full h-full flex items-center justify-center"
+              title={val ? "Unmark as key" : "Mark as key"}
+            >
+              <span className={val
+                ? "text-amber-600 dark:text-amber-400 font-bold"
+                : "text-zinc-300 dark:text-zinc-600 hover:text-amber-400"
+              }>
+                {val ? "●" : "○"}
+              </span>
+            </button>
+          );
+        },
+        cellClass: "editable-cell",
+        sortable: false,
+        filter: false,
       },
       {
         field: "is_categorical",
         headerName: "Cat",
-        width: 60,
-        editable: true,
-        cellEditor: "agCheckboxCellEditor",
-        cellRenderer: (params: ICellRendererParams) =>
-          params.value ? "Y" : "",
+        width: 50,
+        cellRenderer: (params: ICellRendererParams) => {
+          const val = params.value as boolean;
+          return (
+            <button
+              onClick={() => {
+                const newVal = !val;
+                params.node?.setDataValue("is_categorical", newVal);
+              }}
+              className="w-full h-full flex items-center justify-center"
+              title={val ? "Unmark as categorical" : "Mark as categorical"}
+            >
+              <span className={val
+                ? "text-purple-600 dark:text-purple-400 font-bold"
+                : "text-zinc-300 dark:text-zinc-600 hover:text-purple-400"
+              }>
+                {val ? "●" : "○"}
+              </span>
+            </button>
+          );
+        },
         cellClass: "editable-cell",
+        sortable: false,
+        filter: false,
+      },
+      {
+        headerName: "BD",
+        width: 50,
+        headerTooltip: "Business Date — column used for data freshness",
+        cellRenderer: (params: ICellRendererParams) => {
+          const col = params.data?.column;
+          const type = params.data?.type || "";
+          if (!isDateType(type)) return "";
+          const isSelected = freshnessColumn === col;
+          return (
+            <button
+              onClick={() => handleFreshnessClick(col)}
+              className="w-full h-full flex items-center justify-center"
+              title={isSelected ? "Clear business date" : "Set as business date"}
+            >
+              <span className={isSelected
+                ? "text-teal-600 dark:text-teal-400 font-bold"
+                : "text-zinc-300 dark:text-zinc-600 hover:text-teal-400"
+              }>
+                {isSelected ? "●" : "○"}
+              </span>
+            </button>
+          );
+        },
+        sortable: false,
+        filter: false,
       },
       {
         field: "tags",
@@ -399,7 +516,7 @@ export function SchemaFieldsGrid({
         cellClass: "editable-cell text-xs text-zinc-500 dark:text-zinc-400",
       },
     ],
-    []
+    [freshnessColumn, isDateType, handleFreshnessClick]
   );
 
   const defaultColDef = useMemo<ColDef>(
@@ -412,11 +529,30 @@ export function SchemaFieldsGrid({
   );
 
   return (
-    <div className="mb-4">
+    <div>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-          Schema Fields ({fields.length})
-        </h3>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-500">{fields.length} fields</span>
+          {freshnessColumn && (
+            <span className="text-xs text-teal-600 dark:text-teal-400">
+              BD: {fields.find(f => f.column === freshnessColumn)?.name || freshnessColumn}
+            </span>
+          )}
+          {emptyDescCount > 0 && domainsBasePath && (
+            <button
+              onClick={handleEnrich}
+              disabled={enrichMutation.isPending}
+              className="flex items-center gap-1 px-2 py-0.5 text-xs text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded transition-colors disabled:opacity-50"
+            >
+              {enrichMutation.isPending ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Sparkles className="w-3 h-3" />
+              )}
+              Enrich Descriptions ({emptyDescCount})
+            </button>
+          )}
+        </div>
         {saveStatus === "saving" && (
           <span className="flex items-center gap-1 text-xs text-zinc-400">
             <Loader2 className="w-3 h-3 animate-spin" />

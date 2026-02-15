@@ -1667,23 +1667,6 @@ export interface TablePipelineResult {
   duration_ms: number;
 }
 
-export interface TablePipelineStepResult {
-  table_name: string;
-  status: string;
-  steps: Record<string, string>;
-  error: string | null;
-  output_folder: string | null;
-  output_files: string[];
-}
-
-export interface PipelineRunResult {
-  domain: string;
-  tables_processed: number;
-  tables_skipped: number;
-  tables_errored: number;
-  results: TablePipelineStepResult[];
-  total_duration_ms: number;
-}
 
 /** Step 1: Prepare table overview (definition_details.json) */
 export function usePrepareTableOverview() {
@@ -1889,32 +1872,6 @@ export function useGenerateTableOverviewMd() {
   });
 }
 
-/** Run full table pipeline (all 5 steps) */
-export function useRunTablePipeline() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      domain,
-      tableName,
-      overwrite = false,
-      skipSteps,
-    }: {
-      domain: string;
-      tableName: string;
-      overwrite?: boolean;
-      skipSteps?: string;
-    }) =>
-      invoke<PipelineRunResult>("val_run_table_pipeline", {
-        domain,
-        tableName,
-        overwrite,
-        skipSteps: skipSteps ?? null,
-      }),
-    onSuccess: (_data, { domain }) => {
-      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
-    },
-  });
-}
 
 /** Table info with ID and display name */
 export interface TableInfo {
@@ -1932,112 +1889,6 @@ export function useListDomainTables(domain: string | undefined) {
   });
 }
 
-/** Run table pipeline for all domains sequentially with job tracking */
-export function useRunAllDomainsTablePipeline() {
-  const addJob = useJobsStore((s) => s.addJob);
-  const updateJob = useJobsStore((s) => s.updateJob);
-  const qc = useQueryClient();
-  const [progress, setProgress] = useState<SyncAllDomainsProgress | null>(null);
-  const abortRef = useRef(false);
-
-  const trigger = useCallback(
-    async (
-      domains: string[],
-      options?: { overwrite?: boolean; skipSteps?: string }
-    ) => {
-      if (progress?.isRunning) return;
-      abortRef.current = false;
-
-      const jobId = `val-table-pipeline-${Date.now()}`;
-      const total = domains.length;
-      const completed: string[] = [];
-      const failed: string[] = [];
-
-      addJob({
-        id: jobId,
-        name: `Table Pipeline (${total})`,
-        status: "running",
-        progress: 0,
-        message: `Starting table pipeline for ${total} domains...`,
-      });
-
-      setProgress({
-        current: 0,
-        total,
-        currentDomain: "",
-        completed: [],
-        failed: [],
-        isRunning: true,
-      });
-
-      for (let i = 0; i < domains.length; i++) {
-        if (abortRef.current) {
-          updateJob(jobId, {
-            status: "failed",
-            progress: Math.round((i / total) * 100),
-            message: `Aborted after ${completed.length} completed, ${failed.length} failed`,
-          });
-          setProgress((p) => (p ? { ...p, isRunning: false } : null));
-          return;
-        }
-
-        const domain = domains[i];
-        updateJob(jobId, {
-          progress: Math.round((i / total) * 100),
-          message: `[${i + 1}/${total}] Running pipeline for ${domain}...`,
-        });
-        setProgress({
-          current: i + 1,
-          total,
-          currentDomain: domain,
-          completed: [...completed],
-          failed: [...failed],
-          isRunning: true,
-        });
-
-        try {
-          await invoke<PipelineRunResult>("val_run_table_pipeline", {
-            domain,
-            tableName: "all",
-            overwrite: options?.overwrite ?? false,
-            skipSteps: options?.skipSteps ?? null,
-          });
-          completed.push(domain);
-          qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
-        } catch {
-          failed.push(domain);
-        }
-      }
-
-      const finalMsg =
-        failed.length > 0
-          ? `Done: ${completed.length} processed, ${failed.length} failed (${failed.join(", ")})`
-          : `Done: ${completed.length}/${total} domains processed`;
-
-      updateJob(jobId, {
-        status: failed.length === total ? "failed" : "completed",
-        progress: 100,
-        message: finalMsg,
-      });
-
-      setProgress({
-        current: total,
-        total,
-        currentDomain: "",
-        completed,
-        failed,
-        isRunning: false,
-      });
-    },
-    [addJob, updateJob, qc, progress?.isRunning]
-  );
-
-  const abort = useCallback(() => {
-    abortRef.current = true;
-  }, []);
-
-  return { trigger, abort, progress };
-}
 
 // ============================================================================
 // Category Library
@@ -2188,6 +2039,28 @@ export function useGenerateSchemaMd() {
     mutationFn: (schemaJsonPath: string) =>
       invoke<string>("val_generate_schema_md", { schemaJsonPath }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["domain-model-entities"] });
+    },
+  });
+}
+
+/** Enrich empty descriptions in schema.json from domain AI analysis */
+export function useEnrichSchemaDescriptions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      schemaJsonPath,
+      domainsBasePath,
+    }: {
+      schemaJsonPath: string;
+      domainsBasePath: string;
+    }) =>
+      invoke<{ enriched: number; total_ai_descriptions: number; source_domain: string | null }>(
+        "val_enrich_schema_descriptions",
+        { schemaJsonPath, domainsBasePath }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["domain-model-file"] });
       qc.invalidateQueries({ queryKey: ["domain-model-entities"] });
     },
   });

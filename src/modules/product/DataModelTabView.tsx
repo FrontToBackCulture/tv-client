@@ -23,6 +23,7 @@ import {
   Layers,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { useSidePanelStore } from "../../stores/sidePanelStore";
 import { useRepository } from "../../stores/repositoryStore";
 import {
   useDomainModelEntities,
@@ -128,6 +129,7 @@ export function DataModelTabView() {
   const [expandedEntities, setExpandedEntities] = useState<Set<string>>(new Set());
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
+  const [detailTab, setDetailTab] = useState<"schema" | "domains" | "categoricals">("schema");
 
   // Queries
   const entitiesQuery = useDomainModelEntities(entitiesPath);
@@ -340,10 +342,10 @@ export function DataModelTabView() {
               </div>
 
               <div className="flex items-center gap-2">
-                <FileIndicator label="Schema" exists={selectedModelInfo.has_schema_json} icon="json" />
-                <FileIndicator label="Docs" exists={selectedModelInfo.has_schema_md} icon="md" />
-                <FileIndicator label="SQL" exists={selectedModelInfo.has_sql} icon="md" />
-                <FileIndicator label="Workflow" exists={selectedModelInfo.has_workflow} icon="md" />
+                <FileIndicator label="Schema" exists={selectedModelInfo.has_schema_json} icon="json" filePath={selectedModelPath ? `${selectedModelPath}/schema.json` : undefined} />
+                <FileIndicator label="Docs" exists={selectedModelInfo.has_schema_md} icon="md" filePath={selectedModelPath ? `${selectedModelPath}/schema.md` : undefined} />
+                <FileIndicator label="SQL" exists={selectedModelInfo.has_sql} icon="md" filePath={selectedModelPath ? `${selectedModelPath}/sql.md` : undefined} />
+                <FileIndicator label="Workflow" exists={selectedModelInfo.has_workflow} icon="md" filePath={selectedModelPath ? `${selectedModelPath}/workflow.md` : undefined} />
               </div>
             </div>
 
@@ -425,81 +427,100 @@ export function DataModelTabView() {
               )}
             </div>
 
-            {/* Schema fields grid */}
-            {schemaData && schemaFilePath && (
+            {/* Detail tabs */}
+            <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-4">
+              {([
+                { key: "schema" as const, label: "Schema", count: schemaData?.fields.length },
+                { key: "domains" as const, label: "Domains", count: domainsData?.domains.length },
+                { key: "categoricals" as const, label: "Categoricals", count: categoricalsData ? Object.keys(categoricalsData.fields).length : undefined },
+              ]).map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setDetailTab(tab.key)}
+                  className={cn(
+                    "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                    detailTab === tab.key
+                      ? "border-teal-500 text-teal-600 dark:text-teal-400"
+                      : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  )}
+                >
+                  {tab.label}
+                  {tab.count != null && (
+                    <span className="ml-1.5 text-xs text-zinc-400">({tab.count})</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Schema tab */}
+            {detailTab === "schema" && schemaData && schemaFilePath && (
               <SchemaFieldsGrid
                 schemaData={schemaData}
                 schemaFilePath={schemaFilePath}
               />
             )}
 
-            {/* Domains table with expandable conformance */}
-            {domainsData && domainsData.domains.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
-                  Domains ({domainsData.domains.length})
-                  {domainsData.reference_domain && (
-                    <span className="ml-2 text-xs font-normal text-zinc-400">
-                      ref: {domainsData.reference_domain}
-                    </span>
-                  )}
-                </h3>
-                <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700">
-                        <th className="w-6 px-1 py-2" />
-                        <th className="text-left px-3 py-2 font-medium text-zinc-500">Domain</th>
-                        <th className="text-left px-3 py-2 font-medium text-zinc-500">Status</th>
-                        <th className="text-right px-3 py-2 font-medium text-zinc-500">Records</th>
-                        <th className="text-left px-3 py-2 font-medium text-zinc-500">Date Range</th>
-                        <th className="text-left px-3 py-2 font-medium text-zinc-500">Conformance</th>
-                        <th className="text-left px-3 py-2 font-medium text-zinc-500">Source Systems</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                      {domainsData.domains.map((d) => {
-                        const conf = d.conformance;
-                        const hasConformanceDetails =
-                          conf &&
-                          conf.status === "diverged" &&
-                          ((conf.missing?.length ?? 0) > 0 ||
-                            (conf.extra?.length ?? 0) > 0 ||
-                            (conf.order_mismatches?.length ?? 0) > 0);
-                        const isExpanded = expandedDomains.has(d.domain);
+            {/* Domains tab */}
+            {detailTab === "domains" && (
+              <>
+                {domainsData && domainsData.domains.length > 0 ? (
+                  <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700">
+                          <th className="w-6 px-1 py-2" />
+                          <th className="text-left px-3 py-2 font-medium text-zinc-500">Domain</th>
+                          <th className="text-left px-3 py-2 font-medium text-zinc-500">Status</th>
+                          <th className="text-right px-3 py-2 font-medium text-zinc-500">Records</th>
+                          <th className="text-left px-3 py-2 font-medium text-zinc-500">Date Range</th>
+                          <th className="text-left px-3 py-2 font-medium text-zinc-500">Conformance</th>
+                          <th className="text-left px-3 py-2 font-medium text-zinc-500">Source Systems</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                        {domainsData.domains.map((d) => {
+                          const conf = d.conformance;
+                          const hasConformanceDetails =
+                            conf &&
+                            conf.status === "diverged" &&
+                            ((conf.missing?.length ?? 0) > 0 ||
+                              (conf.extra?.length ?? 0) > 0 ||
+                              (conf.order_mismatches?.length ?? 0) > 0);
+                          const isExpanded = expandedDomains.has(d.domain);
 
-                        return (
-                          <DomainRow
-                            key={d.domain}
-                            domain={d}
-                            hasDetails={!!hasConformanceDetails}
-                            isExpanded={isExpanded}
-                            onToggle={() => toggleDomain(d.domain)}
-                          />
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                          return (
+                            <DomainRow
+                              key={d.domain}
+                              domain={d}
+                              hasDetails={!!hasConformanceDetails}
+                              isExpanded={isExpanded}
+                              onToggle={() => toggleDomain(d.domain)}
+                            />
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {domainsData.reference_domain && (
+                      <div className="px-3 py-2 text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700">
+                        Reference: {domainsData.reference_domain}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  !domainsQuery.isLoading && (
+                    <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-8 text-center text-zinc-400 text-sm">
+                      No domain data yet. Click "Scan Domains" to discover which
+                      domains have this table.
+                    </div>
+                  )
+                )}
+              </>
             )}
 
-            {/* No domains data yet */}
-            {(!domainsData || domainsData.domains.length === 0) &&
-              !domainsQuery.isLoading && (
-                <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-8 text-center text-zinc-400 text-sm">
-                  No domain data yet. Click "Scan Domains" to discover which
-                  domains have this table.
-                </div>
-              )}
-
-            {/* Categoricals section (values only, no conformance) */}
-            {categoricalsData &&
-              Object.keys(categoricalsData.fields).length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
-                    Categorical Fields ({Object.keys(categoricalsData.fields).length})
-                  </h3>
+            {/* Categoricals tab */}
+            {detailTab === "categoricals" && (
+              <>
+                {categoricalsData && Object.keys(categoricalsData.fields).length > 0 ? (
                   <div className="space-y-1">
                     {Object.entries(categoricalsData.fields).map(
                       ([fieldName, field]) => (
@@ -513,8 +534,13 @@ export function DataModelTabView() {
                       )
                     )}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-8 text-center text-zinc-400 text-sm">
+                    No categorical data yet. Run "Scan Domains" to collect categorical values.
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -790,19 +816,25 @@ function FileIndicator({
   label,
   exists,
   icon,
+  filePath,
 }: {
   label: string;
   exists: boolean;
   icon?: "json" | "md";
+  filePath?: string;
 }) {
+  const { openPanel } = useSidePanelStore();
   const Icon = icon === "json" ? FileJson : FileText;
+  const clickable = exists && filePath;
   return (
     <span
+      onClick={clickable ? () => openPanel(filePath, label) : undefined}
       className={cn(
         "inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full",
         exists
           ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
-          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
+          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400",
+        clickable && "cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/40"
       )}
     >
       <Icon size={10} />

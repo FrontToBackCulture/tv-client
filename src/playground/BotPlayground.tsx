@@ -24,6 +24,11 @@ import {
   Pencil,
   Save,
   ArrowUpDown,
+  Brain,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  FolderInput,
+  FolderOutput,
 } from "lucide-react";
 import { useListDirectory, useReadFile, useWriteFile, FileEntry } from "../hooks/useFiles";
 import { useQueries } from "@tanstack/react-query";
@@ -147,13 +152,39 @@ const SKILL_STATUS_CONFIG: Record<SkillStatus, { label: string; dot: string; bad
   deprecated: { label: "Deprecated", dot: "bg-red-400", badge: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400" },
 };
 
-function parseSkillFrontmatter(content: string | undefined): { status: SkillStatus; lastRevised: string | null } {
-  if (!content) return { status: "active", lastRevised: null };
-  const statusMatch = content.match(/^status:\s*["']?(\w+)["']?\s*$/m);
-  const revisedMatch = content.match(/^last_revised:\s*["']?(\d{4}-\d{2}-\d{2})["']?\s*$/m);
-  const raw = statusMatch?.[1]?.toLowerCase();
+interface SkillMeta {
+  status: SkillStatus;
+  lastRevised: string | null;
+  updated: string | null;
+  command: string | null;
+  input: string | null;
+  output: string | null;
+  sources: string | null;
+  writes: string | null;
+  tools: string | null;
+}
+
+function parseSkillFrontmatter(content: string | undefined): SkillMeta {
+  if (!content) return { status: "active", lastRevised: null, updated: null, command: null, input: null, output: null, sources: null, writes: null, tools: null };
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const fm = fmMatch?.[1] || "";
+  const get = (key: string) => {
+    const m = fm.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?\\s*$`, "m"));
+    return m?.[1]?.trim() || null;
+  };
+  const raw = get("status")?.toLowerCase();
   const status: SkillStatus = raw === "inactive" ? "inactive" : raw === "deprecated" ? "deprecated" : "active";
-  return { status, lastRevised: revisedMatch?.[1] || null };
+  return {
+    status,
+    lastRevised: get("last_revised"),
+    updated: get("updated"),
+    command: get("command"),
+    input: get("input"),
+    output: get("output"),
+    sources: get("sources"),
+    writes: get("writes"),
+    tools: get("tools"),
+  };
 }
 
 function updateFrontmatterField(content: string, key: string, value: string): string {
@@ -815,6 +846,7 @@ function BotOverview({
   commandCount,
   recentSessions,
   skillList,
+  skillCategories,
   onSkillClick,
   onSessionClick,
   onCommandsClick,
@@ -827,7 +859,8 @@ function BotOverview({
   skillCount: number;
   commandCount: number;
   recentSessions: { date: string; title: string | null; summary: string | null; path: string }[];
-  skillList: { name: string; path: string; title: string; summary: string; subfolders: string[]; status: SkillStatus; lastRevised: string | null }[];
+  skillList: { name: string; path: string; title: string; summary: string; subfolders: string[]; status: SkillStatus; lastRevised: string | null; updated: string | null; category: string | null; command: string | null; input: string | null; output: string | null; sources: string | null; writes: string | null; tools: string | null }[];
+  skillCategories: { id: string; label: string }[];
   skillUsage: Record<string, { invocations: number; mentions: number }>;
   onSkillClick: (skill: { name: string; path: string; title: string }) => void;
   onSessionClick: (session: { path: string; date: string; title: string | null }) => void;
@@ -835,16 +868,20 @@ function BotOverview({
 }) {
   const colors = DEPT_COLORS[bot.group] || DEPT_COLORS.personal;
   const initials = getBotInitials(bot.name);
-  const [showFullInstructions, setShowFullInstructions] = useState(false);
+  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [skillsExpanded, setSkillsExpanded] = useState(true);
   const [sessionsExpanded, setSessionsExpanded] = useState(true);
   const [skillSort, setSkillSort] = useState<"name" | "usage">("name");
-  const [skillFilter, setSkillFilter] = useState<"all" | SkillStatus>("all");
+  const [skillFilter, setSkillFilter] = useState<"all" | SkillStatus>("active");
+  const [skillTab, setSkillTab] = useState<string>("all");
   const [skillSearch, setSkillSearch] = useState("");
 
   // Sort and filter skills
   const filteredSkills = useMemo(() => {
     let list = skillFilter === "all" ? skillList : skillList.filter((s) => s.status === skillFilter);
+    if (skillTab !== "all") {
+      list = list.filter((s) => s.category === skillTab);
+    }
     if (skillSearch) {
       const q = skillSearch.toLowerCase();
       list = list.filter((s) => s.title.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || s.summary.toLowerCase().includes(q));
@@ -859,7 +896,7 @@ function BotOverview({
       list = [...list].sort((a, b) => a.title.localeCompare(b.title));
     }
     return list;
-  }, [skillList, skillUsage, skillSort, skillFilter, skillSearch]);
+  }, [skillList, skillUsage, skillSort, skillFilter, skillTab, skillSearch]);
 
   // Truncate CLAUDE.md for preview
   const instructionsPreview = useMemo(() => {
@@ -1003,6 +1040,31 @@ function BotOverview({
                     </div>
                   )}
                 </div>
+                {skillsExpanded && skillCategories.length > 0 && (
+                  <div className="flex items-center gap-1 mb-3 border-b border-zinc-200 dark:border-zinc-800">
+                    {[{ id: "all", label: "All" }, ...skillCategories].map((cat) => {
+                      const count = cat.id === "all"
+                        ? (skillFilter === "all" ? skillList : skillList.filter((s) => s.status === skillFilter)).length
+                        : (skillFilter === "all" ? skillList : skillList.filter((s) => s.status === skillFilter)).filter((s) => s.category === cat.id).length;
+                      if (cat.id !== "all" && count === 0) return null;
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => setSkillTab(cat.id)}
+                          className={cn(
+                            "px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px",
+                            skillTab === cat.id
+                              ? "border-amber-500 text-amber-600 dark:text-amber-400"
+                              : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                          )}
+                        >
+                          {cat.label}
+                          <span className="ml-1 text-[10px] tabular-nums opacity-60">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {skillsExpanded && (
                   <div className="grid grid-cols-2 gap-2">
                     {filteredSkills.map((skill) => {
@@ -1025,6 +1087,11 @@ function BotOverview({
                             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors flex-1">
                               {skill.title}
                             </span>
+                            {skill.command && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 font-mono flex-shrink-0">
+                                {skill.command}
+                              </span>
+                            )}
                             {totalUses > 0 && (
                               <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 tabular-nums flex-shrink-0">
                                 {totalUses}x
@@ -1033,25 +1100,51 @@ function BotOverview({
                             <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", sc.dot)} title={sc.label} />
                           </div>
                           {skill.summary && (
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-2">{skill.summary}</p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-1.5">{skill.summary}</p>
+                          )}
+                          {(skill.input || skill.output) && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1">
+                              {skill.input && (
+                                <span className="inline-flex items-center gap-1 text-[9px] text-zinc-500 dark:text-zinc-400">
+                                  <ArrowDownToLine size={8} className="text-blue-400" />
+                                  {skill.input}
+                                </span>
+                              )}
+                              {skill.output && (
+                                <span className="inline-flex items-center gap-1 text-[9px] text-zinc-500 dark:text-zinc-400">
+                                  <ArrowUpFromLine size={8} className="text-green-400" />
+                                  {skill.output}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {(skill.sources || skill.writes) && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1">
+                              {skill.sources && (
+                                <span className="inline-flex items-center gap-1 text-[9px] text-zinc-400 dark:text-zinc-500">
+                                  <FolderInput size={8} className="text-amber-400/70" />
+                                  {skill.sources}
+                                </span>
+                              )}
+                              {skill.writes && (
+                                <span className="inline-flex items-center gap-1 text-[9px] text-zinc-400 dark:text-zinc-500">
+                                  <FolderOutput size={8} className="text-purple-400/70" />
+                                  {skill.writes}
+                                </span>
+                              )}
+                            </div>
                           )}
                           <div className="flex flex-wrap items-center gap-1">
-                            {skill.subfolders.map((sub) => (
-                              <span key={sub} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] rounded bg-slate-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
-                                {sub === "templates" ? <FileCode size={8} /> : sub === "playbooks" ? <BookOpen size={8} /> : <Folder size={8} />}
-                                {sub}
-                              </span>
-                            ))}
                             {usage && (usage.invocations > 0 || usage.mentions > 0) && (
-                              <span className="text-[9px] text-zinc-400 dark:text-zinc-500 ml-auto">
+                              <span className="text-[9px] text-zinc-400 dark:text-zinc-500">
                                 {usage.invocations > 0 ? `${usage.invocations} invoked` : ""}
                                 {usage.invocations > 0 && usage.mentions > 0 ? " · " : ""}
                                 {usage.mentions > 0 ? `${usage.mentions} mentioned` : ""}
                               </span>
                             )}
-                            {!usage && skill.lastRevised && (
+                            {(skill.updated || skill.lastRevised) && (
                               <span className="text-[9px] text-zinc-400 dark:text-zinc-500 ml-auto">
-                                revised {relativeDate(skill.lastRevised)}
+                                updated {relativeDate(skill.updated || skill.lastRevised!)}
                               </span>
                             )}
                           </div>
@@ -1122,22 +1215,26 @@ function BotOverview({
                   <span className="text-[10px] text-zinc-400">CLAUDE.md</span>
                 </div>
                 <div className="px-4 py-3">
-                  <pre className={cn(
-                    "text-xs text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap font-mono leading-relaxed",
-                    !showFullInstructions && "line-clamp-[12]"
-                  )}>
-                    {showFullInstructions ? claudeContent : instructionsPreview}
+                  <pre className="text-xs text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap font-mono leading-relaxed line-clamp-[12]">
+                    {instructionsPreview}
                   </pre>
                   {claudeContent.length > 300 && (
                     <button
-                      onClick={() => setShowFullInstructions(!showFullInstructions)}
+                      onClick={() => setShowInstructionsModal(true)}
                       className="text-[11px] text-teal-600 dark:text-teal-400 hover:underline mt-2"
                     >
-                      {showFullInstructions ? "Show less" : "Show more"}
+                      Show more
                     </button>
                   )}
                 </div>
               </div>
+            )}
+            {showInstructionsModal && claudeContent && (
+              <InstructionsModal
+                content={claudeContent}
+                title="CLAUDE.md"
+                onClose={() => setShowInstructionsModal(false)}
+              />
             )}
 
             {/* Commands */}
@@ -1193,6 +1290,44 @@ function BotOverview({
           </div>
         </div>
       </div>
+  );
+}
+
+/** Full-screen modal for instructions content */
+function InstructionsModal({
+  content,
+  title,
+  onClose,
+}: {
+  content: string;
+  title: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
+      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
+        <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100 dark:border-zinc-800">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Brain size={14} className="text-purple-500 flex-shrink-0" />
+              <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-6 py-5">
+            <MarkdownViewer content={content} filename={title} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1512,24 +1647,45 @@ export function BotPlayground() {
     })),
   });
 
+  // Read skill categories
+  const categoriesPath = skillsDir ? `${skillsDir}/_categories.json` : undefined;
+  const { data: categoriesRaw } = useReadFile(categoriesPath);
+  const skillCategoriesData = useMemo(() => {
+    if (!categoriesRaw) return { categories: [] as { id: string; label: string }[], skills: {} as Record<string, string> };
+    try {
+      const parsed = JSON.parse(categoriesRaw);
+      return { categories: parsed.categories || [], skills: parsed.skills || {} };
+    } catch {
+      return { categories: [] as { id: string; label: string }[], skills: {} as Record<string, string> };
+    }
+  }, [categoriesRaw]);
+
   const skillList = useMemo(() => {
     return skillFolders.map((f, i) => {
       const content = skillContentQueries[i]?.data;
       const subfolders = skillSubfolderQueries[i]?.data || [];
       const titleMatch = content?.match(/^#\s+(.+)$/m);
       const summaryMatch = content?.match(/^summary:\s*"?([^"\n]+)"?/m) || content?.match(/^>\s*(.+)$/m);
-      const { status, lastRevised } = parseSkillFrontmatter(content);
+      const meta = parseSkillFrontmatter(content);
       return {
         name: f.name,
         path: f.path,
         title: titleMatch?.[1] || f.name,
         summary: summaryMatch?.[1]?.trim() || "",
         subfolders: subfolders.filter((s) => s.is_directory && !s.name.startsWith(".")).map((s) => s.name),
-        status,
-        lastRevised,
+        status: meta.status,
+        lastRevised: meta.lastRevised,
+        updated: meta.updated,
+        category: skillCategoriesData.skills[f.name] || null,
+        command: meta.command,
+        input: meta.input,
+        output: meta.output,
+        sources: meta.sources,
+        writes: meta.writes,
+        tools: meta.tools,
       };
     });
-  }, [skillFolders, skillContentQueries, skillSubfolderQueries]);
+  }, [skillFolders, skillContentQueries, skillSubfolderQueries, skillCategoriesData]);
 
   // ── Skill Usage Tracking ──
   // Option A: Read JSONL log files from .claude/skill-usage/
@@ -1699,6 +1855,7 @@ export function BotPlayground() {
           commandCount={commandCount}
           recentSessions={botSessions.slice(0, 5)}
           skillList={skillList}
+          skillCategories={skillCategoriesData.categories}
           skillUsage={skillUsage}
           onSkillClick={(skill) => setSkillModal({ skillName: skill.name, skillPath: skill.path, title: skill.title })}
           onSessionClick={(session) => setDetailView({ type: "session", sessionPath: session.path, date: session.date, title: session.title })}

@@ -45,6 +45,8 @@ pub struct SchemaJson {
     pub description: Option<String>,
     pub status: Option<String>,
     pub resource_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub freshness_column: Option<String>,
     pub fields: Vec<SchemaField>,
 }
 
@@ -1014,6 +1016,31 @@ pub fn val_create_domain_model_schema(
         }
     }
 
+    // Auto-fill descriptions from definition_analysis.json (AI-generated) if available
+    let analysis_path = def_path.parent().unwrap().join("definition_analysis.json");
+    if analysis_path.exists() {
+        if let Ok(analysis_content) = fs::read_to_string(&analysis_path) {
+            if let Ok(analysis) = serde_json::from_str::<serde_json::Value>(&analysis_content) {
+                if let Some(col_descs) = analysis.get("columnDescriptions").and_then(|v| v.as_object()) {
+                    for sf in &mut schema_fields {
+                        // Only fill if description is empty or null
+                        let is_empty = sf.description.as_ref().map_or(true, |d| d.trim().is_empty());
+                        if is_empty {
+                            // columnDescriptions is keyed by display name
+                            if let Some(desc_val) = col_descs.get(&sf.name) {
+                                if let Some(desc_str) = desc_val.as_str() {
+                                    if !desc_str.is_empty() {
+                                        sf.description = Some(desc_str.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let field_count = schema_fields.len();
 
     // Build SchemaJson
@@ -1025,6 +1052,7 @@ pub fn val_create_domain_model_schema(
         description: None,
         status: Some("draft".to_string()),
         resource_url: None,
+        freshness_column: None,
         fields: schema_fields,
     };
 
@@ -1070,6 +1098,114 @@ pub fn val_create_domain_model_schema(
         schema_path: schema_path_str,
         field_count,
     })
+}
+
+/// Enrich empty descriptions in an existing schema.json from domain definition_analysis.json files.
+/// Scans all production domains for matching table_name and pulls AI-generated columnDescriptions.
+#[command]
+pub fn val_enrich_schema_descriptions(
+    schema_json_path: String,
+    domains_base_path: String,
+) -> Result<serde_json::Value, String> {
+    let schema_path = Path::new(&schema_json_path);
+    if !schema_path.exists() {
+        return Err(format!("schema.json not found: {}", schema_json_path));
+    }
+
+    // Read and parse schema.json
+    let content = fs::read_to_string(schema_path)
+        .map_err(|e| format!("Failed to read schema.json: {}", e))?;
+    let mut schema_val: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse schema.json: {}", e))?;
+
+    let table_name = schema_val["table_name"]
+        .as_str()
+        .ok_or_else(|| "No table_name in schema.json".to_string())?
+        .to_string();
+
+    // Scan all production domains for matching definition_analysis.json
+    let domains_dir = Path::new(&domains_base_path);
+    if !domains_dir.is_dir() {
+        return Err(format!("Domains path not found: {}", domains_base_path));
+    }
+
+    // Collect AI descriptions from all matching domains (last one wins, they should be consistent)
+    let mut ai_descs: HashMap<String, String> = HashMap::new();
+    let mut source_domain: Option<String> = None;
+
+    if let Ok(domain_entries) = fs::read_dir(domains_dir) {
+        for domain_entry in domain_entries.flatten() {
+            if !domain_entry.path().is_dir() { continue; }
+            let domain_name = domain_entry.file_name().to_string_lossy().to_string();
+            let analysis_path = domain_entry.path()
+                .join("data_models")
+                .join(format!("table_{}", table_name))
+                .join("definition_analysis.json");
+
+            if !analysis_path.exists() { continue; }
+
+            if let Ok(analysis_content) = fs::read_to_string(&analysis_path) {
+                if let Ok(analysis) = serde_json::from_str::<serde_json::Value>(&analysis_content) {
+                    if let Some(col_descs) = analysis.get("columnDescriptions").and_then(|v| v.as_object()) {
+                        for (name, desc_val) in col_descs {
+                            if let Some(desc_str) = desc_val.as_str() {
+                                if !desc_str.is_empty() {
+                                    ai_descs.insert(name.clone(), desc_str.to_string());
+                                }
+                            }
+                        }
+                        source_domain = Some(domain_name);
+                    }
+                }
+            }
+        }
+    }
+
+    if ai_descs.is_empty() {
+        return Ok(serde_json::json!({
+            "enriched": 0,
+            "message": format!("No AI descriptions found for table {}", table_name),
+        }));
+    }
+
+    // Fill empty descriptions in schema.json
+    let fields = schema_val["fields"]
+        .as_array_mut()
+        .ok_or_else(|| "No fields array in schema.json".to_string())?;
+
+    let mut enriched = 0usize;
+    for field in fields.iter_mut() {
+        let desc = field.get("description");
+        let is_empty = match desc {
+            None => true,
+            Some(serde_json::Value::Null) => true,
+            Some(serde_json::Value::String(s)) => s.trim().is_empty(),
+            _ => false,
+        };
+        if !is_empty { continue; }
+
+        let name = field.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        if let Some(ai_desc) = ai_descs.get(name) {
+            field.as_object_mut().unwrap().insert(
+                "description".to_string(),
+                serde_json::Value::String(ai_desc.clone()),
+            );
+            enriched += 1;
+        }
+    }
+
+    if enriched > 0 {
+        let json_str = serde_json::to_string_pretty(&schema_val)
+            .map_err(|e| format!("Failed to serialize: {}", e))?;
+        fs::write(schema_path, json_str)
+            .map_err(|e| format!("Failed to write schema.json: {}", e))?;
+    }
+
+    Ok(serde_json::json!({
+        "enriched": enriched,
+        "total_ai_descriptions": ai_descs.len(),
+        "source_domain": source_domain,
+    }))
 }
 
 /// Build the cross-entity field master by scanning all entity schemas.

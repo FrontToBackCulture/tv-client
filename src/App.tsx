@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Shell } from "./shell/Shell";
 import { LibraryModule } from "./modules/library/LibraryModule";
 import { WorkModule } from "./modules/work/WorkModule";
@@ -79,10 +80,40 @@ export default function App() {
         e.preventDefault();
         togglePlayground();
       }
+      // ⌘+ / ⌘= — Zoom in
+      if ((e.metaKey || e.ctrlKey) && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        const current = parseFloat(localStorage.getItem("tv-zoom") || "1");
+        const next = Math.min(current + 0.1, 2.0);
+        localStorage.setItem("tv-zoom", String(next));
+        getCurrentWebview().setZoom(next);
+      }
+      // ⌘- — Zoom out
+      if ((e.metaKey || e.ctrlKey) && e.key === "-") {
+        e.preventDefault();
+        const current = parseFloat(localStorage.getItem("tv-zoom") || "1");
+        const next = Math.max(current - 0.1, 0.5);
+        localStorage.setItem("tv-zoom", String(next));
+        getCurrentWebview().setZoom(next);
+      }
+      // ⌘0 — Reset zoom
+      if ((e.metaKey || e.ctrlKey) && e.key === "0") {
+        e.preventDefault();
+        localStorage.setItem("tv-zoom", "1");
+        getCurrentWebview().setZoom(1);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [setActiveModule]);
+
+  // Restore saved zoom level on mount
+  useEffect(() => {
+    const saved = parseFloat(localStorage.getItem("tv-zoom") || "1");
+    if (saved !== 1) {
+      getCurrentWebview().setZoom(saved);
+    }
+  }, []);
 
   // Show loading spinner while initializing auth
   if (!isInitialized || isLoading) {

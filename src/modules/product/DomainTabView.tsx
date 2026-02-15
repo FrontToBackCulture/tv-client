@@ -37,6 +37,7 @@ import { DomainDetailPanel } from "./DomainDetailPanel";
 // ============================
 
 interface DomainTabViewProps {
+  initialDomain?: string | null;
   onReviewDataModels: (domain: string) => void;
   onReviewQueries: (domain: string) => void;
   onReviewWorkflows: (domain: string) => void;
@@ -157,8 +158,8 @@ function DropdownMenu({
 // Main component
 // ============================
 
-export function DomainTabView({ onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards }: DomainTabViewProps) {
-  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards }: DomainTabViewProps) {
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(initialDomain ?? null);
   const [search, setSearch] = useState("");
 
   const { activeRepository } = useRepository();
