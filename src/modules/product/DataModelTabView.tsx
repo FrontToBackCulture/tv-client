@@ -21,6 +21,7 @@ import {
   Minus,
   Plus,
   Layers,
+  Bot,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
@@ -795,6 +796,9 @@ function EntitySidebarItem({
             </span>
             {model.has_schema_json && (
               <FileJson size={12} className="text-blue-400 flex-shrink-0" />
+            )}
+            {model.ai_package && (
+              <Bot size={12} className="text-violet-500 flex-shrink-0" />
             )}
             {model.has_domains && (
               <span className="ml-auto text-xs text-zinc-400">

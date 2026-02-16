@@ -1743,6 +1743,7 @@ pub async fn val_fetch_categorical_values(
     domain: String,
     table_name: String,
     overwrite: bool,
+    schema_path: Option<String>,
 ) -> Result<TablePipelineResult, String> {
     let start = std::time::Instant::now();
     let domain_config = get_domain_config(&domain)?;
@@ -1808,14 +1809,34 @@ pub async fn val_fetch_categorical_values(
         .collect();
 
     // Check if a standard schema exists with curated is_categorical flags
-    let standard_schema = find_standard_schema(global_path, &table_name);
+    // Priority: explicit schema_path > auto-discovery via find_standard_schema
+    let standard_schema = if let Some(ref sp) = schema_path {
+        let p = Path::new(sp);
+        if p.exists() {
+            eprintln!("[tv-client] val_fetch_categorical_values: using explicit schema_path={}", sp);
+            fs::read_to_string(p)
+                .ok()
+                .and_then(|content| serde_json::from_str::<SchemaJson>(&content).ok())
+        } else {
+            eprintln!("[tv-client] val_fetch_categorical_values: explicit schema_path not found: {}", sp);
+            None
+        }
+    } else {
+        eprintln!("[tv-client] val_fetch_categorical_values: no schema_path provided, trying auto-discovery for {}", table_name);
+        find_standard_schema(global_path, &table_name)
+    };
     let schema_categoricals: Option<HashSet<String>> = standard_schema.as_ref().map(|schema| {
-        schema.fields.iter()
+        let cols: HashSet<String> = schema.fields.iter()
             .filter(|f| f.is_categorical)
             .map(|f| f.column.clone())
-            .collect()
+            .collect();
+        eprintln!("[tv-client] val_fetch_categorical_values: schema found with {} categorical columns: {:?}", cols.len(), cols);
+        cols
     });
     let using_schema = schema_categoricals.is_some();
+    if !using_schema {
+        eprintln!("[tv-client] val_fetch_categorical_values: no schema found, falling back to threshold detection");
+    }
 
     let mut categorical_columns: HashMap<String, Value> = HashMap::new();
     let mut categorical_count = 0;
@@ -2970,33 +2991,41 @@ fn find_standard_schema(global_path: &str, table_name: &str) -> Option<SchemaJso
     let entities_dir = platform_dir.join("architecture").join("domain-model").join("entities");
 
     if !entities_dir.is_dir() {
+        eprintln!("[tv-client] find_standard_schema: entities dir not found at {:?} (from global_path={})", entities_dir, global_path);
         return None;
     }
 
-    // Scan all entities/*/model/schema.json files
-    let entries = fs::read_dir(&entities_dir).ok()?;
+    // Scan all entities/{entity}/{model}/schema.json files
+    let entries = match fs::read_dir(&entities_dir) {
+        Ok(e) => e,
+        Err(_) => return None,
+    };
     for entity_entry in entries.flatten() {
-        if !entity_entry.file_type().ok()?.is_dir() {
-            continue;
-        }
-        let model_entries = fs::read_dir(entity_entry.path()).ok()?;
+        let is_dir = entity_entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+        if !is_dir { continue; }
+
+        let model_entries = match fs::read_dir(entity_entry.path()) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
         for model_entry in model_entries.flatten() {
-            if !model_entry.file_type().ok()?.is_dir() {
-                continue;
-            }
+            let is_model_dir = model_entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+            if !is_model_dir { continue; }
+
             let schema_path = model_entry.path().join("schema.json");
-            if !schema_path.exists() {
-                continue;
-            }
+            if !schema_path.exists() { continue; }
+
             if let Ok(content) = fs::read_to_string(&schema_path) {
                 if let Ok(schema) = serde_json::from_str::<SchemaJson>(&content) {
                     if schema.table_name == table_name {
+                        eprintln!("[tv-client] find_standard_schema: found schema for {} at {:?}", table_name, schema_path);
                         return Some(schema);
                     }
                 }
             }
         }
     }
+    eprintln!("[tv-client] find_standard_schema: no schema found for {} in {:?}", table_name, entities_dir);
     None
 }
 

@@ -2,7 +2,7 @@
 // Product module — 4-tab layout: Platform, Business, Domains, Categories
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Boxes, Package, Database, Tags, Layers, ArrowLeft } from "lucide-react";
+import { Boxes, Package, Database, Tags, Layers, ArrowLeft, Sparkles } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useProductStats } from "../../hooks/useProduct";
 import { useDiscoverDomains } from "../../hooks/useValSync";
@@ -16,8 +16,8 @@ import { DataModelTabView } from "./DataModelTabView";
 import { EntityForm } from "./EntityForm";
 import { DataModelsReviewView } from "../library/DataModelsReviewView";
 import { ArtifactReviewView, type ArtifactType } from "../library/ArtifactReviewView";
-
-type ProductTab = "platform" | "solutions" | "domains" | "data-models" | "category-library";
+import { AiSkillsTabView } from "./AiSkillsTabView";
+type ProductTab = "platform" | "solutions" | "domains" | "data-models" | "category-library" | "skills";
 type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
 
 // ============================
@@ -222,6 +222,7 @@ export function ProductModule() {
         <ViewTab label="Solutions" icon={Package} active={activeTab === "solutions"} onClick={() => handleTabChange("solutions")} />
         <ViewTab label="Domains" icon={Database} active={activeTab === "domains"} onClick={() => handleTabChange("domains")} />
         <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-models"} onClick={() => handleTabChange("data-models")} />
+        <ViewTab label="Skills" icon={Sparkles} active={activeTab === "skills"} onClick={() => handleTabChange("skills")} />
         <ViewTab label="Categories" icon={Tags} active={activeTab === "category-library"} onClick={() => handleTabChange("category-library")} />
       </div>
 
@@ -267,6 +268,11 @@ export function ProductModule() {
             <CategoryLibraryPanel />
           </div>
         )}
+
+        {activeTab === "skills" && (
+          <AiSkillsTabView />
+        )}
+
       </div>
 
       {/* Entity form modal */}

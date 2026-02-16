@@ -604,6 +604,7 @@ export function DataModelsReviewView({
             domain: domainName,
             tableName,
             overwrite: true,
+            schemaPath: null,
           });
           successCount++;
         } catch (e) {

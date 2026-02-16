@@ -99,7 +99,7 @@ pub async fn val_execute_sql(
 ) -> Result<SqlExecuteResult, String> {
     let domain_config = get_domain_config(&domain)?;
     let api_domain = domain_config.api_domain();
-    let max_rows = limit.unwrap_or(100);
+    let max_rows = limit.unwrap_or(500);
 
     // Check if sql is a file path
     let actual_sql = if sql.ends_with(".sql") {

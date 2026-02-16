@@ -326,6 +326,12 @@ fn main() {
             commands::val_sync::domain_model::val_enrich_schema_descriptions,
             commands::val_sync::domain_model::val_build_field_master,
             commands::val_sync::domain_model::val_save_field_master,
+            // VAL Sync - AI Package (generate domain AI skill packages)
+            commands::val_sync::ai_package::val_generate_ai_package,
+            commands::val_sync::ai_package::val_list_domain_ai_status,
+            commands::val_sync::ai_package::val_save_domain_ai_config,
+            commands::val_sync::ai_package::val_toggle_ai_table,
+            commands::val_sync::ai_package::val_extract_ai_templates,
             // VAL Sync - SQL execution
             commands::val_sync::sql::val_execute_sql,
             // VAL Sync - SQL generation (AI)

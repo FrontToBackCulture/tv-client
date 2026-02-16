@@ -1736,15 +1736,18 @@ export function useFetchCategoricalValues() {
       domain,
       tableName,
       overwrite = false,
+      schemaPath,
     }: {
       domain: string;
       tableName: string;
       overwrite?: boolean;
+      schemaPath?: string;
     }) =>
       invoke<TablePipelineResult>("val_fetch_categorical_values", {
         domain,
         tableName,
         overwrite,
+        schemaPath: schemaPath ?? null,
       }),
     onSuccess: (_data, { domain }) => {
       qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
@@ -1941,6 +1944,8 @@ export interface ModelInfo {
   domain_count: number | null;
   active_domain_count: number | null;
   total_records: number | null;
+  ai_package: boolean;
+  ai_skills: string[];
 }
 
 export interface EntityInfo {
@@ -2152,6 +2157,135 @@ export function useCreateDomainModelSchema() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["domain-model-entities"] });
+    },
+  });
+}
+
+// ============================================================================
+// AI Package (domain AI skill packages)
+// ============================================================================
+
+export interface AiTableInfo {
+  file_name: string;
+  table_id: string;
+  display_name: string;
+  ai_skills: string[];
+}
+
+export interface DomainAiStatus {
+  domain: string;
+  domain_type: string;
+  global_path: string;
+  has_ai_folder: boolean;
+  table_count: number;
+  skill_count: number;
+  has_instructions: boolean;
+  table_files: AiTableInfo[];
+  skill_files: string[];
+  configured_skills: string[];
+  disabled_tables: string[];
+}
+
+export interface AiPackageResult {
+  domain: string;
+  tables_copied: string[];
+  skills_copied: string[];
+  instructions_generated: boolean;
+  errors: string[];
+}
+
+export interface ExtractTemplatesResult {
+  skills_extracted: string[];
+  instructions_extracted: boolean;
+}
+
+/** List AI package status for all configured domains */
+export function useListDomainAiStatus(entitiesPath?: string | null) {
+  return useQuery({
+    queryKey: ["domain-ai-status", entitiesPath],
+    queryFn: () =>
+      invoke<DomainAiStatus[]>("val_list_domain_ai_status", {
+        entitiesPath: entitiesPath ?? undefined,
+      }),
+    staleTime: 30_000,
+  });
+}
+
+/** Generate an AI package for a domain with explicit skill selection */
+export function useGenerateAiPackage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: {
+      domain: string;
+      entitiesPath: string;
+      templatesPath: string;
+      skills: string[];
+    }) =>
+      invoke<AiPackageResult>("val_generate_ai_package", {
+        domain: params.domain,
+        entitiesPath: params.entitiesPath,
+        templatesPath: params.templatesPath,
+        skills: params.skills,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["domain-ai-status"] });
+    },
+  });
+}
+
+/** Save per-domain AI skill configuration */
+export function useSaveDomainAiConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { domain: string; skills: string[] }) =>
+      invoke<void>("val_save_domain_ai_config", {
+        domain: params.domain,
+        skills: params.skills,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["domain-ai-status"] });
+    },
+  });
+}
+
+/** Toggle a single table enabled/disabled for a domain */
+export function useToggleAiTable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: {
+      domain: string;
+      entitiesPath: string;
+      templatesPath: string;
+      fileName: string;
+      enabled: boolean;
+    }) =>
+      invoke<AiPackageResult>("val_toggle_ai_table", {
+        domain: params.domain,
+        entitiesPath: params.entitiesPath,
+        templatesPath: params.templatesPath,
+        fileName: params.fileName,
+        enabled: params.enabled,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["domain-ai-status"] });
+    },
+  });
+}
+
+/** Extract templates from an existing domain's AI package */
+export function useExtractAiTemplates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: {
+      domain: string;
+      templatesOutputPath: string;
+    }) =>
+      invoke<ExtractTemplatesResult>("val_extract_ai_templates", {
+        domain: params.domain,
+        templatesOutputPath: params.templatesOutputPath,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["domain-ai-status"] });
     },
   });
 }

@@ -1,17 +1,29 @@
 // src/modules/product/DomainAiTab.tsx
-// AI tab for domain detail panel — shows instructions.md + table docs from ai/ folder
+// AI tab for domain detail panel — shows instructions.md + table docs + skill management
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   FileText,
   Brain,
   Database,
   X,
   Loader2,
+  Sparkles,
+  Check,
+  Package,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useListDirectory, useReadFile, type FileEntry } from "../../hooks/useFiles";
 import { MarkdownViewer } from "../library/MarkdownViewer";
+import { useRepository } from "../../stores/repositoryStore";
+import {
+  useGenerateAiPackage,
+  useSaveDomainAiConfig,
+  useToggleAiTable,
+} from "../../hooks/useValSync";
+import { useAiSkillSlugs } from "../../hooks/useAiSkills";
 
 interface DomainAiTabProps {
   aiPath: string; // e.g. /path/to/domain/ai
@@ -19,17 +31,97 @@ interface DomainAiTabProps {
 }
 
 export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
-  const [selectedDoc, setSelectedDoc] = useState<{ path: string; name: string } | null>(null);
+  const AVAILABLE_AI_SKILLS = useAiSkillSlugs();
+  const { activeRepository } = useRepository();
+  const [selectedDoc, setSelectedDoc] = useState<{ path: string; name: string; type: "table" | "skill" | "instructions" } | null>(null);
+
+  const entitiesPath = activeRepository
+    ? `${activeRepository.path}/0_Platform/architecture/domain-model/entities`
+    : null;
+  const templatesPath = activeRepository
+    ? `${activeRepository.path}/_team/melvin/bot-mel/skills/ai-project-generator/templates`
+    : null;
+
+  const tablesPath = `${aiPath}/tables`;
+  const skillsPath = `${aiPath}/skills`;
+  const instructionsPath = `${aiPath}/instructions.md`;
+  const configPath = `${aiPath}/ai_config.json`;
 
   const aiDir = useListDirectory(aiPath);
-  const tablesPath = `${aiPath}/tables`;
-  const instructionsPath = `${aiPath}/instructions.md`;
-
   const tablesDir = useListDirectory(tablesPath);
+  const skillsDir = useListDirectory(skillsPath);
   const instructionsFile = useReadFile(instructionsPath);
+  const configFile = useReadFile(configPath);
 
-  // If the ai/ folder doesn't exist or is empty, show empty state
+  const generateMutation = useGenerateAiPackage();
+  const saveConfigMutation = useSaveDomainAiConfig();
+  const toggleTableMutation = useToggleAiTable();
+
+  // Parse configured skills and disabled tables from ai_config.json
+  const { configuredSkills, disabledTables } = useMemo(() => {
+    if (!configFile.data) return { configuredSkills: [] as string[], disabledTables: [] as string[] };
+    try {
+      const parsed = JSON.parse(configFile.data);
+      return {
+        configuredSkills: (parsed.skills ?? []) as string[],
+        disabledTables: (parsed.disabled_tables ?? []) as string[],
+      };
+    } catch {
+      return { configuredSkills: [] as string[], disabledTables: [] as string[] };
+    }
+  }, [configFile.data]);
+
+  const [localSkills, setLocalSkills] = useState<string[] | null>(null);
+  const selectedSkills = localSkills ?? configuredSkills;
+
+  // Sync local state when config loads/changes
+  const configKey = configuredSkills.join(",");
+  const [lastConfigKey, setLastConfigKey] = useState("");
+  if (configKey !== lastConfigKey) {
+    setLastConfigKey(configKey);
+    setLocalSkills(null);
+  }
+
+  const handleSkillToggle = useCallback(
+    (skill: string) => {
+      const current = localSkills ?? configuredSkills;
+      const next = current.includes(skill)
+        ? current.filter((s) => s !== skill)
+        : [...current, skill];
+      setLocalSkills(next);
+      saveConfigMutation.mutate({ domain: domainName, skills: next });
+    },
+    [localSkills, configuredSkills, domainName, saveConfigMutation]
+  );
+
+  const handleGenerate = useCallback(() => {
+    if (!entitiesPath || !templatesPath) return;
+    generateMutation.mutate(
+      { domain: domainName, entitiesPath, templatesPath, skills: selectedSkills },
+      { onSuccess: () => { configFile.refetch(); tablesDir.refetch(); skillsDir.refetch(); instructionsFile.refetch(); aiDir.refetch(); } }
+    );
+  }, [domainName, entitiesPath, templatesPath, selectedSkills, generateMutation, configFile, tablesDir, skillsDir, instructionsFile, aiDir]);
+
+  const handleTableToggle = useCallback(
+    (fileName: string, enabled: boolean) => {
+      if (!entitiesPath || !templatesPath) return;
+      toggleTableMutation.mutate(
+        { domain: domainName, entitiesPath, templatesPath, fileName, enabled },
+        { onSuccess: () => { configFile.refetch(); tablesDir.refetch(); instructionsFile.refetch(); } }
+      );
+    },
+    [domainName, entitiesPath, templatesPath, toggleTableMutation, configFile, tablesDir, instructionsFile]
+  );
+
   const aiNotFound = aiDir.isError || (aiDir.isSuccess && aiDir.data.length === 0);
+
+  const tableFiles = (tablesDir.data ?? []).filter(
+    (f) => !f.is_directory && f.name.endsWith(".md")
+  );
+  const skillFiles = (skillsDir.data ?? []).filter(
+    (f) => !f.is_directory && f.name.endsWith(".md")
+  );
+  const hasInstructions = !!instructionsFile.data;
 
   if (aiDir.isLoading) {
     return (
@@ -38,29 +130,6 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
       </div>
     );
   }
-
-  if (aiNotFound) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="border-2 border-dashed border-slate-300 dark:border-zinc-700 rounded-lg p-8 max-w-md text-center">
-          <Brain size={32} className="mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
-          <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-            No AI context found
-          </h3>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500">
-            This domain doesn't have an <code className="px-1 py-0.5 bg-slate-100 dark:bg-zinc-800 rounded text-[11px]">ai/</code> folder yet.
-            AI context includes instructions and table metadata docs used by MCP tools.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const tableFiles = (tablesDir.data ?? []).filter(
-    (f) => !f.is_directory && f.name.endsWith(".md")
-  );
-
-  const hasInstructions = !!instructionsFile.data;
 
   return (
     <div className="space-y-6">
@@ -82,15 +151,22 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
                 </span>
               </div>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Instructions and table metadata documentation used by MCP tools for this domain.
+                Instructions, table metadata, and skill documentation for this domain.
               </p>
             </div>
           </div>
           <div className="flex gap-3 mt-4">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800">
               <Database size={13} className="text-blue-500" />
-              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">{tableFiles.length}</span>
-              <span className="text-xs text-zinc-400">Table Docs</span>
+              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
+                {disabledTables.length > 0 ? `${tableFiles.length}/${tableFiles.length + disabledTables.length}` : tableFiles.length}
+              </span>
+              <span className="text-xs text-zinc-400">Tables</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800">
+              <Sparkles size={13} className={skillFiles.length > 0 ? "text-violet-500" : "text-zinc-300"} />
+              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">{skillFiles.length}</span>
+              <span className="text-xs text-zinc-400">Skills</span>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800">
               <FileText size={13} className={hasInstructions ? "text-green-500" : "text-zinc-300"} />
@@ -101,68 +177,206 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
         </div>
       </div>
 
-      {/* Two-column body */}
-      <div className="flex gap-6">
-        {/* Left column — Table metadata grid */}
-        <div className="flex-1 min-w-0 space-y-3">
-          <div className="flex items-center gap-2">
-            <Database size={14} className="text-blue-500" />
-            <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-              Table Metadata Reference
-            </label>
-            {tableFiles.length > 0 && (
-              <span className="text-[10px] font-normal text-zinc-400 tabular-nums">
-                {tableFiles.length}
-              </span>
+      {/* Skill Assignment + Generate */}
+      <div className="rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Sparkles size={14} className="text-violet-500" />
+          <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+            Assigned Skills
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {AVAILABLE_AI_SKILLS.map((skill) => {
+            const active = selectedSkills.includes(skill);
+            return (
+              <button
+                key={skill}
+                onClick={() => handleSkillToggle(skill)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
+                  active
+                    ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700"
+                    : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700"
+                )}
+              >
+                {active ? <Check size={12} /> : <Sparkles size={12} />}
+                {skill}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            onClick={handleGenerate}
+            disabled={generateMutation.isPending || !entitiesPath || selectedSkills.length === 0}
+            className={cn(
+              "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+              !generateMutation.isPending && entitiesPath && selectedSkills.length > 0
+                ? "bg-violet-600 text-white hover:bg-violet-700"
+                : "bg-zinc-200 dark:bg-zinc-700 text-zinc-400 cursor-not-allowed"
             )}
-          </div>
-
-          {tablesDir.isLoading && (
-            <div className="text-xs text-zinc-400 py-4">Loading table docs...</div>
+          >
+            {generateMutation.isPending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Package size={14} />
+            )}
+            {generateMutation.isPending ? "Generating..." : "Generate Package"}
+          </button>
+          {generateMutation.isSuccess && (
+            <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+              <Check size={12} />
+              {generateMutation.data.tables_copied.length} tables, {generateMutation.data.skills_copied.length} skills
+              {generateMutation.data.instructions_generated && ", instructions updated"}
+            </span>
           )}
-
-          {tablesDir.isSuccess && tableFiles.length === 0 && (
-            <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-lg">
-              <Database size={20} className="mx-auto mb-2 text-zinc-300 dark:text-zinc-700" />
-              <p className="text-xs text-zinc-400">No table docs in ai/tables/</p>
-            </div>
+          {generateMutation.isError && (
+            <span className="text-xs text-red-600 dark:text-red-400">
+              Failed: {String(generateMutation.error)}
+            </span>
           )}
-
-          {tableFiles.length > 0 && (
-            <div className="grid grid-cols-2 gap-2">
-              {tableFiles.map((file) => (
-                <TableDocGridCard
-                  key={file.path}
-                  file={file}
-                  onClick={() => setSelectedDoc({ path: file.path, name: file.name })}
-                />
+        </div>
+        {selectedSkills.length === 0 && (
+          <p className="text-[11px] text-zinc-400">
+            Select at least one skill before generating.
+          </p>
+        )}
+        {generateMutation.isSuccess && generateMutation.data.errors.length > 0 && (
+          <div className="p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+            <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-1">
+              Warnings ({generateMutation.data.errors.length})
+            </p>
+            <ul className="text-[11px] text-amber-600 dark:text-amber-400 space-y-0.5">
+              {generateMutation.data.errors.map((err, i) => (
+                <li key={i}>{err}</li>
               ))}
-            </div>
-          )}
-        </div>
-
-        {/* Right column — Instructions */}
-        <div className="w-[320px] flex-shrink-0 space-y-3">
-          <div className="flex items-center gap-2">
-            <Brain size={14} className="text-purple-500" />
-            <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-              Instructions
-            </label>
+            </ul>
           </div>
-
-          <InstructionsCard
-            content={instructionsFile.data}
-            isLoading={instructionsFile.isLoading}
-            isError={instructionsFile.isError}
-          />
-        </div>
+        )}
       </div>
 
-      {/* Table doc modal */}
+      {aiNotFound && (
+        <div className="flex items-center justify-center py-8">
+          <div className="border-2 border-dashed border-slate-300 dark:border-zinc-700 rounded-lg p-8 max-w-md text-center">
+            <Brain size={32} className="mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
+            <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+              No AI context found
+            </h3>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              Tag entities with "AI Package" in the Data Model tab, assign skills above, then click "Generate Package".
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!aiNotFound && (
+        <div className="flex items-start gap-6">
+          {/* Left column: Skills + Table Metadata stacked */}
+          <div className="flex-1 min-w-0 space-y-6">
+            {/* Skills */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-violet-500" />
+                <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                  Skills
+                </label>
+                {skillFiles.length > 0 && (
+                  <span className="text-[10px] font-normal text-zinc-400 tabular-nums">
+                    {skillFiles.length}
+                  </span>
+                )}
+              </div>
+
+              {skillFiles.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {skillFiles.map((file) => (
+                    <SkillDocGridCard
+                      key={file.path}
+                      file={file}
+                      onClick={() => setSelectedDoc({ path: file.path, name: file.name, type: "skill" })}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="py-4 text-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-lg">
+                  <Sparkles size={16} className="mx-auto mb-1.5 text-zinc-300 dark:text-zinc-700" />
+                  <p className="text-xs text-zinc-400">No skill docs yet</p>
+                </div>
+              )}
+            </div>
+
+            {/* Table docs */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Database size={14} className="text-blue-500" />
+                <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                  Table Metadata Reference
+                </label>
+                {tableFiles.length > 0 && (
+                  <span className="text-[10px] font-normal text-zinc-400 tabular-nums">
+                    {tableFiles.length}
+                  </span>
+                )}
+              </div>
+
+              {tablesDir.isLoading && (
+                <div className="text-xs text-zinc-400 py-4">Loading table docs...</div>
+              )}
+
+              {tablesDir.isSuccess && tableFiles.length === 0 && disabledTables.length === 0 && (
+                <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-lg">
+                  <Database size={20} className="mx-auto mb-2 text-zinc-300 dark:text-zinc-700" />
+                  <p className="text-xs text-zinc-400">No table docs in ai/tables/</p>
+                </div>
+              )}
+
+              {(tableFiles.length > 0 || disabledTables.length > 0) && (
+                <div className="grid grid-cols-2 gap-2">
+                  {tableFiles.map((file) => (
+                    <TableDocGridCard
+                      key={file.path}
+                      file={file}
+                      onToggle={() => handleTableToggle(file.name, false)}
+                      onClick={() => setSelectedDoc({ path: file.path, name: file.name, type: "table" })}
+                    />
+                  ))}
+                  {disabledTables.map((fileName) => (
+                    <DisabledTableCard
+                      key={fileName}
+                      fileName={fileName}
+                      onToggle={() => handleTableToggle(fileName, true)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right column: Instructions */}
+          <div className="w-[320px] flex-shrink-0 space-y-3">
+            <div className="flex items-center gap-2">
+              <Brain size={14} className="text-purple-500" />
+              <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                Instructions
+              </label>
+            </div>
+
+            <InstructionsCard
+              content={instructionsFile.data}
+              isLoading={instructionsFile.isLoading}
+              isError={instructionsFile.isError}
+              onShowMore={() => setSelectedDoc({ path: instructionsPath, name: "instructions.md", type: "instructions" })}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Document modal — shared for tables, skills, instructions */}
       {selectedDoc && (
-        <TableDocModal
+        <DocModal
           filePath={selectedDoc.path}
           fileName={selectedDoc.name}
+          type={selectedDoc.type}
           onClose={() => setSelectedDoc(null)}
         />
       )}
@@ -170,19 +384,15 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
   );
 }
 
-/** Grid card for a table doc — skill-style layout */
-function TableDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => void }) {
+/** Grid card for a table doc */
+function TableDocGridCard({ file, onToggle, onClick }: { file: FileEntry; onToggle: () => void; onClick: () => void }) {
   const displayName = file.name.replace(/\.md$/, "");
 
-  // Extract a human-readable label from the filename
-  // e.g. "dw-udt-receipts" → "Receipts", "dw-udt-receipt-items" → "Receipt Items"
   const shortLabel = useMemo(() => {
-    // Remove common prefixes like dw-udt-, dw-, etc.
     const cleaned = displayName
       .replace(/^dw-udt-/, "")
       .replace(/^dw-/, "")
       .replace(/^udt-/, "");
-    // Convert kebab-case to Title Case
     return cleaned
       .split("-")
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -194,22 +404,107 @@ function TableDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => v
     : `${(file.size / 1024).toFixed(1)} KB`;
 
   return (
+    <div
+      className={cn(
+        "text-left px-4 py-3 rounded-lg border bg-white dark:bg-zinc-900 hover:shadow-sm transition-all group relative",
+        "border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700"
+      )}
+    >
+      <button
+        onClick={onToggle}
+        className="absolute top-2 right-2 p-1 rounded-md text-zinc-300 hover:text-blue-500 dark:text-zinc-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors z-10"
+        title="Disable table"
+      >
+        <Eye size={13} />
+      </button>
+      <button onClick={onClick} className="text-left w-full cursor-pointer">
+        <div className="flex items-center gap-2 mb-1 pr-6">
+          <Database size={13} className="text-blue-500 flex-shrink-0" />
+          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex-1">
+            {shortLabel}
+          </span>
+        </div>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate mb-1">
+          {displayName}
+        </p>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-zinc-400">{sizeLabel}</span>
+          {file.modified && (
+            <span className="text-[9px] text-zinc-400">{formatRelative(file.modified)}</span>
+          )}
+        </div>
+      </button>
+    </div>
+  );
+}
+
+/** Grid card for a disabled table */
+function DisabledTableCard({ fileName, onToggle }: { fileName: string; onToggle: () => void }) {
+  const displayName = fileName.replace(/\.md$/, "");
+
+  const shortLabel = useMemo(() => {
+    const cleaned = displayName
+      .replace(/^dw-udt-/, "")
+      .replace(/^dw-/, "")
+      .replace(/^udt-/, "");
+    return cleaned
+      .split("-")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }, [displayName]);
+
+  return (
+    <div
+      className={cn(
+        "text-left px-4 py-3 rounded-lg border transition-all relative opacity-50",
+        "bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
+      )}
+    >
+      <button
+        onClick={onToggle}
+        className="absolute top-2 right-2 p-1 rounded-md text-zinc-300 hover:text-blue-500 dark:text-zinc-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors z-10"
+        title="Enable table"
+      >
+        <EyeOff size={13} />
+      </button>
+      <div className="flex items-center gap-2 mb-1 pr-6">
+        <Database size={13} className="text-zinc-300 dark:text-zinc-600 flex-shrink-0" />
+        <span className="text-sm font-medium text-zinc-400 dark:text-zinc-500 truncate flex-1">
+          {shortLabel}
+        </span>
+      </div>
+      <p className="text-xs text-zinc-400 dark:text-zinc-600 font-mono truncate mb-1">
+        {displayName}
+      </p>
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] text-zinc-400">disabled</span>
+      </div>
+    </div>
+  );
+}
+
+/** Grid card for a skill doc — matches table card layout */
+function SkillDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => void }) {
+  const displayName = file.name.replace(/\.md$/, "");
+
+  const sizeLabel = file.size < 1024
+    ? `${file.size} B`
+    : `${(file.size / 1024).toFixed(1)} KB`;
+
+  return (
     <button
       onClick={onClick}
       className={cn(
         "text-left px-4 py-3 rounded-lg border bg-white dark:bg-zinc-900 hover:shadow-sm transition-all cursor-pointer group",
-        "border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700"
+        "border-slate-200 dark:border-zinc-800 hover:border-violet-300 dark:hover:border-violet-700"
       )}
     >
       <div className="flex items-center gap-2 mb-1">
-        <Database size={13} className="text-blue-500 flex-shrink-0" />
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex-1">
-          {shortLabel}
+        <Sparkles size={13} className="text-violet-500 flex-shrink-0" />
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors flex-1">
+          {displayName}
         </span>
       </div>
-      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate mb-1">
-        {displayName}
-      </p>
       <div className="flex items-center gap-2">
         <span className="text-[9px] text-zinc-400">{sizeLabel}</span>
         {file.modified && (
@@ -220,32 +515,38 @@ function TableDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => v
   );
 }
 
-/** Modal for viewing a table doc — matches SkillModal pattern */
-function TableDocModal({
+/** Unified modal for viewing table docs, skill docs, or instructions */
+function DocModal({
   filePath,
   fileName,
+  type,
   onClose,
 }: {
   filePath: string;
   fileName: string;
+  type: "table" | "skill" | "instructions";
   onClose: () => void;
 }) {
   const { data: content, isLoading } = useReadFile(filePath);
   const displayName = fileName.replace(/\.md$/, "");
 
+  const icon = type === "table" ? (
+    <Database size={14} className="text-blue-500 flex-shrink-0" />
+  ) : type === "skill" ? (
+    <Sparkles size={14} className="text-violet-500 flex-shrink-0" />
+  ) : (
+    <Brain size={14} className="text-purple-500 flex-shrink-0" />
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-
-      {/* Modal */}
       <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100 dark:border-zinc-800">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <Database size={14} className="text-blue-500 flex-shrink-0" />
+                {icon}
                 <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayName}</span>
                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500">&middot;</span>
                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{fileName}</span>
@@ -259,8 +560,6 @@ function TableDocModal({
             </button>
           </div>
         </div>
-
-        {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
             <div className="flex items-center justify-center py-16">
@@ -269,7 +568,7 @@ function TableDocModal({
           )}
           {content && (
             <div className="px-6 py-5">
-              <MarkdownViewer content={content} filename={displayName} />
+              <MarkdownViewer content={content} filename={fileName} />
             </div>
           )}
         </div>
@@ -278,18 +577,18 @@ function TableDocModal({
   );
 }
 
-/** Instructions card with truncated preview + modal on "Show more" */
+/** Instructions card with truncated preview */
 function InstructionsCard({
   content,
   isLoading,
   isError,
+  onShowMore,
 }: {
   content: string | undefined;
   isLoading: boolean;
   isError: boolean;
+  onShowMore: () => void;
 }) {
-  const [showModal, setShowModal] = useState(false);
-
   if (isLoading) {
     return (
       <div className="p-3 rounded border border-slate-200 dark:border-zinc-800 text-xs text-zinc-400">
@@ -301,71 +600,24 @@ function InstructionsCard({
   if (isError || !content) {
     return (
       <div className="p-3 rounded border border-dashed border-slate-300 dark:border-zinc-700 text-xs text-zinc-400">
-        No instructions.md found
+        No instructions.md found — will be generated with the package.
       </div>
     );
   }
 
   return (
-    <>
-      <div className="rounded border border-slate-200 dark:border-zinc-800 overflow-hidden">
-        <div className="p-3">
-          <pre className="text-xs text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed line-clamp-[12]">
-            {content}
-          </pre>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="w-full px-3 py-1.5 text-[11px] text-teal-600 dark:text-teal-400 hover:bg-slate-50 dark:hover:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 transition-colors"
-        >
-          Show more
-        </button>
+    <div className="rounded border border-slate-200 dark:border-zinc-800 overflow-hidden">
+      <div className="p-3">
+        <pre className="text-xs text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed line-clamp-[12]">
+          {content}
+        </pre>
       </div>
-      {showModal && (
-        <InstructionsModal
-          content={content}
-          title="instructions.md"
-          onClose={() => setShowModal(false)}
-        />
-      )}
-    </>
-  );
-}
-
-/** Full-screen modal for instructions content */
-function InstructionsModal({
-  content,
-  title,
-  onClose,
-}: {
-  content: string;
-  title: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
-      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
-        <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100 dark:border-zinc-800">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Brain size={14} className="text-purple-500 flex-shrink-0" />
-              <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-6 py-5">
-            <MarkdownViewer content={content} filename={title} />
-          </div>
-        </div>
-      </div>
+      <button
+        onClick={onShowMore}
+        className="w-full px-3 py-1.5 text-[11px] text-teal-600 dark:text-teal-400 hover:bg-slate-50 dark:hover:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 transition-colors"
+      >
+        Show more
+      </button>
     </div>
   );
 }

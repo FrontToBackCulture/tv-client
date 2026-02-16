@@ -23,7 +23,8 @@ import type {
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../../stores/appStore";
 import { useEnrichSchemaDescriptions } from "../../hooks/useValSync";
-import { Loader2, Check, Sparkles } from "lucide-react";
+import { Loader2, Check, Sparkles, Bot } from "lucide-react";
+import { useAiSkillSlugs } from "../../hooks/useAiSkills";
 
 // ============================================================================
 // Types
@@ -50,6 +51,8 @@ export interface SchemaFile {
   status: string | null;
   resource_url: string | null;
   freshness_column?: string | null;
+  ai_package?: boolean;
+  ai_skills?: string[];
   fields: SchemaField[];
 }
 
@@ -228,16 +231,21 @@ export function SchemaFieldsGrid({
   schemaData,
   schemaFilePath,
 }: SchemaFieldsGridProps) {
+  const AVAILABLE_AI_SKILLS = useAiSkillSlugs();
   const theme = useAppStore((s) => s.theme);
   const queryClient = useQueryClient();
   const [fields, setFields] = useState<SchemaField[]>(schemaData.fields);
   const [freshnessColumn, setFreshnessColumn] = useState<string | null>(schemaData.freshness_column ?? null);
+  const [aiPackage, setAiPackage] = useState<boolean>(schemaData.ai_package ?? false);
+  const [aiSkills, setAiSkills] = useState<string[]>(schemaData.ai_skills ?? []);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
   );
   const dirtyRef = useRef(false);
   const fieldsRef = useRef(fields);
   const freshnessRef = useRef(freshnessColumn);
+  const aiPackageRef = useRef(aiPackage);
+  const aiSkillsRef = useRef(aiSkills);
   const enrichMutation = useEnrichSchemaDescriptions();
 
   // Derive domains base path from schema file path
@@ -271,12 +279,39 @@ export function SchemaFieldsGrid({
     );
   }, [domainsBasePath, schemaFilePath, enrichMutation, queryClient]);
 
+  const handleAiPackageToggle = useCallback(() => {
+    const newVal = !aiPackage;
+    setAiPackage(newVal);
+    aiPackageRef.current = newVal;
+    // Clear skills when disabling
+    if (!newVal) {
+      setAiSkills([]);
+      aiSkillsRef.current = [];
+    }
+    dirtyRef.current = true;
+  }, [aiPackage]);
+
+  const handleAiSkillToggle = useCallback((skill: string) => {
+    setAiSkills((prev) => {
+      const next = prev.includes(skill)
+        ? prev.filter((s) => s !== skill)
+        : [...prev, skill];
+      aiSkillsRef.current = next;
+      return next;
+    });
+    dirtyRef.current = true;
+  }, []);
+
   // Sync when schemaData changes (different entity selected)
   useEffect(() => {
     setFields(schemaData.fields);
     fieldsRef.current = schemaData.fields;
     setFreshnessColumn(schemaData.freshness_column ?? null);
     freshnessRef.current = schemaData.freshness_column ?? null;
+    setAiPackage(schemaData.ai_package ?? false);
+    aiPackageRef.current = schemaData.ai_package ?? false;
+    setAiSkills(schemaData.ai_skills ?? []);
+    aiSkillsRef.current = schemaData.ai_skills ?? [];
     dirtyRef.current = false;
     setSaveStatus("idle");
   }, [schemaData]);
@@ -291,6 +326,8 @@ export function SchemaFieldsGrid({
         const updated: SchemaFile = {
           ...schemaData,
           freshness_column: freshnessRef.current,
+          ai_package: aiPackageRef.current || undefined,
+          ai_skills: aiSkillsRef.current.length > 0 ? aiSkillsRef.current : undefined,
           fields: fieldsRef.current,
         };
         await invoke("write_file", {
@@ -310,7 +347,7 @@ export function SchemaFieldsGrid({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [fields, freshnessColumn, schemaData, schemaFilePath, queryClient]);
+  }, [fields, freshnessColumn, aiPackage, aiSkills, schemaData, schemaFilePath, queryClient]);
 
   const onCellValueChanged = useCallback((event: CellValueChangedEvent) => {
     const { data, colDef } = event;
@@ -551,6 +588,35 @@ export function SchemaFieldsGrid({
               )}
               Enrich Descriptions ({emptyDescCount})
             </button>
+          )}
+          <span className="text-zinc-200 dark:text-zinc-700">|</span>
+          <button
+            onClick={handleAiPackageToggle}
+            className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded transition-colors ${
+              aiPackage
+                ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300"
+                : "text-zinc-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20"
+            }`}
+          >
+            <Bot className="w-3 h-3" />
+            AI Package
+          </button>
+          {aiPackage && (
+            <div className="flex items-center gap-1">
+              {AVAILABLE_AI_SKILLS.map((skill) => (
+                <button
+                  key={skill}
+                  onClick={() => handleAiSkillToggle(skill)}
+                  className={`px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors ${
+                    aiSkills.includes(skill)
+                      ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 ring-1 ring-violet-300 dark:ring-violet-700"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 hover:text-violet-500"
+                  }`}
+                >
+                  {skill}
+                </button>
+              ))}
+            </div>
           )}
         </div>
         {saveStatus === "saving" && (

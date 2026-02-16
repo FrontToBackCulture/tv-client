@@ -2,6 +2,7 @@
 // Syncs domain configurations, authenticates, fetches API data,
 // and extracts structured definitions to local JSON files.
 
+pub mod ai_package;
 pub mod api;
 pub mod audit;
 pub mod auth;

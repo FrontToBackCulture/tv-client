@@ -756,6 +756,7 @@ export function TableDetailPreview({
                 path: `${tablePath}/definition_categorical.json`,
               });
               const categoricalData = JSON.parse(content);
+              const newCategoricals = categoricalData.columns || {};
               // Merge categorical columns into sample state for display
               setSample((prev) => {
                 if (!prev) {
@@ -766,16 +767,23 @@ export function TableDetailPreview({
                       sampledAt: categoricalData.meta?.fetchedAt,
                       totalRowCount: categoricalData.meta?.totalRowCount,
                     },
-                    columnStats: categoricalData.columns || {},
+                    columnStats: newCategoricals,
                     rows: [],
                   } as TableSample;
                 }
-                // Merge categorical columns into existing sample
+                // Remove old categorical entries from columnStats, then overlay new ones
+                const prevStats = prev.columnStats ?? {};
+                const cleaned: Record<string, (typeof prevStats)[string]> = {};
+                for (const [key, val] of Object.entries(prevStats)) {
+                  if (!val.isCategorical) {
+                    cleaned[key] = val;
+                  }
+                }
                 return {
                   ...prev,
                   columnStats: {
-                    ...prev.columnStats,
-                    ...categoricalData.columns,
+                    ...cleaned,
+                    ...newCategoricals,
                   },
                 };
               });

@@ -392,8 +392,8 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                         lines.push(format!("| {} |", result.columns.join(" | ")));
                         lines.push(format!("| {} |", result.columns.iter().map(|_| "---").collect::<Vec<_>>().join(" | ")));
 
-                        // Rows (max 50 for display)
-                        for row in result.data.iter().take(50) {
+                        // Rows (max 500 for display)
+                        for row in result.data.iter().take(500) {
                             let cells: Vec<String> = result.columns.iter().map(|col| {
                                 row.get(col)
                                     .map(|v| {
@@ -410,8 +410,8 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                             lines.push(format!("| {} |", cells.join(" | ")));
                         }
 
-                        if result.data.len() > 50 {
-                            lines.push(format!("\n*...and {} more rows*", result.data.len() - 50));
+                        if result.data.len() > 500 {
+                            lines.push(format!("\n*...and {} more rows*", result.data.len() - 500));
                         }
                     } else {
                         lines.push("No rows returned.".to_string());
