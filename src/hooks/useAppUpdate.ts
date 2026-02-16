@@ -85,9 +85,9 @@ export function useAppUpdate(): UpdateState {
     }
   }, []);
 
-  // Check on mount (app launch)
+  // Check on mount (app launch) — skip in dev mode (already running from source)
   useEffect(() => {
-    // Small delay to avoid blocking app startup
+    if (import.meta.env.DEV) return;
     const timer = setTimeout(() => {
       checkForUpdate();
     }, 3000);
