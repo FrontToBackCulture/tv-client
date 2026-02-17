@@ -204,6 +204,8 @@ export function useWatchDirectory(
       if (unlisten) {
         unlisten();
       }
+      // Stop the Rust file watcher for this path
+      tauriInvoke<void>("unwatch_directory", { path }).catch(() => {});
     };
   }, [path, queryClient, onFileChange]);
 }

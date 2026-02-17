@@ -265,14 +265,16 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
 
         await new Promise<void>((resolve) => {
           step.fn();
+          let elapsed = 0;
           const check = setInterval(() => {
+            elapsed += 500;
             const stillRunning =
               (step.name === "Sync All" && syncProgress?.isRunning) ||
               (step.name === "Dashboard Health" && dashboardHealthProgress?.isRunning) ||
               (step.name === "Query Health" && queryHealthProgress?.isRunning) ||
               (step.name === "Artifact Audit" && artifactAuditProgress?.isRunning) ||
               (step.name === "Generate Overview" && overviewProgress?.isRunning);
-            if (!stillRunning) { clearInterval(check); resolve(); }
+            if (!stillRunning || elapsed > 5 * 60 * 1000) { clearInterval(check); resolve(); }
           }, 500);
         });
 

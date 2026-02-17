@@ -147,7 +147,8 @@ export function useEmailBody(id: string | null) {
     queryKey: ["outlook", "body", id],
     queryFn: () => invoke<string>("outlook_get_email_body", { id }),
     enabled: !!id,
-    staleTime: Infinity, // Bodies don't change
+    staleTime: 1000 * 60 * 30, // 30 min - bodies rarely change
+    gcTime: 1000 * 60 * 10, // GC unused entries after 10 min
   });
 }
 

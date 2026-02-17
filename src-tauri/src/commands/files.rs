@@ -167,14 +167,31 @@ pub async fn get_file_info(path: String) -> Result<FileInfo, String> {
     })
 }
 
-/// Watch a directory for file changes and emit events
+// Global watcher registry — prevents duplicate watchers and supports cleanup
+use std::sync::Mutex;
+use std::collections::HashMap;
+use notify::RecommendedWatcher;
+
+static WATCHERS: std::sync::LazyLock<Mutex<HashMap<String, RecommendedWatcher>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Watch a directory for file changes and emit events.
+/// Deduplicates: calling again with the same path is a no-op.
 #[command]
 pub async fn watch_directory(
     app: tauri::AppHandle,
     path: String,
 ) -> Result<(), String> {
-    use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
+    use notify::{Config, RecursiveMode, Watcher};
     use std::sync::mpsc::channel;
+
+    // Check if already watching this path
+    {
+        let watchers = WATCHERS.lock().map_err(|e| format!("Lock error: {}", e))?;
+        if watchers.contains_key(&path) {
+            return Ok(()); // Already watching
+        }
+    }
 
     let (tx, rx) = channel();
 
@@ -185,14 +202,18 @@ pub async fn watch_directory(
         .watch(Path::new(&path), RecursiveMode::Recursive)
         .map_err(|e| format!("Failed to watch directory: {}", e))?;
 
+    // Store watcher in registry (keeps it alive)
+    {
+        let mut watchers = WATCHERS.lock().map_err(|e| format!("Lock error: {}", e))?;
+        watchers.insert(path.clone(), watcher);
+    }
+
     // Spawn a thread to handle file events
+    let watch_path = path.clone();
     std::thread::spawn(move || {
-        // Keep watcher alive
-        let _watcher = watcher;
         for res in rx {
             match res {
                 Ok(event) => {
-                    // Emit a simple event with the paths that changed
                     let paths: Vec<String> = event.paths
                         .iter()
                         .map(|p| p.to_string_lossy().to_string())
@@ -200,13 +221,24 @@ pub async fn watch_directory(
                     let _ = app.emit("file-change", paths);
                 }
                 Err(e) => {
-                    log::error!("Watch error: {:?}", e);
+                    log::error!("Watch error for {}: {:?}", watch_path, e);
                 }
             }
         }
     });
 
     Ok(())
+}
+
+/// Stop watching a directory
+#[command]
+pub async fn unwatch_directory(path: String) -> Result<(), String> {
+    let mut watchers = WATCHERS.lock().map_err(|e| format!("Lock error: {}", e))?;
+    if watchers.remove(&path).is_some() {
+        Ok(()) // Watcher dropped, thread will exit when rx closes
+    } else {
+        Ok(()) // Not watching, no-op
+    }
 }
 
 /// Open a file or folder in Finder (macOS)

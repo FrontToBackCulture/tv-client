@@ -223,8 +223,10 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
         // Wait for step to complete
         await new Promise<void>((resolve) => {
           step.fn();
-          // Poll for completion
+          // Poll for completion (5 min timeout guard)
+          let elapsed = 0;
           const check = setInterval(() => {
+            elapsed += 500;
             const stillRunning =
               (step.name === "Sync All" && syncProgress?.isRunning) ||
               (step.name === "Dashboard Health" && dashboardHealthProgress?.isRunning) ||
@@ -232,7 +234,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
               (step.name === "Artifact Audit" && artifactAuditProgress?.isRunning) ||
               (step.name === "Generate Overview" && overviewProgress?.isRunning);
 
-            if (!stillRunning) {
+            if (!stillRunning || elapsed > 5 * 60 * 1000) {
               clearInterval(check);
               resolve();
             }

@@ -141,6 +141,7 @@ fn main() {
             commands::files::rename_path,
             commands::files::get_file_info,
             commands::files::watch_directory,
+            commands::files::unwatch_directory,
             commands::files::open_in_finder,
             commands::files::open_with_default_app,
             commands::files::read_file_binary,
