@@ -237,28 +237,35 @@ pub fn val_generate_ai_package(
     }
 
     // Copy skill templates — only the skills explicitly passed for this domain
+    // Look in 0_Platform/skills/{slug}/SKILL.md (new structure), fall back to templates/skills/{slug}.md
+    let platform_skills = entities_base.join("../../../skills");
     let templates_base = Path::new(&templates_path);
     let templates_skills = templates_base.join("skills");
 
     for skill in &skills {
-        let src = templates_skills.join(format!("{}.md", skill));
+        // New structure: 0_Platform/skills/{slug}/SKILL.md
+        let new_src = platform_skills.join(skill).join("SKILL.md");
+        // Legacy: templates/skills/{slug}.md
+        let legacy_src = templates_skills.join(format!("{}.md", skill));
+        let src = if new_src.exists() { new_src } else { legacy_src };
         if !src.exists() {
-            errors.push(format!("Skill template not found: {}.md", skill));
+            errors.push(format!("Skill template not found: {}/SKILL.md", skill));
             continue;
         }
 
-        if let Err(e) = fs::create_dir_all(&ai_skills_path) {
-            errors.push(format!("Failed to create ai/skills/: {}", e));
+        let skill_dir = ai_skills_path.join(skill);
+        if let Err(e) = fs::create_dir_all(&skill_dir) {
+            errors.push(format!("Failed to create ai/skills/{}/: {}", skill, e));
             continue;
         }
 
-        let dest = ai_skills_path.join(format!("{}.md", skill));
+        let dest = skill_dir.join("SKILL.md");
 
         match fs::read_to_string(&src) {
             Ok(content) => {
                 let replaced = content.replace("{{DOMAIN}}", &domain);
                 match fs::write(&dest, &replaced) {
-                    Ok(_) => skills_copied.push(format!("{}.md", skill)),
+                    Ok(_) => skills_copied.push(skill.clone()),
                     Err(e) => errors.push(format!("Failed to write skill {}: {}", skill, e)),
                 }
             }
@@ -283,58 +290,13 @@ pub fn val_generate_ai_package(
     }
 
     // Always (re)generate instructions.md so table/skill lists stay current
-    let instructions_path = ai_path.join("instructions.md");
-    let instructions_generated = {
-        let instructions_template = templates_base.join("instructions.md");
-        let table_list = tables_copied
-            .iter()
-            .map(|t| format!("- `tables/{}`", t))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let skill_list = skills_copied
-            .iter()
-            .map(|s| format!("- `skills/{}`", s))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        if let Err(e) = fs::create_dir_all(&ai_path) {
-            errors.push(format!("Failed to create ai/ dir: {}", e));
+    let instructions_generated = match regenerate_instructions(
+        &ai_path, &templates_base, &platform_skills, &domain, &tables_copied, &skills_copied,
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            errors.push(e);
             false
-        } else if instructions_template.exists() {
-            match fs::read_to_string(&instructions_template) {
-                Ok(template) => {
-                    let content = template
-                        .replace("{{DOMAIN}}", &domain)
-                        .replace("{{TABLE_LIST}}", &table_list)
-                        .replace("{{SKILL_LIST}}", &skill_list);
-                    match fs::write(&instructions_path, &content) {
-                        Ok(_) => true,
-                        Err(e) => {
-                            errors.push(format!("Failed to write instructions.md: {}", e));
-                            false
-                        }
-                    }
-                }
-                Err(e) => {
-                    errors.push(format!("Failed to read instructions template: {}", e));
-                    false
-                }
-            }
-        } else {
-            let content = format!(
-                "# {} AI Package\n\n\
-                 This folder contains AI skill documentation for the {} domain.\n\n\
-                 ## Tables\n\n{}\n\n\
-                 ## Skills\n\n{}\n",
-                domain, domain, table_list, skill_list
-            );
-            match fs::write(&instructions_path, &content) {
-                Ok(_) => true,
-                Err(e) => {
-                    errors.push(format!("Failed to write instructions.md: {}", e));
-                    false
-                }
-            }
         }
     };
 
@@ -473,10 +435,11 @@ pub fn val_toggle_ai_table(
 
     // Regenerate instructions.md
     let templates_base = Path::new(&templates_path);
+    let platform_skills = entities_base.join("../../../skills");
     let ai_skills_path = ai_path.join("skills");
     let skills_on_disk = list_skill_files(&ai_skills_path);
     let instructions_generated = regenerate_instructions(
-        &ai_path, templates_base, &domain, &tables_on_disk, &skills_on_disk,
+        &ai_path, templates_base, &platform_skills, &domain, &tables_on_disk, &skills_on_disk,
     );
     if let Err(ref e) = instructions_generated {
         errors.push(e.clone());
@@ -541,15 +504,29 @@ fn list_table_files(dir: &Path) -> Vec<String> {
     files
 }
 
-/// List .md files in skills directory
+/// List skill folders in skills directory (each folder contains SKILL.md)
 fn list_skill_files(dir: &Path) -> Vec<String> {
-    list_table_files(dir) // Same logic
+    let mut folders = Vec::new();
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.starts_with('.') && entry.path().join("SKILL.md").exists() {
+                    folders.push(name);
+                }
+            }
+        }
+    }
+    folders.sort();
+    folders
 }
 
-/// Regenerate instructions.md from template or fallback
+/// Regenerate instructions.md from template or fallback.
+/// Reads skill.json for each skill to include descriptions in the instructions.
 fn regenerate_instructions(
     ai_path: &Path,
     templates_base: &Path,
+    platform_skills_path: &Path,
     domain: &str,
     tables: &[String],
     skills: &[String],
@@ -562,9 +539,17 @@ fn regenerate_instructions(
         .map(|t| format!("- `tables/{}`", t))
         .collect::<Vec<_>>()
         .join("\n");
+
+    // Build skill list with descriptions from skill.json
     let skill_list = skills
         .iter()
-        .map(|s| format!("- `skills/{}`", s))
+        .map(|s| {
+            let desc = read_skill_description(platform_skills_path, s);
+            match desc {
+                Some(d) => format!("- `skills/{}/SKILL.md` — {}", s, d),
+                None => format!("- `skills/{}/SKILL.md`", s),
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -590,6 +575,14 @@ fn regenerate_instructions(
             .map_err(|e| format!("Failed to write instructions.md: {}", e))?;
         Ok(true)
     }
+}
+
+/// Read the description field from a skill's skill.json
+fn read_skill_description(platform_skills_path: &Path, slug: &str) -> Option<String> {
+    let skill_json_path = platform_skills_path.join(slug).join("skill.json");
+    let raw = fs::read_to_string(&skill_json_path).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    parsed.get("description")?.as_str().map(|s| s.to_string())
 }
 
 /// Build a lookup of slug → (table_id, display_name, ai_skills) from entity schemas.

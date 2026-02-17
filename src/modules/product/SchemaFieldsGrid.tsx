@@ -24,7 +24,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../../stores/appStore";
 import { useEnrichSchemaDescriptions } from "../../hooks/useValSync";
 import { Loader2, Check, Sparkles, Bot } from "lucide-react";
-import { useAiSkillSlugs } from "../../hooks/useAiSkills";
+import { useAiSkills } from "../../hooks/useAiSkills";
 
 // ============================================================================
 // Types
@@ -231,13 +231,25 @@ export function SchemaFieldsGrid({
   schemaData,
   schemaFilePath,
 }: SchemaFieldsGridProps) {
-  const AVAILABLE_AI_SKILLS = useAiSkillSlugs();
+  const skillsQuery = useAiSkills();
+  const allSkills = skillsQuery.data ?? [];
+
+  // Derive which skills this table belongs to from skill.json tables arrays
+  const tableKey = useMemo(() => {
+    // schemaFilePath like .../entities/receipts/udt/schema.json → "receipts/udt"
+    const parts = schemaFilePath.replace(/\/schema\.json$/, "").split("/");
+    return parts.length >= 2 ? `${parts[parts.length - 2]}/${parts[parts.length - 1]}` : "";
+  }, [schemaFilePath]);
+
+  const assignedSkills = useMemo(() => {
+    return allSkills.filter((s) => s.tables.includes(tableKey)).map((s) => s.slug);
+  }, [allSkills, tableKey]);
+
   const theme = useAppStore((s) => s.theme);
   const queryClient = useQueryClient();
   const [fields, setFields] = useState<SchemaField[]>(schemaData.fields);
   const [freshnessColumn, setFreshnessColumn] = useState<string | null>(schemaData.freshness_column ?? null);
   const [aiPackage, setAiPackage] = useState<boolean>(schemaData.ai_package ?? false);
-  const [aiSkills, setAiSkills] = useState<string[]>(schemaData.ai_skills ?? []);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
   );
@@ -245,7 +257,6 @@ export function SchemaFieldsGrid({
   const fieldsRef = useRef(fields);
   const freshnessRef = useRef(freshnessColumn);
   const aiPackageRef = useRef(aiPackage);
-  const aiSkillsRef = useRef(aiSkills);
   const enrichMutation = useEnrichSchemaDescriptions();
 
   // Derive domains base path from schema file path
@@ -283,24 +294,8 @@ export function SchemaFieldsGrid({
     const newVal = !aiPackage;
     setAiPackage(newVal);
     aiPackageRef.current = newVal;
-    // Clear skills when disabling
-    if (!newVal) {
-      setAiSkills([]);
-      aiSkillsRef.current = [];
-    }
     dirtyRef.current = true;
   }, [aiPackage]);
-
-  const handleAiSkillToggle = useCallback((skill: string) => {
-    setAiSkills((prev) => {
-      const next = prev.includes(skill)
-        ? prev.filter((s) => s !== skill)
-        : [...prev, skill];
-      aiSkillsRef.current = next;
-      return next;
-    });
-    dirtyRef.current = true;
-  }, []);
 
   // Sync when schemaData changes (different entity selected)
   useEffect(() => {
@@ -310,8 +305,6 @@ export function SchemaFieldsGrid({
     freshnessRef.current = schemaData.freshness_column ?? null;
     setAiPackage(schemaData.ai_package ?? false);
     aiPackageRef.current = schemaData.ai_package ?? false;
-    setAiSkills(schemaData.ai_skills ?? []);
-    aiSkillsRef.current = schemaData.ai_skills ?? [];
     dirtyRef.current = false;
     setSaveStatus("idle");
   }, [schemaData]);
@@ -327,15 +320,20 @@ export function SchemaFieldsGrid({
           ...schemaData,
           freshness_column: freshnessRef.current,
           ai_package: aiPackageRef.current || undefined,
-          ai_skills: aiSkillsRef.current.length > 0 ? aiSkillsRef.current : undefined,
           fields: fieldsRef.current,
         };
+        // Don't write ai_skills — skill assignments live in skill.json
+        delete updated.ai_skills;
         await invoke("write_file", {
           path: schemaFilePath,
           content: JSON.stringify(updated, null, 2),
         });
         queryClient.invalidateQueries({
           queryKey: ["domain-model-file", schemaFilePath],
+        });
+        // Also refresh sidebar tree so ai_package icon updates
+        queryClient.invalidateQueries({
+          queryKey: ["domain-model-entities"],
         });
         dirtyRef.current = false;
         setSaveStatus("saved");
@@ -347,7 +345,7 @@ export function SchemaFieldsGrid({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [fields, freshnessColumn, aiPackage, aiSkills, schemaData, schemaFilePath, queryClient]);
+  }, [fields, freshnessColumn, aiPackage, schemaData, schemaFilePath, queryClient]);
 
   const onCellValueChanged = useCallback((event: CellValueChangedEvent) => {
     const { data, colDef } = event;
@@ -601,20 +599,15 @@ export function SchemaFieldsGrid({
             <Bot className="w-3 h-3" />
             AI Package
           </button>
-          {aiPackage && (
+          {aiPackage && assignedSkills.length > 0 && (
             <div className="flex items-center gap-1">
-              {AVAILABLE_AI_SKILLS.map((skill) => (
-                <button
+              {assignedSkills.map((skill) => (
+                <span
                   key={skill}
-                  onClick={() => handleAiSkillToggle(skill)}
-                  className={`px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors ${
-                    aiSkills.includes(skill)
-                      ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 ring-1 ring-violet-300 dark:ring-violet-700"
-                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 hover:text-violet-500"
-                  }`}
+                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300"
                 >
                   {skill}
-                </button>
+                </span>
               ))}
             </div>
           )}

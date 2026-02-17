@@ -45,7 +45,7 @@ export function SolutionDetailPanel({ slug, solutionsBasePath, selectedFile, onC
   const title = useMemo(() => {
     if (!overviewQuery.data) return slug.toUpperCase();
     const { frontmatter } = parseFrontmatter(overviewQuery.data);
-    return cleanTitle(frontmatter?.title || slug.toUpperCase());
+    return cleanTitle(frontmatter?.title || frontmatter?.name || slug.toUpperCase());
   }, [overviewQuery.data, slug]);
 
   const status = useMemo(() => {

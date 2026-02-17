@@ -22,6 +22,8 @@ interface DocumentMetadataProps {
 interface Frontmatter {
   title?: string;
   summary?: string;
+  name?: string;
+  description?: string;
   created?: string;
   updated?: string;
   author?: string;
@@ -43,9 +45,10 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
       const data = parsed.data as Frontmatter;
 
       // Check if there's any meaningful metadata
+      // Support Claude Code skill frontmatter: name/description as aliases for title/summary
       const hasMetadata = Boolean(
-        data.title ||
-        data.summary ||
+        data.title || data.name ||
+        data.summary || data.description ||
         data.created ||
         data.updated ||
         data.author ||
@@ -136,22 +139,22 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
       {/* Expanded content */}
       {isExpanded && (
         <div className="px-4 py-3 space-y-3 border-t border-slate-200 dark:border-zinc-800">
-          {/* Title */}
-          {data.title && (
+          {/* Title (supports name as alias) */}
+          {(data.title || data.name) && (
             <div className="flex items-start gap-2">
               <FileText className="w-4 h-4 text-zinc-500 mt-0.5 flex-shrink-0" />
               <div>
-                <div className="text-xs text-zinc-500 mb-0.5">Title</div>
-                <div className="text-sm text-zinc-800 dark:text-zinc-200">{data.title}</div>
+                <div className="text-xs text-zinc-500 mb-0.5">{data.name && !data.title ? "Name" : "Title"}</div>
+                <div className="text-sm text-zinc-800 dark:text-zinc-200">{data.title || data.name}</div>
               </div>
             </div>
           )}
 
-          {/* Summary */}
-          {data.summary && (
+          {/* Summary (supports description as alias) */}
+          {(data.summary || data.description) && (
             <div>
-              <div className="text-xs text-zinc-500 mb-1">Summary</div>
-              <div className="text-sm text-zinc-700 dark:text-zinc-300">{data.summary}</div>
+              <div className="text-xs text-zinc-500 mb-1">{data.description && !data.summary ? "Description" : "Summary"}</div>
+              <div className="text-sm text-zinc-700 dark:text-zinc-300">{data.summary || data.description}</div>
             </div>
           )}
 

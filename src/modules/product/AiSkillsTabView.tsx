@@ -14,6 +14,7 @@ import {
   FolderOpen,
   ChevronDown,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,6 +26,8 @@ import {
 } from "../../hooks/useValSync";
 import { useListDirectory } from "../../hooks/useFiles";
 import { useAiSkills, useCreateAiSkill } from "../../hooks/useAiSkills";
+import { useReadFile } from "../../hooks/useFiles";
+import { MarkdownViewer } from "../library/MarkdownViewer";
 
 // ============================================================================
 // Types
@@ -53,6 +56,7 @@ export function AiSkillsTabView() {
   const [descriptionDraft, setDescriptionDraft] = useState("");
   const [savingDescription, setSavingDescription] = useState(false);
   const [showAvailable, setShowAvailable] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{ path: string; name: string } | null>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
@@ -115,35 +119,37 @@ export function AiSkillsTabView() {
     return models;
   }, [entitiesQuery.data, entitiesPath]);
 
-  // Split into assigned and available
+  // Split into assigned and available using skill.json as source of truth
+  // Tables can be assigned to multiple skills
   const { assignedModels, availableModels } = useMemo(() => {
-    if (!effectiveSelected)
+    if (!selectedSkillDef)
       return { assignedModels: [] as AiModel[], availableModels: [] as AiModel[] };
+    const skillTables = new Set(selectedSkillDef.tables);
     const assigned: AiModel[] = [];
     const available: AiModel[] = [];
     for (const m of aiModels) {
-      if (m.aiSkills.includes(effectiveSelected)) {
+      const key = `${m.entity}/${m.name}`;
+      if (skillTables.has(key)) {
         assigned.push(m);
       } else {
         available.push(m);
       }
     }
     return { assignedModels: assigned, availableModels: available };
-  }, [aiModels, effectiveSelected]);
+  }, [aiModels, selectedSkillDef]);
 
-  // Per-skill stats
+  // Per-skill stats (from skill.json tables arrays)
   const skillStats = useMemo(() => {
     const stats: Record<string, { tables: number; domains: number }> = {};
-    for (const slug of skillSlugs) {
-      const tables = aiModels.filter((m) => m.aiSkills.includes(slug)).length;
+    for (const skill of skills) {
       const domains =
         domainStatusQuery.data?.filter((d) =>
-          d.configured_skills.includes(slug)
+          d.configured_skills.includes(skill.slug)
         ).length ?? 0;
-      stats[slug] = { tables, domains };
+      stats[skill.slug] = { tables: skill.tables.length, domains };
     }
     return stats;
-  }, [skillSlugs, aiModels, domainStatusQuery.data]);
+  }, [skills, domainStatusQuery.data]);
 
   // Domains with selected skill configured
   const deployedDomains = useMemo(() => {
@@ -153,38 +159,40 @@ export function AiSkillsTabView() {
     );
   }, [effectiveSelected, domainStatusQuery.data]);
 
-  // Toggle skill assignment on a table's schema.json
+  // Toggle skill assignment — writes only to skill.json (single source of truth)
   const handleToggle = useCallback(
-    async (schemaPath: string, key: string) => {
-      if (!effectiveSelected) return;
+    async (_schemaPath: string, key: string) => {
+      if (!effectiveSelected || !skillFolderPath) return;
       setToggling(key);
       try {
-        const raw = await invoke<string>("read_file", { path: schemaPath });
-        const schema = JSON.parse(raw);
-        const skills: string[] = schema.ai_skills ?? [];
-        if (skills.includes(effectiveSelected)) {
-          schema.ai_skills = skills.filter(
-            (s: string) => s !== effectiveSelected
-          );
+        const skillJsonPath = `${skillFolderPath}/skill.json`;
+        const raw = await invoke<string>("read_file", { path: skillJsonPath });
+        const skillJson = JSON.parse(raw);
+        const currentTables: string[] = skillJson.tables ?? [];
+        const isAssigned = currentTables.includes(key);
+
+        if (isAssigned) {
+          skillJson.tables = currentTables.filter((t: string) => t !== key);
         } else {
-          schema.ai_skills = [...skills, effectiveSelected];
+          skillJson.tables = [...currentTables, key];
         }
-        if (schema.ai_skills.length === 0) {
-          delete schema.ai_skills;
+
+        if (skillJson.tables.length === 0) {
+          delete skillJson.tables;
         }
+
         await invoke("write_file", {
-          path: schemaPath,
-          content: JSON.stringify(schema, null, 2),
+          path: skillJsonPath,
+          content: JSON.stringify(skillJson, null, 2),
         });
-        queryClient.invalidateQueries({ queryKey: ["domain-model-entities"] });
-        queryClient.invalidateQueries({ queryKey: ["domain-model-file"] });
+        queryClient.invalidateQueries({ queryKey: ["ai-skills"] });
       } catch (err) {
         console.error("Failed to toggle skill assignment:", err);
       } finally {
         setToggling(null);
       }
     },
-    [effectiveSelected, queryClient]
+    [effectiveSelected, skillFolderPath, queryClient]
   );
 
   // Create new skill
@@ -527,13 +535,14 @@ export function AiSkillsTabView() {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {skillFiles.map((f) => (
-                    <span
+                    <button
                       key={f.name}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-md bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700"
+                      onClick={() => setPreviewFile({ path: f.path, name: f.name })}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-md bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-600 dark:hover:text-violet-300 transition-colors cursor-pointer"
                     >
                       <FileText size={10} />
                       {f.name}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -614,6 +623,73 @@ export function AiSkillsTabView() {
             )}
           </div>
         )}
+      </div>
+
+      {/* File preview modal */}
+      {previewFile && (
+        <FilePreviewModal
+          filePath={previewFile.path}
+          fileName={previewFile.name}
+          onClose={() => setPreviewFile(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// FilePreviewModal — renders markdown/text file in a modal overlay
+// ============================================================================
+
+function FilePreviewModal({
+  filePath,
+  fileName,
+  onClose,
+}: {
+  filePath: string;
+  fileName: string;
+  onClose: () => void;
+}) {
+  const { data: content, isLoading } = useReadFile(filePath);
+  const displayName = fileName.replace(/\.md$/, "");
+  const isMarkdown = fileName.endsWith(".md");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
+      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
+        <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100 dark:border-zinc-800">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText size={14} className="text-violet-500 flex-shrink-0" />
+              <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayName}</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{fileName}</span>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {isLoading && (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 size={20} className="animate-spin text-zinc-400" />
+            </div>
+          )}
+          {content && isMarkdown && (
+            <div className="px-6 py-5">
+              <MarkdownViewer content={content} filename={fileName} />
+            </div>
+          )}
+          {content && !isMarkdown && (
+            <pre className="px-6 py-5 text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono">
+              {content}
+            </pre>
+          )}
+        </div>
       </div>
     </div>
   );

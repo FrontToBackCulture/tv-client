@@ -26,6 +26,8 @@ interface CodeProps extends ChildrenProps {
 export interface Frontmatter {
   title?: string;
   summary?: string;
+  name?: string;
+  description?: string;
   created?: string;
   updated?: string;
   author?: string;
@@ -82,7 +84,11 @@ export function parseFrontmatter(content: string): { frontmatter: Frontmatter | 
 function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
   const [expanded, setExpanded] = useState(false);
 
-  const hasMetadata = frontmatter.title || frontmatter.summary || frontmatter.author ||
+  // Support Claude Code skill frontmatter: name/description as aliases for title/summary
+  const displayTitle = frontmatter.title || (frontmatter.name as string | undefined);
+  const displaySummary = frontmatter.summary || (frontmatter.description as string | undefined);
+
+  const hasMetadata = displayTitle || displaySummary || frontmatter.author ||
     frontmatter.updated || (frontmatter.tags && frontmatter.tags.length > 0);
 
   if (!hasMetadata) return null;
@@ -100,14 +106,14 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
           <ChevronRight size={14} className="mt-0.5 text-zinc-400 flex-shrink-0" />
         )}
         <div className="flex-1 min-w-0">
-          {frontmatter.title && (
+          {displayTitle && (
             <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 leading-tight">
-              {frontmatter.title}
+              {displayTitle}
             </h1>
           )}
-          {frontmatter.summary && (
+          {displaySummary && (
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-2">
-              {frontmatter.summary}
+              {displaySummary}
             </p>
           )}
         </div>
@@ -176,8 +182,8 @@ export function MarkdownViewer({ content, filename }: MarkdownViewerProps) {
 
   return (
     <div className="prose dark:prose-invert prose-zinc max-w-none">
-      {/* Show filename only if no frontmatter title */}
-      {filename && !frontmatter?.title && (
+      {/* Show filename only if no frontmatter title/name */}
+      {filename && !frontmatter?.title && !frontmatter?.name && (
         <div className="not-prose mb-6 pb-4 border-b border-slate-200 dark:border-zinc-800">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{filename}</h1>
         </div>

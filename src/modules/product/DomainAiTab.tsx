@@ -63,13 +63,14 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
     try {
       const parsed = JSON.parse(configFile.data);
       return {
-        configuredSkills: (parsed.skills ?? []) as string[],
+        // Filter out stale skills that no longer exist in 0_Platform/skills/
+        configuredSkills: ((parsed.skills ?? []) as string[]).filter(s => AVAILABLE_AI_SKILLS.includes(s)),
         disabledTables: (parsed.disabled_tables ?? []) as string[],
       };
     } catch {
       return { configuredSkills: [] as string[], disabledTables: [] as string[] };
     }
-  }, [configFile.data]);
+  }, [configFile.data, AVAILABLE_AI_SKILLS]);
 
   const [localSkills, setLocalSkills] = useState<string[] | null>(null);
   const selectedSkills = localSkills ?? configuredSkills;
@@ -119,7 +120,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
     (f) => !f.is_directory && f.name.endsWith(".md")
   );
   const skillFiles = (skillsDir.data ?? []).filter(
-    (f) => !f.is_directory && f.name.endsWith(".md")
+    (f) => f.is_directory && !f.name.startsWith(".")
   );
   const hasInstructions = !!instructionsFile.data;
 
@@ -293,7 +294,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
                     <SkillDocGridCard
                       key={file.path}
                       file={file}
-                      onClick={() => setSelectedDoc({ path: file.path, name: file.name, type: "skill" })}
+                      onClick={() => setSelectedDoc({ path: `${file.path}/SKILL.md`, name: file.name, type: "skill" })}
                     />
                   ))}
                 </div>

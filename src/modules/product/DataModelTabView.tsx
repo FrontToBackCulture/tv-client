@@ -785,31 +785,45 @@ function EntitySidebarItem({
             key={model.name}
             onClick={() => onSelectModel(model.name)}
             className={cn(
-              "w-full flex items-center gap-2 pl-10 pr-3 py-1.5 text-sm transition-colors",
+              "w-full flex items-start gap-2 pl-10 pr-3 py-1.5 text-sm transition-colors",
               selectedModel === model.name
                 ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
                 : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             )}
           >
-            <span className="uppercase text-xs font-mono font-medium">
-              {model.name}
-            </span>
-            {model.has_schema_json && (
-              <FileJson size={12} className="text-blue-400 flex-shrink-0" />
-            )}
-            {model.ai_package && (
-              <Bot size={12} className="text-violet-500 flex-shrink-0" />
-            )}
-            {model.has_domains && (
-              <span className="ml-auto text-xs text-zinc-400">
-                {model.active_domain_count ?? 0}d
-              </span>
-            )}
-            {!model.has_domains && model.has_schema_json && (
-              <span className="ml-auto text-xs text-zinc-300">
-                {model.categorical_count ?? 0}c
-              </span>
-            )}
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="uppercase text-xs font-mono font-medium">
+                  {model.name}
+                </span>
+                {model.has_schema_json && (
+                  <FileJson size={12} className="text-blue-400 flex-shrink-0" />
+                )}
+                {model.ai_package && (
+                  <Bot size={12} className="text-violet-500 flex-shrink-0" />
+                )}
+                {model.has_domains && (
+                  <span className="ml-auto text-xs text-zinc-400">
+                    {model.active_domain_count ?? 0}d
+                  </span>
+                )}
+                {!model.has_domains && model.has_schema_json && (
+                  <span className="ml-auto text-xs text-zinc-300">
+                    {model.categorical_count ?? 0}c
+                  </span>
+                )}
+              </div>
+              {(model.table_name || model.display_name) && (
+                <span
+                  className="text-[10px] leading-tight opacity-50 font-normal truncate block max-w-full"
+                  title={[model.table_name, model.display_name].filter(Boolean).join(" · ")}
+                >
+                  {model.table_name}
+                  {model.table_name && model.display_name && " · "}
+                  {model.display_name}
+                </span>
+              )}
+            </div>
           </button>
         ))}
     </div>

@@ -101,8 +101,8 @@ export function SolutionsTabView({
       const { frontmatter } = parseFrontmatter(data);
       return {
         slug,
-        title: cleanTitle(frontmatter?.title || slug.toUpperCase()),
-        summary: frontmatter?.summary || "",
+        title: cleanTitle(frontmatter?.title || frontmatter?.name || slug.toUpperCase()),
+        summary: frontmatter?.summary || frontmatter?.description || "",
         status: frontmatter?.status || "draft",
       };
     });

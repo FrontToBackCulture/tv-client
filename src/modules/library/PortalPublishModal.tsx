@@ -91,8 +91,8 @@ export function PortalPublishModal({
       setError(null);
       return;
     }
-    setTitle(fm.title || filename.replace(/\.md$/, "").replace(/-/g, " "));
-    setSummary(fm.summary || "");
+    setTitle(fm.title || fm.name || filename.replace(/\.md$/, "").replace(/-/g, " "));
+    setSummary(fm.summary || fm.description || "");
     setCategory(fm.category || "");
     setDocType((fm.portal_doc_type as "domain" | "guide") || "domain");
     setSelectedDomain(fm.portal_domain || "");

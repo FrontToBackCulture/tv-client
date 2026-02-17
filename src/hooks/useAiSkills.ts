@@ -9,11 +9,13 @@ export interface AiSkillDef {
   slug: string;
   name: string;
   description: string;
+  tables: string[];
 }
 
 interface SkillJson {
   name: string;
   description?: string;
+  tables?: string[];
 }
 
 interface DirEntry {
@@ -53,6 +55,7 @@ export function useAiSkills() {
             slug: dir.name,
             name: json.name || dir.name,
             description: json.description || "",
+            tables: json.tables ?? [],
           });
         } catch {
           // Folder without valid skill.json — skip
@@ -92,6 +95,22 @@ export function useCreateAiSkill() {
       await invoke("write_file", {
         path: `${dirPath}/skill.json`,
         content: JSON.stringify(json, null, 2),
+      });
+      // Create SKILL.md with Claude Code standard frontmatter
+      const skillMd = [
+        "---",
+        `name: ${slug}`,
+        `description: "${description || ""}"`,
+        "---",
+        "",
+        `# ${name}`,
+        "",
+        `> ${description || "TODO: Add skill description"}`,
+        "",
+      ].join("\n");
+      await invoke("write_file", {
+        path: `${dirPath}/SKILL.md`,
+        content: skillMd,
       });
       return { slug, name, description };
     },

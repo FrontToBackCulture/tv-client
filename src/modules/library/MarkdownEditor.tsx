@@ -93,7 +93,11 @@ function parseFrontmatter(content: string): { frontmatterRaw: string | null; fro
 function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
   const [expanded, setExpanded] = useState(false);
 
-  const hasMetadata = frontmatter.title || frontmatter.summary || frontmatter.author ||
+  // Support Claude Code skill frontmatter: name/description as aliases for title/summary
+  const displayTitle = frontmatter.title || (frontmatter.name as string | undefined);
+  const displaySummary = frontmatter.summary || (frontmatter.description as string | undefined);
+
+  const hasMetadata = displayTitle || displaySummary || frontmatter.author ||
     frontmatter.updated || (frontmatter.tags && frontmatter.tags.length > 0);
 
   if (!hasMetadata) return null;
@@ -111,14 +115,14 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
           <ChevronRight size={14} className="mt-0.5 text-zinc-400 flex-shrink-0" />
         )}
         <div className="flex-1 min-w-0">
-          {frontmatter.title && (
+          {displayTitle && (
             <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 leading-tight">
-              {frontmatter.title}
+              {displayTitle}
             </h1>
           )}
-          {frontmatter.summary && (
+          {displaySummary && (
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-2">
-              {frontmatter.summary}
+              {displaySummary}
             </p>
           )}
         </div>
