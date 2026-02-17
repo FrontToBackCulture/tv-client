@@ -5,13 +5,22 @@ import { create } from "zustand";
 export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "system" | "settings";
 export type Theme = "light" | "dark";
 
-// Get initial module from URL query param (for multi-window support)
+const VALID_MODULES: ModuleId[] = ["library", "work", "inbox", "crm", "product", "bot", "system", "settings"];
+const LAST_MODULE_KEY = "tv-client-last-module";
+
+// Get initial module: URL param (multi-window) > localStorage (resume) > default
 function getInitialModule(): ModuleId {
   if (typeof window === "undefined") return "library";
+  // Secondary windows use URL param
   const params = new URLSearchParams(window.location.search);
-  const module = params.get("module") as ModuleId | null;
-  if (module && ["library", "work", "inbox", "crm", "product", "bot", "system", "settings"].includes(module)) {
-    return module;
+  const fromUrl = params.get("module") as ModuleId | null;
+  if (fromUrl && VALID_MODULES.includes(fromUrl)) {
+    return fromUrl;
+  }
+  // Primary window resumes last module
+  const stored = localStorage.getItem(LAST_MODULE_KEY) as ModuleId | null;
+  if (stored && VALID_MODULES.includes(stored)) {
+    return stored;
   }
   return "library";
 }
@@ -89,7 +98,10 @@ export const useAppStore = create<AppState>((set) => ({
 
   // Navigation
   activeModule: getInitialModule(),
-  setActiveModule: (module) => set({ activeModule: module }),
+  setActiveModule: (module) => {
+    localStorage.setItem(LAST_MODULE_KEY, module);
+    set({ activeModule: module });
+  },
 
   // Sync
   syncStatus: "idle",
