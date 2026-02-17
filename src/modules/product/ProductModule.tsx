@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Boxes, Package, Database, Tags, Layers, ArrowLeft, Sparkles } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
+import { useViewContextStore } from "../../stores/viewContextStore";
 import { useProductStats } from "../../hooks/useProduct";
 import { useDiscoverDomains } from "../../hooks/useValSync";
 import { useRepository } from "../../stores/repositoryStore";
@@ -46,10 +47,35 @@ export function ProductModule() {
   const [showForm, setShowForm] = useState(false);
   const [formEntityType, setFormEntityType] = useState<ProductEntityType>("module");
 
+  // Report view context for help bot
+  const setViewContext = useViewContextStore((s) => s.setView);
+  const setViewDetail = useViewContextStore((s) => s.setDetail);
+  useEffect(() => {
+    const labels: Record<ProductTab, string> = { platform: "Platform", solutions: "Solutions", domains: "Domains", "data-models": "Data Models", "category-library": "Categories", skills: "AI Skills" };
+    setViewContext(activeTab, labels[activeTab]);
+  }, [activeTab, setViewContext]);
+
   // Review escape hatch (full-screen review for domains)
   const [reviewingDomain, setReviewingDomain] = useState<string | null>(null);
   const lastReviewedDomainRef = useRef<string | null>(null);
   const [reviewType, setReviewType] = useState<ReviewType>("data-models");
+
+  // Report review mode context for help bot
+  useEffect(() => {
+    if (reviewingDomain) {
+      const reviewLabels: Record<ReviewType, string> = { "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards" };
+      const reviewDescriptions: Record<ReviewType, string> = {
+        "data-models": "Review Mode with action buttons: Fetch All Samples, Fetch All Categorical, Fetch All Details, AI Describe All, AI Classify All, Generate All Overviews, Sync to Portal, Export. Grid shows all tables with editable classification fields.",
+        queries: "Review Mode showing all queries with category, table name, field count. Split panel with detail preview on the right.",
+        workflows: "Review Mode showing all workflows with schedule, cron expression, plugin count. Split panel with detail preview.",
+        dashboards: "Review Mode showing all dashboards with category, widget count, creator. Split panel with detail preview.",
+      };
+      setViewContext("domains", "Domains");
+      setViewDetail(`${reviewingDomain} → ${reviewLabels[reviewType]} ${reviewDescriptions[reviewType]}`);
+    } else {
+      setViewDetail(null);
+    }
+  }, [reviewingDomain, reviewType, setViewContext, setViewDetail]);
 
   // Detail panel resize (percentage-based, CRM pattern) — used by Platform & Business tabs
   const [detailPanelWidth, setDetailPanelWidthState] = useState(50);
@@ -218,12 +244,12 @@ export function ProductModule() {
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Tab bar */}
       <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <ViewTab label="Platform" icon={Boxes} active={activeTab === "platform"} onClick={() => handleTabChange("platform")} />
-        <ViewTab label="Solutions" icon={Package} active={activeTab === "solutions"} onClick={() => handleTabChange("solutions")} />
-        <ViewTab label="Domains" icon={Database} active={activeTab === "domains"} onClick={() => handleTabChange("domains")} />
-        <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-models"} onClick={() => handleTabChange("data-models")} />
-        <ViewTab label="Skills" icon={Sparkles} active={activeTab === "skills"} onClick={() => handleTabChange("skills")} />
-        <ViewTab label="Categories" icon={Tags} active={activeTab === "category-library"} onClick={() => handleTabChange("category-library")} />
+        <ViewTab label="Platform" icon={Boxes} active={activeTab === "platform"} onClick={() => handleTabChange("platform")} data-help-id="product-tab-platform" />
+        <ViewTab label="Solutions" icon={Package} active={activeTab === "solutions"} onClick={() => handleTabChange("solutions")} data-help-id="product-tab-solutions" />
+        <ViewTab label="Domains" icon={Database} active={activeTab === "domains"} onClick={() => handleTabChange("domains")} data-help-id="product-tab-domains" />
+        <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-models"} onClick={() => handleTabChange("data-models")} data-help-id="product-tab-data-models" />
+        <ViewTab label="Skills" icon={Sparkles} active={activeTab === "skills"} onClick={() => handleTabChange("skills")} data-help-id="product-tab-skills" />
+        <ViewTab label="Categories" icon={Tags} active={activeTab === "category-library"} onClick={() => handleTabChange("category-library")} data-help-id="product-tab-categories" />
       </div>
 
       {/* Content */}

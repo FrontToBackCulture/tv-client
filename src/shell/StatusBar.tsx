@@ -1,14 +1,42 @@
 // src/shell/StatusBar.tsx
 
 import { useState, useRef, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { cn } from "../lib/cn";
 import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Download, FlaskConical } from "lucide-react";
 import { useAppUpdate } from "../hooks/useAppUpdate";
 
+interface ClaudeMcpStatus {
+  binary_installed: boolean;
+  binary_path: string;
+  config_exists: boolean;
+  config_has_tv_mcp: boolean;
+  platform: string;
+}
+
+type ClaudeState = "ready" | "partial" | "none";
+
+function useClaudeStatus(): ClaudeState {
+  const [state, setState] = useState<ClaudeState>("none");
+
+  useEffect(() => {
+    invoke<ClaudeMcpStatus>("claude_mcp_status")
+      .then((s) => {
+        if (s.binary_installed && s.config_has_tv_mcp) setState("ready");
+        else if (s.binary_installed || s.config_has_tv_mcp) setState("partial");
+        else setState("none");
+      })
+      .catch(() => setState("none"));
+  }, []);
+
+  return state;
+}
+
 export function StatusBar() {
-  const { syncStatus, theme, toggleTheme, playgroundMode, togglePlayground } = useAppStore();
+  const { syncStatus, theme, toggleTheme, playgroundMode, togglePlayground, openSettings } = useAppStore();
+  const claudeState = useClaudeStatus();
   const runningJobs = useRunningJobs();
   const recentJobs = useRecentJobs(10);
   const clearCompleted = useJobsStore((s) => s.clearCompleted);
@@ -85,12 +113,34 @@ export function StatusBar() {
             {syncStatus === "error" && "Sync error"}
           </span>
         )}
+        <button
+          data-help-id="status-bar-claude"
+          onClick={() => openSettings("claude")}
+          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+          title="Claude Code status — click to open settings"
+        >
+          <span
+            className={cn(
+              "w-2 h-2 rounded-full",
+              claudeState === "ready" && "bg-green-500",
+              claudeState === "partial" && "bg-yellow-500",
+              claudeState === "none" && "bg-zinc-400"
+            )}
+          />
+          <span className={cn(
+            "text-xs",
+            claudeState === "ready" ? "text-zinc-600 dark:text-zinc-400" : "text-zinc-400"
+          )}>
+            Claude
+          </span>
+        </button>
       </div>
       <div className="flex-1" />
       <div className="flex items-center gap-4">
         {/* Background Jobs Indicator - always visible */}
         <div className="relative" ref={panelRef}>
             <button
+              data-help-id="status-bar-jobs"
               onClick={() => setShowJobsPanel(!showJobsPanel)}
               className={cn(
                 "flex items-center gap-1.5 px-2 py-0.5 rounded transition-colors",
@@ -204,6 +254,7 @@ export function StatusBar() {
         {/* Playground toggle */}
         <button
           onClick={togglePlayground}
+          data-help-id="status-bar-playground"
           className={cn(
             "flex items-center gap-1 px-2 py-0.5 rounded transition-colors",
             playgroundMode
@@ -221,6 +272,7 @@ export function StatusBar() {
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
+          data-help-id="status-bar-theme"
           className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
           title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
         >

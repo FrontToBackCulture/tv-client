@@ -96,7 +96,7 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
   };
 
   return (
-    <div className="w-12 bg-slate-100 dark:bg-zinc-900 border-r border-slate-200 dark:border-zinc-800 flex flex-col items-center py-2 gap-1">
+    <div data-help-id="activity-bar" className="w-12 bg-slate-100 dark:bg-zinc-900 border-r border-slate-200 dark:border-zinc-800 flex flex-col items-center py-2 gap-1">
       {/* Module navigation */}
       {navItems.map((item) => {
         const Icon = item.icon;
@@ -105,6 +105,7 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
         return (
           <button
             key={item.id}
+            data-help-id={`activity-bar-${item.id}`}
             onClick={() => onModuleChange(item.id)}
             onContextMenu={(e) => handleContextMenu(e, item)}
             className={cn(
@@ -148,6 +149,7 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
         return (
           <button
             key={item.id}
+            data-help-id={`activity-bar-${item.id}`}
             onClick={() => onModuleChange(item.id)}
             onContextMenu={(e) => handleContextMenu(e, item)}
             className={cn(

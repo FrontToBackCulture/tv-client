@@ -71,6 +71,7 @@ export function InboxSidebar({
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
+              data-help-id="inbox-refresh"
               className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 text-zinc-500"
               title="Refresh emails"
             >
@@ -112,6 +113,7 @@ export function InboxSidebar({
         {folders.map((folder) => (
           <button
             key={folder.id}
+            data-help-id={`inbox-folder-${folder.id.toLowerCase().replace(/ /g, "-")}`}
             onClick={() => {
               onFolderChange(folder.id);
               onCategoryChange(null);
@@ -141,6 +143,7 @@ export function InboxSidebar({
         {categories.map((cat) => (
           <button
             key={cat.id}
+            data-help-id={`inbox-category-${cat.id}`}
             onClick={() => {
               onCategoryChange(cat.id);
               onStatusChange(null);

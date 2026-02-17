@@ -89,12 +89,13 @@ export function useInitiativeProjects() {
 // ============================
 // Shared UI
 // ============================
-export function ViewTab({ label, icon: Icon, active, onClick }: {
-  label: string; icon: typeof LayoutDashboard; active: boolean; onClick: () => void;
+export function ViewTab({ label, icon: Icon, active, onClick, "data-help-id": helpId }: {
+  label: string; icon: typeof LayoutDashboard; active: boolean; onClick: () => void; "data-help-id"?: string;
 }) {
   return (
     <button
       onClick={onClick}
+      data-help-id={helpId}
       className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors ${
         active
           ? "border-teal-600 text-teal-700 dark:text-teal-400 dark:border-teal-500"

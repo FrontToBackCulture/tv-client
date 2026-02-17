@@ -12,6 +12,7 @@ import { ClientsView } from "./ClientsView";
 import { ClosedDealsView } from "./ClosedDealsView";
 import { Building2, BookUser, Users, Archive } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
+import { useViewContextStore } from "../../stores/viewContextStore";
 
 type CrmView = "pipeline" | "directory" | "clients" | "closed";
 
@@ -41,6 +42,13 @@ export function CrmModule() {
 
   // Enable real-time updates from Supabase
   useCRMRealtime();
+
+  // Report view context for help bot
+  const setViewContext = useViewContextStore((s) => s.setView);
+  useEffect(() => {
+    const labels: Record<CrmView, string> = { pipeline: "Pipeline", directory: "Directory", clients: "Clients", closed: "Closed Deals" };
+    setViewContext(activeView, labels[activeView]);
+  }, [activeView, setViewContext]);
 
   // Detail panel resizing (stored as percentage)
   const [detailPanelWidth, setDetailPanelWidthState] = useState(50);
@@ -166,10 +174,10 @@ export function CrmModule() {
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Tab bar */}
       <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <ViewTab label="Pipeline" icon={Building2} active={activeView === "pipeline"} onClick={() => handleViewChange("pipeline")} />
-        <ViewTab label="Directory" icon={BookUser} active={activeView === "directory"} onClick={() => handleViewChange("directory")} />
-        <ViewTab label="Clients" icon={Users} active={activeView === "clients"} onClick={() => handleViewChange("clients")} />
-        <ViewTab label="Closed" icon={Archive} active={activeView === "closed"} onClick={() => handleViewChange("closed")} />
+        <ViewTab label="Pipeline" icon={Building2} active={activeView === "pipeline"} onClick={() => handleViewChange("pipeline")} data-help-id="crm-tab-pipeline" />
+        <ViewTab label="Directory" icon={BookUser} active={activeView === "directory"} onClick={() => handleViewChange("directory")} data-help-id="crm-tab-directory" />
+        <ViewTab label="Clients" icon={Users} active={activeView === "clients"} onClick={() => handleViewChange("clients")} data-help-id="crm-tab-clients" />
+        <ViewTab label="Closed" icon={Archive} active={activeView === "closed"} onClick={() => handleViewChange("closed")} data-help-id="crm-tab-closed" />
       </div>
 
       {/* Content area */}

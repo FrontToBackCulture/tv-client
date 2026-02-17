@@ -82,7 +82,65 @@ fn write_mcp_config(config: &McpConfig) -> Result<(), String> {
     std::fs::write(&path, json).map_err(|e| format!("Write ~/.claude.json: {e}"))
 }
 
+// ── Types (CLI check) ────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct ClaudeCliStatus {
+    pub installed: bool,
+    pub version: Option<String>,
+    pub path: Option<String>,
+}
+
 // ── Commands ─────────────────────────────────────────────
+
+#[command]
+pub async fn check_claude_cli() -> Result<ClaudeCliStatus, String> {
+    let which_cmd = if cfg!(target_os = "windows") {
+        "where"
+    } else {
+        "which"
+    };
+
+    // Check if claude is in PATH
+    let path_output = tokio::process::Command::new(which_cmd)
+        .arg("claude")
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run {which_cmd}: {e}"))?;
+
+    if !path_output.status.success() {
+        return Ok(ClaudeCliStatus {
+            installed: false,
+            version: None,
+            path: None,
+        });
+    }
+
+    let path = String::from_utf8_lossy(&path_output.stdout)
+        .trim()
+        .to_string();
+
+    // Get version
+    let version_output = tokio::process::Command::new("claude")
+        .arg("--version")
+        .output()
+        .await
+        .ok();
+
+    let version = version_output.and_then(|o| {
+        if o.status.success() {
+            Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
+        } else {
+            None
+        }
+    });
+
+    Ok(ClaudeCliStatus {
+        installed: true,
+        version,
+        path: Some(path),
+    })
+}
 
 #[command]
 pub fn claude_mcp_status() -> Result<ClaudeMcpStatus, String> {

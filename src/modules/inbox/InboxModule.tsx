@@ -1,6 +1,6 @@
 // src/modules/inbox/InboxModule.tsx
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   useEmails,
   useEmail,
@@ -20,6 +20,7 @@ import { EmailDetail } from "./EmailDetail";
 import { EmptyInbox } from "./EmptyInbox";
 import { OutlookSetup } from "./OutlookSetup";
 import type { EmailCategory, EmailStatus } from "../../hooks/useOutlook";
+import { useViewContextStore } from "../../stores/viewContextStore";
 
 export function InboxModule() {
   // Auth state
@@ -29,11 +30,24 @@ export function InboxModule() {
   const { isSyncing, progress: syncProgress, error: syncEventError } = useOutlookSync();
   const syncStart = useSyncStart();
 
+  // Report view context for help bot
+  const setViewContext = useViewContextStore((s) => s.setView);
+
   // Filter state
   const [selectedFolder, setSelectedFolder] = useState("Inbox");
   const [selectedCategory, setSelectedCategory] = useState<EmailCategory | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<EmailStatus | null>(null);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+
+  // Report current inbox view to help bot
+  const inboxViewLabel = useMemo(() => {
+    if (selectedCategory) return `Category: ${selectedCategory}`;
+    if (selectedStatus) return `Status: ${selectedStatus}`;
+    return `Folder: ${selectedFolder}`;
+  }, [selectedFolder, selectedCategory, selectedStatus]);
+  useEffect(() => {
+    setViewContext("inbox", inboxViewLabel);
+  }, [inboxViewLabel, setViewContext]);
 
   // Get emails with filters
   const { data: emails = [], isLoading, error: emailsError } = useEmails({

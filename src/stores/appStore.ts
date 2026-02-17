@@ -4,6 +4,7 @@ import { create } from "zustand";
 
 export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "system" | "settings";
 export type Theme = "light" | "dark";
+export type SettingsView = "keys" | "val" | "sync" | "mcp" | "claude" | "bots" | null;
 
 const VALID_MODULES: ModuleId[] = ["library", "work", "inbox", "crm", "product", "bot", "system", "settings"];
 const LAST_MODULE_KEY = "tv-client-last-module";
@@ -76,6 +77,11 @@ interface AppState {
   // Playground
   playgroundMode: boolean;
   togglePlayground: () => void;
+
+  // Settings deep-link
+  settingsView: SettingsView;
+  setSettingsView: (view: SettingsView) => void;
+  openSettings: (view?: SettingsView) => void;
 }
 
 // Initialize theme on load
@@ -115,6 +121,14 @@ export const useAppStore = create<AppState>((set) => ({
   // Playground
   playgroundMode: false,
   togglePlayground: () => set((state) => ({ playgroundMode: !state.playgroundMode })),
+
+  // Settings deep-link
+  settingsView: null,
+  setSettingsView: (view) => set({ settingsView: view }),
+  openSettings: (view) => {
+    localStorage.setItem(LAST_MODULE_KEY, "settings");
+    set({ activeModule: "settings", settingsView: view ?? null });
+  },
 }));
 
 // Sync theme across windows via localStorage storage event

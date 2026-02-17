@@ -5,6 +5,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useSettings, API_KEYS, ApiKeyInfo } from "../../hooks/useSettings";
 
 import { useBotSettingsStore } from "../../stores/botSettingsStore";
+import { useAppStore } from "../../stores/appStore";
+import { useViewContextStore } from "../../stores/viewContextStore";
 
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -42,7 +44,7 @@ import {
 } from "../../hooks/useValSync";
 import { cn } from "../../lib/cn";
 
-type SettingsView = "keys" | "val" | "sync" | "mcp" | "claude" | "bots";
+type SettingsViewId = "keys" | "val" | "sync" | "mcp" | "claude" | "bots";
 
 // ── KeyEditor ──────────────────────────────────────────────
 
@@ -1556,7 +1558,7 @@ function ClaudeCodeSetupView() {
 // ── Main Settings Module ───────────────────────────────────
 
 interface SidebarItem {
-  id: SettingsView;
+  id: SettingsViewId;
   label: string;
   icon: LucideIcon;
 }
@@ -1571,7 +1573,25 @@ const sidebarItems: SidebarItem[] = [
 ];
 
 export function SettingsModule() {
-  const [activeView, setActiveView] = useState<SettingsView>("keys");
+  const { settingsView, setSettingsView } = useAppStore();
+  const [activeView, setActiveView] = useState<SettingsViewId>(
+    (settingsView as SettingsViewId) || "keys"
+  );
+
+  // Consume deep-link from appStore (e.g., StatusBar click)
+  useEffect(() => {
+    if (settingsView) {
+      setActiveView(settingsView as SettingsViewId);
+      setSettingsView(null); // Clear after consuming
+    }
+  }, [settingsView, setSettingsView]);
+
+  // Report view context for help bot
+  const setViewContext = useViewContextStore((s) => s.setView);
+  useEffect(() => {
+    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots" };
+    setViewContext(activeView, labels[activeView]);
+  }, [activeView, setViewContext]);
 
   return (
     <div className="h-full flex bg-slate-50 dark:bg-zinc-950">
@@ -1593,6 +1613,7 @@ export function SettingsModule() {
               <button
                 key={item.id}
                 onClick={() => setActiveView(item.id)}
+                data-help-id={`settings-nav-${item.id}`}
                 className={cn(
                   "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
                   isActive

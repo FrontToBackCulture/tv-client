@@ -1,7 +1,7 @@
 // src/modules/work/TaskDetailPanel.tsx
 // Task detail panel/modal with full editing
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useTask,
   useUpdateTask,
@@ -10,6 +10,7 @@ import {
   useUsers,
   useMilestones,
 } from "../../hooks/useWork";
+import { useViewContextStore } from "../../stores/viewContextStore";
 import {
   getTaskIdentifier,
   Priority,
@@ -44,6 +45,12 @@ export function TaskDetailPanel({
   const { data: task, isLoading, refetch } = useTask(taskId);
   const updateMutation = useUpdateTask();
   const deleteMutation = useDeleteTask();
+
+  // Report task to help bot
+  const setViewDetail = useViewContextStore((s) => s.setDetail);
+  useEffect(() => {
+    if (task?.title) setViewDetail(`Task: ${task.title}`);
+  }, [task, setViewDetail]);
 
   const projectId = task?.project_id || "";
   const { data: statuses = [] } = useStatuses(projectId);

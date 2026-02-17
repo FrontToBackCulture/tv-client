@@ -70,6 +70,7 @@ export function DirectoryView({ selectedId, onSelect, onNewCompany }: DirectoryV
           </div>
           <button
             onClick={onNewCompany}
+            data-help-id="crm-add-company"
             className="p-1.5 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
           >
             <Plus size={14} />

@@ -9,6 +9,9 @@ import { SidePanel } from "./SidePanel";
 
 import { ModuleId, isSecondaryWindow } from "../stores/appStore";
 import { useSidePanelStore } from "../stores/sidePanelStore";
+import { HelpButton } from "../components/help/HelpButton";
+import { HelpPanel } from "../components/help/HelpPanel";
+import { HelpHighlight } from "../components/help/HelpHighlight";
 
 const moduleLabels: Record<ModuleId, string> = {
   library: "Library",
@@ -81,6 +84,9 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
 
       {/* Overlays */}
       <CommandPalette />
+      <HelpHighlight />
+      <HelpButton />
+      <HelpPanel />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 // src/App.tsx
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Shell } from "./shell/Shell";
@@ -14,8 +14,10 @@ import { SettingsModule } from "./modules/settings/SettingsModule";
 import { SystemModule } from "./modules/system/SystemModule";
 import { Playground } from "./playground/Playground";
 import { Login } from "./components/Login";
+import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { useAppStore, ModuleId } from "./stores/appStore";
 import { useSidePanelStore } from "./stores/sidePanelStore";
+import { useHelpStore } from "./stores/helpStore";
 import { useAuth } from "./stores/authStore";
 import { useRealtimeSync } from "./hooks/useRealtimeSync";
 import { openModuleInNewWindow } from "./lib/windowManager";
@@ -35,6 +37,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
 export default function App() {
   const { activeModule, setActiveModule, playgroundMode, togglePlayground } = useAppStore();
   const { user, isLoading, isInitialized, initialize } = useAuth();
+  const [setupDone, setSetupDone] = useState(isSetupComplete);
 
   // Initialize auth on mount
   useEffect(() => {
@@ -79,6 +82,11 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "X" || e.key === "x")) {
         e.preventDefault();
         togglePlayground();
+      }
+      // ⌘/ — Toggle help panel
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault();
+        useHelpStore.getState().toggle();
       }
       // ⌘+ / ⌘= — Zoom in
       if ((e.metaKey || e.ctrlKey) && (e.key === "=" || e.key === "+")) {
@@ -144,6 +152,11 @@ export default function App() {
   // Show login page if not authenticated
   if (!user) {
     return <Login />;
+  }
+
+  // Show setup wizard on first run
+  if (!setupDone) {
+    return <SetupWizard onComplete={() => setSetupDone(true)} />;
   }
 
   const ActiveModule = modules[activeModule];

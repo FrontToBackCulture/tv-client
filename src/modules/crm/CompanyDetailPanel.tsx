@@ -1,8 +1,9 @@
 // src/modules/crm/CompanyDetailPanel.tsx
 // Company detail panel with tabs for timeline, contacts, and deals
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCompanyWithRelations, useDeleteCompany } from "../../hooks/useCRM";
+import { useViewContextStore } from "../../stores/viewContextStore";
 import { COMPANY_STAGES } from "../../lib/crm/types";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
 import { ActivityTimeline } from "./ActivityTimeline";
@@ -45,6 +46,14 @@ export function CompanyDetailPanel({
 
   const { data: company, isLoading, refetch } = useCompanyWithRelations(companyId);
   const deleteMutation = useDeleteCompany();
+
+  // Report company + sub-tab to help bot
+  const setViewDetail = useViewContextStore((s) => s.setDetail);
+  useEffect(() => {
+    const tabLabels: Record<TabId, string> = { timeline: "Timeline", contacts: "Contacts", deals: "Deals" };
+    const name = company?.display_name || company?.name;
+    if (name) setViewDetail(`${name} → ${tabLabels[activeTab]}`);
+  }, [company, activeTab, setViewDetail]);
   const { openPanel, isOpen: sidePanelOpen } = useSidePanelStore();
 
   // Open client folder in side panel
@@ -199,6 +208,7 @@ export function CompanyDetailPanel({
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
+            data-help-id={`crm-detail-${tab}`}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab
                 ? "border-teal-500 text-teal-600 dark:text-teal-400"
@@ -226,6 +236,7 @@ export function CompanyDetailPanel({
             <div className="flex justify-end mb-3">
               <button
                 onClick={() => setShowContactForm(true)}
+                data-help-id="crm-add-contact"
                 className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-500 transition-colors"
               >
                 + Add Contact
@@ -242,6 +253,7 @@ export function CompanyDetailPanel({
             <div className="flex justify-end mb-3">
               <button
                 onClick={() => setShowDealForm(true)}
+                data-help-id="crm-add-deal"
                 className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-500 transition-colors"
               >
                 + Add Deal

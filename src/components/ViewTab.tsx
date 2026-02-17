@@ -8,12 +8,14 @@ interface ViewTabProps {
   icon: LucideIcon;
   active: boolean;
   onClick: () => void;
+  "data-help-id"?: string;
 }
 
-export function ViewTab({ label, icon: Icon, active, onClick }: ViewTabProps) {
+export function ViewTab({ label, icon: Icon, active, onClick, "data-help-id": helpId }: ViewTabProps) {
   return (
     <button
       onClick={onClick}
+      data-help-id={helpId}
       className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
         active
           ? "border-teal-500 text-zinc-800 dark:text-zinc-100"

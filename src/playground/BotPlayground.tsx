@@ -2,7 +2,7 @@
 // Prototype: Bots module redesign — overview card + drill-down views
 // Toggle via Shift+Cmd+X → "Bots" tab
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Bot,
   Search,
@@ -34,6 +34,7 @@ import { useListDirectory, useReadFile, useWriteFile, FileEntry } from "../hooks
 import { useQueries } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useBotSettingsStore } from "../stores/botSettingsStore";
+import { useViewContextStore } from "../stores/viewContextStore";
 import { useFolderFiles, FolderFile } from "../hooks/useFolderFiles";
 import { cn } from "../lib/cn";
 import { ViewTab } from "../components/ViewTab";
@@ -1555,6 +1556,15 @@ export function BotPlayground() {
   const [detailView, setDetailView] = useState<DetailView>(null);
   const [sessionDetailView, setSessionDetailView] = useState<{ date: string; title: string | null; summary: string | null; path: string } | null>(null);
   const [skillModal, setSkillModal] = useState<{ skillName: string; skillPath: string; title: string } | null>(null);
+
+  // Report view context for help bot
+  const setViewContext = useViewContextStore((s) => s.setView);
+  const setViewDetail = useViewContextStore((s) => s.setDetail);
+  const selectedBotName = selectedPath?.split("/").pop() ?? null;
+  useEffect(() => {
+    setViewContext(activeView, activeView === "directory" ? "Bot Directory" : "Recent Sessions");
+    setViewDetail(selectedBotName ? `Bot: ${selectedBotName}` : null);
+  }, [activeView, selectedBotName, setViewContext, setViewDetail]);
 
   // Load team directory
   const { data: teamEntries = [], isLoading: loadingTeam } = useListDirectory(teamPath);

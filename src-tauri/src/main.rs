@@ -124,6 +124,7 @@ fn main() {
             // Test command
             commands::greet,
             // Claude Code MCP setup
+            commands::claude_setup::check_claude_cli,
             commands::claude_setup::claude_mcp_status,
             commands::claude_setup::claude_mcp_install,
             commands::claude_setup::claude_mcp_uninstall,
@@ -148,6 +149,8 @@ fn main() {
             commands::files::get_folder_files,
             // Folder Chat (AI-powered folder Q&A)
             commands::folder_chat::folder_chat_ask,
+            // Help Chat (in-app help bot)
+            commands::help_chat::help_chat_ask,
             // Search operations (Rust native)
             commands::search::search_files,
             commands::search::search_content,

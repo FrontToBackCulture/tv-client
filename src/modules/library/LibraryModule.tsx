@@ -12,6 +12,7 @@ import { useTabStore } from "../../stores/tabStore";
 import { useRecentFilesStore } from "../../stores/recentFilesStore";
 import { useFileSearch } from "../../hooks/useSearch";
 import { useFileTree, useFolderChildren, TreeNode } from "../../hooks/useFiles";
+import { useViewContextStore } from "../../stores/viewContextStore";
 
 // Sidebar width constraints
 const MIN_SIDEBAR_WIDTH = 200;
@@ -34,6 +35,18 @@ export function LibraryModule() {
 
   // Derive active tab
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+
+  // Report view context for help bot
+  const setViewContext = useViewContextStore((s) => s.setView);
+  const setViewDetail = useViewContextStore((s) => s.setDetail);
+  useEffect(() => {
+    if (activeTab) {
+      setViewContext(activeTab.isDirectory ? "folder" : "file", activeTab.isDirectory ? "Folder View" : "File Viewer");
+      setViewDetail(activeTab.name);
+    } else {
+      setViewContext("empty", "No file open");
+    }
+  }, [activeTab, setViewContext, setViewDetail]);
 
   // Clear tabs when repository changes
   const handleRepositoryChange = useCallback(() => {

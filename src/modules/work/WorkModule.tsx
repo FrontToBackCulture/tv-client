@@ -1,7 +1,7 @@
 // src/modules/work/WorkModule.tsx
 // Main Work module — tabbed layout with Inbox, Dashboard, Board, Tracker views
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   LayoutDashboard, Columns3, AlertTriangle, Inbox, Plus,
 } from "lucide-react";
@@ -19,12 +19,20 @@ import {
   TrackerView,
   useInitiativeProjects,
 } from "./WorkViews";
+import { useViewContextStore } from "../../stores/viewContextStore";
 
 export function WorkModule() {
   const [view, setView] = useState<WorkView>("inbox");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [createTaskProjectId, setCreateTaskProjectId] = useState<string | undefined>();
+
+  // Report view context for help bot
+  const setViewContext = useViewContextStore((s) => s.setView);
+  useEffect(() => {
+    const labels: Record<WorkView, string> = { inbox: "My Tasks", dashboard: "Dashboard", board: "Board", tracker: "Tracker" };
+    setViewContext(view, labels[view]);
+  }, [view, setViewContext]);
 
   // Data fetching
   const { data: projects = [], refetch: refetchProjects } = useProjects();
@@ -72,14 +80,15 @@ export function WorkModule() {
       {/* Tab bar with new task button */}
       <div className="flex-shrink-0 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/50 px-4">
         <div className="flex items-center">
-          <ViewTab label="Inbox" icon={Inbox} active={view === "inbox"} onClick={() => handleViewChange("inbox")} />
-          <ViewTab label="Dashboard" icon={LayoutDashboard} active={view === "dashboard"} onClick={() => handleViewChange("dashboard")} />
-          <ViewTab label="Board" icon={Columns3} active={view === "board"} onClick={() => handleViewChange("board")} />
-          <ViewTab label="Tracker" icon={AlertTriangle} active={view === "tracker"} onClick={() => handleViewChange("tracker")} />
+          <ViewTab label="Inbox" icon={Inbox} active={view === "inbox"} onClick={() => handleViewChange("inbox")} data-help-id="work-tab-inbox" />
+          <ViewTab label="Dashboard" icon={LayoutDashboard} active={view === "dashboard"} onClick={() => handleViewChange("dashboard")} data-help-id="work-tab-dashboard" />
+          <ViewTab label="Board" icon={Columns3} active={view === "board"} onClick={() => handleViewChange("board")} data-help-id="work-tab-board" />
+          <ViewTab label="Tracker" icon={AlertTriangle} active={view === "tracker"} onClick={() => handleViewChange("tracker")} data-help-id="work-tab-tracker" />
         </div>
         <button
           onClick={handleCreateTask}
           disabled={projects.length === 0}
+          data-help-id="work-new-task"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Plus size={14} />

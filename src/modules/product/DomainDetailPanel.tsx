@@ -1,7 +1,7 @@
 // src/modules/product/DomainDetailPanel.tsx
 // Domain detail with auth status, sync controls, and artifact status
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useValAuth,
   useValCredentials,
@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useJobsStore } from "../../stores/jobsStore";
+import { useViewContextStore } from "../../stores/viewContextStore";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
 import { DomainAiTab } from "./DomainAiTab";
 
@@ -95,6 +96,14 @@ function formatRelativeShort(isoString: string | null): string {
 
 export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards, discoveredDomain }: DomainDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+
+  // Report domain + sub-tab to help bot
+  const setViewDetail = useViewContextStore((s) => s.setDetail);
+  useEffect(() => {
+    const tabLabels: Record<Tab, string> = { overview: "Overview", review: "Review", files: "Files", sync: "Sync", history: "History", ai: "AI" };
+    setViewDetail(`${domain} → ${tabLabels[activeTab]}`);
+  }, [domain, activeTab, setViewDetail]);
+
   const [showCredForm, setShowCredForm] = useState(false);
   const [credEmail, setCredEmail] = useState("");
   const [credPassword, setCredPassword] = useState("");

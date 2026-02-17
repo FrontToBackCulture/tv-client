@@ -123,12 +123,13 @@ export function CommandPalette() {
       />
 
       {/* Palette */}
-      <div className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-lg border border-slate-200 dark:border-zinc-700 shadow-2xl">
+      <div data-help-id="command-palette" className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-lg border border-slate-200 dark:border-zinc-700 shadow-2xl">
         {/* Search input */}
         <div className="flex items-center px-4 border-b border-slate-200 dark:border-zinc-700">
           <Search size={16} className="text-zinc-400 dark:text-zinc-500" />
           <input
             ref={inputRef}
+            data-help-id="command-palette-search"
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
