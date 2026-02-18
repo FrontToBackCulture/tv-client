@@ -139,6 +139,48 @@ pub fn val_generate_ai_package(
         }
     }
 
+    // Build allowed table set from skill.json files (source of truth for table→skill assignments).
+    // Each skill.json has "tables": ["entity/model", ...].
+    // A table is included if ANY selected skill claims it, or if no skill claims it (shared).
+    let platform_skills_base = entities_base.join("../../../skills");
+    let mut skill_claimed_tables: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut all_claimed_tables: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // Collect tables claimed by ALL skills (to identify unclaimed/shared tables)
+    if let Ok(skill_dirs) = fs::read_dir(&platform_skills_base) {
+        for entry in skill_dirs.flatten() {
+            if !entry.path().is_dir() { continue; }
+            let skill_json_path = entry.path().join("skill.json");
+            if let Ok(raw) = fs::read_to_string(&skill_json_path) {
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) {
+                    if let Some(tables) = parsed.get("tables").and_then(|t| t.as_array()) {
+                        for t in tables {
+                            if let Some(s) = t.as_str() {
+                                all_claimed_tables.insert(s.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Collect tables claimed by the SELECTED skills
+    for skill in &skills {
+        let skill_json_path = platform_skills_base.join(skill).join("skill.json");
+        if let Ok(raw) = fs::read_to_string(&skill_json_path) {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(tables) = parsed.get("tables").and_then(|t| t.as_array()) {
+                    for t in tables {
+                        if let Some(s) = t.as_str() {
+                            skill_claimed_tables.insert(s.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Scan all entity/model folders for ai_package == true → copy table docs
     let entity_dirs = fs::read_dir(entities_base)
         .map_err(|e| format!("Failed to read entities dir: {}", e))?;
@@ -148,6 +190,8 @@ pub fn val_generate_ai_package(
         if entity_entry.file_name().to_string_lossy().starts_with('.') { continue; }
         if entity_entry.file_name().to_string_lossy().starts_with('_') { continue; }
 
+        let entity_name = entity_entry.file_name().to_string_lossy().to_string();
+
         let model_entries = match fs::read_dir(entity_entry.path()) {
             Ok(e) => e,
             Err(_) => continue,
@@ -156,12 +200,24 @@ pub fn val_generate_ai_package(
         for model_entry in model_entries.flatten() {
             if !model_entry.path().is_dir() { continue; }
 
+            let model_name = model_entry.file_name().to_string_lossy().to_string();
+
             let schema = match read_schema_json_pub(&model_entry.path()) {
                 Some(s) => s,
                 None => continue,
             };
 
             if schema.ai_package != Some(true) { continue; }
+
+            // Filter by skill: include table if a selected skill claims it,
+            // or if no skill at all claims it (shared/unclaimed table).
+            let table_key = format!("{}/{}", entity_name, model_name);
+            let is_claimed_by_any_skill = all_claimed_tables.contains(&table_key);
+            let is_claimed_by_selected = skill_claimed_tables.contains(&table_key);
+
+            if is_claimed_by_any_skill && !is_claimed_by_selected {
+                continue; // Claimed by another skill, not the selected ones — skip
+            }
 
             // Find the domain's table overview.md
             let table_name = &schema.table_name;
