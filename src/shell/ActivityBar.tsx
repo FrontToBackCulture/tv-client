@@ -13,6 +13,7 @@ import {
   ExternalLink,
   LucideIcon,
   Book,
+  Headset,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -40,6 +41,7 @@ const navItems: NavItem[] = [
   { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘5" },
   { id: "inbox", icon: Mail, label: "Inbox", shortcut: "⌘6" },
   { id: "system", icon: Book, label: "System", shortcut: "⌘7" },
+  { id: "portal", icon: Headset, label: "Portal", shortcut: "⌘8" },
 ];
 
 // Bottom items (settings, etc.)
