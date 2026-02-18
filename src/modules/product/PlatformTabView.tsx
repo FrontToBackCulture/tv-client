@@ -1,9 +1,11 @@
 // src/modules/product/PlatformTabView.tsx
 // Platform tab: sidebar (Modules grouped by layer with nested features, Connectors) + list + resizable detail
 
-import { useState, useMemo, useCallback } from "react";
-import { Search, X, Plus, ChevronRight } from "lucide-react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { Search, X, Plus, ChevronRight, FileText, Play } from "lucide-react";
 import { useProductModules, useProductFeatures, useProductConnectors } from "../../hooks/useProduct";
+import { useRepository } from "../../stores/repositoryStore";
+import { invoke } from "@tauri-apps/api/core";
 import { ModuleGridView } from "./ModuleGridView";
 import { ModuleDetailPanel } from "./ModuleDetailPanel";
 import { FeatureListView } from "./FeatureListView";
@@ -47,6 +49,81 @@ export function PlatformTabView({
   const { data: modules = [] } = useProductModules();
   const { data: features = [] } = useProductFeatures();
   const { data: connectors = [] } = useProductConnectors();
+  const { activeRepository } = useRepository();
+
+  // ── Sidebar resize (pixel-based, persisted) ───────────────
+  const SIDEBAR_WIDTH_KEY = "tv-desktop-product-sidebar-width";
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem(SIDEBAR_WIDTH_KEY) : null;
+    return stored ? parseInt(stored, 10) : 220;
+  });
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const sidebarStartXRef = useRef(0);
+  const sidebarStartWidthRef = useRef(220);
+
+  const handleSidebarMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizingSidebar(true);
+    sidebarStartXRef.current = e.clientX;
+    sidebarStartWidthRef.current = sidebarWidth;
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (!isResizingSidebar) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = e.clientX - sidebarStartXRef.current;
+      const newWidth = Math.max(160, Math.min(400, sidebarStartWidthRef.current + delta));
+      setSidebarWidth(newWidth);
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(newWidth));
+    };
+    const handleMouseUp = () => setIsResizingSidebar(false);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizingSidebar]);
+
+  // ── Doc/Demo indicators ───────────────────────────────────
+  // Check which feature folders actually have guide.md and/or demo.json on disk
+  const [featuresWithDocs, setFeaturesWithDocs] = useState<Set<string>>(new Set());
+  const [featuresWithDemo, setFeaturesWithDemo] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!activeRepository?.path || features.length === 0) return;
+    const repoPath = activeRepository.path;
+
+    const checkFeatures = async () => {
+      const docsSet = new Set<string>();
+      const demoSet = new Set<string>();
+
+      const checks = features
+        .filter((f) => f.doc_path)
+        .map(async (f) => {
+          const fullPath = `${repoPath}/${f.doc_path}`;
+          const folder = fullPath.substring(0, fullPath.lastIndexOf("/"));
+          try {
+            const entries = await invoke<{ name: string }[]>("list_directory", { path: folder });
+            if (entries.some((e) => e.name === "guide.md")) docsSet.add(f.id);
+            if (entries.some((e) => e.name === "demo.json")) demoSet.add(f.id);
+          } catch {
+            // Folder doesn't exist on disk — skip
+          }
+        });
+
+      await Promise.all(checks);
+      setFeaturesWithDocs(docsSet);
+      setFeaturesWithDemo(demoSet);
+    };
+
+    checkFeatures();
+  }, [features, activeRepository?.path]);
 
   const searchLower = search.toLowerCase();
 
@@ -298,9 +375,19 @@ export function PlatformTabView({
                                           : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                                       }`}
                                     >
-                                      <span className="flex items-center gap-1.5">
-                                        <span className="text-zinc-300 dark:text-zinc-600">·</span>
+                                      <span className="flex items-center gap-1.5 min-w-0">
+                                        <span className="text-zinc-300 dark:text-zinc-600 flex-shrink-0">·</span>
                                         <span className="truncate">{feat.name}</span>
+                                        {featuresWithDemo.has(feat.id) && (
+                                          <span title="Has demo">
+                                            <Play size={9} className="flex-shrink-0 text-teal-400/60" />
+                                          </span>
+                                        )}
+                                        {featuresWithDocs.has(feat.id) && (
+                                          <span title="Has documentation">
+                                            <FileText size={9} className="flex-shrink-0 text-teal-400/60" />
+                                          </span>
+                                        )}
                                       </span>
                                     </button>
                                   );
@@ -377,7 +464,10 @@ export function PlatformTabView({
   return (
     <div className="flex h-full flex-1 min-w-0">
       {/* Sidebar */}
-      <div className="w-[220px] flex-shrink-0 h-full border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex flex-col">
+      <div
+        className="flex-shrink-0 h-full border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex flex-col relative"
+        style={{ width: sidebarWidth, transition: isResizingSidebar ? "none" : "width 200ms" }}
+      >
         {/* Search */}
         <div className="p-2.5 pb-1.5">
           <div className="relative">
@@ -412,6 +502,16 @@ export function PlatformTabView({
             <Plus size={14} />
             {newButtonLabel}
           </button>
+        </div>
+
+        {/* Sidebar resize handle */}
+        <div
+          onMouseDown={handleSidebarMouseDown}
+          className="absolute top-0 -right-1.5 w-3 h-full cursor-col-resize group z-50"
+        >
+          <div className={`absolute left-1 w-0.5 h-full transition-all ${
+            isResizingSidebar ? "bg-teal-500 w-1" : "bg-transparent group-hover:bg-teal-500/60"
+          }`} />
         </div>
       </div>
 

@@ -9,7 +9,8 @@ import { FEATURE_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
 import { ProductActivityTimeline } from "./ProductActivityTimeline";
 import { MarkdownViewer } from "../library/MarkdownViewer";
-import { Loader2 } from "lucide-react";
+import { DemoPlayer } from "./DemoPlayer";
+import { Loader2, Play } from "lucide-react";
 import { cn } from "../../lib/cn";
 
 interface FeatureDetailPanelProps {
@@ -17,7 +18,7 @@ interface FeatureDetailPanelProps {
   onClose: () => void;
 }
 
-type Tab = "overview" | "connectors" | "solutions" | "activity";
+type Tab = "overview" | "connectors" | "solutions" | "activity" | "demo";
 
 export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -37,6 +38,15 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
   }, [docFullPath]);
 
   const { data: docContent, isLoading: docLoading } = useReadFile(docFullPath);
+
+  // Demo: try loading demo.json from the feature folder
+  const demoJsonPath = useMemo(() => {
+    if (!docBasePath) return undefined;
+    return `${docBasePath}/demo.json`;
+  }, [docBasePath]);
+
+  const { data: demoJsonContent } = useReadFile(demoJsonPath);
+  const hasDemo = !!demoJsonContent;
 
   if (isLoading) {
     return (
@@ -58,6 +68,7 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "overview", label: "Overview" },
+    ...(hasDemo ? [{ id: "demo" as Tab, label: "Demo" }] : []),
     { id: "connectors", label: "Connectors", count: data.connectors?.length },
     { id: "solutions", label: "Solutions", count: data.solutions?.length },
     { id: "activity", label: "Activity" },
@@ -76,7 +87,16 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
             )}
           </div>
         </div>
-        {/* No close button — sidebar handles navigation */}
+        {/* Create Demo button — shown when feature has a doc folder but no demo.json yet */}
+        {docBasePath && !hasDemo && (
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800 rounded-md hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors"
+            title="Run capture-demo.js to generate an interactive demo for this feature"
+          >
+            <Play size={12} />
+            Create Demo
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -101,7 +121,11 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-auto p-6 min-w-0">
+      <div className={cn("flex-1 overflow-auto min-w-0", activeTab === "demo" ? "" : "p-6")}>
+        {activeTab === "demo" && hasDemo && demoJsonPath && docBasePath && (
+          <DemoPlayer demoPath={demoJsonPath} basePath={docBasePath} />
+        )}
+
         {activeTab === "overview" && (
           <div className="w-full">
             {docContent ? (
