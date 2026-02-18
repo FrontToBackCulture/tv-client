@@ -1,12 +1,15 @@
 // src/modules/product/FeatureDetailPanel.tsx
 // Detail panel for a selected feature — tabs: Overview, Connectors, Solutions, Releases, Activity
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useProductFeatureWithRelations } from "../../hooks/useProduct";
+import { useReadFile } from "../../hooks/useFiles";
+import { useRepository } from "../../stores/repositoryStore";
 import { FEATURE_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
 import { ProductActivityTimeline } from "./ProductActivityTimeline";
-import { X, Loader2, FileText } from "lucide-react";
+import { MarkdownViewer } from "../library/MarkdownViewer";
+import { Loader2 } from "lucide-react";
 import { cn } from "../../lib/cn";
 
 interface FeatureDetailPanelProps {
@@ -16,9 +19,24 @@ interface FeatureDetailPanelProps {
 
 type Tab = "overview" | "connectors" | "solutions" | "activity";
 
-export function FeatureDetailPanel({ id, onClose }: FeatureDetailPanelProps) {
+export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const { data, isLoading } = useProductFeatureWithRelations(id);
+  const { activeRepository } = useRepository();
+
+  // Build full path from doc_path + repo base
+  const docFullPath = useMemo(() => {
+    if (!data?.doc_path || !activeRepository?.path) return undefined;
+    return `${activeRepository.path}/${data.doc_path}`;
+  }, [data?.doc_path, activeRepository?.path]);
+
+  // Base directory for resolving relative media paths
+  const docBasePath = useMemo(() => {
+    if (!docFullPath) return undefined;
+    return docFullPath.substring(0, docFullPath.lastIndexOf("/"));
+  }, [docFullPath]);
+
+  const { data: docContent, isLoading: docLoading } = useReadFile(docFullPath);
 
   if (isLoading) {
     return (
@@ -58,9 +76,7 @@ export function FeatureDetailPanel({ id, onClose }: FeatureDetailPanelProps) {
             )}
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-500">
-          <X size={16} />
-        </button>
+        {/* No close button — sidebar handles navigation */}
       </div>
 
       {/* Tabs */}
@@ -85,44 +101,38 @@ export function FeatureDetailPanel({ id, onClose }: FeatureDetailPanelProps) {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-6 min-w-0">
         {activeTab === "overview" && (
-          <div className="space-y-4">
-            {data.description && (
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Description</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
+          <div className="w-full">
+            {docContent ? (
+              <MarkdownViewer content={docContent} basePath={docBasePath} />
+            ) : docLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={20} className="text-zinc-400 animate-spin" />
               </div>
-            )}
-            <div className="grid grid-cols-2 gap-4">
-              {data.category && (
-                <div>
-                  <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Category</label>
-                  <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.category}</p>
+            ) : (
+              <div className="space-y-4">
+                {data.description && (
+                  <div>
+                    <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Description</label>
+                    <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  {data.category && (
+                    <div>
+                      <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Category</label>
+                      <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.category}</p>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Priority</label>
+                    <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.priority}</p>
+                  </div>
                 </div>
-              )}
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Priority</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.priority}</p>
-              </div>
-            </div>
-            {data.tags && data.tags.length > 0 && (
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Tags</label>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {data.tags.map((tag) => (
-                    <StatusChip key={tag} label={tag} color="gray" />
-                  ))}
-                </div>
-              </div>
-            )}
-            {data.doc_path && (
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Documentation</label>
-                <p className="mt-1 text-sm text-zinc-500 flex items-center gap-1">
-                  <FileText size={14} />
-                  {data.doc_path}
-                </p>
+                {!data.doc_path && (
+                  <p className="text-sm text-zinc-400 italic">No documentation yet. Add a guide.md to the feature folder.</p>
+                )}
               </div>
             )}
           </div>

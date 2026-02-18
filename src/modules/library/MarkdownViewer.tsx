@@ -1,14 +1,17 @@
 // src/modules/library/MarkdownViewer.tsx
 // Simple markdown renderer using react-markdown
 
-import { ReactNode, useState, useMemo } from "react";
+import { ReactNode, useState, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ChevronDown, ChevronRight, Calendar, User, Tag, FileText } from "lucide-react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 interface MarkdownViewerProps {
   content: string;
   filename?: string;
+  /** Base directory path for resolving relative image/video paths (e.g., the directory containing the .md file) */
+  basePath?: string;
 }
 
 interface ChildrenProps {
@@ -19,9 +22,16 @@ interface AnchorProps extends ChildrenProps {
   href?: string;
 }
 
+interface ImgProps {
+  src?: string;
+  alt?: string;
+}
+
 interface CodeProps extends ChildrenProps {
   className?: string;
 }
+
+const VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".ogg"];
 
 export interface Frontmatter {
   title?: string;
@@ -177,11 +187,24 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
   );
 }
 
-export function MarkdownViewer({ content, filename }: MarkdownViewerProps) {
+export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerProps) {
   const { frontmatter, body } = useMemo(() => parseFrontmatter(content), [content]);
 
+  /** Resolve a relative path to a Tauri asset URL */
+  const resolveAssetUrl = useCallback(
+    (src: string) => {
+      if (!src) return src;
+      // Already absolute URL — leave as-is
+      if (/^https?:\/\//.test(src) || src.startsWith("asset:") || src.startsWith("blob:")) return src;
+      if (!basePath) return src;
+      const absolutePath = `${basePath}/${src}`;
+      return convertFileSrc(absolutePath);
+    },
+    [basePath]
+  );
+
   return (
-    <div className="prose dark:prose-invert prose-zinc max-w-none">
+    <div className="prose dark:prose-invert prose-zinc w-full !max-w-none">
       {/* Show filename only if no frontmatter title/name */}
       {filename && !frontmatter?.title && !frontmatter?.name && (
         <div className="not-prose mb-6 pb-4 border-b border-slate-200 dark:border-zinc-800">
@@ -283,6 +306,30 @@ export function MarkdownViewer({ content, filename }: MarkdownViewerProps) {
               {children}
             </td>
           ),
+
+          // Images — resolve relative paths via basePath; render video for .mp4/.webm
+          img: ({ src, alt }: ImgProps) => {
+            const resolvedSrc = resolveAssetUrl(src || "");
+            const isVideo = VIDEO_EXTENSIONS.some((ext) => (src || "").toLowerCase().endsWith(ext));
+            if (isVideo) {
+              return (
+                <video
+                  controls
+                  className="w-full rounded-lg my-4 border border-slate-200 dark:border-zinc-700"
+                  src={resolvedSrc}
+                >
+                  {alt}
+                </video>
+              );
+            }
+            return (
+              <img
+                src={resolvedSrc}
+                alt={alt || ""}
+                className="rounded-lg my-4 w-full border border-slate-200 dark:border-zinc-700"
+              />
+            );
+          },
 
           // Horizontal rule
           hr: () => <hr className="border-slate-300 dark:border-zinc-700 my-6" />,

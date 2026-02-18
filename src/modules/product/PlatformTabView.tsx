@@ -375,7 +375,7 @@ export function PlatformTabView({
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-1 min-w-0">
       {/* Sidebar */}
       <div className="w-[220px] flex-shrink-0 h-full border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex flex-col">
         {/* Search */}
@@ -415,30 +415,34 @@ export function PlatformTabView({
         </div>
       </div>
 
-      {/* Main list view */}
-      <div
-        className="overflow-hidden flex flex-col"
-        style={{
-          flex: selectedId ? `0 0 ${100 - detailPanelWidth}%` : "1 1 auto",
-          transition: isResizingDetail ? "none" : "flex 200ms",
-        }}
-      >
-        {renderListView()}
-      </div>
-
-      {/* Detail panel */}
-      {selectedId && (
+      {/* Main list view — hidden when a feature is selected (detail panel takes full width) */}
+      {!(activeType === "features" && selectedId) && (
         <div
-          className="relative overflow-hidden border-l border-slate-200 dark:border-zinc-800"
+          className="overflow-hidden flex flex-col"
           style={{
-            flex: `0 0 ${detailPanelWidth}%`,
+            flex: selectedId ? `0 0 ${100 - detailPanelWidth}%` : "1 1 auto",
             transition: isResizingDetail ? "none" : "flex 200ms",
           }}
         >
-          {/* Resize handle */}
-          <div onMouseDown={onDetailMouseDown} className="absolute top-0 -left-1 w-3 h-full cursor-col-resize group z-50">
-            <div className={`absolute right-1 w-0.5 h-full transition-all ${isResizingDetail ? "bg-teal-500 w-1" : "bg-transparent group-hover:bg-teal-500/60"}`} />
-          </div>
+          {renderListView()}
+        </div>
+      )}
+
+      {/* Detail panel — full width for features, resizable for modules/connectors */}
+      {selectedId && (
+        <div
+          className="relative overflow-hidden border-l border-slate-200 dark:border-zinc-800 min-w-0"
+          style={{
+            flex: activeType === "features" ? "1 1 auto" : `0 0 ${detailPanelWidth}%`,
+            transition: isResizingDetail ? "none" : "flex 200ms",
+          }}
+        >
+          {/* Resize handle — only for non-feature views */}
+          {activeType !== "features" && (
+            <div onMouseDown={onDetailMouseDown} className="absolute top-0 -left-1 w-3 h-full cursor-col-resize group z-50">
+              <div className={`absolute right-1 w-0.5 h-full transition-all ${isResizingDetail ? "bg-teal-500 w-1" : "bg-transparent group-hover:bg-teal-500/60"}`} />
+            </div>
+          )}
           {renderDetail()}
         </div>
       )}
