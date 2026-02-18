@@ -479,6 +479,7 @@ export function useUpdateSite() {
     }: {
       id: string;
       features?: Record<string, boolean>;
+      branding?: Record<string, string>;
       name?: string;
       slug?: string;
       base_url?: string;
@@ -491,13 +492,19 @@ export function useUpdateSite() {
         .single();
 
       const currentConfig = (existing?.config || {}) as Record<string, unknown>;
-      const updatedConfig = {
+      const updatedConfig: Record<string, unknown> = {
         ...currentConfig,
         features: {
           ...((currentConfig.features as Record<string, boolean>) || {}),
           ...(updates.features || {}),
         },
       };
+      if (updates.branding) {
+        updatedConfig.branding = {
+          ...((currentConfig.branding as Record<string, string>) || {}),
+          ...updates.branding,
+        };
+      }
 
       const payload: Record<string, unknown> = {
         config: updatedConfig,

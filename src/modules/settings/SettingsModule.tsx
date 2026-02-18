@@ -32,6 +32,7 @@ import {
   Download,
   Cpu,
   Megaphone,
+  Palette,
 } from "lucide-react";
 import { useRepository } from "../../stores/repositoryStore";
 import {
@@ -1579,6 +1580,34 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
   const [editSlug, setEditSlug] = useState(site.slug);
   const [editUrl, setEditUrl] = useState(site.base_url || "");
 
+  // Branding state
+  const siteConfig = site.config as Record<string, unknown> | undefined;
+  const currentBranding = (siteConfig?.branding || {}) as Record<string, string>;
+  const [brandPrimary, setBrandPrimary] = useState(currentBranding.primary_color || "#1E3A5F");
+  const [brandAccent, setBrandAccent] = useState(currentBranding.accent_color || "#0D7D85");
+  const [brandLogo, setBrandLogo] = useState(currentBranding.logo_url || "");
+  const [brandGreeting, setBrandGreeting] = useState(currentBranding.greeting || "Hey there 👋");
+  const [brandSubtext, setBrandSubtext] = useState(currentBranding.greeting_subtext || "What can we help with?");
+  const [brandingDirty, setBrandingDirty] = useState(false);
+
+  const handleBrandingSave = () => {
+    updateSite.mutate(
+      {
+        id: site.id,
+        branding: {
+          primary_color: brandPrimary,
+          accent_color: brandAccent,
+          logo_url: brandLogo,
+          greeting: brandGreeting,
+          greeting_subtext: brandSubtext,
+        },
+      },
+      { onSuccess: () => setBrandingDirty(false) }
+    );
+  };
+
+  const markBrandingDirty = () => { if (!brandingDirty) setBrandingDirty(true); };
+
   const getFeature = (key: string): boolean => {
     const config = site.config as Record<string, unknown> | undefined;
     const features = config?.features as Record<string, boolean> | undefined;
@@ -1796,6 +1825,124 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Branding */}
+          <div className="px-4 py-3 border-t border-slate-200 dark:border-zinc-800">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Palette size={14} className="text-zinc-400" />
+                <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
+                  Branding
+                </h4>
+              </div>
+              {brandingDirty && (
+                <button
+                  onClick={handleBrandingSave}
+                  disabled={updateSite.isPending}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded transition-colors disabled:opacity-50"
+                >
+                  {updateSite.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                  Save
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {/* Colors */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                    Primary Color
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={brandPrimary}
+                      onChange={(e) => { setBrandPrimary(e.target.value); markBrandingDirty(); }}
+                      className="w-8 h-8 rounded border border-slate-300 dark:border-zinc-700 cursor-pointer p-0.5"
+                    />
+                    <input
+                      type="text"
+                      value={brandPrimary}
+                      onChange={(e) => { setBrandPrimary(e.target.value); markBrandingDirty(); }}
+                      className="flex-1 px-2 py-1.5 text-xs font-mono border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                    Accent Color
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={brandAccent}
+                      onChange={(e) => { setBrandAccent(e.target.value); markBrandingDirty(); }}
+                      className="w-8 h-8 rounded border border-slate-300 dark:border-zinc-700 cursor-pointer p-0.5"
+                    />
+                    <input
+                      type="text"
+                      value={brandAccent}
+                      onChange={(e) => { setBrandAccent(e.target.value); markBrandingDirty(); }}
+                      className="flex-1 px-2 py-1.5 text-xs font-mono border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Logo URL */}
+              <div>
+                <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                  Logo URL
+                </label>
+                <input
+                  type="url"
+                  value={brandLogo}
+                  onChange={(e) => { setBrandLogo(e.target.value); markBrandingDirty(); }}
+                  placeholder="https://example.com/logo.png (optional)"
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono placeholder:text-zinc-400"
+                />
+              </div>
+
+              {/* Greeting */}
+              <div>
+                <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                  Greeting
+                </label>
+                <input
+                  type="text"
+                  value={brandGreeting}
+                  onChange={(e) => { setBrandGreeting(e.target.value); markBrandingDirty(); }}
+                  placeholder="Hey there 👋"
+                  className="w-full px-2.5 py-1.5 text-sm border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                />
+              </div>
+
+              {/* Greeting subtext */}
+              <div>
+                <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                  Greeting Subtext
+                </label>
+                <input
+                  type="text"
+                  value={brandSubtext}
+                  onChange={(e) => { setBrandSubtext(e.target.value); markBrandingDirty(); }}
+                  placeholder="What can we help with?"
+                  className="w-full px-2.5 py-1.5 text-sm border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                />
+              </div>
+
+              {/* Preview swatch */}
+              <div className="mt-2">
+                <div
+                  className="h-12 rounded-lg flex items-center px-4 gap-2"
+                  style={{ background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandAccent} 100%)` }}
+                >
+                  <span className="text-white text-sm font-bold truncate">{brandGreeting}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
