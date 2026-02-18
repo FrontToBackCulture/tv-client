@@ -34,7 +34,16 @@ export function HelpCenterView({
   onResizeStart,
 }: HelpCenterViewProps) {
   const { data: docs } = usePortalDocs();
+  const { data: sites } = usePortalSites();
   const createDoc = useCreateDoc();
+
+  // Helper to resolve site IDs to names
+  const siteLabel = (targetSites: string[]) => {
+    if (!targetSites.length) return "All sites";
+    return targetSites
+      .map((id) => sites?.find((s) => s.id === id)?.name || id.slice(0, 8))
+      .join(", ");
+  };
 
   const handleCreate = async () => {
     try {
@@ -126,6 +135,16 @@ export function HelpCenterView({
                     )}
                     <span className="text-[10px] text-zinc-400">
                       {doc.view_count} views
+                    </span>
+                  </div>
+                  <div className="mt-1">
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                      doc.target_sites.length === 0
+                        ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                        : "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    )}>
+                      {siteLabel(doc.target_sites)}
                     </span>
                   </div>
                 </div>
