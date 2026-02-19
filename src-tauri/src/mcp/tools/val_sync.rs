@@ -1,5 +1,5 @@
 // VAL Sync MCP Tools
-// 14 tools for syncing VAL platform data via Claude Code
+// 16 tools for syncing VAL platform data via Claude Code
 
 use crate::commands::val_sync::{config, errors, extract, metadata, monitoring, sql, sync};
 use crate::mcp::protocol::{InputSchema, Tool, ToolResult};
@@ -147,6 +147,16 @@ pub fn tools() -> Vec<Tool> {
                 }),
                 vec![],
             ),
+        },
+        Tool {
+            name: "sync-all-domain-workflows".to_string(),
+            description: "Sync workflow definitions for ALL production domains. Downloads workflow metadata for each domain. Takes time to complete.".to_string(),
+            input_schema: InputSchema::empty(),
+        },
+        Tool {
+            name: "sync-all-domain-monitoring".to_string(),
+            description: "Sync workflow execution/monitoring data for ALL production domains. Fetches recent workflow execution history (11pm yesterday to now) from VAL API. Takes a few minutes to complete.".to_string(),
+            input_schema: InputSchema::empty(),
         },
         Tool {
             name: "sync-all-domain-importers".to_string(),
@@ -447,6 +457,14 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             }
         }
 
+        "sync-all-domain-workflows" => {
+            handle_sync_all_domain_workflows().await
+        }
+
+        "sync-all-domain-monitoring" => {
+            handle_sync_all_domain_monitoring().await
+        }
+
         "sync-all-domain-importers" => {
             handle_sync_all_domain_errors("importer").await
         }
@@ -509,6 +527,131 @@ fn get_production_domains() -> Result<Vec<config::DomainSummary>, String> {
 }
 
 /// Sync importer or integration errors across all production domains
+/// Sync workflow definitions across all production domains
+async fn handle_sync_all_domain_workflows() -> ToolResult {
+    let domains = match get_production_domains() {
+        Ok(d) => d,
+        Err(e) => return ToolResult::error(format!("Failed to list domains: {}", e)),
+    };
+
+    if domains.is_empty() {
+        return ToolResult::error("No production domains found in config".to_string());
+    }
+
+    let mut results = Vec::new();
+    let mut success_count = 0u32;
+    let mut failed_count = 0u32;
+    let mut total_workflows = 0usize;
+
+    for d in &domains {
+        match sync::val_sync_workflows(d.domain.clone()).await {
+            Ok(r) => {
+                success_count += 1;
+                total_workflows += r.count;
+                results.push(format!("{}: {} workflows", d.domain, r.count));
+            }
+            Err(e) => {
+                failed_count += 1;
+                let short_err = if e.len() > 100 { &e[..100] } else { &e };
+                results.push(format!("{}: FAILED - {}", d.domain, short_err));
+            }
+        }
+    }
+
+    let status = if failed_count == 0 {
+        "All domains synced successfully"
+    } else {
+        "Completed with errors"
+    };
+
+    let mut lines = vec![
+        "## Sync All Domain Workflows".to_string(),
+        String::new(),
+        format!("**Status:** {}", status),
+        format!("**Domains processed:** {}", domains.len()),
+        format!("**Successful:** {}", success_count),
+    ];
+    if failed_count > 0 {
+        lines.push(format!("**Failed:** {}", failed_count));
+    }
+    lines.push(format!("**Total workflows:** {}", total_workflows));
+    lines.push(String::new());
+    lines.push("**Results:**".to_string());
+    for r in &results {
+        lines.push(format!("- {}", r));
+    }
+
+    ToolResult::text(lines.join("\n"))
+}
+
+/// Sync workflow execution monitoring data across all production domains
+/// Default window: 11pm yesterday to now (SGT)
+async fn handle_sync_all_domain_monitoring() -> ToolResult {
+    let domains = match get_production_domains() {
+        Ok(d) => d,
+        Err(e) => return ToolResult::error(format!("Failed to list domains: {}", e)),
+    };
+
+    if domains.is_empty() {
+        return ToolResult::error("No production domains found in config".to_string());
+    }
+
+    // Default window: 11pm yesterday to now (SGT)
+    let (from, to) = get_default_error_date_range();
+
+    let mut results = Vec::new();
+    let mut success_count = 0u32;
+    let mut failed_count = 0u32;
+    let mut total_executions = 0usize;
+
+    for d in &domains {
+        match monitoring::val_sync_workflow_executions(
+            d.domain.clone(),
+            from.clone(),
+            to.clone(),
+        )
+        .await
+        {
+            Ok(r) => {
+                success_count += 1;
+                total_executions += r.count;
+                results.push(format!("{}: {} executions", d.domain, r.count));
+            }
+            Err(e) => {
+                failed_count += 1;
+                let short_err = if e.len() > 100 { &e[..100] } else { &e };
+                results.push(format!("{}: FAILED - {}", d.domain, short_err));
+            }
+        }
+    }
+
+    let status = if failed_count == 0 {
+        "All domains synced successfully"
+    } else {
+        "Completed with errors"
+    };
+
+    let mut lines = vec![
+        "## Sync All Domain Monitoring".to_string(),
+        String::new(),
+        format!("**Status:** {}", status),
+        format!("**Window:** {} to {}", from, to),
+        format!("**Domains processed:** {}", domains.len()),
+        format!("**Successful:** {}", success_count),
+    ];
+    if failed_count > 0 {
+        lines.push(format!("**Failed:** {}", failed_count));
+    }
+    lines.push(format!("**Total executions:** {}", total_executions));
+    lines.push(String::new());
+    lines.push("**Results:**".to_string());
+    for r in &results {
+        lines.push(format!("- {}", r));
+    }
+
+    ToolResult::text(lines.join("\n"))
+}
+
 async fn handle_sync_all_domain_errors(error_type: &str) -> ToolResult {
     let domains = match get_production_domains() {
         Ok(d) => d,

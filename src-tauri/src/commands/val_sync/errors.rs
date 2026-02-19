@@ -12,7 +12,7 @@ use tauri::command;
 
 // Table and column mappings
 const IMPORTER_ERRORS_TABLE: &str = "custom_tbl_892_1520";
-const INTEGRATION_ERRORS_TABLE: &str = "custom_tbl_892_1521";
+const INTEGRATION_ERRORS_TABLE: &str = "custom_tbl_892_1519";
 const DOMAIN_COLUMN: &str = "usr_eaea000fefface_3";
 const DATE_COLUMN: &str = "usr_cccbbdad0fee0a";
 
