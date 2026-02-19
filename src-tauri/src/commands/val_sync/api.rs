@@ -34,10 +34,12 @@ impl ValApiError {
             ValApiError::Http { status, body } => {
                 *status == 401
                     || *status == 403
-                    || (*status == 500
-                        && (body.contains("token not authentic")
-                            || body.contains("jwt expired")
-                            || body.contains("invalid signature")))
+                    || (*status == 500 && {
+                        let lower = body.to_lowercase();
+                        lower.contains("token not authentic")
+                            || lower.contains("jwt expired")
+                            || lower.contains("invalid signature")
+                    })
             }
             _ => false,
         }
@@ -190,9 +192,10 @@ pub async fn val_api_fetch(
 
     if !response.status().is_success() {
         let body = response.text().await.unwrap_or_default();
-        if body.contains("token not authentic")
-            || body.contains("jwt expired")
-            || body.contains("invalid signature")
+        let lower = body.to_lowercase();
+        if lower.contains("token not authentic")
+            || lower.contains("jwt expired")
+            || lower.contains("invalid signature")
         {
             return Err(ValApiError::AuthExpired);
         }

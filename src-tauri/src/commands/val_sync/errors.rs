@@ -22,23 +22,12 @@ const DATE_COLUMN: &str = "usr_cccbbdad0fee0a";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SqlQueryRequest {
-    query: String,
+    sql: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SqlQueryResponse {
     data: Option<Vec<serde_json::Value>>,
-    pagination: Option<Pagination>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Pagination {
-    #[serde(rename = "totalPages")]
-    total_pages: Option<u32>,
-    #[serde(rename = "currentPage")]
-    current_page: Option<u32>,
-    #[serde(rename = "rowsPerPage")]
-    rows_per_page: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -77,9 +66,10 @@ fn is_auth_status(status: u16) -> bool {
 }
 
 fn is_auth_body(body: &str) -> bool {
-    body.contains("token not authentic")
-        || body.contains("jwt expired")
-        || body.contains("invalid signature")
+    let lower = body.to_lowercase();
+    lower.contains("token not authentic")
+        || lower.contains("jwt expired")
+        || lower.contains("invalid signature")
 }
 
 /// Extract date portion (YYYY-MM-DD) from a datetime string or ISO timestamp
@@ -116,25 +106,20 @@ fn build_errors_query(table: &str, domain: &str, from: &str, to: &str) -> String
 async fn execute_tv_sql(
     token: &str,
     sql: &str,
-    page: u32,
 ) -> Result<SqlQueryResponse, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-    let url = "https://tv.thinkval.io/api/v1/query/data";
+    let url = "https://tv.thinkval.io/api/v1/sqls/execute";
 
     let response = client
         .post(url)
         .header("Content-Type", "application/json")
-        .query(&[
-            ("token", token),
-            ("page", &page.to_string()),
-            ("rowsPerPage", "5000"),
-        ])
+        .query(&[("token", token)])
         .json(&SqlQueryRequest {
-            query: sql.to_string(),
+            sql: sql.to_string(),
         })
         .send()
         .await
@@ -158,31 +143,13 @@ async fn execute_tv_sql(
         .map_err(|e| format!("Failed to parse SQL response: {}", e))
 }
 
-/// Fetch all pages of SQL results from tv domain
+/// Fetch SQL results from tv domain
 async fn fetch_all_errors(
     token: &str,
     sql: &str,
 ) -> Result<Vec<serde_json::Value>, String> {
-    // Fetch page 1
-    let page1 = execute_tv_sql(token, sql, 0).await?;
-
-    let total_pages = page1
-        .pagination
-        .as_ref()
-        .and_then(|p| p.total_pages)
-        .unwrap_or(1);
-
-    let mut all_data: Vec<serde_json::Value> = page1.data.unwrap_or_default();
-
-    // Fetch remaining pages
-    for page in 1..total_pages {
-        let page_result = execute_tv_sql(token, sql, page).await?;
-        if let Some(data) = page_result.data {
-            all_data.extend(data);
-        }
-    }
-
-    Ok(all_data)
+    let response = execute_tv_sql(token, sql).await?;
+    Ok(response.data.unwrap_or_default())
 }
 
 /// Calculate daily breakdown from error records

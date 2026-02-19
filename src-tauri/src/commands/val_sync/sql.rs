@@ -151,7 +151,8 @@ pub async fn val_execute_sql(
         }
         Err(e) => {
             // Check for auth error and retry
-            if e.contains("401") || e.contains("403") || e.contains("Unauthorized") || e.contains("Token not authentic") {
+            let lower_e = e.to_lowercase();
+            if lower_e.contains("401") || lower_e.contains("403") || lower_e.contains("unauthorized") || lower_e.contains("token not authentic") {
                 auth::reauth(&domain).await?;
                 let (new_token, _) = auth::ensure_auth(&domain).await?;
 
