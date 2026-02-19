@@ -11,8 +11,11 @@ import {
   useValLogin,
   useValSyncAll,
   useValSyncArtifact,
+  useSyncAiToS3,
+  useS3AiStatus,
   type OutputFileStatus,
   type DiscoveredDomain,
+  type S3FileStatus,
 } from "../../hooks/useValSync";
 import { StatusChip } from "./StatusChip";
 import {
@@ -35,6 +38,7 @@ import {
   Database,
   ClipboardCheck,
   Zap,
+  CloudUpload,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useJobsStore } from "../../stores/jobsStore";
@@ -117,7 +121,8 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   const loginMutation = useValLogin();
   const syncAllMutation = useValSyncAll();
   const syncArtifactMutation = useValSyncArtifact();
-
+  const s3SyncMutation = useSyncAiToS3();
+  const s3Status = useS3AiStatus(domain, discoveredDomain?.global_path ?? null);
 
   const auth = authQuery.data;
   const creds = credQuery.data;
@@ -948,6 +953,132 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                 {(syncArtifactMutation.error as Error).message}
               </p>
             )}
+
+            {/* Push AI to S3 */}
+            <div className="pt-2 border-t border-slate-200 dark:border-zinc-800">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                  Publish AI to S3
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => s3Status.refetch()}
+                    disabled={s3Status.isFetching}
+                    className="text-[10px] text-zinc-400 hover:text-zinc-600 flex items-center gap-1"
+                    title="Refresh S3 status"
+                  >
+                    <RefreshCw size={10} className={s3Status.isFetching ? "animate-spin" : ""} />
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => s3SyncMutation.mutate({ domain, globalPath: discoveredDomain?.global_path ?? "" })}
+                    disabled={s3SyncMutation.isPending}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50 rounded transition-colors"
+                  >
+                    {s3SyncMutation.isPending ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <CloudUpload size={12} />
+                    )}
+                    Push to S3
+                  </button>
+                </div>
+              </div>
+
+              {s3SyncMutation.isSuccess && (
+                <div className="mb-2 p-2 rounded bg-green-500/10 text-green-600 dark:text-green-400 text-xs">
+                  {s3SyncMutation.data.message} ({s3SyncMutation.data.duration_ms}ms)
+                </div>
+              )}
+              {s3SyncMutation.isError && (
+                <p className="mb-2 text-xs text-red-500">
+                  {(s3SyncMutation.error as Error).message}
+                </p>
+              )}
+
+              {/* S3 Status */}
+              {s3Status.isLoading && (
+                <div className="flex items-center gap-2 py-3 text-xs text-zinc-400">
+                  <Loader2 size={12} className="animate-spin" />
+                  Checking S3 status...
+                </div>
+              )}
+              {s3Status.isError && (
+                <p className="text-xs text-zinc-400 py-2">
+                  Could not check S3 status: {(s3Status.error as Error).message}
+                </p>
+              )}
+              {s3Status.data && (
+                <div className="space-y-2">
+                  {/* Summary chips */}
+                  <div className="flex items-center gap-3 text-[10px]">
+                    <span className="text-zinc-500">
+                      Local: <span className="font-medium text-zinc-700 dark:text-zinc-300">{s3Status.data.local_count} files</span>
+                    </span>
+                    <span className="text-zinc-500">
+                      S3: <span className="font-medium text-zinc-700 dark:text-zinc-300">{s3Status.data.s3_count} files</span>
+                    </span>
+                    {s3Status.data.local_count === s3Status.data.s3_count && s3Status.data.s3_count > 0 && (
+                      <span className="text-green-600 dark:text-green-400 flex items-center gap-0.5">
+                        <CheckCircle2 size={10} /> In sync
+                      </span>
+                    )}
+                    {s3Status.data.s3_count === 0 && s3Status.data.local_count > 0 && (
+                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                        <AlertCircle size={10} /> Not published
+                      </span>
+                    )}
+                    {!s3Status.data.has_ai_folder && (
+                      <span className="text-zinc-400">No ai/ folder</span>
+                    )}
+                  </div>
+
+                  {/* File list */}
+                  {s3Status.data.files.length > 0 && (
+                    <div className="border border-slate-200 dark:border-zinc-800 rounded-md overflow-hidden">
+                      <table className="w-full text-[11px]">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-zinc-900/50 text-zinc-500">
+                            <th className="text-left px-2 py-1 font-medium">File</th>
+                            <th className="text-center px-2 py-1 font-medium w-16">Local</th>
+                            <th className="text-center px-2 py-1 font-medium w-16">S3</th>
+                            <th className="text-right px-2 py-1 font-medium w-32">S3 Last Modified</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {s3Status.data.files.map((f: S3FileStatus) => (
+                            <tr key={f.path} className="border-t border-slate-100 dark:border-zinc-800/50">
+                              <td className="px-2 py-1 font-mono text-zinc-700 dark:text-zinc-300 truncate max-w-[200px]" title={f.path}>
+                                {f.path}
+                              </td>
+                              <td className="text-center px-2 py-1">
+                                {f.in_local ? (
+                                  <CheckCircle2 size={12} className="inline text-green-500" />
+                                ) : (
+                                  <XCircle size={12} className="inline text-red-400" />
+                                )}
+                              </td>
+                              <td className="text-center px-2 py-1">
+                                {f.in_s3 ? (
+                                  <CheckCircle2 size={12} className="inline text-green-500" />
+                                ) : (
+                                  <XCircle size={12} className="inline text-zinc-300 dark:text-zinc-600" />
+                                )}
+                              </td>
+                              <td className="text-right px-2 py-1 text-zinc-400">
+                                {f.s3_last_modified
+                                  ? new Date(f.s3_last_modified).toLocaleString("en-SG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                                  : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
           </div>
         )}

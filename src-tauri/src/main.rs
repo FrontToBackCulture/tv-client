@@ -336,6 +336,9 @@ fn main() {
             commands::val_sync::ai_package::val_save_domain_ai_config,
             commands::val_sync::ai_package::val_toggle_ai_table,
             commands::val_sync::ai_package::val_extract_ai_templates,
+            // VAL Sync - S3 sync (push AI folders to S3)
+            commands::val_sync::s3_sync::val_sync_ai_to_s3,
+            commands::val_sync::s3_sync::val_s3_ai_status,
             // VAL Sync - SQL execution
             commands::val_sync::sql::val_execute_sql,
             // VAL Sync - SQL generation (AI)
@@ -355,6 +358,7 @@ fn main() {
             // Settings - MS Graph credentials
             commands::settings::settings_get_ms_graph_credentials,
             commands::settings::settings_get_anthropic_key,
+            commands::settings::settings_get_aws_credentials,
             // Settings - VAL credentials
             commands::settings::settings_get_val_credentials,
             commands::settings::settings_import_val_credentials,

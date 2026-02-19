@@ -851,6 +851,134 @@ export function useSyncAllDomainsIntegrationErrors() {
 }
 
 // ============================================================
+// S3 Sync (push AI folders to S3)
+// ============================================================
+
+export interface S3FileStatus {
+  path: string;
+  in_local: boolean;
+  in_s3: boolean;
+  s3_last_modified: string | null;
+  s3_size: number | null;
+  local_size: number | null;
+}
+
+export interface S3StatusResult {
+  domain: string;
+  has_ai_folder: boolean;
+  local_count: number;
+  s3_count: number;
+  files: S3FileStatus[];
+}
+
+export interface S3SyncResult {
+  domain: string;
+  status: string;
+  message: string;
+  files_uploaded: number;
+  duration_ms: number;
+}
+
+/** Check S3 status for a domain's AI folder */
+export function useS3AiStatus(domain: string | null, globalPath: string | null) {
+  return useQuery({
+    queryKey: ["s3-ai-status", domain],
+    queryFn: () => invoke<S3StatusResult>("val_s3_ai_status", { domain: domain!, globalPath: globalPath! }),
+    enabled: !!domain && !!globalPath,
+    staleTime: 60_000, // Cache for 1 minute
+  });
+}
+
+/** Sync a single domain's AI folder to S3 */
+export function useSyncAiToS3() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ domain, globalPath }: { domain: string; globalPath: string }) =>
+      invoke<S3SyncResult>("val_sync_ai_to_s3", { domain, globalPath }),
+    onSuccess: (_data, { domain }) => {
+      qc.invalidateQueries({ queryKey: ["s3-ai-status", domain] });
+    },
+  });
+}
+
+/** Batch sync all domains' AI folders to S3 */
+export function useSyncAllDomainsAiToS3() {
+  const addJob = useJobsStore((s) => s.addJob);
+  const updateJob = useJobsStore((s) => s.updateJob);
+  const [progress, setProgress] = useState<SyncAllDomainsProgress | null>(null);
+  const abortRef = useRef(false);
+
+  const trigger = useCallback(
+    async (domains: { domain: string; global_path: string }[]) => {
+      if (progress?.isRunning) return;
+      abortRef.current = false;
+
+      const jobId = `val-s3-sync-${Date.now()}`;
+      const total = domains.length;
+      const completed: string[] = [];
+      const failed: string[] = [];
+
+      addJob({
+        id: jobId,
+        name: `S3 Sync AI (${total})`,
+        status: "running",
+        progress: 0,
+        message: `Pushing AI folders to S3 for ${total} domains...`,
+      });
+
+      setProgress({ current: 0, total, currentDomain: "", completed: [], failed: [], isRunning: true });
+
+      for (let i = 0; i < domains.length; i++) {
+        if (abortRef.current) {
+          updateJob(jobId, {
+            status: "failed",
+            progress: Math.round((i / total) * 100),
+            message: `Aborted after ${completed.length} completed, ${failed.length} failed`,
+          });
+          setProgress((p) => p ? { ...p, isRunning: false } : null);
+          return;
+        }
+
+        const { domain, global_path } = domains[i];
+        updateJob(jobId, {
+          progress: Math.round((i / total) * 100),
+          message: `[${i + 1}/${total}] Syncing ${domain} AI to S3...`,
+        });
+        setProgress({ current: i + 1, total, currentDomain: domain, completed: [...completed], failed: [...failed], isRunning: true });
+
+        try {
+          const result = await invoke<S3SyncResult>("val_sync_ai_to_s3", { domain, globalPath: global_path });
+          if (result.status === "skipped") {
+            // Don't count skipped as failed
+            completed.push(domain);
+          } else {
+            completed.push(domain);
+          }
+        } catch {
+          failed.push(domain);
+        }
+      }
+
+      const finalMsg = failed.length > 0
+        ? `Done: ${completed.length} synced, ${failed.length} failed (${failed.join(", ")})`
+        : `Done: ${completed.length}/${total} domains AI synced to S3`;
+
+      updateJob(jobId, {
+        status: failed.length === total ? "failed" : "completed",
+        progress: 100,
+        message: finalMsg,
+      });
+
+      setProgress({ current: total, total, currentDomain: "", completed, failed, isRunning: false });
+    },
+    [addJob, updateJob, progress?.isRunning]
+  );
+
+  const abort = useCallback(() => { abortRef.current = true; }, []);
+  return { trigger, abort, progress };
+}
+
+// ============================================================
 // Health Check Types
 // ============================================================
 

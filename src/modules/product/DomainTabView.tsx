@@ -9,6 +9,7 @@ import {
   useSyncAllDomainsSod,
   useSyncAllDomainsImporterErrors,
   useSyncAllDomainsIntegrationErrors,
+  useSyncAllDomainsAiToS3,
   useRunAllDomainsDataModelHealth,
   useRunAllDomainsWorkflowHealth,
   useRunAllDomainsDashboardHealth,
@@ -175,6 +176,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   const { trigger: syncSod, progress: sodProgress } = useSyncAllDomainsSod();
   const { trigger: syncImporterErrors, progress: importerProgress } = useSyncAllDomainsImporterErrors();
   const { trigger: syncIntegrationErrors, progress: integrationProgress } = useSyncAllDomainsIntegrationErrors();
+  const { trigger: syncAiToS3, progress: s3Progress } = useSyncAllDomainsAiToS3();
   const { trigger: runDataModelHealth, progress: dataModelHealthProgress } = useRunAllDomainsDataModelHealth();
   const { trigger: runWorkflowHealth, progress: workflowHealthProgress } = useRunAllDomainsWorkflowHealth();
   const { trigger: runDashboardHealth, progress: dashboardHealthProgress } = useRunAllDomainsDashboardHealth();
@@ -190,6 +192,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   const isSodSyncing = sodProgress?.isRunning ?? false;
   const isImporterSyncing = importerProgress?.isRunning ?? false;
   const isIntegrationSyncing = integrationProgress?.isRunning ?? false;
+  const isS3Syncing = s3Progress?.isRunning ?? false;
   const isDataModelHealthRunning = dataModelHealthProgress?.isRunning ?? false;
   const isWorkflowHealthRunning = workflowHealthProgress?.isRunning ?? false;
   const isDashboardHealthRunning = dashboardHealthProgress?.isRunning ?? false;
@@ -199,7 +202,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
 
   const anyRunning =
     isSyncing || isMonitoringSyncing || isSodSyncing || isImporterSyncing ||
-    isIntegrationSyncing || isDataModelHealthRunning || isWorkflowHealthRunning ||
+    isIntegrationSyncing || isS3Syncing || isDataModelHealthRunning || isWorkflowHealthRunning ||
     isDashboardHealthRunning || isQueryHealthRunning || isArtifactAuditRunning ||
     isOverviewRunning || fullAnalysisRunning;
 
@@ -209,6 +212,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     if (isSodSyncing) return "Syncing SOD...";
     if (isImporterSyncing) return "Syncing importer errors...";
     if (isIntegrationSyncing) return "Syncing integration errors...";
+    if (isS3Syncing) return s3Progress?.currentDomain ? `Syncing ${s3Progress.currentDomain} AI to S3` : "Syncing AI to S3...";
     if (isDataModelHealthRunning) return "Running data model health...";
     if (isWorkflowHealthRunning) return "Running workflow health...";
     if (isDashboardHealthRunning) return "Running dashboard health...";
@@ -310,6 +314,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     { label: "SOD Tables", onClick: () => syncSod(domainNames), isRunning: isSodSyncing, tooltip: "Fetch Start-of-Day table sync status" },
     { label: "Importer Errors", onClick: () => syncImporterErrors(domainNames), isRunning: isImporterSyncing, tooltip: "Fetch recent importer errors" },
     { label: "Integration Errors", onClick: () => syncIntegrationErrors(domainNames), isRunning: isIntegrationSyncing, tooltip: "Fetch recent integration errors" },
+    { label: "Push AI to S3", onClick: () => syncAiToS3(all.map(d => ({ domain: d.domain, global_path: d.global_path }))), isRunning: isS3Syncing, tooltip: "Sync all domain AI folders to S3" },
   ];
 
   const healthItems = [

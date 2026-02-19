@@ -20,6 +20,8 @@ pub const KEY_MS_GRAPH_CLIENT_ID: &str = "ms_graph_client_id";
 pub const KEY_MS_GRAPH_TENANT_ID: &str = "ms_graph_tenant_id";
 pub const KEY_MS_GRAPH_CLIENT_SECRET: &str = "ms_graph_client_secret";
 pub const KEY_ANTHROPIC_API: &str = "anthropic_api_key";
+pub const KEY_AWS_ACCESS_KEY_ID: &str = "aws_access_key_id";
+pub const KEY_AWS_SECRET_ACCESS_KEY: &str = "aws_secret_access_key";
 
 // ============================================================================
 // Types
@@ -255,6 +257,15 @@ pub fn settings_get_anthropic_key() -> Result<Option<String>, String> {
     settings_get_key(KEY_ANTHROPIC_API.to_string())
 }
 
+/// Get AWS credentials (for S3 sync)
+#[command]
+pub fn settings_get_aws_credentials() -> Result<(Option<String>, Option<String>), String> {
+    let settings = load_settings()?;
+    let access_key = settings.keys.get(KEY_AWS_ACCESS_KEY_ID).cloned();
+    let secret_key = settings.keys.get(KEY_AWS_SECRET_ACCESS_KEY).cloned();
+    Ok((access_key, secret_key))
+}
+
 /// Get the settings file path (for importing)
 #[command]
 pub fn settings_get_path() -> String {
@@ -387,6 +398,8 @@ pub fn settings_import_from_file(file_path: String) -> Result<Vec<String>, Strin
                     "MS_GRAPH_TENANT_ID" | "AZURE_TENANT_ID" => Some(KEY_MS_GRAPH_TENANT_ID),
                     "MS_GRAPH_CLIENT_SECRET" | "AZURE_CLIENT_SECRET" => Some(KEY_MS_GRAPH_CLIENT_SECRET),
                     "ANTHROPIC_API_KEY" => Some(KEY_ANTHROPIC_API),
+                    "AWS_ACCESS_KEY_ID" => Some(KEY_AWS_ACCESS_KEY_ID),
+                    "AWS_SECRET_ACCESS_KEY" => Some(KEY_AWS_SECRET_ACCESS_KEY),
                     _ => None,
                 };
 

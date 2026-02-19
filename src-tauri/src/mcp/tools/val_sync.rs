@@ -1,8 +1,9 @@
 // VAL Sync MCP Tools
-// 11 tools for syncing VAL platform data via Claude Code
+// 14 tools for syncing VAL platform data via Claude Code
 
-use crate::commands::val_sync::{config, extract, metadata, sql, sync};
+use crate::commands::val_sync::{config, errors, extract, metadata, monitoring, sql, sync};
 use crate::mcp::protocol::{InputSchema, Tool, ToolResult};
+use chrono::Timelike;
 use serde_json::{json, Value};
 
 macro_rules! require_domain {
@@ -142,6 +143,29 @@ pub fn tools() -> Vec<Tool> {
                     "domain": {
                         "type": "string",
                         "description": "VAL domain name. If omitted, shows status for all domains."
+                    }
+                }),
+                vec![],
+            ),
+        },
+        Tool {
+            name: "sync-all-domain-importers".to_string(),
+            description: "Sync custom importer error logs for ALL production domains. Fetches from centralized tv domain and saves to each domain's analytics folder. Takes time to complete.".to_string(),
+            input_schema: InputSchema::empty(),
+        },
+        Tool {
+            name: "sync-all-domain-integration-errors".to_string(),
+            description: "Sync integration/API error logs (POS, bank, delivery platforms) for ALL production domains. Fetches from centralized tv domain and saves to each domain's analytics folder. Takes time to complete.".to_string(),
+            input_schema: InputSchema::empty(),
+        },
+        Tool {
+            name: "sync-all-domain-sod-tables".to_string(),
+            description: "Sync SOD (Start of Day) table calculation status for eligible domains (dapaolo, saladstop, spaespritgroup, grain). Shows completed/incomplete/errored tables.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "date": {
+                        "type": "string",
+                        "description": "Date in YYYY-MM-DD format (defaults to today SGT)"
                     }
                 }),
                 vec![],
@@ -423,6 +447,28 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             }
         }
 
+        "sync-all-domain-importers" => {
+            handle_sync_all_domain_errors("importer").await
+        }
+
+        "sync-all-domain-integration-errors" => {
+            handle_sync_all_domain_errors("integration").await
+        }
+
+        "sync-all-domain-sod-tables" => {
+            let date = args
+                .get("date")
+                .and_then(|d| d.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| {
+                    chrono::Utc::now()
+                        .with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap())
+                        .format("%Y-%m-%d")
+                        .to_string()
+                });
+            handle_sync_all_domain_sod_tables(&date).await
+        }
+
         _ => ToolResult::error(format!("Unknown val-sync tool: {}", name)),
     }
 }
@@ -436,4 +482,259 @@ fn format_sync_result(r: &sync::SyncResult) -> String {
         "Synced **{}** {}: {} items in {}ms\nFile: `{}`",
         r.domain, r.artifact_type, r.count, r.duration_ms, r.file_path
     )
+}
+
+/// Get default date range for error queries: 11pm yesterday to now (SGT)
+fn get_default_error_date_range() -> (String, String) {
+    let sgt = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
+    let now = chrono::Utc::now().with_timezone(&sgt);
+    let yesterday_11pm = now - chrono::Duration::hours(now.hour() as i64 + 1);
+    let yesterday_11pm = yesterday_11pm
+        .date_naive()
+        .and_hms_opt(23, 0, 0)
+        .unwrap();
+    let from = yesterday_11pm.format("%Y-%m-%d %H:%M:%S").to_string();
+    let to = now.format("%Y-%m-%d %H:%M:%S").to_string();
+    (from, to)
+}
+
+/// Filter config to production domains (exclude documentation, lab, templates)
+fn get_production_domains() -> Result<Vec<config::DomainSummary>, String> {
+    let domains = config::val_sync_list_domains()?;
+    let excluded = ["documentation", "lab", "templates"];
+    Ok(domains
+        .into_iter()
+        .filter(|d| !excluded.contains(&d.domain.to_lowercase().as_str()))
+        .collect())
+}
+
+/// Sync importer or integration errors across all production domains
+async fn handle_sync_all_domain_errors(error_type: &str) -> ToolResult {
+    let domains = match get_production_domains() {
+        Ok(d) => d,
+        Err(e) => return ToolResult::error(format!("Failed to list domains: {}", e)),
+    };
+
+    if domains.is_empty() {
+        return ToolResult::error("No production domains found in config".to_string());
+    }
+
+    let (from, to) = get_default_error_date_range();
+    let mut results = Vec::new();
+    let mut success_count = 0u32;
+    let mut failed_count = 0u32;
+    let mut total_errors = 0usize;
+
+    for d in &domains {
+        let result = if error_type == "importer" {
+            errors::val_sync_importer_errors(d.domain.clone(), from.clone(), to.clone()).await
+        } else {
+            errors::val_sync_integration_errors(d.domain.clone(), from.clone(), to.clone()).await
+        };
+
+        match result {
+            Ok(r) => {
+                success_count += 1;
+                total_errors += r.count;
+                results.push(format!("{}: {} errors", d.domain, r.count));
+            }
+            Err(e) => {
+                failed_count += 1;
+                let short_err = if e.len() > 100 { &e[..100] } else { &e };
+                results.push(format!("{}: FAILED - {}", d.domain, short_err));
+            }
+        }
+    }
+
+    let status = if failed_count == 0 {
+        "All domains synced successfully"
+    } else {
+        "Completed with errors"
+    };
+
+    let label = if error_type == "importer" {
+        "Importer Errors"
+    } else {
+        "Integration Errors"
+    };
+
+    let mut lines = vec![
+        format!("## Sync All Domain {}", label),
+        String::new(),
+        format!("**Status:** {}", status),
+        format!("**Domains processed:** {}", domains.len()),
+        format!("**Successful:** {}", success_count),
+    ];
+    if failed_count > 0 {
+        lines.push(format!("**Failed:** {}", failed_count));
+    }
+    lines.push(format!("**Total errors found:** {}", total_errors));
+    lines.push(String::new());
+    lines.push("**Results:**".to_string());
+    for r in &results {
+        lines.push(format!("- {}", r));
+    }
+
+    ToolResult::text(lines.join("\n"))
+}
+
+/// Sync SOD table status across eligible domains
+async fn handle_sync_all_domain_sod_tables(date: &str) -> ToolResult {
+    const SOD_ELIGIBLE: &[&str] = &["dapaolo", "saladstop", "spaespritgroup", "grain"];
+
+    let all_domains = match config::val_sync_list_domains() {
+        Ok(d) => d,
+        Err(e) => return ToolResult::error(format!("Failed to list domains: {}", e)),
+    };
+
+    let domains: Vec<_> = all_domains
+        .into_iter()
+        .filter(|d| SOD_ELIGIBLE.contains(&d.domain.to_lowercase().as_str()))
+        .collect();
+
+    if domains.is_empty() {
+        return ToolResult::error(format!(
+            "No SOD-eligible domains found in config. SOD tables only apply to: {}",
+            SOD_ELIGIBLE.join(", ")
+        ));
+    }
+
+    let mut results = Vec::new();
+    let mut issue_results = Vec::new();
+    let mut _success_count = 0u32;
+    let mut failed_count = 0u32;
+    let mut total_tables = 0usize;
+    let mut total_completed = 0usize;
+    let mut total_started = 0usize;
+    let mut total_errored = 0usize;
+
+    for d in &domains {
+        match monitoring::val_sync_sod_tables_status(d.domain.clone(), date.to_string(), false)
+            .await
+        {
+            Ok(r) => {
+                _success_count += 1;
+
+                // Read the output file to parse status breakdown
+                let status_counts = parse_sod_status_from_file(&r.file_path);
+                let completed = status_counts.get("completed").copied().unwrap_or(0);
+                let started = status_counts.get("started").copied().unwrap_or(0);
+                let errored = status_counts.get("errored").copied().unwrap_or(0);
+                let table_count = r.count;
+
+                total_tables += table_count;
+                total_completed += completed;
+                total_started += started;
+                total_errored += errored;
+
+                if started > 0 || errored > 0 {
+                    let mut issues = Vec::new();
+                    if started > 0 {
+                        issues.push(format!("{} incomplete", started));
+                    }
+                    if errored > 0 {
+                        issues.push(format!("{} errored", errored));
+                    }
+                    issue_results.push(format!(
+                        "**{}**: {} ({}/{} completed)",
+                        d.domain,
+                        issues.join(", "),
+                        completed,
+                        table_count
+                    ));
+                }
+                results.push(format!(
+                    "{}: {}/{} completed{}{}",
+                    d.domain,
+                    completed,
+                    table_count,
+                    if started > 0 {
+                        format!(", {} incomplete", started)
+                    } else {
+                        String::new()
+                    },
+                    if errored > 0 {
+                        format!(", {} errored", errored)
+                    } else {
+                        String::new()
+                    }
+                ));
+            }
+            Err(e) => {
+                failed_count += 1;
+                let short_err = if e.len() > 100 { &e[..100] } else { &e };
+                results.push(format!("{}: FAILED - {}", d.domain, short_err));
+            }
+        }
+    }
+
+    let has_issues = total_started > 0 || total_errored > 0 || failed_count > 0;
+    let status = if !has_issues {
+        "All SOD calculations completed"
+    } else if total_started > 0 {
+        "Some SOD calculations still running/incomplete"
+    } else if total_errored > 0 {
+        "Some SOD calculations errored"
+    } else {
+        "Some syncs failed"
+    };
+
+    let mut lines = vec![
+        "## Sync All Domain SOD Tables".to_string(),
+        String::new(),
+        format!("**Status:** {}", status),
+        format!("**Date:** {}", date),
+        format!("**Domains processed:** {}", domains.len()),
+        String::new(),
+        "### Summary".to_string(),
+        format!("- **Completed:** {}", total_completed),
+    ];
+    if total_started > 0 {
+        lines.push(format!("- **Incomplete (started):** {}", total_started));
+    }
+    if total_errored > 0 {
+        lines.push(format!("- **Errored:** {}", total_errored));
+    }
+    lines.push(format!("- **Total tables:** {}", total_tables));
+    lines.push(String::new());
+
+    if !issue_results.is_empty() {
+        lines.push("### Domains Needing Attention".to_string());
+        for r in &issue_results {
+            lines.push(format!("- {}", r));
+        }
+        lines.push(String::new());
+    }
+
+    lines.push("### All Domains".to_string());
+    for r in &results {
+        lines.push(format!("- {}", r));
+    }
+
+    ToolResult::text(lines.join("\n"))
+}
+
+/// Parse SOD status counts from the saved JSON file
+fn parse_sod_status_from_file(file_path: &str) -> std::collections::HashMap<String, usize> {
+    let mut counts = std::collections::HashMap::new();
+
+    let content = match std::fs::read_to_string(file_path) {
+        Ok(c) => c,
+        Err(_) => return counts,
+    };
+
+    let json: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return counts,
+    };
+
+    if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
+        for item in data {
+            if let Some(status) = item.get("status").and_then(|s| s.as_str()) {
+                *counts.entry(status.to_string()).or_insert(0) += 1;
+            }
+        }
+    }
+
+    counts
 }
