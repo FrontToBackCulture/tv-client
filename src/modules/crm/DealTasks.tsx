@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDealTasks, DealTaskFull } from "../../hooks/useCRM";
 import { supabase } from "../../lib/supabase";
 import { Circle, CheckCircle2, Loader2 } from "lucide-react";
+import { formatDateShort as formatDate } from "../../lib/date";
 
 interface DealTasksProps {
   dealId: string;
@@ -107,14 +108,6 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
       queryClient.invalidateQueries({ queryKey: ["crm"] });
     },
   });
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return null;
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   if (isLoading) {
     return (

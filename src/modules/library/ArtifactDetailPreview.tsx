@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useClassificationStore } from "../../stores/classificationStore";
+import { formatDateFull as formatDate } from "../../lib/date";
 import type { ArtifactType, ArtifactRow } from "./ArtifactReviewView";
 
 interface ArtifactDetailPreviewProps {
@@ -293,10 +294,10 @@ export function ArtifactDetailPreview({
           <div className="space-y-1.5">
             <InfoRow icon={<Hash size={12} />} label="ID" value={row.id} />
             {row.createdDate && (
-              <InfoRow icon={<Calendar size={12} />} label="Created" value={formatDate(row.createdDate)} />
+              <InfoRow icon={<Calendar size={12} />} label="Created" value={formatDate(row.createdDate) ?? ""} />
             )}
             {row.updatedDate && (
-              <InfoRow icon={<Calendar size={12} />} label="Updated" value={formatDate(row.updatedDate)} />
+              <InfoRow icon={<Calendar size={12} />} label="Updated" value={formatDate(row.updatedDate) ?? ""} />
             )}
 
             {/* Type-specific info */}
@@ -517,11 +518,3 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-function formatDate(dateString: string): string {
-  try {
-    const d = new Date(dateString);
-    return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-  } catch {
-    return dateString;
-  }
-}

@@ -11,6 +11,7 @@ import {
   useMilestones,
 } from "../../hooks/useWork";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { formatDateFull as formatDate } from "../../lib/date";
 import {
   getTaskIdentifier,
   Priority,
@@ -119,14 +120,6 @@ export function TaskDetailPanel({
       console.error("Failed to delete task:", error);
     }
   }
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
 
   return (
     <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">

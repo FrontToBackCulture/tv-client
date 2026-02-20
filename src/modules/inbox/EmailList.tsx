@@ -13,6 +13,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import type { OutlookEmail } from "../../hooks/useOutlook";
+import { formatDateRelative as formatDate } from "../../lib/date";
 
 interface EmailListProps {
   emails: OutlookEmail[];
@@ -21,23 +22,6 @@ interface EmailListProps {
   onArchive: (id: string) => void;
   onMarkRead: (id: string) => void;
   isLoading: boolean;
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } else if (diffDays === 1) {
-    return "Yesterday";
-  } else if (diffDays < 7) {
-    return date.toLocaleDateString([], { weekday: "short" });
-  } else {
-    return date.toLocaleDateString([], { month: "short", day: "numeric" });
-  }
 }
 
 function getCategoryIcon(category?: string) {

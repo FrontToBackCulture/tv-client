@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Clock,
 } from "lucide-react";
+import { formatDateActivity as formatDate } from "../../lib/date";
 
 interface ActivityTimelineProps {
   companyId: string;
@@ -27,31 +28,6 @@ export function ActivityTimeline({
 }: ActivityTimelineProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [activityType, setActivityType] = useState<Activity["type"]>("note");
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffDays = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays === 0) {
-      return `Today at ${date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      })}`;
-    } else if (diffDays === 1) {
-      return "Yesterday";
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString("en-US", { weekday: "long" });
-    } else {
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    }
-  };
 
   const getActivityIcon = (type: Activity["type"]) => {
     const iconProps = { size: 14 };

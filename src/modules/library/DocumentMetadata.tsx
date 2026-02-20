@@ -13,6 +13,7 @@ import {
   Bot,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { formatDateFull as formatDate } from "../../lib/date";
 
 interface DocumentMetadataProps {
   content: string;
@@ -66,21 +67,6 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
   if (!hasMetadata) {
     return null;
   }
-
-  // Format date
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return null;
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
-  };
 
   // Get status color
   const getStatusColor = (status?: string) => {

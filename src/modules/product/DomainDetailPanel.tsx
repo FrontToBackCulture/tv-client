@@ -41,6 +41,7 @@ import {
   CloudUpload,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { timeAgoVerbose as timeAgo } from "../../lib/date";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
@@ -1131,18 +1132,6 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   );
 }
 
-/** Format a timestamp as relative time */
-function timeAgo(iso: string): string {
-  const date = new Date(iso);
-  const now = new Date();
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  return date.toLocaleDateString();
-}
 
 /** Files tab showing output status grouped by category */
 function FilesTab({ outputs, isLoading }: { outputs: OutputFileStatus[]; isLoading: boolean }) {

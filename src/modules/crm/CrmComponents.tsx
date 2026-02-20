@@ -3,6 +3,7 @@
 
 import { Search, X, User } from "lucide-react";
 import type { Company } from "../../lib/crm/types";
+import { timeAgo } from "../../lib/date";
 
 // ============================
 // Config
@@ -49,19 +50,8 @@ export function getEngagementHealth(lastActivityDate: string | null | undefined)
 
 export const HEALTH_TIER_CONFIG = HEALTH_TIERS;
 
-// ============================
-// Helpers
-// ============================
-export function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return "today";
-  if (days === 1) return "1d";
-  if (days < 7) return `${days}d`;
-  if (days < 30) return `${Math.floor(days / 7)}w`;
-  if (days < 365) return `${Math.floor(days / 30)}mo`;
-  return `${Math.floor(days / 365)}y`;
-}
+// Re-export for consumers that import from CrmComponents
+export { timeAgo } from "../../lib/date";
 
 function freshnessColor(dateStr: string): string {
   const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);

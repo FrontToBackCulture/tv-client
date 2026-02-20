@@ -6,6 +6,7 @@ import { useUpdateDeal, useDeleteDeal } from "../../hooks/useCRM";
 import { Deal, DealTask, DEAL_STAGES } from "../../lib/crm/types";
 import { DealForm } from "./DealForm";
 import { Pencil, Trash2, User, Calendar, ClipboardList, Circle, CheckCircle2 } from "lucide-react";
+import { formatDateShort as formatDate } from "../../lib/date";
 
 interface DealCardProps {
   deal: Deal & {
@@ -86,14 +87,6 @@ export function DealCard({
       console.error("Failed to delete deal:", error);
     }
   }
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return null;
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   // Get date pill styles — neutral by default, red only when overdue
   const getDatePillStyle = (dateStr: string | null) => {

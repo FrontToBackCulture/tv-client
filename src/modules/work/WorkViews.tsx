@@ -23,6 +23,7 @@ import {
   InitiativeStatusLabels,
 } from "../../lib/work/types";
 import type { StatusType, InitiativeHealth, InitiativeStatus } from "../../lib/work/types";
+import { formatDateShort as formatDate, isOverdue, daysSince } from "../../lib/date";
 
 // ============================
 // Types
@@ -38,19 +39,6 @@ interface InitiativeProjectLink {
 // ============================
 // Helpers
 // ============================
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-SG", { day: "numeric", month: "short" });
-}
-
-function isOverdue(dueDate: string | null): boolean {
-  if (!dueDate) return false;
-  return new Date(dueDate) < new Date(new Date().toDateString());
-}
-
-function daysSince(dateStr: string): number {
-  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
-}
-
 function isThisWeek(dateStr: string): boolean {
   const d = new Date(dateStr);
   const now = new Date();

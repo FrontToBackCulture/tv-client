@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { MarkdownViewer } from "./MarkdownViewer";
 import { cn } from "../../lib/cn";
+import { formatDateFull as formatDate } from "../../lib/date";
 import {
   usePrepareTableOverview,
   useSampleTableData,
@@ -1223,21 +1224,6 @@ function DetailsTab({
     const type = (col.type || "").toLowerCase();
     return type.includes("date") || type.includes("timestamp");
   });
-
-  // Format date for display
-  const formatDate = (dateStr: string | null | undefined) => {
-    if (!dateStr) return null;
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString("en-SG", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
-  };
 
   // Get freshness color based on days
   const getFreshnessColor = (days: number | null) => {
