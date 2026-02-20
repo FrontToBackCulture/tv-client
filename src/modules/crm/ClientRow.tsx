@@ -1,6 +1,7 @@
 // src/modules/crm/ClientRow.tsx
 // Client-specific list row with engagement health data
 
+import { memo } from "react";
 import { Mail, FileText, Calendar, Phone, ClipboardList, User, AlertCircle } from "lucide-react";
 import type { Company } from "../../lib/crm/types";
 import type { ClientEngagementData } from "../../hooks/useClientEngagement";
@@ -29,7 +30,7 @@ const activityIconColor: Record<string, string> = {
   task: "text-yellow-500",
 };
 
-export function ClientRow({ company, engagement, isSelected, onSelect }: ClientRowProps) {
+export const ClientRow = memo(function ClientRow({ company, engagement, isSelected, onSelect }: ClientRowProps) {
   const health = engagement?.health;
   const dotColor = health?.dotColor || "bg-zinc-300 dark:bg-zinc-600";
   const lastActivity = engagement?.lastActivity;
@@ -96,4 +97,4 @@ export function ClientRow({ company, engagement, isSelected, onSelect }: ClientR
       </div>
     </button>
   );
-}
+});

@@ -1,6 +1,7 @@
 // src/modules/crm/CrmComponents.tsx
 // Shared CRM components used across Directory and Clients views
 
+import { memo } from "react";
 import { Search, X, User } from "lucide-react";
 import type { Company } from "../../lib/crm/types";
 import { timeAgo } from "../../lib/date";
@@ -84,7 +85,7 @@ export function SearchInput({ value, onChange, placeholder }: {
 // ============================
 // CompanyRow (compact list item)
 // ============================
-export function CompanyRow({ company, isSelected, onSelect, matchedContact }: {
+export const CompanyRow = memo(function CompanyRow({ company, isSelected, onSelect, matchedContact }: {
   company: Company; isSelected: boolean; onSelect: () => void; matchedContact?: string;
 }) {
   const dotColor = stageColorMap[company.stage as StageValue] || "bg-zinc-400";
@@ -120,4 +121,4 @@ export function CompanyRow({ company, isSelected, onSelect, matchedContact }: {
       </div>
     </button>
   );
-}
+});

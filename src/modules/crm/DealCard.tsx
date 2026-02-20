@@ -1,7 +1,7 @@
 // src/modules/crm/DealCard.tsx
 // Deal card component for displaying deals
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { useUpdateDeal, useDeleteDeal } from "../../hooks/useCRM";
 import { Deal, DealTask, DEAL_STAGES } from "../../lib/crm/types";
 import { DealForm } from "./DealForm";
@@ -52,7 +52,7 @@ function getStaleStatus(deal: Deal): {
   return { level: "fresh", days, isDormant: false };
 }
 
-export function DealCard({
+export const DealCard = memo(function DealCard({
   deal,
   compact = false,
   showTasks = true,
@@ -355,7 +355,7 @@ export function DealCard({
       )}
     </>
   );
-}
+});
 
 function StageChip({ stage, label }: { stage: string; label: string }) {
   const colors: Record<string, string> = {

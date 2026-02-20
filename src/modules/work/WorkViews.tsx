@@ -1,7 +1,7 @@
 // src/modules/work/WorkViews.tsx
 // All Work module views: Inbox, Dashboard, Board, Tracker + shared components
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import {
   LayoutDashboard,
   X, Calendar, User, ChevronDown, Filter,
@@ -269,7 +269,7 @@ export function ScopeFilterBar({
 // ============================
 // TaskRow (shared)
 // ============================
-function TaskRow({ task, onSelect }: { task: TaskWithRelations; onSelect: (id: string) => void }) {
+const TaskRow = memo(function TaskRow({ task, onSelect }: { task: TaskWithRelations; onSelect: (id: string) => void }) {
   return (
     <button
       onClick={() => onSelect(task.id)}
@@ -296,7 +296,7 @@ function TaskRow({ task, onSelect }: { task: TaskWithRelations; onSelect: (id: s
       )}
     </button>
   );
-}
+});
 
 // ============================
 // Inbox View
@@ -871,7 +871,7 @@ function TrackerSection({ title, count, color, defaultOpen = true, children }: {
   );
 }
 
-function TrackerRow({ task, indicator, onSelect }: {
+const TrackerRow = memo(function TrackerRow({ task, indicator, onSelect }: {
   task: TaskWithRelations; indicator: React.ReactNode; onSelect: (id: string) => void;
 }) {
   return (
@@ -896,7 +896,7 @@ function TrackerRow({ task, indicator, onSelect }: {
       <div className="flex-shrink-0">{indicator}</div>
     </button>
   );
-}
+});
 
 export function TrackerView({
   allTasks, projects, initiatives, initiativeLinks, onSelectTask,
