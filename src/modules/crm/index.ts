@@ -3,7 +3,6 @@
 
 export { CrmModule } from "./CrmModule";
 export { CRMSidebar } from "./CRMSidebar";
-export { CompanyListView } from "./CompanyListView";
 export { CompanyDetailPanel } from "./CompanyDetailPanel";
 export { DirectoryView } from "./DirectoryView";
 export { ClientsView } from "./ClientsView";
@@ -16,4 +15,3 @@ export { DealForm } from "./DealForm";
 export { DealPipeline } from "./DealPipeline";
 export { ActivityTimeline } from "./ActivityTimeline";
 export { ActivityForm } from "./ActivityForm";
-export { PipelineStatsBar } from "./PipelineStatsBar";

@@ -121,8 +121,6 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            // Test command
-            commands::greet,
             // Claude Code MCP setup
             commands::claude_setup::check_claude_cli,
             commands::claude_setup::claude_mcp_status,

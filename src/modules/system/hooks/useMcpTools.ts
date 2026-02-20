@@ -29,13 +29,6 @@ interface ToolsListResponse {
   tools: McpTool[];
 }
 
-// Tool group for UI display
-export interface ToolGroup {
-  name: string;
-  prefix: string;
-  tools: McpTool[];
-}
-
 // Check if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
 
@@ -136,82 +129,6 @@ export async function callMcpTool(name: string, args: Record<string, unknown>): 
   return callMcpToolHttp(name, args);
 }
 
-// Group tools by prefix for sidebar display
-function groupTools(tools: McpTool[]): ToolGroup[] {
-  const groupMap = new Map<string, McpTool[]>();
-
-  // Define group mappings
-  const groupMappings: Record<string, string> = {
-    "list-work": "Work",
-    "get-work": "Work",
-    "create-work": "Work",
-    "update-work": "Work",
-    "delete-work": "Work",
-    "add-project": "Work",
-    "list-crm": "CRM",
-    "find-crm": "CRM",
-    "get-crm": "CRM",
-    "create-crm": "CRM",
-    "update-crm": "CRM",
-    "delete-crm": "CRM",
-    "log-crm": "CRM",
-    "link-crm": "CRM",
-    "gamma": "Generate",
-    "nanobanana": "Generate",
-    "list-intercom": "Intercom",
-    "publish-to": "Intercom",
-    "generate-order": "Documents",
-    "generate-proposal": "Documents",
-    "check-document": "Documents",
-    "sync-val": "VAL Sync",
-    "execute-val": "VAL Sync",
-  };
-
-  tools.forEach((tool) => {
-    // Find matching prefix
-    let groupName = "Other";
-
-    for (const [prefix, name] of Object.entries(groupMappings)) {
-      if (tool.name.startsWith(prefix)) {
-        groupName = name;
-        break;
-      }
-    }
-
-    const existing = groupMap.get(groupName) || [];
-    existing.push(tool);
-    groupMap.set(groupName, existing);
-  });
-
-  // Convert to sorted array
-  const groups: ToolGroup[] = [];
-  const sortOrder = ["Work", "CRM", "Generate", "Intercom", "Documents", "VAL Sync", "Other"];
-
-  sortOrder.forEach((name) => {
-    const tools = groupMap.get(name);
-    if (tools && tools.length > 0) {
-      groups.push({
-        name,
-        prefix: name.toLowerCase().replace(" ", "-"),
-        tools: tools.sort((a, b) => a.name.localeCompare(b.name)),
-      });
-    }
-  });
-
-  // Add any remaining groups not in sortOrder
-  groupMap.forEach((tools, name) => {
-    if (!sortOrder.includes(name) && tools.length > 0) {
-      groups.push({
-        name,
-        prefix: name.toLowerCase().replace(" ", "-"),
-        tools: tools.sort((a, b) => a.name.localeCompare(b.name)),
-      });
-    }
-  });
-
-  return groups;
-}
-
 // React Query hook for fetching tools
 export function useMcpTools() {
   return useQuery({
@@ -222,12 +139,3 @@ export function useMcpTools() {
   });
 }
 
-// React Query hook for grouped tools
-export function useMcpToolsGrouped() {
-  const query = useMcpTools();
-
-  return {
-    ...query,
-    data: query.data ? groupTools(query.data) : undefined,
-  };
-}

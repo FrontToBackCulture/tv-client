@@ -16,10 +16,3 @@ pub mod tools;
 pub mod val_sync;
 pub mod work;
 
-use tauri::command;
-
-/// Simple greet command to test IPC
-#[command]
-pub fn greet(name: &str) -> String {
-    format!("Hello, {}! Welcome to TV Desktop.", name)
-}

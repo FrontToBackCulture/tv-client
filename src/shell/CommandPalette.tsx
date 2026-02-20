@@ -55,7 +55,7 @@ export function CommandPalette() {
       label: `Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`,
       action: () => toggleTheme(),
     },
-    { id: "sync", label: "Sync Now", action: () => console.log("Sync") },
+    { id: "sync", label: "Sync Now", action: () => {} },
     {
       id: "settings",
       label: "Open Settings",

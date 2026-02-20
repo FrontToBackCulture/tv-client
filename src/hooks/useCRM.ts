@@ -730,17 +730,14 @@ export function useDealsWithTasks(filters?: DealFilters) {
           .select("id, title, priority, due_date, crm_deal_id, status_id, assignee_id")
           .in("id", linkedTaskIds);
 
-        console.log("[useDealsWithTasks] Junction tasks query:", { count: data?.length, error });
         if (!error) junctionTasks = data ?? [];
       }
 
       // Step 3: Fetch tasks linked via crm_deal_id (simple query - no embedded relations)
-      const { data: directTasks, error: directError } = await supabase
+      const { data: directTasks } = await supabase
         .from("tasks")
         .select("id, title, priority, due_date, crm_deal_id, status_id, assignee_id")
         .in("crm_deal_id", dealIds);
-
-      console.log("[useDealsWithTasks] Direct tasks query:", { count: directTasks?.length, error: directError });
 
       // Merge tasks (dedup by id)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -749,8 +746,6 @@ export function useDealsWithTasks(filters?: DealFilters) {
         allTasksMap.set(t.id, t);
       });
       const tasks = Array.from(allTasksMap.values());
-
-      console.log("[useDealsWithTasks] Total unique tasks:", tasks.length);
 
       // Step 4: Fetch statuses for all tasks (separate query to avoid embedded relation issues)
       const statusIds = [...new Set(tasks.map(t => t.status_id).filter(Boolean))];
@@ -762,7 +757,6 @@ export function useDealsWithTasks(filters?: DealFilters) {
           .in("id", statusIds);
 
         statusMap = new Map((statuses ?? []).map(s => [s.id, s.type]));
-        console.log("[useDealsWithTasks] Status map:", Object.fromEntries(statusMap));
       }
 
       // Step 5: Fetch assignee names (separate query)
@@ -826,10 +820,6 @@ export function useDealsWithTasks(filters?: DealFilters) {
         }
       });
 
-      console.log("[useDealsWithTasks] Tasks by deal:", Object.fromEntries(
-        Array.from(tasksByDeal.entries()).map(([k, v]) => [k, v.length])
-      ));
-
       return tasksByDeal;
     },
     enabled: dealIds.length > 0,
@@ -850,11 +840,6 @@ export function useDealsWithTasks(filters?: DealFilters) {
       return a.due_date.localeCompare(b.due_date);
     });
 
-    // Debug logging
-    if (tasks.length > 0) {
-      console.log(`[useDealsWithTasks] Deal "${deal.name}" has ${tasks.length} tasks, ${openTasks.length} open`);
-    }
-
     return {
       ...deal,
       tasks,
@@ -864,12 +849,6 @@ export function useDealsWithTasks(filters?: DealFilters) {
         : null,
     };
   });
-
-  // Log total task count
-  const totalTasks = Array.from(tasksQuery.data?.values() ?? []).flat().length;
-  if (totalTasks > 0) {
-    console.log(`[useDealsWithTasks] Total tasks fetched: ${totalTasks}`);
-  }
 
   return {
     data: enrichedDeals,
@@ -947,7 +926,6 @@ export function useDealTasks(dealId: string | null) {
   return useQuery({
     queryKey: ["deal-tasks", dealId],
     queryFn: async (): Promise<DealTaskFull[]> => {
-      console.log("[useDealTasks] Fetching tasks for deal:", dealId);
       if (!dealId) return [];
 
       // Step 1: Get task IDs from junction table
@@ -955,8 +933,6 @@ export function useDealTasks(dealId: string | null) {
         .from("task_deal_links")
         .select("task_id")
         .eq("deal_id", dealId);
-
-      console.log("[useDealTasks] Junction result:", { dealId, links, linksError });
 
       if (linksError) {
         console.error("[useDealTasks] Junction error:", linksError);
@@ -974,8 +950,6 @@ export function useDealTasks(dealId: string | null) {
         console.error("[useDealTasks] Legacy error:", legacyError);
       }
 
-      console.log("[useDealTasks] Legacy result:", { dealId, legacyTasks, legacyError });
-
       const legacyTaskIds = (legacyTasks ?? []).map((t) => t.id);
 
       // Step 3: Combine and dedupe
@@ -992,9 +966,6 @@ export function useDealTasks(dealId: string | null) {
         .in("id", allTaskIds)
         .order("due_date", { ascending: true });
 
-      console.log("[useDealTasks] Tasks with relations:", JSON.stringify(data, null, 2));
-      console.log("[useDealTasks] Query error:", error);
-
       if (error) {
         console.error("[useDealTasks] Tasks error:", error);
         return [];
@@ -1005,15 +976,11 @@ export function useDealTasks(dealId: string | null) {
         (t) => t.task_statuses && (Array.isArray(t.task_statuses) ? t.task_statuses.length > 0 : true)
       );
 
-      console.log("[useDealTasks] Embedded relations worked:", hasEmbeddedStatuses);
-
       // Fallback: if embedded relations didn't work, fetch separately
       let statusMap = new Map<string, string>();
       let projectMap = new Map<string, string>();
 
       if (!hasEmbeddedStatuses && data && data.length > 0) {
-        console.log("[useDealTasks] Fallback: fetching statuses and projects separately");
-
         // Fetch statuses
         const statusIds = [...new Set(data.map(t => t.status_id).filter(Boolean))];
         const { data: statuses } = await supabase
@@ -1021,7 +988,6 @@ export function useDealTasks(dealId: string | null) {
           .select("id, type")
           .in("id", statusIds);
 
-        console.log("[useDealTasks] Fallback statuses:", statuses);
         statusMap = new Map((statuses ?? []).map(s => [s.id, s.type]));
 
         // Fetch projects
@@ -1055,8 +1021,6 @@ export function useDealTasks(dealId: string | null) {
           statusType = statusMap.get(task.status_id) || "unstarted";
           projectPrefix = projectMap.get(task.project_id) || "TASK";
         }
-
-        console.log(`[useDealTasks] Task "${task.title}": status_type=${statusType}, prefix=${projectPrefix}`);
 
         return {
           id: task.id,

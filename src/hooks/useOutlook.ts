@@ -60,13 +60,6 @@ export interface OutlookAuthStatus {
   expiresAt: number | null;
 }
 
-export interface SyncStatus {
-  isSyncing: boolean;
-  lastSync: string | null;
-  emailsSynced: number;
-  error: string | null;
-}
-
 export type EmailCategory = "client" | "deal" | "lead" | "internal" | "vendor" | "noise" | "unknown";
 export type EmailStatus = "inbox" | "read" | "archived";
 export type EmailPriority = "high" | "medium" | "low";
@@ -160,14 +153,6 @@ export function useEmailStats() {
   });
 }
 
-export function useOutlookFolders() {
-  return useQuery({
-    queryKey: ["outlook", "folders"],
-    queryFn: () => invoke<OutlookFolder[]>("outlook_get_folders"),
-    staleTime: 1000 * 60 * 10, // 10 min
-  });
-}
-
 // ============================================================================
 // Action hooks
 // ============================================================================
@@ -209,25 +194,6 @@ export function useArchiveEmail() {
   });
 }
 
-export function useSendEmail() {
-  return useMutation({
-    mutationFn: (params: {
-      to: EmailAddress[];
-      cc?: EmailAddress[];
-      subject: string;
-      body: string;
-      replyTo?: string;
-    }) =>
-      invoke<void>("outlook_send_email", {
-        to: params.to,
-        cc: params.cc || null,
-        subject: params.subject,
-        body: params.body,
-        replyTo: params.replyTo || null,
-      }),
-  });
-}
-
 // ============================================================================
 // Sync hooks
 // ============================================================================
@@ -243,16 +209,3 @@ export function useSyncStart() {
   });
 }
 
-export function useSyncStatus() {
-  return useQuery({
-    queryKey: ["outlook", "sync-status"],
-    queryFn: () => invoke<SyncStatus>("outlook_sync_status"),
-    staleTime: 1000 * 10,
-  });
-}
-
-export function useBootstrapContacts() {
-  return useMutation({
-    mutationFn: () => invoke<number>("outlook_bootstrap_contacts"),
-  });
-}

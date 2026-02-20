@@ -254,12 +254,8 @@ function FilesView({
   );
 }
 
-// Simple toast notification
-function showToast(message: string) {
-  // For now, just use alert. In a real app, use a toast library
-  console.log(`[Action] ${message}`);
-  // Could add a proper toast notification here
-}
+// Simple toast notification (placeholder for proper toast library)
+function showToast(_message: string) {}
 
 export function FolderView({
   path,
