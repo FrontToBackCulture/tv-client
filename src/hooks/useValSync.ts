@@ -2073,7 +2073,6 @@ export interface ModelInfo {
   active_domain_count: number | null;
   total_records: number | null;
   ai_package: boolean;
-  ai_skills: string[];
 }
 
 export interface EntityInfo {
@@ -2293,30 +2292,19 @@ export function useCreateDomainModelSchema() {
 // AI Package (domain AI skill packages)
 // ============================================================================
 
-export interface AiTableInfo {
-  file_name: string;
-  table_id: string;
-  display_name: string;
-  ai_skills: string[];
-}
-
 export interface DomainAiStatus {
   domain: string;
   domain_type: string;
   global_path: string;
   has_ai_folder: boolean;
-  table_count: number;
   skill_count: number;
   has_instructions: boolean;
-  table_files: AiTableInfo[];
   skill_files: string[];
   configured_skills: string[];
-  disabled_tables: string[];
 }
 
 export interface AiPackageResult {
   domain: string;
-  tables_copied: string[];
   skills_copied: string[];
   instructions_generated: boolean;
   errors: string[];
@@ -2376,29 +2364,6 @@ export function useSaveDomainAiConfig() {
   });
 }
 
-/** Toggle a single table enabled/disabled for a domain */
-export function useToggleAiTable() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (params: {
-      domain: string;
-      entitiesPath: string;
-      templatesPath: string;
-      fileName: string;
-      enabled: boolean;
-    }) =>
-      invoke<AiPackageResult>("val_toggle_ai_table", {
-        domain: params.domain,
-        entitiesPath: params.entitiesPath,
-        templatesPath: params.templatesPath,
-        fileName: params.fileName,
-        enabled: params.enabled,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["domain-ai-status"] });
-    },
-  });
-}
 
 /** Extract templates from an existing domain's AI package */
 export function useExtractAiTemplates() {

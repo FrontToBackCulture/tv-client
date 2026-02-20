@@ -28,6 +28,7 @@ import {
   RefreshCw,
   Square,
   ChevronDown,
+  ChevronRight,
   Zap,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
@@ -49,12 +50,16 @@ interface DomainTabViewProps {
 // Constants
 // ============================
 
-const TYPE_ORDER = ["production", "demo", "template"] as const;
+const TYPE_ORDER = ["production", "not-active", "demo", "template"] as const;
 const TYPE_LABELS: Record<string, string> = {
   production: "Production",
+  "not-active": "Not Active",
   demo: "Demo",
   template: "Templates",
 };
+
+// Sections collapsed by default
+const DEFAULT_COLLAPSED = new Set(["not-active"]);
 
 // ============================
 // Helpers
@@ -162,6 +167,7 @@ function DropdownMenu({
 export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards }: DomainTabViewProps) {
   const [selectedDomain, setSelectedDomain] = useState<string | null>(initialDomain ?? null);
   const [search, setSearch] = useState("");
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED));
 
   const { activeRepository } = useRepository();
   const domainsPath = activeRepository ? `${activeRepository.path}/0_Platform/domains` : null;
@@ -237,6 +243,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
 
   // Stats
   const productionCount = all.filter((d) => d.domain_type === "production").length;
+  const notActiveCount = all.filter((d) => d.domain_type === "not-active").length;
   const demoCount = all.filter((d) => d.domain_type === "demo").length;
   const templateCount = all.filter((d) => d.domain_type === "template").length;
 
@@ -396,37 +403,56 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
               </p>
             </div>
           ) : (
-            Array.from(grouped.entries()).map(([type, items]) => (
-              <div key={type}>
-                {/* Group header */}
-                <div className="px-3 pt-3 pb-1">
-                  <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                    {TYPE_LABELS[type] ?? type}
-                  </span>
-                </div>
-                {/* Items */}
-                {items.map((d) => (
+            Array.from(grouped.entries()).map(([type, items]) => {
+              const isCollapsed = collapsedSections.has(type);
+              return (
+                <div key={type}>
+                  {/* Collapsible group header */}
                   <button
-                    key={d.domain}
-                    onClick={() => setSelectedDomain(d.domain)}
-                    className={cn(
-                      "w-full text-left px-2.5 py-1.5 mx-1 rounded-md text-xs transition-colors",
-                      d.domain === selectedDomain
-                        ? "bg-teal-500/10 text-teal-700 dark:text-teal-300"
-                        : "text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/50"
-                    )}
-                    style={{ width: "calc(100% - 8px)" }}
+                    onClick={() => setCollapsedSections((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(type)) next.delete(type);
+                      else next.add(type);
+                      return next;
+                    })}
+                    className="w-full flex items-center gap-1 px-3 pt-3 pb-1 hover:bg-slate-100 dark:hover:bg-zinc-800/50 transition-colors"
                   >
-                    <span className="font-mono font-medium block truncate">{d.domain}</span>
-                    {d.last_sync && (
-                      <span className="text-[10px] text-zinc-400 block mt-0.5">
-                        {formatRelativeTime(d.last_sync)}
-                      </span>
-                    )}
+                    <ChevronRight
+                      size={10}
+                      className={cn(
+                        "text-zinc-400 transition-transform flex-shrink-0",
+                        !isCollapsed && "rotate-90"
+                      )}
+                    />
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
+                      {TYPE_LABELS[type] ?? type}
+                    </span>
+                    <span className="text-[9px] text-zinc-400/60 ml-auto">{items.length}</span>
                   </button>
-                ))}
-              </div>
-            ))
+                  {/* Items */}
+                  {!isCollapsed && items.map((d) => (
+                    <button
+                      key={d.domain}
+                      onClick={() => setSelectedDomain(d.domain)}
+                      className={cn(
+                        "w-full text-left px-2.5 py-1.5 mx-1 rounded-md text-xs transition-colors",
+                        d.domain === selectedDomain
+                          ? "bg-teal-500/10 text-teal-700 dark:text-teal-300"
+                          : "text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/50"
+                      )}
+                      style={{ width: "calc(100% - 8px)" }}
+                    >
+                      <span className="font-mono font-medium block truncate">{d.domain}</span>
+                      {d.last_sync && (
+                        <span className="text-[10px] text-zinc-400 block mt-0.5">
+                          {formatRelativeTime(d.last_sync)}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              );
+            })
           )}
         </div>
       </div>
@@ -452,7 +478,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
               <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 {all.length} domains
                 <span className="text-zinc-400 font-normal ml-2 text-xs">
-                  {productionCount} production · {demoCount} demo · {templateCount} template
+                  {productionCount} production{notActiveCount > 0 ? ` · ${notActiveCount} inactive` : ""} · {demoCount} demo · {templateCount} template
                 </span>
               </h2>
             </div>

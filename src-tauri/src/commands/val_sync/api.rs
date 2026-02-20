@@ -90,7 +90,7 @@ pub async fn val_api_fetch(
         "all-dashboards" => (
             "GET",
             "/db/dashboard/v2/listAllDashboards".to_string(),
-            vec![],
+            vec![("type", "all")],
             None,
         ),
         "all-tables" => (

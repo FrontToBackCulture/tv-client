@@ -9,13 +9,11 @@ export interface AiSkillDef {
   slug: string;
   name: string;
   description: string;
-  tables: string[];
 }
 
 interface SkillJson {
   name: string;
   description?: string;
-  tables?: string[];
 }
 
 interface DirEntry {
@@ -55,7 +53,6 @@ export function useAiSkills() {
             slug: dir.name,
             name: json.name || dir.name,
             description: json.description || "",
-            tables: json.tables ?? [],
           });
         } catch {
           // Folder without valid skill.json — skip

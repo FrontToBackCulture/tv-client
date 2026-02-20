@@ -124,22 +124,29 @@ async fn handle_call_tool(
 // Stdio server (for Claude Desktop integration)
 // ============================================================================
 
-use std::io::{self, BufRead, Write};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 /// Run the MCP server on stdio (for Claude Desktop)
 #[allow(dead_code)]
-pub async fn run_stdio() -> io::Result<()> {
-    let stdin = io::stdin();
-    let mut stdout = io::stdout();
-    let reader = stdin.lock();
+pub async fn run_stdio() -> std::io::Result<()> {
+    let stdin = tokio::io::stdin();
+    let mut stdout = tokio::io::stdout();
+    let mut reader = BufReader::new(stdin);
+    let mut line = String::new();
 
-    for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
+    loop {
+        line.clear();
+        let bytes_read = reader.read_line(&mut line).await?;
+        if bytes_read == 0 {
+            break; // EOF
+        }
+
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
             continue;
         }
 
-        let request: JsonRpcRequest = match serde_json::from_str(&line) {
+        let request: JsonRpcRequest = match serde_json::from_str(trimmed) {
             Ok(req) => req,
             Err(e) => {
                 let response = JsonRpcResponse::error(
@@ -148,8 +155,10 @@ pub async fn run_stdio() -> io::Result<()> {
                     &format!("Failed to parse request: {}", e),
                 );
                 let response_json = serde_json::to_string(&response).unwrap();
-                writeln!(stdout, "{}", response_json)?;
-                stdout.flush()?;
+                let mut out = response_json;
+                out.push('\n');
+                stdout.write_all(out.as_bytes()).await?;
+                stdout.flush().await?;
                 continue;
             }
         };
@@ -160,7 +169,6 @@ pub async fn run_stdio() -> io::Result<()> {
 
         // Handle notifications without sending response
         if is_notification || method == "notifications/initialized" || method == "initialized" {
-            // Process but don't respond to notifications
             let _ = dispatch_request(request).await;
             continue;
         }
@@ -170,8 +178,10 @@ pub async fn run_stdio() -> io::Result<()> {
             r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Failed to serialize response"}}"#.to_string()
         });
 
-        writeln!(stdout, "{}", response_json)?;
-        stdout.flush()?;
+        let mut out = response_json;
+        out.push('\n');
+        stdout.write_all(out.as_bytes()).await?;
+        stdout.flush().await?;
     }
 
     Ok(())

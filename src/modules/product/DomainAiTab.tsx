@@ -1,18 +1,15 @@
 // src/modules/product/DomainAiTab.tsx
-// AI tab for domain detail panel — shows instructions.md + table docs + skill management
+// AI tab for domain detail panel — shows instructions.md + skill management
 
 import { useState, useMemo, useCallback } from "react";
 import {
   FileText,
   Brain,
-  Database,
   X,
   Loader2,
   Sparkles,
   Check,
   Package,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useListDirectory, useReadFile, type FileEntry } from "../../hooks/useFiles";
@@ -21,7 +18,6 @@ import { useRepository } from "../../stores/repositoryStore";
 import {
   useGenerateAiPackage,
   useSaveDomainAiConfig,
-  useToggleAiTable,
 } from "../../hooks/useValSync";
 import { useAiSkillSlugs } from "../../hooks/useAiSkills";
 
@@ -33,7 +29,7 @@ interface DomainAiTabProps {
 export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
   const AVAILABLE_AI_SKILLS = useAiSkillSlugs();
   const { activeRepository } = useRepository();
-  const [selectedDoc, setSelectedDoc] = useState<{ path: string; name: string; type: "table" | "skill" | "instructions" } | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<{ path: string; name: string; type: "skill" | "instructions" } | null>(null);
 
   const entitiesPath = activeRepository
     ? `${activeRepository.path}/0_Platform/architecture/domain-model/entities`
@@ -42,33 +38,27 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
     ? `${activeRepository.path}/_team/melvin/bot-mel/skills/ai-project-generator/templates`
     : null;
 
-  const tablesPath = `${aiPath}/tables`;
   const skillsPath = `${aiPath}/skills`;
   const instructionsPath = `${aiPath}/instructions.md`;
   const configPath = `${aiPath}/ai_config.json`;
 
   const aiDir = useListDirectory(aiPath);
-  const tablesDir = useListDirectory(tablesPath);
   const skillsDir = useListDirectory(skillsPath);
   const instructionsFile = useReadFile(instructionsPath);
   const configFile = useReadFile(configPath);
 
   const generateMutation = useGenerateAiPackage();
   const saveConfigMutation = useSaveDomainAiConfig();
-  const toggleTableMutation = useToggleAiTable();
 
-  // Parse configured skills and disabled tables from ai_config.json
-  const { configuredSkills, disabledTables } = useMemo(() => {
-    if (!configFile.data) return { configuredSkills: [] as string[], disabledTables: [] as string[] };
+  // Parse configured skills from ai_config.json
+  const configuredSkills = useMemo(() => {
+    if (!configFile.data) return [] as string[];
     try {
       const parsed = JSON.parse(configFile.data);
-      return {
-        // Filter out stale skills that no longer exist in 0_Platform/skills/
-        configuredSkills: ((parsed.skills ?? []) as string[]).filter(s => AVAILABLE_AI_SKILLS.includes(s)),
-        disabledTables: (parsed.disabled_tables ?? []) as string[],
-      };
+      // Filter out stale skills that no longer exist in 0_Platform/skills/
+      return ((parsed.skills ?? []) as string[]).filter(s => AVAILABLE_AI_SKILLS.includes(s));
     } catch {
-      return { configuredSkills: [] as string[], disabledTables: [] as string[] };
+      return [] as string[];
     }
   }, [configFile.data, AVAILABLE_AI_SKILLS]);
 
@@ -99,26 +89,12 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
     if (!entitiesPath || !templatesPath) return;
     generateMutation.mutate(
       { domain: domainName, entitiesPath, templatesPath, skills: selectedSkills },
-      { onSuccess: () => { configFile.refetch(); tablesDir.refetch(); skillsDir.refetch(); instructionsFile.refetch(); aiDir.refetch(); } }
+      { onSuccess: () => { configFile.refetch(); skillsDir.refetch(); instructionsFile.refetch(); aiDir.refetch(); } }
     );
-  }, [domainName, entitiesPath, templatesPath, selectedSkills, generateMutation, configFile, tablesDir, skillsDir, instructionsFile, aiDir]);
-
-  const handleTableToggle = useCallback(
-    (fileName: string, enabled: boolean) => {
-      if (!entitiesPath || !templatesPath) return;
-      toggleTableMutation.mutate(
-        { domain: domainName, entitiesPath, templatesPath, fileName, enabled },
-        { onSuccess: () => { configFile.refetch(); tablesDir.refetch(); instructionsFile.refetch(); } }
-      );
-    },
-    [domainName, entitiesPath, templatesPath, toggleTableMutation, configFile, tablesDir, instructionsFile]
-  );
+  }, [domainName, entitiesPath, templatesPath, selectedSkills, generateMutation, configFile, skillsDir, instructionsFile, aiDir]);
 
   const aiNotFound = aiDir.isError || (aiDir.isSuccess && aiDir.data.length === 0);
 
-  const tableFiles = (tablesDir.data ?? []).filter(
-    (f) => !f.is_directory && f.name.endsWith(".md")
-  );
   const skillFiles = (skillsDir.data ?? []).filter(
     (f) => f.is_directory && !f.name.startsWith(".")
   );
@@ -152,18 +128,11 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
                 </span>
               </div>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Instructions, table metadata, and skill documentation for this domain.
+                Instructions and skill documentation for this domain.
               </p>
             </div>
           </div>
           <div className="flex gap-3 mt-4">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800">
-              <Database size={13} className="text-blue-500" />
-              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
-                {disabledTables.length > 0 ? `${tableFiles.length}/${tableFiles.length + disabledTables.length}` : tableFiles.length}
-              </span>
-              <span className="text-xs text-zinc-400">Tables</span>
-            </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800">
               <Sparkles size={13} className={skillFiles.length > 0 ? "text-violet-500" : "text-zinc-300"} />
               <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">{skillFiles.length}</span>
@@ -227,7 +196,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
           {generateMutation.isSuccess && (
             <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
               <Check size={12} />
-              {generateMutation.data.tables_copied.length} tables, {generateMutation.data.skills_copied.length} skills
+              {generateMutation.data.skills_copied.length} skills
               {generateMutation.data.instructions_generated && ", instructions updated"}
             </span>
           )}
@@ -264,7 +233,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
               No AI context found
             </h3>
             <p className="text-xs text-zinc-400 dark:text-zinc-500">
-              Tag entities with "AI Package" in the Data Model tab, assign skills above, then click "Generate Package".
+              Assign skills above, then click "Generate Package".
             </p>
           </div>
         </div>
@@ -272,85 +241,36 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
 
       {!aiNotFound && (
         <div className="flex items-start gap-6">
-          {/* Left column: Skills + Table Metadata stacked */}
-          <div className="flex-1 min-w-0 space-y-6">
-            {/* Skills */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-violet-500" />
-                <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                  Skills
-                </label>
-                {skillFiles.length > 0 && (
-                  <span className="text-[10px] font-normal text-zinc-400 tabular-nums">
-                    {skillFiles.length}
-                  </span>
-                )}
-              </div>
-
-              {skillFiles.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {skillFiles.map((file) => (
-                    <SkillDocGridCard
-                      key={file.path}
-                      file={file}
-                      onClick={() => setSelectedDoc({ path: `${file.path}/SKILL.md`, name: file.name, type: "skill" })}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="py-4 text-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-lg">
-                  <Sparkles size={16} className="mx-auto mb-1.5 text-zinc-300 dark:text-zinc-700" />
-                  <p className="text-xs text-zinc-400">No skill docs yet</p>
-                </div>
+          {/* Left column: Skills */}
+          <div className="flex-1 min-w-0 space-y-3">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-violet-500" />
+              <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                Skills
+              </label>
+              {skillFiles.length > 0 && (
+                <span className="text-[10px] font-normal text-zinc-400 tabular-nums">
+                  {skillFiles.length}
+                </span>
               )}
             </div>
 
-            {/* Table docs */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Database size={14} className="text-blue-500" />
-                <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                  Table Metadata Reference
-                </label>
-                {tableFiles.length > 0 && (
-                  <span className="text-[10px] font-normal text-zinc-400 tabular-nums">
-                    {tableFiles.length}
-                  </span>
-                )}
+            {skillFiles.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {skillFiles.map((file) => (
+                  <SkillDocGridCard
+                    key={file.path}
+                    file={file}
+                    onClick={() => setSelectedDoc({ path: `${file.path}/SKILL.md`, name: file.name, type: "skill" })}
+                  />
+                ))}
               </div>
-
-              {tablesDir.isLoading && (
-                <div className="text-xs text-zinc-400 py-4">Loading table docs...</div>
-              )}
-
-              {tablesDir.isSuccess && tableFiles.length === 0 && disabledTables.length === 0 && (
-                <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-lg">
-                  <Database size={20} className="mx-auto mb-2 text-zinc-300 dark:text-zinc-700" />
-                  <p className="text-xs text-zinc-400">No table docs in ai/tables/</p>
-                </div>
-              )}
-
-              {(tableFiles.length > 0 || disabledTables.length > 0) && (
-                <div className="grid grid-cols-2 gap-2">
-                  {tableFiles.map((file) => (
-                    <TableDocGridCard
-                      key={file.path}
-                      file={file}
-                      onToggle={() => handleTableToggle(file.name, false)}
-                      onClick={() => setSelectedDoc({ path: file.path, name: file.name, type: "table" })}
-                    />
-                  ))}
-                  {disabledTables.map((fileName) => (
-                    <DisabledTableCard
-                      key={fileName}
-                      fileName={fileName}
-                      onToggle={() => handleTableToggle(fileName, true)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+            ) : (
+              <div className="py-4 text-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-lg">
+                <Sparkles size={16} className="mx-auto mb-1.5 text-zinc-300 dark:text-zinc-700" />
+                <p className="text-xs text-zinc-400">No skill docs yet</p>
+              </div>
+            )}
           </div>
 
           {/* Right column: Instructions */}
@@ -372,7 +292,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
         </div>
       )}
 
-      {/* Document modal — shared for tables, skills, instructions */}
+      {/* Document modal — shared for skills and instructions */}
       {selectedDoc && (
         <DocModal
           filePath={selectedDoc.path}
@@ -385,106 +305,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
   );
 }
 
-/** Grid card for a table doc */
-function TableDocGridCard({ file, onToggle, onClick }: { file: FileEntry; onToggle: () => void; onClick: () => void }) {
-  const displayName = file.name.replace(/\.md$/, "");
-
-  const shortLabel = useMemo(() => {
-    const cleaned = displayName
-      .replace(/^dw-udt-/, "")
-      .replace(/^dw-/, "")
-      .replace(/^udt-/, "");
-    return cleaned
-      .split("-")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ");
-  }, [displayName]);
-
-  const sizeLabel = file.size < 1024
-    ? `${file.size} B`
-    : `${(file.size / 1024).toFixed(1)} KB`;
-
-  return (
-    <div
-      className={cn(
-        "text-left px-4 py-3 rounded-lg border bg-white dark:bg-zinc-900 hover:shadow-sm transition-all group relative",
-        "border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700"
-      )}
-    >
-      <button
-        onClick={onToggle}
-        className="absolute top-2 right-2 p-1 rounded-md text-zinc-300 hover:text-blue-500 dark:text-zinc-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors z-10"
-        title="Disable table"
-      >
-        <Eye size={13} />
-      </button>
-      <button onClick={onClick} className="text-left w-full cursor-pointer">
-        <div className="flex items-center gap-2 mb-1 pr-6">
-          <Database size={13} className="text-blue-500 flex-shrink-0" />
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex-1">
-            {shortLabel}
-          </span>
-        </div>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate mb-1">
-          {displayName}
-        </p>
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] text-zinc-400">{sizeLabel}</span>
-          {file.modified && (
-            <span className="text-[9px] text-zinc-400">{formatRelative(file.modified)}</span>
-          )}
-        </div>
-      </button>
-    </div>
-  );
-}
-
-/** Grid card for a disabled table */
-function DisabledTableCard({ fileName, onToggle }: { fileName: string; onToggle: () => void }) {
-  const displayName = fileName.replace(/\.md$/, "");
-
-  const shortLabel = useMemo(() => {
-    const cleaned = displayName
-      .replace(/^dw-udt-/, "")
-      .replace(/^dw-/, "")
-      .replace(/^udt-/, "");
-    return cleaned
-      .split("-")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ");
-  }, [displayName]);
-
-  return (
-    <div
-      className={cn(
-        "text-left px-4 py-3 rounded-lg border transition-all relative opacity-50",
-        "bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
-      )}
-    >
-      <button
-        onClick={onToggle}
-        className="absolute top-2 right-2 p-1 rounded-md text-zinc-300 hover:text-blue-500 dark:text-zinc-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors z-10"
-        title="Enable table"
-      >
-        <EyeOff size={13} />
-      </button>
-      <div className="flex items-center gap-2 mb-1 pr-6">
-        <Database size={13} className="text-zinc-300 dark:text-zinc-600 flex-shrink-0" />
-        <span className="text-sm font-medium text-zinc-400 dark:text-zinc-500 truncate flex-1">
-          {shortLabel}
-        </span>
-      </div>
-      <p className="text-xs text-zinc-400 dark:text-zinc-600 font-mono truncate mb-1">
-        {displayName}
-      </p>
-      <div className="flex items-center gap-2">
-        <span className="text-[9px] text-zinc-400">disabled</span>
-      </div>
-    </div>
-  );
-}
-
-/** Grid card for a skill doc — matches table card layout */
+/** Grid card for a skill doc */
 function SkillDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => void }) {
   const displayName = file.name.replace(/\.md$/, "");
 
@@ -516,7 +337,7 @@ function SkillDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => v
   );
 }
 
-/** Unified modal for viewing table docs, skill docs, or instructions */
+/** Unified modal for viewing skill docs or instructions */
 function DocModal({
   filePath,
   fileName,
@@ -525,15 +346,13 @@ function DocModal({
 }: {
   filePath: string;
   fileName: string;
-  type: "table" | "skill" | "instructions";
+  type: "skill" | "instructions";
   onClose: () => void;
 }) {
   const { data: content, isLoading } = useReadFile(filePath);
   const displayName = fileName.replace(/\.md$/, "");
 
-  const icon = type === "table" ? (
-    <Database size={14} className="text-blue-500 flex-shrink-0" />
-  ) : type === "skill" ? (
+  const icon = type === "skill" ? (
     <Sparkles size={14} className="text-violet-500 flex-shrink-0" />
   ) : (
     <Brain size={14} className="text-purple-500 flex-shrink-0" />

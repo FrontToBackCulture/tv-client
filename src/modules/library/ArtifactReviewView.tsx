@@ -17,7 +17,7 @@ import {
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
-import { CheckCircle, AlertTriangle, Loader2, Search, Filter, RotateCcw, ChevronsLeftRight, Columns, Bookmark, X, Globe } from "lucide-react";
+import { CheckCircle, AlertTriangle, Loader2, Search, Filter, RotateCcw, ChevronsLeftRight, Columns, Bookmark, X, Globe, Star, Save } from "lucide-react";
 import { ArtifactDetailPreview } from "./ArtifactDetailPreview";
 import { cn } from "../../lib/cn";
 import { useAppStore } from "../../stores/appStore";
@@ -175,6 +175,8 @@ export function ArtifactReviewView({
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState("");
+  const [defaultLayoutName, setDefaultLayoutName] = useState<string | null>(null);
+  const defaultAppliedRef = useRef(false);
 
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -187,12 +189,14 @@ export function ArtifactReviewView({
     setPanelWidth(getPanelWidth());
   }, []);
 
-  // Load saved layouts from localStorage
+  // Load saved layouts and default from localStorage
   useEffect(() => {
     const stored = localStorage.getItem("tv-desktop-artifact-review-layouts");
     if (stored) {
       try { setSavedLayouts(JSON.parse(stored)); } catch { /* ignore */ }
     }
+    const defaultName = localStorage.getItem("tv-desktop-artifact-review-default-layout");
+    if (defaultName) setDefaultLayoutName(defaultName);
   }, []);
 
   // Handle panel resize
@@ -616,7 +620,36 @@ export function ArtifactReviewView({
     delete newLayouts[name];
     setSavedLayouts(newLayouts);
     localStorage.setItem("tv-desktop-artifact-review-layouts", JSON.stringify(newLayouts));
-  }, [savedLayouts]);
+    if (defaultLayoutName === name) {
+      setDefaultLayoutName(null);
+      localStorage.removeItem("tv-desktop-artifact-review-default-layout");
+    }
+  }, [savedLayouts, defaultLayoutName]);
+
+  // Set/unset a layout as default
+  const toggleDefaultLayout = useCallback((name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (defaultLayoutName === name) {
+      setDefaultLayoutName(null);
+      localStorage.removeItem("tv-desktop-artifact-review-default-layout");
+    } else {
+      setDefaultLayoutName(name);
+      localStorage.setItem("tv-desktop-artifact-review-default-layout", name);
+    }
+  }, [defaultLayoutName]);
+
+  // Auto-apply default layout when grid data first renders
+  useEffect(() => {
+    if (defaultAppliedRef.current || !defaultLayoutName || !savedLayouts[defaultLayoutName]) return;
+    const api = gridRef.current?.api;
+    if (!api || rowData.length === 0) return;
+
+    defaultAppliedRef.current = true;
+    const layout = savedLayouts[defaultLayoutName] as { columnState: ColumnState[] };
+    if (layout.columnState) {
+      api.applyColumnState({ state: layout.columnState, applyOrder: true });
+    }
+  }, [defaultLayoutName, savedLayouts, rowData]);
 
   // Save changes to definition_analysis.json files
   const handleSave = useCallback(async () => {
@@ -1087,14 +1120,38 @@ export function ArtifactReviewView({
                         onClick={() => loadLayout(name)}
                         className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
                       >
-                        <span className="truncate">{name}</span>
-                        <button
-                          onClick={(e) => deleteLayout(name, e)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400"
-                          title="Delete layout"
-                        >
-                          <X size={12} />
-                        </button>
+                        <span className="truncate flex items-center gap-1.5">
+                          {defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
+                          {name}
+                        </span>
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); saveCurrentLayout(name); }}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/30"
+                            title="Overwrite with current layout"
+                          >
+                            <Save size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => toggleDefaultLayout(name, e)}
+                            className={cn(
+                              "p-1 rounded",
+                              defaultLayoutName === name
+                                ? "text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                                : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                            )}
+                            title={defaultLayoutName === name ? "Remove as default" : "Set as default"}
+                          >
+                            <Star size={12} className={defaultLayoutName === name ? "fill-amber-500" : ""} />
+                          </button>
+                          <button
+                            onClick={(e) => deleteLayout(name, e)}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400"
+                            title="Delete layout"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </>

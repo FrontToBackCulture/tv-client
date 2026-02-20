@@ -49,8 +49,6 @@ pub struct SchemaJson {
     pub freshness_column: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ai_package: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ai_skills: Option<Vec<String>>,
     pub fields: Vec<SchemaField>,
 }
 
@@ -71,7 +69,6 @@ pub struct ModelInfo {
     pub active_domain_count: Option<usize>,
     pub total_records: Option<u64>,
     pub ai_package: bool,
-    pub ai_skills: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,11 +153,6 @@ fn read_schema_json(model_path: &Path) -> Option<SchemaJson> {
     let schema_path = model_path.join("schema.json");
     let content = fs::read_to_string(&schema_path).ok()?;
     serde_json::from_str(&content).ok()
-}
-
-/// Public accessor for read_schema_json (used by ai_package module)
-pub fn read_schema_json_pub(model_path: &Path) -> Option<SchemaJson> {
-    read_schema_json(model_path)
 }
 
 /// Read summary stats from domains.json
@@ -418,12 +410,11 @@ pub fn val_list_domain_model_entities(entities_path: String) -> Result<Vec<Entit
                 let has_categoricals = model_path.join("categoricals.json").exists();
 
                 let schema = read_schema_json(&model_path);
-                let (table_name, display_name, field_count, categorical_count, ai_package, ai_skills) = match &schema {
+                let (table_name, display_name, field_count, categorical_count, ai_package) = match &schema {
                     Some(s) => {
                         let cat_count = s.fields.iter().filter(|f| f.is_categorical).count();
                         let ai_pkg = s.ai_package.unwrap_or(false);
-                        let ai_sk = s.ai_skills.clone().unwrap_or_default();
-                        (Some(s.table_name.clone()), Some(s.display_name.clone()), Some(s.fields.len()), Some(cat_count), ai_pkg, ai_sk)
+                        (Some(s.table_name.clone()), Some(s.display_name.clone()), Some(s.fields.len()), Some(cat_count), ai_pkg)
                     }
                     None => {
                         let domains_path = model_path.join("domains.json");
@@ -433,7 +424,7 @@ pub fn val_list_domain_model_entities(entities_path: String) -> Result<Vec<Entit
                                 json.get("table_name")?.as_str().map(|s| s.to_string())
                             })
                         } else { None };
-                        (tn, None, None, None, false, Vec::new())
+                        (tn, None, None, None, false)
                     }
                 };
 
@@ -459,7 +450,6 @@ pub fn val_list_domain_model_entities(entities_path: String) -> Result<Vec<Entit
                     active_domain_count,
                     total_records,
                     ai_package,
-                    ai_skills,
                 });
             }
         }
@@ -1075,7 +1065,6 @@ pub fn val_create_domain_model_schema(
         resource_url: None,
         freshness_column: None,
         ai_package: None,
-        ai_skills: None,
         fields: schema_fields,
     };
 
@@ -1120,11 +1109,6 @@ pub fn val_create_domain_model_schema(
     }
     if schema.ai_package == Some(true) {
         json_value.as_object_mut().unwrap().insert("ai_package".to_string(), serde_json::json!(true));
-    }
-    if let Some(ref skills) = schema.ai_skills {
-        if !skills.is_empty() {
-            json_value.as_object_mut().unwrap().insert("ai_skills".to_string(), serde_json::json!(skills));
-        }
     }
     let schema_path_str = schema_path.to_string_lossy().to_string();
     write_json(&schema_path_str, &json_value)?;
@@ -1473,11 +1457,6 @@ pub fn val_save_field_master(
                 }
                 if schema.ai_package == Some(true) {
                     json_value.as_object_mut().unwrap().insert("ai_package".to_string(), serde_json::json!(true));
-                }
-                if let Some(ref skills) = schema.ai_skills {
-                    if !skills.is_empty() {
-                        json_value.as_object_mut().unwrap().insert("ai_skills".to_string(), serde_json::json!(skills));
-                    }
                 }
 
                 write_json(&schema_key, &json_value)?;

@@ -334,7 +334,6 @@ fn main() {
             commands::val_sync::ai_package::val_generate_ai_package,
             commands::val_sync::ai_package::val_list_domain_ai_status,
             commands::val_sync::ai_package::val_save_domain_ai_config,
-            commands::val_sync::ai_package::val_toggle_ai_table,
             commands::val_sync::ai_package::val_extract_ai_templates,
             // VAL Sync - S3 sync (push AI folders to S3)
             commands::val_sync::s3_sync::val_sync_ai_to_s3,

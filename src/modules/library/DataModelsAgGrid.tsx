@@ -34,6 +34,8 @@ import {
   Bookmark,
   ChevronsLeftRight,
   Filter,
+  Star,
+  Save,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useAppStore } from "../../stores/appStore";
@@ -320,8 +322,10 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState("");
   const [reviewFilter, setReviewFilter] = useState<"all" | "needs-review" | "modified">("all");
+  const [defaultLayoutName, setDefaultLayoutName] = useState<string | null>(null);
+  const defaultAppliedRef = useRef(false);
 
-  // Load saved layouts from localStorage
+  // Load saved layouts and default layout name from localStorage
   useEffect(() => {
     const stored = localStorage.getItem("tv-desktop-ag-grid-layouts");
     if (stored) {
@@ -331,6 +335,8 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
         // Ignore parse errors
       }
     }
+    const defaultName = localStorage.getItem("tv-desktop-ag-grid-default-layout");
+    if (defaultName) setDefaultLayoutName(defaultName);
   }, []);
 
   // Update grid when modifiedRows changes (for detail panel edits)
@@ -1382,7 +1388,44 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
     delete newLayouts[name];
     setSavedLayouts(newLayouts);
     localStorage.setItem("tv-desktop-ag-grid-layouts", JSON.stringify(newLayouts));
-  }, [savedLayouts]);
+    // Clear default if deleted
+    if (defaultLayoutName === name) {
+      setDefaultLayoutName(null);
+      localStorage.removeItem("tv-desktop-ag-grid-default-layout");
+    }
+  }, [savedLayouts, defaultLayoutName]);
+
+  // Set/unset a layout as default
+  const toggleDefaultLayout = useCallback((name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (defaultLayoutName === name) {
+      setDefaultLayoutName(null);
+      localStorage.removeItem("tv-desktop-ag-grid-default-layout");
+    } else {
+      setDefaultLayoutName(name);
+      localStorage.setItem("tv-desktop-ag-grid-default-layout", name);
+    }
+  }, [defaultLayoutName]);
+
+  // Auto-apply default layout when grid data first renders
+  useEffect(() => {
+    if (defaultAppliedRef.current || !defaultLayoutName || !savedLayouts[defaultLayoutName]) return;
+    const api = gridRef.current?.api;
+    if (!api || mergedTables.length === 0) return;
+
+    defaultAppliedRef.current = true;
+    const layout = savedLayouts[defaultLayoutName] as {
+      columnState: ColumnState[];
+      rowGroupColumns?: string[];
+    };
+    if (layout.columnState) {
+      api.setRowGroupColumns([]);
+      api.applyColumnState({ state: layout.columnState, applyOrder: true });
+      if (layout.rowGroupColumns?.length) {
+        api.setRowGroupColumns(layout.rowGroupColumns);
+      }
+    }
+  }, [defaultLayoutName, savedLayouts, mergedTables]);
 
   if (loading) {
     return (
@@ -1627,14 +1670,38 @@ export const DataModelsAgGrid = forwardRef<DataModelsAgGridHandle, DataModelsAgG
                           onClick={() => loadLayout(name)}
                           className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
                         >
-                          <span className="truncate">{name}</span>
-                          <button
-                            onClick={(e) => deleteLayout(name, e)}
-                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400"
-                            title="Delete layout"
-                          >
-                            <X size={12} />
-                          </button>
+                          <span className="truncate flex items-center gap-1.5">
+                            {defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
+                            {name}
+                          </span>
+                          <div className="flex items-center gap-0.5">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); saveCurrentLayout(name); }}
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/30"
+                              title="Overwrite with current layout"
+                            >
+                              <Save size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => toggleDefaultLayout(name, e)}
+                              className={cn(
+                                "p-1 rounded",
+                                defaultLayoutName === name
+                                  ? "text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                                  : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                              )}
+                              title={defaultLayoutName === name ? "Remove as default" : "Set as default"}
+                            >
+                              <Star size={12} className={defaultLayoutName === name ? "fill-amber-500" : ""} />
+                            </button>
+                            <button
+                              onClick={(e) => deleteLayout(name, e)}
+                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400"
+                              title="Delete layout"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </>

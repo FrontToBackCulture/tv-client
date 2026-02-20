@@ -24,7 +24,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../../stores/appStore";
 import { useEnrichSchemaDescriptions } from "../../hooks/useValSync";
 import { Loader2, Check, Sparkles, Bot } from "lucide-react";
-import { useAiSkills } from "../../hooks/useAiSkills";
 
 // ============================================================================
 // Types
@@ -52,7 +51,6 @@ export interface SchemaFile {
   resource_url: string | null;
   freshness_column?: string | null;
   ai_package?: boolean;
-  ai_skills?: string[];
   fields: SchemaField[];
 }
 
@@ -231,20 +229,6 @@ export function SchemaFieldsGrid({
   schemaData,
   schemaFilePath,
 }: SchemaFieldsGridProps) {
-  const skillsQuery = useAiSkills();
-  const allSkills = skillsQuery.data ?? [];
-
-  // Derive which skills this table belongs to from skill.json tables arrays
-  const tableKey = useMemo(() => {
-    // schemaFilePath like .../entities/receipts/udt/schema.json → "receipts/udt"
-    const parts = schemaFilePath.replace(/\/schema\.json$/, "").split("/");
-    return parts.length >= 2 ? `${parts[parts.length - 2]}/${parts[parts.length - 1]}` : "";
-  }, [schemaFilePath]);
-
-  const assignedSkills = useMemo(() => {
-    return allSkills.filter((s) => s.tables.includes(tableKey)).map((s) => s.slug);
-  }, [allSkills, tableKey]);
-
   const theme = useAppStore((s) => s.theme);
   const queryClient = useQueryClient();
   const [fields, setFields] = useState<SchemaField[]>(schemaData.fields);
@@ -322,8 +306,6 @@ export function SchemaFieldsGrid({
           ai_package: aiPackageRef.current || undefined,
           fields: fieldsRef.current,
         };
-        // Don't write ai_skills — skill assignments live in skill.json
-        delete updated.ai_skills;
         await invoke("write_file", {
           path: schemaFilePath,
           content: JSON.stringify(updated, null, 2),
@@ -599,18 +581,6 @@ export function SchemaFieldsGrid({
             <Bot className="w-3 h-3" />
             AI Package
           </button>
-          {aiPackage && assignedSkills.length > 0 && (
-            <div className="flex items-center gap-1">
-              {assignedSkills.map((skill) => (
-                <span
-                  key={skill}
-                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
         {saveStatus === "saving" && (
           <span className="flex items-center gap-1 text-xs text-zinc-400">

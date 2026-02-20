@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useDiscoverDomains, useSyncAllDomains, useSyncAllDomainsMonitoring, useSyncAllDomainsSod, useSyncAllDomainsImporterErrors, useSyncAllDomainsIntegrationErrors, useRunAllDomainsDataModelHealth, useRunAllDomainsWorkflowHealth, useRunAllDomainsDashboardHealth, useRunAllDomainsQueryHealth, useRunAllDomainsArtifactAudit, useRunAllDomainsOverview, type DiscoveredDomain } from "../../hooks/useValSync";
 import { useRepository } from "../../stores/repositoryStore";
 import { useJobsStore } from "../../stores/jobsStore";
-import { Loader2, Database, FolderOpen, AlertCircle, RefreshCw, Square, ChevronDown, Zap } from "lucide-react";
+import { Loader2, Database, FolderOpen, AlertCircle, RefreshCw, Square, ChevronDown, ChevronRight, Zap } from "lucide-react";
 import { cn } from "../../lib/cn";
 
 interface DomainListViewProps {
@@ -14,12 +14,15 @@ interface DomainListViewProps {
   onSelect: (id: string) => void;
 }
 
-const TYPE_ORDER = ["production", "demo", "template"] as const;
+const TYPE_ORDER = ["production", "not-active", "demo", "template"] as const;
 const TYPE_LABELS: Record<string, string> = {
   production: "Production",
+  "not-active": "Not Active",
   demo: "Demo",
   template: "Templates",
 };
+
+const DEFAULT_COLLAPSED_LIST = new Set(["not-active"]);
 
 /** Format ISO timestamp as relative time (e.g., "2d ago", "3h ago") */
 function formatRelativeTime(isoString: string | null): string {
@@ -132,6 +135,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
   const { activeRepository } = useRepository();
   const addJob = useJobsStore((s) => s.addJob);
   const updateJob = useJobsStore((s) => s.updateJob);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED_LIST));
   const domainsPath = activeRepository
     ? `${activeRepository.path}/0_Platform/domains`
     : null;
@@ -498,58 +502,76 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
 
       {/* Grouped rows */}
       <div className="flex-1 overflow-auto">
-        {Array.from(grouped.entries()).map(([type, items]) => (
-          <div key={type}>
-            {/* Section header */}
-            <div className="sticky top-0 z-10 px-4 py-1.5 bg-slate-50 dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800">
-              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
-                {TYPE_LABELS[type] ?? type} ({items.length})
-              </span>
-            </div>
-
-            {/* Domain rows */}
-            {items.map((domain) => (
+        {Array.from(grouped.entries()).map(([type, items]) => {
+          const isCollapsed = collapsedSections.has(type);
+          return (
+            <div key={type}>
+              {/* Collapsible section header */}
               <button
-                key={domain.domain}
-                onClick={() => onSelect(domain.domain)}
-                className={cn(
-                  "w-full flex items-center px-4 py-2.5 text-left border-b border-slate-100 dark:border-zinc-800/50 transition-colors",
-                  domain.domain === selectedId
-                    ? "bg-teal-500/5 dark:bg-teal-500/10"
-                    : "hover:bg-slate-50 dark:hover:bg-zinc-900/50"
-                )}
+                onClick={() => setCollapsedSections((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(type)) next.delete(type);
+                  else next.add(type);
+                  return next;
+                })}
+                className="sticky top-0 z-10 w-full flex items-center gap-1.5 px-4 py-1.5 bg-slate-50 dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors"
               >
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 font-mono block truncate">
-                    {domain.domain}
-                  </span>
-                  <span className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5 truncate">
-                    <FolderOpen size={10} />
-                    {domain.global_path.split("/").slice(-2).join("/")}
-                  </span>
-                </div>
-                <span className="w-32 text-center text-xs">
-                  {domain.last_sync ? (
-                    <span className="text-zinc-600 dark:text-zinc-400" title={new Date(domain.last_sync).toLocaleString()}>
-                      {formatRelativeTime(domain.last_sync)}
-                    </span>
-                  ) : (
-                    <span className="text-zinc-400">—</span>
+                <ChevronRight
+                  size={11}
+                  className={cn(
+                    "text-zinc-400 transition-transform flex-shrink-0",
+                    !isCollapsed && "rotate-90"
                   )}
-                </span>
-                <span className="w-24 text-center">
-                  {domain.artifact_count ? (
-                    <span className="text-xs text-zinc-600 dark:text-zinc-400 font-mono">
-                      {domain.artifact_count.toLocaleString()}
-                    </span>
-                  ) : (
-                    <span className="text-zinc-400">—</span>
-                  )}
+                />
+                <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+                  {TYPE_LABELS[type] ?? type} ({items.length})
                 </span>
               </button>
-            ))}
-          </div>
-        ))}
+
+              {/* Domain rows */}
+              {!isCollapsed && items.map((domain) => (
+                <button
+                  key={domain.domain}
+                  onClick={() => onSelect(domain.domain)}
+                  className={cn(
+                    "w-full flex items-center px-4 py-2.5 text-left border-b border-slate-100 dark:border-zinc-800/50 transition-colors",
+                    domain.domain === selectedId
+                      ? "bg-teal-500/5 dark:bg-teal-500/10"
+                      : "hover:bg-slate-50 dark:hover:bg-zinc-900/50"
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 font-mono block truncate">
+                      {domain.domain}
+                    </span>
+                    <span className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5 truncate">
+                      <FolderOpen size={10} />
+                      {domain.global_path.split("/").slice(-2).join("/")}
+                    </span>
+                  </div>
+                  <span className="w-32 text-center text-xs">
+                    {domain.last_sync ? (
+                      <span className="text-zinc-600 dark:text-zinc-400" title={new Date(domain.last_sync).toLocaleString()}>
+                        {formatRelativeTime(domain.last_sync)}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-400">—</span>
+                    )}
+                  </span>
+                  <span className="w-24 text-center">
+                    {domain.artifact_count ? (
+                      <span className="text-xs text-zinc-600 dark:text-zinc-400 font-mono">
+                        {domain.artifact_count.toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-400">—</span>
+                    )}
+                  </span>
+                </button>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

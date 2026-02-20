@@ -304,6 +304,7 @@ pub fn val_sync_discover_domains(domains_path: String) -> Result<Vec<DiscoveredD
     // Type folder mapping: folder name -> domain_type label
     let type_folders = [
         ("production", "production"),
+        ("not-active", "not-active"),
         ("demo", "demo"),
         ("templates", "template"),
     ];
