@@ -23,7 +23,7 @@ import type {
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../../stores/appStore";
 import { useEnrichSchemaDescriptions } from "../../hooks/val-sync";
-import { Loader2, Check, Sparkles, Bot } from "lucide-react";
+import { Loader2, Check, Sparkles } from "lucide-react";
 
 // ============================================================================
 // Types
@@ -233,14 +233,13 @@ export function SchemaFieldsGrid({
   const queryClient = useQueryClient();
   const [fields, setFields] = useState<SchemaField[]>(schemaData.fields);
   const [freshnessColumn, setFreshnessColumn] = useState<string | null>(schemaData.freshness_column ?? null);
-  const [aiPackage, setAiPackage] = useState<boolean>(schemaData.ai_package ?? false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
   );
   const dirtyRef = useRef(false);
   const fieldsRef = useRef(fields);
   const freshnessRef = useRef(freshnessColumn);
-  const aiPackageRef = useRef(aiPackage);
+  const aiPackageRef = useRef(schemaData.ai_package ?? false);
   const enrichMutation = useEnrichSchemaDescriptions();
 
   // Derive domains base path from schema file path
@@ -274,20 +273,12 @@ export function SchemaFieldsGrid({
     );
   }, [domainsBasePath, schemaFilePath, enrichMutation, queryClient]);
 
-  const handleAiPackageToggle = useCallback(() => {
-    const newVal = !aiPackage;
-    setAiPackage(newVal);
-    aiPackageRef.current = newVal;
-    dirtyRef.current = true;
-  }, [aiPackage]);
-
   // Sync when schemaData changes (different entity selected)
   useEffect(() => {
     setFields(schemaData.fields);
     fieldsRef.current = schemaData.fields;
     setFreshnessColumn(schemaData.freshness_column ?? null);
     freshnessRef.current = schemaData.freshness_column ?? null;
-    setAiPackage(schemaData.ai_package ?? false);
     aiPackageRef.current = schemaData.ai_package ?? false;
     dirtyRef.current = false;
     setSaveStatus("idle");
@@ -327,7 +318,7 @@ export function SchemaFieldsGrid({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [fields, freshnessColumn, aiPackage, schemaData, schemaFilePath, queryClient]);
+  }, [fields, freshnessColumn, schemaData, schemaFilePath, queryClient]);
 
   const onCellValueChanged = useCallback((event: CellValueChangedEvent) => {
     const { data, colDef } = event;
@@ -569,18 +560,6 @@ export function SchemaFieldsGrid({
               Enrich Descriptions ({emptyDescCount})
             </button>
           )}
-          <span className="text-zinc-200 dark:text-zinc-700">|</span>
-          <button
-            onClick={handleAiPackageToggle}
-            className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded transition-colors ${
-              aiPackage
-                ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300"
-                : "text-zinc-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20"
-            }`}
-          >
-            <Bot className="w-3 h-3" />
-            AI Package
-          </button>
         </div>
         {saveStatus === "saving" && (
           <span className="flex items-center gap-1 text-xs text-zinc-400">

@@ -9,6 +9,7 @@ import {
   FileText,
   FolderOpen,
   X,
+  ChevronRight,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
@@ -21,12 +22,66 @@ import { useAiSkills, useCreateAiSkill } from "../../hooks/useAiSkills";
 import { useReadFile } from "../../hooks/useFiles";
 import { MarkdownViewer } from "../library/MarkdownViewer";
 
+const SKILL_GROUP_ORDER = ["insights", "recon-diagnostics", "analytics"] as const;
+const SKILL_GROUP_LABELS: Record<string, string> = {
+  insights: "Insights",
+  "recon-diagnostics": "Recon Diagnostics",
+  analytics: "Analytics",
+  other: "Other",
+};
+
+type SkillDef = { slug: string; name: string; description: string };
+interface SkillDefGroup {
+  key: string;
+  label: string;
+  subgroups?: { label: string; skills: SkillDef[] }[];
+  skills?: SkillDef[];
+}
+
+function groupSkillDefs(skills: SkillDef[]): SkillDefGroup[] {
+  const groups: Record<string, SkillDef[]> = {};
+  for (const skill of [...skills].sort((a, b) => a.slug.localeCompare(b.slug))) {
+    const prefix = SKILL_GROUP_ORDER.find((p) => skill.slug.startsWith(`${p}-`));
+    const key = prefix ?? "other";
+    (groups[key] ??= []).push(skill);
+  }
+  const order = [...SKILL_GROUP_ORDER, "other"];
+  return order
+    .filter((key) => groups[key]?.length)
+    .map((key) => {
+      const label = SKILL_GROUP_LABELS[key] ?? key;
+      const items = groups[key];
+      if (key === "analytics") {
+        const subs: Record<string, SkillDef[]> = {};
+        for (const s of items) {
+          const rest = s.slug.replace(/^analytics-/, "");
+          const domain = rest.split("-")[0];
+          (subs[domain] ??= []).push(s);
+        }
+        const subgroups = Object.keys(subs).sort().map((d) => ({
+          label: d.charAt(0).toUpperCase() + d.slice(1),
+          skills: subs[d],
+        }));
+        return { key, label, subgroups };
+      }
+      return { key, label, skills: items };
+    });
+}
+
 export function AiSkillsTabView() {
   const { activeRepository } = useRepository();
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newSkillName, setNewSkillName] = useState("");
   const [previewFile, setPreviewFile] = useState<{ path: string; name: string } | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = useCallback((key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }, []);
   const createInputRef = useRef<HTMLInputElement>(null);
   const skillsQuery = useAiSkills();
   const skills = skillsQuery.data ?? [];
@@ -188,41 +243,51 @@ export function AiSkillsTabView() {
             </div>
           )}
 
-          {skills.map((skill) => {
-            const stats = skillStats[skill.slug];
+          {groupSkillDefs(skills).map((group) => {
+            const groupCount = group.subgroups
+              ? group.subgroups.reduce((n, sg) => n + sg.skills.length, 0)
+              : group.skills!.length;
+            const collapsed = collapsedGroups.has(group.key);
             return (
-              <button
-                key={skill.slug}
-                onClick={() => setSelectedSkill(skill.slug)}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors",
-                  effectiveSelected === skill.slug
-                    ? "bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
-                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              <div key={group.key}>
+                <button
+                  onClick={() => toggleGroup(group.key)}
+                  className="w-full flex items-center gap-1 px-3 pt-3 pb-1 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+                >
+                  <ChevronRight size={10} className={cn("text-zinc-400 transition-transform", !collapsed && "rotate-90")} />
+                  <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                    {group.label}
+                  </span>
+                  <span className="text-[10px] text-zinc-300 dark:text-zinc-600 ml-0.5">{groupCount}</span>
+                </button>
+                {!collapsed && (
+                  group.subgroups ? (
+                    group.subgroups.map((sub) => {
+                      const subKey = `${group.key}/${sub.label}`;
+                      const subCollapsed = collapsedGroups.has(subKey);
+                      return (
+                        <div key={sub.label}>
+                          <button
+                            onClick={() => toggleGroup(subKey)}
+                            className="w-full flex items-center gap-1 px-4 pt-2 pb-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+                          >
+                            <ChevronRight size={9} className={cn("text-zinc-400 transition-transform", !subCollapsed && "rotate-90")} />
+                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{sub.label}</span>
+                            <span className="text-[10px] text-zinc-300 dark:text-zinc-600 ml-0.5">{sub.skills.length}</span>
+                          </button>
+                          {!subCollapsed && sub.skills.map((skill) => (
+                            <SkillSidebarItem key={skill.slug} skill={skill} active={effectiveSelected === skill.slug} stats={skillStats[skill.slug]} onSelect={setSelectedSkill} />
+                          ))}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    group.skills!.map((skill) => (
+                      <SkillSidebarItem key={skill.slug} skill={skill} active={effectiveSelected === skill.slug} stats={skillStats[skill.slug]} onSelect={setSelectedSkill} />
+                    ))
+                  )
                 )}
-              >
-                <Sparkles
-                  size={14}
-                  className={cn(
-                    effectiveSelected === skill.slug
-                      ? "text-violet-500"
-                      : "text-zinc-400"
-                  )}
-                />
-                <div className="flex-1 min-w-0 text-left">
-                  <span className="font-medium truncate block">
-                    {skill.name}
-                  </span>
-                  <span className="text-xs text-zinc-400 font-mono truncate block">
-                    {skill.slug}
-                  </span>
-                </div>
-                {stats && stats.domains > 0 && (
-                  <span className="text-xs text-zinc-400 flex-shrink-0 tabular-nums">
-                    {stats.domains}d
-                  </span>
-                )}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -311,6 +376,29 @@ export function AiSkillsTabView() {
         />
       )}
     </div>
+  );
+}
+
+function SkillSidebarItem({ skill, active, stats, onSelect }: { skill: SkillDef; active: boolean; stats?: { domains: number }; onSelect: (slug: string) => void }) {
+  return (
+    <button
+      onClick={() => onSelect(skill.slug)}
+      className={cn(
+        "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors",
+        active
+          ? "bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
+          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      )}
+    >
+      <Sparkles size={14} className={cn(active ? "text-violet-500" : "text-zinc-400")} />
+      <div className="flex-1 min-w-0 text-left">
+        <span className="font-medium truncate block">{skill.name}</span>
+        <span className="text-xs text-zinc-400 font-mono truncate block">{skill.slug}</span>
+      </div>
+      {stats && stats.domains > 0 && (
+        <span className="text-xs text-zinc-400 flex-shrink-0 tabular-nums">{stats.domains}d</span>
+      )}
+    </button>
   );
 }
 

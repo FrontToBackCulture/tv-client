@@ -29,6 +29,51 @@ import {
 } from "../../hooks/val-sync";
 import { useAiSkillSlugs } from "../../hooks/useAiSkills";
 
+const SKILL_GROUP_ORDER = ["insights", "recon-diagnostics", "analytics"] as const;
+const SKILL_GROUP_LABELS: Record<string, string> = {
+  insights: "Insights",
+  "recon-diagnostics": "Recon Diagnostics",
+  analytics: "Analytics",
+  other: "Other",
+};
+
+interface SkillGroup {
+  label: string;
+  subgroups?: { label: string; skills: string[] }[];
+  skills?: string[];
+}
+
+function groupSkills(skills: string[]): SkillGroup[] {
+  const groups: Record<string, string[]> = {};
+  for (const skill of [...skills].sort()) {
+    const prefix = SKILL_GROUP_ORDER.find((p) => skill.startsWith(`${p}-`));
+    const key = prefix ?? "other";
+    (groups[key] ??= []).push(skill);
+  }
+  const order = [...SKILL_GROUP_ORDER, "other"];
+  return order
+    .filter((key) => groups[key]?.length)
+    .map((key) => {
+      const label = SKILL_GROUP_LABELS[key] ?? key;
+      const items = groups[key];
+      // Sub-group analytics by domain (analytics-{domain}-...)
+      if (key === "analytics") {
+        const subs: Record<string, string[]> = {};
+        for (const s of items) {
+          const rest = s.replace(/^analytics-/, "");
+          const domain = rest.split("-")[0];
+          (subs[domain] ??= []).push(s);
+        }
+        const subgroups = Object.keys(subs).sort().map((d) => ({
+          label: d.charAt(0).toUpperCase() + d.slice(1),
+          skills: subs[d],
+        }));
+        return { label, subgroups };
+      }
+      return { label, skills: items };
+    });
+}
+
 interface DomainAiTabProps {
   aiPath: string; // e.g. /path/to/domain/ai
   domainName: string; // e.g. "lag"
@@ -166,25 +211,40 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
             Assigned Skills
           </label>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {AVAILABLE_AI_SKILLS.map((skill) => {
-            const active = selectedSkills.includes(skill);
-            return (
-              <button
-                key={skill}
-                onClick={() => handleSkillToggle(skill)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
-                  active
-                    ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700"
-                    : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700"
-                )}
-              >
-                {active ? <Check size={12} /> : <Sparkles size={12} />}
-                {skill}
-              </button>
-            );
-          })}
+        <div className="space-y-3">
+          {groupSkills(AVAILABLE_AI_SKILLS).map((group) => (
+            <div key={group.label}>
+              <p className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">{group.label}</p>
+              {group.subgroups ? (
+                <div className="space-y-2 pl-2 border-l-2 border-zinc-100 dark:border-zinc-800">
+                  {group.subgroups.map((sub) => (
+                    <div key={sub.label}>
+                      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mb-1">{sub.label}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sub.skills.map((skill) => {
+                          const active = selectedSkills.includes(skill);
+                          const shortName = skill.replace(/^analytics-[^-]+-/, "");
+                          return (
+                            <SkillPill key={skill} skill={skill} shortName={shortName} active={active} onToggle={handleSkillToggle} />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {group.skills!.map((skill) => {
+                    const active = selectedSkills.includes(skill);
+                    const shortName = skill.replace(/^(insights|recon-diagnostics)-/, "");
+                    return (
+                      <SkillPill key={skill} skill={skill} shortName={shortName} active={active} onToggle={handleSkillToggle} />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
         <div className="flex items-center gap-3 pt-1">
           <button
@@ -442,6 +502,24 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
         />
       )}
     </div>
+  );
+}
+
+function SkillPill({ skill, shortName, active, onToggle }: { skill: string; shortName: string; active: boolean; onToggle: (s: string) => void }) {
+  return (
+    <button
+      onClick={() => onToggle(skill)}
+      title={skill}
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors",
+        active
+          ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700"
+          : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700"
+      )}
+    >
+      {active ? <Check size={11} /> : <Sparkles size={11} />}
+      {shortName}
+    </button>
   );
 }
 
