@@ -41,7 +41,7 @@ function BotSidebarItem({
       >
         {initials}
       </div>
-      <span className="text-xs font-medium truncate">{formatBotName(bot.name)}</span>
+      <span className="text-xs font-medium truncate" title={formatBotName(bot.name)}>{formatBotName(bot.name)}</span>
       {bot.owner && (
         <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0">@{bot.owner}</span>
       )}

@@ -126,6 +126,7 @@ export function EmailList({
                           ? "font-semibold text-zinc-900 dark:text-zinc-100"
                           : "text-zinc-700 dark:text-zinc-300"
                       )}
+                      title={email.fromName || email.fromEmail}
                     >
                       {email.fromName || email.fromEmail}
                     </span>
@@ -147,13 +148,14 @@ export function EmailList({
                           ? "font-medium text-zinc-800 dark:text-zinc-200"
                           : "text-zinc-600 dark:text-zinc-400"
                       )}
+                      title={email.subject || "(No subject)"}
                     >
                       {email.subject || "(No subject)"}
                     </span>
                   </div>
 
                   {/* Preview */}
-                  <p className="text-xs text-zinc-500 truncate mt-1">
+                  <p className="text-xs text-zinc-500 truncate mt-1" title={email.bodyPreview}>
                     {email.bodyPreview}
                   </p>
 
@@ -168,7 +170,7 @@ export function EmailList({
                       </span>
                     )}
                     {email.aiSummary && hoveredId === email.id && (
-                      <span className="text-xs text-teal-600 dark:text-teal-400 truncate">
+                      <span className="text-xs text-teal-600 dark:text-teal-400 truncate" title={email.aiSummary}>
                         {email.aiSummary}
                       </span>
                     )}

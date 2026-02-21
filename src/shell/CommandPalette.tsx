@@ -118,12 +118,12 @@ export function CommandPalette() {
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 animate-fade-in"
         onClick={() => setIsOpen(false)}
       />
 
       {/* Palette */}
-      <div data-help-id="command-palette" className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-2xl">
+      <div data-help-id="command-palette" className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-2xl animate-modal-in">
         {/* Search input */}
         <div className="flex items-center px-4 border-b border-zinc-200 dark:border-zinc-700">
           <Search size={16} className="text-zinc-400 dark:text-zinc-500" />

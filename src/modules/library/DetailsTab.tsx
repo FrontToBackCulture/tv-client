@@ -586,7 +586,7 @@ export function DetailsTab({
                             : "text-zinc-700 dark:text-zinc-300"
                         )}
                       >
-                        <span className="truncate">{col.name}</span>
+                        <span className="truncate" title={col.name}>{col.name}</span>
                         {col.column === details?.health?.freshnessColumn && (
                           <span className="text-[10px] text-teal-500">current</span>
                         )}
@@ -730,7 +730,7 @@ export function DetailsTab({
                           <ArrowLeft size={10} className="text-blue-500 flex-shrink-0" />
                         </span>
                       )}
-                      <span className="text-zinc-800 dark:text-zinc-200 truncate">{wf.name}</span>
+                      <span className="text-zinc-800 dark:text-zinc-200 truncate" title={wf.name}>{wf.name}</span>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {wf.isChildWorkflow && (
@@ -853,7 +853,7 @@ export function DetailsTab({
                   return (
                   <div key={i} className="py-1.5 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-zinc-800 dark:text-zinc-200 truncate flex-1">{query.name}</span>
+                      <span className="text-zinc-800 dark:text-zinc-200 truncate flex-1" title={query.name}>{query.name}</span>
                       {dashboardNames && dashboardNames.length > 0 && (
                         <span className="text-[10px] text-teal-500 flex-shrink-0 flex items-center gap-0.5">
                           <LayoutDashboard size={10} />
@@ -924,7 +924,7 @@ export function DetailsTab({
                 .map((dashboard, i) => (
                 <div key={i} className="py-1.5 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-zinc-800 dark:text-zinc-200 truncate flex-1">{dashboard.name}</span>
+                    <span className="text-zinc-800 dark:text-zinc-200 truncate flex-1" title={dashboard.name}>{dashboard.name}</span>
                     {dashboard.queryIds && dashboard.queryIds.length > 0 && (
                       <span className="text-[10px] text-blue-500 flex-shrink-0 flex items-center gap-0.5">
                         <Search size={10} />
@@ -1013,7 +1013,7 @@ export function DetailsTab({
                           ) : (
                             <ChevronRight size={10} className="text-zinc-400" />
                           )}
-                          <span className="text-zinc-800 dark:text-zinc-200 truncate">{rt.displayName}</span>
+                          <span className="text-zinc-800 dark:text-zinc-200 truncate" title={rt.displayName}>{rt.displayName}</span>
                         </div>
                         <span className="text-zinc-400 text-[10px] flex-shrink-0 ml-2">{rt.fieldCount} fields</span>
                       </button>

@@ -219,7 +219,7 @@ function Picker({ onSelect, onClose }: { onSelect: (path: string, name: string) 
                   className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
                 >
                   <File size={14} className="flex-shrink-0 text-zinc-400" />
-                  <span className="truncate">{r.name}</span>
+                  <span className="truncate" title={r.name}>{r.name}</span>
                 </button>
               ))}
             </div>
@@ -245,7 +245,7 @@ function Picker({ onSelect, onClose }: { onSelect: (path: string, name: string) 
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
                     >
                       <File size={14} className="flex-shrink-0 text-zinc-400" />
-                      <span className="truncate">{f.name}</span>
+                      <span className="truncate" title={f.name}>{f.name}</span>
                     </button>
                   ))}
               </div>
@@ -311,7 +311,7 @@ function PickerTree({ root, initialFolder, onSelect }: { root: string; initialFo
         >
           <ChevronRight size={12} className="rotate-180" />
           <FolderOpen size={14} className="text-teal-500 flex-shrink-0" />
-          <span className="truncate font-medium">{folderName}</span>
+          <span className="truncate font-medium" title={folderName}>{folderName}</span>
           <span className="text-[10px] text-zinc-400 ml-auto">↑ Back</span>
         </button>
       )}
@@ -326,7 +326,7 @@ function PickerTree({ root, initialFolder, onSelect }: { root: string; initialFo
               className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
             >
               <Folder size={14} className="text-teal-500 flex-shrink-0" />
-              <span className="truncate">{node.name}</span>
+              <span className="truncate" title={node.name}>{node.name}</span>
               <ChevronRight size={12} className="ml-auto text-zinc-300" />
             </button>
           ) : (
@@ -336,7 +336,7 @@ function PickerTree({ root, initialFolder, onSelect }: { root: string; initialFo
               className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
             >
               <File size={14} className="flex-shrink-0 text-zinc-400" />
-              <span className="truncate">{node.name}</span>
+              <span className="truncate" title={node.name}>{node.name}</span>
             </button>
           )
         ))

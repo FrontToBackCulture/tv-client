@@ -52,11 +52,11 @@ export const ClientRow = memo(function ClientRow({ company, engagement, isSelect
       {/* Line 1: health dot, name, industry, count pill, time-ago */}
       <div className="flex items-center gap-2 min-w-0">
         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
-        <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 truncate">
+        <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 truncate" title={company.display_name || company.name}>
           {company.display_name || company.name}
         </span>
         {company.industry && (
-          <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 truncate max-w-[80px]">
+          <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 truncate max-w-[80px]" title={company.industry}>
             {company.industry}
           </span>
         )}
@@ -78,7 +78,7 @@ export const ClientRow = memo(function ClientRow({ company, engagement, isSelect
         {lastActivity && Icon ? (
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <Icon size={11} className={`flex-shrink-0 ${iconColor}`} />
-            <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+            <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate" title={lastActivity.subject || "No subject"}>
               {lastActivity.subject || "No subject"}
             </span>
           </div>

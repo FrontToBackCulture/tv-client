@@ -274,7 +274,7 @@ export function SessionsTimeline({
                 selectedPath === s.path
                   ? "text-teal-700 dark:text-teal-300"
                   : "text-zinc-700 dark:text-zinc-300"
-              )}>{s.title}</p>
+              )} title={s.title}>{s.title}</p>
             )}
             {s.summary && (
               <p className="text-[11px] text-zinc-400 dark:text-zinc-500 line-clamp-1 mt-0.5">{s.summary}</p>

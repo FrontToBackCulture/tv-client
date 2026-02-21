@@ -171,7 +171,7 @@ export function StatusBar() {
 
             {/* Jobs Panel */}
             {showJobsPanel && (
-              <div className="absolute bottom-full right-0 mb-1 w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+              <div className="absolute bottom-full right-0 mb-1 w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden animate-modal-in">
                 <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
                   <span className="font-medium text-zinc-900 dark:text-zinc-100">
                     Background Jobs

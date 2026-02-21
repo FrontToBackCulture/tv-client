@@ -35,7 +35,7 @@ export function TaskQuickDetail({ taskId, onClose }: { taskId: string; onClose: 
           {task.status && (
             <StatusIcon type={task.status.type as StatusType} color={task.status.color || "#6B7280"} size={16} />
           )}
-          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{task.title}</span>
+          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate" title={task.title}>{task.title}</span>
         </div>
         <button onClick={onClose} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400">
           <X size={14} />

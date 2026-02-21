@@ -166,7 +166,7 @@ function DashboardView({
                           return (
                             <div key={p.id} className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
-                              <span className="text-xs text-zinc-700 dark:text-zinc-300 flex-1 truncate">{p.name}</span>
+                              <span className="text-xs text-zinc-700 dark:text-zinc-300 flex-1 truncate" title={p.name}>{p.name}</span>
                               <div className="w-24">
                                 <ProgressBar completed={counts.completed} total={counts.total} color={p.color || "#0D7680"} />
                               </div>
@@ -451,7 +451,7 @@ function TrackerRow({ task, indicator, onSelect }: {
         style={{ backgroundColor: task.project?.color || "#6B7280" }}
       />
       <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0 w-16">{getTaskIdentifier(task)}</span>
-      <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
+      <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate" title={task.title}>{task.title}</span>
       {task.assignee?.name && (
         <div
           className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
@@ -584,7 +584,7 @@ function TrackerView({
           return (
             <div key={p.id} className="px-4 py-2 flex items-center gap-3">
               <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
-              <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{p.name}</span>
+              <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate" title={p.name}>{p.name}</span>
               <span className="text-[10px] text-orange-500 tabular-nums">{overdueCount}/{pTasks.length} overdue</span>
             </div>
           );
@@ -727,7 +727,7 @@ function InboxView({
                   )}
                   <PriorityBars priority={task.priority || 0} size={12} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-zinc-900 dark:text-zinc-100 truncate">{task.title}</div>
+                    <div className="text-sm text-zinc-900 dark:text-zinc-100 truncate" title={task.title}>{task.title}</div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-zinc-400 tabular-nums">{getTaskIdentifier(task)}</span>
                       {task.project?.name && (

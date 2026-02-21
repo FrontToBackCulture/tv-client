@@ -130,21 +130,21 @@ function CompanyRow({ company, isSelected, onSelect, matchedContact }: {
       <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${freshnessColor(company.updated_at)}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 truncate">
+          <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 truncate" title={company.display_name || company.name}>
             {company.display_name || company.name}
           </span>
           {company.industry && (
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 truncate max-w-[80px]">
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 truncate max-w-[80px]" title={company.industry}>
               {company.industry}
             </span>
           )}
         </div>
         {matchedContact ? (
-          <p className="text-[11px] text-teal-600 dark:text-teal-400 truncate mt-0.5">
+          <p className="text-[11px] text-teal-600 dark:text-teal-400 truncate mt-0.5" title={`via ${matchedContact}`}>
             <User size={9} className="inline mr-1" />via {matchedContact}
           </p>
         ) : company.notes ? (
-          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{company.notes}</p>
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5" title={company.notes}>{company.notes}</p>
         ) : null}
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -181,7 +181,7 @@ function DetailPanel({ companyId, onClose }: { companyId: string; onClose: () =>
                 </span>
               )}
             </div>
-            <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-100 truncate">{company.display_name || company.name}</h2>
+            <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-100 truncate" title={company.display_name || company.name}>{company.display_name || company.name}</h2>
             {company.industry && <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">{company.industry}</p>}
           </div>
           <button onClick={onClose} className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded transition-colors">
@@ -227,12 +227,12 @@ function DetailPanel({ companyId, onClose }: { companyId: string; onClose: () =>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{contact.name}</span>
+                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate" title={contact.name}>{contact.name}</span>
                       {contact.is_primary && <span className="text-[9px] font-medium text-teal-600 dark:text-teal-400 uppercase tracking-wider">Primary</span>}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      {contact.role && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">{contact.role}</p>}
-                      {contact.email && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">{contact.email}</p>}
+                      {contact.role && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate" title={contact.role}>{contact.role}</p>}
+                      {contact.email && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate" title={contact.email}>{contact.email}</p>}
                     </div>
                   </div>
                 </div>
@@ -247,7 +247,7 @@ function DetailPanel({ companyId, onClose }: { companyId: string; onClose: () =>
               {activeDeals.map((deal) => (
                 <div key={deal.id} className="p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/50">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{deal.name}</span>
+                    <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate" title={deal.name}>{deal.name}</span>
                     <span className="text-[10px] font-medium text-zinc-500 capitalize">{deal.stage}</span>
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-zinc-400">
@@ -274,8 +274,8 @@ function DetailPanel({ companyId, onClose }: { companyId: string; onClose: () =>
                       <Icon size={11} className="text-zinc-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      {a.subject && <p className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{a.subject}</p>}
-                      {a.content && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">{a.content}</p>}
+                      {a.subject && <p className="text-xs text-zinc-700 dark:text-zinc-300 truncate" title={a.subject}>{a.subject}</p>}
+                      {a.content && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate" title={a.content}>{a.content}</p>}
                     </div>
                     <span className="text-[10px] text-zinc-400 dark:text-zinc-600 tabular-nums flex-shrink-0">{timeAgo(a.activity_date)}</span>
                   </div>
@@ -347,7 +347,7 @@ function SwimlaneCard({ deal, companyName, health, isSelected, onSelect }: {
       }`}>
       <div className="flex items-center gap-1.5">
         <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: HEALTH_FILL[health] }} />
-        <span className="text-[11px] font-medium text-zinc-800 dark:text-zinc-200 truncate">{companyName}</span>
+        <span className="text-[11px] font-medium text-zinc-800 dark:text-zinc-200 truncate" title={companyName}>{companyName}</span>
       </div>
       <div className="flex items-center gap-1.5 mt-0.5 pl-3 text-[10px] text-zinc-400 tabular-nums">
         {deal.value != null && deal.value > 0 && <span className="font-medium text-zinc-500">{formatValue(deal.value)}</span>}
@@ -717,7 +717,7 @@ function TodaysPlay({ selectedCompanyId, onSelectCompany }: {
                       onClick={() => onSelectCompany(deal.company_id === selectedCompanyId ? null : deal.company_id)}
                       className="w-full text-left py-1.5 flex items-center gap-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
                       <span className="text-[10px] w-16 flex-shrink-0 capitalize">{verb}</span>
-                      <span className="text-[11px] truncate">{name}</span>
+                      <span className="text-[11px] truncate" title={name}>{name}</span>
                       <span className="text-[10px] tabular-nums ml-auto">{deal.stage}</span>
                     </button>
                   );
@@ -843,8 +843,8 @@ function PulseMonitor({ selectedCompanyId, onSelectCompany }: {
                     }`}>
                     <Sparkline bars={bars} color={cfg.sparkColor} />
                     <div className="flex-1 min-w-0">
-                      <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 truncate block">{name}</span>
-                      <span className="text-[11px] text-zinc-400 truncate block">{deal.name} · {deal.stage}</span>
+                      <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 truncate block" title={name}>{name}</span>
+                      <span className="text-[11px] text-zinc-400 truncate block" title={`${deal.name} · ${deal.stage}`}>{deal.name} · {deal.stage}</span>
                     </div>
                     <div className="flex-shrink-0 text-right">
                       <span className="text-[11px] text-zinc-500 tabular-nums block">{total} activities</span>

@@ -326,7 +326,7 @@ export function BotOverview({
                         >
                           <div className="flex items-center gap-2 mb-1">
                             <Sparkles size={13} className="text-amber-500 flex-shrink-0" />
-                            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors flex-1">
+                            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors flex-1" title={skill.title}>
                               {skill.title}
                             </span>
                             {skill.command && (
@@ -432,7 +432,7 @@ export function BotOverview({
                             <span className="text-[10px] text-zinc-400 dark:text-zinc-600">{s.date}</span>
                           </div>
                           {s.title && (
-                            <p className="text-sm text-zinc-700 dark:text-zinc-300 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{s.title}</p>
+                            <p className="text-sm text-zinc-700 dark:text-zinc-300 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" title={s.title}>{s.title}</p>
                           )}
                           {s.summary && (
                             <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5">{s.summary}</p>
@@ -525,7 +525,7 @@ export function BotOverview({
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-zinc-400">Directory</span>
-                  <span className="text-[10px] font-mono text-zinc-400 truncate max-w-[180px]">{bot.name}</span>
+                  <span className="text-[10px] font-mono text-zinc-400 truncate max-w-[180px]" title={bot.name}>{bot.name}</span>
                 </div>
               </div>
             </div>

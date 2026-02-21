@@ -365,8 +365,8 @@ export function DataModelsGridToolbar({
 
       {/* Save Layout Dialog */}
       {showSaveDialog && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-700">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 animate-fade-in">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-700 animate-modal-in">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Save Layout</h3>
             <input
               type="text"

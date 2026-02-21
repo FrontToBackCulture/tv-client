@@ -195,7 +195,7 @@ export function ScopeFilterBar({
                 }`}
               >
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: i.color || "#0D7680" }} />
-                <span className="truncate">{i.name}</span>
+                <span className="truncate" title={i.name}>{i.name}</span>
               </button>
             ))}
           </div>
@@ -237,7 +237,7 @@ export function ScopeFilterBar({
                 }`}
               >
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: p.color || "#6B7280" }} />
-                <span className="truncate">{p.name}</span>
+                <span className="truncate" title={p.name}>{p.name}</span>
               </button>
             ))}
           </div>
@@ -267,7 +267,7 @@ export function TaskRow({ task, onSelect }: { task: TaskWithRelations; onSelect:
       )}
       <PriorityBars priority={task.priority || 0} size={11} />
       <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
-      <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
+      <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate" title={task.title}>{task.title}</span>
       {task.assignee?.name && (
         <div
           className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"

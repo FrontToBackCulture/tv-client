@@ -327,8 +327,8 @@ export const DealCard = memo(function DealCard({
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md p-4 max-w-sm w-full mx-4 shadow-lg">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md p-4 max-w-sm w-full mx-4 shadow-lg animate-modal-in">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Delete Deal</h3>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-3">
               Are you sure you want to delete <strong>{deal.name}</strong>? This
