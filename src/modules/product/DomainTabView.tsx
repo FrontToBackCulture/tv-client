@@ -12,7 +12,6 @@ import {
   useSyncAllDomainsAiToS3,
   useRunAllDomainsDataModelHealth,
   useRunAllDomainsWorkflowHealth,
-  useRunAllDomainsDashboardHealth,
   useRunAllDomainsQueryHealth,
   useRunAllDomainsArtifactAudit,
   useRunAllDomainsOverview,
@@ -30,7 +29,9 @@ import {
   ChevronDown,
   ChevronRight,
   Zap,
+  BarChart3,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
 import { DomainDetailPanel } from "./DomainDetailPanel";
 
@@ -185,7 +186,6 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   const { trigger: syncAiToS3, progress: s3Progress } = useSyncAllDomainsAiToS3();
   const { trigger: runDataModelHealth, progress: dataModelHealthProgress } = useRunAllDomainsDataModelHealth();
   const { trigger: runWorkflowHealth, progress: workflowHealthProgress } = useRunAllDomainsWorkflowHealth();
-  const { trigger: runDashboardHealth, progress: dashboardHealthProgress } = useRunAllDomainsDashboardHealth();
   const { trigger: runQueryHealth, progress: queryHealthProgress } = useRunAllDomainsQueryHealth();
   const { trigger: runArtifactAudit, progress: artifactAuditProgress } = useRunAllDomainsArtifactAudit();
   const { trigger: runOverview, progress: overviewProgress } = useRunAllDomainsOverview();
@@ -201,16 +201,38 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   const isS3Syncing = s3Progress?.isRunning ?? false;
   const isDataModelHealthRunning = dataModelHealthProgress?.isRunning ?? false;
   const isWorkflowHealthRunning = workflowHealthProgress?.isRunning ?? false;
-  const isDashboardHealthRunning = dashboardHealthProgress?.isRunning ?? false;
   const isQueryHealthRunning = queryHealthProgress?.isRunning ?? false;
   const isArtifactAuditRunning = artifactAuditProgress?.isRunning ?? false;
   const isOverviewRunning = overviewProgress?.isRunning ?? false;
+  const [isGa4Syncing, setIsGa4Syncing] = useState(false);
+
+  const handleSyncGa4 = useCallback(async () => {
+    if (isGa4Syncing) return;
+    setIsGa4Syncing(true);
+    const jobId = `ga4-sync-${Date.now()}`;
+    addJob({ id: jobId, name: "Sync GA4 Analytics", status: "running", progress: 50, message: "Fetching from GA4..." });
+    try {
+      const [supabaseUrl, supabaseKey] = await invoke<[string | null, string | null]>("settings_get_supabase_credentials");
+      if (!supabaseUrl || !supabaseKey) throw new Error("Supabase credentials not configured");
+      const result = await invoke<{ source: string; rows_upserted: number; warnings: string[] }>(
+        "ga4_fetch_analytics",
+        { supabaseUrl, supabaseKey }
+      );
+      const warningText = result.warnings.length > 0 ? ` | Warnings: ${result.warnings.join("; ")}` : "";
+      updateJob(jobId, { status: result.warnings.length > 0 ? "completed" : "completed", progress: 100, message: `Synced ${result.rows_upserted} page views${warningText}` });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      updateJob(jobId, { status: "failed", progress: 100, message: msg });
+    } finally {
+      setIsGa4Syncing(false);
+    }
+  }, [isGa4Syncing, addJob, updateJob]);
 
   const anyRunning =
     isSyncing || isMonitoringSyncing || isSodSyncing || isImporterSyncing ||
     isIntegrationSyncing || isS3Syncing || isDataModelHealthRunning || isWorkflowHealthRunning ||
-    isDashboardHealthRunning || isQueryHealthRunning || isArtifactAuditRunning ||
-    isOverviewRunning || fullAnalysisRunning;
+    isQueryHealthRunning || isArtifactAuditRunning ||
+    isOverviewRunning || fullAnalysisRunning || isGa4Syncing;
 
   const getCurrentOperation = () => {
     if (isSyncing) return syncProgress?.currentDomain ? `Syncing ${syncProgress.currentDomain}` : "Syncing...";
@@ -221,7 +243,6 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     if (isS3Syncing) return s3Progress?.currentDomain ? `Syncing ${s3Progress.currentDomain} AI to S3` : "Syncing AI to S3...";
     if (isDataModelHealthRunning) return "Running data model health...";
     if (isWorkflowHealthRunning) return "Running workflow health...";
-    if (isDashboardHealthRunning) return "Running dashboard health...";
     if (isQueryHealthRunning) return "Running query health...";
     if (isArtifactAuditRunning) return "Running artifact audit...";
     if (isOverviewRunning) return "Generating overview...";
@@ -233,7 +254,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     const p =
       syncProgress ?? monitoringProgress ?? sodProgress ?? importerProgress ??
       integrationProgress ?? dataModelHealthProgress ?? workflowHealthProgress ??
-      dashboardHealthProgress ?? queryHealthProgress ?? artifactAuditProgress ?? overviewProgress;
+      queryHealthProgress ?? artifactAuditProgress ?? overviewProgress;
     if (!p || !p.isRunning || p.total === 0) return 0;
     return Math.round((p.current / p.total) * 100);
   };
@@ -254,7 +275,6 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     const jobId = `full-analysis-${Date.now()}`;
     const steps = [
       { name: "Sync All", fn: () => syncAll(domainNames) },
-      { name: "Dashboard Health", fn: () => runDashboardHealth(domainNames) },
       { name: "Query Health", fn: () => runQueryHealth(domainNames) },
       { name: "Artifact Audit", fn: () => runArtifactAudit(domainNames) },
       { name: "Generate Overview", fn: () => runOverview(domainNames) },
@@ -281,7 +301,6 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
             elapsed += 500;
             const stillRunning =
               (step.name === "Sync All" && syncProgress?.isRunning) ||
-              (step.name === "Dashboard Health" && dashboardHealthProgress?.isRunning) ||
               (step.name === "Query Health" && queryHealthProgress?.isRunning) ||
               (step.name === "Artifact Audit" && artifactAuditProgress?.isRunning) ||
               (step.name === "Generate Overview" && overviewProgress?.isRunning);
@@ -297,7 +316,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     } finally {
       setFullAnalysisRunning(false);
     }
-  }, [domainNames, anyRunning, syncAll, runDashboardHealth, runQueryHealth, runArtifactAudit, runOverview, addJob, updateJob, syncProgress?.isRunning, dashboardHealthProgress?.isRunning, queryHealthProgress?.isRunning, artifactAuditProgress?.isRunning, overviewProgress?.isRunning]);
+  }, [domainNames, anyRunning, syncAll, runQueryHealth, runArtifactAudit, runOverview, addJob, updateJob, syncProgress?.isRunning, queryHealthProgress?.isRunning, artifactAuditProgress?.isRunning, overviewProgress?.isRunning]);
 
   // Abort any running batch operation
   const handleStop = useCallback(() => {
@@ -327,7 +346,6 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   const healthItems = [
     { label: "Data Model Health", onClick: () => runDataModelHealth(domainNames), isRunning: isDataModelHealthRunning, tooltip: "Check table freshness" },
     { label: "Workflow Health", onClick: () => runWorkflowHealth(domainNames), isRunning: isWorkflowHealthRunning, tooltip: "Analyze workflow execution success rates" },
-    { label: "Dashboard Health", onClick: () => runDashboardHealth(domainNames), isRunning: isDashboardHealthRunning, tooltip: "Analyze dashboard usage" },
     { label: "Query Health", onClick: () => runQueryHealth(domainNames), isRunning: isQueryHealthRunning, tooltip: "Analyze query health based on dashboard usage" },
   ];
 
@@ -489,7 +507,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
               <button
                 onClick={handleFullAnalysis}
                 disabled={anyRunning}
-                title="Run complete analysis pipeline: Sync All → Dashboard Health → Query Health → Artifact Audit → Generate Overview"
+                title="Run complete analysis pipeline: Sync All → Query Health → Artifact Audit → Generate Overview"
                 className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-500 rounded-lg transition-colors disabled:opacity-50"
               >
                 {fullAnalysisRunning ? (
@@ -506,6 +524,22 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
                 <DropdownMenu label="Health" items={healthItems} disabled={anyRunning} color="violet" tooltip="Run health checks" />
                 <DropdownMenu label="Analysis" items={analysisItems} disabled={anyRunning} tooltip="Audit and reporting" />
 
+                <button
+                  onClick={handleSyncGa4}
+                  disabled={anyRunning}
+                  title="Fetch dashboard page views from Google Analytics"
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border transition-colors",
+                    isGa4Syncing
+                      ? "border-purple-400 text-purple-600 bg-purple-50 dark:bg-purple-900/20"
+                      : "border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                    anyRunning && !isGa4Syncing && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {isGa4Syncing ? <Loader2 size={12} className="animate-spin" /> : <BarChart3 size={12} />}
+                  GA4
+                </button>
+
                 {anyRunning && (
                   <>
                     <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 ml-1" />
@@ -521,7 +555,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
               </div>
 
               <p className="text-[10px] text-zinc-400">
-                Full Analysis: Sync → Dashboard Health → Query Health → Audit → Overview
+                Full Analysis: Sync → Query Health → Audit → Overview
               </p>
             </div>
 

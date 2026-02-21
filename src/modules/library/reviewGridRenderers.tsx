@@ -1,19 +1,24 @@
-// DataModelsAgGrid: Cell renderers and style helpers
+// Unified review grid: Cell renderers and style helpers
 
 import type { ICellRendererParams } from "ag-grid-community";
-import type { TableInfo } from "./dataModelsGridTypes";
+import type { ReviewRow } from "./reviewTypes";
 
-// Name cell renderer with documentation indicator
-export const NameCellRenderer = (params: ICellRendererParams<TableInfo>) => {
+// Name cell renderer with documentation indicator (tables only)
+export const NameCellRenderer = (params: ICellRendererParams<ReviewRow>) => {
   const data = params.data;
   if (!data) return null;
 
   return (
     <div className="flex items-center gap-2">
-      {data.hasOverview ? (
-        <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" title="Has overview" />
-      ) : (
-        <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="No overview" />
+      {data.hasOverview != null && (
+        data.hasOverview ? (
+          <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" title="Has overview" />
+        ) : (
+          <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="No overview" />
+        )
+      )}
+      {data.isStale && (
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500 text-white flex-shrink-0">Deleted</span>
       )}
       <span className="font-medium">{data.displayName || data.name}</span>
     </div>
@@ -122,7 +127,7 @@ export const getTagStyle = (tag: string, type: string) => {
 };
 
 // Tags cell renderer
-export const TagsCellRenderer = (params: ICellRendererParams<TableInfo>) => {
+export const TagsCellRenderer = (params: ICellRendererParams<ReviewRow>) => {
   const data = params.data;
   if (!data) return null;
 
@@ -145,13 +150,10 @@ export const TagsCellRenderer = (params: ICellRendererParams<TableInfo>) => {
   addTag(data.usageStatus, "status");
   addTag(data.action, "action");
 
-  // Add actual tags from classification (comma-separated string)
   if (data.tags) {
     data.tags.split(",").forEach(tag => {
       const trimmed = tag.trim();
-      if (trimmed) {
-        addTag(trimmed, "tag");
-      }
+      if (trimmed) addTag(trimmed, "tag");
     });
   }
 

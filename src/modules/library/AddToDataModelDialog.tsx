@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Database, X, Loader2, CheckCircle } from "lucide-react";
-import { TableInfo } from "./DataModelsAgGrid";
+import type { ReviewRow as TableInfo } from "./reviewTypes";
 import {
   useCreateDomainModelSchema,
   useDomainModelEntities,

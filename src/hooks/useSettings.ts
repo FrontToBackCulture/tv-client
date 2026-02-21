@@ -13,6 +13,8 @@ export const API_KEYS = {
   SUPABASE_URL: "supabase_url",
   SUPABASE_ANON_KEY: "supabase_anon_key",
   INTERCOM: "intercom_api_key",
+  GA4_SERVICE_ACCOUNT_PATH: "ga4_service_account_path",
+  GA4_PROPERTY_ID: "ga4_property_id",
 } as const;
 
 export type ApiKeyName = (typeof API_KEYS)[keyof typeof API_KEYS];

@@ -31,6 +31,7 @@ pub struct SyncAllResult {
     pub domain: String,
     pub results: Vec<SyncResult>,
     pub extract_results: Vec<super::extract::ExtractResult>,
+    pub stale_result: Option<super::audit::MarkStaleResult>,
     pub total_duration_ms: u64,
     pub status: String,
 }
@@ -217,12 +218,19 @@ pub async fn val_sync_all(domain: String) -> Result<SyncAllResult, String> {
         }
     }
 
+    // Phase 3: Mark stale artifacts
+    let stale_result = match super::audit::mark_stale_artifacts(&domain).await {
+        Ok(result) => Some(result),
+        Err(_) => None, // Non-fatal: don't fail sync if stale marking fails
+    };
+
     let total_duration_ms = start.elapsed().as_millis() as u64;
 
     Ok(SyncAllResult {
         domain,
         results,
         extract_results,
+        stale_result,
         total_duration_ms,
         status: if has_error {
             "partial".to_string()

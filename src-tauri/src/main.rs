@@ -317,7 +317,6 @@ fn main() {
             // VAL Sync - Additional health and audit
             commands::val_sync::audit::val_run_artifact_audit,
             commands::val_sync::query_health::val_run_query_health,
-            commands::val_sync::dashboard_health::val_run_dashboard_health,
             commands::val_sync::overview::val_generate_overview,
             // VAL Sync - Domain Model (entity scan across domains)
             commands::val_sync::domain_model::val_list_domain_model_entities,
@@ -352,6 +351,10 @@ fn main() {
             commands::val_sync::table_pipeline::val_run_table_pipeline,
             commands::val_sync::table_pipeline::val_list_domain_tables,
             commands::val_sync::table_pipeline::val_scan_category_library,
+            // GA4 Analytics
+            commands::analytics::ga4::ga4_check_config,
+            commands::analytics::ga4::ga4_fetch_analytics,
+            commands::analytics::ga4::ga4_list_dimensions,
             // Settings - MS Graph credentials
             commands::settings::settings_get_ms_graph_credentials,
             commands::settings::settings_get_anthropic_key,

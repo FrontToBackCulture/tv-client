@@ -178,6 +178,11 @@ export function ApiKeysView() {
   const integrationKeys = keys.filter(
     (k) => k.name === API_KEYS.INTERCOM
   );
+  const analyticsKeys = keys.filter(
+    (k) =>
+      k.name === API_KEYS.GA4_SERVICE_ACCOUNT_PATH ||
+      k.name === API_KEYS.GA4_PROPERTY_ID
+  );
 
   if (loading) {
     return (
@@ -275,6 +280,22 @@ export function ApiKeysView() {
         </h3>
         <div className="space-y-3">
           {integrationKeys.map((keyInfo) => (
+            <KeyEditor
+              key={keyInfo.name}
+              keyInfo={keyInfo}
+              onSave={(value) => setKey(keyInfo.name as any, value)}
+              onDelete={() => deleteKey(keyInfo.name as any)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3 uppercase tracking-wide">
+          Google Analytics
+        </h3>
+        <div className="space-y-3">
+          {analyticsKeys.map((keyInfo) => (
             <KeyEditor
               key={keyInfo.name}
               keyInfo={keyInfo}

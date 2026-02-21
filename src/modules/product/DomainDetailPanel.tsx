@@ -11,9 +11,6 @@ import {
   useValLogin,
   useValSyncAll,
   useValSyncArtifact,
-  useSyncAiToS3,
-  useS3AiStatus,
-  type S3FileStatus,
 } from "../../hooks/val-sync";
 import { StatusChip } from "./StatusChip";
 import {
@@ -30,12 +27,8 @@ import {
   EyeOff,
   Check,
   Pencil,
-  Database,
-  ClipboardCheck,
   Zap,
-  CloudUpload,
-  FileText,
-  AlertCircle,
+  Maximize2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { EmptyState } from "../../components/EmptyState";
@@ -44,6 +37,8 @@ import { useJobsStore } from "../../stores/jobsStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { DomainAiTab } from "./DomainAiTab";
 import { FilesTab } from "./DomainDetailFilesTab";
+import { UnifiedReviewView } from "../library/UnifiedReviewView";
+import type { ReviewResourceType } from "../library/reviewTypes";
 import {
   ARTIFACT_LABELS, EXTRACT_LABELS, TYPE_COLORS,
   formatRelativeShort,
@@ -56,7 +51,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   // Report domain + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<Tab, string> = { overview: "Overview", review: "Review", files: "Files", sync: "Sync", history: "History", ai: "AI" };
+    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", files: "Files", sync: "Sync", history: "History", ai: "AI" };
     setViewDetail(`${domain} → ${tabLabels[activeTab]}`);
   }, [domain, activeTab, setViewDetail]);
 
@@ -73,9 +68,6 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   const loginMutation = useValLogin();
   const syncAllMutation = useValSyncAll();
   const syncArtifactMutation = useValSyncArtifact();
-  const s3SyncMutation = useSyncAiToS3();
-  const s3Status = useS3AiStatus(domain, discoveredDomain?.global_path ?? null);
-
   const auth = authQuery.data;
   const creds = credQuery.data;
   const metadata = statusQuery.data;
@@ -175,13 +167,24 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   };
 
 
+  // Review tab config — maps tab IDs to folder names, resource types, and full-screen callbacks
+  const REVIEW_TABS: Record<string, { folder: string; resourceType: ReviewResourceType; onFullScreen?: () => void }> = {
+    "data-models": { folder: "data_models", resourceType: "table", onFullScreen: onReviewDataModels },
+    queries: { folder: "queries", resourceType: "query", onFullScreen: onReviewQueries },
+    workflows: { folder: "workflows", resourceType: "workflow", onFullScreen: onReviewWorkflows },
+    dashboards: { folder: "dashboards", resourceType: "dashboard", onFullScreen: onReviewDashboards },
+  };
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
-    { id: "review", label: "Review" },
-    { id: "files", label: "Files" },
-    { id: "sync", label: "Sync" },
-    { id: "history", label: "History" },
     { id: "ai", label: "AI" },
+    { id: "sync", label: "Sync" },
+    { id: "data-models", label: "Data Models" },
+    { id: "queries", label: "Queries" },
+    { id: "workflows", label: "Workflows" },
+    { id: "dashboards", label: "Dashboards" },
+    { id: "files", label: "Files" },
+    { id: "history", label: "History" },
   ];
 
   const typeColors = discoveredDomain ? (TYPE_COLORS[discoveredDomain.domain_type] ?? TYPE_COLORS.production) : null;
@@ -285,8 +288,34 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         ))}
       </div>
 
+      {/* Review tab content — rendered outside the padded wrapper so the grid fills the space */}
+      {REVIEW_TABS[activeTab] && discoveredDomain && (
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {/* Expand button bar */}
+          <div className="flex items-center justify-end px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
+            {REVIEW_TABS[activeTab].onFullScreen && (
+              <button
+                onClick={REVIEW_TABS[activeTab].onFullScreen}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+              >
+                <Maximize2 size={12} />
+                Full Screen
+              </button>
+            )}
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <UnifiedReviewView
+              key={`${domain}-${activeTab}`}
+              resourceType={REVIEW_TABS[activeTab].resourceType}
+              folderPath={`${discoveredDomain.global_path}/${REVIEW_TABS[activeTab].folder}`}
+              domainName={domain}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Tab content */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className={cn("flex-1 overflow-auto p-4", REVIEW_TABS[activeTab] && "hidden")}>
         {activeTab === "overview" && discoveredDomain && (
           /* Two-column overview when discoveredDomain is provided */
           <div className="flex gap-6">
@@ -740,94 +769,6 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
           </div>
         )}
 
-        {activeTab === "review" && (
-          <div className="space-y-3">
-            <p className="text-xs text-zinc-400 mb-4">
-              Full-screen review views for domain resources.
-            </p>
-
-            {/* Review Data Models */}
-            {onReviewDataModels && (
-              <button
-                onClick={onReviewDataModels}
-                className="w-full flex items-center gap-3 p-4 text-left rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
-                  <ClipboardCheck size={18} className="text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 block">
-                    Review Data Models
-                  </span>
-                  <span className="text-xs text-zinc-400">
-                    Review table definitions, categories, and analysis results
-                  </span>
-                </div>
-              </button>
-            )}
-
-            {/* Review Queries */}
-            {onReviewQueries && (
-              <button
-                onClick={onReviewQueries}
-                className="w-full flex items-center gap-3 p-4 text-left rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
-                  <Database size={18} className="text-yellow-600 dark:text-yellow-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 block">
-                    Review Queries
-                  </span>
-                  <span className="text-xs text-zinc-400">
-                    Review query definitions, categories, and classification
-                  </span>
-                </div>
-              </button>
-            )}
-
-            {/* Review Workflows */}
-            {onReviewWorkflows && (
-              <button
-                onClick={onReviewWorkflows}
-                className="w-full flex items-center gap-3 p-4 text-left rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                  <RefreshCw size={18} className="text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 block">
-                    Review Workflows
-                  </span>
-                  <span className="text-xs text-zinc-400">
-                    Review workflow definitions, schedules, and classification
-                  </span>
-                </div>
-              </button>
-            )}
-
-            {/* Review Dashboards */}
-            {onReviewDashboards && (
-              <button
-                onClick={onReviewDashboards}
-                className="w-full flex items-center gap-3 p-4 text-left rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
-                  <FileText size={18} className="text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 block">
-                    Review Dashboards
-                  </span>
-                  <span className="text-xs text-zinc-400">
-                    Review dashboard definitions, widgets, and classification
-                  </span>
-                </div>
-              </button>
-            )}
-          </div>
-        )}
-
         {activeTab === "files" && (
           <FilesTab outputs={outputStatusQuery.data?.outputs ?? []} isLoading={outputStatusQuery.isLoading} />
         )}
@@ -906,132 +847,6 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
               </p>
             )}
 
-            {/* Push AI to S3 */}
-            <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                  Publish AI to S3
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => s3Status.refetch()}
-                    disabled={s3Status.isFetching}
-                    className="text-[10px] text-zinc-400 hover:text-zinc-600 flex items-center gap-1"
-                    title="Refresh S3 status"
-                  >
-                    <RefreshCw size={10} className={s3Status.isFetching ? "animate-spin" : ""} />
-                    Refresh
-                  </button>
-                  <button
-                    onClick={() => s3SyncMutation.mutate({ domain, globalPath: discoveredDomain?.global_path ?? "" })}
-                    disabled={s3SyncMutation.isPending}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50 rounded transition-colors"
-                  >
-                    {s3SyncMutation.isPending ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <CloudUpload size={12} />
-                    )}
-                    Push to S3
-                  </button>
-                </div>
-              </div>
-
-              {s3SyncMutation.isSuccess && (
-                <div className="mb-2 p-2 rounded bg-green-500/10 text-green-600 dark:text-green-400 text-xs">
-                  {s3SyncMutation.data.message} ({s3SyncMutation.data.duration_ms}ms)
-                </div>
-              )}
-              {s3SyncMutation.isError && (
-                <p className="mb-2 text-xs text-red-500">
-                  {(s3SyncMutation.error as Error).message}
-                </p>
-              )}
-
-              {/* S3 Status */}
-              {s3Status.isLoading && (
-                <div className="flex items-center gap-2 py-3 text-xs text-zinc-400">
-                  <Loader2 size={12} className="animate-spin" />
-                  Checking S3 status...
-                </div>
-              )}
-              {s3Status.isError && (
-                <p className="text-xs text-zinc-400 py-2">
-                  Could not check S3 status: {(s3Status.error as Error).message}
-                </p>
-              )}
-              {s3Status.data && (
-                <div className="space-y-2">
-                  {/* Summary chips */}
-                  <div className="flex items-center gap-3 text-[10px]">
-                    <span className="text-zinc-500">
-                      Local: <span className="font-medium text-zinc-700 dark:text-zinc-300">{s3Status.data.local_count} files</span>
-                    </span>
-                    <span className="text-zinc-500">
-                      S3: <span className="font-medium text-zinc-700 dark:text-zinc-300">{s3Status.data.s3_count} files</span>
-                    </span>
-                    {s3Status.data.local_count === s3Status.data.s3_count && s3Status.data.s3_count > 0 && (
-                      <span className="text-green-600 dark:text-green-400 flex items-center gap-0.5">
-                        <CheckCircle2 size={10} /> In sync
-                      </span>
-                    )}
-                    {s3Status.data.s3_count === 0 && s3Status.data.local_count > 0 && (
-                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
-                        <AlertCircle size={10} /> Not published
-                      </span>
-                    )}
-                    {!s3Status.data.has_ai_folder && (
-                      <span className="text-zinc-400">No ai/ folder</span>
-                    )}
-                  </div>
-
-                  {/* File list */}
-                  {s3Status.data.files.length > 0 && (
-                    <div className="border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
-                      <table className="w-full text-[11px]">
-                        <thead>
-                          <tr className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500">
-                            <th className="text-left px-2 py-1 font-medium">File</th>
-                            <th className="text-center px-2 py-1 font-medium w-16">Local</th>
-                            <th className="text-center px-2 py-1 font-medium w-16">S3</th>
-                            <th className="text-right px-2 py-1 font-medium w-32">S3 Last Modified</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {s3Status.data.files.map((f: S3FileStatus) => (
-                            <tr key={f.path} className="border-t border-zinc-100 dark:border-zinc-800/50">
-                              <td className="px-2 py-1 font-mono text-zinc-700 dark:text-zinc-300 truncate max-w-[200px]" title={f.path}>
-                                {f.path}
-                              </td>
-                              <td className="text-center px-2 py-1">
-                                {f.in_local ? (
-                                  <CheckCircle2 size={12} className="inline text-green-500" />
-                                ) : (
-                                  <XCircle size={12} className="inline text-red-400" />
-                                )}
-                              </td>
-                              <td className="text-center px-2 py-1">
-                                {f.in_s3 ? (
-                                  <CheckCircle2 size={12} className="inline text-green-500" />
-                                ) : (
-                                  <XCircle size={12} className="inline text-zinc-300 dark:text-zinc-600" />
-                                )}
-                              </td>
-                              <td className="text-right px-2 py-1 text-zinc-400">
-                                {f.s3_last_modified
-                                  ? new Date(f.s3_last_modified).toLocaleString("en-SG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                                  : "—"}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
           </div>
         )}
 
@@ -1072,7 +887,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         )}
 
         {activeTab === "ai" && discoveredDomain && (
-          <DomainAiTab aiPath={`${discoveredDomain.global_path}/ai`} domainName={domain} />
+          <DomainAiTab aiPath={`${discoveredDomain.global_path}/ai`} domainName={domain} globalPath={discoveredDomain.global_path} />
         )}
 
         {activeTab === "ai" && !discoveredDomain && (

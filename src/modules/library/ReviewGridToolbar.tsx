@@ -1,4 +1,4 @@
-// DataModelsAgGrid: Toolbar component
+// Unified review grid: Toolbar component
 
 import { useState } from "react";
 import type { AgGridReact } from "ag-grid-react";
@@ -19,10 +19,10 @@ import {
   Save,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
-import type { TableInfo } from "./dataModelsGridTypes";
+import type { ReviewRow } from "./reviewTypes";
 
-interface DataModelsGridToolbarProps {
-  gridRef: React.RefObject<AgGridReact<TableInfo> | null>;
+interface ReviewGridToolbarProps {
+  gridRef: React.RefObject<AgGridReact<ReviewRow> | null>;
   domainName: string;
   reviewMode: boolean;
   quickFilterText: string;
@@ -31,12 +31,13 @@ interface DataModelsGridToolbarProps {
   setWrapSummary: (v: boolean) => void;
   isFullscreen: boolean;
   setIsFullscreen: (v: boolean) => void;
-  reviewFilter: "all" | "needs-review" | "modified";
-  setReviewFilter: (v: "all" | "needs-review" | "modified") => void;
+  reviewFilter: "all" | "needs-review" | "modified" | "deleted";
+  setReviewFilter: (v: "all" | "needs-review" | "modified" | "deleted") => void;
   modifiedRows?: Map<string, Record<string, unknown>>;
+  isTable?: boolean;
 }
 
-export function DataModelsGridToolbar({
+export function ReviewGridToolbar({
   gridRef,
   domainName,
   reviewMode,
@@ -49,7 +50,8 @@ export function DataModelsGridToolbar({
   reviewFilter,
   setReviewFilter,
   modifiedRows,
-}: DataModelsGridToolbarProps) {
+  isTable = false,
+}: ReviewGridToolbarProps) {
   const [savedLayouts, setSavedLayouts] = useState<Record<string, object>>(() => {
     const stored = localStorage.getItem("tv-desktop-ag-grid-layouts");
     if (stored) {
@@ -67,27 +69,31 @@ export function DataModelsGridToolbar({
   const applyFlatLayout = () => {
     const api = gridRef.current?.api;
     if (!api) return;
-    api.setRowGroupColumns([]);
-    api.applyColumnState({
-      state: [
-        { colId: "dataCategory", hide: false, pinned: "left" as const, width: 140 },
-        { colId: "dataSubCategory", hide: false, pinned: "left" as const, width: 110 },
-        { colId: "displayName", hide: false, pinned: null, width: 220 },
-        { colId: "rowCount", hide: false, pinned: null, width: 80 },
-        { colId: "daysSinceCreated", hide: false, pinned: null, width: 75 },
-        { colId: "daysSinceUpdate", hide: false, pinned: null, width: 75 },
-        { colId: "dataSource", hide: false, pinned: null, width: 110 },
-        { colId: "usageStatus", hide: false, pinned: null, width: 95 },
-        { colId: "action", hide: false, pinned: null, width: 85 },
-        { colId: "ag-Grid-AutoColumn", hide: true },
-        { colId: "name", hide: true },
-        { colId: "suggestedName", hide: true },
-        { colId: "summaryShort", hide: true },
-        { colId: "tags", hide: false, pinned: null, width: 240 },
-        { colId: "space", hide: true },
-      ],
-      applyOrder: true,
-    });
+    if (isTable) api.setRowGroupColumns([]);
+    const state = isTable
+      ? [
+          { colId: "dataCategory", hide: false, pinned: "left" as const, width: 140 },
+          { colId: "dataSubCategory", hide: false, pinned: "left" as const, width: 110 },
+          { colId: "displayName", hide: false, pinned: null, width: 220 },
+          { colId: "rowCount", hide: false, pinned: null, width: 80 },
+          { colId: "daysSinceCreated", hide: false, pinned: null, width: 75 },
+          { colId: "daysSinceUpdate", hide: false, pinned: null, width: 75 },
+          { colId: "dataSource", hide: false, pinned: null, width: 110 },
+          { colId: "usageStatus", hide: false, pinned: null, width: 95 },
+          { colId: "action", hide: false, pinned: null, width: 85 },
+          { colId: "ag-Grid-AutoColumn", hide: true },
+          { colId: "name", hide: true },
+          { colId: "suggestedName", hide: true },
+          { colId: "summaryShort", hide: true },
+          { colId: "tags", hide: false, pinned: null, width: 240 },
+          { colId: "space", hide: true },
+        ]
+      : [
+          { colId: "dataCategory", hide: false, pinned: "left" as const, width: 140 },
+          { colId: "dataSubCategory", hide: false, pinned: "left" as const, width: 110 },
+          { colId: "name", hide: false, pinned: null, width: 220 },
+        ];
+    api.applyColumnState({ state, applyOrder: isTable });
     api.applyColumnState({
       state: [
         { colId: "dataCategory", sort: "asc", sortIndex: 0 },
@@ -102,7 +108,7 @@ export function DataModelsGridToolbar({
     if (!api) return;
     api.setFilterModel(null);
     api.resetColumnState();
-    api.setRowGroupColumns(["dataCategory"]);
+    if (isTable) api.setRowGroupColumns(["dataCategory"]);
     setQuickFilterText("");
     setReviewFilter("all");
   };
@@ -113,8 +119,8 @@ export function DataModelsGridToolbar({
 
   const exportToExcel = () => {
     gridRef.current?.api.exportDataAsExcel({
-      fileName: `${domainName}-data-models.xlsx`,
-      sheetName: "Data Models",
+      fileName: `${domainName}-review.xlsx`,
+      sheetName: "Review",
       allColumns: true,
       skipRowGroups: true,
     });
@@ -122,7 +128,7 @@ export function DataModelsGridToolbar({
 
   const exportToCsv = () => {
     gridRef.current?.api.exportDataAsCsv({
-      fileName: `${domainName}-data-models.csv`,
+      fileName: `${domainName}-review.csv`,
       allColumns: true,
       skipRowGroups: true,
     });
@@ -131,12 +137,14 @@ export function DataModelsGridToolbar({
   const saveCurrentLayout = (name: string) => {
     const api = gridRef.current?.api;
     if (!api || !name.trim()) return;
-    const layout = {
+    const layout: Record<string, unknown> = {
       columnState: api.getColumnState(),
-      rowGroupColumns: api.getRowGroupColumns().map(col => col.getColId()),
       filterModel: api.getFilterModel(),
       savedAt: new Date().toISOString(),
     };
+    if (isTable) {
+      layout.rowGroupColumns = api.getRowGroupColumns().map(col => col.getColId());
+    }
     const newLayouts = { ...savedLayouts, [name.trim()]: layout };
     setSavedLayouts(newLayouts);
     localStorage.setItem("tv-desktop-ag-grid-layouts", JSON.stringify(newLayouts));
@@ -149,13 +157,13 @@ export function DataModelsGridToolbar({
     if (!api) return;
     const layout = savedLayouts[name] as {
       columnState: ColumnState[];
-      rowGroupColumns: string[];
+      rowGroupColumns?: string[];
       filterModel?: Record<string, unknown>;
     } | undefined;
     if (!layout) return;
-    api.setRowGroupColumns([]);
+    if (isTable) api.setRowGroupColumns([]);
     api.applyColumnState({ state: layout.columnState, applyOrder: true });
-    if (layout.rowGroupColumns?.length > 0) {
+    if (isTable && layout.rowGroupColumns?.length) {
       api.setRowGroupColumns(layout.rowGroupColumns);
     }
     if (layout.filterModel) {
@@ -208,10 +216,7 @@ export function DataModelsGridToolbar({
           {reviewMode && (
             <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1">
               <button
-                onClick={() => {
-                  setReviewFilter("all");
-                  gridRef.current?.api.setFilterModel(null);
-                }}
+                onClick={() => setReviewFilter("all")}
                 className={cn(
                   "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
                   reviewFilter === "all"
@@ -222,12 +227,7 @@ export function DataModelsGridToolbar({
                 All
               </button>
               <button
-                onClick={() => {
-                  setReviewFilter("needs-review");
-                  gridRef.current?.api.setFilterModel({
-                    action: { filterType: "set", values: ["To Review"] },
-                  });
-                }}
+                onClick={() => setReviewFilter("needs-review")}
                 className={cn(
                   "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
                   reviewFilter === "needs-review"
@@ -239,10 +239,7 @@ export function DataModelsGridToolbar({
                 Needs Review
               </button>
               <button
-                onClick={() => {
-                  setReviewFilter("modified");
-                  gridRef.current?.api.setFilterModel(null);
-                }}
+                onClick={() => setReviewFilter("modified")}
                 className={cn(
                   "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
                   reviewFilter === "modified"
@@ -251,6 +248,17 @@ export function DataModelsGridToolbar({
                 )}
               >
                 Modified ({modifiedRows?.size || 0})
+              </button>
+              <button
+                onClick={() => setReviewFilter("deleted")}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
+                  reviewFilter === "deleted"
+                    ? "bg-white dark:bg-zinc-700 text-red-600 dark:text-red-400 shadow-sm"
+                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                )}
+              >
+                Deleted
               </button>
             </div>
           )}
@@ -261,7 +269,7 @@ export function DataModelsGridToolbar({
           <button onClick={applyFlatLayout} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors" title="Apply flat layout with Category pinned left">
             <Columns size={14} /> Flat
           </button>
-          <button onClick={resetLayout} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors" title="Reset to default grouped layout">
+          <button onClick={resetLayout} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors" title="Reset to default layout">
             <RotateCcw size={14} /> Reset
           </button>
           <button onClick={autoSizeAllColumns} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors" title="Auto-size all columns">

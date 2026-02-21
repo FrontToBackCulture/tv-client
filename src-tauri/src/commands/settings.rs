@@ -22,6 +22,8 @@ pub const KEY_MS_GRAPH_CLIENT_SECRET: &str = "ms_graph_client_secret";
 pub const KEY_ANTHROPIC_API: &str = "anthropic_api_key";
 pub const KEY_AWS_ACCESS_KEY_ID: &str = "aws_access_key_id";
 pub const KEY_AWS_SECRET_ACCESS_KEY: &str = "aws_secret_access_key";
+pub const KEY_GA4_SERVICE_ACCOUNT_PATH: &str = "ga4_service_account_path";
+pub const KEY_GA4_PROPERTY_ID: &str = "ga4_property_id";
 
 // ============================================================================
 // Types
@@ -182,6 +184,8 @@ pub fn settings_list_keys() -> Result<Vec<ApiKeyInfo>, String> {
         (KEY_MS_GRAPH_TENANT_ID, "MS Graph Tenant ID", "For Outlook email integration"),
         (KEY_MS_GRAPH_CLIENT_SECRET, "MS Graph Client Secret", "For Outlook email integration"),
         (KEY_ANTHROPIC_API, "Anthropic API Key", "For AI email summaries"),
+        (KEY_GA4_SERVICE_ACCOUNT_PATH, "GA4 Service Account Path", "Path to service account JSON (e.g. ~/.tv-desktop/ga4-service-account.json)"),
+        (KEY_GA4_PROPERTY_ID, "GA4 Property ID", "GA4 numeric property ID for analytics"),
     ];
 
     let mut result = Vec::new();

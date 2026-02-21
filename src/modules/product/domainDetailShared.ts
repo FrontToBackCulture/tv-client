@@ -30,7 +30,7 @@ export const EXTRACT_LABELS: Record<string, string> = {
   "calc-fields": "Calc Fields",
 };
 
-export type Tab = "overview" | "review" | "files" | "sync" | "history" | "ai";
+export type Tab = "overview" | "data-models" | "queries" | "workflows" | "dashboards" | "files" | "sync" | "history" | "ai";
 
 // Type colors for profile header
 export const TYPE_COLORS: Record<string, { bar: string; badge: string; badgeText: string; avatar: string }> = {

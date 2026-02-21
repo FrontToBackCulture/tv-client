@@ -18,7 +18,7 @@ import {
 import { cn } from "../../lib/cn";
 import { useClassificationStore } from "../../stores/classificationStore";
 import { formatDateFull as formatDate } from "../../lib/date";
-import type { ArtifactType, ArtifactRow } from "./ArtifactReviewView";
+import type { ArtifactType, ReviewRow as ArtifactRow } from "./reviewTypes";
 
 interface ArtifactDetailPreviewProps {
   artifactType: ArtifactType;
@@ -325,6 +325,33 @@ export function ArtifactDetailPreview({
             )}
           </div>
         </section>
+
+        {/* GA4 Analytics (dashboards only) */}
+        {artifactType === "dashboard" && (row.gaViews90d != null || row.gaHealthScore != null) && (
+          <section>
+            <h4 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Analytics</h4>
+            <div className="space-y-1.5">
+              {row.gaViews7d != null && <InfoRow icon={<Hash size={12} />} label="Views 7d" value={String(row.gaViews7d)} />}
+              {row.gaViews30d != null && <InfoRow icon={<Hash size={12} />} label="Views 30d" value={String(row.gaViews30d)} />}
+              {row.gaViews90d != null && <InfoRow icon={<Hash size={12} />} label="Views 90d" value={String(row.gaViews90d)} />}
+              {row.gaUsers30d != null && <InfoRow icon={<Hash size={12} />} label="Users 30d" value={String(row.gaUsers30d)} />}
+              {row.gaLastViewed && <InfoRow icon={<Calendar size={12} />} label="Last Viewed" value={row.gaLastViewed} />}
+              {row.gaHealthScore != null && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-zinc-400 flex-shrink-0"><Hash size={12} /></span>
+                  <span className="text-zinc-500 w-20 flex-shrink-0">Health</span>
+                  <span style={{
+                    color: row.gaHealthScore >= 80 ? "#22c55e" : row.gaHealthScore >= 50 ? "#eab308" : row.gaHealthScore >= 20 ? "#f97316" : "#ef4444",
+                    fontWeight: 600,
+                  }}>
+                    {row.gaHealthScore}
+                    {row.gaHealthStatus && <span className="ml-1 font-normal capitalize">({row.gaHealthStatus})</span>}
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Classification section */}
         <section>

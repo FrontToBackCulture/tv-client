@@ -284,19 +284,6 @@ export function useRunQueryHealth() {
   });
 }
 
-/** Run dashboard health analysis for a domain */
-export function useRunDashboardHealth() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ domain, lookbackDays = 60 }: { domain: string; lookbackDays?: number }) =>
-      invoke<DashboardHealthResult>("val_run_dashboard_health", { domain, lookbackDays }),
-    onSuccess: (_data, { domain }) => {
-      qc.invalidateQueries({ queryKey: valSyncKeys.status(domain) });
-      qc.invalidateQueries({ queryKey: valSyncKeys.outputStatus(domain) });
-    },
-  });
-}
-
 /** Generate HTML overview page for a domain */
 export function useGenerateOverview() {
   const qc = useQueryClient();
@@ -524,80 +511,6 @@ export function useRunAllDomainsArtifactAudit() {
       const finalMsg = failed.length > 0
         ? `Done: ${completed.length} audited, ${failed.length} failed (${failed.join(", ")})`
         : `Done: ${completed.length}/${total} domains audited`;
-
-      updateJob(jobId, {
-        status: failed.length === total ? "failed" : "completed",
-        progress: 100,
-        message: finalMsg,
-      });
-
-      setProgress({ current: total, total, currentDomain: "", completed, failed, isRunning: false });
-    },
-    [addJob, updateJob, qc, progress?.isRunning]
-  );
-
-  const abort = useCallback(() => { abortRef.current = true; }, []);
-  return { trigger, abort, progress };
-}
-
-/** Run dashboard health analysis for all domains sequentially */
-export function useRunAllDomainsDashboardHealth() {
-  const addJob = useJobsStore((s) => s.addJob);
-  const updateJob = useJobsStore((s) => s.updateJob);
-  const qc = useQueryClient();
-  const [progress, setProgress] = useState<SyncAllDomainsProgress | null>(null);
-  const abortRef = useRef(false);
-
-  const trigger = useCallback(
-    async (domains: string[], lookbackDays = 60) => {
-      if (progress?.isRunning) return;
-      abortRef.current = false;
-
-      const jobId = `val-dashboard-health-${Date.now()}`;
-      const total = domains.length;
-      const completed: string[] = [];
-      const failed: string[] = [];
-
-      addJob({
-        id: jobId,
-        name: `Dashboard Health (${total})`,
-        status: "running",
-        progress: 0,
-        message: `Starting dashboard health analysis for ${total} domains...`,
-      });
-
-      setProgress({ current: 0, total, currentDomain: "", completed: [], failed: [], isRunning: true });
-
-      for (let i = 0; i < domains.length; i++) {
-        if (abortRef.current) {
-          updateJob(jobId, {
-            status: "failed",
-            progress: Math.round((i / total) * 100),
-            message: `Aborted after ${completed.length} completed, ${failed.length} failed`,
-          });
-          setProgress((p) => p ? { ...p, isRunning: false } : null);
-          return;
-        }
-
-        const domain = domains[i];
-        updateJob(jobId, {
-          progress: Math.round((i / total) * 100),
-          message: `[${i + 1}/${total}] Analyzing ${domain}...`,
-        });
-        setProgress({ current: i + 1, total, currentDomain: domain, completed: [...completed], failed: [...failed], isRunning: true });
-
-        try {
-          await invoke<DashboardHealthResult>("val_run_dashboard_health", { domain, lookbackDays });
-          completed.push(domain);
-          qc.invalidateQueries({ queryKey: valSyncKeys.status(domain) });
-        } catch {
-          failed.push(domain);
-        }
-      }
-
-      const finalMsg = failed.length > 0
-        ? `Done: ${completed.length} analyzed, ${failed.length} failed (${failed.join(", ")})`
-        : `Done: ${completed.length}/${total} domains analyzed`;
 
       updateJob(jobId, {
         status: failed.length === total ? "failed" : "completed",

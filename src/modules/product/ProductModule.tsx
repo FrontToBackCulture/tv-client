@@ -15,8 +15,8 @@ import { DomainTabView } from "./DomainTabView";
 import { CategoryLibraryPanel } from "./CategoryLibraryPanel";
 import { DataModelTabView } from "./DataModelTabView";
 import { EntityForm } from "./EntityForm";
-import { DataModelsReviewView } from "../library/DataModelsReviewView";
-import { ArtifactReviewView, type ArtifactType } from "../library/ArtifactReviewView";
+import { UnifiedReviewView } from "../library/UnifiedReviewView";
+import type { ReviewResourceType } from "../library/reviewTypes";
 import { AiSkillsTabView } from "./AiSkillsTabView";
 type ProductTab = "platform" | "solutions" | "domains" | "data-models" | "category-library" | "skills";
 type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
@@ -200,7 +200,8 @@ export function ProductModule() {
       dashboards: "Dashboards",
     };
 
-    const REVIEW_ARTIFACT: Record<string, ArtifactType> = {
+    const REVIEW_RESOURCE_TYPE: Record<ReviewType, ReviewResourceType> = {
+      "data-models": "table",
       queries: "query",
       workflows: "workflow",
       dashboards: "dashboard",
@@ -224,12 +225,9 @@ export function ProductModule() {
           </span>
         </div>
         <div className="flex-1 overflow-hidden">
-          {folderPath && reviewType === "data-models" && (
-            <DataModelsReviewView dataModelsPath={folderPath} domainName={reviewingDomain} />
-          )}
-          {folderPath && reviewType !== "data-models" && (
-            <ArtifactReviewView
-              artifactType={REVIEW_ARTIFACT[reviewType]}
+          {folderPath && (
+            <UnifiedReviewView
+              resourceType={REVIEW_RESOURCE_TYPE[reviewType]}
               folderPath={folderPath}
               domainName={reviewingDomain}
             />

@@ -51,10 +51,19 @@ export interface ExtractResult {
   message: string;
 }
 
+export interface MarkStaleResult {
+  domain: string;
+  marked: number;
+  unmarked: number;
+  total_stale: number;
+  duration_ms: number;
+}
+
 export interface SyncAllResult {
   domain: string;
   results: SyncResult[];
   extract_results: ExtractResult[];
+  stale_result: MarkStaleResult | null;
   total_duration_ms: number;
   status: string;
 }

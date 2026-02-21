@@ -72,5 +72,8 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 # Hashing (for email body file names)
 sha2 = "0.10"
 
+# JWT signing (for GA4 service account auth)
+jsonwebtoken = "9"
+
 [profile.dev]
 debug = 0  # No debug symbols - faster builds, smaller target/debug folder

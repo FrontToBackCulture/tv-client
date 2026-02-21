@@ -1,4 +1,5 @@
-// DataModelsAgGrid: AG Grid CSS styles (light + dark mode)
+// Unified review grid: AG Grid CSS styles (light + dark mode)
+// Merged from dataModelsGridStyles.ts and artifactReviewStyles.ts
 
 /** Styles for group rows, modified rows, and editable cells */
 export const groupRowStyles = `

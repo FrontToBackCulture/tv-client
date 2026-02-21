@@ -250,6 +250,96 @@ async fn audit_artifact_type(
 }
 
 // ============================================================================
+// Mark Stale
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarkStaleResult {
+    pub domain: String,
+    pub marked: usize,
+    pub unmarked: usize,
+    pub total_stale: usize,
+    pub duration_ms: u64,
+}
+
+/// Mark stale artifacts with .stale marker files, and remove markers for restored artifacts
+pub async fn mark_stale_artifacts(domain: &str) -> Result<MarkStaleResult, String> {
+    let start = Instant::now();
+    let domain_config = get_domain_config(domain)?;
+    let global_path = &domain_config.global_path;
+    let base_url = format!("https://{}.thinkval.io", domain_config.api_domain());
+
+    let (token, _) = auth::ensure_auth(domain).await?;
+
+    let configs = get_artifact_configs();
+    let mut marked = 0;
+    let mut unmarked = 0;
+    let mut total_stale = 0;
+
+    for (artifact_type, config) in &configs {
+        // Get remote IDs
+        let remote_ids = match val_api_fetch(&base_url, &token, config.remote_endpoint, None).await {
+            Ok(data) => extract_remote_ids(&data, artifact_type),
+            Err(_) => continue, // Skip if API fails
+        };
+
+        // Scan local folders
+        let scan_path = Path::new(global_path).join(config.subfolder);
+        if !scan_path.exists() {
+            continue;
+        }
+
+        let entries = match fs::read_dir(&scan_path) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
+                || !name.starts_with(config.folder_prefix)
+            {
+                continue;
+            }
+
+            let id = name.replace(config.folder_prefix, "");
+            let stale_path = entry.path().join(".stale");
+
+            if remote_ids.contains(&id) {
+                // Artifact exists in VAL — remove .stale if present
+                if stale_path.exists() {
+                    let _ = fs::remove_file(&stale_path);
+                    unmarked += 1;
+                }
+            } else {
+                // Artifact not in VAL — write .stale if not present
+                total_stale += 1;
+                if !stale_path.exists() {
+                    let timestamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                    let content = serde_json::json!({
+                        "detected_at": timestamp,
+                        "artifact_type": *artifact_type,
+                    });
+                    let _ = fs::write(
+                        &stale_path,
+                        serde_json::to_string_pretty(&content).unwrap_or_default(),
+                    );
+                    marked += 1;
+                }
+            }
+        }
+    }
+
+    Ok(MarkStaleResult {
+        domain: domain.to_string(),
+        marked,
+        unmarked,
+        total_stale,
+        duration_ms: start.elapsed().as_millis() as u64,
+    })
+}
+
+// ============================================================================
 // Commands
 // ============================================================================
 
