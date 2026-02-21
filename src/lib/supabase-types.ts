@@ -1,5 +1,4 @@
 // Supabase database types for tv-client
-// Based on tv-app schema
 
 export type Json =
   | string

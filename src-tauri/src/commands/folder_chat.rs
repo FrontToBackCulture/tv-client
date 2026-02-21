@@ -1,5 +1,4 @@
 // Folder Chat - AI-powered folder Q&A using Anthropic Claude
-// Replaces the old tv-tools HTTP server folder-ask endpoint
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;

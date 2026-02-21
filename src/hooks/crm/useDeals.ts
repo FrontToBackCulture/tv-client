@@ -413,7 +413,7 @@ export function useDealTasks(dealId: string | null) {
         return [];
       }
 
-      // Step 4: Fetch full task details with embedded relations (same as tv-app CRM service)
+      // Step 4: Fetch full task details with embedded relations
       const { data, error } = await supabase
         .from("tasks")
         .select("id, title, description, priority, due_date, status_id, task_number, project_id, task_statuses(type), projects(identifier_prefix)")
