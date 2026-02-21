@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { cn } from "../lib/cn";
-import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Download, FlaskConical } from "lucide-react";
+import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Download } from "lucide-react";
 import { useAppUpdate } from "../hooks/useAppUpdate";
 
 interface ClaudeMcpStatus {
@@ -35,7 +35,7 @@ function useClaudeStatus(): ClaudeState {
 }
 
 export function StatusBar() {
-  const { syncStatus, theme, toggleTheme, playgroundMode, togglePlayground, openSettings } = useAppStore();
+  const { syncStatus, theme, toggleTheme, openSettings } = useAppStore();
   const claudeState = useClaudeStatus();
   const runningJobs = useRunningJobs();
   const recentJobs = useRecentJobs(10);
@@ -250,22 +250,6 @@ export function StatusBar() {
               </div>
             )}
           </div>
-
-        {/* Playground toggle */}
-        <button
-          onClick={togglePlayground}
-          data-help-id="status-bar-playground"
-          className={cn(
-            "flex items-center gap-1 px-2 py-0.5 rounded transition-colors",
-            playgroundMode
-              ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400"
-              : "hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400"
-          )}
-          title={`${playgroundMode ? "Exit" : "Enter"} playground mode (⇧⌘X)`}
-        >
-          <FlaskConical size={11} />
-          <span>{playgroundMode ? "Playground" : "Playground"}</span>
-        </button>
 
         <span>⌘K for commands</span>
 

@@ -11,9 +11,7 @@ import { CrmModule } from "./modules/crm/CrmModule";
 import { BotModule } from "./modules/bot/BotModule";
 import { ProductModule } from "./modules/product/ProductModule";
 import { SettingsModule } from "./modules/settings/SettingsModule";
-import { SystemModule } from "./modules/system/SystemModule";
 import { PortalModule } from "./modules/portal";
-import { Playground } from "./playground/Playground";
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { useAppStore, ModuleId } from "./stores/appStore";
@@ -31,13 +29,12 @@ const modules: Record<ModuleId, React.ComponentType> = {
   crm: CrmModule,
   product: ProductModule,
   bot: BotModule,
-  system: SystemModule,
   portal: PortalModule,
   settings: SettingsModule,
 };
 
 export default function App() {
-  const { activeModule, setActiveModule, playgroundMode, togglePlayground } = useAppStore();
+  const { activeModule, setActiveModule } = useAppStore();
   const { user, isLoading, isInitialized, initialize } = useAuth();
   const [setupDone, setSetupDone] = useState(isSetupComplete);
 
@@ -52,7 +49,7 @@ export default function App() {
   // Keyboard shortcuts: ⌘1-7 to switch modules, ⌘, for settings
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "8") {
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "7") {
         e.preventDefault();
         const moduleKeys: ModuleId[] = [
           "library",
@@ -61,7 +58,6 @@ export default function App() {
           "product",
           "bot",
           "inbox",
-          "system",
           "portal",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
@@ -80,11 +76,6 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "N") {
         e.preventDefault();
         openModuleInNewWindow(useAppStore.getState().activeModule);
-      }
-      // ⇧⌘X — Toggle playground mode
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "X" || e.key === "x")) {
-        e.preventDefault();
-        togglePlayground();
       }
       // ⌘/ — Toggle help panel
       if ((e.metaKey || e.ctrlKey) && e.key === "/") {
@@ -166,7 +157,7 @@ export default function App() {
 
   return (
     <Shell activeModule={activeModule} onModuleChange={setActiveModule}>
-      {playgroundMode ? <Playground /> : <ActiveModule />}
+      <ActiveModule />
     </Shell>
   );
 }

@@ -4,7 +4,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Download, CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles, Globe } from "lucide-react";
+import { CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles, Globe, ChevronDown } from "lucide-react";
 import { ReviewGrid, ReviewGridHandle } from "./ReviewGrid";
 import { TableDetailPreview } from "./TableDetailPreview";
 import { ArtifactDetailPreview } from "./ArtifactDetailPreview";
@@ -400,12 +400,6 @@ export function UnifiedReviewView({
     await handleSave();
   }, [modifiedRows.size, handleSave, showToast]);
 
-  // Export to CSV
-  const handleExport = useCallback((mode: "all" | "modified" | "review") => {
-    const event = new CustomEvent("review-export", { detail: { mode } });
-    window.dispatchEvent(event);
-  }, []);
-
   // Close detail panel
   const handleCloseDetail = useCallback(() => {
     setSelectedPath(null);
@@ -567,27 +561,50 @@ export function UnifiedReviewView({
             </span>
           )}
 
-          {/* Table-only batch action buttons */}
+          {/* Table-only batch action dropdowns */}
           {isTable && (
             <>
-              <button onClick={handleFetchAllSamples} disabled={isBatchRunning} data-help-id="review-fetch-samples" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Fetch sample rows for filtered tables">
-                <Database size={14} /> Fetch All Samples
-              </button>
-              <button onClick={handleFetchAllCategorical} disabled={isBatchRunning} data-help-id="review-fetch-categorical" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Fetch categorical values for filtered tables">
-                <Tags size={14} /> Fetch All Categorical
-              </button>
-              <button onClick={handleFetchAllDetails} disabled={isBatchRunning} data-help-id="review-fetch-details" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Fetch details for filtered tables">
-                <RefreshCw size={14} /> Fetch All Details
-              </button>
-              <button onClick={handleDescribeAll} disabled={isBatchRunning} data-help-id="review-ai-describe" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="AI naming, summary, and column descriptions for filtered tables">
-                <Sparkles size={14} /> AI Describe All
-              </button>
-              <button onClick={handleClassifyAll} disabled={isBatchRunning} data-help-id="review-ai-classify" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="AI classification, tags, and usage status for filtered tables">
-                <Sparkles size={14} /> AI Classify All
-              </button>
-              <button onClick={handleGenerateAllOverviews} disabled={isBatchRunning} data-help-id="review-generate-overviews" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Generate overviews for filtered tables">
-                <FileText size={14} /> Generate All Overviews
-              </button>
+              {/* Fetch dropdown */}
+              <div className="relative group" data-help-id="review-fetch">
+                <button
+                  disabled={isBatchRunning}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Database size={14} /> Fetch <ChevronDown size={12} />
+                </button>
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
+                  <button onClick={handleFetchAllSamples} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
+                    <Database size={13} /> Samples
+                  </button>
+                  <button onClick={handleFetchAllCategorical} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
+                    <Tags size={13} /> Categorical
+                  </button>
+                  <button onClick={handleFetchAllDetails} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
+                    <RefreshCw size={13} /> Details
+                  </button>
+                </div>
+              </div>
+
+              {/* AI dropdown */}
+              <div className="relative group" data-help-id="review-ai">
+                <button
+                  disabled={isBatchRunning}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Sparkles size={14} /> AI <ChevronDown size={12} />
+                </button>
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
+                  <button onClick={handleDescribeAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
+                    <Sparkles size={13} /> Describe All
+                  </button>
+                  <button onClick={handleClassifyAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
+                    <Tags size={13} /> Classify All
+                  </button>
+                  <button onClick={handleGenerateAllOverviews} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
+                    <FileText size={13} /> Generate Overviews
+                  </button>
+                </div>
+              </div>
             </>
           )}
 
@@ -610,19 +627,6 @@ export function UnifiedReviewView({
             </button>
           )}
 
-          {/* Export dropdown (tables only) */}
-          {isTable && (
-            <div className="relative group" data-help-id="review-export">
-              <button className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
-                <Download size={14} /> Export
-              </button>
-              <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
-                <button onClick={() => handleExport("all")} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700">Export All</button>
-                <button onClick={() => handleExport("modified")} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700">Export Modified</button>
-                <button onClick={() => handleExport("review")} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700">Export Review Queue</button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

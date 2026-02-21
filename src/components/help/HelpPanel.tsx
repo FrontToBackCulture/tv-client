@@ -16,7 +16,6 @@ const MODULE_LABELS: Record<string, string> = {
   product: "Product",
   bot: "Bots",
   inbox: "Inbox",
-  system: "System",
   settings: "Settings",
 };
 

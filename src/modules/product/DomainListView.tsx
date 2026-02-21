@@ -2,7 +2,7 @@
 // Domain list with auto-discovery from file system, grouped by type
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useDiscoverDomains, useSyncAllDomains, useSyncAllDomainsMonitoring, useSyncAllDomainsSod, useSyncAllDomainsImporterErrors, useSyncAllDomainsIntegrationErrors, useRunAllDomainsDataModelHealth, useRunAllDomainsWorkflowHealth, useRunAllDomainsDashboardHealth, useRunAllDomainsQueryHealth, useRunAllDomainsArtifactAudit, useRunAllDomainsOverview, type DiscoveredDomain } from "../../hooks/val-sync";
+import { useDiscoverDomains, useSyncAllDomains, useSyncAllDomainsMonitoring, useSyncAllDomainsSod, useSyncAllDomainsImporterErrors, useSyncAllDomainsIntegrationErrors, useRunAllDomainsDataModelHealth, useRunAllDomainsWorkflowHealth, useRunAllDomainsQueryHealth, useRunAllDomainsArtifactAudit, useRunAllDomainsOverview, type DiscoveredDomain } from "../../hooks/val-sync";
 import { useRepository } from "../../stores/repositoryStore";
 import { useJobsStore } from "../../stores/jobsStore";
 import { Loader2, Database, FolderOpen, AlertCircle, RefreshCw, Square, ChevronDown, ChevronRight, Zap } from "lucide-react";
@@ -148,7 +148,6 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
   const { trigger: syncIntegrationErrors, progress: integrationProgress } = useSyncAllDomainsIntegrationErrors();
   const { trigger: runDataModelHealth, progress: dataModelHealthProgress } = useRunAllDomainsDataModelHealth();
   const { trigger: runWorkflowHealth, progress: workflowHealthProgress } = useRunAllDomainsWorkflowHealth();
-  const { trigger: runDashboardHealth, progress: dashboardHealthProgress } = useRunAllDomainsDashboardHealth();
   const { trigger: runQueryHealth, progress: queryHealthProgress } = useRunAllDomainsQueryHealth();
   const { trigger: runArtifactAudit, progress: artifactAuditProgress } = useRunAllDomainsArtifactAudit();
   const { trigger: runOverview, progress: overviewProgress } = useRunAllDomainsOverview();
@@ -163,14 +162,13 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
   const isIntegrationSyncing = integrationProgress?.isRunning ?? false;
   const isDataModelHealthRunning = dataModelHealthProgress?.isRunning ?? false;
   const isWorkflowHealthRunning = workflowHealthProgress?.isRunning ?? false;
-  const isDashboardHealthRunning = dashboardHealthProgress?.isRunning ?? false;
   const isQueryHealthRunning = queryHealthProgress?.isRunning ?? false;
   const isArtifactAuditRunning = artifactAuditProgress?.isRunning ?? false;
   const isOverviewRunning = overviewProgress?.isRunning ?? false;
 
   const anyRunning = isSyncing || isMonitoringSyncing || isSodSyncing || isImporterSyncing ||
     isIntegrationSyncing || isDataModelHealthRunning || isWorkflowHealthRunning ||
-    isDashboardHealthRunning || isQueryHealthRunning || isArtifactAuditRunning ||
+    isQueryHealthRunning || isArtifactAuditRunning ||
     isOverviewRunning || fullAnalysisRunning;
 
   // Get current running operation label
@@ -182,7 +180,6 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
     if (isIntegrationSyncing) return "Syncing integration errors...";
     if (isDataModelHealthRunning) return "Running data model health...";
     if (isWorkflowHealthRunning) return "Running workflow health...";
-    if (isDashboardHealthRunning) return "Running dashboard health...";
     if (isQueryHealthRunning) return "Running query health...";
     if (isArtifactAuditRunning) return "Running artifact audit...";
     if (isOverviewRunning) return "Generating overview...";
@@ -201,7 +198,6 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
     const jobId = `full-analysis-${Date.now()}`;
     const steps = [
       { name: "Sync All", fn: () => syncAll(domainNames) },
-      { name: "Dashboard Health", fn: () => runDashboardHealth(domainNames) },
       { name: "Query Health", fn: () => runQueryHealth(domainNames) },
       { name: "Artifact Audit", fn: () => runArtifactAudit(domainNames) },
       { name: "Generate Overview", fn: () => runOverview(domainNames) },
@@ -233,7 +229,6 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
             elapsed += 500;
             const stillRunning =
               (step.name === "Sync All" && syncProgress?.isRunning) ||
-              (step.name === "Dashboard Health" && dashboardHealthProgress?.isRunning) ||
               (step.name === "Query Health" && queryHealthProgress?.isRunning) ||
               (step.name === "Artifact Audit" && artifactAuditProgress?.isRunning) ||
               (step.name === "Generate Overview" && overviewProgress?.isRunning);
@@ -262,7 +257,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
     } finally {
       setFullAnalysisRunning(false);
     }
-  }, [domainNames, anyRunning, syncAll, runDashboardHealth, runQueryHealth, runArtifactAudit, runOverview, addJob, updateJob, syncProgress?.isRunning, dashboardHealthProgress?.isRunning, queryHealthProgress?.isRunning, artifactAuditProgress?.isRunning, overviewProgress?.isRunning]);
+  }, [domainNames, anyRunning, syncAll, runQueryHealth, runArtifactAudit, runOverview, addJob, updateJob, syncProgress?.isRunning, queryHealthProgress?.isRunning, artifactAuditProgress?.isRunning, overviewProgress?.isRunning]);
 
   if (isLoading) {
     return (
@@ -374,12 +369,6 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
       onClick: () => runWorkflowHealth(domainNames),
       isRunning: isWorkflowHealthRunning,
       tooltip: "Analyze workflow execution success rates and recency. Identifies failing or stale scheduled workflows."
-    },
-    {
-      label: "Dashboard Health",
-      onClick: () => runDashboardHealth(domainNames),
-      isRunning: isDashboardHealthRunning,
-      tooltip: "Analyze dashboard usage from session data. Scores dashboards as critical/active/declining/unused based on view frequency."
     },
     {
       label: "Query Health",

@@ -180,14 +180,17 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
   }), []);
 
   const handleRowDoubleClicked = useCallback((event: { data: ReviewRow | undefined }) => {
-    if (event.data) onItemSelect?.(event.data.folderPath);
-  }, [onItemSelect]);
-
-  const handleRowClicked = useCallback((event: RowClickedEvent<ReviewRow>) => {
-    if (reviewMode && event.data && onRowSelected) {
+    if (!event.data) return;
+    if (reviewMode && onRowSelected) {
       onRowSelected(event.data.folderPath, isTable ? event.data.name : event.data.folderName, event.data);
+    } else {
+      onItemSelect?.(event.data.folderPath);
     }
-  }, [reviewMode, onRowSelected, isTable]);
+  }, [reviewMode, onRowSelected, onItemSelect, isTable]);
+
+  const handleRowClicked = useCallback((_event: RowClickedEvent<ReviewRow>) => {
+    // Single click — no action (detail panel opens on double-click)
+  }, []);
 
   const handleCellValueChanged = useCallback((event: CellValueChangedEvent<ReviewRow>) => {
     if (reviewMode && event.data && event.colDef.field && onCellEdited) {
@@ -373,7 +376,6 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
         setIsFullscreen={setIsFullscreen}
         reviewFilter={reviewFilter}
         setReviewFilter={setReviewFilter}
-        modifiedRows={modifiedRows}
         isTable={isTable}
       />
 

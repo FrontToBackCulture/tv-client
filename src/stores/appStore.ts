@@ -2,11 +2,11 @@
 
 import { create } from "zustand";
 
-export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "system" | "portal" | "settings";
+export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "portal" | "settings";
 export type Theme = "light" | "dark";
 export type SettingsView = "keys" | "val" | "sync" | "mcp" | "claude" | "bots" | null;
 
-const VALID_MODULES: ModuleId[] = ["library", "work", "inbox", "crm", "product", "bot", "system", "portal", "settings"];
+const VALID_MODULES: ModuleId[] = ["library", "work", "inbox", "crm", "product", "bot", "portal", "settings"];
 const LAST_MODULE_KEY = "tv-client-last-module";
 
 // Get initial module: URL param (multi-window) > localStorage (resume) > default
@@ -74,10 +74,6 @@ interface AppState {
   setTerminalOpen: (open: boolean) => void;
   toggleTerminal: () => void;
 
-  // Playground
-  playgroundMode: boolean;
-  togglePlayground: () => void;
-
   // Settings deep-link
   settingsView: SettingsView;
   setSettingsView: (view: SettingsView) => void;
@@ -117,10 +113,6 @@ export const useAppStore = create<AppState>((set) => ({
   terminalOpen: false,
   setTerminalOpen: (open) => set({ terminalOpen: open }),
   toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
-
-  // Playground
-  playgroundMode: false,
-  togglePlayground: () => set((state) => ({ playgroundMode: !state.playgroundMode })),
 
   // Settings deep-link
   settingsView: null,

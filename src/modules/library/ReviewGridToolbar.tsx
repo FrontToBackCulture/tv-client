@@ -14,7 +14,6 @@ import {
   FileSpreadsheet,
   Bookmark,
   ChevronsLeftRight,
-  Filter,
   Star,
   Save,
 } from "lucide-react";
@@ -33,7 +32,6 @@ interface ReviewGridToolbarProps {
   setIsFullscreen: (v: boolean) => void;
   reviewFilter: "all" | "needs-review" | "modified" | "deleted";
   setReviewFilter: (v: "all" | "needs-review" | "modified" | "deleted") => void;
-  modifiedRows?: Map<string, Record<string, unknown>>;
   isTable?: boolean;
 }
 
@@ -49,7 +47,6 @@ export function ReviewGridToolbar({
   setIsFullscreen,
   reviewFilter,
   setReviewFilter,
-  modifiedRows,
   isTable = false,
 }: ReviewGridToolbarProps) {
   const [savedLayouts, setSavedLayouts] = useState<Record<string, object>>(() => {
@@ -227,29 +224,6 @@ export function ReviewGridToolbar({
                 All
               </button>
               <button
-                onClick={() => setReviewFilter("needs-review")}
-                className={cn(
-                  "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
-                  reviewFilter === "needs-review"
-                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
-                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
-                )}
-              >
-                <Filter size={12} />
-                Needs Review
-              </button>
-              <button
-                onClick={() => setReviewFilter("modified")}
-                className={cn(
-                  "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
-                  reviewFilter === "modified"
-                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
-                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
-                )}
-              >
-                Modified ({modifiedRows?.size || 0})
-              </button>
-              <button
                 onClick={() => setReviewFilter("deleted")}
                 className={cn(
                   "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
@@ -266,27 +240,39 @@ export function ReviewGridToolbar({
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <button onClick={applyFlatLayout} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors" title="Apply flat layout with Category pinned left">
-            <Columns size={14} /> Flat
-          </button>
-          <button onClick={resetLayout} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors" title="Reset to default layout">
-            <RotateCcw size={14} /> Reset
-          </button>
-          <button onClick={autoSizeAllColumns} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors" title="Auto-size all columns">
-            <ChevronsLeftRight size={14} /> Fit
-          </button>
-
-          {/* Layouts dropdown */}
+          {/* Layouts dropdown — includes Flat, Fit, Reset + saved layouts */}
           <div className="relative">
             <button
               onClick={() => setShowLayoutMenu(!showLayoutMenu)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-              title="Saved layouts"
+              title="Layouts & view options"
             >
               <Bookmark size={14} /> Layouts
             </button>
             {showLayoutMenu && (
               <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1">
+                {/* Quick actions */}
+                <button
+                  onClick={() => { applyFlatLayout(); setShowLayoutMenu(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                >
+                  <Columns size={13} /> Flat View
+                </button>
+                <button
+                  onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                >
+                  <ChevronsLeftRight size={13} /> Auto-fit Columns
+                </button>
+                <button
+                  onClick={() => { resetLayout(); setShowLayoutMenu(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                >
+                  <RotateCcw size={13} /> Reset to Default
+                </button>
+
+                <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+
                 <button
                   onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }}
                   className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"

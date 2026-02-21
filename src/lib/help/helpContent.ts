@@ -19,8 +19,6 @@ const MODULE_CONTEXT: Record<string, string> = {
 
   inbox: `The user is in **Inbox**. Left sidebar: folder/category/status filters. Center: email list. Right: email detail. Emails auto-link to CRM companies by sender domain. Requires Outlook auth in Settings.`,
 
-  system: `The user is in **System**. System health monitoring, logs, and background job status.`,
-
   settings: `The user is in **Settings**. Six sub-views: API Keys (Anthropic/Supabase/Gamma/Gemini/GitHub/Intercom), VAL Credentials (per-domain), Sync Paths (knowledge folder), MCP Endpoints, Claude Code (CLI + TV-MCP setup), Bots (directory paths). Keys stored in OS keychain.`,
 };
 
@@ -66,12 +64,6 @@ const MODULE_SUGGESTIONS: Record<string, string[]> = {
     "How do I set up Claude Code?",
     "How do I configure VAL credentials?",
     "What's the setup order for new users?",
-  ],
-  system: [
-    "What can I monitor here?",
-    "How do I check background jobs?",
-    "What keyboard shortcuts are available?",
-    "How do I troubleshoot sync issues?",
   ],
 };
 
