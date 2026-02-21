@@ -85,8 +85,8 @@ export const useFolderExpansionStore = create<FolderExpansionState>()((set, get)
       const newMap = new Map(state.registeredFolders);
       if (!newMap.has(path)) {
         newMap.set(path, level);
-        // Auto-expand first 2 levels on initial registration
-        if (level < 2) {
+        // Auto-expand root level only on initial registration
+        if (level < 1) {
           const newExpandedSet = new Set(state.expandedFolders);
           newExpandedSet.add(path);
           return { registeredFolders: newMap, expandedFolders: newExpandedSet };

@@ -43,7 +43,9 @@ export function PlatformTabView({
 }: PlatformTabViewProps) {
   const [activeType, setActiveType] = useState<EntityType>("modules");
   const [search, setSearch] = useState("");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(
+    () => new Set([...LAYER_ORDER.map((l) => `layer:${l}`), "connectors"])
+  );
 
   // Fetch data
   const { data: modules = [] } = useProductModules();
