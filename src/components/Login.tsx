@@ -21,7 +21,7 @@ export function Login() {
   // If GitHub is not configured, show setup instructions
   if (!isGitHubConfigured) {
     return (
-      <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-800">
+      <div className="min-h-screen flex flex-col bg-gradient-to-br from-zinc-50 via-zinc-100 to-zinc-200 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-800">
         {/* Draggable title bar */}
         <div
           data-tauri-drag-region
@@ -47,7 +47,7 @@ export function Login() {
               </h1>
             </div>
 
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/50 dark:border-zinc-800 p-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 p-6">
               <div className="text-center mb-6">
                 <h2 className="text-lg font-medium text-zinc-900 dark:text-white">
                   Setup Required
@@ -58,8 +58,8 @@ export function Login() {
               </div>
 
               <div className="space-y-3 text-sm text-zinc-600 dark:text-zinc-400">
-                <p>Add these to your <code className="px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 rounded text-xs">.env</code> file:</p>
-                <div className="bg-slate-50 dark:bg-zinc-800 rounded-lg p-3 font-mono text-xs">
+                <p>Add these to your <code className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs">.env</code> file:</p>
+                <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3 font-mono text-xs">
                   <p>VITE_GITHUB_CLIENT_ID=...</p>
                   <p>VITE_GITHUB_CLIENT_SECRET=...</p>
                 </div>
@@ -72,7 +72,7 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-800">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-zinc-50 via-zinc-100 to-zinc-200 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-800">
       {/* Draggable title bar */}
       <div
         data-tauri-drag-region
@@ -104,7 +104,7 @@ export function Login() {
           </div>
 
           {/* Login Card */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/50 dark:border-zinc-800 p-6">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 p-6">
             <div className="text-center mb-6">
               <h2 className="text-lg font-medium text-zinc-900 dark:text-white">
                 Welcome back
@@ -144,7 +144,7 @@ export function Login() {
             {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200 dark:border-zinc-700" />
+                <div className="w-full border-t border-zinc-200 dark:border-zinc-700" />
               </div>
               <div className="relative flex justify-center text-xs">
                 <span className="px-2 bg-white dark:bg-zinc-900 text-zinc-400">

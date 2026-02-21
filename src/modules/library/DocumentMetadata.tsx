@@ -85,11 +85,11 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
   };
 
   return (
-    <div className="border border-slate-200 dark:border-zinc-800 rounded-lg mb-4 overflow-hidden">
+    <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg mb-4 overflow-hidden">
       {/* Header - always visible */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-4 py-2 bg-slate-50/50 dark:bg-zinc-900/50 hover:bg-slate-100/50 dark:hover:bg-zinc-800/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2 bg-zinc-50/50 dark:bg-zinc-900/50 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         <div className="flex items-center gap-2">
           {isExpanded ? (
@@ -124,7 +124,7 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
 
       {/* Expanded content */}
       {isExpanded && (
-        <div className="px-4 py-3 space-y-3 border-t border-slate-200 dark:border-zinc-800">
+        <div className="px-4 py-3 space-y-3 border-t border-zinc-200 dark:border-zinc-800">
           {/* Title (supports name as alias) */}
           {(data.title || data.name) && (
             <div className="flex items-start gap-2">
@@ -181,7 +181,7 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
           {data.category && (
             <div>
               <div className="text-xs text-zinc-500 mb-1">Category</div>
-              <span className="text-xs px-2 py-0.5 rounded bg-slate-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+              <span className="text-xs px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
                 {data.category}
               </span>
             </div>
@@ -209,7 +209,7 @@ export function DocumentMetadata({ content, defaultExpanded = false }: DocumentM
 
           {/* Review info */}
           {(data.last_reviewed || data.reviewed_by) && (
-            <div className="pt-2 border-t border-slate-200 dark:border-zinc-800">
+            <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
               <div className="text-xs text-zinc-500 mb-1">Review</div>
               <div className="text-sm text-zinc-600 dark:text-zinc-400">
                 {data.reviewed_by && <span>By {data.reviewed_by}</span>}

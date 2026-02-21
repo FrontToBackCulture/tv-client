@@ -55,9 +55,9 @@ export function ResponseViewer({ response, isError, className }: ResponseViewerP
   };
 
   return (
-    <div className={cn("rounded-lg border overflow-hidden", className, isError ? "border-red-200 dark:border-red-800" : "border-slate-200 dark:border-zinc-800")}>
+    <div className={cn("rounded-lg border overflow-hidden", className, isError ? "border-red-200 dark:border-red-800" : "border-zinc-200 dark:border-zinc-800")}>
       {/* Header */}
-      <div className={cn("flex items-center justify-between px-3 py-2 border-b", isError ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800" : "bg-slate-50 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800")}>
+      <div className={cn("flex items-center justify-between px-3 py-2 border-b", isError ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800" : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800")}>
         <div className="flex items-center gap-2 text-sm">
           {isError ? (
             <>
@@ -73,7 +73,7 @@ export function ResponseViewer({ response, isError, className }: ResponseViewerP
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
         >
           {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
           {copied ? "Copied" : "Copy"}
@@ -121,7 +121,7 @@ function JSONNode({
   return (
     <div style={{ marginLeft: level > 0 ? 16 : 0 }}>
       <div
-        className={cn("flex items-start gap-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-800/50", isExpandable && "cursor-pointer")}
+        className={cn("flex items-start gap-1 py-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50", isExpandable && "cursor-pointer")}
         onClick={() => isExpandable && setIsExpanded(!isExpanded)}
       >
         {/* Expand/collapse icon */}

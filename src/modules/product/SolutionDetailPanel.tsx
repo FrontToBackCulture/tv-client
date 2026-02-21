@@ -62,7 +62,7 @@ export function SolutionDetailPanel({ slug, solutionsBasePath, selectedFile, onC
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate">{title}</h2>
           <div className="flex items-center gap-2 mt-1">
@@ -77,7 +77,7 @@ export function SolutionDetailPanel({ slug, solutionsBasePath, selectedFile, onC
             <span className="text-xs text-zinc-400 truncate">{subtitle}</span>
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-500 flex-shrink-0">
+        <button onClick={onClose} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 flex-shrink-0">
           <X size={16} />
         </button>
       </div>

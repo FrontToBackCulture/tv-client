@@ -17,7 +17,7 @@ import {
   useUpdateDoc,
   useDeleteDoc,
   usePortalSites,
-} from "../../hooks/usePortal";
+} from "../../hooks/portal";
 import { cn } from "../../lib/cn";
 
 interface HelpCenterViewProps {
@@ -62,13 +62,13 @@ export function HelpCenterView({
     <>
       {/* List panel */}
       <div
-        className="flex flex-col border-r border-slate-200 dark:border-zinc-800 overflow-hidden"
+        className="flex flex-col border-r border-zinc-200 dark:border-zinc-800 overflow-hidden"
         style={{
           flex: selectedId ? `0 0 ${100 - detailWidth}%` : "1 1 auto",
         }}
       >
         {/* Toolbar */}
-        <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">
           <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             {docs?.length ?? 0} articles
           </span>
@@ -102,8 +102,8 @@ export function HelpCenterView({
               key={doc.id}
               onClick={() => onSelect(doc.id)}
               className={cn(
-                "w-full text-left px-3 py-3 border-b border-slate-100 dark:border-zinc-800/50 transition-colors",
-                "hover:bg-slate-50 dark:hover:bg-zinc-900/50",
+                "w-full text-left px-3 py-3 border-b border-zinc-100 dark:border-zinc-800/50 transition-colors",
+                "hover:bg-zinc-50 dark:hover:bg-zinc-900/50",
                 selectedId === doc.id &&
                   "bg-teal-50 dark:bg-teal-500/10 border-l-2 border-l-teal-500"
               )}
@@ -177,7 +177,7 @@ export function HelpCenterView({
 // ── Detail Editor ──
 
 const inputClass =
-  "w-full px-3 py-1.5 text-sm border border-slate-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500";
+  "w-full px-3 py-1.5 text-sm border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500";
 
 function DocDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const { data: docs } = usePortalDocs();
@@ -256,7 +256,7 @@ function DocDetail({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-slate-200 dark:border-zinc-800">
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
             Edit Article
@@ -290,7 +290,7 @@ function DocDetail({ id, onClose }: { id: string; onClose: () => void }) {
           </button>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-400"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400"
           >
             <X size={16} />
           </button>
@@ -474,7 +474,7 @@ function SiteTargeting({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-1.5 text-xs border border-slate-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+        className="w-full flex items-center justify-between px-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
       >
         <span>
           {value.length === 0
@@ -486,12 +486,12 @@ function SiteTargeting({
         <ChevronDown size={12} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-md shadow-lg z-20 py-1">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg z-20 py-1">
           {sites.map((site) => (
             <button
               key={site.id}
               onClick={() => toggleSite(site.id)}
-              className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-2"
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2"
             >
               <span
                 className={cn(
@@ -511,7 +511,7 @@ function SiteTargeting({
               onChange([]);
               setOpen(false);
             }}
-            className="w-full text-left px-3 py-1.5 text-xs text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 border-t border-slate-100 dark:border-zinc-800 mt-1"
+            className="w-full text-left px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 border-t border-zinc-100 dark:border-zinc-800 mt-1"
           >
             Clear (all sites)
           </button>

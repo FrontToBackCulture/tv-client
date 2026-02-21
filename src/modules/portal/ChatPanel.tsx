@@ -7,9 +7,10 @@ import {
   useMessages,
   useSendMessage,
   useUpdateConversation,
-} from "../../hooks/usePortal";
+} from "../../hooks/portal";
 import { useAuth } from "../../stores/authStore";
 import { cn } from "../../lib/cn";
+import { EmptyState } from "../../components/EmptyState";
 import type { Message } from "../../lib/portal/types";
 
 interface ChatPanelProps {
@@ -79,7 +80,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-slate-200 dark:border-zinc-800">
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800">
         <div className="min-w-0">
           <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
             {conversation?.customer_name || "Anonymous"}
@@ -104,7 +105,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
             )}
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-400"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400"
           >
             <X size={16} />
           </button>
@@ -114,9 +115,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {(!messages || messages.length === 0) && (
-          <div className="text-center text-zinc-400 mt-8 text-sm">
-            No messages yet
-          </div>
+          <EmptyState message="No messages yet" className="mt-8" />
         )}
 
         {messages?.map((msg) => (
@@ -126,7 +125,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
       </div>
 
       {/* Input */}
-      <div className="flex-shrink-0 border-t border-slate-200 dark:border-zinc-800 p-3">
+      <div className="flex-shrink-0 border-t border-zinc-200 dark:border-zinc-800 p-3">
         {/* Internal note toggle */}
         <div className="flex items-center gap-2 mb-2">
           <button
@@ -135,7 +134,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
               "flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full border transition-colors",
               isInternal
                 ? "border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10"
-                : "border-slate-200 dark:border-zinc-700 text-zinc-400 hover:border-zinc-400"
+                : "border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:border-zinc-400"
             )}
           >
             {isInternal ? <EyeOff size={11} /> : <Eye size={11} />}
@@ -162,14 +161,14 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
               "flex-1 px-3 py-2 text-sm border rounded-lg resize-none bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none",
               isInternal
                 ? "border-amber-300 dark:border-amber-500/40 focus:border-amber-500"
-                : "border-slate-200 dark:border-zinc-700 focus:border-teal-500"
+                : "border-zinc-200 dark:border-zinc-700 focus:border-teal-500"
             )}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || sendMessage.isPending}
             className={cn(
-              "px-3 py-2 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-40",
+              "px-3 py-2 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50",
               isInternal
                 ? "bg-amber-500 hover:bg-amber-600"
                 : "bg-teal-600 hover:bg-teal-500"
@@ -204,7 +203,7 @@ function MessageBubble({ message }: { message: Message }) {
           isInternal
             ? "bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200"
             : isCustomer
-              ? "bg-slate-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+              ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
               : "bg-teal-600 text-white"
         )}
       >

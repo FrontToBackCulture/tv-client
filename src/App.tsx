@@ -129,11 +129,11 @@ export default function App() {
   // Show loading spinner while initializing auth
   if (!isInitialized || isLoading) {
     return (
-      <div className="h-screen flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {/* Draggable title bar */}
         <div
           onMouseDown={() => getCurrentWindow().startDragging()}
-          className="h-10 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center flex-shrink-0"
+          className="h-10 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center flex-shrink-0"
         >
           <div className="w-20 flex-shrink-0" />
           <div className="flex-1 flex justify-center pointer-events-none">

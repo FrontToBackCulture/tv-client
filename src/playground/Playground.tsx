@@ -13,7 +13,7 @@ import {
 import { BotPlayground } from "./BotPlayground";
 import { WorkPlayground } from "./WorkPlayground";
 import { useAppStore } from "../stores/appStore";
-import { useCompanies, usePipelineStats, useCompanyWithRelations, useContacts, useDealsWithTasks, useActivities } from "../hooks/useCRM";
+import { useCompanies, usePipelineStats, useCompanyWithRelations, useContacts, useDealsWithTasks, useActivities } from "../hooks/crm";
 import type { Company, DealWithTaskInfo } from "../lib/crm/types";
 import { timeAgo, formatDateFull as formatDate } from "../lib/date";
 
@@ -26,7 +26,7 @@ const CLIENT_STAGES: Company["stage"][] = ["client"];
 
 const STAGES = [
   { value: "opportunity", label: "Opportunity", color: "bg-amber-500", text: "text-amber-700 dark:text-amber-400" },
-  { value: "prospect", label: "Prospect", color: "bg-slate-400", text: "text-slate-600 dark:text-slate-400" },
+  { value: "prospect", label: "Prospect", color: "bg-zinc-400", text: "text-zinc-600 dark:text-zinc-400" },
   { value: "client", label: "Client", color: "bg-emerald-500", text: "text-emerald-700 dark:text-emerald-400" },
   { value: "partner", label: "Partner", color: "bg-violet-500", text: "text-violet-700 dark:text-violet-400" },
   { value: "churned", label: "Churned", color: "bg-zinc-400", text: "text-zinc-500 dark:text-zinc-500" },
@@ -65,7 +65,7 @@ function PipelineBar({ stats }: { stats: { stage: string; count: number; value: 
   const total = stats.reduce((sum, s) => sum + s.count, 0);
   if (total === 0) return null;
   const colors: Record<string, string> = {
-    target: "bg-zinc-300 dark:bg-zinc-600", prospect: "bg-slate-400", lead: "bg-slate-500",
+    target: "bg-zinc-300 dark:bg-zinc-600", prospect: "bg-zinc-400", lead: "bg-zinc-500",
     qualified: "bg-sky-400", pilot: "bg-violet-400", proposal: "bg-cyan-400",
     negotiation: "bg-amber-400", won: "bg-emerald-500", lost: "bg-red-400",
   };
@@ -322,7 +322,7 @@ function classifyDealHealth(deal: DealWithTaskInfo): { health: DealHealth; reaso
 // ============================
 const KANBAN_STAGES = ["prospect", "lead", "qualified", "pilot", "proposal", "negotiation"] as const;
 const STAGE_COLORS: Record<string, string> = {
-  prospect: "bg-slate-400", lead: "bg-slate-500", qualified: "bg-sky-400",
+  prospect: "bg-zinc-400", lead: "bg-zinc-500", qualified: "bg-sky-400",
   pilot: "bg-violet-400", proposal: "bg-cyan-400", negotiation: "bg-amber-400",
 };
 const SOLUTION_LABELS: Record<string, { label: string; color: string }> = {

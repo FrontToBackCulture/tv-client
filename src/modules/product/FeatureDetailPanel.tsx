@@ -2,7 +2,7 @@
 // Detail panel for a selected feature — tabs: Overview, Connectors, Solutions, Releases, Activity
 
 import { useState, useMemo } from "react";
-import { useProductFeatureWithRelations } from "../../hooks/useProduct";
+import { useProductFeatureWithRelations } from "../../hooks/product";
 import { useReadFile } from "../../hooks/useFiles";
 import { useRepository } from "../../stores/repositoryStore";
 import { FEATURE_STATUSES } from "../../lib/product/types";
@@ -51,7 +51,7 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-600 animate-spin" />
+        <Loader2 size={24} className="text-zinc-400 animate-spin" />
       </div>
     );
   }
@@ -77,7 +77,7 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{data.name}</h2>
           <div className="flex items-center gap-2 mt-1">
@@ -100,7 +100,7 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
       </div>
 
       {/* Tabs */}
-      <div className="px-4 border-b border-slate-200 dark:border-zinc-800 flex gap-4">
+      <div className="px-4 border-b border-zinc-200 dark:border-zinc-800 flex gap-4">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -168,7 +168,7 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
               <p className="text-sm text-zinc-500">No connectors linked</p>
             ) : (
               data.connectors?.map((c) => (
-                <div key={c.id} className="p-2 rounded border border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+                <div key={c.id} className="p-2 rounded border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
                   <span className="text-sm text-zinc-700 dark:text-zinc-300">{c.name}</span>
                   <StatusChip label={c.connector_type} color="blue" />
                 </div>
@@ -183,7 +183,7 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
               <p className="text-sm text-zinc-500">No solutions using this feature</p>
             ) : (
               data.solutions?.map((s) => (
-                <div key={s.id} className="p-2 rounded border border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+                <div key={s.id} className="p-2 rounded border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
                   <span className="text-sm text-zinc-700 dark:text-zinc-300">{s.name}</span>
                   <StatusChip
                     label={s.status}

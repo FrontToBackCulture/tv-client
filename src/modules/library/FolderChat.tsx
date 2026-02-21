@@ -48,8 +48,8 @@ function MessageBubble({
         prose-strong:text-zinc-800 dark:prose-strong:text-zinc-200
         prose-ul:my-2 prose-ol:my-2
         prose-li:text-zinc-700 dark:prose-li:text-zinc-300 prose-li:my-0.5
-        prose-code:text-sm prose-code:bg-slate-200 dark:prose-code:bg-zinc-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-teal-600 dark:prose-code:text-teal-300
-        prose-pre:bg-slate-100 dark:prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-slate-200 dark:prose-pre:border-zinc-800
+        prose-code:text-sm prose-code:bg-zinc-200 dark:prose-code:bg-zinc-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-teal-600 dark:prose-code:text-teal-300
+        prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-200 dark:prose-pre:border-zinc-800
         prose-a:text-teal-600 dark:prose-a:text-teal-400 prose-a:no-underline hover:prose-a:underline
       ">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -57,7 +57,7 @@ function MessageBubble({
         </ReactMarkdown>
       </div>
       {message.sources && message.sources.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-800">
+        <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
           <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">
             Sources
           </p>
@@ -66,7 +66,7 @@ function MessageBubble({
               <button
                 key={i}
                 onClick={() => onSourceClick(source.path)}
-                className="text-xs px-2.5 py-1 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-500/50 transition-colors"
+                className="text-xs px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-500/50 transition-colors"
               >
                 {source.title}
               </button>
@@ -127,7 +127,7 @@ export function FolderChat({ folderPath, folderName, onFileClick }: FolderChatPr
                   key={q}
                   onClick={() => handleSubmit(undefined, q)}
                   disabled={isLoading}
-                  className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-full text-zinc-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-200 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors disabled:opacity-50"
                 >
                   {q}
                 </button>
@@ -157,7 +157,7 @@ export function FolderChat({ folderPath, folderName, onFileClick }: FolderChatPr
       </div>
 
       {/* Input area */}
-      <div className="border-t border-slate-200 dark:border-zinc-800 p-4 bg-slate-50 dark:bg-zinc-950">
+      <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 bg-zinc-50 dark:bg-zinc-950">
         <form onSubmit={handleSubmit} className="relative">
           <textarea
             ref={inputRef}
@@ -168,9 +168,9 @@ export function FolderChat({ folderPath, folderName, onFileClick }: FolderChatPr
             rows={2}
             disabled={isLoading}
             className={cn(
-              "w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-3 pr-12",
+              "w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 pr-12",
               "text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-600 resize-none",
-              "focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/20",
+              "focus:outline-none focus:border-teal-500",
               "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           />
@@ -180,7 +180,7 @@ export function FolderChat({ folderPath, folderName, onFileClick }: FolderChatPr
             className={cn(
               "absolute right-3 bottom-3 p-2 rounded-lg transition-colors",
               "bg-teal-600 text-white hover:bg-teal-500",
-              "disabled:bg-slate-200 dark:disabled:bg-zinc-700 disabled:text-zinc-400 dark:disabled:text-zinc-500 disabled:cursor-not-allowed"
+              "disabled:bg-zinc-200 dark:disabled:bg-zinc-700 disabled:text-zinc-400 dark:disabled:text-zinc-500 disabled:cursor-not-allowed"
             )}
           >
             <Send size={16} />

@@ -18,7 +18,7 @@ import { useRepository } from "../../stores/repositoryStore";
 import {
   useGenerateAiPackage,
   useSaveDomainAiConfig,
-} from "../../hooks/useValSync";
+} from "../../hooks/val-sync";
 import { useAiSkillSlugs } from "../../hooks/useAiSkills";
 
 interface DomainAiTabProps {
@@ -111,7 +111,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
   return (
     <div className="space-y-6">
       {/* Profile header card */}
-      <div className="rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
         <div className="h-1.5 bg-gradient-to-r from-purple-400 to-purple-600" />
         <div className="px-5 py-4">
           <div className="flex items-start gap-4">
@@ -133,12 +133,12 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
             </div>
           </div>
           <div className="flex gap-3 mt-4">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
               <Sparkles size={13} className={skillFiles.length > 0 ? "text-violet-500" : "text-zinc-300"} />
               <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">{skillFiles.length}</span>
               <span className="text-xs text-zinc-400">Skills</span>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
               <FileText size={13} className={hasInstructions ? "text-green-500" : "text-zinc-300"} />
               <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{hasInstructions ? "1" : "0"}</span>
               <span className="text-xs text-zinc-400">Instructions</span>
@@ -148,7 +148,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
       </div>
 
       {/* Skill Assignment + Generate */}
-      <div className="rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 space-y-3">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 space-y-3">
         <div className="flex items-center gap-2">
           <Sparkles size={14} className="text-violet-500" />
           <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
@@ -227,7 +227,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
 
       {aiNotFound && (
         <div className="flex items-center justify-center py-8">
-          <div className="border-2 border-dashed border-slate-300 dark:border-zinc-700 rounded-lg p-8 max-w-md text-center">
+          <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg p-8 max-w-md text-center">
             <Brain size={32} className="mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
             <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
               No AI context found
@@ -266,7 +266,7 @@ export function DomainAiTab({ aiPath, domainName }: DomainAiTabProps) {
                 ))}
               </div>
             ) : (
-              <div className="py-4 text-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-lg">
+              <div className="py-4 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
                 <Sparkles size={16} className="mx-auto mb-1.5 text-zinc-300 dark:text-zinc-700" />
                 <p className="text-xs text-zinc-400">No skill docs yet</p>
               </div>
@@ -318,7 +318,7 @@ function SkillDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => v
       onClick={onClick}
       className={cn(
         "text-left px-4 py-3 rounded-lg border bg-white dark:bg-zinc-900 hover:shadow-sm transition-all cursor-pointer group",
-        "border-slate-200 dark:border-zinc-800 hover:border-violet-300 dark:hover:border-violet-700"
+        "border-zinc-200 dark:border-zinc-800 hover:border-violet-300 dark:hover:border-violet-700"
       )}
     >
       <div className="flex items-center gap-2 mb-1">
@@ -361,8 +361,8 @@ function DocModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
-        <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100 dark:border-zinc-800">
+      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
+        <div className="flex-shrink-0 px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -374,7 +374,7 @@ function DocModal({
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
             >
               <X size={16} />
             </button>
@@ -411,7 +411,7 @@ function InstructionsCard({
 }) {
   if (isLoading) {
     return (
-      <div className="p-3 rounded border border-slate-200 dark:border-zinc-800 text-xs text-zinc-400">
+      <div className="p-3 rounded border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-400">
         Loading instructions...
       </div>
     );
@@ -419,14 +419,14 @@ function InstructionsCard({
 
   if (isError || !content) {
     return (
-      <div className="p-3 rounded border border-dashed border-slate-300 dark:border-zinc-700 text-xs text-zinc-400">
+      <div className="p-3 rounded border border-dashed border-zinc-300 dark:border-zinc-700 text-xs text-zinc-400">
         No instructions.md found — will be generated with the package.
       </div>
     );
   }
 
   return (
-    <div className="rounded border border-slate-200 dark:border-zinc-800 overflow-hidden">
+    <div className="rounded border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       <div className="p-3">
         <pre className="text-xs text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed line-clamp-[12]">
           {content}
@@ -434,7 +434,7 @@ function InstructionsCard({
       </div>
       <button
         onClick={onShowMore}
-        className="w-full px-3 py-1.5 text-[11px] text-teal-600 dark:text-teal-400 hover:bg-slate-50 dark:hover:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 transition-colors"
+        className="w-full px-3 py-1.5 text-[11px] text-teal-600 dark:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 transition-colors"
       >
         Show more
       </button>

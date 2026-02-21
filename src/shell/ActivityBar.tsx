@@ -70,7 +70,7 @@ function ActivityBarContextMenu({ menu, onClose }: { menu: ContextMenuState; onC
   return (
     <div
       ref={ref}
-      className="fixed z-50 min-w-[200px] bg-white dark:bg-zinc-900 rounded-lg border border-slate-200 dark:border-zinc-700 shadow-xl py-1"
+      className="fixed z-50 min-w-[200px] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl py-1"
       style={{ top: menu.y, left: menu.x }}
     >
       <button
@@ -78,7 +78,7 @@ function ActivityBarContextMenu({ menu, onClose }: { menu: ContextMenuState; onC
           openModuleInNewWindow(menu.moduleId);
           onClose();
         }}
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800"
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
       >
         <ExternalLink size={14} />
         Open {menu.label} in New Window
@@ -98,7 +98,7 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
   };
 
   return (
-    <div data-help-id="activity-bar" className="w-12 bg-slate-100 dark:bg-zinc-900 border-r border-slate-200 dark:border-zinc-800 flex flex-col items-center py-2 gap-1">
+    <div data-help-id="activity-bar" className="w-12 bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col items-center py-2 gap-1">
       {/* Module navigation */}
       {navItems.map((item) => {
         const Icon = item.icon;
@@ -112,8 +112,8 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
             onContextMenu={(e) => handleContextMenu(e, item)}
             className={cn(
               "w-10 h-10 flex items-center justify-center rounded-lg transition-colors text-zinc-600 dark:text-zinc-400",
-              "hover:bg-slate-200 dark:hover:bg-zinc-800",
-              isActive && "bg-slate-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
+              "hover:bg-zinc-200 dark:hover:bg-zinc-800",
+              isActive && "bg-zinc-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
             )}
             title={`${item.label} (${item.shortcut})`}
           >
@@ -125,13 +125,13 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
       {/* Side document panel toggle — visible in Work/CRM/Inbox */}
       {activeModule !== "library" && (
         <>
-          <div className="w-6 border-t border-slate-300 dark:border-zinc-700 my-1" />
+          <div className="w-6 border-t border-zinc-300 dark:border-zinc-700 my-1" />
           <button
             onClick={togglePanel}
             className={cn(
               "w-10 h-10 flex items-center justify-center rounded-lg transition-colors text-zinc-600 dark:text-zinc-400",
-              "hover:bg-slate-200 dark:hover:bg-zinc-800",
-              sidePanelOpen && "bg-slate-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
+              "hover:bg-zinc-200 dark:hover:bg-zinc-800",
+              sidePanelOpen && "bg-zinc-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
             )}
             title="Toggle Document Panel (⌘.)"
           >
@@ -156,8 +156,8 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
             onContextMenu={(e) => handleContextMenu(e, item)}
             className={cn(
               "w-10 h-10 flex items-center justify-center rounded-lg transition-colors text-zinc-600 dark:text-zinc-400",
-              "hover:bg-slate-200 dark:hover:bg-zinc-800",
-              isActive && "bg-slate-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
+              "hover:bg-zinc-200 dark:hover:bg-zinc-800",
+              isActive && "bg-zinc-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
             )}
             title={`${item.label} (${item.shortcut})`}
           >

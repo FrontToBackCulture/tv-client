@@ -103,11 +103,11 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
   if (!hasMetadata) return null;
 
   return (
-    <div className="mx-4 mt-3 mb-1 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 overflow-hidden">
+    <div className="mx-4 mt-3 mb-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 overflow-hidden">
       {/* Collapsed view - just title/summary */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-start gap-2 p-3 text-left hover:bg-slate-100 dark:hover:bg-zinc-800/50 transition-colors"
+        className="w-full flex items-start gap-2 p-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
       >
         {expanded ? (
           <ChevronDown size={14} className="mt-0.5 text-zinc-400 flex-shrink-0" />
@@ -132,7 +132,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
               ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
               : frontmatter.status === "draft"
               ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
-              : "bg-slate-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
           }`}>
             {frontmatter.status}
           </span>
@@ -141,7 +141,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
 
       {/* Expanded metadata */}
       {expanded && (
-        <div className="px-3 pb-3 pt-0 border-t border-slate-200 dark:border-zinc-800">
+        <div className="px-3 pb-3 pt-0 border-t border-zinc-200 dark:border-zinc-800">
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             {frontmatter.author && (
               <span className="flex items-center gap-1">
@@ -173,7 +173,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
               {frontmatter.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
                 >
                   {tag}
                 </span>
@@ -294,7 +294,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
         "p-1.5 rounded transition-colors",
         isActive
           ? "bg-teal-600 text-white"
-          : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-slate-200 dark:hover:bg-zinc-700",
+          : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700",
         disabled && "opacity-50 cursor-not-allowed"
       )}
     >
@@ -377,7 +377,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
         }
       `}</style>
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-900/80 flex-wrap">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/80 flex-wrap">
         <div className="flex items-center gap-0.5">
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleBold().run()}
@@ -409,7 +409,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           </ToolbarButton>
         </div>
 
-        <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700 mx-1" />
+        <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
 
         <div className="flex items-center gap-0.5">
           <ToolbarButton
@@ -435,7 +435,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           </ToolbarButton>
         </div>
 
-        <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700 mx-1" />
+        <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
 
         <div className="flex items-center gap-0.5">
           <ToolbarButton
@@ -467,7 +467,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           </ToolbarButton>
         </div>
 
-        <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700 mx-1" />
+        <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
 
         <div className="flex items-center gap-0.5">
           <ToolbarButton
@@ -485,7 +485,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           </ToolbarButton>
         </div>
 
-        <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700 mx-1" />
+        <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
 
         <div className="flex items-center gap-0.5">
           <ToolbarButton

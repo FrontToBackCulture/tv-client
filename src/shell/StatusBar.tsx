@@ -63,7 +63,7 @@ export function StatusBar() {
   const hasRunning = runningJobs.length > 0;
 
   return (
-    <div className="h-6 bg-slate-100 dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative">
+    <div className="h-6 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative">
       <div className="flex items-center gap-4">
         <span>TV Desktop v{__APP_VERSION__}</span>
         {import.meta.env.DEV && (
@@ -116,7 +116,7 @@ export function StatusBar() {
         <button
           data-help-id="status-bar-claude"
           onClick={() => openSettings("claude")}
-          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
           title="Claude Code status — click to open settings"
         >
           <span
@@ -146,7 +146,7 @@ export function StatusBar() {
                 "flex items-center gap-1.5 px-2 py-0.5 rounded transition-colors",
                 hasRunning
                   ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                  : "hover:bg-slate-200 dark:hover:bg-zinc-800"
+                  : "hover:bg-zinc-200 dark:hover:bg-zinc-800"
               )}
             >
               {hasRunning ? (
@@ -171,8 +171,8 @@ export function StatusBar() {
 
             {/* Jobs Panel */}
             {showJobsPanel && (
-              <div className="absolute bottom-full right-0 mb-1 w-96 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-zinc-700">
+              <div className="absolute bottom-full right-0 mb-1 w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
                   <span className="font-medium text-zinc-900 dark:text-zinc-100">
                     Background Jobs
                   </span>
@@ -193,7 +193,7 @@ export function StatusBar() {
                     recentJobs.map((job) => (
                       <div
                         key={job.id}
-                        className="px-3 py-2 border-b border-slate-100 dark:border-zinc-800 last:border-0 hover:bg-slate-50 dark:hover:bg-zinc-800/50"
+                        className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
@@ -235,7 +235,7 @@ export function StatusBar() {
                         )}
                         {job.status === "running" && job.progress !== undefined && (
                           <div className="mt-1.5 pl-6">
-                            <div className="h-1 bg-slate-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                            <div className="h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-teal-500 transition-all duration-300"
                                 style={{ width: `${job.progress}%` }}
@@ -259,7 +259,7 @@ export function StatusBar() {
             "flex items-center gap-1 px-2 py-0.5 rounded transition-colors",
             playgroundMode
               ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400"
-              : "hover:bg-slate-200 dark:hover:bg-zinc-800 text-zinc-400"
+              : "hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400"
           )}
           title={`${playgroundMode ? "Exit" : "Enter"} playground mode (⇧⌘X)`}
         >
@@ -273,7 +273,7 @@ export function StatusBar() {
         <button
           onClick={toggleTheme}
           data-help-id="status-bar-theme"
-          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
           title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
         >
           {theme === "dark" ? (

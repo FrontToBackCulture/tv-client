@@ -2,11 +2,12 @@
 // Detail panel — tabs: Overview, Items (grouped by type)
 
 import { useState } from "react";
-import { useProductReleaseWithRelations } from "../../hooks/useProduct";
+import { useProductReleaseWithRelations } from "../../hooks/product";
 import { RELEASE_STATUSES, RELEASE_ITEM_TYPES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
 import { X, Loader2, FileText } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { EmptyState } from "../../components/EmptyState";
 
 interface ReleaseDetailPanelProps {
   id: string;
@@ -22,15 +23,15 @@ export function ReleaseDetailPanel({ id, onClose }: ReleaseDetailPanelProps) {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-600 animate-spin" />
+        <Loader2 size={24} className="text-zinc-400 animate-spin" />
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-        Release not found
+      <div className="h-full flex items-center justify-center">
+        <EmptyState message="Release not found" />
       </div>
     );
   }
@@ -53,7 +54,7 @@ export function ReleaseDetailPanel({ id, onClose }: ReleaseDetailPanelProps) {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
             v{data.version}
@@ -68,13 +69,13 @@ export function ReleaseDetailPanel({ id, onClose }: ReleaseDetailPanelProps) {
             )}
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-500">
+        <button onClick={onClose} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
           <X size={16} />
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="px-4 border-b border-slate-200 dark:border-zinc-800 flex gap-4">
+      <div className="px-4 border-b border-zinc-200 dark:border-zinc-800 flex gap-4">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -147,7 +148,7 @@ export function ReleaseDetailPanel({ id, onClose }: ReleaseDetailPanelProps) {
                   </h4>
                   <div className="space-y-1">
                     {group.items.map((item) => (
-                      <div key={item.id} className="p-2 rounded border border-slate-200 dark:border-zinc-800">
+                      <div key={item.id} className="p-2 rounded border border-zinc-200 dark:border-zinc-800">
                         <span className="text-sm text-zinc-700 dark:text-zinc-300">{item.title}</span>
                         {item.description && (
                           <p className="text-xs text-zinc-400 mt-0.5">{item.description}</p>

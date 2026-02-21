@@ -131,11 +131,11 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
   // ── Render ───────────────────────────────────────────
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 dark:bg-zinc-950">
+    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       {/* Draggable title bar */}
       <div
         onMouseDown={() => getCurrentWindow().startDragging()}
-        className="h-10 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center flex-shrink-0"
+        className="h-10 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center flex-shrink-0"
       >
         <div className="w-20 flex-shrink-0" />
         <div className="flex-1 flex justify-center pointer-events-none">
@@ -278,7 +278,7 @@ function CliStep({
       </div>
 
       {/* Status card */}
-      <div className="border border-slate-200 dark:border-zinc-800 rounded-lg p-5 mb-6">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 mb-6">
         {checking ? (
           <div className="flex items-center justify-center py-4">
             <Loader2 size={24} className="animate-spin text-zinc-400" />
@@ -361,7 +361,7 @@ function CliStep({
             <button
               onClick={onCheck}
               disabled={checking}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-slate-300 dark:border-zinc-700 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
             >
               {checking ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -423,7 +423,7 @@ function McpStep({
         <>
           {/* Status cards */}
           <div className="space-y-3 mb-6">
-            <div className="border border-slate-200 dark:border-zinc-800 rounded-lg p-4">
+            <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Download size={16} className="text-zinc-400" />
@@ -445,7 +445,7 @@ function McpStep({
               </div>
             </div>
 
-            <div className="border border-slate-200 dark:border-zinc-800 rounded-lg p-4">
+            <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Settings size={16} className="text-zinc-400" />

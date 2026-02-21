@@ -74,7 +74,7 @@ export function ExcalidrawViewer({ content, filename }: ExcalidrawViewerProps) {
     <div className="flex-1 overflow-auto p-4">
       <div
         ref={containerRef}
-        className="bg-white dark:bg-zinc-800 rounded-lg border border-slate-200 dark:border-zinc-700 p-4 overflow-auto"
+        className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 overflow-auto"
         style={{ maxHeight: "calc(100vh - 120px)" }}
       >
         {svgContent && (

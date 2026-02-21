@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Search, X, Plus, ChevronRight, FileText, Play } from "lucide-react";
-import { useProductModules, useProductFeatures, useProductConnectors } from "../../hooks/useProduct";
+import { useProductModules, useProductFeatures, useProductConnectors } from "../../hooks/product";
 import { useRepository } from "../../stores/repositoryStore";
 import { invoke } from "@tauri-apps/api/core";
 import { ModuleGridView } from "./ModuleGridView";
@@ -465,7 +465,7 @@ export function PlatformTabView({
     <div className="flex h-full flex-1 min-w-0">
       {/* Sidebar */}
       <div
-        className="flex-shrink-0 h-full border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex flex-col relative"
+        className="flex-shrink-0 h-full border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 flex flex-col relative"
         style={{ width: sidebarWidth, transition: isResizingSidebar ? "none" : "width 200ms" }}
       >
         {/* Search */}
@@ -477,7 +477,7 @@ export function PlatformTabView({
               placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-7 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
+              className="w-full pl-8 pr-7 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:border-teal-500"
             />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
@@ -494,7 +494,7 @@ export function PlatformTabView({
         </div>
 
         {/* New button */}
-        <div className="px-2 py-2 border-t border-slate-200 dark:border-zinc-800">
+        <div className="px-2 py-2 border-t border-zinc-200 dark:border-zinc-800">
           <button
             onClick={() => onNew(newButtonType)}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs font-medium transition-colors"
@@ -531,7 +531,7 @@ export function PlatformTabView({
       {/* Detail panel — full width for features, resizable for modules/connectors */}
       {selectedId && (
         <div
-          className="relative overflow-hidden border-l border-slate-200 dark:border-zinc-800 min-w-0"
+          className="relative overflow-hidden border-l border-zinc-200 dark:border-zinc-800 min-w-0"
           style={{
             flex: activeType === "features" ? "1 1 auto" : `0 0 ${detailPanelWidth}%`,
             transition: isResizingDetail ? "none" : "flex 200ms",

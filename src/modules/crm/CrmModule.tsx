@@ -2,7 +2,7 @@
 // Main CRM module with 4-tab layout: Pipeline, Directory, Clients, Closed
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { usePipelineStats, useCRMRealtime } from "../../hooks/useCRM";
+import { usePipelineStats, useCRMRealtime } from "../../hooks/crm";
 import { Company, DealWithTaskInfo } from "../../lib/crm/types";
 import { CompanyDetailPanel } from "./CompanyDetailPanel";
 import { CompanyForm } from "./CompanyForm";
@@ -139,7 +139,7 @@ export function CrmModule() {
   // Detail panel component (shared across all views)
   const detailPanel = selectedCompanyId && (
     <div
-      className="relative overflow-hidden border-l border-slate-200 dark:border-zinc-800"
+      className="relative overflow-hidden border-l border-zinc-200 dark:border-zinc-800"
       style={{
         flex: `0 0 ${detailPanelWidth}%`,
         transition: isResizingDetail ? "none" : "flex 200ms",

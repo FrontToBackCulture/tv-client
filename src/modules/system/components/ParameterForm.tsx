@@ -128,9 +128,9 @@ function FieldInput({
     "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100",
     "placeholder:text-zinc-400",
     error
-      ? "border-red-300 dark:border-red-700 focus:border-red-500 focus:ring-red-500"
-      : "border-slate-300 dark:border-zinc-700 focus:border-teal-500 focus:ring-teal-500",
-    "focus:outline-none focus:ring-1"
+      ? "border-red-300 dark:border-red-700 focus:border-red-500"
+      : "border-zinc-300 dark:border-zinc-700 focus:border-teal-500",
+    "focus:outline-none"
   );
 
   // Handle enums (dropdowns)

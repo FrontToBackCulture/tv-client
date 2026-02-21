@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import {
   useProjects, useAllTasks, useInitiatives, useUsers,
-} from "../../hooks/useWork";
+} from "../../hooks/work";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { TaskForm } from "./TaskForm";
 import {

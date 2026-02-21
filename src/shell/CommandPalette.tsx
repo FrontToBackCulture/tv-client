@@ -123,9 +123,9 @@ export function CommandPalette() {
       />
 
       {/* Palette */}
-      <div data-help-id="command-palette" className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-lg border border-slate-200 dark:border-zinc-700 shadow-2xl">
+      <div data-help-id="command-palette" className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-2xl">
         {/* Search input */}
-        <div className="flex items-center px-4 border-b border-slate-200 dark:border-zinc-700">
+        <div className="flex items-center px-4 border-b border-zinc-200 dark:border-zinc-700">
           <Search size={16} className="text-zinc-400 dark:text-zinc-500" />
           <input
             ref={inputRef}
@@ -150,7 +150,7 @@ export function CommandPalette() {
             <button
               key={cmd.id}
               onClick={() => executeCommand(cmd)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm rounded text-zinc-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800"
+              className="w-full flex items-center justify-between px-3 py-2 text-sm rounded text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
               <span>{cmd.label}</span>
               {cmd.shortcut && (

@@ -2,7 +2,7 @@
 // Deal card component for displaying deals
 
 import { useState, memo } from "react";
-import { useUpdateDeal, useDeleteDeal } from "../../hooks/useCRM";
+import { useUpdateDeal, useDeleteDeal } from "../../hooks/crm";
 import { Deal, DealTask, DEAL_STAGES } from "../../lib/crm/types";
 import { DealForm } from "./DealForm";
 import { Pencil, Trash2, User, Calendar, ClipboardList, Circle, CheckCircle2 } from "lucide-react";
@@ -122,8 +122,8 @@ export const DealCard = memo(function DealCard({
       <>
         <div
           onClick={onClick}
-          className={`relative group/card px-3 py-2 rounded border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors cursor-pointer border-l-2 ${staleBorderColor} ${
-            staleStatus.isDormant ? "bg-slate-100 dark:bg-zinc-900 opacity-60" : "bg-white dark:bg-zinc-800"
+          className={`relative group/card px-3 py-2 rounded border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors cursor-pointer border-l-2 ${staleBorderColor} ${
+            staleStatus.isDormant ? "bg-zinc-100 dark:bg-zinc-900 opacity-60" : "bg-white dark:bg-zinc-800"
           }`}
         >
           <div className="flex items-center justify-between gap-2">
@@ -161,10 +161,10 @@ export const DealCard = memo(function DealCard({
 
           {/* Snooze menu */}
           {showSnoozeMenu && (
-            <div className="absolute top-1 right-1 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded shadow-lg py-1 min-w-[120px] z-20">
+            <div className="absolute top-1 right-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded shadow-lg py-1 min-w-[120px] z-20">
               <button
                 onClick={(e) => { e.stopPropagation(); handleToggleDormant(); }}
-                className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700"
+                className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 {staleStatus.isDormant ? "Reactivate" : "Mark Dormant"}
               </button>
@@ -222,7 +222,7 @@ export const DealCard = memo(function DealCard({
   // Full card view
   return (
     <>
-      <div className="px-3 py-3 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg group">
+      <div className="px-3 py-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg group">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -240,14 +240,14 @@ export const DealCard = memo(function DealCard({
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => setShowEditForm(true)}
-              className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-slate-100 dark:hover:bg-zinc-700"
+              className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700"
               title="Edit deal"
             >
               <Pencil size={14} />
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="p-1 text-zinc-500 hover:text-red-500 dark:hover:text-red-400 rounded hover:bg-slate-100 dark:hover:bg-zinc-700"
+              className="p-1 text-zinc-500 hover:text-red-500 dark:hover:text-red-400 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700"
               title="Delete deal"
             >
               <Trash2 size={14} />
@@ -274,7 +274,7 @@ export const DealCard = memo(function DealCard({
 
         {/* Linked Tasks */}
         {showTasks && deal.tasks && deal.tasks.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-700">
+          <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
             <div className="flex items-center gap-2 mb-2">
               <ClipboardList size={12} className="text-zinc-500" />
               <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -328,7 +328,7 @@ export const DealCard = memo(function DealCard({
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-md p-4 max-w-sm w-full mx-4 shadow-lg">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md p-4 max-w-sm w-full mx-4 shadow-lg">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Delete Deal</h3>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-3">
               Are you sure you want to delete <strong>{deal.name}</strong>? This
@@ -337,7 +337,7 @@ export const DealCard = memo(function DealCard({
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded"
+                className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
                 disabled={deleteMutation.isPending}
               >
                 Cancel
@@ -359,7 +359,7 @@ export const DealCard = memo(function DealCard({
 
 function StageChip({ stage, label }: { stage: string; label: string }) {
   const colors: Record<string, string> = {
-    prospect: "bg-slate-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400",
+    prospect: "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400",
     lead: "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400",
     qualified: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
     pilot: "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400",

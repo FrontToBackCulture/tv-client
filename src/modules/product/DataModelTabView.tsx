@@ -31,8 +31,8 @@ import {
   useDomainModelFile,
   useScanDomainModelTable,
   useGenerateSchemaMd,
-} from "../../hooks/useValSync";
-import type { EntityInfo } from "../../hooks/useValSync";
+} from "../../hooks/val-sync";
+import type { EntityInfo } from "../../hooks/val-sync";
 import { SchemaFieldsGrid } from "./SchemaFieldsGrid";
 import type { SchemaFile } from "./SchemaFieldsGrid";
 import { FieldMasterGrid } from "./FieldMasterGrid";

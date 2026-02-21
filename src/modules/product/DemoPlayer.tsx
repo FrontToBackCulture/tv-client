@@ -144,7 +144,7 @@ export function DemoPlayer({ demoPath, basePath }: DemoPlayerProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Title bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-teal-600 dark:text-teal-400 tabular-nums">
             Step {currentStep + 1} of {demo.steps.length}
@@ -193,7 +193,7 @@ export function DemoPlayer({ demoPath, basePath }: DemoPlayerProps) {
       </div>
 
       {/* Navigation bar */}
-      <div className="shrink-0 border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+      <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
         {/* Description */}
         <div className="px-4 py-3">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">

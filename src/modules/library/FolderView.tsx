@@ -13,6 +13,7 @@ import { FolderActions, FolderActionHandlers } from "./FolderActions";
 import { FileActions } from "./FileActions";
 import { detectFolderType, type FolderType } from "../../lib/folderTypes";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
+import { EmptyState } from "../../components/EmptyState";
 import { cn } from "../../lib/cn";
 
 interface FolderViewProps {
@@ -86,7 +87,7 @@ function FileCard({
     <button
       onClick={onClick}
       onDoubleClick={onDoubleClick}
-      className="w-full text-left p-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-teal-500/50 hover:bg-slate-100 dark:hover:bg-zinc-800/50 transition-all group"
+      className="w-full text-left p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:border-teal-500/50 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-all group"
     >
       <div className="flex items-start gap-3">
         <FileIcon filename={file.name} />
@@ -119,7 +120,7 @@ function SubfolderCard({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left p-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-teal-500/50 hover:bg-slate-100 dark:hover:bg-zinc-800/50 transition-all group"
+      className="w-full text-left p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:border-teal-500/50 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-all group"
     >
       <div className="flex items-center gap-3">
         <FolderOpen size={20} className="text-teal-500 dark:text-teal-400 flex-shrink-0" />
@@ -166,7 +167,7 @@ function FilesView({
       <div className="max-w-3xl mx-auto px-4 pt-8 pb-24">
         {/* Folder header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-200 dark:bg-zinc-800/50 mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-zinc-200 dark:bg-zinc-800/50 mb-4">
             <FolderOpen size={32} className="text-teal-500 dark:text-teal-400" />
           </div>
           <h1 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
@@ -242,10 +243,7 @@ function FilesView({
 
             {/* Empty state */}
             {!hasSubdirs && !hasFiles && (
-              <div className="text-center py-8">
-                <FolderOpen size={48} className="mx-auto mb-4 text-zinc-400 dark:text-zinc-700" />
-                <p className="text-zinc-500">This folder is empty</p>
-              </div>
+              <EmptyState icon={FolderOpen} message="This folder is empty" />
             )}
           </>
         )}
@@ -358,7 +356,7 @@ export function FolderView({
   return (
     <div className="h-full flex flex-col">
       {/* Header with breadcrumbs and view toggle */}
-      <div className="sticky top-0 z-10 bg-slate-50 dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800">
+      <div className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
         <div className="px-4 py-2 flex items-center justify-between">
           <Breadcrumbs
             path={path}
@@ -369,7 +367,7 @@ export function FolderView({
 
           <div className="flex items-center gap-2">
             {/* View mode toggle */}
-            <div className="flex items-center gap-1 bg-slate-200 dark:bg-zinc-900 rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-zinc-200 dark:bg-zinc-900 rounded-lg p-1">
             <button
               onClick={() => setViewMode("files")}
               className={cn(

@@ -69,7 +69,7 @@ export function OutlookSetup() {
   // Already authenticated
   if (auth?.isAuthenticated) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
+      <div className="flex-1 flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="text-center max-w-md px-4">
           <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
             <CheckCircle size={32} className="text-green-600 dark:text-green-400" />
@@ -88,7 +88,7 @@ export function OutlookSetup() {
   // Loading state
   if (state === "loading") {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
+      <div className="flex-1 flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="text-center">
           <Loader2 size={32} className="mx-auto mb-4 text-zinc-400 animate-spin" />
           <p className="text-zinc-500">Loading credentials...</p>
@@ -98,7 +98,7 @@ export function OutlookSetup() {
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
+    <div className="flex-1 flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
       <div className="max-w-md w-full px-6">
         <div className="text-center mb-8">
           <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
@@ -130,7 +130,7 @@ export function OutlookSetup() {
                   value={tenantId}
                   onChange={(e) => setTenantId(e.target.value)}
                   placeholder="e.g., common or your-tenant-id"
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
                 />
               </div>
               <div>
@@ -142,7 +142,7 @@ export function OutlookSetup() {
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
                   placeholder="Azure AD Application (client) ID"
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
                 />
               </div>
               <div>
@@ -154,7 +154,7 @@ export function OutlookSetup() {
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
                   placeholder="Azure AD Application client secret"
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
                 />
               </div>
             </>

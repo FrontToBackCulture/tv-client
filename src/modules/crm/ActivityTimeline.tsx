@@ -54,7 +54,7 @@ export function ActivityTimeline({
       case "email":
         return "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400";
       case "note":
-        return "bg-slate-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400";
+        return "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400";
       case "meeting":
         return "bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400";
       case "call":
@@ -64,7 +64,7 @@ export function ActivityTimeline({
       case "stage_change":
         return "bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400";
       default:
-        return "bg-slate-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400";
+        return "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400";
     }
   };
 
@@ -81,7 +81,7 @@ export function ActivityTimeline({
                 setActivityType(type);
                 setShowAddForm(true);
               }}
-              className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded-md text-zinc-700 dark:text-zinc-300 transition-colors"
+              className="px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md text-zinc-700 dark:text-zinc-300 transition-colors"
             >
               + {typeConfig?.label}
             </button>

@@ -196,7 +196,7 @@ export function LibraryModule() {
   }, [tabs, activeTabId, closeTab, setActiveTab, closeAllTabs]);
 
   return (
-    <div ref={containerRef} className="h-full flex bg-slate-50 dark:bg-zinc-950">
+    <div ref={containerRef} className="h-full flex bg-zinc-50 dark:bg-zinc-950">
       {/* Sidebar with file tree */}
       <Sidebar
         key={activeRepository?.id ?? "no-repo"}
@@ -212,7 +212,7 @@ export function LibraryModule() {
       <div
         onMouseDown={handleMouseDown}
         className={`w-1 cursor-col-resize hover:bg-teal-500/50 transition-colors flex-shrink-0 ${
-          isResizing ? "bg-teal-500" : "bg-transparent hover:bg-slate-300 dark:hover:bg-zinc-700"
+          isResizing ? "bg-teal-500" : "bg-transparent hover:bg-zinc-300 dark:hover:bg-zinc-700"
         }`}
       />
 
@@ -271,9 +271,9 @@ export function LibraryModule() {
             <>
               <div
                 onMouseDown={handleSplitMouseDown}
-                className="w-1 cursor-col-resize flex-shrink-0 hover:bg-slate-300 dark:hover:bg-zinc-700 active:bg-teal-500 transition-colors"
+                className="w-1 cursor-col-resize flex-shrink-0 hover:bg-zinc-300 dark:hover:bg-zinc-700 active:bg-teal-500 transition-colors"
               />
-              <div className="flex-1 overflow-hidden min-w-0 flex flex-col border-l border-slate-200 dark:border-zinc-800">
+              <div className="flex-1 overflow-hidden min-w-0 flex flex-col border-l border-zinc-200 dark:border-zinc-800">
                 <SplitPane
                   splitFile={splitFile}
                   knowledgePath={knowledgePath}
@@ -311,24 +311,24 @@ function SplitPane({ splitFile, knowledgePath, onFileSelect, onNavigate, onClose
   return (
     <>
       {/* Split pane header */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex-shrink-0">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex-shrink-0">
         <button
           onClick={() => setPickerOpen(true)}
-          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+          className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
           title="Search files"
         >
           <Search size={13} className="text-zinc-500" />
         </button>
         <button
           onClick={() => setPickerOpen(true)}
-          className="flex-1 text-xs text-zinc-600 dark:text-zinc-400 truncate text-left px-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+          className="flex-1 text-xs text-zinc-600 dark:text-zinc-400 truncate text-left px-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
           title="Click to change file"
         >
           {splitFile?.name || "Select a file..."}
         </button>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+          className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
           title="Close split"
         >
           <X size={13} className="text-zinc-500" />
@@ -398,7 +398,7 @@ function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: stri
   return (
     <div className="absolute inset-0 z-10 bg-white dark:bg-zinc-900 flex flex-col">
       {/* Search input */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
         <Search size={14} className="text-zinc-400 flex-shrink-0" />
         <input
           ref={inputRef}
@@ -409,7 +409,7 @@ function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: stri
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-zinc-900 dark:text-zinc-100"
         />
         {query && (
-          <button onClick={() => setQuery("")} className="p-0.5 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded">
+          <button onClick={() => setQuery("")} className="p-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded">
             <X size={12} className="text-zinc-500" />
           </button>
         )}
@@ -428,7 +428,7 @@ function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: stri
                 <button
                   key={r.path}
                   onClick={() => onSelect(r.path)}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
                 >
                   {r.is_directory ? (
                     <Folder size={14} className="flex-shrink-0 text-teal-500" />
@@ -446,7 +446,7 @@ function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: stri
           <>
             {/* Recent files */}
             {recentFiles.filter((f) => !f.isDirectory).length > 0 && (
-              <div className="py-1 border-b border-slate-200 dark:border-zinc-800">
+              <div className="py-1 border-b border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-500">
                   <Clock size={12} />
                   <span>Recent</span>
@@ -458,7 +458,7 @@ function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: stri
                     <button
                       key={f.path}
                       onClick={() => onSelect(f.path)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
                     >
                       <File size={14} className="flex-shrink-0 text-zinc-400" />
                       <span className="truncate">{f.name}</span>
@@ -522,7 +522,7 @@ function SplitPickerNode({ node, onSelect, level }: { node: TreeNode; onSelect: 
       <div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left"
+          className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
           style={{ paddingLeft: `${indent}px` }}
         >
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -558,7 +558,7 @@ function SplitPickerNode({ node, onSelect, level }: { node: TreeNode; onSelect: 
   return (
     <button
       onClick={() => onSelect(node.path)}
-      className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left"
+      className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
       style={{ paddingLeft: `${indent + 16}px` }}
     >
       <File size={14} className="flex-shrink-0 text-zinc-400" />

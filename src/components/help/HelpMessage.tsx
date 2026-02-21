@@ -30,7 +30,7 @@ export function HelpMessage({ message }: HelpMessageProps) {
           "max-w-[85%] rounded-lg px-3 py-2 text-sm break-words",
           isUser
             ? "bg-teal-600 text-white"
-            : "bg-slate-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+            : "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
         )}
       >
         {isUser ? (
@@ -39,8 +39,8 @@ export function HelpMessage({ message }: HelpMessageProps) {
           <div className="prose prose-sm dark:prose-invert max-w-none
             prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5
             prose-headings:my-2 prose-headings:text-sm
-            prose-code:text-xs prose-code:bg-slate-300 dark:prose-code:bg-zinc-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-            prose-pre:text-xs prose-pre:bg-slate-300 dark:prose-pre:bg-zinc-700 prose-pre:p-2 prose-pre:rounded
+            prose-code:text-xs prose-code:bg-zinc-300 dark:prose-code:bg-zinc-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+            prose-pre:text-xs prose-pre:bg-zinc-300 dark:prose-pre:bg-zinc-700 prose-pre:p-2 prose-pre:rounded
             prose-table:text-xs
             prose-a:text-teal-600 dark:prose-a:text-teal-400
           ">

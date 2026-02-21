@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from "react";
 import { ArrowUpDown } from "lucide-react";
-import { useCompanies } from "../../hooks/useCRM";
+import { useCompanies } from "../../hooks/crm";
 import { useClientEngagement } from "../../hooks/useClientEngagement";
 import { SearchInput, HEALTH_TIER_CONFIG, type HealthLevel } from "./CrmComponents";
 import { ClientRow } from "./ClientRow";

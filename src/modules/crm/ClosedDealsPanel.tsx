@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { X, CheckCircle, XCircle } from "lucide-react";
-import { useDeals } from "../../hooks/useCRM";
+import { useDeals } from "../../hooks/crm";
 import { DealCard } from "./DealCard";
 
 interface ClosedDealsPanelProps {
@@ -32,20 +32,20 @@ export function ClosedDealsPanel({ isOpen, onClose }: ClosedDealsPanelProps) {
       />
 
       {/* Panel */}
-      <div className="fixed right-0 top-0 h-full w-[400px] bg-white dark:bg-zinc-900 shadow-xl z-50 flex flex-col border-l border-slate-200 dark:border-zinc-800">
+      <div className="fixed right-0 top-0 h-full w-[400px] bg-white dark:bg-zinc-900 shadow-xl z-50 flex flex-col border-l border-zinc-200 dark:border-zinc-800">
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">Closed Deals</h2>
           <button
             onClick={onClose}
-            className="p-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X size={18} className="text-zinc-500" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex-shrink-0 flex border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex-shrink-0 flex border-b border-zinc-200 dark:border-zinc-800">
           <button
             onClick={() => setActiveTab("won")}
             className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${

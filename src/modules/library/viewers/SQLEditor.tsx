@@ -54,12 +54,12 @@ export function SQLEditor({ content, filename, onChange, saveStatus }: SQLEditor
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-900">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-900/80">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/80">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <FileCode size={16} className="text-cyan-500 dark:text-cyan-400" />
             <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
-            <span className="text-xs text-zinc-600 dark:text-zinc-600 bg-slate-200 dark:bg-zinc-800 px-2 py-0.5 rounded">SQL</span>
+            <span className="text-xs text-zinc-600 dark:text-zinc-600 bg-zinc-200 dark:bg-zinc-800 px-2 py-0.5 rounded">SQL</span>
           </div>
 
           {/* Status */}
@@ -81,7 +81,7 @@ export function SQLEditor({ content, filename, onChange, saveStatus }: SQLEditor
           <button
             onClick={() => setWordWrap(!wordWrap)}
             className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors ${
-              wordWrap ? "text-teal-600 dark:text-teal-400 bg-slate-200 dark:bg-zinc-800" : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-200 dark:hover:bg-zinc-800"
+              wordWrap ? "text-teal-600 dark:text-teal-400 bg-zinc-200 dark:bg-zinc-800" : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800"
             }`}
             title="Toggle word wrap"
           >
@@ -96,7 +96,7 @@ export function SQLEditor({ content, filename, onChange, saveStatus }: SQLEditor
         {/* Line numbers */}
         <div
           ref={lineNumbersRef}
-          className="flex-shrink-0 bg-slate-50 dark:bg-zinc-950 border-r border-slate-200 dark:border-zinc-800 overflow-hidden select-none"
+          className="flex-shrink-0 bg-zinc-50 dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 overflow-hidden select-none"
         >
           <div className="py-4 px-2 font-mono text-sm text-right">
             {lineNumbers.map((num) => (
@@ -114,7 +114,7 @@ export function SQLEditor({ content, filename, onChange, saveStatus }: SQLEditor
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onScroll={handleScroll}
-          className={`flex-1 p-4 bg-slate-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-300 font-mono text-sm resize-none focus:outline-none leading-6 ${
+          className={`flex-1 p-4 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-300 font-mono text-sm resize-none focus:outline-none leading-6 ${
             wordWrap ? "whitespace-pre-wrap" : "whitespace-pre overflow-x-auto"
           }`}
           spellCheck={false}

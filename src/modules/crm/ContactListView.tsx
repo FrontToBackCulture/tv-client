@@ -29,7 +29,7 @@ export function ContactListView({ contacts, onContactUpdated }: ContactListViewP
         {contacts.map((contact) => (
           <div
             key={contact.id}
-            className="px-4 py-3 border border-slate-200 dark:border-zinc-800 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/50 group transition-colors"
+            className="px-4 py-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/50 group transition-colors"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -43,7 +43,7 @@ export function ContactListView({ contacts, onContactUpdated }: ContactListViewP
                     </span>
                   )}
                   {!contact.is_active && (
-                    <span className="px-1.5 py-0.5 bg-slate-200 dark:bg-zinc-800 text-zinc-500 text-[11px] rounded">
+                    <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-500 text-[11px] rounded">
                       Inactive
                     </span>
                   )}
@@ -75,7 +75,7 @@ export function ContactListView({ contacts, onContactUpdated }: ContactListViewP
               </div>
               <button
                 onClick={() => setEditingContact(contact)}
-                className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity rounded hover:bg-slate-200 dark:hover:bg-zinc-700"
+                className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
                 title="Edit contact"
               >
                 <Pencil size={14} />

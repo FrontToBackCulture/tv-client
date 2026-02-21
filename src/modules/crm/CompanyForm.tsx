@@ -2,7 +2,7 @@
 // Modal form for creating/editing companies
 
 import { useState } from "react";
-import { useCreateCompany, useUpdateCompany } from "../../hooks/useCRM";
+import { useCreateCompany, useUpdateCompany } from "../../hooks/crm";
 import {
   Company,
   CompanyInsert,
@@ -83,14 +83,14 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-zinc-800">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
             {isEditing ? "Edit Company" : "New Company"}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X size={18} />
           </button>
@@ -114,7 +114,7 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
               type="text"
               value={formData.name || ""}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               required
             />
           </div>
@@ -129,7 +129,7 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
               onChange={(e) =>
                 setFormData({ ...formData, display_name: e.target.value })
               }
-              className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               placeholder="Friendly name (optional)"
             />
           </div>
@@ -147,7 +147,7 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
                     stage: e.target.value as Company["stage"],
                   })
                 }
-                className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 {COMPANY_STAGES.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -169,7 +169,7 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
                     source: e.target.value as Company["source"],
                   })
                 }
-                className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 {COMPANY_SOURCES.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -188,7 +188,7 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
               type="text"
               value={formData.industry || ""}
               onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               placeholder="e.g., F&B, Retail"
             />
           </div>
@@ -201,7 +201,7 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
               type="url"
               value={formData.website || ""}
               onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               placeholder="https://"
             />
           </div>
@@ -217,7 +217,7 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
                 onChange={(e) =>
                   setFormData({ ...formData, client_folder_path: e.target.value })
                 }
-                className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
                 placeholder="3_Clients/by_industry/fnb/..."
               />
             </div>
@@ -232,7 +232,7 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
                 onChange={(e) =>
                   setFormData({ ...formData, domain_id: e.target.value })
                 }
-                className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
                 placeholder="e.g., koi, suntec"
               />
             </div>
@@ -253,13 +253,13 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
                     handleAddTag();
                   }
                 }}
-                className="flex-1 px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
                 placeholder="Add tag..."
               />
               <button
                 type="button"
                 onClick={handleAddTag}
-                className="px-3 py-2 bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-md hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
+                className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
               >
                 Add
               </button>
@@ -293,16 +293,16 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
               value={formData.notes || ""}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
             />
           </div>
         </form>
 
-        <div className="p-4 border-t border-slate-200 dark:border-zinc-800 flex justify-end gap-2">
+        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+            className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
           >
             Cancel
           </button>

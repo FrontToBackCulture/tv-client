@@ -72,16 +72,16 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
 
   return (
     <div
-      className="h-full flex flex-col bg-white dark:bg-zinc-900 border-r border-slate-200 dark:border-zinc-800 flex-shrink-0"
+      className="h-full flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex-shrink-0"
       style={{ width: `${width}px` }}
     >
       {/* Repository Switcher */}
-      <div className="p-2 border-b border-slate-200 dark:border-zinc-800">
+      <div className="p-2 border-b border-zinc-200 dark:border-zinc-800">
         <RepositorySwitcher onRepositoryChange={onRepositoryChange} />
       </div>
 
       {/* Header */}
-      <div className="p-3 border-b border-slate-200 dark:border-zinc-800">
+      <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <FolderOpen size={16} className="text-zinc-500" />
@@ -90,7 +90,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
           <div className="flex items-center gap-1">
             <button
               onClick={expandAll}
-              className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+              className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
               title="Expand All Folders"
             >
               <ChevronsUpDown size={14} className="text-zinc-500" />
@@ -98,7 +98,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
             <div className="relative">
               <button
                 onClick={() => setShowCollapseMenu(!showCollapseMenu)}
-                className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
                 title="Collapse Folders"
               >
                 <ChevronsDownUp size={14} className="text-zinc-500" />
@@ -109,13 +109,13 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
                     className="fixed inset-0 z-40"
                     onClick={() => setShowCollapseMenu(false)}
                   />
-                  <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[140px]">
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[140px]">
                     <button
                       onClick={() => {
                         collapseToLevel(1);
                         setShowCollapseMenu(false);
                       }}
-                      className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                      className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                     >
                       Level 1 (Root)
                     </button>
@@ -124,7 +124,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
                         collapseToLevel(2);
                         setShowCollapseMenu(false);
                       }}
-                      className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                      className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                     >
                       Level 2
                     </button>
@@ -133,7 +133,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
                         collapseToLevel(3);
                         setShowCollapseMenu(false);
                       }}
-                      className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                      className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                     >
                       Level 3
                     </button>
@@ -144,7 +144,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
             <button
               onClick={handleRefresh}
               data-help-id="library-refresh"
-              className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+              className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
               title="Refresh"
             >
               <RefreshCw size={14} className={cn("text-zinc-500", isFetching && "animate-spin")} />
@@ -161,12 +161,12 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search files..."
-            className="w-full pl-7 pr-3 py-1.5 bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded text-sm text-zinc-800 dark:text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:border-teal-500 dark:focus:border-zinc-600"
+            className="w-full pl-7 pr-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-sm text-zinc-800 dark:text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:border-teal-500 dark:focus:border-zinc-600"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
             >
               <X size={12} className="text-zinc-500" />
             </button>
@@ -187,11 +187,11 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
           <>
             {/* Favorites Section */}
             {favorites.length > 0 && (
-              <div className="border-b border-slate-200 dark:border-zinc-800">
+              <div className="border-b border-zinc-200 dark:border-zinc-800">
                 <button
                   onClick={() => setShowFavorites(!showFavorites)}
                   data-help-id="library-favorites"
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
                 >
                   {showFavorites ? (
                     <ChevronDown size={12} />
@@ -220,10 +220,10 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
 
             {/* Recent Files Section */}
             {recentFiles.length > 0 && (
-              <div className="border-b border-slate-200 dark:border-zinc-800">
+              <div className="border-b border-zinc-200 dark:border-zinc-800">
                 <button
                   onClick={() => setShowRecent(!showRecent)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
                 >
                   {showRecent ? (
                     <ChevronDown size={12} />
@@ -271,7 +271,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
       </div>
 
       {/* Footer */}
-      <div className="p-2 border-t border-slate-200 dark:border-zinc-800">
+      <div className="p-2 border-t border-zinc-200 dark:border-zinc-800">
         <div className="text-xs text-zinc-500 dark:text-zinc-600 truncate" title={knowledgePath}>
           {knowledgePath}
         </div>
@@ -298,7 +298,7 @@ function FavoriteItem({
         "group flex items-center gap-2 px-3 py-1 cursor-pointer transition-colors",
         isSelected
           ? "bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300"
-          : "text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-zinc-300"
+          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-zinc-300"
       )}
       onClick={onClick}
     >
@@ -313,7 +313,7 @@ function FavoriteItem({
           e.stopPropagation();
           onRemove();
         }}
-        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-opacity"
+        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-opacity"
         title="Remove from favorites"
       >
         <X size={12} />
@@ -340,7 +340,7 @@ function RecentItem({
         "group flex items-center gap-2 px-3 py-1 cursor-pointer transition-colors",
         isSelected
           ? "bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300"
-          : "text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-zinc-300"
+          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-zinc-300"
       )}
       onClick={onClick}
     >
@@ -355,7 +355,7 @@ function RecentItem({
           e.stopPropagation();
           onRemove();
         }}
-        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-opacity"
+        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-opacity"
         title="Remove from recent"
       >
         <X size={12} />

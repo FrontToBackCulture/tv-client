@@ -11,7 +11,7 @@ import { timeAgo } from "../../lib/date";
 // ============================
 const STAGES = [
   { value: "opportunity", color: "bg-amber-500" },
-  { value: "prospect", color: "bg-slate-400" },
+  { value: "prospect", color: "bg-zinc-400" },
   { value: "client", color: "bg-emerald-500" },
   { value: "partner", color: "bg-violet-500" },
   { value: "churned", color: "bg-zinc-400" },

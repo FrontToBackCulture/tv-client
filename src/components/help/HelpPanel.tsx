@@ -133,7 +133,7 @@ export function HelpPanel() {
     <div
       ref={panelRef}
       style={{ width: size.w, height: size.h }}
-      className="fixed bottom-14 right-4 z-[41] flex flex-col bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl"
+      className="fixed bottom-14 right-4 z-[41] flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl"
     >
       {/* Resize edges — invisible but wide hit areas */}
       {/* Top edge */}
@@ -153,7 +153,7 @@ export function HelpPanel() {
       />
 
       {/* Header */}
-      <div className="border-b border-slate-200 dark:border-zinc-700 flex-shrink-0 rounded-t-lg">
+      <div className="border-b border-zinc-200 dark:border-zinc-700 flex-shrink-0 rounded-t-lg">
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500" />
@@ -163,7 +163,7 @@ export function HelpPanel() {
             {messages.length > 0 && (
               <button
                 onClick={clearMessages}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                 title="Clear conversation"
               >
                 <Trash2 size={14} />
@@ -171,7 +171,7 @@ export function HelpPanel() {
             )}
             <button
               onClick={close}
-              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
               title="Close"
             >
               <X size={14} />
@@ -195,7 +195,7 @@ export function HelpPanel() {
               <button
                 key={q}
                 onClick={() => handleSuggestion(q)}
-                className="block w-full text-left text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+                className="block w-full text-left text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
               >
                 {q}
               </button>
@@ -217,7 +217,7 @@ export function HelpPanel() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-slate-200 dark:border-zinc-700 p-2 flex-shrink-0">
+      <div className="border-t border-zinc-200 dark:border-zinc-700 p-2 flex-shrink-0">
         <div className="flex items-center gap-2">
           <input
             ref={inputRef}
@@ -227,12 +227,12 @@ export function HelpPanel() {
             onKeyDown={handleKeyDown}
             placeholder="Ask a question..."
             disabled={isLoading}
-            className="flex-1 text-sm bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-teal-500 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 disabled:opacity-50"
+            className="flex-1 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 outline-none focus:border-teal-500 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 disabled:opacity-50"
           />
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="p-1.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="p-1.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send size={14} />
           </button>

@@ -2,7 +2,7 @@
 // Deal pipeline view with swimlanes by solution and columns by stage
 
 import { useState, useMemo, useEffect } from "react";
-import { useDealsWithTasks, useUpdateDeal } from "../../hooks/useCRM";
+import { useDealsWithTasks, useUpdateDeal } from "../../hooks/crm";
 import { Deal, DealWithTaskInfo, DEAL_STAGES, DEAL_SOLUTIONS } from "../../lib/crm/types";
 import { DealCard } from "./DealCard";
 import { Loader2, ChevronRight, ArrowUpDown, GripVertical, RefreshCw } from "lucide-react";
@@ -174,7 +174,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
       });
 
       if (dealsBySolution.unassigned?.length > 0) {
-        solutions.push({ value: "unassigned", label: "Unassigned", color: "slate" });
+        solutions.push({ value: "unassigned", label: "Unassigned", color: "zinc" });
       }
 
       // Apply custom order
@@ -294,21 +294,21 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
-        <Loader2 size={24} className="text-zinc-400 dark:text-zinc-600 animate-spin" />
+      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <Loader2 size={24} className="text-zinc-400 dark:text-zinc-400 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-zinc-950">
+    <div className="h-full flex flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-950">
       {/* Controls bar */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+      <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <span className="text-[11px] text-zinc-400">Sort</span>
         <select
           value={sortField}
           onChange={(e) => setSortField(e.target.value as SortField)}
-          className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-zinc-700 bg-slate-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+          className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
         >
           {SORT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
@@ -331,14 +331,14 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
       </div>
 
       {/* Stage column headers — sticky */}
-      <div className="flex-shrink-0 flex border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-20">
+      <div className="flex-shrink-0 flex border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-20">
         {activeStages.map((stage) => {
           const stageDeals = deals.filter((d) => d.stage === stage.value);
           const stageValue = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
           const weightPct = Math.round(stage.weight * 100);
           return (
             <div key={stage.value}
-              className="flex-1 min-w-[140px] px-3 py-2 border-r border-slate-200 dark:border-zinc-800 last:border-r-0">
+              className="flex-1 min-w-[140px] px-3 py-2 border-r border-zinc-200 dark:border-zinc-800 last:border-r-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <StageIndicator color={stage.color} />
@@ -373,7 +373,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
             return (
               <div
                 key={solution.value}
-                className={`border-b border-slate-200 dark:border-zinc-800 last:border-b-0 transition-all ${
+                className={`border-b border-zinc-200 dark:border-zinc-800 last:border-b-0 transition-all ${
                   isDragging ? "opacity-50" : ""
                 } ${isDragOver ? "border-t-2 border-t-teal-500 bg-teal-50 dark:bg-teal-900/20" : ""}`}
                 onDragOver={(e) => handleSwimlaneDragOver(e, solution.value)}
@@ -381,7 +381,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                 onDrop={(e) => handleSwimlaneDrop(e, solution.value)}
               >
                 {/* Full-width swimlane header */}
-                <div className="flex items-center gap-1 px-1.5 py-1.5 bg-slate-100 dark:bg-zinc-950">
+                <div className="flex items-center gap-1 px-1.5 py-1.5 bg-zinc-100 dark:bg-zinc-950">
                   <div
                     draggable
                     onDragStart={(e) => handleSwimlaneDragStart(e, solution.value)}
@@ -392,7 +392,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                   </div>
                   <button
                     onClick={() => toggleSwimlane(solution.value)}
-                    className="flex items-center gap-1.5 px-1 py-0.5 hover:bg-slate-200 dark:hover:bg-zinc-900 rounded transition-colors"
+                    className="flex items-center gap-1.5 px-1 py-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-900 rounded transition-colors"
                   >
                     <ChevronRight
                       size={12}
@@ -425,7 +425,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
 
                 {/* Expanded: stage cells — full width, no solution column */}
                 {!isCollapsed && (
-                  <div className="flex bg-slate-50/50 dark:bg-zinc-900/30">
+                  <div className="flex bg-zinc-50/50 dark:bg-zinc-900/30">
                     {activeStages.map((stage) => {
                       const cellDeals = sortDeals(
                         solutionDeals.filter((d) => d.stage === stage.value)
@@ -433,7 +433,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                       return (
                         <div
                           key={stage.value}
-                          className="flex-1 min-w-[140px] p-2 border-r border-slate-200 dark:border-zinc-800 last:border-r-0 min-h-[80px]"
+                          className="flex-1 min-w-[140px] p-2 border-r border-zinc-200 dark:border-zinc-800 last:border-r-0 min-h-[80px]"
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => {
                             const dealId = e.dataTransfer.getData("dealId");
@@ -469,7 +469,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
       </div>
 
       {/* Summary footer */}
-      <div className="flex-shrink-0 flex justify-between items-center border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-2">
+      <div className="flex-shrink-0 flex justify-between items-center border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-2">
         <div className="flex items-center gap-4 text-xs text-zinc-500">
           <span>
             <strong className="text-zinc-700 dark:text-zinc-300">{deals.length}</strong> deals
@@ -498,7 +498,6 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
 function StageIndicator({ color }: { color: string }) {
   const colors: Record<string, string> = {
     zinc: "bg-zinc-400",
-    slate: "bg-slate-400",
     gray: "bg-gray-500",
     purple: "bg-purple-500",
     blue: "bg-blue-500",
@@ -516,7 +515,6 @@ function StageIndicator({ color }: { color: string }) {
 function SolutionBadge({ color }: { color: string }) {
   const colors: Record<string, string> = {
     zinc: "bg-zinc-400",
-    slate: "bg-slate-400",
     gray: "bg-gray-500",
     purple: "bg-purple-500",
     blue: "bg-blue-500",

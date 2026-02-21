@@ -1,7 +1,7 @@
 // src/modules/product/ReleaseListView.tsx
 // Release timeline/list ordered by date
 
-import { useProductReleases } from "../../hooks/useProduct";
+import { useProductReleases } from "../../hooks/product";
 import { RELEASE_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
 import { Loader2, Rocket } from "lucide-react";
@@ -21,7 +21,7 @@ export function ReleaseListView({ search, selectedId, onSelect }: ReleaseListVie
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-600 animate-spin" />
+        <Loader2 size={24} className="text-zinc-400 animate-spin" />
       </div>
     );
   }
@@ -47,10 +47,10 @@ export function ReleaseListView({ search, selectedId, onSelect }: ReleaseListVie
             key={release.id}
             onClick={() => onSelect(release.id)}
             className={cn(
-              "w-full flex items-center px-4 py-3 text-left border-b border-slate-100 dark:border-zinc-800/50 transition-colors",
+              "w-full flex items-center px-4 py-3 text-left border-b border-zinc-100 dark:border-zinc-800/50 transition-colors",
               release.id === selectedId
                 ? "bg-teal-500/5 dark:bg-teal-500/10"
-                : "hover:bg-slate-50 dark:hover:bg-zinc-900/50"
+                : "hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
             )}
           >
             {/* Timeline dot */}

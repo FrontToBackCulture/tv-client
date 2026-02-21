@@ -21,57 +21,22 @@ import { CheckCircle, AlertTriangle, Loader2, Search, Filter, RotateCcw, Chevron
 import { ArtifactDetailPreview } from "./ArtifactDetailPreview";
 import { cn } from "../../lib/cn";
 import { useAppStore } from "../../stores/appStore";
-import { useClassificationStore, type ClassificationField } from "../../stores/classificationStore";
-import { buildDomainUrl } from "../../lib/domainUrl";
+import { useClassificationStore } from "../../stores/classificationStore";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+
+import type { ArtifactType, ArtifactRow } from "./artifactReviewTypes";
+import { EDITABLE_FIELDS, FIELD_TO_STORE, ARTIFACT_LABEL } from "./artifactReviewTypes";
+import { loadArtifactData } from "./artifactReviewLoader";
+import { buildArtifactColumnDefs } from "./artifactReviewColumns";
+import { artifactReviewGridStyles } from "./artifactReviewStyles";
+
+export type { ArtifactType, ArtifactRow } from "./artifactReviewTypes";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
 
 if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
   LicenseManager.setLicenseKey(import.meta.env.VITE_AG_GRID_LICENSE_KEY);
-}
-
-export type ArtifactType = "query" | "dashboard" | "workflow";
-
-/** Flat row for AG Grid — shared classification fields + type-specific read-only fields */
-export interface ArtifactRow {
-  // Identity
-  id: string;
-  name: string;
-  folderName: string;
-  folderPath: string;
-  // Dates
-  createdDate: string | null;
-  updatedDate: string | null;
-  // Classification (editable)
-  dataType: string | null;
-  dataCategory: string | null;
-  dataSubCategory: string | null;
-  usageStatus: string | null;
-  action: string | null;
-  dataSource: string | null;
-  sourceSystem: string | null;
-  tags: string | null;
-  suggestedName: string | null;
-  summaryShort: string | null;
-  summaryFull: string | null;
-  // Portal / sitemap fields
-  includeSitemap: boolean;
-  sitemapGroup1: string | null;
-  sitemapGroup2: string | null;
-  solution: string | null;
-  resourceUrl: string | null;
-  // Type-specific read-only
-  category: string | null;        // queries & dashboards
-  tableName: string | null;       // queries
-  fieldCount: number | null;      // queries
-  widgetCount: number | null;     // dashboards
-  creatorName: string | null;     // dashboards
-  isScheduled: boolean | null;    // workflows
-  cronExpression: string | null;  // workflows
-  pluginCount: number | null;     // workflows
-  description: string | null;     // workflows
 }
 
 // Storage key for panel width
@@ -95,42 +60,6 @@ interface ArtifactReviewViewProps {
   domainName: string;
   onItemSelect?: (path: string) => void;
 }
-
-// Classification fields that are editable
-const EDITABLE_FIELDS = new Set([
-  "dataType", "dataCategory", "dataSubCategory", "usageStatus",
-  "action", "dataSource", "sourceSystem", "tags",
-  "suggestedName", "summaryShort", "summaryFull",
-  "includeSitemap", "sitemapGroup1", "sitemapGroup2", "solution", "resourceUrl",
-]);
-
-// Map grid field names to classification store fields
-const FIELD_TO_STORE: Record<string, ClassificationField> = {
-  dataCategory: "dataCategory",
-  dataSubCategory: "dataSubCategory",
-  usageStatus: "usageStatus",
-  action: "action",
-  dataSource: "dataSource",
-  sourceSystem: "sourceSystem",
-  tags: "tags",
-  sitemapGroup1: "sitemapGroup1",
-  sitemapGroup2: "sitemapGroup2",
-  solution: "solution",
-};
-
-// Folder prefix for each artifact type
-const FOLDER_PREFIX: Record<ArtifactType, string> = {
-  query: "query_",
-  dashboard: "dashboard_",
-  workflow: "workflow_",
-};
-
-// Label for each artifact type
-const ARTIFACT_LABEL: Record<ArtifactType, string> = {
-  query: "Queries",
-  dashboard: "Dashboards",
-  workflow: "Workflows",
-};
 
 export function ArtifactReviewView({
   artifactType,
@@ -337,136 +266,20 @@ export function ArtifactReviewView({
   useEffect(() => {
     let cancelled = false;
 
-    async function loadData() {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      try {
-        const entries = await invoke<Array<{ name: string; path: string; is_directory: boolean }>>(
-          "list_directory",
-          { path: folderPath }
-        );
-
-        const prefix = FOLDER_PREFIX[artifactType];
-        const dirs = entries.filter((e) => e.is_directory && (prefix ? e.name.startsWith(prefix) : !e.name.startsWith(".")));
-
-        const rows: ArtifactRow[] = await Promise.all(
-          dirs.map(async (dir) => {
-            const row: ArtifactRow = {
-              id: dir.name,
-              name: dir.name,
-              folderName: dir.name,
-              folderPath: dir.path,
-              createdDate: null,
-              updatedDate: null,
-              dataType: null,
-              dataCategory: null,
-              dataSubCategory: null,
-              usageStatus: null,
-              action: null,
-              dataSource: null,
-              sourceSystem: null,
-              tags: null,
-              suggestedName: null,
-              summaryShort: null,
-              summaryFull: null,
-              includeSitemap: false,
-              sitemapGroup1: null,
-              sitemapGroup2: null,
-              solution: null,
-              resourceUrl: null,
-              category: null,
-              tableName: null,
-              fieldCount: null,
-              widgetCount: null,
-              creatorName: null,
-              isScheduled: null,
-              cronExpression: null,
-              pluginCount: null,
-              description: null,
-            };
-
-            // Read definition.json
-            try {
-              const defContent = await invoke<string>("read_file", {
-                path: `${dir.path}/definition.json`,
-              });
-              const def = JSON.parse(defContent);
-
-              row.name = def.name || def.displayName || dir.name;
-              row.id = String(def.id ?? dir.name);
-              row.createdDate = def.created_date || null;
-              row.updatedDate = def.updated_date || null;
-
-              // Type-specific fields
-              if (artifactType === "query") {
-                row.category = def.category || null;
-                row.tableName = def.datasource?.queryInfo?.tableInfo?.name || null;
-                row.fieldCount = def.datasource?.queryInfo?.tableInfo?.fields?.length ?? null;
-              } else if (artifactType === "dashboard") {
-                row.category = def.category || null;
-                row.widgetCount = Array.isArray(def.widgets) ? def.widgets.length : null;
-                row.creatorName = def.created_by || null;
-              } else if (artifactType === "workflow") {
-                row.isScheduled = !!def.cron_expression;
-                row.cronExpression = def.cron_expression || null;
-                row.pluginCount = def.data?.workflow?.plugins?.length ?? null;
-                row.description = def.description || null;
-              }
-            } catch {
-              // No definition.json
-            }
-
-            // Read definition_analysis.json for classification
-            try {
-              const analysisContent = await invoke<string>("read_file", {
-                path: `${dir.path}/definition_analysis.json`,
-              });
-              const analysis = JSON.parse(analysisContent);
-
-              row.dataType = analysis.classification?.dataType || analysis.dataType || null;
-              row.dataCategory = analysis.dataCategory || null;
-              row.dataSubCategory = analysis.dataSubCategory || null;
-              row.usageStatus = analysis.usageStatus || null;
-              row.action = analysis.action || null;
-              row.dataSource = analysis.dataSource || null;
-              row.sourceSystem = analysis.sourceSystem || null;
-              row.tags = analysis.tags || null;
-              row.suggestedName = analysis.suggestedName || null;
-              row.summaryShort = analysis.summary?.short || null;
-              row.summaryFull = analysis.summary?.full || null;
-              row.includeSitemap = analysis.includeSitemap === true;
-              row.sitemapGroup1 = analysis.sitemapGroup1 || null;
-              row.sitemapGroup2 = analysis.sitemapGroup2 || null;
-              row.solution = analysis.solution || null;
-              row.resourceUrl = analysis.resourceUrl || null;
-            } catch {
-              // No analysis file
-            }
-
-            // Auto-populate resourceUrl from folder path if not set
-            if (!row.resourceUrl) {
-              row.resourceUrl = buildDomainUrl(dir.path) || null;
-            }
-
-            return row;
-          })
-        );
-
-        if (!cancelled) {
-          rows.sort((a, b) => a.name.localeCompare(b.name));
-          setRowData(rows);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load data");
-        }
-      } finally {
+    loadArtifactData(folderPath, artifactType)
+      .then((rows) => {
+        if (!cancelled) setRowData(rows);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load data");
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false);
-      }
-    }
+      });
 
-    loadData();
     return () => { cancelled = true; };
   }, [folderPath, artifactType]);
 
@@ -722,183 +535,7 @@ export function ArtifactReviewView({
 
   // Build column definitions based on artifact type
   const columnDefs = useMemo((): ColDef[] => {
-    const classificationStore = useClassificationStore.getState();
-
-    const baseCols: ColDef[] = [
-      { field: "name", headerName: "Name", pinned: "left", width: 250, filter: "agTextColumnFilter" },
-      { field: "id", headerName: "ID", width: 100, filter: "agTextColumnFilter" },
-    ];
-
-    // Type-specific columns
-    const typeCols: ColDef[] = [];
-    if (artifactType === "query") {
-      typeCols.push(
-        { field: "category", headerName: "Category", width: 110, filter: "agSetColumnFilter" },
-        { field: "tableName", headerName: "Table", width: 180, filter: "agTextColumnFilter" },
-        { field: "fieldCount", headerName: "Fields", width: 80, filter: "agNumberColumnFilter" },
-      );
-    } else if (artifactType === "dashboard") {
-      typeCols.push(
-        { field: "category", headerName: "Category", width: 110, filter: "agSetColumnFilter" },
-        { field: "widgetCount", headerName: "Widgets", width: 90, filter: "agNumberColumnFilter" },
-        { field: "creatorName", headerName: "Creator", width: 140, filter: "agTextColumnFilter" },
-      );
-    } else if (artifactType === "workflow") {
-      typeCols.push(
-        {
-          field: "isScheduled",
-          headerName: "Scheduled",
-          width: 100,
-          filter: "agSetColumnFilter",
-          valueFormatter: (p) => p.value === true ? "Yes" : p.value === false ? "No" : "",
-        },
-        { field: "cronExpression", headerName: "Cron", width: 130, filter: "agTextColumnFilter" },
-        { field: "pluginCount", headerName: "Plugins", width: 90, filter: "agNumberColumnFilter" },
-        { field: "description", headerName: "Description", width: 200, filter: "agTextColumnFilter" },
-      );
-    }
-
-    // Classification columns (editable)
-    const classifCols: ColDef[] = [
-      {
-        field: "dataType",
-        headerName: "Data Type",
-        width: 130,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: { values: classificationStore.getDropdownValues("dataType") },
-        filter: "agSetColumnFilter",
-      },
-      {
-        field: "dataCategory",
-        headerName: "Category",
-        width: 140,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: { values: classificationStore.getDropdownValues("dataCategory") },
-        filter: "agSetColumnFilter",
-      },
-      {
-        field: "dataSubCategory",
-        headerName: "Sub-Category",
-        width: 150,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: { values: classificationStore.getDropdownValues("dataSubCategory") },
-        filter: "agSetColumnFilter",
-      },
-      {
-        field: "usageStatus",
-        headerName: "Usage",
-        width: 120,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: { values: classificationStore.getDropdownValues("usageStatus") },
-        filter: "agSetColumnFilter",
-      },
-      {
-        field: "action",
-        headerName: "Action",
-        width: 120,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: { values: classificationStore.getDropdownValues("action") },
-        filter: "agSetColumnFilter",
-      },
-      {
-        field: "dataSource",
-        headerName: "Data Source",
-        width: 140,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: { values: classificationStore.getDropdownValues("dataSource") },
-        filter: "agSetColumnFilter",
-      },
-      {
-        field: "sourceSystem",
-        headerName: "Source System",
-        width: 140,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: { values: classificationStore.getDropdownValues("sourceSystem") },
-        filter: "agSetColumnFilter",
-      },
-      {
-        field: "includeSitemap",
-        headerName: "Sitemap",
-        width: 85,
-        filter: "agSetColumnFilter",
-        editable: true,
-        cellRenderer: (params: { value: boolean }) =>
-          params.value ? "Yes" : "",
-        cellEditor: "agCheckboxCellEditor",
-        headerTooltip: "Include on the client portal sitemap",
-      },
-      {
-        field: "sitemapGroup1",
-        headerName: "Sitemap Grp 1",
-        width: 120,
-        filter: "agSetColumnFilter",
-        editable: true,
-        cellEditor: "agTextCellEditor",
-        headerTooltip: "Primary grouping on the portal sitemap",
-      },
-      {
-        field: "sitemapGroup2",
-        headerName: "Sitemap Grp 2",
-        width: 120,
-        filter: "agSetColumnFilter",
-        editable: true,
-        cellEditor: "agTextCellEditor",
-        headerTooltip: "Secondary grouping on the portal sitemap",
-      },
-      {
-        field: "solution",
-        headerName: "Solution",
-        width: 140,
-        filter: "agSetColumnFilter",
-        editable: true,
-        cellEditor: "agTextCellEditor",
-        headerTooltip: "Which VAL solution this resource belongs to",
-      },
-      {
-        field: "resourceUrl",
-        headerName: "URL",
-        width: 250,
-        editable: true,
-        filter: "agTextColumnFilter",
-        headerTooltip: "URL to access this resource in VAL",
-      },
-      {
-        field: "tags",
-        headerName: "Tags",
-        width: 200,
-        editable: true,
-        filter: "agTextColumnFilter",
-      },
-      {
-        field: "suggestedName",
-        headerName: "Suggested Name",
-        width: 180,
-        editable: true,
-        filter: "agTextColumnFilter",
-      },
-      {
-        field: "summaryShort",
-        headerName: "Summary",
-        width: 250,
-        editable: true,
-        filter: "agTextColumnFilter",
-      },
-    ];
-
-    // Date columns
-    const dateCols: ColDef[] = [
-      { field: "createdDate", headerName: "Created", width: 120, filter: "agDateColumnFilter" },
-      { field: "updatedDate", headerName: "Updated", width: 120, filter: "agDateColumnFilter" },
-    ];
-
-    return [...baseCols, ...typeCols, ...classifCols, ...dateCols];
+    return buildArtifactColumnDefs(artifactType);
   }, [artifactType]);
 
   const defaultColDef = useMemo((): ColDef => ({
@@ -932,7 +569,7 @@ export function ArtifactReviewView({
   return (
     <div className="h-full flex flex-col">
       {/* Header toolbar */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-shrink-0">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-shrink-0">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             {ARTIFACT_LABEL[artifactType]} Review
@@ -968,7 +605,7 @@ export function ArtifactReviewView({
 
           {/* Auto-saving indicator */}
           {isSaving && (
-            <span className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-slate-100 dark:bg-zinc-800 text-zinc-500">
+            <span className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
               <Loader2 size={12} className="animate-spin" />
               Saving...
             </span>
@@ -984,7 +621,7 @@ export function ArtifactReviewView({
                 "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
                 isSyncing
                   ? "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
-                  : "border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
               {isSyncing ? (
@@ -999,7 +636,7 @@ export function ArtifactReviewView({
       </div>
 
       {/* Grid toolbar — matches DataModelsAgGrid review mode */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
         {/* Left side: Search and filters */}
         <div className="flex items-center gap-3 flex-1">
           {/* Search */}
@@ -1010,12 +647,12 @@ export function ArtifactReviewView({
               placeholder="Quick filter..."
               value={quickFilterText}
               onChange={(e) => setQuickFilterText(e.target.value)}
-              className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
             />
           </div>
 
           {/* Review filter buttons */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-900 rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1">
             <button
               onClick={() => {
                 setReviewFilter("all");
@@ -1068,7 +705,7 @@ export function ArtifactReviewView({
         <div className="flex items-center gap-2">
           <button
             onClick={applyFlatLayout}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             title="Apply flat layout with Category pinned left"
           >
             <Columns size={14} />
@@ -1076,7 +713,7 @@ export function ArtifactReviewView({
           </button>
           <button
             onClick={resetLayout}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             title="Reset to default layout"
           >
             <RotateCcw size={14} />
@@ -1084,7 +721,7 @@ export function ArtifactReviewView({
           </button>
           <button
             onClick={autoSizeAllColumns}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             title="Auto-size all columns"
           >
             <ChevronsLeftRight size={14} />
@@ -1095,30 +732,30 @@ export function ArtifactReviewView({
           <div className="relative">
             <button
               onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               title="Saved layouts"
             >
               <Bookmark size={14} />
               Layouts
             </button>
             {showLayoutMenu && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-slate-200 dark:border-zinc-700 z-50 py-1">
+              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1">
                 <button
                   onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
                 >
                   <span className="text-green-600 dark:text-green-400">+</span>
                   Save current layout...
                 </button>
                 {Object.keys(savedLayouts).length > 0 && (
                   <>
-                    <div className="border-t border-slate-200 dark:border-zinc-700 my-1" />
+                    <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
                     <div className="px-3 py-1 text-xs font-medium text-zinc-500">Saved Layouts</div>
                     {Object.keys(savedLayouts).map((name) => (
                       <div
                         key={name}
                         onClick={() => loadLayout(name)}
-                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
                       >
                         <span className="truncate flex items-center gap-1.5">
                           {defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
@@ -1169,84 +806,7 @@ export function ArtifactReviewView({
           className={`${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"} flex-1 min-h-0 overflow-hidden`}
           style={{ width: "100%", height: "100%" }}
         >
-          <style>{`
-            .ag-theme-alpine {
-              --ag-background-color: #ffffff;
-              --ag-header-background-color: #f8fafc;
-              --ag-odd-row-background-color: #f8fafc;
-              --ag-row-hover-color: #f1f5f9;
-              --ag-border-color: #e2e8f0;
-              --ag-header-foreground-color: #475569;
-              --ag-foreground-color: #1e293b;
-              --ag-secondary-foreground-color: #64748b;
-            }
-            .ag-theme-alpine .ag-row { cursor: pointer; }
-            .ag-theme-alpine .ag-header-cell-resize { pointer-events: auto !important; cursor: col-resize !important; z-index: 1 !important; }
-            .ag-theme-alpine .ag-header { pointer-events: auto !important; }
-            .ag-theme-alpine .ag-cell-editable { cursor: pointer; }
-            .ag-theme-alpine .ag-cell-editable:hover { background-color: rgba(13, 148, 136, 0.1); }
-            .ag-theme-alpine-dark {
-              --ag-background-color: #09090b;
-              --ag-header-background-color: #18181b;
-              --ag-odd-row-background-color: #0f0f12;
-              --ag-row-hover-color: #1c1c20;
-              --ag-border-color: #27272a;
-              --ag-header-foreground-color: #a1a1aa;
-              --ag-foreground-color: #d4d4d8;
-              --ag-secondary-foreground-color: #71717a;
-              --ag-selected-row-background-color: rgba(20, 184, 166, 0.12);
-              --ag-range-selection-background-color: rgba(20, 184, 166, 0.15);
-              --ag-range-selection-border-color: #14b8a6;
-              --ag-input-focus-border-color: #14b8a6;
-              --ag-checkbox-checked-color: #14b8a6;
-              --ag-row-border-color: #1e1e22;
-              --ag-control-panel-background-color: #0f0f12;
-              --ag-side-button-selected-background-color: #18181b;
-              --ag-column-hover-color: rgba(20, 184, 166, 0.06);
-              --ag-input-border-color: #3f3f46;
-              --ag-invalid-color: #ef4444;
-              --ag-chip-background-color: #27272a;
-              --ag-modal-overlay-background-color: rgba(0, 0, 0, 0.5);
-              --ag-popup-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-            }
-            .ag-theme-alpine-dark .ag-row { cursor: pointer; }
-            .ag-theme-alpine-dark .ag-header-cell-resize { pointer-events: auto !important; cursor: col-resize !important; z-index: 1 !important; }
-            .ag-theme-alpine-dark .ag-header { pointer-events: auto !important; }
-            .ag-theme-alpine-dark .ag-cell-editable { cursor: pointer; }
-            .ag-theme-alpine-dark .ag-cell-editable:hover { background-color: rgba(45, 212, 191, 0.08); }
-            .ag-theme-alpine-dark .ag-popup,
-            .ag-theme-alpine-dark .ag-menu { background-color: #18181b !important; border: 1px solid #27272a !important; }
-            .ag-theme-alpine-dark .ag-filter-toolpanel,
-            .ag-theme-alpine-dark .ag-filter { background-color: #18181b !important; }
-            .ag-theme-alpine-dark .ag-text-field-input,
-            .ag-theme-alpine-dark .ag-select .ag-picker-field-wrapper { background-color: #09090b !important; border-color: #3f3f46 !important; color: #d4d4d8 !important; }
-            .ag-theme-alpine-dark .ag-text-field-input:focus { border-color: #14b8a6 !important; }
-            .ag-theme-alpine-dark .ag-cell-edit-wrapper,
-            .ag-theme-alpine-dark .ag-cell-editor { background-color: #18181b !important; }
-            .ag-theme-alpine-dark .ag-cell-inline-editing { background-color: #18181b !important; border-color: #14b8a6 !important; }
-            .ag-theme-alpine-dark .ag-rich-select { background-color: #18181b !important; }
-            .ag-theme-alpine-dark .ag-rich-select-row { color: #d4d4d8 !important; }
-            .ag-theme-alpine-dark .ag-rich-select-row-selected { background-color: rgba(20, 184, 166, 0.15) !important; }
-            .ag-theme-alpine-dark .ag-rich-select-row:hover { background-color: #27272a !important; }
-            .ag-theme-alpine-dark .ag-menu-option-active { background-color: #27272a !important; }
-            .ag-theme-alpine-dark .ag-menu-separator { border-color: #27272a !important; }
-            .ag-theme-alpine-dark .ag-status-bar { background-color: #18181b !important; border-top: 1px solid #27272a !important; color: #71717a !important; }
-            .ag-theme-alpine-dark .ag-paging-panel { background-color: #18181b !important; color: #71717a !important; border-top: 1px solid #27272a !important; }
-            /* Dark mode - sidebar panels */
-            .ag-theme-alpine-dark .ag-side-bar { background-color: #0f0f12 !important; border-left: 1px solid #27272a !important; }
-            .ag-theme-alpine-dark .ag-side-buttons { background-color: #0f0f12 !important; }
-            .ag-theme-alpine-dark .ag-side-button-button { color: #71717a !important; }
-            .ag-theme-alpine-dark .ag-side-button-button:hover { color: #a1a1aa !important; }
-            .ag-theme-alpine-dark .ag-tool-panel-wrapper { background-color: #0f0f12 !important; border-right: 1px solid #27272a !important; }
-            .ag-theme-alpine-dark .ag-column-select-header { border-bottom: 1px solid #27272a !important; }
-            /* Dark mode - pagination */
-            .ag-theme-alpine-dark .ag-paging-button { color: #a1a1aa !important; }
-            /* Scrollbar */
-            .ag-theme-alpine-dark ::-webkit-scrollbar { width: 8px; height: 8px; }
-            .ag-theme-alpine-dark ::-webkit-scrollbar-track { background: #09090b; }
-            .ag-theme-alpine-dark ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
-            .ag-theme-alpine-dark ::-webkit-scrollbar-thumb:hover { background: #52525b; }
-          `}</style>
+          <style>{artifactReviewGridStyles}</style>
           <AgGridReact
             ref={gridRef}
             theme="legacy"
@@ -1313,14 +873,14 @@ export function ArtifactReviewView({
         {selectedRow && (
           <div
             onMouseDown={handleMouseDown}
-            className="relative w-2 cursor-col-resize group flex-shrink-0 hover:bg-slate-100 dark:hover:bg-zinc-800/50"
+            className="relative w-2 cursor-col-resize group flex-shrink-0 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
           >
             <div
               className={cn(
                 "absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 transition-all",
                 isResizing
                   ? "bg-teal-500"
-                  : "bg-slate-300 dark:bg-zinc-700 group-hover:bg-teal-500"
+                  : "bg-zinc-300 dark:bg-zinc-700 group-hover:bg-teal-500"
               )}
             />
           </div>
@@ -1329,7 +889,7 @@ export function ArtifactReviewView({
         {/* Right: Detail panel */}
         {selectedRow && (
           <div
-            className="flex-shrink-0 border-l border-slate-200 dark:border-zinc-800 overflow-hidden"
+            className="flex-shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-hidden"
             style={{
               width: panelWidth,
               transition: isResizing ? "none" : "width 200ms",
@@ -1363,7 +923,7 @@ export function ArtifactReviewView({
       {/* Save Layout Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-96 max-w-[90vw] border border-slate-200 dark:border-zinc-700">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-700">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
               Save Layout
             </h3>
@@ -1380,13 +940,13 @@ export function ArtifactReviewView({
                 }
               }}
               placeholder="Enter layout name..."
-              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500 mb-4"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500 mb-4"
               autoFocus
             />
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => { setShowSaveDialog(false); setNewLayoutName(""); }}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700"
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 Cancel
               </button>

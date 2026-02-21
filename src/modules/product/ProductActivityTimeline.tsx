@@ -1,7 +1,7 @@
 // src/modules/product/ProductActivityTimeline.tsx
 // Unified activity feed for any product entity
 
-import { useProductActivity } from "../../hooks/useProduct";
+import { useProductActivity } from "../../hooks/product";
 import type { ProductEntityType } from "../../lib/product/types";
 import { Loader2, Clock } from "lucide-react";
 
@@ -20,7 +20,7 @@ export function ProductActivityTimeline({ entityType, entityId }: ProductActivit
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 size={20} className="text-zinc-600 animate-spin" />
+        <Loader2 size={20} className="text-zinc-400 animate-spin" />
       </div>
     );
   }

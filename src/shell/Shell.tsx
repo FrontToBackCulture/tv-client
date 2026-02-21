@@ -48,11 +48,11 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
   }, [activeModule, secondary]);
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 select-none">
+    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 select-none">
       {/* Draggable title bar region for macOS */}
       <div
         onMouseDown={() => getCurrentWindow().startDragging()}
-        className="h-10 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center"
+        className="h-10 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center"
       >
         {/* Leave space for macOS traffic lights (close/minimize/fullscreen) */}
         <div className="w-20 flex-shrink-0" />

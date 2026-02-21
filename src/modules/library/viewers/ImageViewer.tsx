@@ -71,7 +71,7 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <Loader2 size={32} className="mx-auto mb-3 text-zinc-600 animate-spin" />
+          <Loader2 size={32} className="mx-auto mb-3 text-zinc-400 animate-spin" />
           <p className="text-sm text-zinc-500">Loading image...</p>
         </div>
       </div>
@@ -93,7 +93,7 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
         <div className="flex items-center gap-2">
           <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
           {dimensions && (
@@ -105,7 +105,7 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
         <div className="flex items-center gap-1">
           <button
             onClick={handleZoomOut}
-            className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
             title="Zoom out"
           >
             <ZoomOut size={16} className="text-zinc-500 dark:text-zinc-400" />
@@ -113,17 +113,17 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
           <span className="text-xs text-zinc-500 w-12 text-center">{zoom}%</span>
           <button
             onClick={handleZoomIn}
-            className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
             title="Zoom in"
           >
             <ZoomIn size={16} className="text-zinc-500 dark:text-zinc-400" />
           </button>
-          <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1" />
+          <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-700 mx-1" />
           <button
             onClick={handleFitToggle}
             className={cn(
-              "p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors",
-              fitMode === "contain" && "bg-slate-200 dark:bg-zinc-800"
+              "p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors",
+              fitMode === "contain" && "bg-zinc-200 dark:bg-zinc-800"
             )}
             title={fitMode === "contain" ? "Show actual size" : "Fit to window"}
           >
@@ -131,7 +131,7 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
           </button>
           <button
             onClick={handleResetZoom}
-            className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
             title="Reset zoom"
           >
             <RotateCw size={16} className="text-zinc-500 dark:text-zinc-400" />
@@ -140,7 +140,7 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
       </div>
 
       {/* Image container */}
-      <div className="flex-1 overflow-auto bg-slate-100 dark:bg-zinc-950 flex items-center justify-center p-4">
+      <div className="flex-1 overflow-auto bg-zinc-100 dark:bg-zinc-950 flex items-center justify-center p-4">
         {/* Checkerboard background for transparency */}
         <div
           className="relative"
@@ -174,7 +174,7 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
       </div>
 
       {/* Info bar */}
-      <div className="px-4 py-1.5 border-t border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50">
+      <div className="px-4 py-1.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
         <div className="flex items-center justify-between text-xs text-zinc-500">
           <span>{getMimeType(filename)}</span>
           <span>{path}</span>

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { MessageSquare, AlertTriangle, Megaphone, BookOpen } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
-import { usePortalRealtime } from "../../hooks/usePortal";
+import { usePortalRealtime } from "../../hooks/portal";
 import { ConversationsView } from "./ConversationsView";
 import { AnnouncementsView } from "./AnnouncementsView";
 import { HelpCenterView } from "./HelpCenterView";
@@ -86,7 +86,7 @@ export function PortalModule() {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Tab bar */}
-      <div className="flex-shrink-0 flex items-center border-b border-slate-200 dark:border-zinc-800 px-2">
+      <div className="flex-shrink-0 flex items-center border-b border-zinc-200 dark:border-zinc-800 px-2">
         <ViewTab
           icon={MessageSquare}
           label="Conversations"

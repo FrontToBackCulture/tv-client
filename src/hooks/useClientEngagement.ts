@@ -6,7 +6,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
-import { crmKeys } from "./useCRM";
+import { crmKeys } from "./crm";
 import { getEngagementHealth, type EngagementHealth } from "../modules/crm/CrmComponents";
 import type { Activity } from "../lib/crm/types";
 

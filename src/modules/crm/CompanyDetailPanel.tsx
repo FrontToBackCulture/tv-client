@@ -2,7 +2,7 @@
 // Company detail panel with tabs for timeline, contacts, and deals
 
 import { useState, useEffect } from "react";
-import { useCompanyWithRelations, useDeleteCompany } from "../../hooks/useCRM";
+import { useCompanyWithRelations, useDeleteCompany } from "../../hooks/crm";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { COMPANY_STAGES } from "../../lib/crm/types";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
@@ -87,15 +87,15 @@ export function CompanyDetailPanel({
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
-        <Loader2 size={24} className="text-zinc-400 dark:text-zinc-600 animate-spin" />
+      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <Loader2 size={24} className="text-zinc-400 dark:text-zinc-400 animate-spin" />
       </div>
     );
   }
 
   if (!company) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <p className="text-zinc-500">Company not found</p>
       </div>
     );
@@ -104,9 +104,9 @@ export function CompanyDetailPanel({
   const stageConfig = COMPANY_STAGES.find((s) => s.value === company.stage);
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -119,14 +119,14 @@ export function CompanyDetailPanel({
               />
               <button
                 onClick={() => setShowEditForm(true)}
-                className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Edit company"
               >
                 <Pencil size={14} />
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="p-1 text-zinc-500 hover:text-red-500 dark:hover:text-red-400 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                className="p-1 text-zinc-500 hover:text-red-500 dark:hover:text-red-400 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Delete company"
               >
                 <Trash2 size={14} />
@@ -139,7 +139,7 @@ export function CompanyDetailPanel({
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             >
               <X size={18} />
             </button>
@@ -174,7 +174,7 @@ export function CompanyDetailPanel({
             {company.client_folder_path && (
               <button
                 onClick={handleOpenFolder}
-                className="flex items-center gap-1 text-[11px] px-2 py-1 bg-slate-100 dark:bg-zinc-800 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
+                className="flex items-center gap-1 text-[11px] px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
                 title="Open in side panel"
               >
                 <FolderOpen size={12} />
@@ -182,7 +182,7 @@ export function CompanyDetailPanel({
               </button>
             )}
             {company.domain_id && (
-              <button className="flex items-center gap-1 text-[11px] px-2 py-1 bg-slate-100 dark:bg-zinc-800 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors">
+              <button className="flex items-center gap-1 text-[11px] px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors">
                 <ExternalLink size={12} />
                 Domain
               </button>
@@ -192,7 +192,7 @@ export function CompanyDetailPanel({
                 href={company.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[11px] px-2 py-1 bg-slate-100 dark:bg-zinc-800 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
+                className="flex items-center gap-1 text-[11px] px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
               >
                 <Globe size={12} />
                 Website
@@ -203,7 +203,7 @@ export function CompanyDetailPanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-zinc-800">
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
         {(["timeline", "contacts", "deals"] as const).map((tab) => (
           <button
             key={tab}
@@ -263,10 +263,10 @@ export function CompanyDetailPanel({
               {company.deals?.map((deal) => (
                 <div
                   key={deal.id}
-                  className="border border-slate-200 dark:border-zinc-700 rounded-lg overflow-hidden"
+                  className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden"
                 >
                   <DealCard deal={deal} showTasks={false} onDealUpdated={() => refetch()} />
-                  <div className="border-t border-slate-200 dark:border-zinc-700">
+                  <div className="border-t border-zinc-200 dark:border-zinc-700">
                     <DealTasks
                       dealId={deal.id}
                       dealName={deal.name}
@@ -319,7 +319,7 @@ export function CompanyDetailPanel({
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-5 max-w-sm w-full mx-4 shadow-xl">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 max-w-sm w-full mx-4 shadow-xl">
             <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
               Delete Company
             </h3>
@@ -331,7 +331,7 @@ export function CompanyDetailPanel({
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
                 disabled={deleteMutation.isPending}
               >
                 Cancel
@@ -353,7 +353,7 @@ export function CompanyDetailPanel({
 
 function StageChip({ stage, label }: { stage: string; label: string }) {
   const colors: Record<string, string> = {
-    prospect: "bg-slate-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+    prospect: "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
     opportunity: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
     client: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
     churned: "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400",

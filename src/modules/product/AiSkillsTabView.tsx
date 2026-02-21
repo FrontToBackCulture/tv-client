@@ -15,7 +15,7 @@ import { cn } from "../../lib/cn";
 import { useRepository } from "../../stores/repositoryStore";
 import {
   useListDomainAiStatus,
-} from "../../hooks/useValSync";
+} from "../../hooks/val-sync";
 import { useListDirectory } from "../../hooks/useFiles";
 import { useAiSkills, useCreateAiSkill } from "../../hooks/useAiSkills";
 import { useReadFile } from "../../hooks/useFiles";
@@ -334,8 +334,8 @@ function FilePreviewModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
-        <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100 dark:border-zinc-800">
+      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
+        <div className="flex-shrink-0 px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
               <FileText size={14} className="text-violet-500 flex-shrink-0" />
@@ -344,7 +344,7 @@ function FilePreviewModal({
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
             >
               <X size={16} />
             </button>

@@ -17,7 +17,7 @@ import {
   useRunAllDomainsArtifactAudit,
   useRunAllDomainsOverview,
   type DiscoveredDomain,
-} from "../../hooks/useValSync";
+} from "../../hooks/val-sync";
 import { useRepository } from "../../stores/repositoryStore";
 import { useJobsStore } from "../../stores/jobsStore";
 import {
@@ -100,13 +100,13 @@ function DropdownMenu({
   label,
   items,
   disabled,
-  color = "slate",
+  color = "zinc",
   tooltip,
 }: {
   label: string;
   items: { label: string; onClick: () => void; isRunning?: boolean; tooltip?: string }[];
   disabled: boolean;
-  color?: "slate" | "teal" | "violet";
+  color?: "zinc" | "teal" | "violet";
   tooltip?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -121,7 +121,7 @@ function DropdownMenu({
   }, []);
 
   const colorClasses = {
-    slate: "text-slate-600 hover:text-slate-500 border-slate-300 dark:border-slate-700",
+    zinc: "text-zinc-600 hover:text-zinc-500 border-zinc-300 dark:border-zinc-700",
     teal: "text-teal-600 hover:text-teal-500 border-teal-300 dark:border-teal-800",
     violet: "text-violet-600 hover:text-violet-500 border-violet-300 dark:border-violet-800",
   };
@@ -133,7 +133,7 @@ function DropdownMenu({
         disabled={disabled}
         title={tooltip}
         className={cn(
-          "flex items-center gap-1 px-2.5 py-1 text-xs font-medium border rounded transition-colors disabled:opacity-40",
+          "flex items-center gap-1 px-2.5 py-1 text-xs font-medium border rounded transition-colors disabled:opacity-50",
           colorClasses[color]
         )}
       >
@@ -141,14 +141,14 @@ function DropdownMenu({
         <ChevronDown size={10} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-20 min-w-[220px] bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-md shadow-lg py-1">
+        <div className="absolute top-full left-0 mt-1 z-20 min-w-[220px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1">
           {items.map((item, i) => (
             <button
               key={i}
               onClick={() => { item.onClick(); setOpen(false); }}
               disabled={disabled}
               title={item.tooltip}
-              className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-40 flex items-center gap-2"
+              className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-2"
             >
               {item.isRunning && <Loader2 size={10} className="animate-spin" />}
               {item.label}
@@ -340,7 +340,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-600 animate-spin" />
+        <Loader2 size={24} className="text-zinc-400 animate-spin" />
       </div>
     );
   }
@@ -379,7 +379,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* ── Sidebar (220px) ── */}
-      <div className="w-[220px] flex-shrink-0 border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex flex-col overflow-hidden">
+      <div className="w-[220px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 flex flex-col overflow-hidden">
         {/* Search */}
         <div className="p-2.5 pb-1.5">
           <div className="relative">
@@ -389,7 +389,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search domains..."
-              className="w-full pl-7 pr-2 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
+              className="w-full pl-7 pr-2 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:border-teal-500"
             />
           </div>
         </div>
@@ -415,7 +415,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
                       else next.add(type);
                       return next;
                     })}
-                    className="w-full flex items-center gap-1 px-3 pt-3 pb-1 hover:bg-slate-100 dark:hover:bg-zinc-800/50 transition-colors"
+                    className="w-full flex items-center gap-1 px-3 pt-3 pb-1 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
                   >
                     <ChevronRight
                       size={10}
@@ -438,7 +438,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
                         "w-full text-left px-2.5 py-1.5 mx-1 rounded-md text-xs transition-colors",
                         d.domain === selectedDomain
                           ? "bg-teal-500/10 text-teal-700 dark:text-teal-300"
-                          : "text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/50"
+                          : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
                       )}
                       style={{ width: "calc(100% - 8px)" }}
                     >
@@ -490,7 +490,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
                 onClick={handleFullAnalysis}
                 disabled={anyRunning}
                 title="Run complete analysis pipeline: Sync All → Dashboard Health → Query Health → Artifact Audit → Generate Overview"
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-500 rounded-lg transition-colors disabled:opacity-40"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-500 rounded-lg transition-colors disabled:opacity-50"
               >
                 {fullAnalysisRunning ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -508,7 +508,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
 
                 {anyRunning && (
                   <>
-                    <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700 ml-1" />
+                    <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 ml-1" />
                     <button
                       onClick={handleStop}
                       className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-red-600 hover:text-red-500 border border-red-300 dark:border-red-800 rounded transition-colors"
@@ -529,10 +529,10 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
             {currentOp && (
               <div className="mx-6 mb-3">
                 <div className="flex items-center gap-2 mb-1.5">
-                  <Loader2 size={12} className="text-teal-600 animate-spin" />
+                  <Loader2 size={12} className="text-zinc-400 animate-spin"  />
                   <span className="text-xs text-teal-700 dark:text-teal-400">{currentOp}</span>
                 </div>
-                <div className="h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-teal-500 rounded-full transition-all duration-300"
                     style={{ width: `${getProgressPct()}%` }}

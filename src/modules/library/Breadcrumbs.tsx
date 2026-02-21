@@ -29,7 +29,7 @@ export function Breadcrumbs({ path, basePath, onNavigate, isFile = false }: Brea
       {/* Home/Root button */}
       <button
         onClick={() => onNavigate(basePath)}
-        className="flex-shrink-0 p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+        className="flex-shrink-0 p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
         title="Go to root"
       >
         <Home className="w-4 h-4" />

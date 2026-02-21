@@ -9,7 +9,7 @@ import {
   useStatuses,
   useUsers,
   useMilestones,
-} from "../../hooks/useWork";
+} from "../../hooks/work";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { formatDateFull as formatDate } from "../../lib/date";
 import {
@@ -18,6 +18,7 @@ import {
   PriorityLabels,
 } from "../../lib/work/types";
 import { StatusIcon } from "./StatusIcon";
+import { EmptyState } from "../../components/EmptyState";
 import {
   X,
   Loader2,
@@ -66,16 +67,16 @@ export function TaskDetailPanel({
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
-        <Loader2 size={24} className="text-zinc-400 dark:text-zinc-600 animate-spin" />
+      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <Loader2 size={24} className="text-zinc-400 dark:text-zinc-400 animate-spin" />
       </div>
     );
   }
 
   if (!task) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
-        <p className="text-zinc-500">Task not found</p>
+      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <EmptyState message="Task not found" />
       </div>
     );
   }
@@ -122,9 +123,9 @@ export function TaskDetailPanel({
   }
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <StatusIcon type={statusType} color={statusColor} size={20} />
           <span className="text-sm text-zinc-500 font-mono">{identifier}</span>
@@ -142,7 +143,7 @@ export function TaskDetailPanel({
         </div>
         <button
           onClick={onClose}
-          className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+          className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         >
           <X size={18} />
         </button>
@@ -172,7 +173,7 @@ export function TaskDetailPanel({
                   setTitleValue(task.title);
                   setEditingTitle(true);
                 }}
-                className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 cursor-text hover:bg-slate-100 dark:hover:bg-zinc-900/50 px-1 -mx-1 rounded"
+                className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 cursor-text hover:bg-zinc-100 dark:hover:bg-zinc-900/50 px-1 -mx-1 rounded"
               >
                 {task.title}
               </h1>
@@ -187,7 +188,7 @@ export function TaskDetailPanel({
               <select
                 value={task.status_id || ""}
                 onChange={(e) => handleUpdateField("status_id", e.target.value)}
-                className="flex-1 px-2 py-1.5 text-sm border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 {statuses.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -206,7 +207,7 @@ export function TaskDetailPanel({
               <select
                 value={task.priority ?? Priority.None}
                 onChange={(e) => handleUpdateField("priority", parseInt(e.target.value))}
-                className="flex-1 px-2 py-1.5 text-sm border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 {Object.entries(PriorityLabels).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -227,7 +228,7 @@ export function TaskDetailPanel({
                 onChange={(e) =>
                   handleUpdateField("assignee_id", e.target.value || null)
                 }
-                className="flex-1 px-2 py-1.5 text-sm border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 <option value="">Unassigned</option>
                 {users.map((u) => (
@@ -249,7 +250,7 @@ export function TaskDetailPanel({
                 onChange={(e) =>
                   handleUpdateField("milestone_id", e.target.value || null)
                 }
-                className="flex-1 px-2 py-1.5 text-sm border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 <option value="">No milestone</option>
                 {milestones.map((m) => (
@@ -275,7 +276,7 @@ export function TaskDetailPanel({
                     e.target.value ? `${e.target.value}T00:00:00Z` : null
                   )
                 }
-                className="flex-1 px-2 py-1.5 text-sm border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               />
             </div>
 
@@ -313,13 +314,13 @@ export function TaskDetailPanel({
                   value={descriptionValue}
                   onChange={(e) => setDescriptionValue(e.target.value)}
                   rows={6}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
                   autoFocus
                 />
                 <div className="flex justify-end gap-2 mt-2">
                   <button
                     onClick={() => setEditingDescription(false)}
-                    className="px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded"
+                    className="px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
                   >
                     Cancel
                   </button>
@@ -337,7 +338,7 @@ export function TaskDetailPanel({
                   setDescriptionValue(task.description || "");
                   setEditingDescription(true);
                 }}
-                className="min-h-[100px] px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-900/50 rounded border border-slate-200 dark:border-zinc-800 cursor-text hover:border-slate-300 dark:hover:border-zinc-700 transition-colors whitespace-pre-wrap"
+                className="min-h-[100px] px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-900/50 rounded border border-zinc-200 dark:border-zinc-800 cursor-text hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors whitespace-pre-wrap"
               >
                 {task.description || (
                   <span className="text-zinc-500 dark:text-zinc-600">Add a description...</span>
@@ -372,7 +373,7 @@ export function TaskDetailPanel({
           )}
 
           {/* Metadata */}
-          <div className="pt-4 border-t border-slate-200 dark:border-zinc-800 text-xs text-zinc-500 dark:text-zinc-600 space-y-1">
+          <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 dark:text-zinc-600 space-y-1">
             <p>Created: {formatDate(task.created_at)}</p>
             <p>Updated: {formatDate(task.updated_at)}</p>
             {task.creator && <p>Created by: {task.creator.name}</p>}
@@ -381,7 +382,7 @@ export function TaskDetailPanel({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex justify-between">
         <button
           onClick={() => setShowDeleteConfirm(true)}
           className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20 rounded transition-colors"
@@ -391,7 +392,7 @@ export function TaskDetailPanel({
         </button>
         <button
           onClick={onClose}
-          className="px-4 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+          className="px-4 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
         >
           Close
         </button>
@@ -400,7 +401,7 @@ export function TaskDetailPanel({
       {/* Delete Confirmation */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-5 max-w-sm w-full mx-4 shadow-xl">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 max-w-sm w-full mx-4 shadow-xl">
             <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
               Delete Task
             </h3>
@@ -410,7 +411,7 @@ export function TaskDetailPanel({
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
                 disabled={deleteMutation.isPending}
               >
                 Cancel

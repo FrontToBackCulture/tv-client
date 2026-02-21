@@ -62,9 +62,9 @@ export function InboxSidebar({
   ];
 
   return (
-    <div className="w-56 border-r border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 flex flex-col">
+    <div className="w-56 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col">
       {/* Header */}
-      <div className="p-3 border-b border-slate-200 dark:border-zinc-800">
+      <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">Inbox</h2>
           {onRefresh && (
@@ -72,7 +72,7 @@ export function InboxSidebar({
               onClick={onRefresh}
               disabled={isRefreshing}
               data-help-id="inbox-refresh"
-              className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 text-zinc-500"
+              className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500"
               title="Refresh emails"
             >
               <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
@@ -123,7 +123,7 @@ export function InboxSidebar({
               "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors",
               selectedFolder === folder.id && !selectedCategory && !selectedStatus
                 ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                : "text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
+                : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             )}
           >
             <folder.icon size={16} />
@@ -152,7 +152,7 @@ export function InboxSidebar({
               "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors",
               selectedCategory === cat.id
                 ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                : "text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
+                : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             )}
           >
             <cat.icon size={16} className={cat.color} />
@@ -167,7 +167,7 @@ export function InboxSidebar({
       </div>
 
       {/* Starred / Filters */}
-      <div className="p-2 border-t border-slate-200 dark:border-zinc-800">
+      <div className="p-2 border-t border-zinc-200 dark:border-zinc-800">
         <button
           onClick={() => {
             onStatusChange("archived");
@@ -177,7 +177,7 @@ export function InboxSidebar({
             "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors",
             selectedStatus === "archived"
               ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-              : "text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
+              : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           )}
         >
           <Archive size={16} />

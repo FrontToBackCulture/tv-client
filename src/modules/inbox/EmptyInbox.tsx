@@ -13,11 +13,11 @@ interface EmptyInboxProps {
 
 export function EmptyInbox({ onRefresh, onSetup, message, isSyncing, syncError, syncProgress }: EmptyInboxProps) {
   return (
-    <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
+    <div className="flex-1 flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
       <div className="text-center max-w-md px-4">
-        <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center">
+        <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
           {isSyncing ? (
-            <Loader2 size={32} className="text-teal-500 animate-spin" />
+            <Loader2 size={32} className="text-zinc-400 animate-spin" />
           ) : (
             <Mail size={32} className="text-zinc-400" />
           )}
@@ -42,7 +42,7 @@ export function EmptyInbox({ onRefresh, onSetup, message, isSyncing, syncError, 
             <button
               onClick={onRefresh}
               disabled={isSyncing}
-              className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-lg transition-colors"
             >
               {isSyncing ? (
                 <>
@@ -60,7 +60,7 @@ export function EmptyInbox({ onRefresh, onSetup, message, isSyncing, syncError, 
           {onSetup && (
             <button
               onClick={onSetup}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition-colors"
             >
               <Settings size={16} />
               Setup

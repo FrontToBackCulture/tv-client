@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from "react";
 import { CheckCircle, XCircle, ArrowUpDown } from "lucide-react";
-import { useDeals } from "../../hooks/useCRM";
+import { useDeals } from "../../hooks/crm";
 import type { Deal } from "../../lib/crm/types";
 import { SearchInput, timeAgo } from "./CrmComponents";
 

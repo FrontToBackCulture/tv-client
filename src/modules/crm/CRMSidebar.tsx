@@ -35,14 +35,14 @@ export function CRMSidebar({
   const [showClosedDeals, setShowClosedDeals] = useState(false);
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-900">
+    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-900">
       {/* Header */}
-      <div className="px-3 py-3 border-b border-slate-200 dark:border-zinc-800">
+      <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">CRM</h2>
       </div>
 
       {/* Views */}
-      <div className="px-2 py-3 border-b border-slate-200 dark:border-zinc-800">
+      <div className="px-2 py-3 border-b border-zinc-200 dark:border-zinc-800">
         <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-2 px-2">
           Views
         </h3>
@@ -57,7 +57,7 @@ export function CRMSidebar({
                 className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded transition-colors ${
                   isActive
                     ? "bg-teal-500/10 text-teal-600 dark:text-teal-400"
-                    : "text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-300"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-300"
                 }`}
               >
                 <Icon
@@ -92,7 +92,7 @@ export function CRMSidebar({
               onChange={(e) =>
                 onFiltersChange({ ...filters, search: e.target.value || undefined })
               }
-              className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
             />
           </div>
 
@@ -167,7 +167,7 @@ export function CRMSidebar({
       </div>
 
       {/* New Company button */}
-      <div className="px-2 py-2 border-t border-slate-200 dark:border-zinc-800">
+      <div className="px-2 py-2 border-t border-zinc-200 dark:border-zinc-800">
         <button
           onClick={onNewCompany}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-sm font-medium transition-colors"

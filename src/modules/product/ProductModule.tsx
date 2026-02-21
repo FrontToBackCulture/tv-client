@@ -5,8 +5,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Boxes, Package, Database, Tags, Layers, ArrowLeft, Sparkles } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
-import { useProductStats } from "../../hooks/useProduct";
-import { useDiscoverDomains } from "../../hooks/useValSync";
+import { useProductStats } from "../../hooks/product";
+import { useDiscoverDomains } from "../../hooks/val-sync";
 import { useRepository } from "../../stores/repositoryStore";
 import type { ProductEntityType } from "../../lib/product/types";
 import { PlatformTabView } from "./PlatformTabView";
@@ -209,11 +209,11 @@ export function ProductModule() {
     const folderPath = basePath ? `${basePath}/${REVIEW_FOLDER[reviewType]}` : null;
 
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
-        <div className="px-4 py-2 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
+        <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
           <button
             onClick={handleExitReview}
-            className="flex items-center gap-1.5 px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
           >
             <ArrowLeft size={14} />
             Back to Domains

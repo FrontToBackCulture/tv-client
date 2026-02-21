@@ -2,7 +2,7 @@
 // Modal form for creating/editing deals
 
 import { useState } from "react";
-import { useCreateDeal, useUpdateDeal } from "../../hooks/useCRM";
+import { useCreateDeal, useUpdateDeal } from "../../hooks/crm";
 import {
   Deal,
   DealInsert,
@@ -65,14 +65,14 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-zinc-800">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
             {isEditing ? "Edit Deal" : "New Deal"}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X size={18} />
           </button>
@@ -96,7 +96,7 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
               type="text"
               value={formData.name || ""}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               required
             />
           </div>
@@ -114,7 +114,7 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
                     stage: e.target.value as Deal["stage"],
                   })
                 }
-                className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 {DEAL_STAGES.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -136,7 +136,7 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
                     solution: e.target.value as Deal["solution"],
                   })
                 }
-                className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 {DEAL_SOLUTIONS.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -161,7 +161,7 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
                     value: e.target.value ? parseInt(e.target.value) : 0,
                   })
                 }
-                className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
                 placeholder="0"
               />
             </div>
@@ -175,7 +175,7 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
                 onChange={(e) =>
                   setFormData({ ...formData, currency: e.target.value })
                 }
-                className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 <option value="SGD">SGD</option>
                 <option value="USD">USD</option>
@@ -194,7 +194,7 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
               onChange={(e) =>
                 setFormData({ ...formData, expected_close_date: e.target.value })
               }
-              className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
             />
           </div>
 
@@ -208,7 +208,7 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
               }
-              className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               placeholder="Brief description..."
             />
           </div>
@@ -221,16 +221,16 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
               value={formData.notes || ""}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
             />
           </div>
         </form>
 
-        <div className="p-4 border-t border-slate-200 dark:border-zinc-800 flex justify-end gap-2">
+        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+            className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
           >
             Cancel
           </button>

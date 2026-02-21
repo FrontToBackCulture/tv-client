@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from "react";
 import { ArrowUpDown, Plus } from "lucide-react";
-import { useCompanies, useContacts } from "../../hooks/useCRM";
+import { useCompanies, useContacts } from "../../hooks/crm";
 import type { Company } from "../../lib/crm/types";
 import { SearchInput, CompanyRow } from "./CrmComponents";
 

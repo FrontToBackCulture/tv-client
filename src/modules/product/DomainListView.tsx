@@ -2,7 +2,7 @@
 // Domain list with auto-discovery from file system, grouped by type
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useDiscoverDomains, useSyncAllDomains, useSyncAllDomainsMonitoring, useSyncAllDomainsSod, useSyncAllDomainsImporterErrors, useSyncAllDomainsIntegrationErrors, useRunAllDomainsDataModelHealth, useRunAllDomainsWorkflowHealth, useRunAllDomainsDashboardHealth, useRunAllDomainsQueryHealth, useRunAllDomainsArtifactAudit, useRunAllDomainsOverview, type DiscoveredDomain } from "../../hooks/useValSync";
+import { useDiscoverDomains, useSyncAllDomains, useSyncAllDomainsMonitoring, useSyncAllDomainsSod, useSyncAllDomainsImporterErrors, useSyncAllDomainsIntegrationErrors, useRunAllDomainsDataModelHealth, useRunAllDomainsWorkflowHealth, useRunAllDomainsDashboardHealth, useRunAllDomainsQueryHealth, useRunAllDomainsArtifactAudit, useRunAllDomainsOverview, type DiscoveredDomain } from "../../hooks/val-sync";
 import { useRepository } from "../../stores/repositoryStore";
 import { useJobsStore } from "../../stores/jobsStore";
 import { Loader2, Database, FolderOpen, AlertCircle, RefreshCw, Square, ChevronDown, ChevronRight, Zap } from "lucide-react";
@@ -66,13 +66,13 @@ function DropdownMenu({
   label,
   items,
   disabled,
-  color = "slate",
+  color = "zinc",
   tooltip
 }: {
   label: string;
   items: { label: string; onClick: () => void; isRunning?: boolean; tooltip?: string }[];
   disabled: boolean;
-  color?: "slate" | "teal" | "violet";
+  color?: "zinc" | "teal" | "violet";
   tooltip?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -89,7 +89,7 @@ function DropdownMenu({
   }, []);
 
   const colorClasses = {
-    slate: "text-slate-600 hover:text-slate-500 border-slate-300 dark:border-slate-700",
+    zinc: "text-zinc-600 hover:text-zinc-500 border-zinc-300 dark:border-zinc-700",
     teal: "text-teal-600 hover:text-teal-500 border-teal-300 dark:border-teal-800",
     violet: "text-violet-600 hover:text-violet-500 border-violet-300 dark:border-violet-800",
   };
@@ -101,7 +101,7 @@ function DropdownMenu({
         disabled={disabled}
         title={tooltip}
         className={cn(
-          "flex items-center gap-1 px-2.5 py-1 text-xs font-medium border rounded transition-colors disabled:opacity-40",
+          "flex items-center gap-1 px-2.5 py-1 text-xs font-medium border rounded transition-colors disabled:opacity-50",
           colorClasses[color]
         )}
       >
@@ -109,7 +109,7 @@ function DropdownMenu({
         <ChevronDown size={10} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-20 min-w-[220px] bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-md shadow-lg py-1">
+        <div className="absolute top-full left-0 mt-1 z-20 min-w-[220px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1">
           {items.map((item, i) => (
             <button
               key={i}
@@ -119,7 +119,7 @@ function DropdownMenu({
               }}
               disabled={disabled}
               title={item.tooltip}
-              className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-40 flex items-center gap-2"
+              className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-2"
             >
               {item.isRunning && <Loader2 size={10} className="animate-spin" />}
               {item.label}
@@ -267,7 +267,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-600 animate-spin" />
+        <Loader2 size={24} className="text-zinc-400 animate-spin" />
       </div>
     );
   }
@@ -407,7 +407,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Toolbar */}
-      <div className="px-4 py-2 bg-slate-50 dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800">
+      <div className="px-4 py-2 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-zinc-500">{all.length} domains</span>
           {anyRunning && (
@@ -427,7 +427,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
             onClick={handleFullAnalysis}
             disabled={anyRunning}
             title="Run complete analysis pipeline: Sync All → Dashboard Health → Query Health → Artifact Audit → Generate Overview. Best for initial setup or full refresh."
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-500 rounded transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-500 rounded transition-colors disabled:opacity-50"
           >
             {fullAnalysisRunning ? (
               <Loader2 size={12} className="animate-spin" />
@@ -437,7 +437,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
             Full Analysis
           </button>
 
-          <div className="w-px h-5 bg-slate-300 dark:bg-zinc-700" />
+          <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700" />
 
           {/* Dropdown menus */}
           <DropdownMenu
@@ -472,7 +472,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
       {currentOp && (
         <div className="px-4 py-1.5 bg-teal-50 dark:bg-teal-900/10 border-b border-teal-200 dark:border-teal-800/50">
           <div className="flex items-center gap-2">
-            <Loader2 size={12} className="text-teal-600 animate-spin" />
+            <Loader2 size={12} className="text-zinc-400 animate-spin"  />
             <span className="text-xs text-teal-700 dark:text-teal-400">{currentOp}</span>
           </div>
         </div>
@@ -494,7 +494,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
       )}
 
       {/* Table header */}
-      <div className="flex items-center px-4 py-2 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 text-xs font-medium text-zinc-500 uppercase tracking-wider">
+      <div className="flex items-center px-4 py-2 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs font-medium text-zinc-500 uppercase tracking-wider">
         <span className="flex-1">Domain</span>
         <span className="w-32 text-center">Last Synced</span>
         <span className="w-24 text-center">Artifacts</span>
@@ -514,7 +514,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
                   else next.add(type);
                   return next;
                 })}
-                className="sticky top-0 z-10 w-full flex items-center gap-1.5 px-4 py-1.5 bg-slate-50 dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors"
+                className="sticky top-0 z-10 w-full flex items-center gap-1.5 px-4 py-1.5 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
               >
                 <ChevronRight
                   size={11}
@@ -534,10 +534,10 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
                   key={domain.domain}
                   onClick={() => onSelect(domain.domain)}
                   className={cn(
-                    "w-full flex items-center px-4 py-2.5 text-left border-b border-slate-100 dark:border-zinc-800/50 transition-colors",
+                    "w-full flex items-center px-4 py-2.5 text-left border-b border-zinc-100 dark:border-zinc-800/50 transition-colors",
                     domain.domain === selectedId
                       ? "bg-teal-500/5 dark:bg-teal-500/10"
-                      : "hover:bg-slate-50 dark:hover:bg-zinc-900/50"
+                      : "hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
                   )}
                 >
                   <div className="flex-1 min-w-0">

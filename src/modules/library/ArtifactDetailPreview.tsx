@@ -80,7 +80,7 @@ function TagsInput({
 
   return (
     <div className="relative">
-      <div className="flex flex-wrap gap-1 p-1.5 min-h-[32px] rounded border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800">
+      <div className="flex flex-wrap gap-1 p-1.5 min-h-[32px] rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800">
         {tags.map((tag) => (
           <span
             key={tag}
@@ -107,13 +107,13 @@ function TagsInput({
         />
       </div>
       {showSuggestions && filteredSuggestions.length > 0 && (
-        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg max-h-40 overflow-auto">
+        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg max-h-40 overflow-auto">
           {filteredSuggestions.map((suggestion) => (
             <button
               key={suggestion}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => addTag(suggestion)}
-              className="w-full px-3 py-1.5 text-xs text-left hover:bg-slate-100 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
             >
               {suggestion}
             </button>
@@ -181,16 +181,16 @@ function ComboBox({
         onFocus={() => setIsOpen(true)}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className="w-full text-xs px-2 py-1.5 pr-6 rounded border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400"
+        className="w-full text-xs px-2 py-1.5 pr-6 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400"
       />
       <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
       {isOpen && (
-        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg max-h-40 overflow-auto">
+        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg max-h-40 overflow-auto">
           {value && (
             <button
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
-              className="w-full px-3 py-1.5 text-xs text-left hover:bg-slate-100 dark:hover:bg-zinc-700 text-zinc-500 italic border-b border-slate-100 dark:border-zinc-700"
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 italic border-b border-zinc-100 dark:border-zinc-700"
             >
               Clear selection
             </button>
@@ -202,7 +202,7 @@ function ComboBox({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(opt)}
                 className={cn(
-                  "w-full px-3 py-1.5 text-xs text-left hover:bg-slate-100 dark:hover:bg-zinc-700",
+                  "w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-100 dark:hover:bg-zinc-700",
                   opt === value
                     ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
                     : "text-zinc-800 dark:text-zinc-200"
@@ -215,7 +215,7 @@ function ComboBox({
             <button
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(inputValue.trim())}
-              className="w-full px-3 py-1.5 text-xs text-left hover:bg-slate-100 dark:hover:bg-zinc-700 text-teal-600 dark:text-teal-400"
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-teal-600 dark:text-teal-400"
             >
               Add &quot;{inputValue.trim()}&quot;
             </button>
@@ -256,7 +256,7 @@ export function ArtifactDetailPreview({
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-900">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between flex-shrink-0">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <ArtifactIcon type={artifactType} />
           <div className="min-w-0">
@@ -270,7 +270,7 @@ export function ArtifactDetailPreview({
           {onNavigate && (
             <button
               onClick={() => onNavigate(row.folderPath)}
-              className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+              className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
               title="Open folder"
             >
               <FolderOpen size={14} />
@@ -278,7 +278,7 @@ export function ArtifactDetailPreview({
           )}
           <button
             onClick={onClose}
-            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             title="Close"
           >
             <X size={14} />
@@ -413,7 +413,7 @@ export function ArtifactDetailPreview({
                   type="checkbox"
                   checked={row.includeSitemap ?? false}
                   onChange={(e) => onFieldChange?.("includeSitemap", e.target.checked as unknown as string)}
-                  className="rounded border-slate-300 dark:border-zinc-700 text-teal-600 focus:ring-teal-500"
+                  className="rounded border-zinc-300 dark:border-zinc-700 text-teal-600 focus:ring-teal-500"
                 />
                 <span className="text-xs text-zinc-600 dark:text-zinc-400">Show on client portal</span>
               </label>
@@ -452,7 +452,7 @@ export function ArtifactDetailPreview({
                 value={row.resourceUrl || ""}
                 onChange={(e) => onFieldChange?.("resourceUrl", e.target.value || null)}
                 placeholder="https://domain.thinkval.io/..."
-                className="w-full text-xs px-2 py-1.5 rounded border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400"
+                className="w-full text-xs px-2 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400"
               />
             </FieldGroup>
           </div>
@@ -468,7 +468,7 @@ export function ArtifactDetailPreview({
                 value={row.suggestedName || ""}
                 onChange={(e) => onFieldChange?.("suggestedName", e.target.value || null)}
                 placeholder="Suggested name..."
-                className="w-full text-xs px-2 py-1.5 rounded border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400"
+                className="w-full text-xs px-2 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400"
               />
             </FieldGroup>
 
@@ -478,7 +478,7 @@ export function ArtifactDetailPreview({
                 onChange={(e) => onFieldChange?.("summaryShort", e.target.value || null)}
                 placeholder="Brief summary..."
                 rows={2}
-                className="w-full text-xs px-2 py-1.5 rounded border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 resize-none"
+                className="w-full text-xs px-2 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 resize-none"
               />
             </FieldGroup>
 
@@ -488,7 +488,7 @@ export function ArtifactDetailPreview({
                 onChange={(e) => onFieldChange?.("summaryFull", e.target.value || null)}
                 placeholder="Detailed summary..."
                 rows={4}
-                className="w-full text-xs px-2 py-1.5 rounded border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 resize-none"
+                className="w-full text-xs px-2 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 resize-none"
               />
             </FieldGroup>
           </div>

@@ -802,7 +802,7 @@ export function DataModelsReviewView({
   return (
     <div className="h-full flex flex-col">
       {/* Header toolbar */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-shrink-0">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-shrink-0">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             Review Mode
@@ -838,7 +838,7 @@ export function DataModelsReviewView({
 
           {/* Auto-saving indicator */}
           {isSaving && (
-            <span className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-slate-100 dark:bg-zinc-800 text-zinc-500">
+            <span className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
               <Loader2 size={12} className="animate-spin" />
               Saving...
             </span>
@@ -849,7 +849,7 @@ export function DataModelsReviewView({
             onClick={handleFetchAllSamples}
             disabled={isBatchRunning}
             data-help-id="review-fetch-samples"
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Fetch sample rows for filtered tables (applies to visible rows in grid)"
           >
             <Database size={14} />
@@ -861,7 +861,7 @@ export function DataModelsReviewView({
             onClick={handleFetchAllCategorical}
             disabled={isBatchRunning}
             data-help-id="review-fetch-categorical"
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Fetch categorical values for filtered tables (applies to visible rows in grid)"
           >
             <Tags size={14} />
@@ -873,7 +873,7 @@ export function DataModelsReviewView({
             onClick={handleFetchAllDetails}
             disabled={isBatchRunning}
             data-help-id="review-fetch-details"
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Fetch details for filtered tables (applies to visible rows in grid)"
           >
             <RefreshCw size={14} />
@@ -909,7 +909,7 @@ export function DataModelsReviewView({
             onClick={handleGenerateAllOverviews}
             disabled={isBatchRunning}
             data-help-id="review-generate-overviews"
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Generate overviews for filtered tables (applies to visible rows in grid)"
           >
             <FileText size={14} />
@@ -927,7 +927,7 @@ export function DataModelsReviewView({
                 "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors",
                 isSyncing
                   ? "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
-                  : "border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
               {isSyncing ? (
@@ -941,26 +941,26 @@ export function DataModelsReviewView({
 
           {/* Export dropdown */}
           <div className="relative group" data-help-id="review-export">
-            <button className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
+            <button className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
               <Download size={14} />
               Export
             </button>
-            <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-slate-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
+            <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
               <button
                 onClick={() => handleExport("all")}
-                className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700"
+                className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 Export All
               </button>
               <button
                 onClick={() => handleExport("modified")}
-                className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700"
+                className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 Export Modified
               </button>
               <button
                 onClick={() => handleExport("review")}
-                className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700"
+                className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 Export Review Queue
               </button>
@@ -990,14 +990,14 @@ export function DataModelsReviewView({
         {selectedTablePath && (
           <div
             onMouseDown={handleMouseDown}
-            className="relative w-2 cursor-col-resize group flex-shrink-0 hover:bg-slate-100 dark:hover:bg-zinc-800/50"
+            className="relative w-2 cursor-col-resize group flex-shrink-0 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
           >
             <div
               className={cn(
                 "absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 transition-all",
                 isResizing
                   ? "bg-teal-500"
-                  : "bg-slate-300 dark:bg-zinc-700 group-hover:bg-teal-500"
+                  : "bg-zinc-300 dark:bg-zinc-700 group-hover:bg-teal-500"
               )}
             />
           </div>
@@ -1006,7 +1006,7 @@ export function DataModelsReviewView({
         {/* Right: Detail panel */}
         {selectedTablePath && selectedTableName && (
           <div
-            className="flex-shrink-0 border-l border-slate-200 dark:border-zinc-800 overflow-hidden"
+            className="flex-shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-hidden"
             style={{
               width: panelWidth,
               transition: isResizing ? "none" : "width 200ms",

@@ -559,7 +559,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   // Header with breadcrumbs and actions
   const renderHeader = () => (
-    <div className="sticky top-0 z-10 bg-slate-50 dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800">
+    <div className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
       <div className="flex items-center justify-between px-4 py-2">
         <Breadcrumbs
           path={path}
@@ -570,7 +570,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
         <div className="flex items-center gap-1">
           <button
             onClick={handleRefresh}
-            className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
             title="Refresh file content"
           >
             <RefreshCw className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
@@ -643,7 +643,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   // Loading state for text files
   if (isLoading) {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
@@ -657,7 +657,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (isError) {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
@@ -673,7 +673,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (!content) {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
@@ -689,9 +689,9 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   // Render based on file type
   if (fileType === "markdown") {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {/* Header with breadcrumbs and actions */}
-        <div className="sticky top-0 z-10 bg-slate-50 dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800">
+        <div className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="flex items-center gap-3">
               <Breadcrumbs
@@ -714,7 +714,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
             <div className="flex items-center gap-1">
               <button
                 onClick={handleRefresh}
-                className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+                className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
                 title="Refresh file content"
               >
                 <RefreshCw className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
@@ -778,7 +778,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "json") {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <JSONEditor
@@ -796,7 +796,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "sql") {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <SQLEditor
@@ -814,7 +814,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "csv") {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <CSVViewer content={content} filename={filename} />
@@ -826,7 +826,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "html") {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <HTMLViewer content={content} filename={filename} />
@@ -838,7 +838,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "excalidraw") {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
           <ExcalidrawViewer content={content} filename={filename} />
@@ -850,14 +850,14 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   if (fileType === "code") {
     return (
-      <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-auto">
           <div className="p-4">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200 dark:border-zinc-800">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
               <FileCode size={16} className="text-zinc-500" />
               <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
-              <span className="text-xs text-zinc-600 dark:text-zinc-600 bg-slate-200 dark:bg-zinc-800 px-2 py-0.5 rounded ml-auto">
+              <span className="text-xs text-zinc-600 dark:text-zinc-600 bg-zinc-200 dark:bg-zinc-800 px-2 py-0.5 rounded ml-auto">
                 {getLanguage(path)}
               </span>
             </div>
@@ -873,11 +873,11 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   // Plain text fallback
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950">
+    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
       {renderHeader()}
       <div className="flex-1 overflow-auto">
         <div className="p-4">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200 dark:border-zinc-800">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
             <FileText size={16} className="text-zinc-500" />
             <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
           </div>

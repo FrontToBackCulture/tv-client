@@ -10,11 +10,11 @@ export function SystemModule() {
   const [selectedCapability, setSelectedCapability] = useState<UnifiedCapability | null>(null);
 
   return (
-    <div className="h-full flex bg-slate-50 dark:bg-zinc-950">
+    <div className="h-full flex bg-zinc-50 dark:bg-zinc-950">
       {/* Sidebar */}
-      <aside className="w-72 flex-shrink-0 border-r border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex flex-col">
+      <aside className="w-72 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <Book size={20} className="text-teal-500" />
             <h1 className="font-semibold text-zinc-900 dark:text-zinc-100">System</h1>
@@ -51,7 +51,7 @@ function EmptyState() {
   return (
     <div className="h-full flex items-center justify-center">
       <div className="text-center max-w-sm px-4">
-        <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-slate-100 dark:bg-zinc-800 flex items-center justify-center">
+        <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
           <Book size={24} className="text-zinc-400" />
         </div>
         <h3 className="text-base font-medium text-zinc-900 dark:text-zinc-100 mb-1">Capability Docs</h3>

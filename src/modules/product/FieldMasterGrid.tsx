@@ -24,8 +24,8 @@ import {
   useDomainModelFile,
   useBuildFieldMaster,
   useSaveFieldMaster,
-} from "../../hooks/useValSync";
-import type { FieldMasterFile, MasterField } from "../../hooks/useValSync";
+} from "../../hooks/val-sync";
+import type { FieldMasterFile, MasterField } from "../../hooks/val-sync";
 import { Loader2, Check, RefreshCw, Layers } from "lucide-react";
 
 // ============================================================================
@@ -71,7 +71,7 @@ const TagsCellRenderer = (params: ICellRendererParams) => {
       {tags.map((tag) => (
         <span
           key={tag}
-          className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+          className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
         >
           {tag}
         </span>
@@ -141,7 +141,7 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
         {tags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
           >
             {tag}
             <button

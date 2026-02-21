@@ -17,7 +17,7 @@ export function SolutionCardView({ solutions, isLoading, selectedSlug, onSelect 
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-600 animate-spin" />
+        <Loader2 size={24} className="text-zinc-400 animate-spin" />
       </div>
     );
   }
@@ -42,7 +42,7 @@ export function SolutionCardView({ solutions, isLoading, selectedSlug, onSelect 
               "text-left p-4 rounded-lg border transition-colors",
               solution.slug === selectedSlug
                 ? "border-teal-500 bg-teal-500/5 dark:bg-teal-500/10"
-                : "border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-slate-300 dark:hover:border-zinc-700"
+                : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700"
             )}
           >
             <div className="flex items-start justify-between mb-2">

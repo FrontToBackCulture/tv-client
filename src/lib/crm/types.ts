@@ -117,7 +117,7 @@ export const COMPANY_STAGES = [
 
 export const DEAL_STAGES = [
   { value: "target" as const, label: "Target", color: "zinc", weight: 0.05 },
-  { value: "prospect" as const, label: "Prospect", color: "slate", weight: 0.1 },
+  { value: "prospect" as const, label: "Prospect", color: "zinc", weight: 0.1 },
   { value: "lead" as const, label: "Lead", color: "gray", weight: 0.2 },
   { value: "qualified" as const, label: "Qualified", color: "blue", weight: 0.3 },
   { value: "pilot" as const, label: "Pilot", color: "purple", weight: 0.5 },
@@ -194,7 +194,7 @@ export const DEAL_SOLUTIONS = [
     color: "gray",
     icon: "folder-open",
   },
-  { value: "other" as const, label: "Other", color: "slate", icon: "folder" },
+  { value: "other" as const, label: "Other", color: "zinc", icon: "folder" },
 ];
 
 export const ACTIVITY_TYPES = [

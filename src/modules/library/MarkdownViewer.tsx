@@ -104,11 +104,11 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
   if (!hasMetadata) return null;
 
   return (
-    <div className="not-prose mb-4 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 overflow-hidden">
+    <div className="not-prose mb-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 overflow-hidden">
       {/* Collapsed view - just title/summary */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-start gap-2 p-3 text-left hover:bg-slate-100 dark:hover:bg-zinc-800/50 transition-colors"
+        className="w-full flex items-start gap-2 p-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
       >
         {expanded ? (
           <ChevronDown size={14} className="mt-0.5 text-zinc-400 flex-shrink-0" />
@@ -133,7 +133,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
               ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
               : frontmatter.status === "draft"
               ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
-              : "bg-slate-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
           }`}>
             {frontmatter.status}
           </span>
@@ -142,7 +142,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
 
       {/* Expanded metadata */}
       {expanded && (
-        <div className="px-3 pb-3 pt-0 border-t border-slate-200 dark:border-zinc-800">
+        <div className="px-3 pb-3 pt-0 border-t border-zinc-200 dark:border-zinc-800">
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             {frontmatter.author && (
               <span className="flex items-center gap-1">
@@ -174,7 +174,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
               {frontmatter.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
                 >
                   {tag}
                 </span>
@@ -207,7 +207,7 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
     <div className="prose dark:prose-invert prose-zinc w-full !max-w-none">
       {/* Show filename only if no frontmatter title/name */}
       {filename && !frontmatter?.title && !frontmatter?.name && (
-        <div className="not-prose mb-6 pb-4 border-b border-slate-200 dark:border-zinc-800">
+        <div className="not-prose mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{filename}</h1>
         </div>
       )}
@@ -263,24 +263,24 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
             const isInline = !className;
             if (isInline) {
               return (
-                <code className="bg-slate-100 dark:bg-zinc-800 text-teal-600 dark:text-teal-300 px-1.5 py-0.5 rounded text-sm font-mono">
+                <code className="bg-zinc-100 dark:bg-zinc-800 text-teal-600 dark:text-teal-300 px-1.5 py-0.5 rounded text-sm font-mono">
                   {children}
                 </code>
               );
             }
             return (
-              <code className="block bg-slate-100 dark:bg-zinc-800 p-4 rounded-lg text-sm font-mono text-zinc-600 dark:text-zinc-300 overflow-x-auto my-4">
+              <code className="block bg-zinc-100 dark:bg-zinc-800 p-4 rounded-lg text-sm font-mono text-zinc-600 dark:text-zinc-300 overflow-x-auto my-4">
                 {children}
               </code>
             );
           },
           pre: ({ children }: ChildrenProps) => (
-            <pre className="bg-slate-100 dark:bg-zinc-800 p-4 rounded-lg overflow-x-auto my-4">{children}</pre>
+            <pre className="bg-zinc-100 dark:bg-zinc-800 p-4 rounded-lg overflow-x-auto my-4">{children}</pre>
           ),
 
           // Blockquote
           blockquote: ({ children }: ChildrenProps) => (
-            <blockquote className="border-l-4 border-slate-300 dark:border-zinc-700 pl-4 italic text-zinc-500 dark:text-zinc-400 my-4">
+            <blockquote className="border-l-4 border-zinc-300 dark:border-zinc-700 pl-4 italic text-zinc-500 dark:text-zinc-400 my-4">
               {children}
             </blockquote>
           ),
@@ -288,21 +288,21 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
           // Tables
           table: ({ children }: ChildrenProps) => (
             <div className="overflow-x-auto my-4">
-              <table className="min-w-full border-collapse border border-slate-300 dark:border-zinc-700">
+              <table className="min-w-full border-collapse border border-zinc-300 dark:border-zinc-700">
                 {children}
               </table>
             </div>
           ),
           thead: ({ children }: ChildrenProps) => (
-            <thead className="bg-slate-100 dark:bg-zinc-800">{children}</thead>
+            <thead className="bg-zinc-100 dark:bg-zinc-800">{children}</thead>
           ),
           th: ({ children }: ChildrenProps) => (
-            <th className="px-4 py-2 border border-slate-300 dark:border-zinc-700 text-left font-semibold text-zinc-800 dark:text-zinc-200">
+            <th className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-left font-semibold text-zinc-800 dark:text-zinc-200">
               {children}
             </th>
           ),
           td: ({ children }: ChildrenProps) => (
-            <td className="px-4 py-2 border border-slate-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300">
+            <td className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300">
               {children}
             </td>
           ),
@@ -315,7 +315,7 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
               return (
                 <video
                   controls
-                  className="w-full rounded-lg my-4 border border-slate-200 dark:border-zinc-700"
+                  className="w-full rounded-lg my-4 border border-zinc-200 dark:border-zinc-700"
                   src={resolvedSrc}
                 >
                   {alt}
@@ -326,13 +326,13 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
               <img
                 src={resolvedSrc}
                 alt={alt || ""}
-                className="rounded-lg my-4 w-full border border-slate-200 dark:border-zinc-700"
+                className="rounded-lg my-4 w-full border border-zinc-200 dark:border-zinc-700"
               />
             );
           },
 
           // Horizontal rule
-          hr: () => <hr className="border-slate-300 dark:border-zinc-700 my-6" />,
+          hr: () => <hr className="border-zinc-300 dark:border-zinc-700 my-6" />,
 
           // Strong and emphasis
           strong: ({ children }: ChildrenProps) => (

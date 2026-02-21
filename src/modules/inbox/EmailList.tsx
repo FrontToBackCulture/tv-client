@@ -66,9 +66,9 @@ export function EmailList({
   }
 
   return (
-    <div className="w-80 border-r border-slate-200 dark:border-zinc-800 flex flex-col bg-white dark:bg-zinc-950">
+    <div className="w-80 border-r border-zinc-200 dark:border-zinc-800 flex flex-col bg-white dark:bg-zinc-950">
       {/* Search */}
-      <div className="p-3 border-b border-slate-200 dark:border-zinc-800">
+      <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
         <div className="relative">
           <Search
             size={16}
@@ -79,7 +79,7 @@ export function EmailList({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search emails..."
-            className="w-full pl-9 pr-3 py-2 text-sm bg-slate-100 dark:bg-zinc-900 border border-transparent rounded-lg focus:outline-none focus:border-teal-500 dark:focus:border-teal-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400"
+            className="w-full pl-9 pr-3 py-2 text-sm bg-zinc-100 dark:bg-zinc-900 border border-transparent rounded-lg focus:outline-none focus:border-teal-500 dark:focus:border-teal-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400"
           />
         </div>
       </div>
@@ -98,10 +98,10 @@ export function EmailList({
               onMouseEnter={() => setHoveredId(email.id)}
               onMouseLeave={() => setHoveredId(null)}
               className={cn(
-                "px-3 py-3 border-b border-slate-100 dark:border-zinc-900 cursor-pointer transition-colors",
+                "px-3 py-3 border-b border-zinc-100 dark:border-zinc-900 cursor-pointer transition-colors",
                 selectedId === email.id
                   ? "bg-teal-50 dark:bg-teal-900/20"
-                  : "hover:bg-slate-50 dark:hover:bg-zinc-900",
+                  : "hover:bg-zinc-50 dark:hover:bg-zinc-900",
                 !email.isRead && "bg-blue-50/50 dark:bg-blue-900/10"
               )}
             >
@@ -163,7 +163,7 @@ export function EmailList({
                       <Paperclip size={12} className="text-zinc-400" />
                     )}
                     {email.linkedCompanyName && (
-                      <span className="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400">
+                      <span className="text-xs px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400">
                         {email.linkedCompanyName}
                       </span>
                     )}
@@ -184,7 +184,7 @@ export function EmailList({
                           e.stopPropagation();
                           onMarkRead(email.id);
                         }}
-                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-700"
+                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
                         title="Mark as read"
                       >
                         <MailOpen size={14} className="text-zinc-500" />
@@ -195,7 +195,7 @@ export function EmailList({
                         e.stopPropagation();
                         onArchive(email.id);
                       }}
-                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-700"
+                      className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
                       title="Archive"
                     >
                       <Archive size={14} className="text-zinc-500" />
@@ -209,7 +209,7 @@ export function EmailList({
       </div>
 
       {/* Footer */}
-      <div className="p-2 border-t border-slate-200 dark:border-zinc-800 text-xs text-zinc-500 text-center">
+      <div className="p-2 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 text-center">
         {filteredEmails.length} email{filteredEmails.length !== 1 ? "s" : ""}
       </div>
     </div>

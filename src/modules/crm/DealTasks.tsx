@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useDealTasks, DealTaskFull } from "../../hooks/useCRM";
+import { useDealTasks, DealTaskFull } from "../../hooks/crm";
 import { supabase } from "../../lib/supabase";
 import { Circle, CheckCircle2, Loader2 } from "lucide-react";
 import { formatDateShort as formatDate } from "../../lib/date";
@@ -29,7 +29,7 @@ const PriorityColors: Record<number, string> = {
   1: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400",
   2: "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
   3: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
-  4: "bg-slate-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+  4: "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
 };
 
 export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
@@ -112,7 +112,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
   if (isLoading) {
     return (
       <div className="px-4 py-3 flex justify-center">
-        <Loader2 size={16} className="text-zinc-400 dark:text-zinc-600 animate-spin" />
+        <Loader2 size={16} className="text-zinc-400 dark:text-zinc-400 animate-spin" />
       </div>
     );
   }
@@ -140,7 +140,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
           return (
             <div
               key={task.id}
-              className={`px-3 py-2.5 bg-slate-100 dark:bg-zinc-800/50 rounded-lg border border-slate-200 dark:border-zinc-700/50 ${
+              className={`px-3 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700/50 ${
                 isCompleted ? "opacity-60" : ""
               }`}
             >
@@ -217,7 +217,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
               createMutation.mutate(formData);
             }
           }}
-          className="mt-3 p-4 bg-slate-100 dark:bg-zinc-800/50 rounded-lg border border-slate-200 dark:border-zinc-700"
+          className="mt-3 p-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700"
         >
           <div className="space-y-3">
             <div>
@@ -231,7 +231,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                   setFormData({ ...formData, title: e.target.value })
                 }
                 placeholder="Follow up with contact..."
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
                 autoFocus
               />
             </div>
@@ -246,7 +246,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                 }
                 placeholder="Additional details..."
                 rows={2}
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
               />
             </div>
             <div className="flex gap-3">
@@ -260,7 +260,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                   onChange={(e) =>
                     setFormData({ ...formData, dueDate: e.target.value })
                   }
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
                 />
               </div>
               <div className="flex-1">
@@ -272,7 +272,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                   onChange={(e) =>
                     setFormData({ ...formData, priority: Number(e.target.value) })
                   }
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
                 >
                   <option value={0}>None</option>
                   <option value={1}>Urgent</option>
@@ -290,7 +290,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                 setShowForm(false);
                 setFormData({ title: "", description: "", dueDate: "", priority: 3 });
               }}
-              className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded-md transition-colors"
+              className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md transition-colors"
               disabled={createMutation.isPending}
             >
               Cancel

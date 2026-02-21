@@ -33,7 +33,7 @@ export function ViewerLayout({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950">
+      <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
         {/* Title row */}
         <div className="flex items-center justify-between">
           <div>
@@ -55,7 +55,7 @@ export function ViewerLayout({
                 "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
                 activeTab === tab.id
                   ? "bg-teal-600 text-white"
-                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-200 dark:hover:bg-zinc-800"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800"
               )}
             >
               {tab.icon}
@@ -66,7 +66,7 @@ export function ViewerLayout({
                     "ml-1 px-1.5 py-0.5 text-xs rounded-full",
                     activeTab === tab.id
                       ? "bg-teal-500 text-white"
-                      : "bg-slate-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
+                      : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
                   )}
                 >
                   {tab.count}
@@ -102,14 +102,14 @@ export function DataSourcesTab({ sources, basePath }: DataSourcesTabProps) {
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Sources List */}
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Data Sources</h3>
             <p className="text-xs text-zinc-500 mt-0.5">
               Files used to generate this report
             </p>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-zinc-800">
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {sources.map((source, i) => (
               <div key={i} className="px-4 py-3">
                 <div className="flex items-start justify-between">
@@ -138,9 +138,9 @@ export function DataSourcesTab({ sources, basePath }: DataSourcesTabProps) {
         </div>
 
         {/* Base Path Info */}
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
           <div className="text-xs text-zinc-500 mb-1">Base Path</div>
-          <code className="text-xs text-zinc-600 dark:text-zinc-400 font-mono bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded block overflow-x-auto">
+          <code className="text-xs text-zinc-600 dark:text-zinc-400 font-mono bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded block overflow-x-auto">
             {basePath}
           </code>
         </div>

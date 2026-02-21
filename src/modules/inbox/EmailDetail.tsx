@@ -73,7 +73,7 @@ export function EmailDetail({
 
   if (!email) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
+      <div className="flex-1 flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="text-center">
           <Mail size={48} className="mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
           <p className="text-zinc-500">Select an email to read</p>
@@ -93,7 +93,7 @@ export function EmailDetail({
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-zinc-800">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
         <button
           onClick={onReply}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
@@ -101,22 +101,22 @@ export function EmailDetail({
           <Reply size={14} />
           Reply
         </button>
-        <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+        <button className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
           <ReplyAll size={16} />
         </button>
-        <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+        <button className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
           <Forward size={16} />
         </button>
-        <div className="w-px h-5 bg-slate-200 dark:bg-zinc-700 mx-1" />
+        <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700 mx-1" />
         <button
           onClick={onArchive}
-          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
           title="Archive"
         >
           <Archive size={16} />
         </button>
         <div className="flex-1" />
-        <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+        <button className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
           <MoreHorizontal size={16} />
         </button>
       </div>
@@ -180,7 +180,7 @@ export function EmailDetail({
 
           {/* Classification badge */}
           {email.classification && (
-            <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 dark:bg-zinc-900 rounded-lg">
+            <div className="flex items-center gap-2 mb-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg">
               <span
                 className={cn(
                   "text-xs font-medium px-2 py-1 rounded",
@@ -223,7 +223,7 @@ export function EmailDetail({
 
           {/* Attachments */}
           {email.hasAttachments && email.attachments && email.attachments.length > 0 && (
-            <div className="mb-4 p-3 bg-slate-50 dark:bg-zinc-900 rounded-lg">
+            <div className="mb-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg">
               <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 mb-2">
                 <Paperclip size={14} />
                 <span>{email.attachments.length} attachment(s)</span>
@@ -232,7 +232,7 @@ export function EmailDetail({
                 {email.attachments.map((att, idx) => (
                   <button
                     key={idx}
-                    className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg hover:border-teal-500 transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:border-teal-500 transition-colors"
                   >
                     <Paperclip size={14} className="text-zinc-400" />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300">
@@ -250,7 +250,7 @@ export function EmailDetail({
 
           {/* Link to CRM */}
           {email.linkedCompanyId && (
-            <div className="mt-8 pt-4 border-t border-slate-200 dark:border-zinc-800">
+            <div className="mt-8 pt-4 border-t border-zinc-200 dark:border-zinc-800">
               <button className="flex items-center gap-2 text-sm text-teal-600 dark:text-teal-400 hover:underline">
                 <Link2 size={14} />
                 View {email.linkedCompanyName} in CRM

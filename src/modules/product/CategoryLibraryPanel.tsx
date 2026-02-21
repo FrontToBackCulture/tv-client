@@ -12,7 +12,7 @@ import {
   useClassificationStore,
   type ClassificationField,
 } from "../../stores/classificationStore";
-import { useValDomains } from "../../hooks/useValSync";
+import { useValDomains } from "../../hooks/val-sync";
 
 // ---------------------------------------------------------------------------
 // Classification counts — scan overview.md / definition_analysis.json per domain
@@ -245,7 +245,7 @@ export function CategoryLibraryPanel() {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             Category Library
@@ -256,7 +256,7 @@ export function CategoryLibraryPanel() {
         </div>
         <button
           onClick={() => resetField(activeTab.field)}
-          className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           title={`Reset ${activeTab.label} to defaults`}
         >
           <RotateCcw size={12} />
@@ -265,7 +265,7 @@ export function CategoryLibraryPanel() {
       </div>
 
       {/* Tabs */}
-      <div className="px-4 py-2 border-b border-slate-200 dark:border-zinc-800 flex gap-1 overflow-x-auto">
+      <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex gap-1 overflow-x-auto">
         {TAB_CONFIG.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTabId === tab.id;
@@ -278,7 +278,7 @@ export function CategoryLibraryPanel() {
                 "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors",
                 isActive
                   ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                  : "text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800"
+                  : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               )}
             >
               <Icon size={12} />
@@ -287,7 +287,7 @@ export function CategoryLibraryPanel() {
                 "px-1.5 py-0.5 text-[10px] rounded-full",
                 isActive
                   ? "bg-teal-200 dark:bg-teal-800 text-teal-800 dark:text-teal-200"
-                  : "bg-slate-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
+                  : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
               )}>
                 {count}
               </span>
@@ -297,7 +297,7 @@ export function CategoryLibraryPanel() {
       </div>
 
       {/* Add new value */}
-      <div className="px-4 py-2 border-b border-slate-200 dark:border-zinc-800 flex gap-2">
+      <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex gap-2">
         <input
           ref={inputRef}
           type="text"
@@ -305,12 +305,12 @@ export function CategoryLibraryPanel() {
           onChange={(e) => setNewValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={`Add new ${activeTab.label.toLowerCase()}...`}
-          className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-teal-500"
         />
         <button
           onClick={handleAdd}
           disabled={!newValue.trim()}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Plus size={14} />
           Add
@@ -318,7 +318,7 @@ export function CategoryLibraryPanel() {
       </div>
 
       {/* Filter + Sort bar */}
-      <div className="px-4 py-1.5 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-2">
+      <div className="px-4 py-1.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2">
         <Search size={12} className="text-zinc-400 shrink-0" />
         <input
           type="text"
@@ -358,7 +358,7 @@ export function CategoryLibraryPanel() {
               <div
                 key={value}
                 className={cn(
-                  "group flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition-colors min-w-0",
+                  "group flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors min-w-0",
                   !countsLoading && count === 0 && "opacity-50"
                 )}
               >
@@ -386,7 +386,7 @@ export function CategoryLibraryPanel() {
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2 border-t border-slate-200 dark:border-zinc-800 text-xs text-zinc-500">
+      <div className="px-4 py-2 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500">
         {activeValues.length} values
         {!countsLoading && countsData && (
           <> &middot; {totalAssignments} assignments across {countsData.domainCount} domains</>

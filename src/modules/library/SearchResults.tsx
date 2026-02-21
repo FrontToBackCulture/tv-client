@@ -69,8 +69,8 @@ export function SearchResults({
             onClick={() => onSelect(result)}
             className={cn(
               "flex items-start gap-2 px-3 py-2 cursor-pointer transition-colors",
-              "hover:bg-slate-100 dark:hover:bg-zinc-800",
-              isSelected && "bg-slate-200 dark:bg-zinc-800"
+              "hover:bg-zinc-100 dark:hover:bg-zinc-800",
+              isSelected && "bg-zinc-200 dark:bg-zinc-800"
             )}
           >
             <div className="mt-0.5">{getFileIcon(result.name)}</div>

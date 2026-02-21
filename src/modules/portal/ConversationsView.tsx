@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MessageSquare, Search } from "lucide-react";
-import { useConversations, usePortalSites } from "../../hooks/usePortal";
+import { useConversations, usePortalSites } from "../../hooks/portal";
 import { ChatPanel } from "./ChatPanel";
 import { cn } from "../../lib/cn";
 import { timeAgoCompact as timeAgo } from "../../lib/date";
@@ -55,13 +55,13 @@ export function ConversationsView({
     <>
       {/* List panel */}
       <div
-        className="flex flex-col border-r border-slate-200 dark:border-zinc-800 overflow-hidden"
+        className="flex flex-col border-r border-zinc-200 dark:border-zinc-800 overflow-hidden"
         style={{
           flex: selectedId ? `0 0 ${100 - detailWidth}%` : "1 1 auto",
         }}
       >
         {/* Search + filter bar */}
-        <div className="flex-shrink-0 p-3 border-b border-slate-200 dark:border-zinc-800 space-y-2">
+        <div className="flex-shrink-0 p-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2">
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <Search
@@ -73,7 +73,7 @@ export function ConversationsView({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search conversations..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               />
             </div>
           </div>
@@ -93,7 +93,7 @@ export function ConversationsView({
                   "px-2 py-0.5 rounded-full border transition-colors capitalize",
                   (filters.status || "all") === s
                     ? "border-teal-500 text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10"
-                    : "border-slate-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-400"
+                    : "border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-400"
                 )}
               >
                 {s}
@@ -110,7 +110,7 @@ export function ConversationsView({
                     site_id: e.target.value || undefined,
                   }))
                 }
-                className="px-2 py-0.5 rounded-full border border-slate-200 dark:border-zinc-700 text-zinc-500 bg-white dark:bg-zinc-900 text-[11px]"
+                className="px-2 py-0.5 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-500 bg-white dark:bg-zinc-900 text-[11px]"
               >
                 <option value="">All sites</option>
                 {sites.map((s) => (
@@ -194,8 +194,8 @@ function ConversationRow({
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left px-3 py-3 border-b border-slate-100 dark:border-zinc-800/50 transition-colors",
-        "hover:bg-slate-50 dark:hover:bg-zinc-900/50",
+        "w-full text-left px-3 py-3 border-b border-zinc-100 dark:border-zinc-800/50 transition-colors",
+        "hover:bg-zinc-50 dark:hover:bg-zinc-900/50",
         isSelected &&
           "bg-teal-50 dark:bg-teal-500/10 border-l-2 border-l-teal-500"
       )}
@@ -219,7 +219,7 @@ function ConversationRow({
             {timeAgo(conversation.updated_at)}
           </span>
           {site && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-zinc-500 uppercase">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 uppercase">
               {site.slug}
             </span>
           )}

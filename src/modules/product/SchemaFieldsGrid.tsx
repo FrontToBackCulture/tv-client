@@ -22,7 +22,7 @@ import type {
 } from "ag-grid-community";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../../stores/appStore";
-import { useEnrichSchemaDescriptions } from "../../hooks/useValSync";
+import { useEnrichSchemaDescriptions } from "../../hooks/val-sync";
 import { Loader2, Check, Sparkles, Bot } from "lucide-react";
 
 // ============================================================================
@@ -102,7 +102,7 @@ const TagsCellRenderer = (params: ICellRendererParams) => {
       {tags.map((tag) => (
         <span
           key={tag}
-          className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+          className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
         >
           {tag}
         </span>
@@ -173,7 +173,7 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
         {tags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
           >
             {tag}
             <button

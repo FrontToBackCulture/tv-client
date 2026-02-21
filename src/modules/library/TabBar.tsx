@@ -47,7 +47,7 @@ export function TabBar() {
   if (tabs.length === 0) return null;
 
   return (
-    <div className="flex-shrink-0 border-b border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-900 relative">
+    <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 relative">
       <div className="flex items-center">
         {/* Scrollable tab strip */}
         <div
@@ -75,8 +75,8 @@ export function TabBar() {
           className={cn(
             "flex-shrink-0 p-1.5 mx-1 rounded transition-colors",
             splitOpen
-              ? "text-teal-600 dark:text-teal-400 bg-slate-200 dark:bg-zinc-800"
-              : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800"
+              ? "text-teal-600 dark:text-teal-400 bg-zinc-200 dark:bg-zinc-800"
+              : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800"
           )}
           title={splitOpen ? "Close split view" : "Split view"}
         >
@@ -119,10 +119,10 @@ function TabItem({ tab, isActive, onClick, onDoubleClick, onClose, onMouseDown, 
       onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
       className={cn(
-        "group flex items-center gap-1.5 px-3 py-1.5 text-xs border-r border-slate-200 dark:border-zinc-800 cursor-pointer select-none min-w-0 max-w-[180px] flex-shrink-0",
+        "group flex items-center gap-1.5 px-3 py-1.5 text-xs border-r border-zinc-200 dark:border-zinc-800 cursor-pointer select-none min-w-0 max-w-[180px] flex-shrink-0",
         isActive
           ? "bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 border-b-2 border-b-teal-500"
-          : "bg-slate-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-500 hover:bg-slate-50 dark:hover:bg-zinc-800/50 hover:text-zinc-700 dark:hover:text-zinc-300"
+          : "bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-700 dark:hover:text-zinc-300"
       )}
     >
       {/* Icon */}
@@ -144,8 +144,8 @@ function TabItem({ tab, isActive, onClick, onDoubleClick, onClose, onMouseDown, 
         className={cn(
           "ml-auto flex-shrink-0 rounded p-0.5 transition-colors",
           isActive
-            ? "opacity-60 hover:opacity-100 hover:bg-slate-200 dark:hover:bg-zinc-800"
-            : "opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:bg-slate-200 dark:hover:bg-zinc-700"
+            ? "opacity-60 hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-800"
+            : "opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-700"
         )}
       >
         <X size={12} />
@@ -175,7 +175,7 @@ function ContextMenu({ x, y, isPinned, onPin, onClose, onCloseOthers, onCloseAll
 
   return (
     <div
-      className="fixed z-50 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[140px]"
+      className="fixed z-50 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[140px]"
       style={{ left: x, top: y }}
     >
       {items.map((item) => (
@@ -185,7 +185,7 @@ function ContextMenu({ x, y, isPinned, onPin, onClose, onCloseOthers, onCloseAll
             e.stopPropagation();
             item.action();
           }}
-          className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700"
+          className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
         >
           {item.label}
         </button>

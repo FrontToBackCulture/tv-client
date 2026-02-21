@@ -10,7 +10,7 @@ import {
   useCreateProductRelease,
   useCreateProductDeployment,
   useProductModules,
-} from "../../hooks/useProduct";
+} from "../../hooks/product";
 import {
   MODULE_LAYERS,
   MODULE_STATUSES,
@@ -124,11 +124,11 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md mx-4 border border-slate-200 dark:border-zinc-700">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md mx-4 border border-zinc-200 dark:border-zinc-700">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{TITLES[entityType]}</h3>
-          <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-zinc-500">
+          <button onClick={onClose} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
             <X size={16} />
           </button>
         </div>
@@ -145,7 +145,7 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={entityType === "deployment" ? "e.g. koi" : "Enter name..."}
-              className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
               autoFocus
             />
           </div>
@@ -157,7 +157,7 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500 resize-none"
+              className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500 resize-none"
             />
           </div>
 
@@ -168,7 +168,7 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
               <select
                 value={extra.layer || "application"}
                 onChange={(e) => setExtra({ ...extra, layer: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
               >
                 {MODULE_LAYERS.map((l) => (
                   <option key={l.value} value={l.value}>{l.label}</option>
@@ -184,7 +184,7 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
               <select
                 value={extra.module_id || ""}
                 onChange={(e) => setExtra({ ...extra, module_id: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
               >
                 <option value="">Select module...</option>
                 {(modules ?? []).map((m) => (
@@ -202,7 +202,7 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
                 <select
                   value={extra.connector_type || "api"}
                   onChange={(e) => setExtra({ ...extra, connector_type: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
                 >
                   {CONNECTOR_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
@@ -214,7 +214,7 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
                 <select
                   value={extra.platform_category || "Other"}
                   onChange={(e) => setExtra({ ...extra, platform_category: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
                 >
                   {PLATFORM_CATEGORIES.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -234,7 +234,7 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
                   value={extra.version || ""}
                   onChange={(e) => setExtra({ ...extra, version: e.target.value })}
                   placeholder="e.g. 4.2.0"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
                 />
               </div>
               <div>
@@ -243,7 +243,7 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
                   type="date"
                   value={extra.release_date || ""}
                   onChange={(e) => setExtra({ ...extra, release_date: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
                 />
               </div>
             </>
@@ -255,7 +255,7 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
             <select
               value={extra.status || ""}
               onChange={(e) => setExtra({ ...extra, status: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
             >
               {entityType === "module" && MODULE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               {entityType === "feature" && FEATURE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -268,10 +268,10 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-200 dark:border-zinc-800">
+        <div className="flex justify-end gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+            className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
           >
             Cancel
           </button>

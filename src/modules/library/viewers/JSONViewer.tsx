@@ -46,11 +46,11 @@ export function JSONViewer({ content, filename }: JSONViewerProps) {
 
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-zinc-800">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
         <span className="text-sm text-zinc-500 dark:text-zinc-400">{filename}</span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
         >
           {copied ? <Check size={12} className="text-green-500 dark:text-green-400" /> : <Copy size={12} />}
           {copied ? "Copied" : "Copy"}
@@ -91,7 +91,7 @@ function JSONNode({
     <div style={{ marginLeft: level > 0 ? 16 : 0 }}>
       <div
         className={cn(
-          "flex items-start gap-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-800/50",
+          "flex items-start gap-1 py-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
           isExpandable && "cursor-pointer"
         )}
         onClick={() => isExpandable && setIsExpanded(!isExpanded)}

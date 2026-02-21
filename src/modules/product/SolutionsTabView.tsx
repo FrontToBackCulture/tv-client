@@ -146,7 +146,7 @@ export function SolutionsTabView({
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <div className="w-[220px] flex-shrink-0 h-full border-r border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex flex-col">
+      <div className="w-[220px] flex-shrink-0 h-full border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 flex flex-col">
         {/* Search */}
         <div className="p-2.5 pb-1.5">
           <div className="relative">
@@ -156,7 +156,7 @@ export function SolutionsTabView({
               placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-7 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
+              className="w-full pl-8 pr-7 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:border-teal-500"
             />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
@@ -263,7 +263,7 @@ export function SolutionsTabView({
       {/* Detail panel */}
       {hasSelection && solutionsPath && (
         <div
-          className="relative overflow-hidden border-l border-slate-200 dark:border-zinc-800"
+          className="relative overflow-hidden border-l border-zinc-200 dark:border-zinc-800"
           style={{
             flex: `0 0 ${detailPanelWidth}%`,
             transition: isResizingDetail ? "none" : "flex 200ms",
