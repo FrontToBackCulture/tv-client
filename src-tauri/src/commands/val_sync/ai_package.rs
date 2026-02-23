@@ -169,10 +169,12 @@ pub fn val_generate_ai_package(
 
     for skill in &skills {
         // New structure: 0_Platform/skills/{slug}/SKILL.md
-        let new_src = platform_skills.join(skill).join("SKILL.md");
+        let new_skill_dir = platform_skills.join(skill);
+        let new_src = new_skill_dir.join("SKILL.md");
         // Legacy: templates/skills/{slug}.md
         let legacy_src = templates_skills.join(format!("{}.md", skill));
-        let src = if new_src.exists() { new_src } else { legacy_src };
+        let is_new_structure = new_src.exists();
+        let src = if is_new_structure { new_src } else { legacy_src };
         if !src.exists() {
             errors.push(format!("Skill template not found: {}/SKILL.md", skill));
             continue;
@@ -196,21 +198,34 @@ pub fn val_generate_ai_package(
             }
             Err(e) => errors.push(format!("Failed to read skill template {}: {}", skill, e)),
         }
+
+        // Copy reference files (column-reference.md, sql-templates.md, etc.) from new structure
+        // Skip SKILL.md (already copied above) and non-reference files like AUDIT.md
+        if is_new_structure {
+            if let Ok(entries) = fs::read_dir(&new_skill_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let fname = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    if path.extension().map_or(true, |e| e != "md") { continue; }
+                    if fname == "SKILL.md" || fname == "AUDIT.md" { continue; }
+                    let ref_dest = skill_dir.join(&fname);
+                    match fs::read_to_string(&path) {
+                        Ok(content) => {
+                            let replaced = content.replace("{{DOMAIN}}", &domain);
+                            if let Err(e) = fs::write(&ref_dest, &replaced) {
+                                errors.push(format!("Failed to write {}/{}: {}", skill, fname, e));
+                            }
+                        }
+                        Err(e) => errors.push(format!("Failed to read {}/{}: {}", skill, fname, e)),
+                    }
+                }
+            }
+        }
     }
 
-    // Save ai_config.json with the skills selection
+    // Ensure ai/ dir exists (ai_config.json is managed separately by val_save_domain_ai_config)
     if let Err(e) = fs::create_dir_all(&ai_path) {
         errors.push(format!("Failed to create ai/ dir: {}", e));
-    } else {
-        let ai_config = DomainAiConfig {
-            skills: skills.clone(),
-        };
-        let config_path = ai_path.join("ai_config.json");
-        let config_json = serde_json::to_string_pretty(&ai_config)
-            .unwrap_or_else(|_| "{}".to_string());
-        if let Err(e) = fs::write(&config_path, &config_json) {
-            errors.push(format!("Failed to write ai_config.json: {}", e));
-        }
     }
 
     // Always (re)generate instructions.md so skill lists stay current

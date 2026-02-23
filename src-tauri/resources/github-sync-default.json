@@ -1,0 +1,1080 @@
+{
+  "repositories": [
+    {
+      "owner": "FrontToBackCulture",
+      "repo": "val-services",
+      "branch": "master",
+      "mappings": [
+        {
+          "name": "Third-party integrations",
+          "githubPath": "src/services/thirdparty-integration-service/integrations",
+          "knowledgePath": "${tv-knowledge}/0_Platform/connectors",
+          "includeContent": true,
+          "fileTypes": [".js", ".ts", ".yml", ".yaml", ".json", ".md"],
+          "isScopeOnly": true
+        }
+      ],
+      "rules": [
+        {
+          "name": "Abacus integration",
+          "condition": { "folderEquals": "abacus" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/abacus",
+          "includeContent": true
+        },
+        {
+          "name": "AZ Digital integration",
+          "condition": { "folderEquals": "azdigital" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/az_digital",
+          "includeContent": true
+        },
+        {
+          "name": "Bluesheets integration",
+          "condition": { "folderEquals": "bluesheets" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/bluesheets",
+          "includeContent": true
+        },
+        {
+          "name": "Business Central integration",
+          "condition": { "folderEquals": "business-central" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/business-central",
+          "includeContent": true
+        },
+        {
+          "name": "Capsule CRM integration",
+          "condition": { "folderEquals": "capsule-crm" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/capsule-crm",
+          "includeContent": true
+        },
+        {
+          "name": "Commune integration",
+          "condition": { "folderEquals": "commune" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/commune",
+          "includeContent": true
+        },
+        {
+          "name": "Confluence integration",
+          "condition": { "folderEquals": "confluence" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/confluence",
+          "includeContent": true
+        },
+        {
+          "name": "Datamall integration",
+          "condition": { "folderEquals": "datamall" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/datamall",
+          "includeContent": true
+        },
+        {
+          "name": "DEX integration",
+          "condition": { "folderEquals": "dex" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/dex",
+          "includeContent": true
+        },
+        {
+          "name": "Dineconnect integration",
+          "condition": { "folderEquals": "dineconnect" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/dineconnect",
+          "includeContent": true
+        },
+        {
+          "name": "EAR integration",
+          "condition": { "folderEquals": "ear" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/ear",
+          "includeContent": true
+        },
+        {
+          "name": "Eber integration",
+          "condition": { "folderEquals": "Eber" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/eber",
+          "includeContent": true
+        },
+        {
+          "name": "Eunoia integration",
+          "condition": { "folderEquals": "eunoia" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/eunoia",
+          "includeContent": true
+        },
+        {
+          "name": "Ezbuy integration",
+          "condition": { "folderEquals": "ezbuy" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/ezbuy",
+          "includeContent": true
+        },
+        {
+          "name": "Ezyprocure integration",
+          "condition": { "folderEquals": "ezyprocure" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/ezyprocure",
+          "includeContent": true
+        },
+        {
+          "name": "Facebook integration",
+          "condition": { "folderEquals": "facebook" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/facebook",
+          "includeContent": true
+        },
+        {
+          "name": "Galley integration",
+          "condition": { "folderEquals": "galley" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/galley",
+          "includeContent": true
+        },
+        {
+          "name": "GitHub integration",
+          "condition": { "folderEquals": "github" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/github",
+          "includeContent": true
+        },
+        {
+          "name": "Global Pay integration",
+          "condition": { "folderEquals": "global-pay" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/global-pay",
+          "includeContent": true
+        },
+        {
+          "name": "Google Ads integration",
+          "condition": { "folderEquals": "google-ads" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/google-ads",
+          "includeContent": true
+        },
+        {
+          "name": "Google Analytics integration",
+          "condition": { "folderEquals": "google-analytics" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/google-analytics",
+          "includeContent": true
+        },
+        {
+          "name": "Google Analytics V4 integration",
+          "condition": { "folderEquals": "google-analytics-v4" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/google-analytics-v4",
+          "includeContent": true
+        },
+        {
+          "name": "Google Review integration",
+          "condition": { "folderEquals": "google-review" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/google-review",
+          "includeContent": true
+        },
+        {
+          "name": "Google Sheets integration",
+          "condition": { "folderEquals": "google-sheets" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/google-sheets",
+          "includeContent": true
+        },
+        {
+          "name": "Google Trends integration",
+          "condition": { "folderEquals": "google-trends" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/google-trends",
+          "includeContent": true
+        },
+        {
+          "name": "Grab Food integration",
+          "condition": { "folderEquals": "grab-food" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/grab-food",
+          "includeContent": true
+        },
+        {
+          "name": "HERE integration",
+          "condition": { "folderEquals": "here" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/here",
+          "includeContent": true
+        },
+        {
+          "name": "HubSpot integration",
+          "condition": { "folderEquals": "hubspot" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/hubspot",
+          "includeContent": true
+        },
+        {
+          "name": "Instagram integration",
+          "condition": { "folderEquals": "instagram" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/instagram",
+          "includeContent": true
+        },
+        {
+          "name": "Intercom integration",
+          "condition": { "folderEquals": "intercom" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/intercom",
+          "includeContent": true
+        },
+        {
+          "name": "Jira integration",
+          "condition": { "folderEquals": "jira" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/jira",
+          "includeContent": true
+        },
+        {
+          "name": "Jira Service Desk integration",
+          "condition": { "folderEquals": "jira-service-desk" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/jira-service-desk",
+          "includeContent": true
+        },
+        {
+          "name": "Jotform integration",
+          "condition": { "folderEquals": "jotform" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/jotform",
+          "includeContent": true
+        },
+        {
+          "name": "JustLogin integration",
+          "condition": { "folderEquals": "justlogin" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/justlogin",
+          "includeContent": true
+        },
+        {
+          "name": "Klaviyo integration",
+          "condition": { "folderEquals": "klaviyo" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/klaviyo",
+          "includeContent": true
+        },
+        {
+          "name": "Lazada integration",
+          "condition": { "folderEquals": "lazada" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/lazada",
+          "includeContent": true
+        },
+        {
+          "name": "Lightspeed integration",
+          "condition": { "folderEquals": "lightspeed" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/lightspeed",
+          "includeContent": true
+        },
+        {
+          "name": "LinkedIn integration",
+          "condition": { "folderEquals": "linkedin" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/linkedin",
+          "includeContent": true
+        },
+        {
+          "name": "LTA integration",
+          "condition": { "folderEquals": "lta" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/lta",
+          "includeContent": true
+        },
+        {
+          "name": "Mailchimp integration",
+          "condition": { "folderEquals": "mailchimp" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/mailchimp",
+          "includeContent": true
+        },
+        {
+          "name": "Mews integration",
+          "condition": { "folderEquals": "mews" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/mews",
+          "includeContent": true
+        },
+        {
+          "name": "MSSQL integration",
+          "condition": { "folderEquals": "mssql" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/mssql",
+          "includeContent": true
+        },
+        {
+          "name": "MySQL integration",
+          "condition": { "folderEquals": "mysql" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/mysql",
+          "includeContent": true
+        },
+        {
+          "name": "NewsAPI integration",
+          "condition": { "folderEquals": "newsapi" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/newsapi",
+          "includeContent": true
+        },
+        {
+          "name": "Notion integration",
+          "condition": { "folderEquals": "notion" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/notion",
+          "includeContent": true
+        },
+        {
+          "name": "NYT integration",
+          "condition": { "folderEquals": "nyt" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/nyt",
+          "includeContent": true
+        },
+        {
+          "name": "OneMap integration",
+          "condition": { "folderEquals": "one-map" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/one-map",
+          "includeContent": true
+        },
+        {
+          "name": "OpenWeather integration",
+          "condition": { "folderEquals": "openweather" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/openweather",
+          "includeContent": true
+        },
+        {
+          "name": "Opera Cloud integration",
+          "condition": { "folderEquals": "opera-cloud" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/opera-cloud",
+          "includeContent": true
+        },
+        {
+          "name": "Oracle integration",
+          "condition": { "folderEquals": "oracle" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/oracle",
+          "includeContent": true
+        },
+        {
+          "name": "Outlook integration",
+          "condition": { "folderEquals": "outlook" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/outlook",
+          "includeContent": true
+        },
+        {
+          "name": "Outscraper integration",
+          "condition": { "folderEquals": "outscraper-gr" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/outscraper",
+          "includeContent": true
+        },
+        {
+          "name": "Pickupp integration",
+          "condition": { "folderEquals": "pickupp" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/pickupp",
+          "includeContent": true
+        },
+        {
+          "name": "Postgres integration",
+          "condition": { "folderEquals": "postgres" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/postgres",
+          "includeContent": true
+        },
+        {
+          "name": "Qoo10 integration",
+          "condition": { "folderEquals": "qoo10" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/qoo10",
+          "includeContent": true
+        },
+        {
+          "name": "QuickBooks integration",
+          "condition": { "folderEquals": "quickbook" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/quickbook",
+          "includeContent": true
+        },
+        {
+          "name": "Revel integration",
+          "condition": { "folderEquals": "revel" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/revel",
+          "includeContent": true
+        },
+        {
+          "name": "Salesforce integration",
+          "condition": { "folderEquals": "salesforce" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/salesforce",
+          "includeContent": true
+        },
+        {
+          "name": "SevenRooms integration",
+          "condition": { "folderEquals": "sevenrooms" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/sevenrooms",
+          "includeContent": true
+        },
+        {
+          "name": "SharePoint integration",
+          "condition": { "folderEquals": "sharepoint" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/sharepoint",
+          "includeContent": true
+        },
+        {
+          "name": "Shopee integration",
+          "condition": { "folderEquals": "shopee" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/shopee",
+          "includeContent": true
+        },
+        {
+          "name": "Shopee V2 integration",
+          "condition": { "folderEquals": "shopee-v2" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/shopee",
+          "includeContent": true
+        },
+        {
+          "name": "Shopify integration",
+          "condition": { "folderEquals": "shopify" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/shopify",
+          "includeContent": true
+        },
+        {
+          "name": "Shopify Custom integration",
+          "condition": { "folderEquals": "shopify-custom" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/shopify",
+          "includeContent": true
+        },
+        {
+          "name": "Shopify V2 integration",
+          "condition": { "folderEquals": "shopify-v2" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/shopify",
+          "includeContent": true
+        },
+        {
+          "name": "SimilarWeb integration",
+          "condition": { "folderEquals": "similarweb-rapidapi" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/similarweb",
+          "includeContent": true
+        },
+        {
+          "name": "SingStat integration",
+          "condition": { "folderEquals": "singstat" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/singstat",
+          "includeContent": true
+        },
+        {
+          "name": "StackExchange integration",
+          "condition": { "folderEquals": "stackexchange" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/stackexchange",
+          "includeContent": true
+        },
+        {
+          "name": "StaffAny integration",
+          "condition": { "folderEquals": "staffany" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/staffany",
+          "includeContent": true
+        },
+        {
+          "name": "StoreHub integration",
+          "condition": { "folderEquals": "storehub" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/storehub",
+          "includeContent": true
+        },
+        {
+          "name": "Stripe integration",
+          "condition": { "folderEquals": "stripe" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/stripe",
+          "includeContent": true
+        },
+        {
+          "name": "Talenox integration",
+          "condition": { "folderEquals": "talenox" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/talenox",
+          "includeContent": true
+        },
+        {
+          "name": "TIH integration",
+          "condition": { "folderEquals": "tih" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/tih",
+          "includeContent": true
+        },
+        {
+          "name": "TSpoonLab integration",
+          "condition": { "folderEquals": "tspoonlab" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/tspoonlab",
+          "includeContent": true
+        },
+        {
+          "name": "Twitter integration",
+          "condition": { "folderEquals": "twitter" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/twitter",
+          "includeContent": true
+        },
+        {
+          "name": "Typeform integration",
+          "condition": { "folderEquals": "typeform" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/typeform",
+          "includeContent": true
+        },
+        {
+          "name": "UpKeep integration",
+          "condition": { "folderEquals": "upkeep" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/upkeep",
+          "includeContent": true
+        },
+        {
+          "name": "URA integration",
+          "condition": { "folderEquals": "ura" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/ura",
+          "includeContent": true
+        },
+        {
+          "name": "Wix integration",
+          "condition": { "folderEquals": "wix" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/wix",
+          "includeContent": true
+        },
+        {
+          "name": "WooCommerce integration",
+          "condition": { "folderEquals": "woocommerce" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/woocommerce",
+          "includeContent": true
+        },
+        {
+          "name": "World Bank integration",
+          "condition": { "folderEquals": "worldbank" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/worldbank",
+          "includeContent": true
+        },
+        {
+          "name": "Xero integration",
+          "condition": { "folderEquals": "xero" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/xero",
+          "includeContent": true
+        },
+        {
+          "name": "Zeemart integration",
+          "condition": { "folderEquals": "zeemart" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/zeemart",
+          "includeContent": true
+        },
+        {
+          "name": "Zephyr integration",
+          "condition": { "folderEquals": "zephyr" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/zephyr",
+          "includeContent": true
+        },
+        {
+          "name": "Zoho integration",
+          "condition": { "folderEquals": "zoho" },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/zoho",
+          "includeContent": true
+        }
+      ]
+    },
+    {
+      "owner": "FrontToBackCulture",
+      "repo": "val-customdata-importers",
+      "branch": "main",
+      "mappings": [
+        {
+          "name": "Custom importers from shared folder",
+          "githubPath": ["src/custom/excel/shared", "src/custom/word/shared"],
+          "knowledgePath": "${tv-knowledge}/0_Platform/connectors",
+          "includeContent": true,
+          "fileTypes": [".ts", ".js", ".json", ".md"],
+          "isScopeOnly": true
+        }
+      ],
+      "rules": [
+        {
+          "name": "2c2p connectors",
+          "condition": {
+            "folderContains": "2c2p",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/2c2p",
+          "includeContent": true
+        },
+        {
+          "name": "Adyen connectors",
+          "condition": {
+            "folderContains": "adyen",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/adyen",
+          "includeContent": true
+        },
+        {
+          "name": "Aigens connectors",
+          "condition": {
+            "folderContains": "aigens",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/aigens",
+          "includeContent": true
+        },
+        {
+          "name": "Alipay connectors",
+          "condition": {
+            "folderContains": "alipay",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/alipay",
+          "includeContent": true
+        },
+        {
+          "name": "Amex connectors",
+          "condition": {
+            "folderContains": "amex",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/amex",
+          "includeContent": true
+        },
+        {
+          "name": "Aptsys connectors",
+          "condition": {
+            "folderContains": "aptsys",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/aptsys",
+          "includeContent": true
+        },
+        {
+          "name": "Atlas connectors",
+          "condition": {
+            "folderContains": "atlas",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/atlas",
+          "includeContent": true
+        },
+        {
+          "name": "AZ Digital connectors",
+          "condition": {
+            "folderContains": ["az-digital","azdigital","azpos"],
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/az_digital",
+          "includeContent": true
+        },
+        {
+          "name": "Capitaland connectors",
+          "condition": {
+            "folderContains": "capitaland",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/az_digital",
+          "includeContent": true
+        },
+        {
+          "name": "CDC connectors",
+          "condition": {
+            "folderContains": "cdc",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/cdc",
+          "includeContent": true
+        },
+        {
+          "name": "CDL connectors",
+          "condition": {
+            "folderContains": "cdl",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/cdl",
+          "includeContent": true
+        },
+        {
+          "name": "Changi connectors",
+          "condition": {
+            "folderContains": "changi",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/changi",
+          "includeContent": true
+        },
+        {
+          "name": "DBS connectors",
+          "condition": {
+            "folderContains": "dbs",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/dbs",
+          "includeContent": true
+        },
+        {
+          "name": "Deliveroo connectors",
+          "condition": {
+            "folderContains": "deliveroo",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/deliveroo",
+          "includeContent": true
+        },
+        {
+          "name": "Epoint connectors",
+          "condition": {
+            "folderContains": "epoint",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/epoint",
+          "includeContent": true
+        },
+        {
+          "name": "Ezlink connectors",
+          "condition": {
+            "folderContains": "ezlink",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/ezlink",
+          "includeContent": true
+        },
+        {
+          "name": "Favepay connectors",
+          "condition": {
+            "folderContains": "fave-pay",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/fave-pay",
+          "includeContent": true
+        },
+        {
+          "name": "FnBees connectors",
+          "condition": {
+            "folderContains": "fnbees",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/fnbees",
+          "includeContent": true
+        },
+        {
+          "name": "FOMO connectors",
+          "condition": {
+            "folderContains": "fomo-pay",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/fomo-pay",
+          "includeContent": true
+        },
+        {
+          "name": "Food Panda connectors",
+          "condition": {
+            "folderContains": "food-panda",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/food-panda",
+          "includeContent": true
+        },
+        {
+          "name": "Getz connectors",
+          "condition": {
+            "folderContains": "getz",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/getz",
+          "includeContent": true
+        },
+        {
+          "name": "Giftano connectors",
+          "condition": {
+            "folderContains": "giftano",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/giftano",
+          "includeContent": true
+        },
+        {
+          "name": "Grab connectors",
+          "condition": {
+            "folderContains": "grab",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/grab",
+          "includeContent": true
+        },
+        {
+          "name": "GWC connectors",
+          "condition": {
+            "folderContains": "gwc",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/gwc",
+          "includeContent": true
+        },
+        {
+          "name": "GWC connectors",
+          "condition": {
+            "folderContains": "gwc",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/gwc",
+          "includeContent": true
+        },
+        {
+          "name": "Hillion connectors",
+          "condition": {
+            "folderContains": "hillion",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/hillion",
+          "includeContent": true
+        },
+        {
+          "name": "HPB connectors",
+          "condition": {
+            "folderContains": "hpb",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/hpb",
+          "includeContent": true
+        },
+        {
+          "name": "HSBC connectors",
+          "condition": {
+            "folderContains": "hsbc",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/hsbc",
+          "includeContent": true
+        },
+        {
+          "name": "IMakan connectors",
+          "condition": {
+            "folderContains": "imakan",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/imakan",
+          "includeContent": true
+        },
+        {
+          "name": "Koomi connectors",
+          "condition": {
+            "folderContains": "koomi",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/koomi",
+          "includeContent": true
+        },
+        {
+          "name": "LiquidPay connectors",
+          "condition": {
+            "folderContains": "liquid-pay",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/liquid-pay",
+          "includeContent": true
+        },
+        {
+          "name": "Maybank connectors",
+          "condition": {
+            "folderContains": "maybank",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/maybank",
+          "includeContent": true
+        },
+        {
+          "name": "MBS connectors",
+          "condition": {
+            "folderContains": "mbs",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/mbs",
+          "includeContent": true
+        },
+        {
+          "name": "MegaPOS connectors",
+          "condition": {
+            "folderContains": "megapos",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/megapos",
+          "includeContent": true
+        },
+        {
+          "name": "Nets connectors",
+          "condition": {
+            "folderContains": "nets",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/nets",
+          "includeContent": true
+        },
+        {
+          "name": "Nets connectors",
+          "condition": {
+            "folderContains": "nets",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/nets",
+          "includeContent": true
+        },
+        {
+          "name": "NinjaOS connectors",
+          "condition": {
+            "folderContains": "ninjaos",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/ninjaos",
+          "includeContent": true
+        },
+        {
+          "name": "Novitee connectors",
+          "condition": {
+            "folderContains": "novitee",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/novitee",
+          "includeContent": true
+        },
+        {
+          "name": "NTUC connectors",
+          "condition": {
+            "folderContains": "ntuc",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/ntuc",
+          "includeContent": true
+        },
+        {
+          "name": "OCBC connectors",
+          "condition": {
+            "folderContains": "ocbc",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/ocbc",
+          "includeContent": true
+        },
+        {
+          "name": "Oddle connectors",
+          "condition": {
+            "folderContains": "oddle",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/oddle",
+          "includeContent": true
+        },
+        {
+          "name": "Oracle connectors",
+          "condition": {
+            "folderContains": "oracle",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/oracle",
+          "includeContent": true
+        },
+        {
+          "name": "Oxpay connectors",
+          "condition": {
+            "folderContains": "oxpay",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/oxpay",
+          "includeContent": true
+        },
+        {
+          "name": "Qlub connectors",
+          "condition": {
+            "folderContains": "qlub",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/qlub",
+          "includeContent": true
+        },
+        {
+          "name": "Raptor connectors",
+          "condition": {
+            "folderContains": "raptor",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/raptor",
+          "includeContent": true
+        },
+        {
+          "name": "Reach connectors",
+          "condition": {
+            "folderContains": "reach",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/reach",
+          "includeContent": true
+        },
+        {
+          "name": "RHB connectors",
+          "condition": {
+            "folderContains": "rhb",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/rhb",
+          "includeContent": true
+        },
+        {
+          "name": "Shopback connectors",
+          "condition": {
+            "folderContains": "shopback",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/shopback",
+          "includeContent": true
+        },
+        {
+          "name": "Shopee connectors",
+          "condition": {
+            "folderContains": "shopee",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/shopee",
+          "includeContent": true
+        },
+        {
+          "name": "Shopify connectors",
+          "condition": {
+            "folderContains": "shopify",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/shopify",
+          "includeContent": true
+        },
+        {
+          "name": "Smartpay connectors",
+          "condition": {
+            "folderContains": "smartpay",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/smartpay",
+          "includeContent": true
+        },
+        {
+          "name": "SMStudio connectors",
+          "condition": {
+            "folderContains": "sm",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/smstudio",
+          "includeContent": true
+        },
+        {
+          "name": "Stripe connectors",
+          "condition": {
+            "folderContains": "stripe",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/stripe",
+          "includeContent": true
+        },
+        {
+          "name": "Suntec connectors",
+          "condition": {
+            "folderContains": "suntec",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/Suntec",
+          "includeContent": true
+        },
+        {
+          "name": "Suntoyo connectors",
+          "condition": {
+            "folderContains": "suntoyo",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/suntoyo",
+          "includeContent": true
+        },
+        {
+          "name": "UOB connectors",
+          "condition": {
+            "folderContains": "uob",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/uob",
+          "includeContent": true
+        },
+        {
+          "name": "Velocity connectors",
+          "condition": {
+            "folderContains": "velocity",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/velocity",
+          "includeContent": true
+        },
+        {
+          "name": "Xilnex connectors",
+          "condition": {
+            "folderContains": "xilnex",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/xilnex",
+          "includeContent": true
+        },
+        {
+          "name": "YQueue connectors",
+          "condition": {
+            "folderContains": "yqueue",
+            "folderExcludes": "test"
+          },
+          "targetPath": "${tv-knowledge}/0_Platform/connectors/yqueue",
+          "includeContent": true
+        }
+
+      ]
+    }
+  ]
+}

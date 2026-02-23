@@ -3,18 +3,16 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Search, X, Plus, ChevronRight, FileText, Play } from "lucide-react";
-import { useProductModules, useProductFeatures, useProductConnectors } from "../../hooks/product";
+import { useProductModules, useProductFeatures } from "../../hooks/product";
 import { useRepository } from "../../stores/repositoryStore";
 import { invoke } from "@tauri-apps/api/core";
 import { ModuleGridView } from "./ModuleGridView";
 import { ModuleDetailPanel } from "./ModuleDetailPanel";
 import { FeatureListView } from "./FeatureListView";
 import { FeatureDetailPanel } from "./FeatureDetailPanel";
-import { ConnectorListView } from "./ConnectorListView";
-import { ConnectorDetailPanel } from "./ConnectorDetailPanel";
 import type { ModuleLayer, ProductEntityType } from "../../lib/product/types";
 
-type EntityType = "modules" | "features" | "connectors";
+type EntityType = "modules" | "features";
 
 const LAYER_ORDER: ModuleLayer[] = ["connectivity", "application", "experience"];
 
@@ -44,13 +42,12 @@ export function PlatformTabView({
   const [activeType, setActiveType] = useState<EntityType>("modules");
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(
-    () => new Set([...LAYER_ORDER.map((l) => `layer:${l}`), "connectors"])
+    () => new Set([...LAYER_ORDER.map((l) => `layer:${l}`)])
   );
 
   // Fetch data
   const { data: modules = [] } = useProductModules();
   const { data: features = [] } = useProductFeatures();
-  const { data: connectors = [] } = useProductConnectors();
   const { activeRepository } = useRepository();
 
   // ── Sidebar resize (pixel-based, persisted) ───────────────
@@ -162,13 +159,8 @@ export function PlatformTabView({
 
   const isExpanded = useCallback((key: string) => !collapsed.has(key), [collapsed]);
 
-  // Determine "new" button context
-  const newButtonType = useMemo((): ProductEntityType => {
-    if (activeType === "connectors") return "connector";
-    return "module";
-  }, [activeType]);
-
-  const newButtonLabel = newButtonType === "connector" ? "New Connector" : "New Module";
+  const newButtonType: ProductEntityType = "module";
+  const newButtonLabel = "New Module";
 
   // ── Selection handlers ──────────────────────────────────────
   const handleSelectModule = (id: string) => {
@@ -181,11 +173,6 @@ export function PlatformTabView({
     onSelect(id);
   };
 
-  const handleSelectConnector = (id: string) => {
-    setActiveType("connectors");
-    onSelect(id);
-  };
-
   // ── Search filtering ────────────────────────────────────────
   // When searching, compute which modules/features/connectors match
   const { filteredModuleIds, filteredFeatureIds, matchingLayers } = useMemo(() => {
@@ -193,7 +180,6 @@ export function PlatformTabView({
       return {
         filteredModuleIds: null,
         filteredFeatureIds: null,
-        filteredConnectorIds: null,
         matchingLayers: null,
       };
     }
@@ -227,7 +213,7 @@ export function PlatformTabView({
       filteredFeatureIds: fIds,
       matchingLayers: layers,
     };
-  }, [search, searchLower, modules, features, connectors]);
+  }, [search, searchLower, modules, features]);
 
   // Check if a module is visible (either no search, or it matches)
   const isModuleVisible = (id: string) => !filteredModuleIds || filteredModuleIds.has(id);
@@ -246,8 +232,6 @@ export function PlatformTabView({
         return <ModuleGridView {...props} />;
       case "features":
         return <FeatureListView {...props} />;
-      case "connectors":
-        return <ConnectorListView {...props} />;
     }
   };
 
@@ -260,8 +244,6 @@ export function PlatformTabView({
         return <ModuleDetailPanel id={selectedId} onClose={close} />;
       case "features":
         return <FeatureDetailPanel id={selectedId} onClose={close} />;
-      case "connectors":
-        return <ConnectorDetailPanel id={selectedId} onClose={close} />;
     }
   };
 
@@ -410,59 +392,6 @@ export function PlatformTabView({
     );
   };
 
-  // ── Sidebar: Connectors section ─────────────────────────────
-  const renderConnectorsSection = () => {
-    const filteredConnectors = search
-      ? connectors.filter((c) => c.name.toLowerCase().includes(searchLower))
-      : connectors;
-
-    if (search && filteredConnectors.length === 0) return null;
-
-    const connectorsExpanded = isExpanded("connectors");
-
-    return (
-      <div className="mb-2">
-        {/* CONNECTORS header */}
-        <button
-          onClick={() => toggle("connectors")}
-          className="w-full text-left px-2.5 mb-0.5 flex items-center gap-1"
-        >
-          <ChevronRight
-            size={10}
-            className={`text-zinc-400 transition-transform flex-shrink-0 ${connectorsExpanded ? "rotate-90" : ""}`}
-          />
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            Connectors
-          </span>
-          <span className="text-[9px] text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums">
-            {connectors.length}
-          </span>
-        </button>
-
-        {connectorsExpanded && (
-          <div>
-            {filteredConnectors.map((conn) => {
-              const isSelected = selectedId === conn.id && activeType === "connectors";
-              return (
-                <button
-                  key={conn.id}
-                  onClick={() => handleSelectConnector(conn.id)}
-                  className={`w-full text-left flex items-center gap-2 px-2.5 pl-5 py-1 rounded-md text-xs transition-colors ${
-                    isSelected
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
-                      : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
-                  }`}
-                >
-                  <span className="truncate">{conn.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="flex h-full flex-1 min-w-0">
       {/* Sidebar */}
@@ -492,7 +421,6 @@ export function PlatformTabView({
         {/* Collapsible sections */}
         <div className="flex-1 overflow-y-auto px-2 py-1">
           {renderModulesSection()}
-          {renderConnectorsSection()}
         </div>
 
         {/* New button */}

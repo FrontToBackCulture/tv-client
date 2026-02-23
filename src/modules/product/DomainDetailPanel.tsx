@@ -35,7 +35,9 @@ import { EmptyState } from "../../components/EmptyState";
 import { timeAgoVerbose as timeAgo } from "../../lib/date";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { useRepository } from "../../stores/repositoryStore";
 import { DomainAiTab } from "./DomainAiTab";
+import { DomainDataHealthTab } from "./DomainDataHealthTab";
 import { FilesTab } from "./DomainDetailFilesTab";
 import { UnifiedReviewView } from "../library/UnifiedReviewView";
 import type { ReviewResourceType } from "../library/reviewTypes";
@@ -51,7 +53,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   // Report domain + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", files: "Files", sync: "Sync", history: "History", ai: "AI" };
+    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-health": "Data Health", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", files: "Files", sync: "Sync", history: "History", ai: "AI" };
     setViewDetail(`${domain} → ${tabLabels[activeTab]}`);
   }, [domain, activeTab, setViewDetail]);
 
@@ -76,6 +78,12 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   const updateJob = useJobsStore((s) => s.updateJob);
 
   const isSyncing = syncAllMutation.isPending || syncArtifactMutation.isPending;
+
+  // Derive entitiesPath for data health (same pattern as DomainAiTab)
+  const { activeRepository } = useRepository();
+  const entitiesPath = activeRepository
+    ? `${activeRepository.path}/0_Platform/architecture/domain-model/entities`
+    : null;
 
   const handleLogin = () => {
     const jobId = `val-login-${domain}-${Date.now()}`;
@@ -177,6 +185,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
+    { id: "data-health", label: "Data Health" },
     { id: "ai", label: "AI" },
     { id: "sync", label: "Sync" },
     { id: "data-models", label: "Data Models" },
@@ -884,6 +893,14 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
               <EmptyState message="No sync history yet" className="py-4" />
             )}
           </div>
+        )}
+
+        {activeTab === "data-health" && discoveredDomain && (
+          <DomainDataHealthTab domainName={domain} globalPath={discoveredDomain.global_path} entitiesPath={entitiesPath} />
+        )}
+
+        {activeTab === "data-health" && !discoveredDomain && (
+          <EmptyState message="Domain path not available" className="py-4" />
         )}
 
         {activeTab === "ai" && discoveredDomain && (

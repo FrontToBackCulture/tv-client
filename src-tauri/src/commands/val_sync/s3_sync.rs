@@ -77,6 +77,7 @@ pub async fn val_sync_ai_to_s3(domain: String, global_path: String) -> Result<S3
             &s3_dest,
             "--region", S3_REGION,
             "--exclude", ".DS_Store",
+            "--exclude", "ai_config.json",
         ])
         .env("AWS_ACCESS_KEY_ID", access_key)
         .env("AWS_SECRET_ACCESS_KEY", secret_key)
@@ -210,8 +211,8 @@ fn collect_local_files(base: &std::path::Path, dir: &std::path::Path, out: &mut 
     for entry in entries.flatten() {
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
-        // Skip hidden files
-        if name.starts_with('.') {
+        // Skip hidden files and ai_config.json (local-only config)
+        if name.starts_with('.') || name == "ai_config.json" {
             continue;
         }
         if path.is_dir() {
@@ -274,8 +275,8 @@ async fn list_s3_files(
 
         // Strip the prefix to get relative path
         let rel = key.strip_prefix(prefix).unwrap_or(key).to_string();
-        // Skip empty keys (the folder itself) and .DS_Store
-        if rel.is_empty() || rel == ".DS_Store" {
+        // Skip empty keys (the folder itself), .DS_Store, and ai_config.json (local-only)
+        if rel.is_empty() || rel == ".DS_Store" || rel == "ai_config.json" {
             continue;
         }
         files.push((rel, last_modified, size));

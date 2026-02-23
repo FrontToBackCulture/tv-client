@@ -55,6 +55,7 @@ const PREDEFINED_TAGS = [
   "nullable",
   "standardized",
   "raw",
+  "health-entity",
 ];
 
 // ============================================================================
@@ -90,10 +91,15 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const commitTags = useCallback((next: string[]) => {
+    setTags(next);
+    props.node.setDataValue("tags", next);
+  }, [props.node]);
+
   useImperativeHandle(ref, () => ({
     getValue: () => tags,
     isPopup: () => true,
-    isCancelAfterEnd: () => false,
+    isCancelAfterEnd: () => true,
   }));
 
   useEffect(() => {
@@ -104,17 +110,17 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
     (tag: string) => {
       const trimmed = tag.trim().toLowerCase();
       if (trimmed && !tags.includes(trimmed)) {
-        setTags((prev) => [...prev, trimmed]);
+        commitTags([...tags, trimmed]);
       }
       setInput("");
       setShowSuggestions(false);
     },
-    [tags]
+    [tags, commitTags]
   );
 
   const removeTag = useCallback((tag: string) => {
-    setTags((prev) => prev.filter((t) => t !== tag));
-  }, []);
+    commitTags(tags.filter((t) => t !== tag));
+  }, [tags, commitTags]);
 
   const filteredSuggestions = useMemo(() => {
     if (!input) return PREDEFINED_TAGS.filter((t) => !tags.includes(t));
@@ -129,14 +135,17 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
       e.stopPropagation();
       addTag(input);
     } else if (e.key === "Backspace" && !input && tags.length > 0) {
-      setTags((prev) => prev.slice(0, -1));
+      commitTags(tags.slice(0, -1));
     } else if (e.key === "Escape") {
       props.stopEditing();
     }
   };
 
   return (
-    <div className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg min-w-[240px]">
+    <div
+      className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg min-w-[240px]"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
         {tags.map((tag) => (
           <span
@@ -171,7 +180,7 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
           {filteredSuggestions.map((suggestion) => (
             <button
               key={suggestion}
-              onClick={() => addTag(suggestion)}
+              onMouseDown={(e) => { e.preventDefault(); addTag(suggestion); }}
               className="w-full text-left px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-teal-50 dark:hover:bg-teal-900/20"
             >
               {suggestion}

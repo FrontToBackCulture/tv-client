@@ -376,6 +376,13 @@ fn main() {
             commands::outlook::commands::outlook_mark_read,
             commands::outlook::commands::outlook_archive_email,
             commands::outlook::commands::outlook_send_email,
+            // GitHub Sync
+            commands::github_sync::config::github_sync_load_config,
+            commands::github_sync::config::github_sync_save_config,
+            commands::github_sync::config::github_sync_import_config,
+            commands::github_sync::config::github_sync_init_default_config,
+            commands::github_sync::sync::github_sync_preview,
+            commands::github_sync::sync::github_sync_run,
             // Outlook - Sync
             commands::outlook::commands::outlook_sync_start,
             commands::outlook::commands::outlook_sync_status,

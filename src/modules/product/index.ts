@@ -3,7 +3,6 @@ export { PlatformTabView } from "./PlatformTabView";
 export { SolutionsTabView } from "./SolutionsTabView";
 export { ModuleGridView } from "./ModuleGridView";
 export { ModuleDetailPanel } from "./ModuleDetailPanel";
-export { ConnectorListView } from "./ConnectorListView";
 export { ConnectorDetailPanel } from "./ConnectorDetailPanel";
 export { FeatureListView } from "./FeatureListView";
 export { FeatureDetailPanel } from "./FeatureDetailPanel";

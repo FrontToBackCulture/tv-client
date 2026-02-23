@@ -6,3 +6,4 @@ export * from "./useValSql";
 export * from "./useValTablePipeline";
 export * from "./useValDomainModel";
 export * from "./useValAiPackage";
+export * from "./useDataHealth";

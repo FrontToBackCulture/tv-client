@@ -2,7 +2,7 @@
 // Product module — 4-tab layout: Platform, Business, Domains, Categories
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Boxes, Package, Database, Tags, Layers, ArrowLeft, Sparkles } from "lucide-react";
+import { Boxes, Package, Database, Tags, Layers, ArrowLeft, Sparkles, Plug } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useProductStats } from "../../hooks/product";
@@ -18,7 +18,8 @@ import { EntityForm } from "./EntityForm";
 import { UnifiedReviewView } from "../library/UnifiedReviewView";
 import type { ReviewResourceType } from "../library/reviewTypes";
 import { AiSkillsTabView } from "./AiSkillsTabView";
-type ProductTab = "platform" | "solutions" | "domains" | "data-models" | "category-library" | "skills";
+import { ConnectorsTabView } from "./ConnectorsTabView";
+type ProductTab = "platform" | "solutions" | "domains" | "data-models" | "category-library" | "skills" | "connectors";
 type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
 
 // ============================
@@ -51,7 +52,7 @@ export function ProductModule() {
   const setViewContext = useViewContextStore((s) => s.setView);
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const labels: Record<ProductTab, string> = { platform: "Platform", solutions: "Solutions", domains: "Domains", "data-models": "Data Models", "category-library": "Categories", skills: "AI Skills" };
+    const labels: Record<ProductTab, string> = { platform: "Platform", solutions: "Solutions", domains: "Domains", "data-models": "Data Models", "category-library": "Categories", skills: "AI Skills", connectors: "Connectors" };
     setViewContext(activeTab, labels[activeTab]);
   }, [activeTab, setViewContext]);
 
@@ -247,6 +248,7 @@ export function ProductModule() {
         <ViewTab label="Domains" icon={Database} active={activeTab === "domains"} onClick={() => handleTabChange("domains")} data-help-id="product-tab-domains" />
         <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-models"} onClick={() => handleTabChange("data-models")} data-help-id="product-tab-data-models" />
         <ViewTab label="Skills" icon={Sparkles} active={activeTab === "skills"} onClick={() => handleTabChange("skills")} data-help-id="product-tab-skills" />
+        <ViewTab label="Connectors" icon={Plug} active={activeTab === "connectors"} onClick={() => handleTabChange("connectors")} data-help-id="product-tab-connectors" />
         <ViewTab label="Categories" icon={Tags} active={activeTab === "category-library"} onClick={() => handleTabChange("category-library")} data-help-id="product-tab-categories" />
       </div>
 
@@ -291,6 +293,17 @@ export function ProductModule() {
           <div className="flex-1 overflow-hidden">
             <CategoryLibraryPanel />
           </div>
+        )}
+
+        {activeTab === "connectors" && (
+          <ConnectorsTabView
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            onNew={handleNew}
+            detailPanelWidth={detailPanelWidth}
+            isResizingDetail={isResizingDetail}
+            onDetailMouseDown={handleDetailMouseDown}
+          />
         )}
 
         {activeTab === "skills" && (

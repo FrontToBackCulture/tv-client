@@ -2,7 +2,7 @@
 // Data Model tab: browse entity schemas, scan domains for table presence,
 // view structural conformance (columns + order) against lab reference.
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Search,
   X,
@@ -21,7 +21,10 @@ import {
   Minus,
   Plus,
   Layers,
+  Trash2,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { cn } from "../../lib/cn";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
 import { useRepository } from "../../stores/repositoryStore";
@@ -131,6 +134,43 @@ export function DataModelTabView() {
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
   const [detailTab, setDetailTab] = useState<"schema" | "domains" | "categoricals">("schema");
 
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Sidebar is on the left, so width = mouse X position relative to the container
+      // We clamp between 180 and 480
+      const parentEl = document.getElementById("data-model-container");
+      if (!parentEl) return;
+      const rect = parentEl.getBoundingClientRect();
+      const newWidth = Math.min(480, Math.max(180, e.clientX - rect.left));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => setIsResizing(false);
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing]);
+
   // Queries
   const entitiesQuery = useDomainModelEntities(entitiesPath);
   const entities = entitiesQuery.data ?? [];
@@ -222,10 +262,47 @@ export function DataModelTabView() {
     generateMdMutation.mutate(`${selectedModelPath}/schema.json`);
   };
 
+  // Handle delete entity
+  const handleDeleteEntity = async (entityName: string) => {
+    if (!entitiesPath) return;
+    const entityPath = `${entitiesPath}/${entityName}`;
+
+    const confirmed = await confirm(
+      `Are you sure you want to delete the entity "${entityName}" and all its models? This cannot be undone.`,
+      { title: "Delete Entity", kind: "warning" }
+    );
+
+    if (confirmed) {
+      try {
+        await invoke("delete_file", { path: entityPath });
+        // Clear selection if the deleted entity was selected
+        if (entitySelection?.entity === entityName) {
+          setSelection(null);
+        }
+        // Refresh entity list
+        entitiesQuery.refetch();
+      } catch (err) {
+        console.error("Failed to delete entity:", err);
+      }
+    }
+  };
+
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div id="data-model-container" className="flex-1 flex overflow-hidden">
       {/* -- Sidebar -- */}
-      <div className="w-64 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col bg-zinc-50 dark:bg-zinc-900/50">
+      <div
+        className="flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col bg-zinc-50 dark:bg-zinc-900/50 relative"
+        style={{ width: sidebarWidth }}
+      >
+        {/* Resize handle */}
+        <div
+          onMouseDown={handleResizeStart}
+          className={cn(
+            "absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 group/resize",
+            isResizing ? "bg-blue-500" : "hover:bg-blue-400/50"
+          )}
+          title="Drag to resize"
+        />
         {/* Search */}
         <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
           <div className="relative">
@@ -295,6 +372,7 @@ export function DataModelTabView() {
                   toggleEntity(entity.name);
                 }
               }}
+              onDelete={() => handleDeleteEntity(entity.name)}
             />
           ))}
         </div>
@@ -346,6 +424,13 @@ export function DataModelTabView() {
                 <FileIndicator label="Docs" exists={selectedModelInfo.has_schema_md} icon="md" filePath={selectedModelPath ? `${selectedModelPath}/schema.md` : undefined} />
                 <FileIndicator label="SQL" exists={selectedModelInfo.has_sql} icon="md" filePath={selectedModelPath ? `${selectedModelPath}/sql.md` : undefined} />
                 <FileIndicator label="Workflow" exists={selectedModelInfo.has_workflow} icon="md" filePath={selectedModelPath ? `${selectedModelPath}/workflow.md` : undefined} />
+                <button
+                  onClick={() => handleDeleteEntity(entitySelection.entity)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  title="Delete entity"
+                >
+                  <Trash2 size={10} />
+                </button>
               </div>
             </div>
 
@@ -740,12 +825,14 @@ function EntitySidebarItem({
   selectedModel,
   onToggle,
   onSelectModel,
+  onDelete,
 }: {
   entity: EntityInfo;
   expanded: boolean;
   selectedModel: string | null;
   onToggle: () => void;
   onSelectModel: (model: string) => void;
+  onDelete: () => void;
 }) {
   const totalRecords = entity.models.reduce(
     (sum, m) => sum + (m.total_records ?? 0),
@@ -753,30 +840,42 @@ function EntitySidebarItem({
   );
 
   return (
-    <div>
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-      >
-        {expanded ? (
-          <ChevronDown size={14} className="text-zinc-400 flex-shrink-0" />
-        ) : (
-          <ChevronRight size={14} className="text-zinc-400 flex-shrink-0" />
-        )}
-        <Database size={14} className="text-zinc-400 flex-shrink-0" />
-        <span className="text-zinc-900 dark:text-zinc-100 font-medium truncate">
-          {entity.name}
-        </span>
-        {totalRecords > 0 && (
-          <span className="ml-auto text-xs text-zinc-400 tabular-nums">
-            {totalRecords > 1_000_000
-              ? `${(totalRecords / 1_000_000).toFixed(1)}M`
-              : totalRecords > 1_000
-                ? `${(totalRecords / 1_000).toFixed(0)}K`
-                : totalRecords}
+    <div className="group/entity">
+      <div className="flex items-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+        <button
+          onClick={onToggle}
+          className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm min-w-0"
+        >
+          {expanded ? (
+            <ChevronDown size={14} className="text-zinc-400 flex-shrink-0" />
+          ) : (
+            <ChevronRight size={14} className="text-zinc-400 flex-shrink-0" />
+          )}
+          <Database size={14} className="text-zinc-400 flex-shrink-0" />
+          <span className="text-zinc-900 dark:text-zinc-100 font-medium truncate">
+            {entity.name}
           </span>
-        )}
-      </button>
+          {totalRecords > 0 && (
+            <span className="ml-auto text-xs text-zinc-400 tabular-nums">
+              {totalRecords > 1_000_000
+                ? `${(totalRecords / 1_000_000).toFixed(1)}M`
+                : totalRecords > 1_000
+                  ? `${(totalRecords / 1_000).toFixed(0)}K`
+                  : totalRecords}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="opacity-0 group-hover/entity:opacity-100 p-1 mr-2 rounded text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+          title="Delete entity"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
 
       {expanded &&
         entity.models.map((model) => (

@@ -7,8 +7,6 @@ import {
   useEffect,
   useRef,
   useMemo,
-  forwardRef,
-  useImperativeHandle,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AgGridReact } from "ag-grid-react";
@@ -18,7 +16,6 @@ import type {
   ColDef,
   ICellRendererParams,
   CellValueChangedEvent,
-  ICellEditorParams,
 } from "ag-grid-community";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../../stores/appStore";
@@ -86,91 +83,119 @@ const PREDEFINED_TAGS = [
   "nullable",
   "standardized",
   "raw",
+  "health-entity",
 ];
 
 // ============================================================================
-// TagsCellRenderer — display tags as colored badges
+// TagsCellRenderer — display tags as badges with click-to-edit inline popup
+// Bypasses AG Grid's editor lifecycle entirely for reliable save behavior.
 // ============================================================================
 
 const TagsCellRenderer = (params: ICellRendererParams) => {
   const tags: string[] = params.value ?? [];
-  if (tags.length === 0) {
-    return <span className="text-zinc-400">&mdash;</span>;
-  }
-  return (
-    <div className="flex flex-wrap gap-1 py-0.5">
-      {tags.map((tag) => (
-        <span
-          key={tag}
-          className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-        >
-          {tag}
-        </span>
-      ))}
-    </div>
-  );
-};
-
-// ============================================================================
-// TagsCellEditor — popup editor with chips + autocomplete input
-// ============================================================================
-
-const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
-  const [tags, setTags] = useState<string[]>(props.value ?? []);
+  const [isEditing, setIsEditing] = useState(false);
+  const [localTags, setLocalTags] = useState<string[]>(tags);
   const [input, setInput] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
 
-  useImperativeHandle(ref, () => ({
-    getValue: () => tags,
-    isPopup: () => true,
-    isCancelAfterEnd: () => false,
-  }));
-
+  // Sync when external value changes
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    setLocalTags(params.value ?? []);
+  }, [params.value]);
+
+  // Focus input when editing opens
+  useEffect(() => {
+    if (isEditing) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [isEditing]);
+
+  // Close popup on click outside
+  useEffect(() => {
+    if (!isEditing) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setIsEditing(false);
+        setInput("");
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isEditing]);
+
+  // Commit: update AG Grid row data + trigger parent onCellValueChanged
+  const commitTags = useCallback((next: string[]) => {
+    setLocalTags(next);
+    params.node.setDataValue("tags", next);
+  }, [params.node]);
 
   const addTag = useCallback(
     (tag: string) => {
       const trimmed = tag.trim().toLowerCase();
-      if (trimmed && !tags.includes(trimmed)) {
-        setTags((prev) => [...prev, trimmed]);
+      if (trimmed && !localTags.includes(trimmed)) {
+        commitTags([...localTags, trimmed]);
       }
       setInput("");
       setShowSuggestions(false);
     },
-    [tags]
+    [localTags, commitTags]
   );
 
   const removeTag = useCallback((tag: string) => {
-    setTags((prev) => prev.filter((t) => t !== tag));
-  }, []);
+    commitTags(localTags.filter((t) => t !== tag));
+  }, [localTags, commitTags]);
 
   const filteredSuggestions = useMemo(() => {
-    if (!input) return PREDEFINED_TAGS.filter((t) => !tags.includes(t));
+    if (!input) return PREDEFINED_TAGS.filter((t) => !localTags.includes(t));
     return PREDEFINED_TAGS.filter(
-      (t) => t.includes(input.toLowerCase()) && !tags.includes(t)
+      (t) => t.includes(input.toLowerCase()) && !localTags.includes(t)
     );
-  }, [input, tags]);
+  }, [input, localTags]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && input.trim()) {
       e.preventDefault();
       e.stopPropagation();
       addTag(input);
-    } else if (e.key === "Backspace" && !input && tags.length > 0) {
-      setTags((prev) => prev.slice(0, -1));
+    } else if (e.key === "Backspace" && !input && localTags.length > 0) {
+      commitTags(localTags.slice(0, -1));
     } else if (e.key === "Escape") {
-      props.stopEditing();
+      setIsEditing(false);
+      setInput("");
+      setShowSuggestions(false);
     }
   };
 
+  if (!isEditing) {
+    return (
+      <div
+        className="flex flex-wrap gap-1 py-0.5 cursor-pointer min-h-[24px] items-center"
+        onClick={() => setIsEditing(true)}
+      >
+        {localTags.length === 0 ? (
+          <span className="text-zinc-400">&mdash;</span>
+        ) : (
+          localTags.map((tag) => (
+            <span
+              key={tag}
+              className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            >
+              {tag}
+            </span>
+          ))
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg min-w-[240px]">
+    <div ref={popupRef} className="absolute z-30 top-0 left-0 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg min-w-[240px]">
       {/* Current tags */}
       <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
-        {tags.map((tag) => (
+        {localTags.map((tag) => (
           <span
             key={tag}
             className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
@@ -207,7 +232,7 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
           {filteredSuggestions.map((suggestion) => (
             <button
               key={suggestion}
-              onClick={() => addTag(suggestion)}
+              onMouseDown={(e) => { e.preventDefault(); addTag(suggestion); }}
               className="w-full text-left px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-teal-50 dark:hover:bg-teal-900/20"
             >
               {suggestion}
@@ -217,9 +242,7 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
       )}
     </div>
   );
-});
-
-TagsCellEditor.displayName = "TagsCellEditor";
+};
 
 // ============================================================================
 // SchemaFieldsGrid
@@ -502,10 +525,7 @@ export function SchemaFieldsGrid({
         field: "tags",
         headerName: "Tags",
         width: 180,
-        editable: true,
         cellRenderer: TagsCellRenderer,
-        cellEditor: TagsCellEditor,
-        cellEditorPopup: true,
         filter: "agTextColumnFilter",
         valueFormatter: (params) =>
           (params.value as string[] | undefined)?.join(", ") ?? "",

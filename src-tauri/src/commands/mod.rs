@@ -6,6 +6,7 @@ pub mod claude_setup;
 pub mod crm;
 pub mod files;
 pub mod folder_chat;
+pub mod github_sync;
 pub mod help_chat;
 pub mod mcp;
 pub mod outlook;
