@@ -278,12 +278,6 @@ export function useDataHealth(
   const thresholds = config?.freshness_thresholds ?? DEFAULT_THRESHOLDS;
   const { tables, isLoading: tablesLoading, entityLabel } = useMonitoredTables(entitiesPath, domain, config);
 
-  const sixMonthsAgo = useMemo(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 6);
-    return d.toISOString().slice(0, 10);
-  }, []);
-
   const queryEnabled = enabled && !!domain && tables.length > 0;
 
   const queries = useQueries({
@@ -291,18 +285,16 @@ export function useDataHealth(
       ? tables.map((table) => ({
           queryKey: ["data-health", domain, table.table_id] as const,
           queryFn: async (): Promise<SourceResult> => {
-            const filterClauses = [
-              `${table.date_column} >= '${sixMonthsAgo}'`,
-            ];
+            const filterClauses: string[] = [];
             if (table.extra_filter) filterClauses.push(table.extra_filter);
 
+            const whereClause = filterClauses.length > 0 ? `\nWHERE ${filterClauses.join("\n  AND ")}` : "";
             const sql = `SELECT ${table.entity_column} AS entity,
   MIN(CAST(${table.date_column} AS DATE)) AS earliest,
   MAX(CAST(${table.date_column} AS DATE)) AS latest,
   COUNT(DISTINCT CAST(${table.date_column} AS DATE)) AS day_count,
   COUNT(DISTINCT CASE WHEN CAST(${table.date_column} AS DATE) >= CURRENT_DATE - 28 THEN CAST(${table.date_column} AS DATE) END) AS recent_days
-FROM ${table.table_id}
-WHERE ${filterClauses.join("\n  AND ")}
+FROM ${table.table_id}${whereClause}
 GROUP BY ${table.entity_column}
 ORDER BY ${table.entity_column}`;
 
