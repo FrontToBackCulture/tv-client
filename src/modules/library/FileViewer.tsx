@@ -17,6 +17,7 @@ import { JSONEditor, SQLEditor, ImageViewer, CSVViewer, HTMLViewer, PDFViewer, E
 import { IntercomModal } from "./IntercomModal";
 import { PortalPublishModal } from "./PortalPublishModal";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
+import { supabase } from "../../lib/supabase";
 
 interface FileViewerProps {
   path: string;
@@ -25,7 +26,7 @@ interface FileViewerProps {
 }
 
 // File type detection
-type FileType = "markdown" | "json" | "sql" | "csv" | "image" | "html" | "pdf" | "excalidraw" | "code" | "text";
+type FileType = "markdown" | "json" | "sql" | "csv" | "image" | "html" | "excel" | "pdf" | "excalidraw" | "code" | "text";
 
 function getFileType(path: string): FileType {
   const lowerPath = path.toLowerCase();
@@ -38,6 +39,7 @@ function getFileType(path: string): FileType {
   if (ext === "sql") return "sql";
   if (ext === "csv") return "csv";
   if (ext === "html" || ext === "htm") return "html";
+  if (ext === "xlsx" || ext === "xls") return "excel";
   if (ext === "pdf") return "pdf";
   if (["png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp"].includes(ext)) return "image";
   if (["ts", "tsx", "js", "jsx", "rs", "py", "yaml", "yml", "toml", "css", "scss", "sh", "bash"].includes(ext)) return "code";
@@ -95,8 +97,8 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const fileType = getFileType(path);
   const filename = getFileName(path);
 
-  // Skip text content loading for binary files (images, PDFs)
-  const skipTextLoad = fileType === "image" || fileType === "pdf";
+  // Skip text content loading for binary files (images, PDFs, Excel)
+  const skipTextLoad = fileType === "image" || fileType === "pdf" || fileType === "excel";
   const { data: content, isLoading, isError, error } = useReadFile(skipTextLoad ? undefined : path);
 
   const { addRecentFile } = useRecentFiles();
@@ -135,15 +137,20 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     return idMatch ? idMatch[1].trim() : undefined;
   }, [content]);
 
-  // Extract portal_doc_id from frontmatter
+  // Extract portal_doc_id from frontmatter (markdown) or localStorage (html/excel)
   const portalDocId = useMemo(() => {
+    if (fileType === "html" || fileType === "excel") {
+      try {
+        return localStorage.getItem(`portal_doc_id:${path}`) || undefined;
+      } catch { return undefined; }
+    }
     if (!content) return undefined;
     const match = content.match(/^---\n([\s\S]*?)\n---/);
     if (!match) return undefined;
     const yaml = match[1];
     const idMatch = yaml.match(/^portal_doc_id:\s*["']?([^"'\n]+)["']?\s*$/m);
     return idMatch ? idMatch[1].trim() : undefined;
-  }, [content]);
+  }, [content, fileType, path]);
 
   // Handle intercom publish: add intercom_article_id to frontmatter
   const handleIntercomPublished = useCallback(async (articleId: string, _articleUrl: string) => {
@@ -171,8 +178,15 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     }
   }, [content, path]);
 
-  // Handle portal publish: add portal_doc_id, portal_domain, portal_doc_type to frontmatter
+  // Handle portal publish: add portal_doc_id, portal_domain, portal_doc_type to frontmatter (or localStorage for non-md)
   const handlePortalPublished = useCallback(async (docId: string, domain: string | null, docType: string) => {
+    if (fileType === "html" || fileType === "excel") {
+      try {
+        localStorage.setItem(`portal_doc_id:${path}`, docId);
+      } catch { /* ignore */ }
+      showToast("Published to Portal", "success");
+      return;
+    }
     if (!content) return;
     let updated = addFrontmatterField(content, "portal_doc_id", docId);
     if (domain) {
@@ -186,10 +200,17 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     } catch (err) {
       showToast(`Failed to update frontmatter: ${err}`, "error");
     }
-  }, [content, path]);
+  }, [content, path, fileType]);
 
-  // Handle portal delete: remove portal fields from frontmatter
+  // Handle portal delete: remove portal fields from frontmatter (or localStorage for non-md)
   const handlePortalDeleted = useCallback(async () => {
+    if (fileType === "html" || fileType === "excel") {
+      try {
+        localStorage.removeItem(`portal_doc_id:${path}`);
+      } catch { /* ignore */ }
+      showToast("Removed from Portal", "success");
+      return;
+    }
     if (!content) return;
     let updated = removeFrontmatterField(content, "portal_doc_id");
     updated = removeFrontmatterField(updated, "portal_domain");
@@ -201,7 +222,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     } catch (err) {
       showToast(`Failed to update frontmatter: ${err}`, "error");
     }
-  }, [content, path]);
+  }, [content, path, fileType]);
 
   // Reset state when path changes
   useEffect(() => {
@@ -627,6 +648,29 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     );
   }
 
+  // Excel files - handle separately (binary loading)
+  if (fileType === "excel") {
+    return (
+      <div className="h-full flex flex-col">
+        {renderHeader()}
+        <div className="flex-1 overflow-hidden">
+          <ExcelViewer path={path} filename={filename} />
+        </div>
+        {renderToast()}
+        <PortalPublishModal
+          isOpen={portalModalOpen}
+          onClose={() => setPortalModalOpen(false)}
+          filePath={path}
+          content=""
+          filename={filename}
+          portalDocId={portalDocId}
+          onPublished={handlePortalPublished}
+          onDeleted={handlePortalDeleted}
+        />
+      </div>
+    );
+  }
+
   // PDF files - handle separately (binary loading)
   if (fileType === "pdf") {
     return (
@@ -832,6 +876,16 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           <HTMLViewer content={content} filename={filename} />
         </div>
         {renderToast()}
+        <PortalPublishModal
+          isOpen={portalModalOpen}
+          onClose={() => setPortalModalOpen(false)}
+          filePath={path}
+          content={content}
+          filename={filename}
+          portalDocId={portalDocId}
+          onPublished={handlePortalPublished}
+          onDeleted={handlePortalDeleted}
+        />
       </div>
     );
   }
@@ -887,6 +941,95 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
         </div>
       </div>
       {renderToast()}
+    </div>
+  );
+}
+
+// Excel viewer component - uploads to temp storage and uses Office Online viewer
+function ExcelViewer({ path, filename }: { path: string; filename: string }) {
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const storagePathRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const base64 = await invoke<string>("read_file_binary", { path });
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+        // Upload to temp path in portal-reports bucket
+        const tempPath = `_temp/${Date.now()}-${filename}`;
+        const { error: uploadErr } = await supabase.storage
+          .from("portal-reports")
+          .upload(tempPath, bytes, {
+            contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            upsert: true,
+          });
+        if (uploadErr) throw new Error(uploadErr.message);
+        if (cancelled) return;
+
+        storagePathRef.current = tempPath;
+        const { data: urlData } = supabase.storage
+          .from("portal-reports")
+          .getPublicUrl(tempPath);
+
+        const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(urlData.publicUrl)}`;
+        if (!cancelled) setViewerUrl(officeUrl);
+      } catch (err) {
+        if (!cancelled) setError(String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      // Clean up temp file
+      if (storagePathRef.current) {
+        supabase.storage.from("portal-reports").remove([storagePathRef.current]);
+      }
+    };
+  }, [path, filename]);
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <FileText size={32} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-600 animate-pulse" />
+          <p className="text-sm text-zinc-500">Loading spreadsheet...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle size={32} className="mx-auto mb-3 text-red-500" />
+          <p className="text-sm text-red-500 dark:text-red-400">Failed to load spreadsheet</p>
+          <p className="text-xs text-zinc-500 mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full">
+      {viewerUrl && (
+        <iframe
+          src={viewerUrl}
+          title={filename}
+          className="block h-full w-full border-0"
+        />
+      )}
     </div>
   );
 }

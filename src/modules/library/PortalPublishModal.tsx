@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { X, Globe, Trash2, RefreshCw } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 
@@ -63,14 +64,14 @@ interface PortalPublishModalProps {
 export function PortalPublishModal({
   isOpen,
   onClose,
-  filePath: _filePath,
+  filePath,
   content,
   filename,
   portalDocId,
   onPublished,
   onDeleted,
 }: PortalPublishModalProps) {
-  const [docType, setDocType] = useState<"domain" | "guide">("domain");
+  const [docType, setDocType] = useState<"domain" | "guide" | "report">("domain");
   const [selectedDomain, setSelectedDomain] = useState("");
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
@@ -80,6 +81,16 @@ export function PortalPublishModal({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const isUpdateMode = !!portalDocId;
+
+  // Detect file type from filename
+  const detectedFileType = useMemo(() => {
+    const lower = filename.toLowerCase();
+    if (lower.endsWith(".html") || lower.endsWith(".htm")) return "html" as const;
+    if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) return "excel" as const;
+    return "markdown" as const;
+  }, [filename]);
+
+  const isReportFile = detectedFileType === "html" || detectedFileType === "excel";
 
   // Extract defaults from frontmatter
   const fm = useMemo(() => parseFrontmatter(content), [content]);
@@ -91,19 +102,24 @@ export function PortalPublishModal({
       setError(null);
       return;
     }
-    setTitle(fm.title || fm.name || filename.replace(/\.md$/, "").replace(/-/g, " "));
+    const cleanName = filename.replace(/\.(md|html?|xlsx?)$/i, "").replace(/-/g, " ");
+    setTitle(fm.title || fm.name || cleanName);
     setSummary(fm.summary || fm.description || "");
     setCategory(fm.category || "");
-    setDocType((fm.portal_doc_type as "domain" | "guide") || "domain");
+    if (isReportFile) {
+      setDocType("report");
+    } else {
+      setDocType((fm.portal_doc_type as "domain" | "guide" | "report") || "domain");
+    }
     setSelectedDomain(fm.portal_domain || "");
-  }, [isOpen, fm, filename]);
+  }, [isOpen, fm, filename, isReportFile]);
 
   const handlePublish = async () => {
     if (!isSupabaseConfigured) {
       setError("Supabase not configured. Check environment variables.");
       return;
     }
-    if (docType === "domain" && !selectedDomain) {
+    if ((docType === "domain" || docType === "report") && !selectedDomain) {
       setError("Please select a domain.");
       return;
     }
@@ -116,13 +132,46 @@ export function PortalPublishModal({
     setError(null);
 
     try {
-      const record = {
-        domain: docType === "domain" ? selectedDomain : null,
+      let publishContent = content;
+      let fileUrl: string | null = null;
+      let fileType: string | null = null;
+
+      if (docType === "report") {
+        if (detectedFileType === "excel") {
+          fileType = "excel";
+          // Read binary via Tauri command and upload original to Supabase Storage
+          const base64 = await invoke<string>("read_file_binary", { path: filePath });
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const storagePath = `${selectedDomain}/${Date.now()}-${filename}`;
+          const { error: uploadErr } = await supabase.storage
+            .from("portal-reports")
+            .upload(storagePath, bytes, { contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+          if (uploadErr) throw new Error(`Upload failed: ${uploadErr.message}`);
+
+          const { data: urlData } = supabase.storage
+            .from("portal-reports")
+            .getPublicUrl(storagePath);
+          fileUrl = urlData.publicUrl;
+
+          // No HTML preview needed — portal uses Office Online viewer via fileUrl
+          publishContent = "";
+        } else if (detectedFileType === "html") {
+          fileType = "html";
+          publishContent = content;
+        }
+      }
+
+      const record: Record<string, unknown> = {
+        domain: docType === "guide" ? null : selectedDomain,
         title: title.trim(),
         summary: summary.trim() || null,
-        content,
+        content: publishContent,
         category: category.trim() || null,
         doc_type: docType,
+        file_url: fileUrl,
+        file_type: fileType,
       };
 
       if (isUpdateMode) {
@@ -131,7 +180,7 @@ export function PortalPublishModal({
           .update(record)
           .eq("id", portalDocId);
         if (err) throw new Error(err.message);
-        onPublished(portalDocId, record.domain, docType);
+        onPublished(portalDocId, record.domain as string | null, docType);
       } else {
         const { data, error: err } = await supabase
           .from("portal_docs")
@@ -139,7 +188,7 @@ export function PortalPublishModal({
           .select("id")
           .single();
         if (err) throw new Error(err.message);
-        onPublished(data.id, record.domain, docType);
+        onPublished(data.id, record.domain as string | null, docType);
       }
 
       onClose();
@@ -157,6 +206,21 @@ export function PortalPublishModal({
     setError(null);
 
     try {
+      // Check if there's a file_url to clean up from storage
+      const { data: docData } = await supabase
+        .from("portal_docs")
+        .select("file_url")
+        .eq("id", portalDocId)
+        .single();
+
+      if (docData?.file_url) {
+        // Extract storage path from public URL
+        const urlParts = docData.file_url.split("/portal-reports/");
+        if (urlParts[1]) {
+          await supabase.storage.from("portal-reports").remove([urlParts[1]]);
+        }
+      }
+
       const { error: err } = await supabase
         .from("portal_docs")
         .delete()
@@ -220,22 +284,37 @@ export function PortalPublishModal({
             <div className="flex gap-2">
               <button
                 onClick={() => setDocType("domain")}
+                disabled={isReportFile}
                 className={cn(
                   "flex-1 px-3 py-1.5 text-xs rounded border transition-colors",
                   docType === "domain"
                     ? "bg-teal-50 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300"
-                    : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800",
+                  isReportFile && "opacity-40 cursor-not-allowed"
                 )}
               >
                 Domain Doc
               </button>
               <button
+                onClick={() => setDocType("report")}
+                className={cn(
+                  "flex-1 px-3 py-1.5 text-xs rounded border transition-colors",
+                  docType === "report"
+                    ? "bg-teal-50 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300"
+                    : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                )}
+              >
+                Report
+              </button>
+              <button
                 onClick={() => setDocType("guide")}
+                disabled={isReportFile}
                 className={cn(
                   "flex-1 px-3 py-1.5 text-xs rounded border transition-colors",
                   docType === "guide"
                     ? "bg-teal-50 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300"
-                    : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800",
+                  isReportFile && "opacity-40 cursor-not-allowed"
                 )}
               >
                 General Guide
@@ -244,7 +323,7 @@ export function PortalPublishModal({
           </div>
 
           {/* Domain selector */}
-          {docType === "domain" && (
+          {(docType === "domain" || docType === "report") && (
             <div>
               <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
                 Domain

@@ -59,7 +59,7 @@ interface FileActionsProps {
 }
 
 // Get file type from path
-function getFileType(path: string): "nanobanana" | "gamma" | "veo" | "order-form" | "proposal" | "markdown" | "other" {
+function getFileType(path: string): "nanobanana" | "gamma" | "veo" | "order-form" | "proposal" | "markdown" | "html" | "excel" | "other" {
   const lowerPath = path.toLowerCase();
   if (lowerPath.endsWith(".nanobanana.json")) return "nanobanana";
   if (lowerPath.endsWith(".gamma.json")) return "gamma";
@@ -69,6 +69,8 @@ function getFileType(path: string): "nanobanana" | "gamma" | "veo" | "order-form
   if (filename === "order-form-data.md") return "order-form";
   if (filename === "proposal-data.md") return "proposal";
   if (lowerPath.endsWith(".md") || lowerPath.endsWith(".markdown")) return "markdown";
+  if (lowerPath.endsWith(".html") || lowerPath.endsWith(".htm")) return "html";
+  if (lowerPath.endsWith(".xlsx") || lowerPath.endsWith(".xls")) return "excel";
   return "other";
 }
 
@@ -254,8 +256,8 @@ export function FileActions({
     });
   }
 
-  // Publish to Portal (markdown files)
-  if (fileType === "markdown" && onPublishPortal) {
+  // Publish to Portal (markdown, html, excel files)
+  if ((fileType === "markdown" || fileType === "html" || fileType === "excel") && onPublishPortal) {
     items.push({
       label: "Publish to Portal",
       icon: <Globe className="w-4 h-4" />,
