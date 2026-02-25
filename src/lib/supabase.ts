@@ -1,22 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Supabase configuration
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+// Supabase configuration — the anon key is a public client key (not a secret).
+// It only allows access governed by Row Level Security policies.
+const supabaseUrl =
+  import.meta.env.VITE_SUPABASE_URL ||
+  "https://sabrnwuhgkqfwunbrnrt.supabase.co";
+const supabaseAnonKey =
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhYnJud3VoZ2txZnd1bmJybnJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1NTE3NTQsImV4cCI6MjA4NDEyNzc1NH0.ZPUkYRsVzrFKW5jFutm7HkauRW-mkbXPyPhix4q083k";
 
-// Check if Supabase is configured
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
-
-// Create Supabase client (untyped for flexibility)
-// Type safety is handled in the hooks via explicit type annotations
+export const isSupabaseConfigured = true;
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Helper to get the client (throws if not configured)
 export function getSupabaseClient() {
-  if (!isSupabaseConfigured) {
-    throw new Error(
-      "Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables."
-    );
-  }
   return supabase;
 }
