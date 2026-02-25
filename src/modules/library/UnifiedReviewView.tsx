@@ -2,7 +2,7 @@
 // Unified split-view review mode for all resource types: tables, queries, dashboards, workflows
 // Grid on left, detail preview on right. Tables get batch action buttons; artifacts don't.
 
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles, Globe, ChevronDown } from "lucide-react";
 import { ReviewGrid, ReviewGridHandle } from "./ReviewGrid";
@@ -212,12 +212,8 @@ export function UnifiedReviewView({
   // Portal sync state
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Extract domain slug from folderPath
-  const domainSlug = useMemo(() => {
-    const parts = folderPath.split("/");
-    const prodIdx = parts.indexOf("production");
-    return prodIdx !== -1 && prodIdx + 1 < parts.length ? parts[prodIdx + 1] : null;
-  }, [folderPath]);
+  // Domain slug for portal sync — use the prop directly
+  const domainSlug = domainName || null;
 
   // Sync portal resources to Supabase
   const handleSyncToPortal = useCallback(async () => {
