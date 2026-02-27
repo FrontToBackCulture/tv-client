@@ -10,12 +10,20 @@ import {
   FolderOpen,
   X,
   ChevronRight,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  CloudUpload,
+  RefreshCw,
+  Minus,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
 import { useRepository } from "../../stores/repositoryStore";
 import {
   useListDomainAiStatus,
+  useSkillDeploymentStatus,
+  type SkillDomainDeployment,
 } from "../../hooks/val-sync";
 import { useListDirectory } from "../../hooks/useFiles";
 import { useAiSkills, useCreateAiSkill } from "../../hooks/useAiSkills";
@@ -90,6 +98,9 @@ export function AiSkillsTabView() {
 
   const entitiesPath = activeRepository
     ? `${activeRepository.path}/0_Platform/architecture/domain-model/entities`
+    : null;
+  const platformSkillsPath = activeRepository
+    ? `${activeRepository.path}/0_Platform/skills`
     : null;
   const domainStatusQuery = useListDomainAiStatus(entitiesPath);
 
@@ -187,6 +198,15 @@ export function AiSkillsTabView() {
     if (!skillFolderPath) return;
     invoke("open_in_finder", { path: skillFolderPath }).catch(console.error);
   }, [skillFolderPath]);
+
+  // Content tab: "docs" or "deployment"
+  const [contentTab, setContentTab] = useState<"docs" | "deployment">("docs");
+
+  // Deployment status for selected skill
+  const deploymentQuery = useSkillDeploymentStatus(
+    contentTab === "deployment" ? effectiveSelected : null,
+    platformSkillsPath
+  );
 
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -298,7 +318,7 @@ export function AiSkillsTabView() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-hidden flex flex-col">
         {!effectiveSelected && (
           <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
             {skills.length === 0
@@ -308,7 +328,7 @@ export function AiSkillsTabView() {
         )}
 
         {effectiveSelected && selectedSkillDef && (
-          <div className="flex flex-col h-full">
+          <>
             {/* Compact header bar */}
             <div className="flex-shrink-0 px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
@@ -345,25 +365,64 @@ export function AiSkillsTabView() {
               </button>
             </div>
 
-            {/* SKILL.md content */}
+            {/* Tab bar */}
+            <div className="flex-shrink-0 px-6 border-b border-zinc-200 dark:border-zinc-800 flex gap-1">
+              {(["docs", "deployment"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setContentTab(tab)}
+                  className={cn(
+                    "px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px",
+                    contentTab === tab
+                      ? "border-violet-500 text-violet-700 dark:text-violet-300"
+                      : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  )}
+                >
+                  {tab === "docs" ? (
+                    <span className="flex items-center gap-1.5">
+                      <FileText size={12} />
+                      Documentation
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <CloudUpload size={12} />
+                      Deployment
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
             <div className="flex-1 overflow-y-auto">
-              {skillMdQuery.isLoading && (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 size={20} className="animate-spin text-zinc-400" />
-                </div>
+              {contentTab === "docs" && (
+                <>
+                  {skillMdQuery.isLoading && (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 size={20} className="animate-spin text-zinc-400" />
+                    </div>
+                  )}
+                  {skillMdContent && (
+                    <div className="px-8 py-6">
+                      <MarkdownViewer content={skillMdContent} filename="SKILL.md" />
+                    </div>
+                  )}
+                  {!skillMdQuery.isLoading && !skillMdContent && (
+                    <div className="flex items-center justify-center py-16 text-sm text-zinc-400">
+                      No SKILL.md found
+                    </div>
+                  )}
+                </>
               )}
-              {skillMdContent && (
-                <div className="px-8 py-6">
-                  <MarkdownViewer content={skillMdContent} filename="SKILL.md" />
-                </div>
-              )}
-              {!skillMdQuery.isLoading && !skillMdContent && (
-                <div className="flex items-center justify-center py-16 text-sm text-zinc-400">
-                  No SKILL.md found
-                </div>
+
+              {contentTab === "deployment" && (
+                <SkillDeploymentPanel
+                  query={deploymentQuery}
+                  masterFileCount={deploymentQuery.data?.master_file_count}
+                />
               )}
             </div>
-          </div>
+          </>
         )}
       </div>
 
@@ -399,6 +458,158 @@ function SkillSidebarItem({ skill, active, stats, onSelect }: { skill: SkillDef;
         <span className="text-xs text-zinc-400 flex-shrink-0 tabular-nums">{stats.domains}d</span>
       )}
     </button>
+  );
+}
+
+// ============================================================================
+// SkillDeploymentPanel — cross-domain deployment status for a skill
+// ============================================================================
+
+const DRIFT_CONFIG: Record<string, { icon: typeof CheckCircle2; color: string; label: string }> = {
+  in_sync: { icon: CheckCircle2, color: "text-green-500", label: "In Sync" },
+  drifted: { icon: AlertTriangle, color: "text-amber-500", label: "Drifted" },
+  missing: { icon: XCircle, color: "text-red-400", label: "Missing" },
+  not_configured: { icon: Minus, color: "text-zinc-300 dark:text-zinc-600", label: "—" },
+  error: { icon: XCircle, color: "text-red-500", label: "Error" },
+};
+
+function SkillDeploymentPanel({
+  query,
+  masterFileCount,
+}: {
+  query: { data?: { domains: SkillDomainDeployment[] }; isLoading: boolean; isError: boolean; error: unknown; refetch: () => void; isFetching: boolean };
+  masterFileCount?: number;
+}) {
+  if (query.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 size={20} className="animate-spin text-zinc-400" />
+      </div>
+    );
+  }
+
+  if (query.isError) {
+    return (
+      <div className="px-6 py-8 text-sm text-red-500">
+        Failed to load deployment status: {String(query.error)}
+      </div>
+    );
+  }
+
+  const domains = query.data?.domains ?? [];
+  const configured = domains.filter((d) => d.configured);
+  const onS3 = domains.filter((d) => d.on_s3);
+  const drifted = domains.filter((d) => d.drift_status === "drifted");
+  const inSync = domains.filter((d) => d.drift_status === "in_sync");
+
+  return (
+    <div className="px-6 py-5 space-y-4">
+      {/* Summary chips */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+          Master files: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{masterFileCount ?? "—"}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+          Configured: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{configured.length}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+          On S3: <span className="font-semibold text-teal-600 dark:text-teal-400">{onS3.length}</span>
+        </div>
+        {inSync.length > 0 && (
+          <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+            <CheckCircle2 size={11} /> {inSync.length} in sync
+          </div>
+        )}
+        {drifted.length > 0 && (
+          <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+            <AlertTriangle size={11} /> {drifted.length} drifted
+          </div>
+        )}
+        <button
+          onClick={() => query.refetch()}
+          disabled={query.isFetching}
+          className="ml-auto flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+        >
+          <RefreshCw size={10} className={query.isFetching ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </div>
+
+      {/* Deployment table */}
+      {domains.length > 0 && (
+        <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500">
+                <th className="text-left px-3 py-2 font-medium">Domain</th>
+                <th className="text-center px-2 py-2 font-medium w-14">Type</th>
+                <th className="text-center px-2 py-2 font-medium w-20">Configured</th>
+                <th className="text-center px-2 py-2 font-medium w-20">Generated</th>
+                <th className="text-center px-2 py-2 font-medium w-14">S3</th>
+                <th className="text-center px-2 py-2 font-medium w-20">Drift</th>
+                <th className="text-right px-3 py-2 font-medium w-16">Files</th>
+              </tr>
+            </thead>
+            <tbody>
+              {domains.map((d) => {
+                const drift = DRIFT_CONFIG[d.drift_status] ?? DRIFT_CONFIG.error;
+                const DriftIcon = drift.icon;
+                return (
+                  <tr
+                    key={d.domain}
+                    className={cn(
+                      "border-t border-zinc-100 dark:border-zinc-800/50",
+                      !d.configured && "opacity-40"
+                    )}
+                  >
+                    <td className="px-3 py-2 font-medium text-zinc-800 dark:text-zinc-200">
+                      {d.domain}
+                    </td>
+                    <td className="text-center px-2 py-2 text-zinc-400">
+                      <span className="text-[10px]">{d.domain_type === "production" ? "prod" : d.domain_type}</span>
+                    </td>
+                    <td className="text-center px-2 py-2">
+                      {d.configured ? (
+                        <CheckCircle2 size={14} className="inline text-green-500" />
+                      ) : (
+                        <Minus size={14} className="inline text-zinc-300 dark:text-zinc-600" />
+                      )}
+                    </td>
+                    <td className="text-center px-2 py-2">
+                      {d.generated ? (
+                        <CheckCircle2 size={14} className="inline text-green-500" />
+                      ) : d.configured ? (
+                        <XCircle size={14} className="inline text-red-400" />
+                      ) : (
+                        <Minus size={14} className="inline text-zinc-300 dark:text-zinc-600" />
+                      )}
+                    </td>
+                    <td className="text-center px-2 py-2">
+                      {d.on_s3 ? (
+                        <CheckCircle2 size={14} className="inline text-teal-500" />
+                      ) : d.configured ? (
+                        <XCircle size={14} className="inline text-zinc-300 dark:text-zinc-600" />
+                      ) : (
+                        <Minus size={14} className="inline text-zinc-300 dark:text-zinc-600" />
+                      )}
+                    </td>
+                    <td className="text-center px-2 py-2">
+                      <span className={cn("inline-flex items-center gap-1", drift.color)}>
+                        <DriftIcon size={12} />
+                        <span className="text-[10px]">{drift.label}</span>
+                      </span>
+                    </td>
+                    <td className="text-right px-3 py-2 text-zinc-400 tabular-nums">
+                      {d.configured ? d.local_file_count : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

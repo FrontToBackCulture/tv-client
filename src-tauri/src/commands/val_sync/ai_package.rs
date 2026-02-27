@@ -14,6 +14,25 @@ use tauri::command;
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillDomainDeployment {
+    pub domain: String,
+    pub domain_type: String,
+    pub configured: bool,
+    pub generated: bool,
+    pub on_s3: bool,
+    /// "in_sync", "drifted", "missing", "not_configured"
+    pub drift_status: String,
+    pub local_file_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillDeploymentResult {
+    pub skill: String,
+    pub master_file_count: usize,
+    pub domains: Vec<SkillDomainDeployment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiPackageResult {
     pub domain: String,
     pub skills_copied: Vec<String>,
@@ -66,6 +85,69 @@ fn read_skill_description(platform_skills_path: &Path, slug: &str) -> Option<Str
     let raw = fs::read_to_string(&skill_json_path).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
     parsed.get("description")?.as_str().map(|s| s.to_string())
+}
+
+/// Files/dirs to skip when copying skill contents into a domain package
+const SKIP_FILES: &[&str] = &["SKILL.md", "skill.json", "AUDIT.md", ".DS_Store", ".claude.local.md"];
+const SKIP_DIRS: &[&str] = &["__pycache__", ".claude", "demo"];
+
+/// Recursively copy all files from a skill source dir to the domain's ai/skills/{slug}/ dir.
+/// Text files (.md, .py, .sql, .txt, .json, .csv, .html) get {{DOMAIN}} replacement.
+/// Binary files (.xlsx, .pdf, .png, etc.) are copied as-is.
+fn copy_skill_dir_recursive(
+    src_dir: &Path,
+    dest_dir: &Path,
+    domain: &str,
+    skill: &str,
+    errors: &mut Vec<String>,
+) {
+    let entries = match fs::read_dir(src_dir) {
+        Ok(e) => e,
+        Err(e) => {
+            errors.push(format!("Failed to read skill dir {}: {}", skill, e));
+            return;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let fname = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+
+        if path.is_dir() {
+            if SKIP_DIRS.contains(&fname.as_str()) { continue; }
+            let sub_dest = dest_dir.join(&fname);
+            if let Err(e) = fs::create_dir_all(&sub_dest) {
+                errors.push(format!("Failed to create {}/{}/: {}", skill, fname, e));
+                continue;
+            }
+            copy_skill_dir_recursive(&path, &sub_dest, domain, skill, errors);
+        } else {
+            if SKIP_FILES.contains(&fname.as_str()) { continue; }
+            let dest_file = dest_dir.join(&fname);
+
+            // Text files: do {{DOMAIN}} replacement. Binary files: raw copy.
+            let is_text = matches!(
+                path.extension().and_then(|e| e.to_str()),
+                Some("md" | "py" | "sql" | "txt" | "json" | "csv" | "html" | "css" | "js" | "ts" | "yaml" | "yml" | "toml" | "sh")
+            );
+
+            if is_text {
+                match fs::read_to_string(&path) {
+                    Ok(content) => {
+                        let replaced = content.replace("{{DOMAIN}}", domain);
+                        if let Err(e) = fs::write(&dest_file, &replaced) {
+                            errors.push(format!("Failed to write {}/{}: {}", skill, fname, e));
+                        }
+                    }
+                    Err(e) => errors.push(format!("Failed to read {}/{}: {}", skill, fname, e)),
+                }
+            } else {
+                if let Err(e) = fs::copy(&path, &dest_file) {
+                    errors.push(format!("Failed to copy {}/{}: {}", skill, fname, e));
+                }
+            }
+        }
+    }
 }
 
 /// Regenerate instructions.md from template or fallback.
@@ -199,27 +281,10 @@ pub fn val_generate_ai_package(
             Err(e) => errors.push(format!("Failed to read skill template {}: {}", skill, e)),
         }
 
-        // Copy reference files (column-reference.md, sql-templates.md, etc.) from new structure
-        // Skip SKILL.md (already copied above) and non-reference files like AUDIT.md
+        // Copy all additional files recursively (scripts, configs, data, reference docs, etc.)
+        // Skip SKILL.md (already copied above), skill.json (metadata-only), AUDIT.md, and junk
         if is_new_structure {
-            if let Ok(entries) = fs::read_dir(&new_skill_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    let fname = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                    if path.extension().map_or(true, |e| e != "md") { continue; }
-                    if fname == "SKILL.md" || fname == "AUDIT.md" { continue; }
-                    let ref_dest = skill_dir.join(&fname);
-                    match fs::read_to_string(&path) {
-                        Ok(content) => {
-                            let replaced = content.replace("{{DOMAIN}}", &domain);
-                            if let Err(e) = fs::write(&ref_dest, &replaced) {
-                                errors.push(format!("Failed to write {}/{}: {}", skill, fname, e));
-                            }
-                        }
-                        Err(e) => errors.push(format!("Failed to read {}/{}: {}", skill, fname, e)),
-                    }
-                }
-            }
+            copy_skill_dir_recursive(&new_skill_dir, &skill_dir, &domain, skill, &mut errors);
         }
     }
 
@@ -411,5 +476,192 @@ pub fn val_extract_ai_templates(
     Ok(ExtractTemplatesResult {
         skills_extracted,
         instructions_extracted,
+    })
+}
+
+// ============================================================================
+// Skill Deployment Status — cross-domain view of a single skill
+// ============================================================================
+
+/// Count deployable files in a skill directory (excluding metadata/junk)
+fn count_skill_files(dir: &Path) -> usize {
+    if !dir.exists() {
+        return 0;
+    }
+    let mut count = 0;
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if SKIP_FILES.contains(&name.as_str())
+                || SKIP_DIRS.contains(&name.as_str())
+                || name.starts_with('.')
+            {
+                continue;
+            }
+            if entry.path().is_dir() {
+                count += count_skill_files(&entry.path());
+            } else {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+/// Check which domains have a given skill on S3 (single API call).
+/// Returns a list of domain names that have the skill present.
+async fn check_s3_skill_presence(skill: &str) -> Result<Vec<String>, String> {
+    let settings = crate::commands::settings::load_settings()
+        .map_err(|e| format!("Failed to load settings: {}", e))?;
+
+    let access_key = match settings.keys.get("aws_access_key_id") {
+        Some(k) => k.clone(),
+        None => return Ok(vec![]), // No AWS creds — skip S3 check silently
+    };
+    let secret_key = match settings.keys.get("aws_secret_access_key") {
+        Some(k) => k.clone(),
+        None => return Ok(vec![]),
+    };
+
+    // List all objects under solutions/ prefix
+    let output = tokio::process::Command::new("aws")
+        .args([
+            "s3api",
+            "list-objects-v2",
+            "--bucket",
+            "production.thinkval.static",
+            "--prefix",
+            "solutions/",
+            "--region",
+            "ap-southeast-1",
+            "--output",
+            "json",
+        ])
+        .env("AWS_ACCESS_KEY_ID", &access_key)
+        .env("AWS_SECRET_ACCESS_KEY", &secret_key)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run aws CLI: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("aws s3api failed: {}", stderr.trim()));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.trim().is_empty() {
+        return Ok(vec![]);
+    }
+
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).map_err(|e| format!("Failed to parse S3 response: {}", e))?;
+
+    let contents = match json.get("Contents").and_then(|c| c.as_array()) {
+        Some(arr) => arr,
+        None => return Ok(vec![]),
+    };
+
+    // Find keys containing skills/{skill}/
+    let skill_pattern = format!("skills/{}/", skill);
+    let mut domains: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for obj in contents {
+        let key = obj.get("Key").and_then(|k| k.as_str()).unwrap_or("");
+        if key.contains(&skill_pattern) {
+            // Key format: solutions/{domain}/skills/{skill}/...
+            if let Some(rest) = key.strip_prefix("solutions/") {
+                if let Some(domain) = rest.split('/').next() {
+                    domains.insert(domain.to_string());
+                }
+            }
+        }
+    }
+
+    Ok(domains.into_iter().collect())
+}
+
+/// Get deployment status for a specific skill across all configured domains.
+/// Shows configured, generated, S3 presence, and content drift per domain.
+#[command]
+pub async fn val_skill_deployment_status(
+    skill: String,
+    platform_skills_path: String,
+) -> Result<SkillDeploymentResult, String> {
+    let config = load_config_internal()?;
+    let platform_path = Path::new(&platform_skills_path);
+    let master_skill_dir = platform_path.join(&skill);
+
+    // Read master SKILL.md
+    let master_skill_md = master_skill_dir.join("SKILL.md");
+    let master_content = fs::read_to_string(&master_skill_md)
+        .map_err(|e| format!("Failed to read master SKILL.md: {}", e))?;
+
+    let master_file_count = count_skill_files(&master_skill_dir);
+
+    // Check S3 for all domains at once (one API call)
+    let s3_domains = check_s3_skill_presence(&skill).await.unwrap_or_default();
+
+    let mut domains = Vec::new();
+
+    for dc in &config.domains {
+        let global_path = Path::new(&dc.global_path);
+        let ai_path = global_path.join("ai");
+        let domain_skill_dir = ai_path.join("skills").join(&skill);
+        let domain_skill_md = domain_skill_dir.join("SKILL.md");
+
+        let ai_config = read_ai_config(&ai_path);
+        let configured = ai_config.skills.contains(&skill);
+        let generated = domain_skill_md.exists();
+        let on_s3 = s3_domains.contains(&dc.domain);
+
+        let drift_status = if !configured {
+            "not_configured".to_string()
+        } else if !generated {
+            "missing".to_string()
+        } else {
+            // Compare master SKILL.md (with {{DOMAIN}} replaced) vs domain copy
+            let expected = master_content.replace("{{DOMAIN}}", &dc.domain);
+            match fs::read_to_string(&domain_skill_md) {
+                Ok(actual) => {
+                    if actual.trim() == expected.trim() {
+                        "in_sync".to_string()
+                    } else {
+                        "drifted".to_string()
+                    }
+                }
+                Err(_) => "error".to_string(),
+            }
+        };
+
+        let local_file_count = if generated {
+            count_skill_files(&domain_skill_dir)
+        } else {
+            0
+        };
+
+        domains.push(SkillDomainDeployment {
+            domain: dc.domain.clone(),
+            domain_type: dc.domain_type
+                .clone()
+                .unwrap_or_else(|| "production".to_string()),
+            configured,
+            generated,
+            on_s3,
+            drift_status,
+            local_file_count,
+        });
+    }
+
+    // Sort: configured first, then alphabetical
+    domains.sort_by(|a, b| {
+        b.configured
+            .cmp(&a.configured)
+            .then(a.domain.cmp(&b.domain))
+    });
+
+    Ok(SkillDeploymentResult {
+        skill,
+        master_file_count,
+        domains,
     })
 }

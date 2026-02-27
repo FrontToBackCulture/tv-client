@@ -170,6 +170,7 @@ fn main() {
             commands::settings::settings_get_supabase_credentials,
             commands::settings::settings_get_path,
             commands::settings::settings_import_from_file,
+            commands::settings::settings_export_to_file,
             // Terminal operations (PTY)
             commands::terminal::terminal_create,
             commands::terminal::terminal_write,
@@ -332,6 +333,7 @@ fn main() {
             commands::val_sync::ai_package::val_list_domain_ai_status,
             commands::val_sync::ai_package::val_save_domain_ai_config,
             commands::val_sync::ai_package::val_extract_ai_templates,
+            commands::val_sync::ai_package::val_skill_deployment_status,
             // VAL Sync - S3 sync (push AI folders to S3)
             commands::val_sync::s3_sync::val_sync_ai_to_s3,
             commands::val_sync::s3_sync::val_s3_ai_status,

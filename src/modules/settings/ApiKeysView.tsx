@@ -1,6 +1,8 @@
 // Settings: API Keys View + KeyEditor
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { useSettings, API_KEYS, ApiKeyInfo } from "../../hooks/useSettings";
 import {
   Key,
@@ -10,6 +12,8 @@ import {
   X,
   Loader2,
   RefreshCw,
+  Download,
+  Upload,
 } from "lucide-react";
 
 interface KeyEditorProps {
@@ -162,6 +166,69 @@ function KeyEditor({ keyInfo, onSave, onDelete }: KeyEditorProps) {
 
 export function ApiKeysView() {
   const { keys, loading, error, refresh, setKey, deleteKey } = useSettings();
+  const [importExportMsg, setImportExportMsg] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    try {
+      const filePath = await save({
+        title: "Export settings",
+        defaultPath: "tv-desktop-settings.json",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!filePath) return;
+      setBusy(true);
+      setImportExportMsg(null);
+      const count = await invoke<number>("settings_export_to_file", {
+        filePath,
+      });
+      setImportExportMsg({
+        type: "success",
+        text: `Exported ${count} key${count !== 1 ? "s" : ""} to ${filePath}`,
+      });
+    } catch (e) {
+      setImportExportMsg({
+        type: "error",
+        text: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const handleImport = useCallback(async () => {
+    try {
+      const filePath = await open({
+        title: "Import settings",
+        filters: [
+          { name: "Settings", extensions: ["json", "env"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+        multiple: false,
+      });
+      if (!filePath) return;
+      setBusy(true);
+      setImportExportMsg(null);
+      const imported = await invoke<string[]>("settings_import_from_file", {
+        filePath: filePath as string,
+      });
+      await refresh();
+      setImportExportMsg({
+        type: "success",
+        text: `Imported ${imported.length} key${imported.length !== 1 ? "s" : ""}`,
+      });
+    } catch (e) {
+      setImportExportMsg({
+        type: "error",
+        text: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }, [refresh]);
 
   const toolKeys = keys.filter(
     (k) => k.name === API_KEYS.GAMMA || k.name === API_KEYS.GEMINI
@@ -177,6 +244,11 @@ export function ApiKeysView() {
   );
   const integrationKeys = keys.filter(
     (k) => k.name === API_KEYS.INTERCOM
+  );
+  const awsKeys = keys.filter(
+    (k) =>
+      k.name === API_KEYS.AWS_ACCESS_KEY_ID ||
+      k.name === API_KEYS.AWS_SECRET_ACCESS_KEY
   );
   const analyticsKeys = keys.filter(
     (k) =>
@@ -203,14 +275,46 @@ export function ApiKeysView() {
             Manage API keys and credentials
           </p>
         </div>
-        <button
-          onClick={refresh}
-          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
-          title="Refresh"
-        >
-          <RefreshCw size={18} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleImport}
+            disabled={busy}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+            title="Import from JSON or .env file"
+          >
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            Import
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={busy}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+            title="Export all settings to JSON"
+          >
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            Export
+          </button>
+          <button
+            onClick={refresh}
+            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
+            title="Refresh"
+          >
+            <RefreshCw size={18} />
+          </button>
+        </div>
       </div>
+
+      {importExportMsg && (
+        <div
+          className={`p-3 rounded-lg text-sm border ${
+            importExportMsg.type === "success"
+              ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400"
+              : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400"
+          }`}
+        >
+          {importExportMsg.text}
+        </div>
+      )}
 
       {error && (
         <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
@@ -220,9 +324,9 @@ export function ApiKeysView() {
 
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <p className="text-sm text-blue-700 dark:text-blue-400">
-          <strong>Secure Storage:</strong> All credentials are stored in your
-          operating system's secure keychain (Keychain on macOS, Credential
-          Manager on Windows).
+          <strong>Storage:</strong> All settings stored in{" "}
+          <code className="text-xs">~/.tv-desktop/settings.json</code>.
+          Export to back up, import to restore on another machine.
         </p>
       </div>
 
@@ -280,6 +384,22 @@ export function ApiKeysView() {
         </h3>
         <div className="space-y-3">
           {integrationKeys.map((keyInfo) => (
+            <KeyEditor
+              key={keyInfo.name}
+              keyInfo={keyInfo}
+              onSave={(value) => setKey(keyInfo.name as any, value)}
+              onDelete={() => deleteKey(keyInfo.name as any)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3 uppercase tracking-wide">
+          AWS / Cloud Storage
+        </h3>
+        <div className="space-y-3">
+          {awsKeys.map((keyInfo) => (
             <KeyEditor
               key={keyInfo.name}
               keyInfo={keyInfo}

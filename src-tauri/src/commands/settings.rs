@@ -184,6 +184,8 @@ pub fn settings_list_keys() -> Result<Vec<ApiKeyInfo>, String> {
         (KEY_MS_GRAPH_TENANT_ID, "MS Graph Tenant ID", "For Outlook email integration"),
         (KEY_MS_GRAPH_CLIENT_SECRET, "MS Graph Client Secret", "For Outlook email integration"),
         (KEY_ANTHROPIC_API, "Anthropic API Key", "For AI email summaries"),
+        (KEY_AWS_ACCESS_KEY_ID, "AWS Access Key ID", "For S3 AI publish"),
+        (KEY_AWS_SECRET_ACCESS_KEY, "AWS Secret Access Key", "For S3 AI publish"),
         (KEY_GA4_SERVICE_ACCOUNT_PATH, "GA4 Service Account Path", "Path to service account JSON (e.g. ~/.tv-desktop/ga4-service-account.json)"),
         (KEY_GA4_PROPERTY_ID, "GA4 Property ID", "GA4 numeric property ID for analytics"),
     ];
@@ -419,4 +421,16 @@ pub fn settings_import_from_file(file_path: String) -> Result<Vec<String>, Strin
 
     save_settings(&settings)?;
     Ok(imported)
+}
+
+/// Export all settings to a JSON file
+#[command]
+pub fn settings_export_to_file(file_path: String) -> Result<usize, String> {
+    let settings = load_settings()?;
+    let count = settings.keys.len();
+    let content = serde_json::to_string_pretty(&settings)
+        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+    fs::write(&file_path, content)
+        .map_err(|e| format!("Failed to write file: {}", e))?;
+    Ok(count)
 }

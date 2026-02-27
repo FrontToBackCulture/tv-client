@@ -13,6 +13,8 @@ export const API_KEYS = {
   SUPABASE_URL: "supabase_url",
   SUPABASE_ANON_KEY: "supabase_anon_key",
   INTERCOM: "intercom_api_key",
+  AWS_ACCESS_KEY_ID: "aws_access_key_id",
+  AWS_SECRET_ACCESS_KEY: "aws_secret_access_key",
   GA4_SERVICE_ACCOUNT_PATH: "ga4_service_account_path",
   GA4_PROPERTY_ID: "ga4_property_id",
 } as const;

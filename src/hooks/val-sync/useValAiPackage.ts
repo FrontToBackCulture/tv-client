@@ -7,6 +7,23 @@ import { invoke } from "@tauri-apps/api/core";
 // Types
 // ============================================================
 
+export interface SkillDomainDeployment {
+  domain: string;
+  domain_type: string;
+  configured: boolean;
+  generated: boolean;
+  on_s3: boolean;
+  /** "in_sync", "drifted", "missing", "not_configured" */
+  drift_status: string;
+  local_file_count: number;
+}
+
+export interface SkillDeploymentResult {
+  skill: string;
+  master_file_count: number;
+  domains: SkillDomainDeployment[];
+}
+
 export interface DomainAiStatus {
   domain: string;
   domain_type: string;
@@ -80,6 +97,23 @@ export function useSaveDomainAiConfig() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["domain-ai-status"] });
     },
+  });
+}
+
+/** Get deployment status for a skill across all domains (configured, generated, S3, drift) */
+export function useSkillDeploymentStatus(
+  skill: string | null,
+  platformSkillsPath: string | null
+) {
+  return useQuery({
+    queryKey: ["skill-deployment-status", skill],
+    queryFn: () =>
+      invoke<SkillDeploymentResult>("val_skill_deployment_status", {
+        skill: skill!,
+        platformSkillsPath: platformSkillsPath!,
+      }),
+    enabled: !!skill && !!platformSkillsPath,
+    staleTime: 30_000,
   });
 }
 
