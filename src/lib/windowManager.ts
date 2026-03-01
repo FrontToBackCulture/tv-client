@@ -15,7 +15,7 @@ const moduleLabels: Record<ModuleId, string> = {
   skills: "Skills",
   portal: "Portal",
   scheduler: "Scheduler",
-  settings: "Settings",
+  repos: "Repos",
 };
 
 export function openModuleInNewWindow(moduleId: ModuleId) {

@@ -10,9 +10,9 @@ import { InboxModule } from "./modules/inbox/InboxModule";
 import { CrmModule } from "./modules/crm/CrmModule";
 import { BotModule } from "./modules/bot/BotModule";
 import { ProductModule } from "./modules/product/ProductModule";
-import { SettingsModule } from "./modules/settings/SettingsModule";
 import { PortalModule } from "./modules/portal";
 import { SchedulerModule } from "./modules/scheduler";
+import { ReposModule } from "./modules/repos";
 import { SkillsModule } from "./modules/skills/SkillsModule";
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
@@ -34,7 +34,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   skills: SkillsModule,
   portal: PortalModule,
   scheduler: SchedulerModule,
-  settings: SettingsModule,
+  repos: ReposModule,
 };
 
 export default function App() {
@@ -62,16 +62,20 @@ export default function App() {
           "product",
           "bot",
           "skills",
-          "inbox",
-          "portal",
           "scheduler",
+          "repos",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
       }
-      // ⌘, for settings (standard macOS shortcut)
+      // ⌘, for settings (standard macOS shortcut) — toggle modal
       if ((e.metaKey || e.ctrlKey) && e.key === ",") {
         e.preventDefault();
-        setActiveModule("settings");
+        const store = useAppStore.getState();
+        if (store.settingsOpen) {
+          store.closeSettings();
+        } else {
+          store.openSettings();
+        }
       }
       // ⌘. — Toggle side document panel
       if ((e.metaKey || e.ctrlKey) && e.key === ".") {

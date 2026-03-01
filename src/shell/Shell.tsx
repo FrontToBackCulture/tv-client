@@ -12,6 +12,7 @@ import { useSidePanelStore } from "../stores/sidePanelStore";
 import { HelpButton } from "../components/help/HelpButton";
 import { HelpPanel } from "../components/help/HelpPanel";
 import { HelpHighlight } from "../components/help/HelpHighlight";
+import { SettingsModal } from "../modules/settings/SettingsModule";
 
 const moduleLabels: Record<ModuleId, string> = {
   library: "Library",
@@ -23,7 +24,7 @@ const moduleLabels: Record<ModuleId, string> = {
   skills: "Skills",
   portal: "Portal",
   scheduler: "Scheduler",
-  settings: "Settings",
+  repos: "Repos",
 };
 
 interface ShellProps {
@@ -86,6 +87,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
 
       {/* Overlays */}
       <CommandPalette />
+      <SettingsModal />
       <HelpHighlight />
       <HelpButton />
       <HelpPanel />

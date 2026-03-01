@@ -59,7 +59,8 @@ export function CommandPalette() {
     {
       id: "settings",
       label: "Open Settings",
-      action: () => setActiveModule("settings"),
+      shortcut: "⌘,",
+      action: () => useAppStore.getState().openSettings(),
     },
     {
       id: "toggle-side-panel",

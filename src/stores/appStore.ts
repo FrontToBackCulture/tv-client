@@ -2,11 +2,11 @@
 
 import { create } from "zustand";
 
-export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "skills" | "portal" | "scheduler" | "settings";
+export type ModuleId = "library" | "work" | "inbox" | "crm" | "product" | "bot" | "skills" | "portal" | "scheduler" | "repos";
 export type Theme = "light" | "dark";
 export type SettingsView = "keys" | "val" | "sync" | "mcp" | "claude" | "bots" | null;
 
-const VALID_MODULES: ModuleId[] = ["library", "work", "inbox", "crm", "product", "bot", "skills", "portal", "scheduler", "settings"];
+const VALID_MODULES: ModuleId[] = ["library", "work", "inbox", "crm", "product", "bot", "skills", "portal", "scheduler", "repos"];
 const LAST_MODULE_KEY = "tv-client-last-module";
 
 // Get initial module: URL param (multi-window) > localStorage (resume) > default
@@ -74,10 +74,12 @@ interface AppState {
   setTerminalOpen: (open: boolean) => void;
   toggleTerminal: () => void;
 
-  // Settings deep-link
+  // Settings modal
+  settingsOpen: boolean;
   settingsView: SettingsView;
   setSettingsView: (view: SettingsView) => void;
   openSettings: (view?: SettingsView) => void;
+  closeSettings: () => void;
 }
 
 // Initialize theme on load
@@ -114,13 +116,14 @@ export const useAppStore = create<AppState>((set) => ({
   setTerminalOpen: (open) => set({ terminalOpen: open }),
   toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
 
-  // Settings deep-link
+  // Settings modal
+  settingsOpen: false,
   settingsView: null,
   setSettingsView: (view) => set({ settingsView: view }),
   openSettings: (view) => {
-    localStorage.setItem(LAST_MODULE_KEY, "settings");
-    set({ activeModule: "settings", settingsView: view ?? null });
+    set({ settingsOpen: true, settingsView: view ?? null });
   },
+  closeSettings: () => set({ settingsOpen: false }),
 }));
 
 // Sync theme across windows via localStorage storage event

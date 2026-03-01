@@ -1,6 +1,6 @@
 // src/modules/settings/SettingsModule.tsx
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Settings,
   Key,
@@ -11,6 +11,7 @@ import {
   Globe,
   Cpu,
   Megaphone,
+  X,
 } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -42,8 +43,8 @@ const sidebarItems: SidebarItem[] = [
   { id: "portal", label: "Portal", icon: Megaphone },
 ];
 
-export function SettingsModule() {
-  const { settingsView, setSettingsView } = useAppStore();
+export function SettingsModal() {
+  const { settingsOpen, settingsView, setSettingsView, closeSettings } = useAppStore();
   const [activeView, setActiveView] = useState<SettingsViewId>(
     (settingsView as SettingsViewId) || "keys"
   );
@@ -56,59 +57,109 @@ export function SettingsModule() {
     }
   }, [settingsView, setSettingsView]);
 
+  // Reset to default view when modal opens without a specific view
+  useEffect(() => {
+    if (settingsOpen && !settingsView) {
+      // keep current activeView (don't reset)
+    }
+  }, [settingsOpen, settingsView]);
+
+  // Escape key to close
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape" && settingsOpen) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeSettings();
+      }
+    },
+    [settingsOpen, closeSettings]
+  );
+
+  useEffect(() => {
+    if (settingsOpen) {
+      window.addEventListener("keydown", handleKeyDown, true);
+      return () => window.removeEventListener("keydown", handleKeyDown, true);
+    }
+  }, [settingsOpen, handleKeyDown]);
+
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
+    if (!settingsOpen) return;
     const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", portal: "Portal" };
     setViewContext(activeView, labels[activeView]);
-  }, [activeView, setViewContext]);
+  }, [activeView, setViewContext, settingsOpen]);
+
+  if (!settingsOpen) return null;
 
   return (
-    <div className="h-full flex bg-zinc-50 dark:bg-zinc-950">
-      {/* Sidebar */}
-      <aside className="w-48 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-3">
-        <div className="flex items-center gap-2 px-2 py-3 mb-2">
-          <Settings size={18} className="text-zinc-500" />
-          <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-            Settings
-          </span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={closeSettings}
+      />
+
+      {/* Modal */}
+      <div className="relative max-w-3xl w-full mx-4 h-[70vh] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl overflow-hidden flex flex-col animate-modal-in">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Settings size={16} className="text-zinc-500" />
+            <span className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
+              Settings
+            </span>
+          </div>
+          <button
+            onClick={closeSettings}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <X size={16} />
+          </button>
         </div>
 
-        <nav className="space-y-0.5">
-          {sidebarItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeView === item.id;
+        {/* Body: sidebar + content */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Sidebar */}
+          <aside className="w-44 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-2">
+            <nav className="space-y-0.5">
+              {sidebarItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeView === item.id;
 
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                data-help-id={`settings-nav-${item.id}`}
-                className={cn(
-                  "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
-                  isActive
-                    ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
-                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
-                )}
-              >
-                <Icon size={16} />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveView(item.id)}
+                    data-help-id={`settings-nav-${item.id}`}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
+                      isActive
+                        ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
+                        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                    )}
+                  >
+                    <Icon size={16} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-3xl mx-auto p-6">
-          {activeView === "keys" && <ApiKeysView />}
-          {activeView === "val" && <ValCredentialsView />}
-          {activeView === "sync" && <SyncPathsView />}
-          {activeView === "mcp" && <McpEndpointsView />}
-          {activeView === "claude" && <ClaudeCodeSetupView />}
-          {activeView === "bots" && <BotsPathView />}
-          {activeView === "portal" && <PortalSettingsView />}
+          {/* Content */}
+          <div className="flex-1 overflow-auto">
+            <div className="max-w-2xl mx-auto p-6">
+              {activeView === "keys" && <ApiKeysView />}
+              {activeView === "val" && <ValCredentialsView />}
+              {activeView === "sync" && <SyncPathsView />}
+              {activeView === "mcp" && <McpEndpointsView />}
+              {activeView === "claude" && <ClaudeCodeSetupView />}
+              {activeView === "bots" && <BotsPathView />}
+              {activeView === "portal" && <PortalSettingsView />}
+            </div>
+          </div>
         </div>
       </div>
     </div>
