@@ -55,7 +55,7 @@ fn main() {
             let knowledge_path = std::env::var("TV_KNOWLEDGE_PATH")
                 .unwrap_or_else(|_| {
                     dirs::home_dir()
-                        .map(|h| h.join("Code/SkyNet/tv-knowledge").to_string_lossy().to_string())
+                        .map(|h| h.join("Thinkval Dropbox/ThinkVAL team folder/SkyNet/tv-knowledge").to_string_lossy().to_string())
                         .unwrap_or_default()
                 });
 
@@ -67,6 +67,9 @@ fn main() {
 
             // Start Outlook background sync
             commands::outlook::background::start_background_sync(app.handle().clone());
+
+            // Start Scheduler background loop
+            commands::scheduler::background::start_scheduler(app.handle().clone());
 
             // Start MCP HTTP server (for external tool access)
             tauri::async_runtime::spawn(async {
@@ -385,6 +388,27 @@ fn main() {
             commands::github_sync::config::github_sync_init_default_config,
             commands::github_sync::sync::github_sync_preview,
             commands::github_sync::sync::github_sync_run,
+            // Scheduler
+            commands::scheduler::commands::scheduler_list_jobs,
+            commands::scheduler::commands::scheduler_get_job,
+            commands::scheduler::commands::scheduler_create_job,
+            commands::scheduler::commands::scheduler_update_job,
+            commands::scheduler::commands::scheduler_delete_job,
+            commands::scheduler::commands::scheduler_toggle_job,
+            commands::scheduler::commands::scheduler_run_job,
+            commands::scheduler::commands::scheduler_list_runs,
+            commands::scheduler::commands::scheduler_get_run,
+            commands::scheduler::commands::scheduler_get_run_steps,
+            commands::scheduler::commands::scheduler_get_status,
+            // Skill Registry
+            commands::skill_registry::skill_init,
+            commands::skill_registry::skill_distribute,
+            commands::skill_registry::skill_check,
+            commands::skill_registry::skill_pull,
+            commands::skill_registry::skill_check_all,
+            commands::skill_registry::skill_list_bots,
+            commands::skill_registry::skill_distribute_to,
+            commands::skill_registry::skill_summary,
             // Outlook - Sync
             commands::outlook::commands::outlook_sync_start,
             commands::outlook::commands::outlook_sync_status,

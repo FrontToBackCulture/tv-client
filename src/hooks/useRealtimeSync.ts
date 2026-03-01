@@ -151,6 +151,24 @@ export function useRealtimeSync() {
 
     channels.push(workChannel);
 
+    // Subscribe to API task logs (Slack-triggered skills)
+    const schedulerChannel = supabase
+      .channel("scheduler-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "api_task_logs",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["api-task-logs"] });
+        }
+      )
+      .subscribe();
+
+    channels.push(schedulerChannel);
+
     // Cleanup on unmount
     return () => {
       channels.forEach((channel) => {

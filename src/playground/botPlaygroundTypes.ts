@@ -26,10 +26,11 @@ export type DetailView =
   | { type: "session"; sessionPath: string; date: string; title: string | null }
   | { type: "commands" };
 
-export type SkillStatus = "active" | "inactive" | "deprecated";
+export type SkillStatus = "active" | "inactive" | "deprecated" | "test";
 
 export interface SkillMeta {
   status: SkillStatus;
+  verified: boolean;
   lastRevised: string | null;
   updated: string | null;
   command: string | null;
@@ -69,6 +70,7 @@ export const SKILL_STATUS_CONFIG: Record<SkillStatus, { label: string; dot: stri
   active: { label: "Active", dot: "bg-green-500", badge: "bg-green-50 dark:bg-green-900/20", text: "text-green-700 dark:text-green-400" },
   inactive: { label: "Inactive", dot: "bg-zinc-400", badge: "bg-zinc-100 dark:bg-zinc-800", text: "text-zinc-500 dark:text-zinc-400" },
   deprecated: { label: "Deprecated", dot: "bg-red-400", badge: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400" },
+  test: { label: "Test", dot: "bg-amber-400", badge: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-600 dark:text-amber-400" },
 };
 
 // ============================
@@ -128,7 +130,7 @@ export function parseBotProfile(content: string | undefined): BotProfile {
 }
 
 export function parseSkillFrontmatter(content: string | undefined): SkillMeta {
-  if (!content) return { status: "active", lastRevised: null, updated: null, command: null, input: null, output: null, sources: null, writes: null, tools: null };
+  if (!content) return { status: "active", verified: false, lastRevised: null, updated: null, command: null, input: null, output: null, sources: null, writes: null, tools: null };
   const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
   const fm = fmMatch?.[1] || "";
   const get = (key: string) => {
@@ -136,9 +138,11 @@ export function parseSkillFrontmatter(content: string | undefined): SkillMeta {
     return m?.[1]?.trim() || null;
   };
   const raw = get("status")?.toLowerCase();
-  const status: SkillStatus = raw === "inactive" ? "inactive" : raw === "deprecated" ? "deprecated" : "active";
+  const status: SkillStatus = raw === "inactive" ? "inactive" : raw === "deprecated" ? "deprecated" : raw === "test" ? "test" : "active";
+  const verified = get("verified")?.toLowerCase() === "true";
   return {
     status,
+    verified,
     lastRevised: get("last_revised"),
     updated: get("updated"),
     command: get("command"),

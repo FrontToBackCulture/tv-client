@@ -12,6 +12,45 @@ export interface Database {
   public: {
     Tables: {
       // ============================================================
+      // SCHEDULER / API TASK LOGS
+      // ============================================================
+      api_task_logs: {
+        Row: {
+          id: string;
+          skill: string;
+          skill_name: string;
+          status: "running" | "completed" | "failed";
+          triggered_by: string;
+          started_at: string;
+          completed_at: string | null;
+          duration_secs: number | null;
+          error: string | null;
+        };
+        Insert: {
+          id?: string;
+          skill: string;
+          skill_name: string;
+          status?: "running" | "completed" | "failed";
+          triggered_by: string;
+          started_at?: string;
+          completed_at?: string | null;
+          duration_secs?: number | null;
+          error?: string | null;
+        };
+        Update: {
+          id?: string;
+          skill?: string;
+          skill_name?: string;
+          status?: "running" | "completed" | "failed";
+          triggered_by?: string;
+          started_at?: string;
+          completed_at?: string | null;
+          duration_secs?: number | null;
+          error?: string | null;
+        };
+      };
+
+      // ============================================================
       // WORK MODULE TABLES
       // ============================================================
       projects: {

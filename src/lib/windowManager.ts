@@ -12,7 +12,9 @@ const moduleLabels: Record<ModuleId, string> = {
   crm: "CRM",
   product: "Product",
   bot: "Bots",
+  skills: "Skills",
   portal: "Portal",
+  scheduler: "Scheduler",
   settings: "Settings",
 };
 

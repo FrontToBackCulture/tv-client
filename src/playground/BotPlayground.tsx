@@ -5,7 +5,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Bot, Clock, Loader2, Users } from "lucide-react";
 import { useListDirectory, useReadFile, FileEntry } from "../hooks/useFiles";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useBotSettingsStore } from "../stores/botSettingsStore";
 import { useViewContextStore } from "../stores/viewContextStore";
@@ -101,6 +101,7 @@ export function BotPlayground() {
     });
   }, [allBots]);
 
+  const queryClient = useQueryClient();
   const selectedBot = allBots.find((b) => b.dirPath === selectedPath);
 
   // CLAUDE.md for selected bot
@@ -163,6 +164,7 @@ export function BotPlayground() {
         summary: summaryMatch?.[1]?.trim() || "",
         subfolders: subfolders.filter((s) => s.is_directory && !s.name.startsWith(".")).map((s) => s.name),
         status: meta.status,
+        verified: meta.verified,
         lastRevised: meta.lastRevised,
         updated: meta.updated,
         category: skillCategoriesData.skills[f.name] || null,
@@ -302,6 +304,18 @@ export function BotPlayground() {
 
   const handleBackToOverview = () => setDetailView(null);
 
+  const handleSkillDelete = async (skill: { name: string; path: string; title: string }) => {
+    if (!window.confirm(`Delete skill '${skill.title}'? This permanently removes the folder.`)) return;
+    try {
+      await invoke("delete_file", { path: skill.path });
+      if (skillsDir) {
+        queryClient.invalidateQueries({ queryKey: ["directory", skillsDir] });
+      }
+    } catch (err) {
+      console.error("Failed to delete skill:", err);
+    }
+  };
+
   if (loadingTeam) {
     return (
       <div className="h-full flex items-center justify-center bg-white dark:bg-zinc-950">
@@ -346,6 +360,7 @@ export function BotPlayground() {
           skillCategories={skillCategoriesData.categories}
           skillUsage={skillUsage}
           onSkillClick={(skill) => setSkillModal({ skillName: skill.name, skillPath: skill.path, title: skill.title })}
+          onSkillDelete={handleSkillDelete}
           onSessionClick={(session) => setDetailView({ type: "session", sessionPath: session.path, date: session.date, title: session.title })}
           onCommandsClick={() => setDetailView({ type: "commands" })}
         />

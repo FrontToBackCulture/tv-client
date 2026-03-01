@@ -10,11 +10,13 @@ pub mod github_sync;
 pub mod help_chat;
 pub mod mcp;
 pub mod outlook;
+pub mod scheduler;
 pub mod search;
 pub mod settings;
 pub mod supabase;
 pub mod terminal;
 pub mod tools;
 pub mod val_sync;
+pub mod skill_registry;
 pub mod work;
 

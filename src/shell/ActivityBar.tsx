@@ -13,6 +13,8 @@ import {
   ExternalLink,
   LucideIcon,
   Headset,
+  Clock,
+  Puzzle,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -38,8 +40,10 @@ const navItems: NavItem[] = [
   { id: "work", icon: CheckSquare, label: "Work", shortcut: "⌘3" },
   { id: "product", icon: Boxes, label: "Product", shortcut: "⌘4" },
   { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘5" },
-  { id: "inbox", icon: Mail, label: "Inbox", shortcut: "⌘6" },
-  { id: "portal", icon: Headset, label: "Portal", shortcut: "⌘7" },
+  { id: "skills", icon: Puzzle, label: "Skills", shortcut: "⌘6" },
+  { id: "inbox", icon: Mail, label: "Inbox", shortcut: "⌘7" },
+  { id: "portal", icon: Headset, label: "Portal", shortcut: "⌘8" },
+  { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "⌘9" },
 ];
 
 // Bottom items (settings, etc.)

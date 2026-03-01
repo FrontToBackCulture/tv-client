@@ -15,6 +15,8 @@ import {
   ArrowUpFromLine,
   FolderInput,
   FolderOutput,
+  BadgeCheck,
+  Trash2,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
@@ -92,6 +94,7 @@ export function BotOverview({
   skillCategories,
   skillUsage,
   onSkillClick,
+  onSkillDelete,
   onSessionClick,
   onCommandsClick,
 }: {
@@ -102,10 +105,11 @@ export function BotOverview({
   skillCount: number;
   commandCount: number;
   recentSessions: { date: string; title: string | null; summary: string | null; path: string }[];
-  skillList: { name: string; path: string; title: string; summary: string; subfolders: string[]; status: SkillStatus; lastRevised: string | null; updated: string | null; category: string | null; command: string | null; input: string | null; output: string | null; sources: string | null; writes: string | null; tools: string | null }[];
+  skillList: { name: string; path: string; title: string; summary: string; subfolders: string[]; status: SkillStatus; verified: boolean; lastRevised: string | null; updated: string | null; category: string | null; command: string | null; input: string | null; output: string | null; sources: string | null; writes: string | null; tools: string | null }[];
   skillCategories: { id: string; label: string }[];
   skillUsage: Record<string, { invocations: number; mentions: number }>;
   onSkillClick: (skill: { name: string; path: string; title: string }) => void;
+  onSkillDelete?: (skill: { name: string; path: string; title: string }) => void;
   onSessionClick: (session: { path: string; date: string; title: string | null }) => void;
   onCommandsClick: () => void;
 }) {
@@ -338,6 +342,20 @@ export function BotOverview({
                               <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 tabular-nums flex-shrink-0">
                                 {totalUses}x
                               </span>
+                            )}
+                            {skill.verified && (
+                              <span title="Meets skill authoring standard">
+                                <BadgeCheck size={13} className="text-blue-500 flex-shrink-0" />
+                              </span>
+                            )}
+                            {onSkillDelete && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onSkillDelete({ name: skill.name, path: skill.path, title: skill.title }); }}
+                                className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all flex-shrink-0"
+                                title="Delete skill"
+                              >
+                                <Trash2 size={12} />
+                              </button>
                             )}
                             <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", sc.dot)} title={sc.label} />
                           </div>

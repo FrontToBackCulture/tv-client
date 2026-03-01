@@ -12,6 +12,8 @@ import { BotModule } from "./modules/bot/BotModule";
 import { ProductModule } from "./modules/product/ProductModule";
 import { SettingsModule } from "./modules/settings/SettingsModule";
 import { PortalModule } from "./modules/portal";
+import { SchedulerModule } from "./modules/scheduler";
+import { SkillsModule } from "./modules/skills/SkillsModule";
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { useAppStore, ModuleId } from "./stores/appStore";
@@ -29,7 +31,9 @@ const modules: Record<ModuleId, React.ComponentType> = {
   crm: CrmModule,
   product: ProductModule,
   bot: BotModule,
+  skills: SkillsModule,
   portal: PortalModule,
+  scheduler: SchedulerModule,
   settings: SettingsModule,
 };
 
@@ -49,7 +53,7 @@ export default function App() {
   // Keyboard shortcuts: ⌘1-7 to switch modules, ⌘, for settings
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "7") {
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "9") {
         e.preventDefault();
         const moduleKeys: ModuleId[] = [
           "library",
@@ -57,8 +61,10 @@ export default function App() {
           "work",
           "product",
           "bot",
+          "skills",
           "inbox",
           "portal",
+          "scheduler",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
       }
