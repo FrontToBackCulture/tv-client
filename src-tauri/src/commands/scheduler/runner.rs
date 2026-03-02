@@ -28,8 +28,15 @@ pub fn stop_job(run_id: &str) -> Result<(), String> {
     if let Some(pid) = map.remove(run_id) {
         eprintln!("[scheduler] Stopping job run {} (PID {})", run_id, pid);
         // Kill the claude process directly; it will clean up its own children
+        #[cfg(unix)]
         unsafe {
             libc::kill(pid as i32, libc::SIGTERM);
+        }
+        #[cfg(windows)]
+        {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/T", "/F"])
+                .output();
         }
         Ok(())
     } else {
