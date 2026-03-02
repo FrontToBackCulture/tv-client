@@ -26,7 +26,7 @@ export type DetailView =
   | { type: "session"; sessionPath: string; date: string; title: string | null }
   | { type: "commands" };
 
-export type SkillStatus = "active" | "inactive" | "deprecated" | "test";
+export type SkillStatus = "active" | "inactive" | "deprecated" | "test" | "review" | "draft";
 
 export interface SkillMeta {
   status: SkillStatus;
@@ -68,9 +68,11 @@ export const GROUP_ORDER = ["personal", "eng", "corp", "ops", "sales", "cusops",
 
 export const SKILL_STATUS_CONFIG: Record<SkillStatus, { label: string; dot: string; badge: string; text: string }> = {
   active: { label: "Active", dot: "bg-green-500", badge: "bg-green-50 dark:bg-green-900/20", text: "text-green-700 dark:text-green-400" },
+  test: { label: "Test", dot: "bg-amber-400", badge: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-600 dark:text-amber-400" },
+  review: { label: "To Review", dot: "bg-blue-400", badge: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-600 dark:text-blue-400" },
+  draft: { label: "Draft", dot: "bg-violet-400", badge: "bg-violet-50 dark:bg-violet-900/20", text: "text-violet-600 dark:text-violet-400" },
   inactive: { label: "Inactive", dot: "bg-zinc-400", badge: "bg-zinc-100 dark:bg-zinc-800", text: "text-zinc-500 dark:text-zinc-400" },
   deprecated: { label: "Deprecated", dot: "bg-red-400", badge: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400" },
-  test: { label: "Test", dot: "bg-amber-400", badge: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-600 dark:text-amber-400" },
 };
 
 // ============================
@@ -138,7 +140,7 @@ export function parseSkillFrontmatter(content: string | undefined): SkillMeta {
     return m?.[1]?.trim() || null;
   };
   const raw = get("status")?.toLowerCase();
-  const status: SkillStatus = raw === "inactive" ? "inactive" : raw === "deprecated" ? "deprecated" : raw === "test" ? "test" : "active";
+  const status: SkillStatus = raw === "inactive" ? "inactive" : raw === "deprecated" ? "deprecated" : raw === "test" ? "test" : raw === "review" ? "review" : raw === "draft" ? "draft" : "active";
   const verified = get("verified")?.toLowerCase() === "true";
   return {
     status,

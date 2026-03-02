@@ -141,7 +141,7 @@ export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowStatusMenu(false)} />
                   <div className="absolute top-full left-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden z-50">
-                    {(["active", "test", "inactive", "deprecated"] as SkillStatus[]).map((s) => {
+                    {(["active", "test", "review", "draft", "inactive", "deprecated"] as SkillStatus[]).map((s) => {
                       const cfg = SKILL_STATUS_CONFIG[s];
                       return (
                         <button

@@ -20,7 +20,7 @@ interface SkillCatalogViewProps {
 }
 
 type TargetFilter = "all" | "bot" | "platform";
-type StatusFilter = "all" | "active" | "inactive" | "deprecated" | "test";
+type StatusFilter = "all" | "active" | "inactive" | "deprecated" | "test" | "review" | "draft";
 type SortOption = "name" | "modified" | "status";
 
 interface SkillWithSlug extends SkillEntry {
@@ -187,9 +187,11 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
         >
           <option value="all">All statuses</option>
           <option value="active">Active</option>
+          <option value="test">Test</option>
+          <option value="review">To Review</option>
+          <option value="draft">Draft</option>
           <option value="inactive">Inactive</option>
           <option value="deprecated">Deprecated</option>
-          <option value="test">Test</option>
         </select>
         <select
           value={sortBy}
@@ -334,8 +336,10 @@ function SkillGroup({
           <span className={cn(
             "w-1.5 h-1.5 rounded-full flex-shrink-0",
             s.status === "active" ? "bg-green-500" :
-            s.status === "deprecated" ? "bg-red-400" :
-            s.status === "test" ? "bg-amber-400" : "bg-zinc-400"
+            s.status === "test" ? "bg-amber-400" :
+            s.status === "review" ? "bg-blue-400" :
+            s.status === "draft" ? "bg-violet-400" :
+            s.status === "deprecated" ? "bg-red-400" : "bg-zinc-400"
           )} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1">

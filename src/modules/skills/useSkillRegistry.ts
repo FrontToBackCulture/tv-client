@@ -22,7 +22,7 @@ export interface SkillEntry {
   description: string;
   category: string;
   target: "bot" | "platform" | "both";
-  status: "active" | "inactive" | "deprecated" | "test";
+  status: "active" | "inactive" | "deprecated" | "test" | "review" | "draft";
   command?: string;
   domain?: string;
   verified?: boolean;
