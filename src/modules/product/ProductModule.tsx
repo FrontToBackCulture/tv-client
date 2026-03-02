@@ -2,7 +2,7 @@
 // Product module — 4-tab layout: Platform, Business, Domains, Categories
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Boxes, Package, Database, Tags, Layers, ArrowLeft, Sparkles, Plug } from "lucide-react";
+import { Boxes, Package, Database, Tags, Layers, ArrowLeft, Sparkles, Plug, HardDrive, FileText } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useProductStats } from "../../hooks/product";
@@ -19,7 +19,9 @@ import { UnifiedReviewView } from "../library/UnifiedReviewView";
 import type { ReviewResourceType } from "../library/reviewTypes";
 import { AiSkillsTabView } from "./AiSkillsTabView";
 import { ConnectorsTabView } from "./ConnectorsTabView";
-type ProductTab = "platform" | "solutions" | "domains" | "data-models" | "category-library" | "skills" | "connectors";
+import { DriveTabView } from "./DriveTabView";
+import { ReportsTabView } from "./ReportsTabView";
+type ProductTab = "platform" | "solutions" | "domains" | "drive" | "reports" | "data-models" | "category-library" | "skills" | "connectors";
 type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
 
 // ============================
@@ -52,7 +54,7 @@ export function ProductModule() {
   const setViewContext = useViewContextStore((s) => s.setView);
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const labels: Record<ProductTab, string> = { platform: "Platform", solutions: "Solutions", domains: "Domains", "data-models": "Data Models", "category-library": "Categories", skills: "AI Skills", connectors: "Connectors" };
+    const labels: Record<ProductTab, string> = { platform: "Platform", solutions: "Solutions", domains: "Domains", drive: "Drive", reports: "Reports", "data-models": "Data Models", "category-library": "Categories", skills: "AI Skills", connectors: "Connectors" };
     setViewContext(activeTab, labels[activeTab]);
   }, [activeTab, setViewContext]);
 
@@ -246,6 +248,8 @@ export function ProductModule() {
         <ViewTab label="Platform" icon={Boxes} active={activeTab === "platform"} onClick={() => handleTabChange("platform")} data-help-id="product-tab-platform" />
         <ViewTab label="Solutions" icon={Package} active={activeTab === "solutions"} onClick={() => handleTabChange("solutions")} data-help-id="product-tab-solutions" />
         <ViewTab label="Domains" icon={Database} active={activeTab === "domains"} onClick={() => handleTabChange("domains")} data-help-id="product-tab-domains" />
+        <ViewTab label="Drive" icon={HardDrive} active={activeTab === "drive"} onClick={() => handleTabChange("drive")} data-help-id="product-tab-drive" />
+        <ViewTab label="Reports" icon={FileText} active={activeTab === "reports"} onClick={() => handleTabChange("reports")} data-help-id="product-tab-reports" />
         <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-models"} onClick={() => handleTabChange("data-models")} data-help-id="product-tab-data-models" />
         <ViewTab label="Skills" icon={Sparkles} active={activeTab === "skills"} onClick={() => handleTabChange("skills")} data-help-id="product-tab-skills" />
         <ViewTab label="Connectors" icon={Plug} active={activeTab === "connectors"} onClick={() => handleTabChange("connectors")} data-help-id="product-tab-connectors" />
@@ -283,6 +287,14 @@ export function ProductModule() {
             onReviewWorkflows={handleReviewWorkflows}
             onReviewDashboards={handleReviewDashboards}
           />
+        )}
+
+        {activeTab === "drive" && (
+          <DriveTabView />
+        )}
+
+        {activeTab === "reports" && (
+          <ReportsTabView />
         )}
 
         {activeTab === "data-models" && (

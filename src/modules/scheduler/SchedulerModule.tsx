@@ -8,6 +8,7 @@ import {
   useDeleteJob,
   useToggleJob,
   useRunJob,
+  useStopJob,
   useSchedulerEvents,
   type SchedulerJob,
   type JobInput,
@@ -51,6 +52,7 @@ export function SchedulerModule() {
   const deleteJob = useDeleteJob();
   const toggleJob = useToggleJob();
   const runJob = useRunJob();
+  const stopJob = useStopJob();
 
   const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
   const selectedRuns = selectedJobId
@@ -139,6 +141,7 @@ export function SchedulerModule() {
                   runs={selectedRuns}
                   onRunNow={(id) => runJob.mutate(id)}
                   onEdit={handleEdit}
+                  onStopJob={(runId) => stopJob.mutate(runId)}
                 />
               }
             />

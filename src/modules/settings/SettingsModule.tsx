@@ -102,7 +102,7 @@ export function SettingsModal() {
       />
 
       {/* Modal */}
-      <div className="relative max-w-3xl w-full mx-4 h-[70vh] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl overflow-hidden flex flex-col animate-modal-in">
+      <div className="relative max-w-5xl w-full mx-4 h-[75vh] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl overflow-hidden flex flex-col animate-modal-in">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 flex-shrink-0">
           <div className="flex items-center gap-2">

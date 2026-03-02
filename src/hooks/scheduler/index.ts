@@ -8,8 +8,10 @@ export {
   useDeleteJob,
   useToggleJob,
   useRunJob,
+  useStopJob,
   type SchedulerJob,
   type JobInput,
+  type SkillRef,
   type SchedulerStatus,
 } from "./useJobs";
 export { useRuns, useRun, useRunSteps, type JobRun, type RunStep, type ToolDetail } from "./useRuns";

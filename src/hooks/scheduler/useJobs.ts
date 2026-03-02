@@ -9,6 +9,12 @@ import { schedulerKeys } from "./keys";
 export type RunStatus = "running" | "success" | "failed";
 export type RunTrigger = "scheduled" | "manual";
 
+export interface SkillRef {
+  bot: string;
+  slug: string;
+  title: string;
+}
+
 export interface SchedulerJob {
   id: string;
   name: string;
@@ -21,6 +27,9 @@ export interface SchedulerJob {
   slackChannelName: string | null;
   enabled: boolean;
   generateReport: boolean;
+  reportPrefix: string | null;
+  skillRefs: SkillRef[] | null;
+  botPath: string | null;
   createdAt: string;
   updatedAt: string;
   lastRunAt: string | null;
@@ -38,6 +47,9 @@ export interface JobInput {
   slackChannelName?: string | null;
   enabled?: boolean;
   generateReport?: boolean;
+  reportPrefix?: string | null;
+  skillRefs?: SkillRef[] | null;
+  botPath?: string | null;
 }
 
 export interface SchedulerStatus {
@@ -137,6 +149,18 @@ export function useRunJob() {
   return useMutation({
     mutationFn: (id: string) =>
       invoke<string>("scheduler_run_job", { id }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: schedulerKeys.jobs() });
+      qc.invalidateQueries({ queryKey: schedulerKeys.status() });
+    },
+  });
+}
+
+export function useStopJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) =>
+      invoke<void>("scheduler_stop_job", { runId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: schedulerKeys.jobs() });
       qc.invalidateQueries({ queryKey: schedulerKeys.status() });

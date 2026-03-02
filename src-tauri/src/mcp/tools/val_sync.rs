@@ -1,7 +1,7 @@
 // VAL Sync MCP Tools
 // 16 tools for syncing VAL platform data via Claude Code
 
-use crate::commands::val_sync::{config, errors, extract, metadata, monitoring, sql, sync};
+use crate::commands::val_sync::{config, drive, errors, extract, metadata, monitoring, sql, sync};
 use crate::mcp::protocol::{InputSchema, Tool, ToolResult};
 use chrono::Timelike;
 use serde_json::{json, Value};
@@ -179,6 +179,28 @@ pub fn tools() -> Vec<Tool> {
                     }
                 }),
                 vec![],
+            ),
+        },
+        Tool {
+            name: "check-all-domain-drive-files".to_string(),
+            description: "Check VAL Drive files across ALL production domains. Scans each domain's val_drive folders recursively and reports unprocessed files with their age. Files older than 24h are flagged as stale. Use this for morning SOD checks or to verify Drive uploads are being processed.".to_string(),
+            input_schema: InputSchema::empty(),
+        },
+        Tool {
+            name: "list-drive-files".to_string(),
+            description: "List files and folders in a VAL Drive path for a domain. Shows file names, sizes, and ages. Use to check for unprocessed files or verify Drive uploads.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "domain": {
+                        "type": "string",
+                        "description": "VAL domain name (e.g., 'koi', 'suntec')"
+                    },
+                    "folder": {
+                        "type": "string",
+                        "description": "Folder path in Drive (e.g., 'val_drive/RevRec/01_SourceReports'). Defaults to 'val_drive'."
+                    }
+                }),
+                vec!["domain".to_string()],
             ),
         },
         Tool {
@@ -394,6 +416,21 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                     }
                 }
             }
+        }
+
+        "check-all-domain-drive-files" => {
+            handle_check_all_domain_drive_files().await
+        }
+
+        "list-drive-files" => {
+            let domain = require_domain!(args);
+            let folder = args
+                .get("folder")
+                .and_then(|f| f.as_str())
+                .unwrap_or("val_drive")
+                .to_string();
+
+            handle_list_drive_files(&domain, &folder).await
         }
 
         "execute-val-sql" => {
@@ -855,6 +892,498 @@ async fn handle_sync_all_domain_sod_tables(date: &str) -> ToolResult {
     }
 
     ToolResult::text(lines.join("\n"))
+}
+
+/// Check Drive files across all production domains
+/// Recursively scans val_drive folders and reports unprocessed files with age
+async fn handle_check_all_domain_drive_files() -> ToolResult {
+    let domains = match get_production_domains() {
+        Ok(d) => d,
+        Err(e) => return ToolResult::error(format!("Failed to list domains: {}", e)),
+    };
+
+    if domains.is_empty() {
+        return ToolResult::error("No production domains found in config".to_string());
+    }
+
+    // Load persisted scan config; fall back to workflow discovery if empty
+    let scan_config = drive::load_scan_config();
+    let has_persisted_config = !scan_config.domains.is_empty();
+    let all_wf_folders = if has_persisted_config {
+        std::collections::HashMap::new() // won't be used
+    } else {
+        drive::get_all_domain_workflow_folders()
+    };
+
+    let sgt = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
+    let now = chrono::Utc::now().with_timezone(&sgt);
+    let stale_threshold = chrono::Duration::hours(24);
+
+    let mut lines = vec![
+        "## Drive Files Check — All Domains".to_string(),
+        String::new(),
+    ];
+
+    let mut domains_with_issues: Vec<String> = Vec::new();
+    let mut domains_clean: Vec<String> = Vec::new();
+    let mut domains_failed: Vec<String> = Vec::new();
+    let mut total_stale = 0usize;
+    let mut total_unprocessed = 0usize;
+
+    for d in &domains {
+        // Build effective folder list from persisted config or workflow discovery
+        let effective_folders: Vec<(String, bool)> = if has_persisted_config {
+            if let Some(domain_config) = scan_config.domains.get(&d.domain) {
+                domain_config
+                    .folders
+                    .iter()
+                    .filter(|f| f.enabled)
+                    .map(|f| (f.folder_path.clone(), f.move_to_processed))
+                    .collect()
+            } else {
+                vec![]
+            }
+        } else {
+            all_wf_folders
+                .get(&d.domain)
+                .map(|folders| {
+                    folders
+                        .iter()
+                        .map(|f| (f.folder_path.clone(), f.move_to_processed))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+
+        // Helper: check if a folder path has moveFileToProcessedFolder=true
+        let expects_processed = |folder_path: &str| -> bool {
+            effective_folders
+                .iter()
+                .any(|(fp, mtp)| fp == folder_path && *mtp)
+        };
+
+        // Helper: check if a folder path is in the effective config at all
+        let has_workflow = |folder_path: &str| -> bool {
+            effective_folders.iter().any(|(fp, _)| fp == folder_path)
+        };
+
+        // List top-level folders in val_drive
+        let top_folders = match drive::val_drive_list_folders(
+            d.domain.clone(),
+            Some("val_drive".to_string()),
+        )
+        .await
+        {
+            Ok(f) => f,
+            Err(e) => {
+                let short = if e.len() > 80 { &e[..80] } else { &e };
+                domains_failed.push(format!("{}: {}", d.domain, short));
+                continue;
+            }
+        };
+
+        // Also check if the files endpoint returns folder-like entries
+        let top_files = drive::val_drive_list_files(
+            d.domain.clone(),
+            "val_drive".to_string(),
+            Some(200),
+        )
+        .await
+        .ok();
+
+        // Merge folder sources: explicit folders + folder-like file entries (name ends with /)
+        let mut folder_ids: Vec<(String, String)> = top_folders
+            .iter()
+            .map(|f| (f.id.clone(), f.name.clone()))
+            .collect();
+
+        if let Some(ref tf) = top_files {
+            for f in &tf.files {
+                if f.name.ends_with('/') {
+                    let clean = f.name.trim_end_matches('/').to_string();
+                    let fid = format!("val_drive/{}", clean);
+                    if !folder_ids.iter().any(|(_, n)| n == &clean) {
+                        folder_ids.push((fid, clean));
+                    }
+                }
+            }
+        }
+
+        if folder_ids.is_empty() {
+            domains_clean.push(d.domain.clone());
+            continue;
+        }
+
+        // Scan each subfolder for files (1 level deep — source report folders)
+        let mut domain_issues: Vec<String> = Vec::new();
+        let mut domain_stale = 0usize;
+        let mut domain_unprocessed = 0usize;
+
+        for (folder_id, folder_name) in &folder_ids {
+            // Skip hidden and test folders
+            if folder_name.starts_with('.') || folder_name == "Test" {
+                continue;
+            }
+
+            // List sub-folders (e.g., 01_SourceReports, 02_OutputReports)
+            let sub_folders = match drive::val_drive_list_folders(
+                d.domain.clone(),
+                Some(folder_id.clone()),
+            )
+            .await
+            {
+                Ok(f) => f,
+                Err(_) => continue,
+            };
+
+            // Also get folder-like entries from files
+            let sub_files = drive::val_drive_list_files(
+                d.domain.clone(),
+                folder_id.clone(),
+                Some(200),
+            )
+            .await
+            .ok();
+
+            let mut sub_ids: Vec<(String, String)> = sub_folders
+                .iter()
+                .map(|f| (f.id.clone(), f.name.clone()))
+                .collect();
+
+            if let Some(ref sf) = sub_files {
+                for f in &sf.files {
+                    if f.name.ends_with('/') {
+                        let clean = f.name.trim_end_matches('/').to_string();
+                        let fid = format!("{}/{}", folder_id, clean);
+                        if !sub_ids.iter().any(|(_, n)| n == &clean) {
+                            sub_ids.push((fid, clean));
+                        }
+                    }
+                }
+                // Check for actual files at this level too (not just subfolders)
+                // Only flag if this folder has a workflow with moveFileToProcessedFolder=true
+                let this_folder_path = folder_id.clone();
+                if expects_processed(&this_folder_path) {
+                    for f in &sf.files {
+                        if !f.name.ends_with('/') && f.name.contains('.') {
+                            domain_unprocessed += 1;
+                            let age = file_age_str(&f.last_modified, &now);
+                            let is_stale = is_file_stale(&f.last_modified, &now, &stale_threshold);
+                            if is_stale {
+                                domain_stale += 1;
+                            }
+                            domain_issues.push(format!(
+                                "  {}/{}: **{}** ({}){}",
+                                folder_name,
+                                f.name,
+                                format_file_size(f.size),
+                                age,
+                                if is_stale { " ⚠" } else { "" }
+                            ));
+                        }
+                    }
+                }
+            }
+
+            // Check each sub-folder for unprocessed files (skip "processed" and output folders)
+            for (sub_id, sub_name) in &sub_ids {
+                let sub_lower = sub_name.to_lowercase();
+                if sub_lower == "processed" || sub_lower.contains("output") {
+                    continue;
+                }
+
+                // Build the full folder path to check against workflow config
+                let full_folder_path = format!("{}/{}", folder_id, sub_name);
+
+                // Only flag files as unprocessed if this folder has a workflow
+                // with moveFileToProcessedFolder=true
+                if !expects_processed(&full_folder_path) && !expects_processed(folder_id) {
+                    // No workflow expects files to move — check if there's any workflow at all
+                    if has_workflow(&full_folder_path) || has_workflow(folder_id) {
+                        // Workflow exists but doesn't move to processed — files here are normal
+                        continue;
+                    }
+                    // No workflow at all for this folder — skip (not a monitored folder)
+                    continue;
+                }
+
+                let files_result = match drive::val_drive_list_files(
+                    d.domain.clone(),
+                    sub_id.clone(),
+                    Some(200),
+                )
+                .await
+                {
+                    Ok(r) => r,
+                    Err(_) => continue,
+                };
+
+                // Filter to actual files (not folder-like entries)
+                let actual_files: Vec<_> = files_result
+                    .files
+                    .iter()
+                    .filter(|f| !f.name.ends_with('/') && f.name.contains('.'))
+                    .collect();
+
+                for f in &actual_files {
+                    domain_unprocessed += 1;
+                    let age = file_age_str(&f.last_modified, &now);
+                    let is_stale = is_file_stale(&f.last_modified, &now, &stale_threshold);
+                    if is_stale {
+                        domain_stale += 1;
+                    }
+                    domain_issues.push(format!(
+                        "  {}/{}/{}: **{}** ({}){}",
+                        folder_name,
+                        sub_name,
+                        f.name,
+                        format_file_size(f.size),
+                        age,
+                        if is_stale { " ⚠" } else { "" }
+                    ));
+                }
+            }
+        }
+
+        if domain_issues.is_empty() {
+            domains_clean.push(d.domain.clone());
+        } else {
+            total_stale += domain_stale;
+            total_unprocessed += domain_unprocessed;
+            domains_with_issues.push(format!(
+                "### {} — {} unprocessed{}\n{}",
+                d.domain,
+                domain_unprocessed,
+                if domain_stale > 0 {
+                    format!(" ({} stale >24h)", domain_stale)
+                } else {
+                    String::new()
+                },
+                domain_issues.join("\n")
+            ));
+        }
+    }
+
+    // Build summary
+    let has_issues = !domains_with_issues.is_empty() || !domains_failed.is_empty();
+    let status = if !has_issues {
+        "All domains clean — no unprocessed Drive files"
+    } else if total_stale > 0 {
+        "Stale files detected (>24h unprocessed)"
+    } else {
+        "Unprocessed files found"
+    };
+
+    lines.push(format!("**Status:** {}", status));
+    lines.push(format!("**Checked at:** {}", now.format("%Y-%m-%d %H:%M SGT")));
+    lines.push(format!(
+        "**Domains:** {} checked, {} with files, {} clean, {} failed",
+        domains.len(),
+        domains_with_issues.len(),
+        domains_clean.len(),
+        domains_failed.len()
+    ));
+
+    if total_unprocessed > 0 {
+        lines.push(format!(
+            "**Total unprocessed:** {} files ({} stale >24h)",
+            total_unprocessed, total_stale
+        ));
+    }
+    lines.push(String::new());
+
+    // Domains with issues
+    if !domains_with_issues.is_empty() {
+        for section in &domains_with_issues {
+            lines.push(section.clone());
+            lines.push(String::new());
+        }
+    }
+
+    // Failed domains
+    if !domains_failed.is_empty() {
+        lines.push("### Failed to Check".to_string());
+        for f in &domains_failed {
+            lines.push(format!("- {}", f));
+        }
+        lines.push(String::new());
+    }
+
+    // Clean domains
+    if !domains_clean.is_empty() {
+        lines.push(format!(
+            "### Clean Domains ({})",
+            domains_clean.len()
+        ));
+        lines.push(
+            domains_clean
+                .iter()
+                .map(|d| format!("**{}** ✓", d))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+    }
+
+    ToolResult::text(lines.join("\n"))
+}
+
+/// Helper: format file size for MCP output
+fn format_file_size(size: Option<u64>) -> String {
+    match size {
+        Some(s) if s < 1024 => format!("{} B", s),
+        Some(s) if s < 1024 * 1024 => format!("{} KB", s / 1024),
+        Some(s) => format!("{:.1} MB", s as f64 / (1024.0 * 1024.0)),
+        None => "? B".to_string(),
+    }
+}
+
+/// Helper: get relative age string from optional ISO timestamp
+fn file_age_str(
+    last_modified: &Option<String>,
+    now: &chrono::DateTime<chrono::FixedOffset>,
+) -> String {
+    match last_modified.as_deref() {
+        Some(lm) => {
+            let parsed = chrono::DateTime::parse_from_rfc3339(lm)
+                .or_else(|_| chrono::DateTime::parse_from_str(lm, "%Y-%m-%dT%H:%M:%S%.fZ"))
+                .or_else(|_| chrono::DateTime::parse_from_str(lm, "%Y-%m-%d %H:%M:%S%:z"));
+            match parsed {
+                Ok(dt) => {
+                    let mins = (*now - dt).num_minutes();
+                    if mins < 1 {
+                        "just now".to_string()
+                    } else if mins < 60 {
+                        format!("{}m ago", mins)
+                    } else if mins < 24 * 60 {
+                        format!("{}h ago", mins / 60)
+                    } else {
+                        format!("{}d ago", mins / (24 * 60))
+                    }
+                }
+                Err(_) => lm.to_string(),
+            }
+        }
+        None => "unknown age".to_string(),
+    }
+}
+
+/// Helper: check if file is older than threshold
+fn is_file_stale(
+    last_modified: &Option<String>,
+    now: &chrono::DateTime<chrono::FixedOffset>,
+    threshold: &chrono::Duration,
+) -> bool {
+    match last_modified.as_deref() {
+        Some(lm) => {
+            let parsed = chrono::DateTime::parse_from_rfc3339(lm)
+                .or_else(|_| chrono::DateTime::parse_from_str(lm, "%Y-%m-%dT%H:%M:%S%.fZ"))
+                .or_else(|_| chrono::DateTime::parse_from_str(lm, "%Y-%m-%d %H:%M:%S%:z"));
+            match parsed {
+                Ok(dt) => (*now - dt) > *threshold,
+                Err(_) => false,
+            }
+        }
+        None => false,
+    }
+}
+
+/// List Drive files and folders for a domain
+async fn handle_list_drive_files(domain: &str, folder: &str) -> ToolResult {
+    let mut lines = vec![format!("## Drive: {} / {}\n", domain, folder)];
+
+    // List folders
+    match drive::val_drive_list_folders(domain.to_string(), Some(folder.to_string())).await {
+        Ok(folders) => {
+            if !folders.is_empty() {
+                lines.push(format!("### Folders ({})", folders.len()));
+                for f in &folders {
+                    lines.push(format!("- **{}**/", f.name));
+                }
+                lines.push(String::new());
+            }
+        }
+        Err(e) => {
+            lines.push(format!("*Folders error: {}*\n", e));
+        }
+    }
+
+    // List files
+    match drive::val_drive_list_files(domain.to_string(), folder.to_string(), Some(200)).await {
+        Ok(result) => {
+            if result.files.is_empty() {
+                lines.push("No files in this folder.".to_string());
+            } else {
+                lines.push(format!("### Files ({})", result.files.len()));
+                lines.push("| Name | Size | Age |".to_string());
+                lines.push("| --- | --- | --- |".to_string());
+
+                for file in &result.files {
+                    let size = file
+                        .size
+                        .map(|s| {
+                            if s < 1024 {
+                                format!("{} B", s)
+                            } else if s < 1024 * 1024 {
+                                format!("{} KB", s / 1024)
+                            } else {
+                                format!("{:.1} MB", s as f64 / (1024.0 * 1024.0))
+                            }
+                        })
+                        .unwrap_or_else(|| "—".to_string());
+
+                    let age = file
+                        .last_modified
+                        .as_deref()
+                        .map(|lm| format_age_from_iso(lm))
+                        .unwrap_or_else(|| "—".to_string());
+
+                    lines.push(format!("| {} | {} | {} |", file.name, size, age));
+                }
+
+                if !result.is_last_page {
+                    lines.push(format!(
+                        "\n*More files available (showing first {})*",
+                        result.files.len()
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            lines.push(format!("*Files error: {}*", e));
+        }
+    }
+
+    ToolResult::text(lines.join("\n"))
+}
+
+/// Format ISO timestamp as relative age string
+fn format_age_from_iso(iso: &str) -> String {
+    let parsed = chrono::DateTime::parse_from_rfc3339(iso)
+        .or_else(|_| chrono::DateTime::parse_from_str(iso, "%Y-%m-%dT%H:%M:%S%.fZ"))
+        .or_else(|_| chrono::DateTime::parse_from_str(iso, "%Y-%m-%d %H:%M:%S%:z"));
+
+    match parsed {
+        Ok(dt) => {
+            let now = chrono::Utc::now();
+            let diff = now.signed_duration_since(dt);
+            let mins = diff.num_minutes();
+            if mins < 1 {
+                "just now".to_string()
+            } else if mins < 60 {
+                format!("{}m ago", mins)
+            } else if mins < 24 * 60 {
+                format!("{}h ago", mins / 60)
+            } else {
+                let days = mins / (24 * 60);
+                if days > 1 {
+                    format!("{}d ago ⚠", days)
+                } else {
+                    format!("{}d ago", days)
+                }
+            }
+        }
+        Err(_) => iso.to_string(),
+    }
 }
 
 /// Parse SOD status counts from the saved JSON file

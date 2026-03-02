@@ -116,8 +116,7 @@ export function BotOverview({
   const colors = DEPT_COLORS[bot.group] || DEPT_COLORS.personal;
   const initials = getBotInitials(bot.name);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
-  const [skillsExpanded, setSkillsExpanded] = useState(true);
-  const [sessionsExpanded, setSessionsExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState<"skills" | "sessions">("skills");
   const [skillSort, setSkillSort] = useState<"name" | "usage">("name");
   const [skillFilter, setSkillFilter] = useState<"all" | SkillStatus>("active");
   const [skillTab, setSkillTab] = useState<string>("all");
@@ -200,41 +199,66 @@ export function BotOverview({
               </div>
             )}
             <div className="flex gap-3 mt-4">
-              <button onClick={() => { if (skillCount > 0) onSkillClick(skillList[0]); }} className="focus:outline-none">
-                <StatPill icon={Sparkles} label="Skills" count={skillCount} color="text-amber-500" clickable={skillCount > 0} />
+              <button onClick={() => setActiveTab("skills")} className="focus:outline-none">
+                <StatPill icon={Sparkles} label="Skills" count={skillCount} color="text-amber-500" clickable={true} />
               </button>
               <button onClick={onCommandsClick} className="focus:outline-none">
                 <StatPill icon={Zap} label="Commands" count={commandCount} color="text-teal-500" clickable={commandCount > 0} />
               </button>
-              <StatPill icon={Clock} label="Sessions" count={recentSessions.length} color="text-blue-500" clickable={false} />
+              <button onClick={() => setActiveTab("sessions")} className="focus:outline-none">
+                <StatPill icon={Clock} label="Sessions" count={recentSessions.length} color="text-blue-500" clickable={true} />
+              </button>
             </div>
           </div>
         </div>
 
         {/* Two-column body */}
         <div className="flex gap-6">
-          {/* Left column: Skills + Sessions */}
+          {/* Left column: Skills or Sessions */}
           <div className="flex-1 min-w-0 space-y-6">
+            {/* Tab bar */}
+            <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800">
+              <button
+                onClick={() => setActiveTab("skills")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px",
+                  activeTab === "skills"
+                    ? "border-amber-500 text-zinc-800 dark:text-zinc-100"
+                    : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                )}
+              >
+                <Sparkles size={12} />
+                Skills
+                <span className="text-[10px] tabular-nums opacity-60">{skillCount}</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("sessions")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px",
+                  activeTab === "sessions"
+                    ? "border-blue-500 text-zinc-800 dark:text-zinc-100"
+                    : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                )}
+              >
+                <Clock size={12} />
+                Sessions
+                {recentSessions.length > 0 && (
+                  <span className="text-[10px] tabular-nums opacity-60">{recentSessions.length}</span>
+                )}
+              </button>
+            </div>
+
             {/* Skills */}
-            {skillList.length > 0 && (
+            {activeTab === "skills" && skillList.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <button
-                    onClick={() => setSkillsExpanded(!skillsExpanded)}
-                    className="text-left text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                  >
-                    <ChevronRight size={12} className={cn("transition-transform", skillsExpanded && "rotate-90")} />
-                    <Sparkles size={12} className="text-amber-500" />
-                    Skills
-                    <span className="text-[10px] font-normal tabular-nums ml-1">
-                      {skillSearch
-                        ? `${filteredSkills.length} result${filteredSkills.length !== 1 ? "s" : ""}`
-                        : skillFilter === "all"
-                          ? `${skillList.filter((s) => s.status === "active").length} active / ${skillList.length}`
-                          : `${filteredSkills.length} ${skillFilter}`}
-                    </span>
-                  </button>
-                  {skillsExpanded && (
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                    {skillSearch
+                      ? `${filteredSkills.length} result${filteredSkills.length !== 1 ? "s" : ""}`
+                      : skillFilter === "all"
+                        ? `${skillList.filter((s) => s.status === "active").length} active / ${skillList.length}`
+                        : `${filteredSkills.length} ${skillFilter}`}
+                  </span>
                     <div className="flex items-center gap-1 ml-auto">
                       {/* Search */}
                       <div className="relative mr-1">
@@ -284,9 +308,8 @@ export function BotOverview({
                         {skillSort === "name" ? "A-Z" : "Usage"}
                       </button>
                     </div>
-                  )}
                 </div>
-                {skillsExpanded && skillCategories.length > 0 && (
+                {skillCategories.length > 0 && (
                   <div className="flex items-center gap-1 mb-3 border-b border-zinc-200 dark:border-zinc-800">
                     {[{ id: "all", label: "All" }, ...skillCategories].map((cat) => {
                       const count = cat.id === "all"
@@ -311,8 +334,7 @@ export function BotOverview({
                     })}
                   </div>
                 )}
-                {skillsExpanded && (
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                     {filteredSkills.map((skill) => {
                       const sc = SKILL_STATUS_CONFIG[skill.status];
                       const usage = skillUsage[skill.name];
@@ -412,32 +434,20 @@ export function BotOverview({
                       );
                     })}
                   </div>
-                )}
               </section>
             )}
 
-            {/* Recent Sessions */}
-            <section>
-              <button
-                onClick={() => setSessionsExpanded(!sessionsExpanded)}
-                className="w-full text-left text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3 flex items-center gap-1.5 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-              >
-                <ChevronRight size={12} className={cn("transition-transform", sessionsExpanded && "rotate-90")} />
-                <Clock size={12} className="text-blue-500" />
-                Recent Sessions
-                {recentSessions.length > 0 && (
-                  <span className="text-[10px] font-normal tabular-nums ml-1">{recentSessions.length}</span>
-                )}
-              </button>
-              {sessionsExpanded && (
-                recentSessions.length === 0 ? (
+            {/* Sessions */}
+            {activeTab === "sessions" && (
+              <section>
+                {recentSessions.length === 0 ? (
                   <div className="py-6 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
                     <Clock size={20} className="mx-auto mb-2 text-zinc-300 dark:text-zinc-700" />
                     <p className="text-xs text-zinc-400">No sessions yet</p>
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {recentSessions.slice(0, 5).map((s) => (
+                    {recentSessions.map((s) => (
                       <button
                         key={s.path}
                         onClick={() => onSessionClick(s)}
@@ -460,9 +470,9 @@ export function BotOverview({
                       </button>
                     ))}
                   </div>
-                )
-              )}
-            </section>
+                )}
+              </section>
+            )}
           </div>
 
           {/* Right column: Instructions + Commands */}

@@ -39,6 +39,9 @@ pub fn scheduler_create_job(input: JobInput) -> Result<SchedulerJob, String> {
         slack_channel_name: input.slack_channel_name,
         enabled: input.enabled.unwrap_or(true),
         generate_report: input.generate_report.unwrap_or(true),
+        report_prefix: input.report_prefix,
+        skill_refs: input.skill_refs,
+        bot_path: input.bot_path,
         created_at: now,
         updated_at: now,
         last_run_at: None,
@@ -75,6 +78,9 @@ pub fn scheduler_update_job(id: String, input: JobInput) -> Result<SchedulerJob,
     if let Some(generate_report) = input.generate_report {
         job.generate_report = generate_report;
     }
+    job.report_prefix = input.report_prefix;
+    job.skill_refs = input.skill_refs;
+    job.bot_path = input.bot_path;
     job.updated_at = Utc::now();
 
     let updated = job.clone();
@@ -128,6 +134,15 @@ pub async fn scheduler_run_job(id: String, app_handle: tauri::AppHandle) -> Resu
     });
 
     Ok(run_id)
+}
+
+// ============================================================================
+// Stop a running job
+// ============================================================================
+
+#[command]
+pub async fn scheduler_stop_job(run_id: String) -> Result<(), String> {
+    runner::stop_job(&run_id)
 }
 
 // ============================================================================

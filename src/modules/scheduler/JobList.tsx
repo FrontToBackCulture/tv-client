@@ -136,6 +136,11 @@ function JobRow({
             <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
               {describeCronShort(job.cronExpression)}
             </span>
+            {job.skillRefs && job.skillRefs.length > 0 && (
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                {job.skillRefs.length}sk
+              </span>
+            )}
             {isRunning ? <RunningBadge startedAt={runningInfo?.startedAt} step={runningInfo?.step} /> : <StatusBadge status={job.lastRunStatus} />}
           </div>
         </div>
@@ -187,6 +192,11 @@ function JobRow({
           <span className="text-xs text-zinc-400 dark:text-zinc-500">
             {job.model}
           </span>
+          {job.skillRefs && job.skillRefs.length > 0 && (
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              {job.skillRefs.length} skill{job.skillRefs.length !== 1 ? "s" : ""}
+            </span>
+          )}
           {job.slackChannelName && (
             <span className="text-xs text-zinc-400 dark:text-zinc-500">
               → {job.slackChannelName}

@@ -31,6 +31,12 @@ pub struct SchedulerJob {
     pub enabled: bool,
     #[serde(default = "default_true")]
     pub generate_report: bool,
+    #[serde(default)]
+    pub report_prefix: Option<String>,
+    #[serde(default)]
+    pub skill_refs: Option<Vec<SkillRef>>,
+    #[serde(default)]
+    pub bot_path: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_run_at: Option<DateTime<Utc>>,
@@ -86,6 +92,14 @@ pub struct ToolDetail {
     pub target: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillRef {
+    pub bot: String,
+    pub slug: String,
+    pub title: String,
+}
+
 /// Input for creating/updating a job (no id, timestamps auto-set)
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -100,6 +114,9 @@ pub struct JobInput {
     pub slack_channel_name: Option<String>,
     pub enabled: Option<bool>,
     pub generate_report: Option<bool>,
+    pub report_prefix: Option<String>,
+    pub skill_refs: Option<Vec<SkillRef>>,
+    pub bot_path: Option<String>,
 }
 
 fn default_true() -> bool { true }

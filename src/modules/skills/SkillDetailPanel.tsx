@@ -173,6 +173,12 @@ export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose
           <MetaChip icon={skill.target === "bot" ? Bot : Boxes} label={skill.target} />
           {skill.command && <MetaChip icon={Terminal} label={skill.command} mono />}
           {skill.domain && <MetaChip icon={Globe} label={skill.domain} />}
+          {skill.verified && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+              <CheckCircle2 size={10} />
+              verified{skill.rating != null && ` · ${skill.rating}/10`}
+            </span>
+          )}
         </div>
 
         {/* Tab bar */}
@@ -435,7 +441,7 @@ function TemplatesTab({ exampleFiles, skillPath, onOpenFile }: {
                 ref={iframeRef}
                 srcDoc={iframeSrcDoc}
                 className="w-full border-0"
-                sandbox="allow-same-origin"
+                sandbox="allow-same-origin allow-scripts"
                 title={selectedFile.name}
                 style={{ height: iframeHeight }}
               />
@@ -471,11 +477,38 @@ function TemplatesTab({ exampleFiles, skillPath, onOpenFile }: {
 
 // ─── Files Tab ───────────────────────────────────────────────────────────────
 
-function FilesTab({ tree, skillPath, onOpenFile }: {
+function FilesTab({ tree, skillPath }: {
   tree: TreeNode | undefined;
   skillPath: string | undefined;
   onOpenFile?: (path: string) => void;
 }) {
+  const [selectedFile, setSelectedFile] = useState<TreeNode | null>(null);
+  const { data: fileContent } = useReadFile(selectedFile?.path);
+
+  const iframeSrcDoc = useMemo(() => {
+    if (!fileContent || !selectedFile?.name.endsWith(".html")) return undefined;
+    const overrideStyle = `<style>body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}body{margin:0!important;padding:1rem!important;overflow-x:hidden!important}img,table,pre{max-width:100%!important}</style>`;
+    if (fileContent.includes("</head>")) {
+      return fileContent.replace("</head>", `${overrideStyle}</head>`);
+    }
+    return overrideStyle + fileContent;
+  }, [fileContent, selectedFile]);
+
+  const [iframeHeight, setIframeHeight] = useState(500);
+
+  const iframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
+    if (!iframe) return;
+    const handleLoad = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (doc?.body) {
+          setIframeHeight(doc.body.scrollHeight + 20);
+        }
+      } catch { /* cross-origin safety */ }
+    };
+    iframe.addEventListener("load", handleLoad);
+  }, []);
+
   if (!tree?.children || tree.children.length === 0) {
     return (
       <div className="px-4 py-6 text-center text-xs text-zinc-400">
@@ -485,31 +518,91 @@ function FilesTab({ tree, skillPath, onOpenFile }: {
   }
 
   return (
-    <div className="py-1">
-      {tree.children.map((node) => (
-        <FileTreeRow key={node.path} node={node} depth={0} skillPath={skillPath} onOpenFile={onOpenFile} />
-      ))}
+    <div className="flex flex-col h-full">
+      {/* File tree */}
+      <div className={cn(
+        "flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50 py-1",
+        selectedFile && "max-h-[200px] overflow-y-auto"
+      )}>
+        {tree.children.map((node) => (
+          <FileTreeRow
+            key={node.path}
+            node={node}
+            depth={0}
+            skillPath={skillPath}
+            selectedPath={selectedFile?.path}
+            onSelect={(file) => setSelectedFile(file)}
+          />
+        ))}
+      </div>
+
+      {/* Preview area */}
+      <div className="flex-1 overflow-auto">
+        {!selectedFile && (
+          <div className="px-4 py-6 text-center text-xs text-zinc-400">
+            Click a file to preview
+          </div>
+        )}
+
+        {selectedFile && !fileContent && (
+          <div className="px-4 py-6 text-center">
+            <Loader2 size={16} className="mx-auto animate-spin text-zinc-400" />
+          </div>
+        )}
+
+        {selectedFile && fileContent && (
+          <>
+            {selectedFile.name.endsWith(".html") ? (
+              <iframe
+                ref={iframeRef}
+                srcDoc={iframeSrcDoc}
+                className="w-full border-0"
+                sandbox="allow-same-origin allow-scripts"
+                title={selectedFile.name}
+                style={{ height: iframeHeight }}
+              />
+            ) : selectedFile.name.endsWith(".md") ? (
+              <div className="px-4 py-3">
+                <MarkdownViewer content={fileContent} basePath={skillPath} />
+              </div>
+            ) : selectedFile.name.endsWith(".excalidraw") ? (
+              <ExcalidrawViewer content={fileContent} filename={selectedFile.name} />
+            ) : (
+              <pre className="px-4 py-3 text-xs text-zinc-600 dark:text-zinc-400 font-mono whitespace-pre-wrap overflow-auto">
+                {fileContent}
+              </pre>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-function FileTreeRow({ node, depth, skillPath, onOpenFile }: {
+function FileTreeRow({ node, depth, skillPath, selectedPath, onSelect }: {
   node: TreeNode;
   depth: number;
   skillPath: string | undefined;
-  onOpenFile?: (path: string) => void;
+  selectedPath?: string;
+  onSelect: (file: TreeNode) => void;
 }) {
   const [expanded, setExpanded] = useState(depth < 1);
   const hasChildren = node.is_directory && node.children && node.children.length > 0;
+  const isSelected = !node.is_directory && selectedPath === node.path;
 
   return (
     <>
       <button
         onClick={() => {
           if (node.is_directory) setExpanded(!expanded);
-          else onOpenFile?.(node.path);
+          else onSelect(node);
         }}
-        className="w-full flex items-center gap-2 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+        className={cn(
+          "w-full flex items-center gap-2 py-1.5 text-left transition-colors",
+          isSelected
+            ? "bg-teal-50 dark:bg-teal-900/30"
+            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+        )}
         style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: 16 }}
       >
         {node.is_directory ? (
@@ -526,13 +619,16 @@ function FileTreeRow({ node, depth, skillPath, onOpenFile }: {
         ) : (
           <>
             <span className="w-3 flex-shrink-0" />
-            <FileText size={14} className="text-zinc-400 flex-shrink-0" />
+            <FileText size={14} className={cn("flex-shrink-0", isSelected ? "text-teal-600" : "text-zinc-400")} />
           </>
         )}
-        <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{node.name}</span>
+        <span className={cn(
+          "text-xs truncate",
+          isSelected ? "text-teal-700 dark:text-teal-400 font-medium" : "text-zinc-700 dark:text-zinc-300"
+        )}>{node.name}</span>
       </button>
       {expanded && hasChildren && node.children!.map((child) => (
-        <FileTreeRow key={child.path} node={child} depth={depth + 1} skillPath={skillPath} onOpenFile={onOpenFile} />
+        <FileTreeRow key={child.path} node={child} depth={depth + 1} skillPath={skillPath} selectedPath={selectedPath} onSelect={onSelect} />
       ))}
     </>
   );

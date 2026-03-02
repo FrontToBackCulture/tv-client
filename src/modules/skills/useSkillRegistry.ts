@@ -25,6 +25,8 @@ export interface SkillEntry {
   status: "active" | "inactive" | "deprecated" | "test";
   command?: string;
   domain?: string;
+  verified?: boolean;
+  rating?: number;
   distributions: SkillDistribution[];
 }
 
@@ -42,6 +44,8 @@ export interface SkillDriftStatus {
   source_hash: string;
   target_hash: string;
   stored_hash: string;
+  source_modified: string;
+  target_modified: string;
 }
 
 export interface SkillInitResult {

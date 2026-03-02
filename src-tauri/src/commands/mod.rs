@@ -18,5 +18,6 @@ pub mod terminal;
 pub mod tools;
 pub mod val_sync;
 pub mod skill_registry;
+pub mod repos;
 pub mod work;
 

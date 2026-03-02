@@ -34,7 +34,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
   const [targetFilter, setTargetFilter] = useState<TargetFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sidebarWidth, setSidebarWidth] = useState(280);
-  const [sortBy, setSortBy] = useState<SortOption>("name");
+  const [sortBy, setSortBy] = useState<SortOption>("modified");
 
   const { data: modInfos } = useSkillSummary();
 
@@ -237,8 +237,6 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
                   selectedSlug={selectedSlug}
                   onSelect={setSelectedSlug}
 
-                  sortBy={sortBy}
-                  modDateMap={modDateMap}
                 />
               )}
               {platformSkills.length > 0 && (
@@ -247,9 +245,6 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
                   skills={platformSkills}
                   selectedSlug={selectedSlug}
                   onSelect={setSelectedSlug}
-
-                  sortBy={sortBy}
-                  modDateMap={modDateMap}
                 />
               )}
             </div>
@@ -314,15 +309,11 @@ function SkillGroup({
   skills,
   selectedSlug,
   onSelect,
-  sortBy,
-  modDateMap,
 }: {
   label: string;
   skills: SkillWithSlug[];
   selectedSlug: string | null;
   onSelect: (slug: string) => void;
-  sortBy: SortOption;
-  modDateMap: Map<string, string>;
 }) {
   return (
     <div className="mb-2">
@@ -347,20 +338,12 @@ function SkillGroup({
             s.status === "test" ? "bg-amber-400" : "bg-zinc-400"
           )} />
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{s.slug}</p>
-            {sortBy === "modified" && modDateMap.has(s.slug) && (
-              <p className="text-[10px] text-zinc-400 truncate">{formatRelative(modDateMap.get(s.slug)!)}</p>
-            )}
-            {sortBy === "status" && (
-              <p className={cn(
-                "text-[10px] truncate",
-                s.status === "active" ? "text-emerald-500" :
-                s.status === "deprecated" ? "text-red-400" :
-                s.status === "test" ? "text-amber-400" : "text-zinc-400"
-              )}>
-                {s.status}
-              </p>
-            )}
+            <div className="flex items-center gap-1">
+              <p className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{s.slug}</p>
+              {s.verified && (
+                <CheckCircle2 size={10} className="flex-shrink-0 text-blue-500" />
+              )}
+            </div>
           </div>
         </button>
       ))}
@@ -466,15 +449,25 @@ function SkillDashboard({
                 <AlertTriangle size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-zinc-700 dark:text-zinc-300 font-medium">{slug}</p>
-                  {drifts.map(d => (
-                    <p key={d.distribution_path} className="text-[10px] text-zinc-400 truncate mt-0.5">
-                      <span className={d.status === "target_modified" ? "text-amber-500" : "text-teal-500"}>
-                        {d.status === "target_modified" ? "modified" : "outdated"}
-                      </span>
-                      {" "}
-                      {formatDistPath(d.distribution_path)}
-                    </p>
-                  ))}
+                  {drifts.map(d => {
+                    const latestTime = d.source_modified && d.target_modified
+                      ? (d.source_modified > d.target_modified ? d.source_modified : d.target_modified)
+                      : d.source_modified || d.target_modified;
+                    return (
+                      <p key={d.distribution_path} className="text-[10px] text-zinc-400 truncate mt-0.5">
+                        <span className={d.status === "target_modified" ? "text-amber-500" : "text-teal-500"}>
+                          {d.status === "target_modified" ? "modified" : "updated"}
+                        </span>
+                        {" "}
+                        {formatDistPath(d.distribution_path)}
+                        {latestTime && (
+                          <span className="text-zinc-400/70">
+                            {" · "}{formatRelative(latestTime)}
+                          </span>
+                        )}
+                      </p>
+                    );
+                  })}
                 </div>
               </button>
             ))}

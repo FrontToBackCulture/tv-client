@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Play, Clock, Terminal, Hash, Slack, Loader2, ArrowLeft,
-  CheckCircle, XCircle, FileText, ChevronDown, ChevronRight, Pencil,
+  CheckCircle, XCircle, FileText, ChevronDown, ChevronRight, Pencil, Puzzle, Square,
 } from "lucide-react";
 import type { SchedulerJob, JobRun, RunStep } from "../../hooks/scheduler";
 import { useRunningJobsStore, useRunSteps } from "../../hooks/scheduler";
@@ -14,9 +14,10 @@ interface JobDetailProps {
   runs: JobRun[];
   onRunNow: (id: string) => void;
   onEdit?: (job: SchedulerJob) => void;
+  onStopJob?: (runId: string) => void;
 }
 
-export function JobDetail({ job, runs, onRunNow, onEdit }: JobDetailProps) {
+export function JobDetail({ job, runs, onRunNow, onEdit, onStopJob }: JobDetailProps) {
   const [selectedRun, setSelectedRun] = useState<JobRun | null>(null);
   const runningInfo = useRunningJobsStore((s) => s.runningJobs[job.id]);
   const isRunning = !!runningInfo || job.lastRunStatus === "running";
@@ -40,7 +41,18 @@ export function JobDetail({ job, runs, onRunNow, onEdit }: JobDetailProps) {
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{job.name}</h3>
           {isRunning ? (
-            <RunningIndicator startedAt={runningInfo?.startedAt} step={runningInfo?.step} />
+            <div className="flex items-center gap-2">
+              <RunningIndicator startedAt={runningInfo?.startedAt} step={runningInfo?.step} />
+              {onStopJob && runningInfo?.runId && (
+                <button
+                  onClick={() => onStopJob(runningInfo.runId)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <Square size={10} className="fill-current" />
+                  Stop
+                </button>
+              )}
+            </div>
           ) : (
             <div className="flex items-center gap-1.5">
               {onEdit && (
@@ -84,6 +96,17 @@ export function JobDetail({ job, runs, onRunNow, onEdit }: JobDetailProps) {
             <p className="text-xs text-zinc-500 font-mono">{job.cronExpression}</p>
           </div>
         </div>
+        {job.skillRefs && job.skillRefs.length > 0 && (
+          <div className="flex items-start gap-2">
+            <Puzzle size={14} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Skills</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                {job.skillRefs.map((r) => r.title).join(" · ")}
+              </p>
+            </div>
+          </div>
+        )}
         <div className="flex items-start gap-2">
           <Terminal size={14} className="text-zinc-400 mt-0.5 flex-shrink-0" />
           <div className="min-w-0 flex-1">

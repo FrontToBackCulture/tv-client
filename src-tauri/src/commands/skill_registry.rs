@@ -35,6 +35,10 @@ pub struct SkillEntry {
     pub command: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verified: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rating: Option<u8>,
     pub distributions: Vec<SkillDistribution>,
 }
 
@@ -61,6 +65,8 @@ pub struct SkillDriftStatus {
     pub source_hash: String,
     pub target_hash: String,
     pub stored_hash: String,
+    pub source_modified: String, // ISO 8601
+    pub target_modified: String, // ISO 8601
 }
 
 #[derive(Debug, Serialize)]
@@ -130,6 +136,37 @@ fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Get the most recent file modification time in a folder as ISO 8601 string
+fn get_folder_latest_modified(path: &Path) -> String {
+    let mut files: Vec<PathBuf> = Vec::new();
+    if collect_files(path, &mut files).is_err() {
+        return String::new();
+    }
+    let mut latest: Option<std::time::SystemTime> = None;
+    for file in &files {
+        let name = file.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        if name == ".skill-source.json" || name.contains(".DS_Store") || name.starts_with('.') {
+            continue;
+        }
+        if let Ok(meta) = fs::metadata(file) {
+            if let Ok(modified) = meta.modified() {
+                latest = Some(match latest {
+                    Some(prev) if modified > prev => modified,
+                    Some(prev) => prev,
+                    None => modified,
+                });
+            }
+        }
+    }
+    latest
+        .map(|t| {
+            chrono::DateTime::<chrono::Utc>::from(t)
+                .format("%Y-%m-%dT%H:%M:%SZ")
+                .to_string()
+        })
+        .unwrap_or_default()
 }
 
 /// Copy a folder recursively, excluding .skill-source.json and .DS_Store
@@ -331,6 +368,8 @@ pub async fn skill_init(state: State<'_, AppState>) -> Result<SkillInitResult, S
                     status,
                     command: cmd,
                     domain: None,
+                    verified: None,
+                    rating: None,
                     distributions: vec![SkillDistribution {
                         path: format!("_team/melvin/bot-mel/skills/{}", slug),
                         dist_type: "bot".to_string(),
@@ -395,6 +434,8 @@ pub async fn skill_init(state: State<'_, AppState>) -> Result<SkillInitResult, S
                     status: "active".to_string(),
                     command: None,
                     domain,
+                    verified: None,
+                    rating: None,
                     distributions: vec![SkillDistribution {
                         path: format!("0_Platform/skills/{}", slug),
                         dist_type: "platform".to_string(),
@@ -460,6 +501,7 @@ pub async fn skill_distribute(
         fs::write(target_path.join(".skill-source.json"), marker_json)
             .map_err(|e| format!("Failed to write marker: {}", e))?;
 
+        let mod_time = get_folder_latest_modified(&source_dir);
         results.push(SkillDriftStatus {
             slug: slug.clone(),
             distribution_path: dist.path.clone(),
@@ -467,6 +509,8 @@ pub async fn skill_distribute(
             source_hash: source_hash.clone(),
             target_hash: source_hash.clone(),
             stored_hash: source_hash.clone(),
+            source_modified: mod_time.clone(),
+            target_modified: mod_time,
         });
     }
 
@@ -522,6 +566,8 @@ pub async fn skill_check(
                 source_hash: source_hash.clone(),
                 target_hash: String::new(),
                 stored_hash: String::new(),
+                source_modified: get_folder_latest_modified(&source_dir),
+                target_modified: String::new(),
             });
             continue;
         }
@@ -557,6 +603,8 @@ pub async fn skill_check(
             source_hash: source_hash.clone(),
             target_hash,
             stored_hash,
+            source_modified: get_folder_latest_modified(&source_dir),
+            target_modified: get_folder_latest_modified(&target_path),
         });
     }
 
@@ -596,6 +644,7 @@ pub async fn skill_pull(
     fs::write(target_dir.join(".skill-source.json"), marker_json)
         .map_err(|e| format!("Failed to write marker: {}", e))?;
 
+    let mod_time = get_folder_latest_modified(&source_dir);
     Ok(SkillDriftStatus {
         slug,
         distribution_path: target_path,
@@ -603,6 +652,8 @@ pub async fn skill_pull(
         source_hash: source_hash.clone(),
         target_hash: source_hash.clone(),
         stored_hash: source_hash,
+        source_modified: mod_time.clone(),
+        target_modified: mod_time,
     })
 }
 
@@ -647,7 +698,7 @@ pub async fn skill_check_all(
         if let Some(entry) = registry.skills.get(slug) {
             for dist in &entry.distributions {
                 let target_path = PathBuf::from(kb).join(&dist.path);
-                let result = check_distribution(slug, &dist.path, &source_hash, &target_path);
+                let result = check_distribution(slug, &dist.path, &source_hash, &source_dir, &target_path);
                 all_results.push(result);
             }
         }
@@ -711,7 +762,7 @@ pub async fn skill_check_all(
                                 };
 
                                 let target_path = PathBuf::from(kb).join(&dist_path);
-                                let result = check_distribution(&skill_name, &dist_path, &source_hash, &target_path);
+                                let result = check_distribution(&skill_name, &dist_path, &source_hash, &source_dir, &target_path);
                                 all_results.push(result);
                             }
                         }
@@ -752,7 +803,7 @@ pub async fn skill_check_all(
                 };
 
                 let target_path = PathBuf::from(kb).join(&dist_path);
-                let result = check_distribution(&skill_name, &dist_path, &source_hash, &target_path);
+                let result = check_distribution(&skill_name, &dist_path, &source_hash, &source_dir, &target_path);
                 all_results.push(result);
             }
         }
@@ -762,7 +813,9 @@ pub async fn skill_check_all(
 }
 
 /// Check drift status for a single distribution path
-fn check_distribution(slug: &str, dist_path: &str, source_hash: &str, target_path: &PathBuf) -> SkillDriftStatus {
+fn check_distribution(slug: &str, dist_path: &str, source_hash: &str, source_path: &Path, target_path: &PathBuf) -> SkillDriftStatus {
+    let source_modified = get_folder_latest_modified(source_path);
+
     if !target_path.exists() {
         return SkillDriftStatus {
             slug: slug.to_string(),
@@ -771,10 +824,13 @@ fn check_distribution(slug: &str, dist_path: &str, source_hash: &str, target_pat
             source_hash: source_hash.to_string(),
             target_hash: String::new(),
             stored_hash: String::new(),
+            source_modified,
+            target_modified: String::new(),
         };
     }
 
     let target_hash = hash_skill_folder(target_path).unwrap_or_default();
+    let target_modified = get_folder_latest_modified(target_path);
     let marker_path = target_path.join(".skill-source.json");
     let stored_hash = if marker_path.exists() {
         fs::read_to_string(&marker_path).ok()
@@ -800,6 +856,8 @@ fn check_distribution(slug: &str, dist_path: &str, source_hash: &str, target_pat
         source_hash: source_hash.to_string(),
         target_hash,
         stored_hash,
+        source_modified,
+        target_modified,
     }
 }
 
@@ -956,6 +1014,7 @@ pub async fn skill_distribute_to(
         let _ = regenerate_bot_categories_for(kb, &target_path, &registry);
     }
 
+    let mod_time = get_folder_latest_modified(&source_dir);
     Ok(SkillDriftStatus {
         slug,
         distribution_path: full_target,
@@ -963,6 +1022,8 @@ pub async fn skill_distribute_to(
         source_hash: source_hash.clone(),
         target_hash: source_hash.clone(),
         stored_hash: source_hash,
+        source_modified: mod_time.clone(),
+        target_modified: mod_time,
     })
 }
 

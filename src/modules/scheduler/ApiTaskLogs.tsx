@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CheckCircle, XCircle, Loader2, Slack } from "lucide-react";
-import { useApiTaskLogs, type ApiTaskLog } from "../../hooks/scheduler";
+import { useApiTaskLogs } from "../../hooks/scheduler";
 import { cn } from "../../lib/cn";
 
 export function ApiTaskLogs() {

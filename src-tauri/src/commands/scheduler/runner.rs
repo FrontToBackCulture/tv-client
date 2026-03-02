@@ -1,6 +1,10 @@
 // Job execution — spawn claude -p, capture output, save reports, post to Slack
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use chrono::Utc;
+use once_cell::sync::Lazy;
 use tauri::{Emitter, Manager};
 
 use super::storage;
@@ -9,6 +13,29 @@ use super::types::*;
 const S3_BUCKET: &str = "signalval";
 const S3_REGION: &str = "ap-southeast-1";
 const S3_REPORT_PREFIX: &str = "sod-reports";
+
+// ============================================================================
+// Running process tracking (for stop_job)
+// ============================================================================
+
+/// Maps run_id → OS PID so we can kill running jobs from the UI.
+static RUNNING_PROCESSES: Lazy<Mutex<HashMap<String, u32>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// Stop a running job by killing its process tree.
+pub fn stop_job(run_id: &str) -> Result<(), String> {
+    let mut map = RUNNING_PROCESSES.lock().unwrap();
+    if let Some(pid) = map.remove(run_id) {
+        eprintln!("[scheduler] Stopping job run {} (PID {})", run_id, pid);
+        // Kill the claude process directly; it will clean up its own children
+        unsafe {
+            libc::kill(pid as i32, libc::SIGTERM);
+        }
+        Ok(())
+    } else {
+        Err("No running process found for this run".into())
+    }
+}
 
 /// Execute a scheduler job. Saves run history and emits events.
 pub async fn execute_job(
@@ -80,7 +107,7 @@ pub async fn execute_job(
 
     // Run claude
     emit_progress("Running claude...");
-    let result = run_claude(job, &knowledge_path).await;
+    let result = run_claude(job, &knowledge_path, run_id).await;
 
     let finished_at = Utc::now();
     let duration = (finished_at - started_at).num_milliseconds() as f64 / 1000.0;
@@ -143,14 +170,17 @@ pub async fn execute_job(
         if job.generate_report {
             // Look for skill-generated HTML report (written by Claude during skill execution)
             emit_progress("Looking for HTML report...");
+            let prefix = job.report_prefix.as_deref().unwrap_or("sod");
+            let report_filename = format!("{}-{}.html", prefix, date_str);
+
             let skill_report_path = std::path::Path::new(&knowledge_path)
                 .join("0_Platform/sod-reports")
-                .join(format!("sod-{}.html", date_str));
+                .join(&report_filename);
             if skill_report_path.exists() {
                 if let Ok(html) = std::fs::read_to_string(&skill_report_path) {
                     if !html.is_empty() {
                         emit_progress("Uploading report to S3...");
-                        match upload_html_to_s3(&date_str, &html).await {
+                        match upload_html_to_s3(prefix, &date_str, &html).await {
                             Ok(url) => {
                                 eprintln!("[scheduler] Report uploaded: {}", url);
                                 report_url = Some(url);
@@ -238,7 +268,7 @@ struct TokenUsage {
 }
 
 /// Spawn `claude -p` with JSON output format to capture both result text and cost
-async fn run_claude(job: &SchedulerJob, knowledge_path: &str) -> Result<ClaudeOutput, String> {
+async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> Result<ClaudeOutput, String> {
     use tokio::process::Command;
     use std::process::Stdio;
 
@@ -255,17 +285,44 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str) -> Result<ClaudeOu
         cmd.arg("--allowedTools").arg(job.allowed_tools.join(","));
     }
 
-    cmd.current_dir(knowledge_path);
+    // Load MCP servers from ~/.claude/mcp.json if it exists.
+    // In pipe mode (-p), claude doesn't auto-load MCP configs without this flag.
+    let home = dirs::home_dir().unwrap_or_default();
+    let mcp_config = home.join(".claude/mcp.json");
+    if mcp_config.exists() {
+        cmd.arg("--mcp-config").arg(&mcp_config);
+    }
+
+    // Use bot_path as working directory if set, otherwise fall back to knowledge_path.
+    // Running from the bot folder ensures the Claude session picks up the bot's
+    // CLAUDE.md, .claude/settings.local.json (pre-approved tools), and MCP context.
+    let working_dir = job.bot_path.as_deref().unwrap_or(knowledge_path);
+    cmd.current_dir(working_dir);
 
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
-    eprintln!("[scheduler] Spawning claude for job: {}", job.name);
+    // Debug: log the command we're about to run
+    let debug_msg = format!(
+        "[scheduler] Spawning claude for job: {} in dir: {} with PATH: {:?}\n",
+        job.name, working_dir, std::env::var("PATH").unwrap_or_default()
+    );
+    eprintln!("{}", debug_msg);
+    let _ = std::fs::write("/tmp/scheduler-debug.log", &debug_msg);
 
     let mut child = cmd
         .spawn()
-        .map_err(|e| format!("Failed to spawn claude: {}. Is claude CLI installed?", e))?;
+        .map_err(|e| {
+            let err = format!("Failed to spawn claude: {}. Is claude CLI installed?", e);
+            let _ = std::fs::write("/tmp/scheduler-debug.log", format!("{}\nSPAWN ERROR: {}", debug_msg, err));
+            err
+        })?;
+
+    // Track PID for stop_job()
+    if let Some(pid) = child.id() {
+        RUNNING_PROCESSES.lock().unwrap().insert(run_id.to_string(), pid);
+    }
 
     if let Some(mut stdin) = child.stdin.take() {
         use tokio::io::AsyncWriteExt;
@@ -277,6 +334,20 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str) -> Result<ClaudeOu
         .wait_with_output()
         .await
         .map_err(|e| format!("Failed to wait for claude: {}", e))?;
+
+    // Remove from tracking once finished
+    RUNNING_PROCESSES.lock().unwrap().remove(run_id);
+
+    // Debug: log exit status
+    let debug_exit = format!(
+        "EXIT: code={:?} stdout_len={} stderr_len={}\nstderr_head: {}",
+        output.status.code(),
+        output.stdout.len(),
+        output.stderr.len(),
+        String::from_utf8_lossy(&output.stderr).chars().take(500).collect::<String>(),
+    );
+    let _ = std::fs::OpenOptions::new().append(true).open("/tmp/scheduler-debug.log")
+        .and_then(|mut f| { use std::io::Write; writeln!(f, "{}", debug_exit) });
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -328,7 +399,7 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str) -> Result<ClaudeOu
 // S3 upload
 // ============================================================================
 
-async fn upload_html_to_s3(date_str: &str, html: &str) -> Result<String, String> {
+async fn upload_html_to_s3(prefix: &str, date_str: &str, html: &str) -> Result<String, String> {
     let settings = crate::commands::settings::load_settings()
         .map_err(|e| format!("Failed to load settings: {}", e))?;
 
@@ -338,11 +409,11 @@ async fn upload_html_to_s3(date_str: &str, html: &str) -> Result<String, String>
         .ok_or_else(|| "AWS Secret Access Key not configured. Go to Settings to add it.".to_string())?;
 
     // Write HTML to a temp file
-    let tmp_path = std::env::temp_dir().join(format!("sod-report-{}.html", date_str));
+    let tmp_path = std::env::temp_dir().join(format!("{}-report-{}.html", prefix, date_str));
     std::fs::write(&tmp_path, html)
         .map_err(|e| format!("Failed to write temp HTML: {}", e))?;
 
-    let s3_key = format!("{}/{}.html", S3_REPORT_PREFIX, date_str);
+    let s3_key = format!("{}/{}-{}.html", S3_REPORT_PREFIX, prefix, date_str);
     let s3_dest = format!("s3://{}/{}", S3_BUCKET, s3_key);
 
     let output = tokio::process::Command::new("aws")

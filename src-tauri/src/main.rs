@@ -65,6 +65,9 @@ fn main() {
             // Terminal sessions state
             app.manage(commands::terminal::TerminalSessions::default());
 
+            // Reset any jobs stuck in "running" from a previous crash
+            commands::scheduler::storage::reset_running_jobs();
+
             // Start Outlook background sync
             commands::outlook::background::start_background_sync(app.handle().clone());
 
@@ -340,6 +343,15 @@ fn main() {
             // VAL Sync - S3 sync (push AI folders to S3)
             commands::val_sync::s3_sync::val_sync_ai_to_s3,
             commands::val_sync::s3_sync::val_s3_ai_status,
+            // VAL Sync - Drive (file browser)
+            commands::val_sync::drive::val_drive_list_folders,
+            commands::val_sync::drive::val_drive_list_files,
+            commands::val_sync::drive::val_drive_workflow_folders,
+            commands::val_sync::drive::val_drive_scan_config_load,
+            commands::val_sync::drive::val_drive_scan_config_save,
+            commands::val_sync::drive::val_drive_scan_config_seed,
+            commands::val_sync::drive::val_drive_scan_results_load,
+            commands::val_sync::drive::val_drive_scan_results_save,
             // VAL Sync - SQL execution
             commands::val_sync::sql::val_execute_sql,
             // VAL Sync - SQL generation (AI)
@@ -400,6 +412,7 @@ fn main() {
             commands::scheduler::commands::scheduler_get_run,
             commands::scheduler::commands::scheduler_get_run_steps,
             commands::scheduler::commands::scheduler_get_status,
+            commands::scheduler::commands::scheduler_stop_job,
             // Skill Registry
             commands::skill_registry::skill_init,
             commands::skill_registry::skill_distribute,
@@ -409,6 +422,10 @@ fn main() {
             commands::skill_registry::skill_list_bots,
             commands::skill_registry::skill_distribute_to,
             commands::skill_registry::skill_summary,
+            // Repos (GitHub)
+            commands::repos::commands::repos_get_commits,
+            commands::repos::commands::repos_get_releases,
+            commands::repos::commands::repos_get_workflow_runs,
             // Outlook - Sync
             commands::outlook::commands::outlook_sync_start,
             commands::outlook::commands::outlook_sync_status,

@@ -57,6 +57,35 @@ pub fn save_jobs(jobs: &[SchedulerJob]) -> Result<(), String> {
 
 
 // ============================================================================
+// Startup cleanup
+// ============================================================================
+
+/// Reset any jobs stuck in "running" status back to "failed".
+/// Called on app startup to clean up stale state from killed processes.
+pub fn reset_running_jobs() {
+    match load_jobs() {
+        Ok(mut jobs) => {
+            let mut changed = false;
+            for job in jobs.iter_mut() {
+                if job.last_run_status == Some(RunStatus::Running) {
+                    eprintln!("[scheduler] Resetting stale running job: {}", job.name);
+                    job.last_run_status = Some(RunStatus::Failed);
+                    changed = true;
+                }
+            }
+            if changed {
+                if let Err(e) = save_jobs(&jobs) {
+                    eprintln!("[scheduler] Failed to save reset jobs: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[scheduler] Failed to load jobs for reset: {}", e);
+        }
+    }
+}
+
+// ============================================================================
 // Supabase-friendly row type (snake_case for Postgres columns)
 // ============================================================================
 

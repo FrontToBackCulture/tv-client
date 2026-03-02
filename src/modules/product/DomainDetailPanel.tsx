@@ -37,6 +37,7 @@ import { useJobsStore } from "../../stores/jobsStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useRepository } from "../../stores/repositoryStore";
 import { DomainAiTab } from "./DomainAiTab";
+import { DomainReportsTab } from "./DomainReportsTab";
 import { DomainDataHealthTab } from "./DomainDataHealthTab";
 import { FilesTab } from "./DomainDetailFilesTab";
 import { UnifiedReviewView } from "../library/UnifiedReviewView";
@@ -53,7 +54,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   // Report domain + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-health": "Data Health", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", files: "Files", sync: "Sync", history: "History", ai: "AI" };
+    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-health": "Data Health", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", reports: "Reports", files: "Files", sync: "Sync", history: "History", ai: "AI" };
     setViewDetail(`${domain} → ${tabLabels[activeTab]}`);
   }, [domain, activeTab, setViewDetail]);
 
@@ -192,6 +193,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
     { id: "queries", label: "Queries" },
     { id: "workflows", label: "Workflows" },
     { id: "dashboards", label: "Dashboards" },
+    { id: "reports", label: "Reports" },
     { id: "files", label: "Files" },
     { id: "history", label: "History" },
   ];
@@ -908,6 +910,13 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         )}
 
         {activeTab === "ai" && !discoveredDomain && (
+          <EmptyState message="Domain path not available" className="py-4" />
+        )}
+
+        {activeTab === "reports" && discoveredDomain && (
+          <DomainReportsTab reportsPath={`${discoveredDomain.global_path}/reports`} domainName={domain} />
+        )}
+        {activeTab === "reports" && !discoveredDomain && (
           <EmptyState message="Domain path not available" className="py-4" />
         )}
       </div>
