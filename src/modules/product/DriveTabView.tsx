@@ -274,6 +274,9 @@ export function DriveTabView() {
         }
 
         // Build lookup sets from configured folders
+        const enabledFolderPaths = new Set(
+          foldersToScan.map((f) => f.folder_path)
+        );
         const processedFolders = new Set(
           foldersToScan.filter((f) => f.move_to_processed).map((f) => f.folder_path)
         );
@@ -284,6 +287,16 @@ export function DriveTabView() {
             if (fp.startsWith(p + "/")) return true;
           }
           return foldersToScan.length === 0;
+        };
+
+        // Check if a folder is in scope (enabled in config, or a subfolder of an enabled folder)
+        const isInScope = (fp: string): boolean => {
+          if (foldersToScan.length === 0) return true; // no config = scan everything
+          if (enabledFolderPaths.has(fp)) return true;
+          for (const p of enabledFolderPaths) {
+            if (fp.startsWith(p + "/")) return true;
+          }
+          return false;
         };
 
         // Get top-level files (which includes folder-like entries)
@@ -301,6 +314,9 @@ export function DriveTabView() {
         for (const folder of topFolders) {
           if (folder.startsWith(".") || folder.toLowerCase() === "test") continue;
           const folderId = `val_drive/${folder}`;
+
+          // Skip folders not in the enabled scan config
+          if (!isInScope(folderId)) continue;
 
           try {
             const subResult = await invoke<DriveFilesResult>("val_drive_list_files", {

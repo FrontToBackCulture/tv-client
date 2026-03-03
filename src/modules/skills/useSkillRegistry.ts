@@ -10,6 +10,7 @@ import { useRepository } from "../../stores/repositoryStore";
 export interface SkillCategory {
   id: string;
   label: string;
+  order?: number;
 }
 
 export interface SkillDistribution {

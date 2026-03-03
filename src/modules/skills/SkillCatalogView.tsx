@@ -1,14 +1,16 @@
 // src/modules/skills/SkillCatalogView.tsx
 // Browse, search, filter all skills in the central registry
 
-import { useState, useMemo, useCallback, useRef } from "react";
-import { Search, Loader2, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical } from "lucide-react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { Search, Loader2, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import {
   type SkillEntry,
   type SkillDriftStatus,
   type SkillRegistry,
+  type SkillCategory,
   useSkillSummary,
+  useSkillRegistryUpdate,
 } from "./useSkillRegistry";
 import { SkillDetailPanel } from "./SkillDetailPanel";
 
@@ -35,8 +37,96 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [sortBy, setSortBy] = useState<SortOption>("modified");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = useCallback((key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const { data: modInfos } = useSkillSummary();
+  const registryUpdate = useSkillRegistryUpdate();
+
+  // Context menu state for skill → category assignment
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slug: string } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Reposition context menu if it overflows viewport
+  useEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return;
+    const el = contextMenuRef.current;
+    const rect = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let { x, y } = contextMenu;
+    if (rect.bottom > vh) y = Math.max(4, vh - rect.height - 4);
+    if (rect.right > vw) x = Math.max(4, vw - rect.width - 4);
+    if (x !== contextMenu.x || y !== contextMenu.y) {
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+    }
+  }, [contextMenu]);
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handler = () => setContextMenu(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [contextMenu]);
+
+  // Category CRUD helpers
+  const handleCreateCategory = useCallback((label: string) => {
+    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    if (!id || registry.categories.some(c => c.id === id)) return;
+    const updated: SkillRegistry = {
+      ...registry,
+      updated: new Date().toISOString(),
+      categories: [...registry.categories, { id, label, order: registry.categories.length }],
+    };
+    registryUpdate.mutate(updated);
+  }, [registry, registryUpdate]);
+
+  const handleRenameCategory = useCallback((categoryId: string, newLabel: string) => {
+    if (!newLabel.trim()) return;
+    const updated: SkillRegistry = {
+      ...registry,
+      updated: new Date().toISOString(),
+      categories: registry.categories.map(c => c.id === categoryId ? { ...c, label: newLabel.trim() } : c),
+    };
+    registryUpdate.mutate(updated);
+  }, [registry, registryUpdate]);
+
+  const handleDeleteCategory = useCallback((categoryId: string) => {
+    // Move all skills in this category to uncategorized
+    const updatedSkills = { ...registry.skills };
+    for (const [slug, skill] of Object.entries(updatedSkills)) {
+      if (skill.category === categoryId) {
+        updatedSkills[slug] = { ...skill, category: "" };
+      }
+    }
+    const updated: SkillRegistry = {
+      ...registry,
+      updated: new Date().toISOString(),
+      categories: registry.categories.filter(c => c.id !== categoryId),
+      skills: updatedSkills,
+    };
+    registryUpdate.mutate(updated);
+  }, [registry, registryUpdate]);
+
+  const handleMoveSkillToCategory = useCallback((slug: string, categoryId: string) => {
+    const updated: SkillRegistry = {
+      ...registry,
+      updated: new Date().toISOString(),
+      skills: { ...registry.skills, [slug]: { ...registry.skills[slug], category: categoryId } },
+    };
+    registryUpdate.mutate(updated);
+    setContextMenu(null);
+  }, [registry, registryUpdate]);
 
   // Build modification date lookup
   const modDateMap = useMemo(() => {
@@ -204,6 +294,51 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
         </select>
       </div>
 
+      {/* Context menu for moving skill to category */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[200px] max-h-[calc(100vh-8px)] overflow-y-auto"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            Move to category
+          </div>
+          <button
+            onClick={() => handleMoveSkillToCategory(contextMenu.slug, "")}
+            className={cn(
+              "w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors",
+              registry.skills[contextMenu.slug]?.category === "" ? "text-teal-600 font-medium" : "text-zinc-600 dark:text-zinc-300"
+            )}
+          >
+            <span className="flex-1 text-left">Uncategorized</span>
+            <span className="text-[10px] text-zinc-400">{categoryCounts[""] || 0}</span>
+          </button>
+          {registry.categories.map(cat => (
+            <div key={cat.id} className="flex items-center group/ctx">
+              <button
+                onClick={() => handleMoveSkillToCategory(contextMenu.slug, cat.id)}
+                className={cn(
+                  "flex-1 flex items-center gap-2 pl-3 pr-1 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-left",
+                  registry.skills[contextMenu.slug]?.category === cat.id ? "text-teal-600 font-medium" : "text-zinc-600 dark:text-zinc-300"
+                )}
+              >
+                <span className="flex-1 truncate">{cat.label}</span>
+                <span className="text-[10px] text-zinc-400">{categoryCounts[cat.id] || 0}</span>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat.id); setContextMenu(null); }}
+                className="px-1.5 py-1.5 opacity-0 group-hover/ctx:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
+                title="Delete category"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Content: list + detail */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: skill list */}
@@ -234,19 +369,34 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
             <div className="py-1">
               {botSkills.length > 0 && (
                 <SkillGroup
+                  groupKey="bot"
                   label={`Bot Skills (${botSkills.length})`}
                   skills={botSkills}
+                  categories={registry.categories}
                   selectedSlug={selectedSlug}
                   onSelect={setSelectedSlug}
-
+                  collapsedGroups={collapsedGroups}
+                  onToggleGroup={toggleGroup}
+                  onCreateCategory={handleCreateCategory}
+                  onRenameCategory={handleRenameCategory}
+                  onDeleteCategory={handleDeleteCategory}
+                  onContextMenu={(e, slug) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, slug }); }}
                 />
               )}
               {platformSkills.length > 0 && (
                 <SkillGroup
+                  groupKey="platform"
                   label={`Platform Skills (${platformSkills.length})`}
                   skills={platformSkills}
+                  categories={registry.categories}
                   selectedSlug={selectedSlug}
                   onSelect={setSelectedSlug}
+                  collapsedGroups={collapsedGroups}
+                  onToggleGroup={toggleGroup}
+                  onCreateCategory={handleCreateCategory}
+                  onRenameCategory={handleRenameCategory}
+                  onDeleteCategory={handleDeleteCategory}
+                  onContextMenu={(e, slug) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, slug }); }}
                 />
               )}
             </div>
@@ -307,51 +457,259 @@ function TabButton({ active, onClick, label }: { active: boolean; onClick: () =>
 }
 
 function SkillGroup({
+  groupKey,
   label,
   skills,
+  categories,
   selectedSlug,
   onSelect,
+  collapsedGroups,
+  onToggleGroup,
+  onCreateCategory,
+  onRenameCategory,
+  onDeleteCategory,
+  onContextMenu,
 }: {
+  groupKey: string;
   label: string;
   skills: SkillWithSlug[];
+  categories: SkillCategory[];
   selectedSlug: string | null;
   onSelect: (slug: string) => void;
+  collapsedGroups: Set<string>;
+  onToggleGroup: (key: string) => void;
+  onCreateCategory: (label: string) => void;
+  onRenameCategory: (id: string, label: string) => void;
+  onDeleteCategory: (id: string) => void;
+  onContextMenu: (e: React.MouseEvent, slug: string) => void;
 }) {
+  const [isCreating, setIsCreating] = useState(false);
+  const [newCatLabel, setNewCatLabel] = useState("");
+  const [renamingCatId, setRenamingCatId] = useState<string | null>(null);
+  const [renameLabel, setRenameLabel] = useState("");
+  const createInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const isCollapsed = collapsedGroups.has(groupKey);
+
+  // Focus inputs when they appear
+  useEffect(() => {
+    if (isCreating) createInputRef.current?.focus();
+  }, [isCreating]);
+  useEffect(() => {
+    if (renamingCatId) renameInputRef.current?.focus();
+  }, [renamingCatId]);
+
+  // Group skills by category
+  const sortedCategories = useMemo(() => {
+    return [...categories].sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.label.localeCompare(b.label));
+  }, [categories]);
+
+  const skillsByCategory = useMemo(() => {
+    const map = new Map<string, SkillWithSlug[]>();
+    for (const s of skills) {
+      const catId = s.category || "";
+      if (!map.has(catId)) map.set(catId, []);
+      map.get(catId)!.push(s);
+    }
+    return map;
+  }, [skills]);
+
+  const handleCreateSubmit = () => {
+    const trimmed = newCatLabel.trim();
+    if (trimmed) onCreateCategory(trimmed);
+    setNewCatLabel("");
+    setIsCreating(false);
+  };
+
+  const handleRenameSubmit = () => {
+    if (renamingCatId && renameLabel.trim()) {
+      onRenameCategory(renamingCatId, renameLabel);
+    }
+    setRenamingCatId(null);
+    setRenameLabel("");
+  };
+
   return (
     <div className="mb-2">
-      <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-        {label}
-      </div>
-      {skills.map((s) => (
+      {/* Group header */}
+      <div className="flex items-center group">
         <button
-          key={s.slug}
-          onClick={() => onSelect(s.slug)}
-          className={cn(
-            "w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors",
-            selectedSlug === s.slug
-              ? "bg-zinc-100 dark:bg-zinc-800"
-              : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-          )}
+          onClick={() => onToggleGroup(groupKey)}
+          className="flex-1 flex items-center gap-1.5 px-3 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
         >
-          <span className={cn(
-            "w-1.5 h-1.5 rounded-full flex-shrink-0",
-            s.status === "active" ? "bg-green-500" :
-            s.status === "test" ? "bg-amber-400" :
-            s.status === "review" ? "bg-blue-400" :
-            s.status === "draft" ? "bg-violet-400" :
-            s.status === "deprecated" ? "bg-red-400" : "bg-zinc-400"
-          )} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1">
-              <p className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{s.slug}</p>
-              {s.verified && (
-                <CheckCircle2 size={10} className="flex-shrink-0 text-blue-500" />
-              )}
-            </div>
-          </div>
+          <ChevronRight size={10} className={cn("text-zinc-400 transition-transform", !isCollapsed && "rotate-90")} />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            {label}
+          </span>
         </button>
-      ))}
+        <button
+          onClick={(e) => { e.stopPropagation(); setIsCreating(true); }}
+          className="px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-teal-500"
+          title="Add category"
+        >
+          <Plus size={12} />
+        </button>
+      </div>
+
+      {!isCollapsed && (
+        <>
+          {/* Inline create input */}
+          {isCreating && (
+            <div className="px-3 py-1">
+              <input
+                ref={createInputRef}
+                value={newCatLabel}
+                onChange={(e) => setNewCatLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateSubmit();
+                  if (e.key === "Escape") { setIsCreating(false); setNewCatLabel(""); }
+                }}
+                onBlur={handleCreateSubmit}
+                placeholder="Category name..."
+                className="w-full px-2 py-1 text-xs rounded border border-teal-400 dark:border-teal-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+          )}
+
+          {/* Category sub-groups */}
+          {sortedCategories.map(cat => {
+            const catSkills = skillsByCategory.get(cat.id);
+            if (!catSkills || catSkills.length === 0) return null;
+            const subKey = `${groupKey}/${cat.id}`;
+            const isCatCollapsed = collapsedGroups.has(subKey);
+
+            return (
+              <div key={cat.id}>
+                {/* Category sub-header */}
+                <div className="flex items-center group/cat">
+                  <button
+                    onClick={() => onToggleGroup(subKey)}
+                    className="flex-1 flex items-center gap-1.5 pl-6 pr-2 py-1 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                  >
+                    <ChevronRight size={9} className={cn("text-zinc-400 transition-transform", !isCatCollapsed && "rotate-90")} />
+                    {renamingCatId === cat.id ? (
+                      <input
+                        ref={renameInputRef}
+                        value={renameLabel}
+                        onChange={(e) => setRenameLabel(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleRenameSubmit();
+                          if (e.key === "Escape") { setRenamingCatId(null); setRenameLabel(""); }
+                        }}
+                        onBlur={handleRenameSubmit}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 px-1 py-0 text-[10px] rounded border border-teal-400 dark:border-teal-600 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none"
+                      />
+                    ) : (
+                      <span
+                        className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 truncate"
+                        onDoubleClick={(e) => { e.stopPropagation(); setRenamingCatId(cat.id); setRenameLabel(cat.label); }}
+                      >
+                        {cat.label}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-zinc-400 ml-auto">{catSkills.length}</span>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDeleteCategory(cat.id); }}
+                    className="px-1.5 py-1 opacity-0 group-hover/cat:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
+                    title="Delete category"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+
+                {/* Skills in category */}
+                {!isCatCollapsed && catSkills.map(s => (
+                  <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} indent={2} />
+                ))}
+              </div>
+            );
+          })}
+
+          {/* Uncategorized skills */}
+          {(() => {
+            const uncategorized = skillsByCategory.get("") ?? [];
+            // Also include skills whose category doesn't match any known category
+            const knownCatIds = new Set(categories.map(c => c.id));
+            const orphaned = skills.filter(s => s.category && !knownCatIds.has(s.category));
+            const allUncat = [...uncategorized, ...orphaned];
+            if (allUncat.length === 0) return null;
+
+            // If there are no categories at all, render skills flat (no sub-header)
+            if (categories.length === 0) {
+              return allUncat.map(s => (
+                <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} indent={1} />
+              ));
+            }
+
+            const subKey = `${groupKey}/uncategorized`;
+            const isCatCollapsed = collapsedGroups.has(subKey);
+            return (
+              <div>
+                <button
+                  onClick={() => onToggleGroup(subKey)}
+                  className="w-full flex items-center gap-1.5 pl-6 pr-3 py-1 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                >
+                  <ChevronRight size={9} className={cn("text-zinc-400 transition-transform", !isCatCollapsed && "rotate-90")} />
+                  <span className="text-[10px] font-medium text-zinc-400 italic truncate">Uncategorized</span>
+                  <span className="text-[10px] text-zinc-400 ml-auto">{allUncat.length}</span>
+                </button>
+                {!isCatCollapsed && allUncat.map(s => (
+                  <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} indent={2} />
+                ))}
+              </div>
+            );
+          })()}
+        </>
+      )}
     </div>
+  );
+}
+
+function SkillRow({
+  skill: s,
+  selectedSlug,
+  onSelect,
+  onContextMenu,
+  indent,
+}: {
+  skill: SkillWithSlug;
+  selectedSlug: string | null;
+  onSelect: (slug: string) => void;
+  onContextMenu: (e: React.MouseEvent, slug: string) => void;
+  indent: 1 | 2;
+}) {
+  return (
+    <button
+      onClick={() => onSelect(s.slug)}
+      onContextMenu={(e) => onContextMenu(e, s.slug)}
+      className={cn(
+        "w-full flex items-center gap-2 py-1.5 text-left transition-colors",
+        indent === 2 ? "pl-9 pr-3" : "pl-5 pr-3",
+        selectedSlug === s.slug
+          ? "bg-zinc-100 dark:bg-zinc-800"
+          : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+      )}
+    >
+      <span className={cn(
+        "w-1.5 h-1.5 rounded-full flex-shrink-0",
+        s.status === "active" ? "bg-green-500" :
+        s.status === "test" ? "bg-amber-400" :
+        s.status === "review" ? "bg-blue-400" :
+        s.status === "draft" ? "bg-violet-400" :
+        s.status === "deprecated" ? "bg-red-400" : "bg-zinc-400"
+      )} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1">
+          <p className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{s.slug}</p>
+          {s.verified && (
+            <CheckCircle2 size={10} className="flex-shrink-0 text-blue-500" />
+          )}
+        </div>
+      </div>
+    </button>
   );
 }
 

@@ -229,8 +229,8 @@ export function FileActions({
     });
   }
 
-  // Export to PDF for order forms and proposals
-  if ((fileType === "order-form" || fileType === "proposal") && onExportPdf) {
+  // Export to PDF for markdown files, order forms, and proposals
+  if ((fileType === "markdown" || fileType === "order-form" || fileType === "proposal") && onExportPdf) {
     items.push({
       label: isExportingPdf ? "Exporting..." : "Export to PDF",
       icon: <FileOutput className="w-4 h-4" />,

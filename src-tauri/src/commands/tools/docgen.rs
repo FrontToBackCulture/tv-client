@@ -385,10 +385,10 @@ pub fn generate_order_form_pdf(data: &OrderFormData, output_path: &str) -> Resul
 
     let status = Command::new(&chrome_path)
         .args([
-            "--headless",
+            "--headless=new",
             "--disable-gpu",
             "--no-sandbox",
-            "--print-to-pdf-no-header",
+            "--no-pdf-header-footer",
             &format!("--print-to-pdf={}", output_path),
             html_path.to_str().unwrap(),
         ])
@@ -1010,10 +1010,10 @@ pub fn generate_proposal_pdf(markdown: &str, output_path: &str) -> Result<String
 
     let status = Command::new(&chrome_path)
         .args([
-            "--headless",
+            "--headless=new",
             "--disable-gpu",
             "--no-sandbox",
-            "--print-to-pdf-no-header",
+            "--no-pdf-header-footer",
             &format!("--print-to-pdf={}", output_path),
             html_path.to_str().unwrap(),
         ])
