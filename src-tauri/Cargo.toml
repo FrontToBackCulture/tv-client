@@ -1,6 +1,6 @@
 [package]
 name = "tv-client"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 default-run = "tv-client"
 
@@ -83,6 +83,10 @@ sha2 = "0.10"
 
 # JWT signing (for GA4 service account auth)
 jsonwebtoken = "9"
+
+# AWS S3 SDK (no external CLI dependency)
+aws-sdk-s3 = "1"
+aws-types = "1"
 
 [profile.dev]
 debug = 0  # No debug symbols - faster builds, smaller target/debug folder

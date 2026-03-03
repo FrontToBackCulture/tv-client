@@ -190,6 +190,58 @@ pub fn scheduler_get_status() -> Result<SchedulerStatus, String> {
 }
 
 // ============================================================================
+// Export / Import
+// ============================================================================
+
+#[command]
+pub fn scheduler_export_jobs(file_path: String) -> Result<usize, String> {
+    let jobs = storage::load_jobs()?;
+
+    // Strip runtime state before exporting
+    let exported: Vec<SchedulerJob> = jobs
+        .into_iter()
+        .map(|mut j| {
+            j.last_run_at = None;
+            j.last_run_status = None;
+            j
+        })
+        .collect();
+
+    let count = exported.len();
+    let content = serde_json::to_string_pretty(&exported)
+        .map_err(|e| format!("Failed to serialize jobs: {}", e))?;
+    std::fs::write(&file_path, content)
+        .map_err(|e| format!("Failed to write file: {}", e))?;
+    Ok(count)
+}
+
+#[command]
+pub fn scheduler_import_jobs(file_path: String) -> Result<usize, String> {
+    let content = std::fs::read_to_string(&file_path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let imported: Vec<SchedulerJob> = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse jobs file: {}", e))?;
+
+    let mut jobs = storage::load_jobs()?;
+    let now = Utc::now();
+    let count = imported.len();
+
+    for mut job in imported {
+        job.id = uuid_v4();
+        job.bot_path = None;
+        job.enabled = false;
+        job.last_run_at = None;
+        job.last_run_status = None;
+        job.created_at = now;
+        job.updated_at = now;
+        jobs.push(job);
+    }
+
+    storage::save_jobs(&jobs)?;
+    Ok(count)
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 

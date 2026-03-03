@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { List, History, Radio, LucideIcon } from "lucide-react";
+import { List, History, Radio, LucideIcon, Upload, Download, Loader2 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   useJobs,
   useRuns,
@@ -10,9 +12,11 @@ import {
   useRunJob,
   useStopJob,
   useSchedulerEvents,
+  schedulerKeys,
   type SchedulerJob,
   type JobInput,
 } from "../../hooks/scheduler";
+import { useQueryClient } from "@tanstack/react-query";
 import { JobList } from "./JobList";
 import { JobForm } from "./JobForm";
 import { JobDetail } from "./JobDetail";
@@ -28,6 +32,9 @@ export function SchedulerModule() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingJob, setEditingJob] = useState<SchedulerJob | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [ioBusy, setIoBusy] = useState(false);
+  const qc = useQueryClient();
 
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);
@@ -85,6 +92,46 @@ export function SchedulerModule() {
     setEditingJob(null);
   }, []);
 
+  const handleExport = useCallback(async () => {
+    try {
+      const filePath = await save({
+        title: "Export scheduler jobs",
+        defaultPath: "tv-desktop-jobs.json",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!filePath) return;
+      setIoBusy(true);
+      setToast(null);
+      const count = await invoke<number>("scheduler_export_jobs", { filePath });
+      setToast({ type: "success", text: `Exported ${count} job${count !== 1 ? "s" : ""}` });
+    } catch (e) {
+      setToast({ type: "error", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setIoBusy(false);
+    }
+  }, []);
+
+  const handleImport = useCallback(async () => {
+    try {
+      const filePath = await open({
+        title: "Import scheduler jobs",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        multiple: false,
+      });
+      if (!filePath) return;
+      setIoBusy(true);
+      setToast(null);
+      const count = await invoke<number>("scheduler_import_jobs", { filePath: filePath as string });
+      qc.invalidateQueries({ queryKey: schedulerKeys.jobs() });
+      qc.invalidateQueries({ queryKey: schedulerKeys.status() });
+      setToast({ type: "success", text: `Imported ${count} job${count !== 1 ? "s" : ""} (disabled)` });
+    } catch (e) {
+      setToast({ type: "error", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setIoBusy(false);
+    }
+  }, [qc]);
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Tab bar */}
@@ -109,7 +156,41 @@ export function SchedulerModule() {
             onClick={() => { setView("api-logs"); setSelectedJobId(null); }}
           />
         </div>
+        <div className="flex items-center gap-2 pr-1">
+          <button
+            onClick={handleImport}
+            disabled={ioBusy}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+            title="Import jobs from JSON file"
+          >
+            {ioBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+            Import
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={ioBusy}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+            title="Export all jobs to JSON file"
+          >
+            {ioBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            Export
+          </button>
+        </div>
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className={`mx-4 mt-2 p-2.5 rounded-lg text-xs border cursor-pointer ${
+            toast.type === "success"
+              ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400"
+              : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400"
+          }`}
+          onClick={() => setToast(null)}
+        >
+          {toast.text}
+        </div>
+      )}
 
       {/* API tasks banner (Slack-triggered skills) */}
       <ApiTasksBanner />

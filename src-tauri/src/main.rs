@@ -413,6 +413,8 @@ fn main() {
             commands::scheduler::commands::scheduler_get_run_steps,
             commands::scheduler::commands::scheduler_get_status,
             commands::scheduler::commands::scheduler_stop_job,
+            commands::scheduler::commands::scheduler_export_jobs,
+            commands::scheduler::commands::scheduler_import_jobs,
             // Skill Registry
             commands::skill_registry::skill_init,
             commands::skill_registry::skill_distribute,

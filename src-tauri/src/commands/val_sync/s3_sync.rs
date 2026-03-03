@@ -1,6 +1,9 @@
 // S3 Sync - Push domain AI folders to S3 and check status
-// Runs `aws s3 sync` to upload ai/ folder contents to production.thinkval.static/solutions/{domain}/
+// Uses aws-sdk-s3 directly — no external AWS CLI dependency needed.
 
+use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region};
+use aws_sdk_s3::primitives::ByteStream;
+use aws_sdk_s3::types::{Delete, ObjectIdentifier};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -8,6 +11,17 @@ use tauri::command;
 
 const S3_BUCKET: &str = "production.thinkval.static";
 const S3_REGION: &str = "ap-southeast-1";
+
+/// Build an S3 client from stored credentials (no env/profile lookup needed)
+fn build_s3_client(access_key: &str, secret_key: &str) -> aws_sdk_s3::Client {
+    let creds = Credentials::new(access_key, secret_key, None, None, "tv-client-settings");
+    let config = aws_sdk_s3::Config::builder()
+        .behavior_version(BehaviorVersion::latest())
+        .region(Region::new(S3_REGION))
+        .credentials_provider(creds)
+        .build();
+    aws_sdk_s3::Client::from_conf(config)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct S3SyncResult {
@@ -44,56 +58,35 @@ pub async fn val_sync_ai_to_s3(domain: String, global_path: String) -> Result<S3
         });
     }
 
-    let s3_dest = format!("s3://{}/solutions/{}/", S3_BUCKET, domain);
+    let client = build_s3_client(access_key, secret_key);
+    let s3_prefix = format!("solutions/{}/", domain);
 
     // Step 1: Remove existing S3 folder to avoid orphan files
-    let rm_output = tokio::process::Command::new("aws")
-        .args([
-            "s3", "rm",
-            &s3_dest,
-            "--recursive",
-            "--region", S3_REGION,
-        ])
-        .env("AWS_ACCESS_KEY_ID", access_key)
-        .env("AWS_SECRET_ACCESS_KEY", secret_key)
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run aws CLI: {}. Is aws CLI installed?", e))?;
+    delete_s3_prefix(&client, &s3_prefix).await?;
 
-    // rm is allowed to fail (folder might not exist yet)
-    if !rm_output.status.success() {
-        let stderr = String::from_utf8_lossy(&rm_output.stderr);
-        // Only fail on real errors, not "folder doesn't exist"
-        if !stderr.is_empty() && !stderr.contains("NoSuchKey") {
-            eprintln!("[s3-sync] Warning: rm failed for {}: {}", domain, stderr.trim());
-        }
+    // Step 2: Upload all local files
+    let mut local_files: HashMap<String, u64> = HashMap::new();
+    collect_local_files(&ai_path, &ai_path, &mut local_files);
+
+    let mut files_uploaded = 0usize;
+    for rel_path in local_files.keys() {
+        let full_path = ai_path.join(rel_path);
+        let body = tokio::fs::read(&full_path)
+            .await
+            .map_err(|e| format!("Failed to read {}: {}", rel_path, e))?;
+
+        let s3_key = format!("{}{}", s3_prefix, rel_path);
+        client
+            .put_object()
+            .bucket(S3_BUCKET)
+            .key(&s3_key)
+            .body(ByteStream::from(body))
+            .send()
+            .await
+            .map_err(|e| format!("Failed to upload {}: {}", rel_path, e))?;
+
+        files_uploaded += 1;
     }
-
-    // Step 2: Upload fresh copy
-    let output = tokio::process::Command::new("aws")
-        .args([
-            "s3", "sync",
-            &ai_path.to_string_lossy(),
-            &s3_dest,
-            "--region", S3_REGION,
-            "--exclude", ".DS_Store",
-            "--exclude", "ai_config.json",
-        ])
-        .env("AWS_ACCESS_KEY_ID", access_key)
-        .env("AWS_SECRET_ACCESS_KEY", secret_key)
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run aws CLI: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    if !output.status.success() {
-        return Err(format!("aws s3 sync failed: {}", stderr.trim()));
-    }
-
-    // Count uploaded files from stdout (lines containing "upload:")
-    let files_uploaded = stdout.lines().filter(|l| l.contains("upload:")).count();
 
     Ok(S3SyncResult {
         domain,
@@ -157,8 +150,9 @@ pub async fn val_s3_ai_status(domain: String, global_path: String) -> Result<S3S
     }
 
     // List S3 files
+    let client = build_s3_client(access_key, secret_key);
     let s3_prefix = format!("solutions/{}/", domain);
-    let s3_files = list_s3_files(access_key, secret_key, &s3_prefix).await?;
+    let s3_files = list_s3_files(&client, &s3_prefix).await?;
 
     // Merge into combined status
     let mut all_paths: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -229,57 +223,117 @@ fn collect_local_files(base: &std::path::Path, dir: &std::path::Path, out: &mut 
     }
 }
 
+/// Delete all objects under an S3 prefix
+async fn delete_s3_prefix(client: &aws_sdk_s3::Client, prefix: &str) -> Result<(), String> {
+    // List all objects under the prefix
+    let objects = list_s3_keys(client, prefix).await?;
+    if objects.is_empty() {
+        return Ok(());
+    }
+
+    // Delete in batches of 1000 (S3 limit)
+    for chunk in objects.chunks(1000) {
+        let ids: Vec<ObjectIdentifier> = chunk
+            .iter()
+            .map(|key| ObjectIdentifier::builder().key(key).build()
+                .expect("ObjectIdentifier build"))
+            .collect();
+
+        let delete = Delete::builder()
+            .set_objects(Some(ids))
+            .quiet(true)
+            .build()
+            .map_err(|e| format!("Failed to build delete request: {}", e))?;
+
+        client
+            .delete_objects()
+            .bucket(S3_BUCKET)
+            .delete(delete)
+            .send()
+            .await
+            .map_err(|e| format!("Failed to delete S3 objects: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// List all object keys under a prefix (handles pagination)
+async fn list_s3_keys(client: &aws_sdk_s3::Client, prefix: &str) -> Result<Vec<String>, String> {
+    let mut keys = Vec::new();
+    let mut continuation_token: Option<String> = None;
+
+    loop {
+        let mut req = client
+            .list_objects_v2()
+            .bucket(S3_BUCKET)
+            .prefix(prefix);
+
+        if let Some(token) = &continuation_token {
+            req = req.continuation_token(token);
+        }
+
+        let resp = req.send().await
+            .map_err(|e| format!("Failed to list S3 objects: {}", e))?;
+
+        for obj in resp.contents() {
+            if let Some(key) = obj.key() {
+                keys.push(key.to_string());
+            }
+        }
+
+        match resp.next_continuation_token() {
+            Some(token) => continuation_token = Some(token.to_string()),
+            None => break,
+        }
+    }
+
+    Ok(keys)
+}
+
 /// List files in S3 under a prefix, returns (relative_path, last_modified, size)
 async fn list_s3_files(
-    access_key: &str,
-    secret_key: &str,
+    client: &aws_sdk_s3::Client,
     prefix: &str,
 ) -> Result<Vec<(String, String, u64)>, String> {
-    let output = tokio::process::Command::new("aws")
-        .args([
-            "s3api", "list-objects-v2",
-            "--bucket", S3_BUCKET,
-            "--prefix", prefix,
-            "--region", S3_REGION,
-            "--output", "json",
-        ])
-        .env("AWS_ACCESS_KEY_ID", access_key)
-        .env("AWS_SECRET_ACCESS_KEY", secret_key)
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run aws CLI: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("aws s3api failed: {}", stderr.trim()));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    if stdout.trim().is_empty() {
-        return Ok(vec![]);
-    }
-
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .map_err(|e| format!("Failed to parse S3 response: {}", e))?;
-
-    let contents = match json.get("Contents").and_then(|c| c.as_array()) {
-        Some(arr) => arr,
-        None => return Ok(vec![]),
-    };
-
     let mut files = Vec::new();
-    for obj in contents {
-        let key = obj.get("Key").and_then(|k| k.as_str()).unwrap_or("");
-        let last_modified = obj.get("LastModified").and_then(|m| m.as_str()).unwrap_or("").to_string();
-        let size = obj.get("Size").and_then(|s| s.as_u64()).unwrap_or(0);
+    let mut continuation_token: Option<String> = None;
 
-        // Strip the prefix to get relative path
-        let rel = key.strip_prefix(prefix).unwrap_or(key).to_string();
-        // Skip empty keys (the folder itself), .DS_Store, and ai_config.json (local-only)
-        if rel.is_empty() || rel == ".DS_Store" || rel == "ai_config.json" {
-            continue;
+    loop {
+        let mut req = client
+            .list_objects_v2()
+            .bucket(S3_BUCKET)
+            .prefix(prefix);
+
+        if let Some(token) = &continuation_token {
+            req = req.continuation_token(token);
         }
-        files.push((rel, last_modified, size));
+
+        let resp = req.send().await
+            .map_err(|e| format!("Failed to list S3 objects: {}", e))?;
+
+        for obj in resp.contents() {
+            let key = obj.key().unwrap_or("");
+            let last_modified = obj.last_modified()
+                .map(|dt: &aws_sdk_s3::primitives::DateTime| {
+                    dt.fmt(aws_sdk_s3::primitives::DateTimeFormat::DateTime)
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default();
+            let size = obj.size().unwrap_or(0) as u64;
+
+            // Strip the prefix to get relative path
+            let rel = key.strip_prefix(prefix).unwrap_or(key).to_string();
+            // Skip empty keys (the folder itself), .DS_Store, and ai_config.json (local-only)
+            if rel.is_empty() || rel == ".DS_Store" || rel == "ai_config.json" {
+                continue;
+            }
+            files.push((rel, last_modified, size));
+        }
+
+        match resp.next_continuation_token() {
+            Some(token) => continuation_token = Some(token.to_string()),
+            None => break,
+        }
     }
 
     Ok(files)
