@@ -343,7 +343,6 @@ fn main() {
             // VAL Sync - S3 sync (push AI folders to S3)
             commands::val_sync::s3_sync::val_sync_ai_to_s3,
             commands::val_sync::s3_sync::val_s3_ai_status,
-            commands::val_sync::s3_sync::val_drive_download_file,
             // VAL Sync - Drive (file browser)
             commands::val_sync::drive::val_drive_list_folders,
             commands::val_sync::drive::val_drive_list_files,

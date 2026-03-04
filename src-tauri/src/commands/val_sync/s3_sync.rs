@@ -290,46 +290,6 @@ async fn list_s3_keys(client: &aws_sdk_s3::Client, prefix: &str) -> Result<Vec<S
     Ok(keys)
 }
 
-/// Download a file from VAL Drive (S3) and return its content as base64.
-/// Drive files live in per-domain buckets: storage.thinkval.{domain}
-/// Keys are like: val_drive/RevRec/01_SourceReports/filename.xlsx
-#[command]
-pub async fn val_drive_download_file(
-    domain: String,
-    file_key: String,
-    max_bytes: Option<u64>,
-) -> Result<String, String> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
-
-    let settings = crate::commands::settings::load_settings()
-        .map_err(|e| format!("Failed to load settings: {}", e))?;
-
-    let access_key = settings.keys.get("aws_access_key_id")
-        .ok_or_else(|| "AWS Access Key ID not configured".to_string())?;
-    let secret_key = settings.keys.get("aws_secret_access_key")
-        .ok_or_else(|| "AWS Secret Access Key not configured".to_string())?;
-
-    let client = build_s3_client(access_key, secret_key);
-    let bucket = format!("storage.thinkval.{}", domain);
-
-    let mut req = client
-        .get_object()
-        .bucket(&bucket)
-        .key(&file_key);
-
-    if let Some(mb) = max_bytes {
-        req = req.range(format!("bytes=0-{}", mb - 1));
-    }
-
-    let resp = req.send().await
-        .map_err(|e| format!("Failed to download s3://{}/{}: {}", bucket, file_key, e))?;
-
-    let body = resp.body.collect().await
-        .map_err(|e| format!("Failed to read body: {}", e))?;
-
-    Ok(STANDARD.encode(body.into_bytes()))
-}
-
 /// List files in S3 under a prefix, returns (relative_path, last_modified, size)
 async fn list_s3_files(
     client: &aws_sdk_s3::Client,

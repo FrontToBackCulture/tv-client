@@ -19,7 +19,6 @@ import {
   Settings2,
   Plus,
   X,
-  FileSearch,
 } from "lucide-react";
 import {
   useDiscoverDomains,
@@ -40,12 +39,6 @@ import {
 import { useRepository } from "../../stores/repositoryStore";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
-import {
-  inspectDriveFile,
-  inspectCacheKey,
-  isInspectable,
-  type FileInspectResult,
-} from "../../lib/drive-inspect";
 
 // ============================
 // Constants
@@ -191,85 +184,6 @@ export function DriveTabView() {
     }
   }, [cachedScanQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // File inspect state
-  const [inspectCache, setInspectCache] = useState<Map<string, FileInspectResult>>(new Map());
-  const [inspectingFiles, setInspectingFiles] = useState<Set<string>>(new Set());
-  const [inspectingDomains, setInspectingDomains] = useState<Set<string>>(new Set());
-  const [inspectDomainProgress, setInspectDomainProgress] = useState<Map<string, string>>(new Map());
-
-  // Build S3 file key from a scan folder path (e.g. "RevRec/01_SourceReports") + file name
-  // Scan folders don't include the "val_drive/" prefix, so we add it here
-  const buildFileKey = useCallback((folder: string, fileName: string) => {
-    const prefix = folder.startsWith("val_drive/") ? "" : "val_drive/";
-    return `${prefix}${folder}/${fileName}`;
-  }, []);
-
-  const handleInspectFile = useCallback(
-    async (domain: string, folder: string, fileName: string, lastModified: string | null) => {
-      const fileKey = buildFileKey(folder, fileName);
-      const cacheKey = inspectCacheKey(domain, fileKey, lastModified);
-
-      setInspectingFiles((prev) => new Set(prev).add(cacheKey));
-      try {
-        const result = await inspectDriveFile(domain, fileKey, fileName);
-        setInspectCache((prev) => new Map(prev).set(cacheKey, result));
-      } finally {
-        setInspectingFiles((prev) => {
-          const next = new Set(prev);
-          next.delete(cacheKey);
-          return next;
-        });
-      }
-    },
-    [buildFileKey]
-  );
-
-  const handleInspectDomain = useCallback(
-    async (domain: string, files: { folder: string; name: string; last_modified: string | null }[]) => {
-      const inspectable = files.filter((f) => isInspectable(f.name));
-      if (inspectable.length === 0) return;
-
-      setInspectingDomains((prev) => new Set(prev).add(domain));
-      try {
-        for (let i = 0; i < inspectable.length; i++) {
-          const f = inspectable[i];
-          setInspectDomainProgress((prev) =>
-            new Map(prev).set(domain, `${i + 1}/${inspectable.length}`)
-          );
-          const fileKey = buildFileKey(f.folder, f.name);
-          const cacheKey = inspectCacheKey(domain, fileKey, f.last_modified);
-
-          // Skip already cached
-          if (inspectCache.has(cacheKey)) continue;
-
-          setInspectingFiles((prev) => new Set(prev).add(cacheKey));
-          try {
-            const result = await inspectDriveFile(domain, fileKey, f.name);
-            setInspectCache((prev) => new Map(prev).set(cacheKey, result));
-          } finally {
-            setInspectingFiles((prev) => {
-              const next = new Set(prev);
-              next.delete(cacheKey);
-              return next;
-            });
-          }
-        }
-      } finally {
-        setInspectingDomains((prev) => {
-          const next = new Set(prev);
-          next.delete(domain);
-          return next;
-        });
-        setInspectDomainProgress((prev) => {
-          const next = new Map(prev);
-          next.delete(domain);
-          return next;
-        });
-      }
-    },
-    [inspectCache, buildFileKey]
-  );
-
   // Folder navigation (breadcrumb path stack)
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
 
@@ -338,22 +252,12 @@ export function DriveTabView() {
         // Get enabled folders from config, or fall back to workflow discovery
         const domainConfig = config.domains[d.domain];
         let foldersToScan: { folder_path: string; move_to_processed: boolean }[] = [];
+
         if (domainConfig && domainConfig.folders.length > 0) {
           // Use persisted config — only scan enabled folders
           foldersToScan = domainConfig.folders
             .filter((f) => f.enabled)
             .map((f) => ({ folder_path: f.folder_path, move_to_processed: f.move_to_processed }));
-          // If config exists but nothing enabled, skip this domain entirely
-          if (foldersToScan.length === 0) {
-            results.push({
-              domain: d.domain,
-              status: "clean",
-              files: [],
-              staleCount: 0,
-              error: null,
-            });
-            continue;
-          }
         } else {
           // Fallback: discover from workflow configs
           try {
@@ -385,14 +289,12 @@ export function DriveTabView() {
           return foldersToScan.length === 0;
         };
 
-        // Check if a folder is in scope (enabled in config, a subfolder, or a parent of an enabled folder)
+        // Check if a folder is in scope (enabled in config, or a subfolder of an enabled folder)
         const isInScope = (fp: string): boolean => {
           if (foldersToScan.length === 0) return true; // no config = scan everything
           if (enabledFolderPaths.has(fp)) return true;
           for (const p of enabledFolderPaths) {
             if (fp.startsWith(p + "/")) return true;
-            // Also traverse into parent folders that contain enabled folders
-            if (p.startsWith(fp + "/")) return true;
           }
           return false;
         };
@@ -641,24 +543,13 @@ export function DriveTabView() {
           </div>
           <div className="flex gap-1">
             <button
-              onClick={() => {
-                if (scanRunning) return;
-                // If we have results and aren't viewing them, show them; otherwise re-scan
-                if (scanResults && !scanAllMode) {
-                  setScanAllMode(true);
-                  setSelectedDomain(null);
-                } else {
-                  handleScanAll();
-                }
-              }}
+              onClick={handleScanAll}
               disabled={scanRunning}
               className={cn(
                 "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded transition-colors",
                 scanRunning
                   ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-wait"
-                  : scanAllMode
-                    ? "bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700"
-                    : "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-950/50 border border-teal-200 dark:border-teal-800"
+                  : "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-950/50 border border-teal-200 dark:border-teal-800"
               )}
             >
               {scanRunning ? (
@@ -666,7 +557,7 @@ export function DriveTabView() {
               ) : (
                 <ScanSearch size={12} />
               )}
-              {scanRunning ? "Scanning..." : scanResults && !scanAllMode ? "Show Scan" : "Scan All"}
+              {scanRunning ? "Scanning..." : "Scan All"}
             </button>
             <button
               onClick={() => {
@@ -762,12 +653,6 @@ export function DriveTabView() {
             onSelectDomain={handleSelectDomain}
             onRescan={handleScanAll}
             onClose={() => setScanAllMode(false)}
-            inspectCache={inspectCache}
-            inspectingFiles={inspectingFiles}
-            inspectingDomains={inspectingDomains}
-            inspectDomainProgress={inspectDomainProgress}
-            onInspectFile={handleInspectFile}
-            onInspectDomain={handleInspectDomain}
           />
         ) : !selectedDomain ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-zinc-400">
@@ -875,39 +760,9 @@ export function DriveTabView() {
                         )}
                       </h3>
                       <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
-                        {unprocessedFiles.map((file, i) => {
-                          const fileKey = `${currentFolderId}/${file.name}`;
-                          const cKey = inspectCacheKey(selectedDomain!, fileKey, file.last_modified);
-                          return (
-                            <FileRow
-                              key={file.id}
-                              file={file}
-                              showStaleWarning={folderExpectsProcessed}
-                              index={i}
-                              inspectResult={inspectCache.get(cKey)}
-                              isInspecting={inspectingFiles.has(cKey)}
-                              onInspect={
-                                isInspectable(file.name)
-                                  ? () => {
-                                      const folder = currentFolderId;
-                                      setInspectingFiles((prev) => new Set(prev).add(cKey));
-                                      inspectDriveFile(selectedDomain!, folder + "/" + file.name, file.name)
-                                        .then((result) => {
-                                          setInspectCache((prev) => new Map(prev).set(cKey, result));
-                                        })
-                                        .finally(() => {
-                                          setInspectingFiles((prev) => {
-                                            const next = new Set(prev);
-                                            next.delete(cKey);
-                                            return next;
-                                          });
-                                        });
-                                    }
-                                  : undefined
-                              }
-                            />
-                          );
-                        })}
+                        {unprocessedFiles.map((file, i) => (
+                          <FileRow key={file.id} file={file} showStaleWarning={folderExpectsProcessed} index={i} />
+                        ))}
                       </div>
                     </div>
                   )}
@@ -919,39 +774,9 @@ export function DriveTabView() {
                         Recently Processed ({processedFiles.length})
                       </h3>
                       <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
-                        {processedFiles.map((file, i) => {
-                          const fileKey = `${currentFolderId}/${file.name}`;
-                          const cKey = inspectCacheKey(selectedDomain!, fileKey, file.last_modified);
-                          return (
-                            <FileRow
-                              key={file.id}
-                              file={file}
-                              showStaleWarning={false}
-                              index={i}
-                              inspectResult={inspectCache.get(cKey)}
-                              isInspecting={inspectingFiles.has(cKey)}
-                              onInspect={
-                                isInspectable(file.name)
-                                  ? () => {
-                                      const folder = currentFolderId;
-                                      setInspectingFiles((prev) => new Set(prev).add(cKey));
-                                      inspectDriveFile(selectedDomain!, folder + "/" + file.name, file.name)
-                                        .then((result) => {
-                                          setInspectCache((prev) => new Map(prev).set(cKey, result));
-                                        })
-                                        .finally(() => {
-                                          setInspectingFiles((prev) => {
-                                            const next = new Set(prev);
-                                            next.delete(cKey);
-                                            return next;
-                                          });
-                                        });
-                                    }
-                                  : undefined
-                              }
-                            />
-                          );
-                        })}
+                        {processedFiles.map((file, i) => (
+                          <FileRow key={file.id} file={file} showStaleWarning={false} index={i} />
+                        ))}
                       </div>
                     </div>
                   )}
@@ -1284,12 +1109,6 @@ function ScanAllView({
   onSelectDomain,
   onRescan,
   onClose,
-  inspectCache,
-  inspectingFiles,
-  inspectingDomains,
-  inspectDomainProgress,
-  onInspectFile,
-  onInspectDomain,
 }: {
   running: boolean;
   progress: string;
@@ -1298,12 +1117,6 @@ function ScanAllView({
   onSelectDomain: (domain: string) => void;
   onRescan: () => void;
   onClose: () => void;
-  inspectCache: Map<string, FileInspectResult>;
-  inspectingFiles: Set<string>;
-  inspectingDomains: Set<string>;
-  inspectDomainProgress: Map<string, string>;
-  onInspectFile: (domain: string, folder: string, fileName: string, lastModified: string | null) => void;
-  onInspectDomain: (domain: string, files: { folder: string; name: string; last_modified: string | null }[]) => void;
 }) {
   if (running) {
     return (
@@ -1390,17 +1203,7 @@ function ScanAllView({
               Stale Files — Needs Attention ({stale.length})
             </h3>
             {stale.map((r) => (
-              <ScanDomainCard
-                key={r.domain}
-                result={r}
-                onSelect={onSelectDomain}
-                inspectCache={inspectCache}
-                inspectingFiles={inspectingFiles}
-                isInspectingDomain={inspectingDomains.has(r.domain)}
-                inspectProgress={inspectDomainProgress.get(r.domain)}
-                onInspectFile={onInspectFile}
-                onInspectDomain={onInspectDomain}
-              />
+              <ScanDomainCard key={r.domain} result={r} onSelect={onSelectDomain} />
             ))}
           </div>
         )}
@@ -1413,17 +1216,7 @@ function ScanAllView({
               Unprocessed — Monitoring ({hasFiles.length})
             </h3>
             {hasFiles.map((r) => (
-              <ScanDomainCard
-                key={r.domain}
-                result={r}
-                onSelect={onSelectDomain}
-                inspectCache={inspectCache}
-                inspectingFiles={inspectingFiles}
-                isInspectingDomain={inspectingDomains.has(r.domain)}
-                inspectProgress={inspectDomainProgress.get(r.domain)}
-                onInspectFile={onInspectFile}
-                onInspectDomain={onInspectDomain}
-              />
+              <ScanDomainCard key={r.domain} result={r} onSelect={onSelectDomain} />
             ))}
           </div>
         )}
@@ -1472,144 +1265,62 @@ function ScanAllView({
 function ScanDomainCard({
   result,
   onSelect,
-  inspectCache,
-  inspectingFiles,
-  isInspectingDomain,
-  inspectProgress,
-  onInspectFile,
-  onInspectDomain,
 }: {
   result: DomainScanResult;
   onSelect: (domain: string) => void;
-  inspectCache: Map<string, FileInspectResult>;
-  inspectingFiles: Set<string>;
-  isInspectingDomain: boolean;
-  inspectProgress?: string;
-  onInspectFile: (domain: string, folder: string, fileName: string, lastModified: string | null) => void;
-  onInspectDomain: (domain: string, files: { folder: string; name: string; last_modified: string | null }[]) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasMore = result.files.length > 5;
   const visibleFiles = expanded ? result.files : result.files.slice(0, 5);
-  const hasInspectableFiles = result.files.some((f) => isInspectable(f.name));
 
   return (
     <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg mb-2 overflow-hidden">
-      <div className="flex items-center">
-        <button
-          onClick={() => onSelect(result.domain)}
-          className="flex-1 px-3 py-2 flex items-center gap-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
-        >
-          <HardDrive size={13} className="flex-shrink-0 text-zinc-400" />
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">{result.domain}</span>
-          <span className="text-xs text-zinc-400 ml-auto">
-            {result.files.length} file{result.files.length !== 1 ? "s" : ""}
-            {result.staleCount > 0 && (
-              <span className="text-amber-600 dark:text-amber-400 ml-1">
-                ({result.staleCount} stale)
-              </span>
-            )}
-          </span>
-          <ChevronRight size={12} className="text-zinc-300 dark:text-zinc-600" />
-        </button>
-        {hasInspectableFiles && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onInspectDomain(result.domain, result.files);
-            }}
-            disabled={isInspectingDomain}
-            className={cn(
-              "flex items-center gap-1 px-2 py-1 mr-2 text-[10px] rounded transition-colors flex-shrink-0",
-              isInspectingDomain
-                ? "text-zinc-400 cursor-wait"
-                : "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
-            )}
-            title="Inspect all files for date ranges"
-          >
-            {isInspectingDomain ? (
-              <>
-                <Loader2 size={10} className="animate-spin" />
-                {inspectProgress}
-              </>
-            ) : (
-              <>
-                <FileSearch size={10} />
-                Inspect All
-              </>
-            )}
-          </button>
-        )}
-      </div>
+      <button
+        onClick={() => onSelect(result.domain)}
+        className="w-full px-3 py-2 flex items-center gap-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+      >
+        <HardDrive size={13} className="flex-shrink-0 text-zinc-400" />
+        <span className="font-medium text-zinc-700 dark:text-zinc-300">{result.domain}</span>
+        <span className="text-xs text-zinc-400 ml-auto">
+          {result.files.length} file{result.files.length !== 1 ? "s" : ""}
+          {result.staleCount > 0 && (
+            <span className="text-amber-600 dark:text-amber-400 ml-1">
+              ({result.staleCount} stale)
+            </span>
+          )}
+        </span>
+        <ChevronRight size={12} className="text-zinc-300 dark:text-zinc-600" />
+      </button>
       {result.files.length > 0 && (
         <div className="border-t border-zinc-100 dark:border-zinc-800/50">
-          {visibleFiles.map((f, i) => {
-            const prefix = f.folder.startsWith("val_drive/") ? "" : "val_drive/";
-            const fileKey = `${prefix}${f.folder}/${f.name}`;
-            const cKey = inspectCacheKey(result.domain, fileKey, f.last_modified);
-            const inspResult = inspectCache.get(cKey);
-            const isInspecting = inspectingFiles.has(cKey);
-            const canInspect = isInspectable(f.name);
-
-            return (
-              <div
-                key={i}
+          {visibleFiles.map((f, i) => (
+            <div
+              key={i}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 text-xs",
+                i > 0 && "border-t border-zinc-50 dark:border-zinc-800/30",
+                f.stale && "bg-amber-50/50 dark:bg-amber-950/10"
+              )}
+            >
+              <File size={11} className="flex-shrink-0 text-zinc-300" />
+              <span className="text-zinc-500 truncate">{f.folder}/</span>
+              <span className="text-zinc-700 dark:text-zinc-300 truncate">{f.name}</span>
+              <span className="text-zinc-400 ml-auto flex-shrink-0">{formatFileSize(f.size)}</span>
+              <span
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 text-xs",
-                  i > 0 && "border-t border-zinc-50 dark:border-zinc-800/30",
-                  f.stale && "bg-amber-50/50 dark:bg-amber-950/10"
+                  "flex-shrink-0 w-16 text-right",
+                  f.stale ? "text-amber-600 dark:text-amber-400 font-medium" : "text-zinc-400"
                 )}
               >
-                <File size={11} className="flex-shrink-0 text-zinc-300" />
-                <span className="text-zinc-500 truncate">{f.folder}/</span>
-                <span className="text-zinc-700 dark:text-zinc-300 truncate">{f.name}</span>
-                {/* Inspect result badge */}
-                {inspResult && inspResult.status === "success" && (
-                  <InspectBadge result={inspResult} />
-                )}
-                {inspResult && inspResult.status === "no-dates" && (
-                  <span className="text-[10px] text-zinc-400 flex-shrink-0">No dates</span>
-                )}
-                {inspResult && inspResult.status === "error" && (
-                  <span className="text-[10px] text-red-400 flex-shrink-0" title={inspResult.error}>
-                    Error
-                  </span>
-                )}
-                <span className="text-zinc-400 ml-auto flex-shrink-0">{formatFileSize(f.size)}</span>
-                <span
-                  className={cn(
-                    "flex-shrink-0 w-16 text-right",
-                    f.stale ? "text-amber-600 dark:text-amber-400 font-medium" : "text-zinc-400"
-                  )}
-                >
-                  {formatRelativeTime(f.last_modified)}
+                {formatRelativeTime(f.last_modified)}
+              </span>
+              {f.stale && (
+                <span title="Stale (>24h)">
+                  <AlertTriangle size={10} className="flex-shrink-0 text-amber-500" />
                 </span>
-                {f.stale && (
-                  <span title="Stale (>24h)">
-                    <AlertTriangle size={10} className="flex-shrink-0 text-amber-500" />
-                  </span>
-                )}
-                {/* Inspect button */}
-                {canInspect && !inspResult && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onInspectFile(result.domain, f.folder, f.name, f.last_modified);
-                    }}
-                    disabled={isInspecting}
-                    className="flex-shrink-0 p-0.5 text-zinc-300 hover:text-indigo-500 transition-colors"
-                    title="Inspect file dates"
-                  >
-                    {isInspecting ? (
-                      <Loader2 size={10} className="animate-spin text-indigo-400" />
-                    ) : (
-                      <FileSearch size={10} />
-                    )}
-                  </button>
-                )}
-              </div>
-            );
-          })}
+              )}
+            </div>
+          ))}
           {hasMore && (
             <button
               onClick={(e) => {
@@ -1637,16 +1348,10 @@ function FileRow({
   file,
   showStaleWarning,
   index,
-  inspectResult,
-  isInspecting,
-  onInspect,
 }: {
   file: DriveFile;
   showStaleWarning: boolean;
   index: number;
-  inspectResult?: FileInspectResult;
-  isInspecting?: boolean;
-  onInspect?: () => void;
 }) {
   const ext = getFileExtension(file.name);
   const stale = showStaleWarning && isStale(file.last_modified);
@@ -1661,18 +1366,6 @@ function FileRow({
     >
       <File size={13} className="flex-shrink-0 text-zinc-400" />
       <span className="truncate flex-1 text-zinc-700 dark:text-zinc-300">{file.name}</span>
-      {/* Inspect result badge */}
-      {inspectResult && inspectResult.status === "success" && (
-        <InspectBadge result={inspectResult} />
-      )}
-      {inspectResult && inspectResult.status === "no-dates" && (
-        <span className="text-[10px] text-zinc-400 flex-shrink-0">No dates</span>
-      )}
-      {inspectResult && inspectResult.status === "error" && (
-        <span className="text-[10px] text-red-400 flex-shrink-0" title={inspectResult.error}>
-          Error
-        </span>
-      )}
       {ext && (
         <span className="text-[10px] uppercase font-medium text-zinc-400 dark:text-zinc-500 px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">
           {ext}
@@ -1696,48 +1389,6 @@ function FileRow({
           <AlertTriangle size={12} className="flex-shrink-0 text-amber-500" />
         </span>
       )}
-      {/* Inspect button */}
-      {onInspect && !inspectResult && (
-        <button
-          onClick={onInspect}
-          disabled={isInspecting}
-          className="flex-shrink-0 p-1 text-zinc-300 hover:text-indigo-500 transition-colors"
-          title="Inspect file dates"
-        >
-          {isInspecting ? (
-            <Loader2 size={12} className="animate-spin text-indigo-400" />
-          ) : (
-            <FileSearch size={12} />
-          )}
-        </button>
-      )}
     </div>
-  );
-}
-
-// ============================
-// Inspect badge sub-component
-// ============================
-
-function InspectBadge({ result }: { result: FileInspectResult }) {
-  if (!result.displayRange) return null;
-
-  // Consider "recent" if max date is within 60 days
-  const isRecent =
-    result.maxDate &&
-    (Date.now() - new Date(result.maxDate).getTime()) / 86400000 <= 60;
-
-  return (
-    <span
-      className={cn(
-        "text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0",
-        isRecent
-          ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400"
-          : "bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400"
-      )}
-      title={`Column: ${result.dateColumn} | ${result.rowCount} rows | ${result.minDate} to ${result.maxDate}`}
-    >
-      {result.displayRange}
-    </span>
   );
 }
