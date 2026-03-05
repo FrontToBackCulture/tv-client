@@ -2,7 +2,7 @@
 // Browse, search, filter all skills in the central registry
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Loader2, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X } from "lucide-react";
+import { Search, Loader2, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown } from "lucide-react";
 import { cn } from "../../lib/cn";
 import {
   type SkillEntry,
@@ -29,6 +29,17 @@ interface SkillWithSlug extends SkillEntry {
   slug: string;
 }
 
+// ─── Drag types (pointer-based, works in Tauri) ─────────────────────────────
+
+type DragItem = { type: "skill"; slug: string } | { type: "category"; id: string };
+
+interface DragState {
+  item: DragItem;
+  startY: number;
+  active: boolean;
+}
+import React from "react";
+
 export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }: SkillCatalogViewProps) {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -38,6 +49,10 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [sortBy, setSortBy] = useState<SortOption>("modified");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // Pointer-based drag state (replaces HTML5 DnD which doesn't work in Tauri)
+  const dragRef = useRef<DragState | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   const toggleGroup = useCallback((key: string) => {
     setCollapsedGroups((prev) => {
@@ -80,13 +95,15 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
   }, [contextMenu]);
 
   // Category CRUD helpers
-  const handleCreateCategory = useCallback((label: string) => {
+  const handleCreateCategory = useCallback((label: string, parent?: string) => {
     const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     if (!id || registry.categories.some(c => c.id === id)) return;
+    const newCat: SkillCategory = { id, label, order: registry.categories.length };
+    if (parent) newCat.parent = parent;
     const updated: SkillRegistry = {
       ...registry,
       updated: new Date().toISOString(),
-      categories: [...registry.categories, { id, label, order: registry.categories.length }],
+      categories: [...registry.categories, newCat],
     };
     registryUpdate.mutate(updated);
   }, [registry, registryUpdate]);
@@ -109,10 +126,14 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
         updatedSkills[slug] = { ...skill, category: "" };
       }
     }
+    // Promote child categories to top-level (orphan protection)
+    const updatedCategories = registry.categories
+      .filter(c => c.id !== categoryId)
+      .map(c => c.parent === categoryId ? { ...c, parent: undefined } : c);
     const updated: SkillRegistry = {
       ...registry,
       updated: new Date().toISOString(),
-      categories: registry.categories.filter(c => c.id !== categoryId),
+      categories: updatedCategories,
       skills: updatedSkills,
     };
     registryUpdate.mutate(updated);
@@ -127,6 +148,73 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
     registryUpdate.mutate(updated);
     setContextMenu(null);
   }, [registry, registryUpdate]);
+
+  const handleReparentCategory = useCallback((categoryId: string, newParent: string | undefined) => {
+    // Don't parent to self
+    if (categoryId === newParent) return;
+    // Don't allow parenting under a sub-category (max depth 2)
+    if (newParent) {
+      const target = registry.categories.find(c => c.id === newParent);
+      if (target?.parent) return; // target is already a child
+    }
+    // Don't allow parenting if the category itself has children (would create depth 3)
+    if (newParent && registry.categories.some(c => c.parent === categoryId)) return;
+    const updated: SkillRegistry = {
+      ...registry,
+      updated: new Date().toISOString(),
+      categories: registry.categories.map(c =>
+        c.id === categoryId ? { ...c, parent: newParent } : c
+      ),
+    };
+    registryUpdate.mutate(updated);
+  }, [registry, registryUpdate]);
+
+  const handleDragBegin = useCallback((item: DragItem, e: React.PointerEvent) => {
+    dragRef.current = { item, startY: e.clientY, active: false };
+
+    const onMove = (ev: PointerEvent) => {
+      if (!dragRef.current) return;
+      if (!dragRef.current.active && Math.abs(ev.clientY - dragRef.current.startY) > 5) {
+        dragRef.current.active = true;
+        // Suppress the click that would fire on pointerup
+        const suppressClick = (ce: MouseEvent) => { ce.stopPropagation(); ce.preventDefault(); };
+        document.addEventListener("click", suppressClick, { capture: true, once: true });
+      }
+      if (dragRef.current.active) {
+        // Find drop target under cursor via data attribute
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        const dropEl = el?.closest("[data-drop-id]") as HTMLElement | null;
+        setDropTarget(dropEl?.dataset.dropId ?? null);
+      }
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+
+      if (dragRef.current?.active) {
+        // Find final drop target
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        const dropEl = el?.closest("[data-drop-id]") as HTMLElement | null;
+        const targetId = dropEl?.dataset.dropId ?? null;
+
+        if (targetId !== null) {
+          const currentItem = dragRef.current.item;
+          if (currentItem.type === "skill") {
+            handleMoveSkillToCategory(currentItem.slug, targetId);
+          } else if (currentItem.type === "category" && currentItem.id !== targetId) {
+            handleReparentCategory(currentItem.id, targetId || undefined);
+          }
+        }
+      }
+
+      dragRef.current = null;
+      setDropTarget(null);
+    };
+
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  }, [handleMoveSkillToCategory, handleReparentCategory]);
 
   // Build modification date lookup
   const modDateMap = useMemo(() => {
@@ -231,25 +319,46 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
     document.addEventListener("mouseup", onUp);
   }, [sidebarWidth]);
 
+  // Expand/collapse all groups in sidebar
+  const allGroupKeys = useMemo(() => {
+    const keys: string[] = [];
+    const addGroupKeys = (groupKey: string, skills: SkillWithSlug[]) => {
+      keys.push(groupKey);
+      for (const cat of registry.categories) {
+        if (skills.some(s => s.category === cat.id)) {
+          keys.push(`${groupKey}/${cat.id}`);
+          // Add sub-category keys for children of this category
+          if (!cat.parent) {
+            const children = registry.categories.filter(c => c.parent === cat.id);
+            for (const child of children) {
+              if (skills.some(s => s.category === child.id)) {
+                keys.push(`${groupKey}/${child.id}`);
+              }
+            }
+          }
+        }
+      }
+      if (skills.some(s => !s.category || !registry.categories.some(c => c.id === s.category))) {
+        keys.push(`${groupKey}/uncategorized`);
+      }
+    };
+    if (botSkills.length > 0) addGroupKeys("bot", botSkills);
+    if (platformSkills.length > 0) addGroupKeys("platform", platformSkills);
+    return keys;
+  }, [registry.categories, botSkills, platformSkills]);
+
+  const allCollapsed = allGroupKeys.length > 0 && allGroupKeys.every(k => collapsedGroups.has(k));
+
+  const toggleCollapseAll = useCallback(() => {
+    if (allCollapsed) {
+      setCollapsedGroups(new Set());
+    } else {
+      setCollapsedGroups(new Set(allGroupKeys));
+    }
+  }, [allCollapsed, allGroupKeys]);
+
   return (
     <div className="h-full flex flex-col">
-      {/* Category tabs */}
-      <div className="flex-shrink-0 flex items-center gap-0.5 px-4 border-b border-zinc-100 dark:border-zinc-800/50 overflow-x-auto">
-        <TabButton
-          active={activeCategory === "all"}
-          onClick={() => setActiveCategory("all")}
-          label={`All ${categoryCounts.all || 0}`}
-        />
-        {registry.categories.map((cat) => (
-          <TabButton
-            key={cat.id}
-            active={activeCategory === cat.id}
-            onClick={() => setActiveCategory(cat.id)}
-            label={`${cat.label} ${categoryCounts[cat.id] || 0}`}
-          />
-        ))}
-      </div>
-
       {/* Search + filters */}
       <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
         <div className="relative flex-1">
@@ -315,27 +424,54 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
             <span className="flex-1 text-left">Uncategorized</span>
             <span className="text-[10px] text-zinc-400">{categoryCounts[""] || 0}</span>
           </button>
-          {registry.categories.map(cat => (
-            <div key={cat.id} className="flex items-center group/ctx">
-              <button
-                onClick={() => handleMoveSkillToCategory(contextMenu.slug, cat.id)}
-                className={cn(
-                  "flex-1 flex items-center gap-2 pl-3 pr-1 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-left",
-                  registry.skills[contextMenu.slug]?.category === cat.id ? "text-teal-600 font-medium" : "text-zinc-600 dark:text-zinc-300"
-                )}
-              >
-                <span className="flex-1 truncate">{cat.label}</span>
-                <span className="text-[10px] text-zinc-400">{categoryCounts[cat.id] || 0}</span>
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat.id); setContextMenu(null); }}
-                className="px-1.5 py-1.5 opacity-0 group-hover/ctx:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
-                title="Delete category"
-              >
-                <X size={10} />
-              </button>
-            </div>
-          ))}
+          {/* Render categories hierarchically: top-level first, then children indented */}
+          {registry.categories.filter(c => !c.parent).map(cat => {
+            const children = registry.categories.filter(c => c.parent === cat.id);
+            return (
+              <div key={cat.id}>
+                <div className="flex items-center group/ctx">
+                  <button
+                    onClick={() => handleMoveSkillToCategory(contextMenu.slug, cat.id)}
+                    className={cn(
+                      "flex-1 flex items-center gap-2 pl-3 pr-1 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-left",
+                      registry.skills[contextMenu.slug]?.category === cat.id ? "text-teal-600 font-medium" : "text-zinc-600 dark:text-zinc-300"
+                    )}
+                  >
+                    <span className="flex-1 truncate">{cat.label}</span>
+                    <span className="text-[10px] text-zinc-400">{categoryCounts[cat.id] || 0}</span>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat.id); setContextMenu(null); }}
+                    className="px-1.5 py-1.5 opacity-0 group-hover/ctx:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
+                    title="Delete category"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+                {children.map(child => (
+                  <div key={child.id} className="flex items-center group/ctx">
+                    <button
+                      onClick={() => handleMoveSkillToCategory(contextMenu.slug, child.id)}
+                      className={cn(
+                        "flex-1 flex items-center gap-2 pl-7 pr-1 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-left",
+                        registry.skills[contextMenu.slug]?.category === child.id ? "text-teal-600 font-medium" : "text-zinc-600 dark:text-zinc-300"
+                      )}
+                    >
+                      <span className="flex-1 truncate">{child.label}</span>
+                      <span className="text-[10px] text-zinc-400">{categoryCounts[child.id] || 0}</span>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteCategory(child.id); setContextMenu(null); }}
+                      className="px-1.5 py-1.5 opacity-0 group-hover/ctx:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
+                      title="Delete category"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -367,6 +503,17 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
             </div>
           ) : (
             <div className="py-1">
+              {/* Expand/Collapse All */}
+              <div className="flex justify-end px-3 py-1">
+                <button
+                  onClick={toggleCollapseAll}
+                  className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                  title={allCollapsed ? "Expand all" : "Collapse all"}
+                >
+                  <ChevronsUpDown size={12} />
+                  <span>{allCollapsed ? "Expand All" : "Collapse All"}</span>
+                </button>
+              </div>
               {botSkills.length > 0 && (
                 <SkillGroup
                   groupKey="bot"
@@ -380,6 +527,8 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
                   onCreateCategory={handleCreateCategory}
                   onRenameCategory={handleRenameCategory}
                   onDeleteCategory={handleDeleteCategory}
+                  onDragBegin={handleDragBegin}
+                  dropTarget={dropTarget}
                   onContextMenu={(e, slug) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, slug }); }}
                 />
               )}
@@ -396,6 +545,8 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
                   onCreateCategory={handleCreateCategory}
                   onRenameCategory={handleRenameCategory}
                   onDeleteCategory={handleDeleteCategory}
+                  onDragBegin={handleDragBegin}
+                  dropTarget={dropTarget}
                   onContextMenu={(e, slug) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, slug }); }}
                 />
               )}
@@ -440,22 +591,6 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function TabButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "px-3 py-2 text-xs whitespace-nowrap transition-colors border-b-2",
-        active
-          ? "border-teal-500 text-teal-600 dark:text-teal-400 font-medium"
-          : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
 function SkillGroup({
   groupKey,
   label,
@@ -468,6 +603,8 @@ function SkillGroup({
   onCreateCategory,
   onRenameCategory,
   onDeleteCategory,
+  onDragBegin,
+  dropTarget,
   onContextMenu,
 }: {
   groupKey: string;
@@ -478,12 +615,15 @@ function SkillGroup({
   onSelect: (slug: string) => void;
   collapsedGroups: Set<string>;
   onToggleGroup: (key: string) => void;
-  onCreateCategory: (label: string) => void;
+  onCreateCategory: (label: string, parent?: string) => void;
   onRenameCategory: (id: string, label: string) => void;
   onDeleteCategory: (id: string) => void;
+  onDragBegin: (item: DragItem, e: React.PointerEvent) => void;
+  dropTarget: string | null;
   onContextMenu: (e: React.MouseEvent, slug: string) => void;
 }) {
   const [isCreating, setIsCreating] = useState(false);
+  const [creatingParent, setCreatingParent] = useState<string | undefined>(undefined);
   const [newCatLabel, setNewCatLabel] = useState("");
   const [renamingCatId, setRenamingCatId] = useState<string | null>(null);
   const [renameLabel, setRenameLabel] = useState("");
@@ -500,9 +640,13 @@ function SkillGroup({
     if (renamingCatId) renameInputRef.current?.focus();
   }, [renamingCatId]);
 
-  // Group skills by category
-  const sortedCategories = useMemo(() => {
-    return [...categories].sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.label.localeCompare(b.label));
+  // Separate top-level categories from sub-categories
+  const topLevelCategories = useMemo(() => {
+    return [...categories].filter(c => !c.parent).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.label.localeCompare(b.label));
+  }, [categories]);
+
+  const childCategoriesOf = useCallback((parentId: string) => {
+    return [...categories].filter(c => c.parent === parentId).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.label.localeCompare(b.label));
   }, [categories]);
 
   const skillsByCategory = useMemo(() => {
@@ -515,11 +659,21 @@ function SkillGroup({
     return map;
   }, [skills]);
 
+  // Count skills in a category + all its children
+  const totalSkillCount = useCallback((catId: string) => {
+    let count = skillsByCategory.get(catId)?.length ?? 0;
+    for (const child of childCategoriesOf(catId)) {
+      count += skillsByCategory.get(child.id)?.length ?? 0;
+    }
+    return count;
+  }, [skillsByCategory, childCategoriesOf]);
+
   const handleCreateSubmit = () => {
     const trimmed = newCatLabel.trim();
-    if (trimmed) onCreateCategory(trimmed);
+    if (trimmed) onCreateCategory(trimmed, creatingParent);
     setNewCatLabel("");
     setIsCreating(false);
+    setCreatingParent(undefined);
   };
 
   const handleRenameSubmit = () => {
@@ -530,10 +684,18 @@ function SkillGroup({
     setRenameLabel("");
   };
 
+  const startCreating = (parent?: string) => {
+    setCreatingParent(parent);
+    setIsCreating(true);
+  };
+
   return (
     <div className="mb-2">
-      {/* Group header */}
-      <div className="flex items-center group">
+      {/* Group header — drop here to uncategorize / promote to top-level */}
+      <div
+        data-drop-id=""
+        className={cn("flex items-center group", dropTarget === "" && "bg-teal-50 dark:bg-teal-900/20")}
+      >
         <button
           onClick={() => onToggleGroup(groupKey)}
           className="flex-1 flex items-center gap-1.5 px-3 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
@@ -544,7 +706,7 @@ function SkillGroup({
           </span>
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); setIsCreating(true); }}
+          onClick={(e) => { e.stopPropagation(); startCreating(); }}
           className="px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-teal-500"
           title="Add category"
         >
@@ -554,8 +716,8 @@ function SkillGroup({
 
       {!isCollapsed && (
         <>
-          {/* Inline create input */}
-          {isCreating && (
+          {/* Inline create input (top-level) */}
+          {isCreating && !creatingParent && (
             <div className="px-3 py-1">
               <input
                 ref={createInputRef}
@@ -563,7 +725,7 @@ function SkillGroup({
                 onChange={(e) => setNewCatLabel(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreateSubmit();
-                  if (e.key === "Escape") { setIsCreating(false); setNewCatLabel(""); }
+                  if (e.key === "Escape") { setIsCreating(false); setNewCatLabel(""); setCreatingParent(undefined); }
                 }}
                 onBlur={handleCreateSubmit}
                 placeholder="Category name..."
@@ -572,17 +734,24 @@ function SkillGroup({
             </div>
           )}
 
-          {/* Category sub-groups */}
-          {sortedCategories.map(cat => {
-            const catSkills = skillsByCategory.get(cat.id);
-            if (!catSkills || catSkills.length === 0) return null;
+          {/* Hierarchical category rendering */}
+          {topLevelCategories.map(cat => {
+            const catSkills = skillsByCategory.get(cat.id) ?? [];
+            const children = childCategoriesOf(cat.id);
+            const total = totalSkillCount(cat.id);
+            if (total === 0 && children.length === 0) return null;
+
             const subKey = `${groupKey}/${cat.id}`;
             const isCatCollapsed = collapsedGroups.has(subKey);
 
             return (
               <div key={cat.id}>
-                {/* Category sub-header */}
-                <div className="flex items-center group/cat">
+                {/* Category header */}
+                <div
+                  data-drop-id={cat.id}
+                  className={cn("flex items-center group/cat", dropTarget === cat.id && "bg-teal-50 dark:bg-teal-900/20 rounded")}
+                  onPointerDown={(e) => { if (e.button === 0) onDragBegin({ type: "category", id: cat.id }, e); }}
+                >
                   <button
                     onClick={() => onToggleGroup(subKey)}
                     className="flex-1 flex items-center gap-1.5 pl-6 pr-2 py-1 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
@@ -609,7 +778,14 @@ function SkillGroup({
                         {cat.label}
                       </span>
                     )}
-                    <span className="text-[10px] text-zinc-400 ml-auto">{catSkills.length}</span>
+                    <span className="text-[10px] text-zinc-400 ml-auto">{total}</span>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startCreating(cat.id); }}
+                    className="px-1 py-1 opacity-0 group-hover/cat:opacity-100 transition-opacity text-zinc-400 hover:text-teal-500"
+                    title="Add sub-category"
+                  >
+                    <Plus size={10} />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); onDeleteCategory(cat.id); }}
@@ -620,10 +796,92 @@ function SkillGroup({
                   </button>
                 </div>
 
-                {/* Skills in category */}
-                {!isCatCollapsed && catSkills.map(s => (
-                  <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} indent={2} />
-                ))}
+                {!isCatCollapsed && (
+                  <>
+                    {/* Inline create input for sub-category */}
+                    {isCreating && creatingParent === cat.id && (
+                      <div className="pl-9 pr-3 py-1">
+                        <input
+                          ref={createInputRef}
+                          value={newCatLabel}
+                          onChange={(e) => setNewCatLabel(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleCreateSubmit();
+                            if (e.key === "Escape") { setIsCreating(false); setNewCatLabel(""); setCreatingParent(undefined); }
+                          }}
+                          onBlur={handleCreateSubmit}
+                          placeholder="Sub-category name..."
+                          className="w-full px-2 py-1 text-xs rounded border border-teal-400 dark:border-teal-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* Direct skills in this parent category */}
+                    {catSkills.map(s => (
+                      <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} onDragBegin={onDragBegin} indent={2} />
+                    ))}
+
+                    {/* Sub-categories */}
+                    {children.map(child => {
+                      const childSkills = skillsByCategory.get(child.id) ?? [];
+                      if (childSkills.length === 0) return null;
+                      const childKey = `${groupKey}/${child.id}`;
+                      const isChildCollapsed = collapsedGroups.has(childKey);
+
+                      return (
+                        <div key={child.id}>
+                          {/* Sub-category header */}
+                          <div
+                            data-drop-id={child.id}
+                            className={cn("flex items-center group/subcat", dropTarget === child.id && "bg-teal-50 dark:bg-teal-900/20 rounded")}
+                            onPointerDown={(e) => { if (e.button === 0) onDragBegin({ type: "category", id: child.id }, e); }}
+                          >
+                            <button
+                              onClick={() => onToggleGroup(childKey)}
+                              className="flex-1 flex items-center gap-1.5 pl-9 pr-2 py-1 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                            >
+                              <ChevronRight size={8} className={cn("text-zinc-400 transition-transform", !isChildCollapsed && "rotate-90")} />
+                              {renamingCatId === child.id ? (
+                                <input
+                                  ref={renameInputRef}
+                                  value={renameLabel}
+                                  onChange={(e) => setRenameLabel(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleRenameSubmit();
+                                    if (e.key === "Escape") { setRenamingCatId(null); setRenameLabel(""); }
+                                  }}
+                                  onBlur={handleRenameSubmit}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex-1 px-1 py-0 text-[10px] rounded border border-teal-400 dark:border-teal-600 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none"
+                                />
+                              ) : (
+                                <span
+                                  className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 truncate"
+                                  onDoubleClick={(e) => { e.stopPropagation(); setRenamingCatId(child.id); setRenameLabel(child.label); }}
+                                >
+                                  {child.label}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-zinc-400 ml-auto">{childSkills.length}</span>
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onDeleteCategory(child.id); }}
+                              className="px-1.5 py-1 opacity-0 group-hover/subcat:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
+                              title="Delete sub-category"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+
+                          {/* Skills in sub-category */}
+                          {!isChildCollapsed && childSkills.map(s => (
+                            <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} onDragBegin={onDragBegin} indent={3} />
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
               </div>
             );
           })}
@@ -640,7 +898,7 @@ function SkillGroup({
             // If there are no categories at all, render skills flat (no sub-header)
             if (categories.length === 0) {
               return allUncat.map(s => (
-                <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} indent={1} />
+                <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} onDragBegin={onDragBegin} indent={1} />
               ));
             }
 
@@ -657,7 +915,7 @@ function SkillGroup({
                   <span className="text-[10px] text-zinc-400 ml-auto">{allUncat.length}</span>
                 </button>
                 {!isCatCollapsed && allUncat.map(s => (
-                  <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} indent={2} />
+                  <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} onDragBegin={onDragBegin} indent={2} />
                 ))}
               </div>
             );
@@ -673,21 +931,24 @@ function SkillRow({
   selectedSlug,
   onSelect,
   onContextMenu,
+  onDragBegin,
   indent,
 }: {
   skill: SkillWithSlug;
   selectedSlug: string | null;
   onSelect: (slug: string) => void;
   onContextMenu: (e: React.MouseEvent, slug: string) => void;
-  indent: 1 | 2;
+  onDragBegin?: (item: DragItem, e: React.PointerEvent) => void;
+  indent: 1 | 2 | 3;
 }) {
   return (
     <button
       onClick={() => onSelect(s.slug)}
       onContextMenu={(e) => onContextMenu(e, s.slug)}
+      onPointerDown={(e) => { if (e.button === 0 && onDragBegin) onDragBegin({ type: "skill", slug: s.slug }, e); }}
       className={cn(
         "w-full flex items-center gap-2 py-1.5 text-left transition-colors",
-        indent === 2 ? "pl-9 pr-3" : "pl-5 pr-3",
+        indent === 3 ? "pl-12 pr-3" : indent === 2 ? "pl-9 pr-3" : "pl-5 pr-3",
         selectedSlug === s.slug
           ? "bg-zinc-100 dark:bg-zinc-800"
           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"

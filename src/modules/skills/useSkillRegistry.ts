@@ -11,6 +11,7 @@ export interface SkillCategory {
   id: string;
   label: string;
   order?: number;
+  parent?: string;
 }
 
 export interface SkillDistribution {
