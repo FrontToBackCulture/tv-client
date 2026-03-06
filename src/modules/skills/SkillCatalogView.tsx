@@ -1202,6 +1202,7 @@ function SkillDashboard({
 function ReportGallery() {
   const { data: examples = [], isLoading } = useSkillExamples();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [gallerySearch, setGallerySearch] = useState("");
   const { data: selectedHtml } = useReadFile(selectedPath ?? undefined);
 
   const selectedExample = examples.find(e => e.file_path === selectedPath);
@@ -1214,8 +1215,6 @@ function ReportGallery() {
     }
     return overrideStyle + selectedHtml;
   }, [selectedHtml]);
-
-  // no-op: removed dynamic height — iframe fills available space and scrolls internally
 
   if (isLoading) {
     return (
@@ -1254,17 +1253,43 @@ function ReportGallery() {
     );
   }
 
+  // Filter and sort examples
+  const sorted = useMemo(() => {
+    const q = gallerySearch.toLowerCase();
+    return [...examples]
+      .filter(ex => !q || ex.skill_name.toLowerCase().includes(q) || ex.file_name.toLowerCase().includes(q) || ex.slug.toLowerCase().includes(q))
+      .sort((a, b) => a.skill_name.localeCompare(b.skill_name));
+  }, [examples, gallerySearch]);
+
   return (
-    <div className="p-4">
-      <div className="grid grid-cols-2 gap-4">
-        {examples.map(ex => (
-          <ReportThumbnail
-            key={ex.file_path}
-            example={ex}
-            onClick={() => setSelectedPath(ex.file_path)}
-          />
-        ))}
+    <div className="p-4 space-y-3">
+      <div className="relative">
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+        <input
+          value={gallerySearch}
+          onChange={e => setGallerySearch(e.target.value)}
+          placeholder="Filter reports..."
+          className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        />
+        {gallerySearch && (
+          <button onClick={() => setGallerySearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+            <X size={12} />
+          </button>
+        )}
       </div>
+      {sorted.length === 0 ? (
+        <div className="text-center py-8 text-xs text-zinc-400">No reports matching "{gallerySearch}"</div>
+      ) : (
+        <div className="grid grid-cols-4 gap-3">
+          {sorted.map(ex => (
+            <ReportThumbnail
+              key={ex.file_path}
+              example={ex}
+              onClick={() => setSelectedPath(ex.file_path)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1288,12 +1313,12 @@ function ReportThumbnail({ example, onClick }: { example: { slug: string; skill_
       className="group rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-sm transition-all"
     >
       {/* Thumbnail preview */}
-      <div className="relative h-48 overflow-hidden bg-white">
+      <div className="relative h-36 overflow-hidden bg-white">
         {thumbSrcDoc ? (
           <iframe
             srcDoc={thumbSrcDoc}
-            className="w-[200%] h-[200%] border-0 origin-top-left pointer-events-none"
-            style={{ transform: "scale(0.5)" }}
+            className="w-[300%] h-[300%] border-0 origin-top-left pointer-events-none"
+            style={{ transform: "scale(0.333)" }}
             tabIndex={-1}
           />
         ) : (

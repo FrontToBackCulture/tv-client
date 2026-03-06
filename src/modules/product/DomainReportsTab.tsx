@@ -10,6 +10,8 @@ import {
   Loader2,
   List,
   LayoutGrid,
+  Search,
+  X,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useListDirectory, useReadFile, type FileEntry } from "../../hooks/useFiles";
@@ -25,6 +27,7 @@ export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabPr
   const openPanel = useSidePanelStore((s) => s.openPanel);
   const [viewMode, setViewMode] = useState<"list" | "gallery">("gallery");
   const [galleryPreview, setGalleryPreview] = useState<string | null>(null);
+  const [gallerySearch, setGallerySearch] = useState("");
 
   if (dirQuery.isLoading) {
     return (
@@ -125,33 +128,30 @@ export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabPr
         /* Gallery full preview */
         <ReportFullPreview filePath={galleryPreview} onBack={() => setGalleryPreview(null)} />
       ) : (
-        /* Gallery grid */
-        <div>
-          {htmlFiles.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4">
-              {htmlFiles.map(f => (
-                <ReportThumbnail key={f.path} file={f} onClick={() => setGalleryPreview(f.path)} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-xs text-zinc-400">
-              No HTML reports found. Switch to list view to see all files.
-            </div>
-          )}
-          {/* Non-HTML files below gallery */}
-          {files.filter(f => !f.name.endsWith(".html")).length > 0 && (
-            <div className="mt-4">
-              <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Other Files</p>
-              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
-                {folders.map((folder) => (
-                  <ReportFolder key={folder.path} folder={folder} onOpenFile={openPanel} />
-                ))}
-                {files.filter(f => !f.name.endsWith(".html")).map((file) => (
-                  <ReportFileRow key={file.path} file={file} onOpen={openPanel} />
-                ))}
-              </div>
-            </div>
-          )}
+        /* Gallery grid — grouped by folder */
+        <div className="space-y-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              value={gallerySearch}
+              onChange={e => setGallerySearch(e.target.value)}
+              placeholder="Filter reports..."
+              className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            />
+            {gallerySearch && (
+              <button onClick={() => setGallerySearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <GalleryGrid
+            folders={folders}
+            topLevelHtmlFiles={htmlFiles}
+            otherFiles={files.filter(f => !f.name.endsWith(".html"))}
+            onPreview={setGalleryPreview}
+            onOpenFile={openPanel}
+            search={gallerySearch}
+          />
         </div>
       )}
     </div>
@@ -283,12 +283,12 @@ function ReportThumbnail({ file, onClick }: { file: FileEntry; onClick: () => vo
       onClick={onClick}
       className="group rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-sm transition-all"
     >
-      <div className="relative h-48 overflow-hidden bg-white">
+      <div className="relative h-36 overflow-hidden bg-white">
         {thumbSrcDoc ? (
           <iframe
             srcDoc={thumbSrcDoc}
-            className="w-[200%] h-[200%] border-0 origin-top-left pointer-events-none"
-            style={{ transform: "scale(0.5)" }}
+            className="w-[300%] h-[300%] border-0 origin-top-left pointer-events-none"
+            style={{ transform: "scale(0.333)" }}
             tabIndex={-1}
           />
         ) : (
@@ -339,6 +339,101 @@ function ReportFullPreview({ filePath, onBack }: { filePath: string; onBack: () 
           <Loader2 size={16} className="animate-spin text-zinc-400" />
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Gallery grid grouped by folder ──────────────────────────────────────────
+
+function GalleryGrid({
+  folders,
+  topLevelHtmlFiles,
+  otherFiles,
+  onPreview,
+  onOpenFile,
+  search = "",
+}: {
+  folders: FileEntry[];
+  topLevelHtmlFiles: FileEntry[];
+  otherFiles: FileEntry[];
+  onPreview: (path: string) => void;
+  onOpenFile: (path: string, name: string) => void;
+  search?: string;
+}) {
+  const q = search.toLowerCase();
+  const filteredTopLevel = topLevelHtmlFiles.filter(f => !q || f.name.toLowerCase().includes(q));
+
+  return (
+    <div className="space-y-6">
+      {/* Top-level HTML files (ungrouped) */}
+      {filteredTopLevel.length > 0 && (
+        <div>
+          {folders.length > 0 && (
+            <h3 className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
+              Reports
+              <span className="ml-1.5 text-zinc-300 dark:text-zinc-600 font-normal">{filteredTopLevel.length}</span>
+            </h3>
+          )}
+          <div className="grid grid-cols-4 gap-3">
+            {filteredTopLevel.map(f => (
+              <ReportThumbnail key={f.path} file={f} onClick={() => onPreview(f.path)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Folder groups */}
+      {folders.map(folder => (
+        <FolderGalleryGroup key={folder.path} folder={folder} onPreview={onPreview} search={q} />
+      ))}
+
+      {/* Non-HTML files */}
+      {otherFiles.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Other Files</p>
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+            {otherFiles.map(file => (
+              <ReportFileRow key={file.path} file={file} onOpen={onOpenFile} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FolderGalleryGroup({ folder, onPreview, search = "" }: { folder: FileEntry; onPreview: (path: string) => void; search?: string }) {
+  const childQuery = useListDirectory(folder.path);
+  const htmlFiles = (childQuery.data ?? [])
+    .filter(f => !f.is_directory && f.name.endsWith(".html") && (!search || f.name.toLowerCase().includes(search) || folder.name.toLowerCase().includes(search)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (childQuery.isLoading) {
+    return (
+      <div>
+        <h3 className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
+          {folder.name}
+        </h3>
+        <div className="flex items-center gap-2 py-4 text-xs text-zinc-400">
+          <Loader2 size={12} className="animate-spin" /> Loading...
+        </div>
+      </div>
+    );
+  }
+
+  if (htmlFiles.length === 0) return null;
+
+  return (
+    <div>
+      <h3 className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
+        {folder.name}
+        <span className="ml-1.5 text-zinc-300 dark:text-zinc-600 font-normal">{htmlFiles.length}</span>
+      </h3>
+      <div className="grid grid-cols-4 gap-3">
+        {htmlFiles.map(f => (
+          <ReportThumbnail key={f.path} file={f} onClick={() => onPreview(f.path)} />
+        ))}
+      </div>
     </div>
   );
 }
