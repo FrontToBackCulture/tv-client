@@ -46,7 +46,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [view, setView] = useState<"catalog" | "gallery">("catalog");
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
+  const [activeCategory, _setActiveCategory] = useState("all");
   const [targetFilter, setTargetFilter] = useState<TargetFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sidebarWidth, setSidebarWidth] = useState(280);
