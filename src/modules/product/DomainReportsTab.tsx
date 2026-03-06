@@ -1,7 +1,7 @@
 // src/modules/product/DomainReportsTab.tsx
 // Reports tab for domain detail panel — lists report folders and files from {domain}/reports/
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import {
   Folder,
   FileText,
@@ -62,6 +62,15 @@ export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabPr
 
   // Collect all HTML files (top-level + inside folders) for gallery
   const htmlFiles = files.filter(f => f.name.endsWith(".html"));
+
+  // When showing full preview, render full-height iframe
+  if (viewMode === "gallery" && galleryPreview) {
+    return (
+      <div>
+        <ReportFullPreview filePath={galleryPreview} onBack={() => setGalleryPreview(null)} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -309,18 +318,6 @@ function ReportFullPreview({ filePath, onBack }: { filePath: string; onBack: () 
     return overrideStyle + htmlContent;
   }, [htmlContent]);
 
-  const [iframeHeight, setIframeHeight] = useState(800);
-  const iframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
-    if (!iframe) return;
-    const handleLoad = () => {
-      try {
-        const doc = iframe.contentDocument;
-        if (doc?.body) setIframeHeight(doc.body.scrollHeight + 20);
-      } catch { /* cross-origin */ }
-    };
-    iframe.addEventListener("load", handleLoad);
-  }, []);
-
   return (
     <div>
       <button
@@ -331,15 +328,12 @@ function ReportFullPreview({ filePath, onBack }: { filePath: string; onBack: () 
         Back to gallery
       </button>
       {iframeSrcDoc ? (
-        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-          <iframe
-            ref={iframeRef}
-            srcDoc={iframeSrcDoc}
-            className="w-full border-0"
-            sandbox="allow-scripts"
-            style={{ height: iframeHeight }}
-          />
-        </div>
+        <iframe
+          srcDoc={iframeSrcDoc}
+          className="w-full border-0 rounded-lg border border-zinc-200 dark:border-zinc-800"
+          sandbox="allow-scripts"
+          style={{ height: "calc(100vh - 230px)" }}
+        />
       ) : (
         <div className="flex items-center justify-center py-8">
           <Loader2 size={16} className="animate-spin text-zinc-400" />
