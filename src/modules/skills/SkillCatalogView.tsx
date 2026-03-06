@@ -1215,17 +1215,7 @@ function ReportGallery() {
     return overrideStyle + selectedHtml;
   }, [selectedHtml]);
 
-  const [iframeHeight, setIframeHeight] = useState(800);
-  const iframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
-    if (!iframe) return;
-    const handleLoad = () => {
-      try {
-        const doc = iframe.contentDocument;
-        if (doc?.body) setIframeHeight(doc.body.scrollHeight + 20);
-      } catch { /* cross-origin */ }
-    };
-    iframe.addEventListener("load", handleLoad);
-  }, []);
+  // no-op: removed dynamic height — iframe fills available space and scrolls internally
 
   if (isLoading) {
     return (
@@ -1237,27 +1227,27 @@ function ReportGallery() {
 
   if (selectedPath && iframeSrcDoc) {
     return (
-      <div className="p-4">
-        <button
-          onClick={() => setSelectedPath(null)}
-          className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-500 mb-3"
-        >
-          <ChevronRight size={12} className="rotate-180" />
-          Back to gallery
-        </button>
-        {selectedExample && (
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedExample.skill_name}</h2>
-            <p className="text-[11px] text-zinc-400">{selectedExample.file_name}</p>
-          </div>
-        )}
-        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+      <div className="flex flex-col h-full">
+        <div className="flex-shrink-0 px-4 pt-3 pb-2">
+          <button
+            onClick={() => setSelectedPath(null)}
+            className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-500 mb-2"
+          >
+            <ChevronRight size={12} className="rotate-180" />
+            Back to gallery
+          </button>
+          {selectedExample && (
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedExample.skill_name}</h2>
+              <p className="text-[11px] text-zinc-400">{selectedExample.file_name}</p>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-h-0 px-4 pb-4">
           <iframe
-            ref={iframeRef}
             srcDoc={iframeSrcDoc}
-            className="w-full border-0"
+            className="w-full h-full border-0 rounded-lg border border-zinc-200 dark:border-zinc-800"
             sandbox="allow-scripts"
-            style={{ height: iframeHeight }}
           />
         </div>
       </div>
