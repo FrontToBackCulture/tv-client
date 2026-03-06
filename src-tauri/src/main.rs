@@ -424,6 +424,7 @@ fn main() {
             commands::skill_registry::skill_list_bots,
             commands::skill_registry::skill_distribute_to,
             commands::skill_registry::skill_summary,
+            commands::skill_registry::skill_list_examples,
             // Repos (GitHub)
             commands::repos::commands::repos_get_commits,
             commands::repos::commands::repos_get_releases,

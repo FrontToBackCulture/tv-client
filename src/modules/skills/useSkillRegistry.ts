@@ -218,3 +218,23 @@ export function useSkillSummary() {
     staleTime: 30_000,
   });
 }
+
+// ─── Skill examples (report gallery) ────────────────────────────────────────
+
+export interface SkillExample {
+  slug: string;
+  skill_name: string;
+  file_name: string;
+  file_path: string;
+  modified: string;
+}
+
+export function useSkillExamples() {
+  return useQuery({
+    queryKey: ["skill-examples"],
+    queryFn: async () => {
+      return invoke<SkillExample[]>("skill_list_examples");
+    },
+    staleTime: 60_000,
+  });
+}

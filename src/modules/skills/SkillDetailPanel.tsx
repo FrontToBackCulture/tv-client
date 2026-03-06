@@ -5,7 +5,7 @@ import { useState, useMemo, useCallback } from "react";
 import {
   X, FileText, FolderOpen, ArrowDownToLine, ArrowUpFromLine,
   CheckCircle2, AlertTriangle, Circle, Loader2, ExternalLink,
-  Send, Bot, Boxes, ChevronDown, BookOpen, Files, GitBranch,
+  Send, Bot, Boxes, ChevronDown, ChevronRight, BookOpen, Files, GitBranch,
   Tag, Terminal, Globe, LayoutTemplate, PenTool,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
@@ -82,7 +82,7 @@ export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose
       if (f.is_directory) return false;
       const rel = skillPath ? f.path.replace(skillPath + "/", "") : f.name;
       // Templates, playbooks, example outputs
-      if (rel.startsWith("templates/") || rel.startsWith("playbooks/")) return true;
+      if (rel.startsWith("templates/") || rel.startsWith("playbooks/") || rel.startsWith("demo/") || rel.startsWith("examples/")) return true;
       // Standalone html/example files (not README or SKILL)
       if (f.name.endsWith(".html") && f.name !== "index.html") return true;
       if (f.name.startsWith("example") || f.name.startsWith("output") || f.name.startsWith("sample")) return true;
@@ -366,6 +366,7 @@ function TemplatesTab({ exampleFiles, skillPath, onOpenFile }: {
   const [selectedFile, setSelectedFile] = useState<TreeNode | null>(
     () => exampleFiles[0] ?? null
   );
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set(["customer", "template"]));
 
   const { data: fileContent } = useReadFile(selectedFile?.path);
 
@@ -397,27 +398,81 @@ function TemplatesTab({ exampleFiles, skillPath, onOpenFile }: {
 
   return (
     <div className="flex flex-col h-full">
-      {/* File selector bar */}
-      <div className="flex-shrink-0 flex items-center gap-1 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50 overflow-x-auto">
-        {exampleFiles.map((f) => {
-          const rel = skillPath ? f.path.replace(skillPath + "/", "") : f.name;
-          const isSelected = selectedFile?.path === f.path;
-          return (
-            <button
-              key={f.path}
-              onClick={() => setSelectedFile(f)}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs whitespace-nowrap transition-colors",
-                isSelected
-                  ? "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 font-medium"
-                  : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-700 dark:hover:text-zinc-300"
-              )}
-            >
-              <FileText size={12} className="flex-shrink-0" />
-              {rel}
-            </button>
-          );
-        })}
+      {/* File selector bar — grouped by folder */}
+      <div className="flex-shrink-0 flex items-center gap-1 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50 overflow-x-auto flex-nowrap">
+        {(() => {
+          // Group files by category based on parent folder
+          const byCategory = new Map<string, TreeNode[]>();
+
+          for (const f of exampleFiles) {
+            const rel = skillPath ? f.path.replace(skillPath + "/", "") : f.name;
+            let cat = "other";
+            if (rel.startsWith("examples/")) cat = "customer";
+            else if (rel.startsWith("demo/")) cat = "demo";
+            else if (rel.startsWith("templates/") || rel.startsWith("playbooks/")) cat = "template";
+            else if (f.name.includes("template") || f.name.includes("Template")) cat = "template";
+            else if (f.name.startsWith("sample") || f.name.startsWith("example") || f.name.startsWith("output")) cat = "demo";
+            if (!byCategory.has(cat)) byCategory.set(cat, []);
+            byCategory.get(cat)!.push(f);
+          }
+
+          const categoryConfig: Record<string, { label: string; color: string }> = {
+            customer: { label: "Customer", color: "text-emerald-500" },
+            demo: { label: "Demo", color: "text-amber-500" },
+            template: { label: "Template", color: "text-violet-500" },
+            other: { label: "", color: "text-zinc-400" },
+          };
+
+          const order = ["customer", "demo", "template", "other"];
+          return order.filter(k => byCategory.has(k)).map(cat => {
+            const cfg = categoryConfig[cat];
+            const files = byCategory.get(cat)!;
+            const isCollapsed = collapsedGroups.has(cat);
+            const toggleCollapse = () => {
+              setCollapsedGroups(prev => {
+                const next = new Set(prev);
+                if (next.has(cat)) next.delete(cat);
+                else next.add(cat);
+                return next;
+              });
+            };
+            return (
+              <div key={cat} className="flex items-center gap-1">
+                {cfg.label && (
+                  <button
+                    onClick={toggleCollapse}
+                    className={cn("flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wider mr-1 hover:opacity-70 transition-opacity", cfg.color)}
+                  >
+                    {isCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                    {cfg.label}
+                    {isCollapsed && <span className="text-[9px] font-normal normal-case tracking-normal opacity-60 ml-0.5">({files.length})</span>}
+                  </button>
+                )}
+                <div className={cn("flex items-center gap-1 overflow-hidden transition-all duration-150", isCollapsed ? "max-w-0 opacity-0" : "max-w-[2000px] opacity-100")}>
+                  {files.map((f) => {
+                    const isSelected = selectedFile?.path === f.path;
+                    return (
+                      <button
+                        key={f.path}
+                        onClick={() => setSelectedFile(f)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs whitespace-nowrap transition-colors",
+                          isSelected
+                            ? "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 font-medium"
+                            : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-700 dark:hover:text-zinc-300"
+                        )}
+                      >
+                        <FileText size={12} className="flex-shrink-0" />
+                        {f.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1 last:hidden" />
+              </div>
+            );
+          });
+        })()}
       </div>
 
       {/* Preview area */}

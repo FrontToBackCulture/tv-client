@@ -1,16 +1,18 @@
 // src/modules/product/DomainReportsTab.tsx
 // Reports tab for domain detail panel — lists report folders and files from {domain}/reports/
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Folder,
   FileText,
   ChevronRight,
   FileBarChart,
   Loader2,
+  List,
+  LayoutGrid,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
-import { useListDirectory, type FileEntry } from "../../hooks/useFiles";
+import { useListDirectory, useReadFile, type FileEntry } from "../../hooks/useFiles";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
 
 interface DomainReportsTabProps {
@@ -21,6 +23,8 @@ interface DomainReportsTabProps {
 export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabProps) {
   const dirQuery = useListDirectory(reportsPath);
   const openPanel = useSidePanelStore((s) => s.openPanel);
+  const [viewMode, setViewMode] = useState<"list" | "gallery">("gallery");
+  const [galleryPreview, setGalleryPreview] = useState<string | null>(null);
 
   if (dirQuery.isLoading) {
     return (
@@ -56,6 +60,9 @@ export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabPr
 
   const totalCount = folders.length + files.length;
 
+  // Collect all HTML files (top-level + inside folders) for gallery
+  const htmlFiles = files.filter(f => f.name.endsWith(".html"));
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -66,20 +73,78 @@ export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabPr
             Reports
           </label>
         </div>
-        <span className="text-xs text-zinc-400 tabular-nums">
-          {totalCount} {totalCount === 1 ? "item" : "items"}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-400 tabular-nums">
+            {totalCount} {totalCount === 1 ? "item" : "items"}
+          </span>
+          <div className="flex items-center rounded border border-zinc-200 dark:border-zinc-700">
+            <button
+              onClick={() => { setViewMode("list"); setGalleryPreview(null); }}
+              className={cn(
+                "p-1.5 transition-colors",
+                viewMode === "list" ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
+              )}
+              title="List view"
+            >
+              <List size={13} />
+            </button>
+            <button
+              onClick={() => { setViewMode("gallery"); setGalleryPreview(null); }}
+              className={cn(
+                "p-1.5 transition-colors",
+                viewMode === "gallery" ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
+              )}
+              title="Gallery view"
+            >
+              <LayoutGrid size={13} />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Entries */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
-        {folders.map((folder) => (
-          <ReportFolder key={folder.path} folder={folder} onOpenFile={openPanel} />
-        ))}
-        {files.map((file) => (
-          <ReportFileRow key={file.path} file={file} onOpen={openPanel} />
-        ))}
-      </div>
+      {viewMode === "list" ? (
+        /* List view */
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+          {folders.map((folder) => (
+            <ReportFolder key={folder.path} folder={folder} onOpenFile={openPanel} />
+          ))}
+          {files.map((file) => (
+            <ReportFileRow key={file.path} file={file} onOpen={openPanel} />
+          ))}
+        </div>
+      ) : galleryPreview ? (
+        /* Gallery full preview */
+        <ReportFullPreview filePath={galleryPreview} onBack={() => setGalleryPreview(null)} />
+      ) : (
+        /* Gallery grid */
+        <div>
+          {htmlFiles.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4">
+              {htmlFiles.map(f => (
+                <ReportThumbnail key={f.path} file={f} onClick={() => setGalleryPreview(f.path)} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-xs text-zinc-400">
+              No HTML reports found. Switch to list view to see all files.
+            </div>
+          )}
+          {/* Non-HTML files below gallery */}
+          {files.filter(f => !f.name.endsWith(".html")).length > 0 && (
+            <div className="mt-4">
+              <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Other Files</p>
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+                {folders.map((folder) => (
+                  <ReportFolder key={folder.path} folder={folder} onOpenFile={openPanel} />
+                ))}
+                {files.filter(f => !f.name.endsWith(".html")).map((file) => (
+                  <ReportFileRow key={file.path} file={file} onOpen={openPanel} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -189,6 +254,98 @@ function ReportFileRow({
         {formatSize(file.size)}
       </span>
     </button>
+  );
+}
+
+function ReportThumbnail({ file, onClick }: { file: FileEntry; onClick: () => void }) {
+  const { data: htmlContent } = useReadFile(file.path);
+
+  const thumbSrcDoc = useMemo(() => {
+    if (!htmlContent) return undefined;
+    const thumbStyle = `<style>body{margin:0!important;padding:0.5rem!important;overflow:hidden!important;pointer-events:none!important}body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}img,table,pre{max-width:100%!important}</style>`;
+    if (htmlContent.includes("</head>")) {
+      return htmlContent.replace("</head>", `${thumbStyle}</head>`);
+    }
+    return thumbStyle + htmlContent;
+  }, [htmlContent]);
+
+  return (
+    <button
+      onClick={onClick}
+      className="group rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-sm transition-all"
+    >
+      <div className="relative h-48 overflow-hidden bg-white">
+        {thumbSrcDoc ? (
+          <iframe
+            srcDoc={thumbSrcDoc}
+            className="w-[200%] h-[200%] border-0 origin-top-left pointer-events-none"
+            style={{ transform: "scale(0.5)" }}
+            tabIndex={-1}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 size={14} className="animate-spin text-zinc-300" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-teal-600/0 group-hover:bg-teal-600/5 transition-colors" />
+      </div>
+      <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
+        <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{file.name}</p>
+        <p className="text-[10px] text-zinc-400">{file.modified ? formatRelative(file.modified) : ""} · {formatSize(file.size)}</p>
+      </div>
+    </button>
+  );
+}
+
+function ReportFullPreview({ filePath, onBack }: { filePath: string; onBack: () => void }) {
+  const { data: htmlContent } = useReadFile(filePath);
+
+  const iframeSrcDoc = useMemo(() => {
+    if (!htmlContent) return undefined;
+    const overrideStyle = `<style>body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}body{margin:0!important;padding:1rem!important;overflow-x:hidden!important}img,table,pre{max-width:100%!important}</style>`;
+    if (htmlContent.includes("</head>")) {
+      return htmlContent.replace("</head>", `${overrideStyle}</head>`);
+    }
+    return overrideStyle + htmlContent;
+  }, [htmlContent]);
+
+  const [iframeHeight, setIframeHeight] = useState(800);
+  const iframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
+    if (!iframe) return;
+    const handleLoad = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (doc?.body) setIframeHeight(doc.body.scrollHeight + 20);
+      } catch { /* cross-origin */ }
+    };
+    iframe.addEventListener("load", handleLoad);
+  }, []);
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-500 mb-3"
+      >
+        <ChevronRight size={12} className="rotate-180" />
+        Back to gallery
+      </button>
+      {iframeSrcDoc ? (
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <iframe
+            ref={iframeRef}
+            srcDoc={iframeSrcDoc}
+            className="w-full border-0"
+            sandbox="allow-scripts"
+            style={{ height: iframeHeight }}
+          />
+        </div>
+      ) : (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 size={16} className="animate-spin text-zinc-400" />
+        </div>
+      )}
+    </div>
   );
 }
 

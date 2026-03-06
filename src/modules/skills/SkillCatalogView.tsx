@@ -11,8 +11,10 @@ import {
   type SkillCategory,
   useSkillSummary,
   useSkillRegistryUpdate,
+  useSkillExamples,
 } from "./useSkillRegistry";
 import { SkillDetailPanel } from "./SkillDetailPanel";
+import { useReadFile } from "../../hooks/useFiles";
 
 interface SkillCatalogViewProps {
   registry: SkillRegistry;
@@ -42,6 +44,7 @@ import React from "react";
 
 export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }: SkillCatalogViewProps) {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [view, setView] = useState<"catalog" | "gallery">("catalog");
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [targetFilter, setTargetFilter] = useState<TargetFilter>("all");
@@ -297,26 +300,26 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
   const botSkills = useMemo(() => sortSkills(filtered.filter((s) => s.target === "bot" || s.target === "both")), [filtered, sortSkills]);
   const platformSkills = useMemo(() => sortSkills(filtered.filter((s) => s.target === "platform" || s.target === "both")), [filtered, sortSkills]);
 
-  // Resize handle
-  const resizing = useRef(false);
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  // Resize handle — uses pointer capture for smooth, jank-free resizing
+  const handleResizePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
-    resizing.current = true;
+    e.stopPropagation();
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
     const startX = e.clientX;
     const startWidth = sidebarWidth;
 
-    const onMove = (ev: MouseEvent) => {
-      if (!resizing.current) return;
+    const onMove = (ev: PointerEvent) => {
       const delta = ev.clientX - startX;
       setSidebarWidth(Math.max(180, Math.min(500, startWidth + delta)));
     };
     const onUp = () => {
-      resizing.current = false;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
+      target.releasePointerCapture(e.pointerId);
+      target.removeEventListener("pointermove", onMove);
+      target.removeEventListener("pointerup", onUp);
     };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    target.addEventListener("pointermove", onMove);
+    target.addEventListener("pointerup", onUp);
   }, [sidebarWidth]);
 
   // Expand/collapse all groups in sidebar
@@ -556,13 +559,13 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
 
         {/* Resize handle */}
         <div
-          onMouseDown={handleMouseDown}
-          className="w-1.5 flex-shrink-0 cursor-col-resize group flex items-center justify-center border-r border-zinc-100 dark:border-zinc-800/50 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors"
+          onPointerDown={handleResizePointerDown}
+          className="w-2 flex-shrink-0 cursor-col-resize group flex items-center justify-center border-r border-zinc-100 dark:border-zinc-800/50 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
         >
           <GripVertical size={10} className="text-zinc-300 dark:text-zinc-600 group-hover:text-teal-500 transition-colors" />
         </div>
 
-        {/* Right: detail panel or dashboard */}
+        {/* Right: detail panel, dashboard, or gallery */}
         {selectedSlug && selectedSkill ? (
           <div className="flex-1 min-w-0">
             <SkillDetailPanel
@@ -575,13 +578,44 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
             />
           </div>
         ) : (
-          <div className="flex-1 min-w-0 overflow-y-auto">
-            <SkillDashboard
-              registry={registry}
-              allSkills={allSkills}
-              driftStatuses={driftStatuses}
-              onSelectSkill={setSelectedSlug}
-            />
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            {/* Tab bar */}
+            <div className="flex-shrink-0 flex items-center gap-1 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
+              <button
+                onClick={() => setView("catalog")}
+                className={cn(
+                  "px-3 py-1.5 rounded text-xs font-medium transition-colors",
+                  view === "catalog"
+                    ? "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400"
+                    : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                )}
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => setView("gallery")}
+                className={cn(
+                  "px-3 py-1.5 rounded text-xs font-medium transition-colors",
+                  view === "gallery"
+                    ? "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400"
+                    : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                )}
+              >
+                Report Gallery
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {view === "catalog" ? (
+                <SkillDashboard
+                  registry={registry}
+                  allSkills={allSkills}
+                  driftStatuses={driftStatuses}
+                  onSelectSkill={setSelectedSlug}
+                />
+              ) : (
+                <ReportGallery />
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -988,7 +1022,8 @@ function SkillDashboard({
   onSelectSkill: (slug: string) => void;
 }) {
   const { data: modInfos } = useSkillSummary();
-
+  const [driftCollapsed, setDriftCollapsed] = useState(true);
+  const [recentCollapsed, setRecentCollapsed] = useState(true);
   // Stats
   const totalSkills = allSkills.length;
   const activeCount = allSkills.filter(s => s.status === "active").length;
@@ -1059,10 +1094,16 @@ function SkillDashboard({
       {/* Drift issues */}
       {driftIssues.length > 0 && (
         <div>
-          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-amber-500 mb-2">
-            Needs Attention ({driftIssues.length})
-          </h3>
-          <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 divide-y divide-amber-100 dark:divide-amber-800/30">
+          <button
+            onClick={() => setDriftCollapsed(prev => !prev)}
+            className="flex items-center gap-1.5 mb-2 group"
+          >
+            <ChevronRight size={12} className={`text-amber-500 transition-transform ${!driftCollapsed ? "rotate-90" : ""}`} />
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-amber-500">
+              Needs Attention ({driftIssues.length})
+            </h3>
+          </button>
+          {!driftCollapsed && <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 divide-y divide-amber-100 dark:divide-amber-800/30">
             {driftIssues.map(([slug, { drifts }]) => (
               <button
                 key={slug}
@@ -1094,17 +1135,23 @@ function SkillDashboard({
                 </div>
               </button>
             ))}
-          </div>
+          </div>}
         </div>
       )}
 
       {/* Recently modified */}
       {recentlyModified.length > 0 && (
         <div>
-          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-            Recently Modified
-          </h3>
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800/50">
+          <button
+            onClick={() => setRecentCollapsed(prev => !prev)}
+            className="flex items-center gap-1.5 mb-2 group"
+          >
+            <ChevronRight size={12} className={`text-zinc-400 transition-transform ${!recentCollapsed ? "rotate-90" : ""}`} />
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              Recently Modified
+            </h3>
+          </button>
+          {!recentCollapsed && <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800/50">
             {recentlyModified.map(m => {
               const skill = registry.skills[m.slug];
               return (
@@ -1125,7 +1172,7 @@ function SkillDashboard({
                 </button>
               );
             })}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -1143,7 +1190,136 @@ function SkillDashboard({
           ))}
         </div>
       </div>
+
     </div>
+  );
+}
+
+
+
+// ─── Report Gallery ─────────────────────────────────────────────────────────
+
+function ReportGallery() {
+  const { data: examples = [], isLoading } = useSkillExamples();
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const { data: selectedHtml } = useReadFile(selectedPath ?? undefined);
+
+  const selectedExample = examples.find(e => e.file_path === selectedPath);
+
+  const iframeSrcDoc = useMemo(() => {
+    if (!selectedHtml) return undefined;
+    const overrideStyle = `<style>body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}body{margin:0!important;padding:1rem!important;overflow-x:hidden!important}img,table,pre{max-width:100%!important}</style>`;
+    if (selectedHtml.includes("</head>")) {
+      return selectedHtml.replace("</head>", `${overrideStyle}</head>`);
+    }
+    return overrideStyle + selectedHtml;
+  }, [selectedHtml]);
+
+  const [iframeHeight, setIframeHeight] = useState(800);
+  const iframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
+    if (!iframe) return;
+    const handleLoad = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (doc?.body) setIframeHeight(doc.body.scrollHeight + 20);
+      } catch { /* cross-origin */ }
+    };
+    iframe.addEventListener("load", handleLoad);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 size={16} className="animate-spin text-zinc-400" />
+      </div>
+    );
+  }
+
+  if (selectedPath && iframeSrcDoc) {
+    return (
+      <div className="p-4">
+        <button
+          onClick={() => setSelectedPath(null)}
+          className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-500 mb-3"
+        >
+          <ChevronRight size={12} className="rotate-180" />
+          Back to gallery
+        </button>
+        {selectedExample && (
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedExample.skill_name}</h2>
+            <p className="text-[11px] text-zinc-400">{selectedExample.file_name}</p>
+          </div>
+        )}
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <iframe
+            ref={iframeRef}
+            srcDoc={iframeSrcDoc}
+            className="w-full border-0"
+            sandbox="allow-scripts"
+            style={{ height: iframeHeight }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      <div className="grid grid-cols-2 gap-4">
+        {examples.map(ex => (
+          <ReportThumbnail
+            key={ex.file_path}
+            example={ex}
+            onClick={() => setSelectedPath(ex.file_path)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReportThumbnail({ example, onClick }: { example: { slug: string; skill_name: string; file_name: string; file_path: string }; onClick: () => void }) {
+  const { data: htmlContent } = useReadFile(example.file_path);
+
+  const thumbSrcDoc = useMemo(() => {
+    if (!htmlContent) return undefined;
+    // Disable interactions and scrolling for thumbnail
+    const thumbStyle = `<style>body{margin:0!important;padding:0.5rem!important;overflow:hidden!important;pointer-events:none!important}body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}img,table,pre{max-width:100%!important}</style>`;
+    if (htmlContent.includes("</head>")) {
+      return htmlContent.replace("</head>", `${thumbStyle}</head>`);
+    }
+    return thumbStyle + htmlContent;
+  }, [htmlContent]);
+
+  return (
+    <button
+      onClick={onClick}
+      className="group rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-sm transition-all"
+    >
+      {/* Thumbnail preview */}
+      <div className="relative h-48 overflow-hidden bg-white">
+        {thumbSrcDoc ? (
+          <iframe
+            srcDoc={thumbSrcDoc}
+            className="w-[200%] h-[200%] border-0 origin-top-left pointer-events-none"
+            style={{ transform: "scale(0.5)" }}
+            tabIndex={-1}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 size={14} className="animate-spin text-zinc-300" />
+          </div>
+        )}
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-teal-600/0 group-hover:bg-teal-600/5 transition-colors" />
+      </div>
+      {/* Label */}
+      <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
+        <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{example.skill_name}</p>
+        <p className="text-[10px] text-zinc-400 truncate">{example.file_name}</p>
+      </div>
+    </button>
   );
 }
 

@@ -1089,3 +1089,92 @@ pub async fn skill_summary(
 
     Ok(results)
 }
+
+// ─── Report Gallery ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct SkillExample {
+    pub slug: String,
+    pub skill_name: String,
+    pub file_name: String,
+    pub file_path: String,
+    pub modified: String,
+}
+
+#[command]
+pub async fn skill_list_examples(
+    state: State<'_, AppState>,
+) -> Result<Vec<SkillExample>, String> {
+    let kb = &state.knowledge_path;
+    let skills_dir = PathBuf::from(kb).join("_skills");
+
+    if !skills_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    // Load registry for skill names
+    let registry_path = skills_dir.join("registry.json");
+    let registry: Option<SkillRegistry> = if registry_path.exists() {
+        fs::read_to_string(&registry_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+    } else {
+        None
+    };
+
+    let mut results = Vec::new();
+
+    let entries = fs::read_dir(&skills_dir)
+        .map_err(|e| format!("Failed to read _skills/: {}", e))?;
+
+    for entry in entries.flatten() {
+        let slug = entry.file_name().to_string_lossy().to_string();
+        if !entry.path().is_dir() || slug.starts_with('_') || slug.starts_with('.') {
+            continue;
+        }
+
+        let examples_dir = entry.path().join("demo");
+        if !examples_dir.exists() || !examples_dir.is_dir() {
+            continue;
+        }
+
+        let skill_name = registry
+            .as_ref()
+            .and_then(|r| r.skills.get(&slug))
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| slug.clone());
+
+        if let Ok(files) = fs::read_dir(&examples_dir) {
+            for file in files.flatten() {
+                let fname = file.file_name().to_string_lossy().to_string();
+                if !fname.ends_with(".html") {
+                    continue;
+                }
+
+                let modified = file
+                    .metadata()
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .map(|t| {
+                        chrono::DateTime::<chrono::Utc>::from(t)
+                            .format("%Y-%m-%dT%H:%M:%SZ")
+                            .to_string()
+                    })
+                    .unwrap_or_default();
+
+                results.push(SkillExample {
+                    slug: slug.clone(),
+                    skill_name: skill_name.clone(),
+                    file_name: fname,
+                    file_path: file.path().to_string_lossy().to_string(),
+                    modified,
+                });
+            }
+        }
+    }
+
+    // Sort by most recently modified first
+    results.sort_by(|a, b| b.modified.cmp(&a.modified));
+
+    Ok(results)
+}
