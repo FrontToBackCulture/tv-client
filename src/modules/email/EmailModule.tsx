@@ -8,6 +8,7 @@ import { ContactsView } from "./ContactsView";
 import { GroupsView } from "./GroupsView";
 import { CampaignsView } from "./CampaignsView";
 import { AnalyticsView } from "./AnalyticsView";
+import { TemplatesView } from "./TemplatesView";
 import { ContactDetailPanel } from "./ContactDetailPanel";
 import { GroupDetailPanel } from "./GroupDetailPanel";
 import { CampaignDetailPanel } from "./CampaignDetailPanel";
@@ -15,11 +16,11 @@ import { ContactForm } from "./ContactForm";
 import { GroupForm } from "./GroupForm";
 import { CampaignForm } from "./CampaignForm";
 import { ImportModal } from "./ImportModal";
-import { Users, FolderOpen, Send, BarChart3 } from "lucide-react";
+import { Users, FolderOpen, Send, BarChart3, LayoutTemplate } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
 
-type EmailView = "contacts" | "groups" | "campaigns" | "analytics";
+type EmailView = "contacts" | "groups" | "campaigns" | "templates" | "analytics";
 
 export function EmailModule() {
   const [activeView, setActiveView] = useState<EmailView>("contacts");
@@ -42,6 +43,7 @@ export function EmailModule() {
       contacts: "Contacts",
       groups: "Groups",
       campaigns: "Campaigns",
+      templates: "Templates",
       analytics: "Analytics",
     };
     setViewContext(activeView, labels[activeView]);
@@ -62,6 +64,7 @@ export function EmailModule() {
           <ViewTab label="Contacts" icon={Users} active={activeView === "contacts"} onClick={() => setActiveView("contacts")} />
           <ViewTab label="Groups" icon={FolderOpen} active={activeView === "groups"} onClick={() => setActiveView("groups")} />
           <ViewTab label="Campaigns" icon={Send} active={activeView === "campaigns"} onClick={() => setActiveView("campaigns")} />
+          <ViewTab label="Templates" icon={LayoutTemplate} active={activeView === "templates"} onClick={() => setActiveView("templates")} />
           <ViewTab label="Analytics" icon={BarChart3} active={activeView === "analytics"} onClick={() => setActiveView("analytics")} />
         </div>
       </div>
@@ -91,6 +94,7 @@ export function EmailModule() {
               onNewCampaign={() => setShowCampaignForm(true)}
             />
           )}
+          {activeView === "templates" && <TemplatesView />}
           {activeView === "analytics" && (
             <AnalyticsView onSelectCampaign={(id) => {
               setSelectedCampaignId(id);
