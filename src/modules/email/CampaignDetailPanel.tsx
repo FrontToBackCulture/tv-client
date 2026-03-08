@@ -2,7 +2,7 @@
 // Right panel showing campaign details and stats
 
 import { useState } from "react";
-import { X, Send, Loader2, Copy } from "lucide-react";
+import { X, Send, Loader2, Copy, Pencil } from "lucide-react";
 import { useEmailCampaign, useCampaignStats, useSendCampaign, useCreateEmailCampaign } from "../../hooks/email";
 import { CAMPAIGN_STATUSES } from "../../lib/email/types";
 import { formatDate } from "../../lib/date";
@@ -10,11 +10,12 @@ import { formatDate } from "../../lib/date";
 interface CampaignDetailPanelProps {
   campaignId: string;
   onClose: () => void;
+  onEdit?: (campaign: import("../../lib/email/types").EmailCampaignWithStats) => void;
 }
 
 const API_BASE_URL = "https://brusquely-relievable-lilyanna.ngrok-free.dev";
 
-export function CampaignDetailPanel({ campaignId, onClose }: CampaignDetailPanelProps) {
+export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDetailPanelProps) {
   const { data: campaign, isLoading } = useEmailCampaign(campaignId);
   const { data: stats } = useCampaignStats(campaignId);
   const sendCampaign = useSendCampaign();
@@ -70,6 +71,15 @@ export function CampaignDetailPanel({ campaignId, onClose }: CampaignDetailPanel
 
         {/* Action buttons */}
         <div className="flex gap-2">
+          {onEdit && campaign && (
+            <button
+              onClick={() => onEdit(campaign)}
+              className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md transition-colors"
+            >
+              <Pencil size={14} />
+              Edit
+            </button>
+          )}
           {canSend && (
             <button
               onClick={() => {

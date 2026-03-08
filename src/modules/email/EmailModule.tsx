@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useEmailRealtime } from "../../hooks/email";
+import type { EmailCampaignWithStats } from "../../lib/email/types";
 import { ContactsView } from "./ContactsView";
 import { GroupsView } from "./GroupsView";
 import { CampaignsView } from "./CampaignsView";
@@ -28,6 +29,7 @@ export function EmailModule() {
   const [showContactForm, setShowContactForm] = useState(false);
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [showCampaignForm, setShowCampaignForm] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<EmailCampaignWithStats | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
   // Enable real-time updates
@@ -114,6 +116,10 @@ export function EmailModule() {
           <CampaignDetailPanel
             campaignId={selectedCampaignId}
             onClose={() => setSelectedCampaignId(null)}
+            onEdit={(campaign) => {
+              setEditingCampaign(campaign);
+              setShowCampaignForm(true);
+            }}
           />
         )}
       </div>
@@ -126,7 +132,13 @@ export function EmailModule() {
         <GroupForm onClose={() => setShowGroupForm(false)} />
       )}
       {showCampaignForm && (
-        <CampaignForm onClose={() => setShowCampaignForm(false)} />
+        <CampaignForm
+          campaign={editingCampaign}
+          onClose={() => {
+            setShowCampaignForm(false);
+            setEditingCampaign(null);
+          }}
+        />
       )}
       {showImportModal && (
         <ImportModal onClose={() => setShowImportModal(false)} />
