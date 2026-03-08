@@ -1,14 +1,21 @@
 // src/modules/email/CampaignForm.tsx
 // Campaign create/edit wizard — 3-step flow
 
-import { useState } from "react";
-import { X, ChevronRight, ChevronLeft } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, ChevronRight, ChevronLeft, FileText } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   useCreateEmailCampaign,
   useUpdateEmailCampaign,
   useEmailGroups,
 } from "../../hooks/email";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import type { EmailCampaignWithStats } from "../../lib/email/types";
+
+interface TemplateFile {
+  name: string;
+  path: string;
+}
 
 interface CampaignFormProps {
   onClose: () => void;
@@ -26,6 +33,36 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
   const [fromEmail, setFromEmail] = useState(campaign?.from_email || "");
   const [groupId, setGroupId] = useState(campaign?.group_id || "");
   const [htmlBody, setHtmlBody] = useState(campaign?.html_body || "");
+
+  const [templates, setTemplates] = useState<TemplateFile[]>([]);
+  const knowledgePath = useRepositoryStore((s) => {
+    const repo = s.repositories.find((r) => r.id === s.activeRepositoryId);
+    return repo?.path || "";
+  });
+
+  // Load templates from tv-knowledge/6_Marketing/email-templates/
+  useEffect(() => {
+    if (!knowledgePath) return;
+    const templatesDir = `${knowledgePath}/6_Marketing/email-templates`;
+    invoke<{ name: string; path: string; is_directory: boolean }[]>("list_directory", { path: templatesDir })
+      .then((entries) => {
+        setTemplates(
+          entries
+            .filter((e) => !e.is_directory && e.name.endsWith(".html"))
+            .map((e) => ({ name: e.name.replace(".html", "").replace(/-/g, " "), path: e.path }))
+        );
+      })
+      .catch(() => setTemplates([]));
+  }, [knowledgePath]);
+
+  const loadTemplate = async (path: string) => {
+    try {
+      const content = await invoke<string>("read_file", { path });
+      setHtmlBody(content);
+    } catch {
+      // silently fail
+    }
+  };
 
   const { data: groups = [] } = useEmailGroups();
   const createCampaign = useCreateEmailCampaign();
@@ -156,12 +193,33 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
 
           {step === 2 && (
             <>
+              {/* Template picker */}
+              {templates.length > 0 && (
+                <div>
+                  <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                    Start from a template
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {templates.map((t) => (
+                      <button
+                        key={t.path}
+                        onClick={() => loadTemplate(t.path)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-600 dark:text-zinc-300 hover:border-teal-500 hover:text-teal-600 dark:hover:text-teal-400 transition-colors capitalize"
+                      >
+                        <FileText size={11} />
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
                   Email HTML Body
                 </label>
                 <p className="text-[10px] text-zinc-400 mb-2">
-                  AI template generation coming soon. For now, paste your HTML directly.
+                  Pick a template above or paste your HTML directly.
                 </p>
                 <textarea
                   value={htmlBody}
