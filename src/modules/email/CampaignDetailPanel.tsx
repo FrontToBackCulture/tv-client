@@ -1,8 +1,9 @@
 // src/modules/email/CampaignDetailPanel.tsx
 // Right panel showing campaign details and stats
 
-import { X, Send } from "lucide-react";
-import { useEmailCampaign, useCampaignStats } from "../../hooks/email";
+import { useState } from "react";
+import { X, Send, Loader2, Copy } from "lucide-react";
+import { useEmailCampaign, useCampaignStats, useSendCampaign, useCreateEmailCampaign } from "../../hooks/email";
 import { CAMPAIGN_STATUSES } from "../../lib/email/types";
 import { formatDate } from "../../lib/date";
 
@@ -11,9 +12,14 @@ interface CampaignDetailPanelProps {
   onClose: () => void;
 }
 
+const API_BASE_URL = "https://brusquely-relievable-lilyanna.ngrok-free.dev";
+
 export function CampaignDetailPanel({ campaignId, onClose }: CampaignDetailPanelProps) {
   const { data: campaign, isLoading } = useEmailCampaign(campaignId);
   const { data: stats } = useCampaignStats(campaignId);
+  const sendCampaign = useSendCampaign();
+  const cloneCampaign = useCreateEmailCampaign();
+  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; errors: string[] } | null>(null);
 
   if (isLoading) {
     return (
@@ -26,6 +32,7 @@ export function CampaignDetailPanel({ campaignId, onClose }: CampaignDetailPanel
   if (!campaign) return null;
 
   const statusDef = CAMPAIGN_STATUSES.find((s) => s.value === campaign.status);
+  const canSend = campaign.status === "draft" || campaign.status === "scheduled";
 
   return (
     <div className="w-[420px] border-l border-zinc-100 dark:border-zinc-800/50 flex flex-col bg-white dark:bg-zinc-950 overflow-auto">
@@ -60,6 +67,78 @@ export function CampaignDetailPanel({ campaignId, onClose }: CampaignDetailPanel
           )}
           <DetailRow label="Created" value={formatDate(campaign.created_at)} />
         </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-2">
+          {canSend && (
+            <button
+              onClick={() => {
+                if (!confirm("Send this campaign now?")) return;
+                sendCampaign.mutate(
+                  { campaignId, apiBaseUrl: API_BASE_URL },
+                  {
+                    onSuccess: (result) => setSendResult(result),
+                  }
+                );
+              }}
+              disabled={sendCampaign.isPending}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-md transition-colors"
+            >
+              {sendCampaign.isPending ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send size={14} />
+                  Send
+                </>
+              )}
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (!campaign) return;
+              cloneCampaign.mutate({
+                name: `${campaign.name} (copy)`,
+                subject: campaign.subject,
+                from_name: campaign.from_name,
+                from_email: campaign.from_email,
+                html_body: campaign.html_body,
+                group_id: campaign.group_id,
+              });
+            }}
+            disabled={cloneCampaign.isPending}
+            className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md transition-colors"
+          >
+            <Copy size={14} />
+            Clone
+          </button>
+        </div>
+
+        {/* Send result */}
+        {sendResult && (
+          <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 text-xs">
+            <p className="font-medium text-green-800 dark:text-green-300">
+              Sent: {sendResult.sent} | Failed: {sendResult.failed}
+            </p>
+            {sendResult.errors.length > 0 && (
+              <ul className="mt-1 text-red-600 dark:text-red-400 space-y-0.5">
+                {sendResult.errors.map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* Send error */}
+        {sendCampaign.isError && (
+          <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-xs text-red-700 dark:text-red-300">
+            {(sendCampaign.error as any)?.message || "Failed to send campaign"}
+          </div>
+        )}
 
         {/* Stats */}
         {stats && stats.sent > 0 && (
