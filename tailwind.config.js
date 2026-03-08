@@ -122,8 +122,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-        mono: ['JetBrains Mono', 'SF Mono', 'Fira Code', 'monospace'],
+        sans: ['Inter Variable', 'Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        mono: ['JetBrains Mono Variable', 'JetBrains Mono', 'SF Mono', 'Fira Code', 'monospace'],
       },
       keyframes: {
         'slide-in': {

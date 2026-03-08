@@ -1,7 +1,7 @@
 // src/modules/product/DomainDetailPanel.tsx
 // Domain detail with auth status, sync controls, and artifact status
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   useValAuth,
   useValCredentials,
@@ -15,7 +15,6 @@ import {
 import { StatusChip } from "./StatusChip";
 import {
   X,
-  Loader2,
   RefreshCw,
   KeyRound,
   CheckCircle2,
@@ -31,11 +30,13 @@ import {
   Maximize2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { Button, IconButton } from "../../components/ui";
 import { EmptyState } from "../../components/EmptyState";
 import { timeAgoVerbose as timeAgo } from "../../lib/date";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useRepository } from "../../stores/repositoryStore";
+import { useRegisterCommands } from "../../stores/commandStore";
 import { DomainAiTab } from "./DomainAiTab";
 import { DomainReportsTab } from "./DomainReportsTab";
 import { DomainDataHealthTab } from "./DomainDataHealthTab";
@@ -176,6 +177,21 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   };
 
 
+  // Register contextual commands for Command Palette (⌘K)
+  const paletteCommands = useMemo(() => [
+    { id: `domain-${domain}-sync-all`, label: `Sync All: ${domain}`, description: "Full sync + extract for this domain", icon: <RefreshCw size={15} />, action: handleSyncAll },
+    ...Object.entries(ARTIFACT_LABELS).map(([type, label]) => ({
+      id: `domain-${domain}-sync-${type}`,
+      label: `Sync ${label}: ${domain}`,
+      description: `Fetch latest ${label.toLowerCase()} from VAL`,
+      icon: <Play size={15} />,
+      action: () => handleSyncArtifact(type),
+    })),
+    { id: `domain-${domain}-login`, label: `Login: ${domain}`, description: "Authenticate with VAL for this domain", icon: <KeyRound size={15} />, action: handleLogin },
+  ], [domain]);
+
+  useRegisterCommands(paletteCommands, [domain]);
+
   // Review tab config — maps tab IDs to folder names, resource types, and full-screen callbacks
   const REVIEW_TABS: Record<string, { folder: string; resourceType: ReviewResourceType; onFullScreen?: () => void }> = {
     "data-models": { folder: "data_models", resourceType: "table", onFullScreen: onReviewDataModels },
@@ -213,19 +229,19 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 font-mono truncate">
+                  <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 truncate">
                     {domain}
                   </h2>
-                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-medium capitalize", typeColors.badge, typeColors.badgeText)}>
+                  <span className={cn("px-2 py-0.5 rounded text-xs font-medium capitalize", typeColors.badge, typeColors.badgeText)}>
                     {discoveredDomain.domain_type}
                   </span>
                   {auth?.authenticated ? (
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300">
                       <CheckCircle2 size={10} />
                       Authenticated
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
                       <XCircle size={10} />
                       Not authenticated
                     </span>
@@ -249,19 +265,19 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                 </div>
               </div>
               {/* Close button */}
-              <button
+              <IconButton
                 onClick={onClose}
-                className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 flex-shrink-0"
-              >
-                <X size={16} />
-              </button>
+                icon={X}
+                label="Close"
+                className="flex-shrink-0"
+              />
             </div>
           </div>
         </div>
       ) : (
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 font-mono">
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
               {domain}
             </h2>
             <div className="flex items-center gap-2 mt-1">
@@ -272,12 +288,11 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
               )}
             </div>
           </div>
-          <button
+          <IconButton
             onClick={onClose}
-            className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
-          >
-            <X size={16} />
-          </button>
+            icon={X}
+            label="Close"
+          />
         </div>
       )}
 
@@ -305,13 +320,13 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
           {/* Expand button bar */}
           <div className="flex items-center justify-end px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
             {REVIEW_TABS[activeTab].onFullScreen && (
-              <button
+              <Button
                 onClick={REVIEW_TABS[activeTab].onFullScreen}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                variant="ghost"
+                icon={Maximize2}
               >
-                <Maximize2 size={12} />
                 Full Screen
-              </button>
+              </Button>
             )}
           </div>
           <div className="flex-1 overflow-hidden">
@@ -410,13 +425,13 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                         </div>
                         <div className="text-xs text-zinc-400 ml-5">Password set</div>
                       </div>
-                      <button
+                      <Button
                         onClick={handleEditCredentials}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                        variant="ghost"
+                        icon={Pencil}
                       >
-                        <Pencil size={10} />
                         Edit
-                      </button>
+                      </Button>
                     </div>
                   )}
                   {!showCredForm && !creds?.has_credentials && !credQuery.isLoading && (
@@ -425,13 +440,12 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                         <XCircle size={14} className="text-zinc-400" />
                         <span className="text-sm text-zinc-500">No credentials set</span>
                       </div>
-                      <button
+                      <Button
                         onClick={() => setShowCredForm(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded transition-colors"
+                        icon={KeyRound}
                       >
-                        <KeyRound size={12} />
                         Set Credentials
-                      </button>
+                      </Button>
                     </div>
                   )}
                   {showCredForm && (
@@ -466,24 +480,20 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                         </p>
                       )}
                       <div className="flex items-center gap-2">
-                        <button
+                        <Button
                           onClick={handleSaveCredentials}
-                          disabled={setCredMutation.isPending || !credEmail.trim() || !credPassword.trim()}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded transition-colors"
+                          disabled={!credEmail.trim() || !credPassword.trim()}
+                          icon={Check}
+                          loading={setCredMutation.isPending}
                         >
-                          {setCredMutation.isPending ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            <Check size={12} />
-                          )}
                           Save
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => { setShowCredForm(false); setCredEmail(""); setCredPassword(""); setShowPassword(false); }}
-                          className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded transition-colors"
+                          variant="ghost"
                         >
                           Cancel
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -513,18 +523,14 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                     </div>
                   )}
                   {!auth?.authenticated && creds?.has_credentials && (
-                    <button
+                    <Button
                       onClick={handleLogin}
-                      disabled={loginMutation.isPending}
-                      className="mt-1 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded transition-colors"
+                      icon={KeyRound}
+                      loading={loginMutation.isPending}
+                      className="mt-1"
                     >
-                      {loginMutation.isPending ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <KeyRound size={12} />
-                      )}
                       Login
-                    </button>
+                    </Button>
                   )}
                   {!auth?.authenticated && !creds?.has_credentials && !credQuery.isLoading && (
                     <p className="text-xs text-zinc-400">Set credentials above to login</p>
@@ -560,7 +566,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                               color={entry.status === "ok" ? "green" : "red"}
                             />
                           </div>
-                          <span className="text-[10px] text-zinc-400">
+                          <span className="text-xs text-zinc-400">
                             {timeAgo(entry.timestamp)}
                           </span>
                         </div>
@@ -593,13 +599,13 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                       </div>
                       <div className="text-xs text-zinc-400 ml-5">Password set</div>
                     </div>
-                    <button
+                    <Button
                       onClick={handleEditCredentials}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                      variant="ghost"
+                      icon={Pencil}
                     >
-                      <Pencil size={10} />
                       Edit
-                    </button>
+                    </Button>
                   </div>
                 )}
                 {!showCredForm && !creds?.has_credentials && !credQuery.isLoading && (
@@ -608,13 +614,12 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                       <XCircle size={14} className="text-zinc-400" />
                       <span className="text-sm text-zinc-500">No credentials set</span>
                     </div>
-                    <button
+                    <Button
                       onClick={() => setShowCredForm(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded transition-colors"
+                      icon={KeyRound}
                     >
-                      <KeyRound size={12} />
                       Set Credentials
-                    </button>
+                    </Button>
                   </div>
                 )}
                 {showCredForm && (
@@ -649,24 +654,20 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                       </p>
                     )}
                     <div className="flex items-center gap-2">
-                      <button
+                      <Button
                         onClick={handleSaveCredentials}
-                        disabled={setCredMutation.isPending || !credEmail.trim() || !credPassword.trim()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded transition-colors"
+                        disabled={!credEmail.trim() || !credPassword.trim()}
+                        icon={Check}
+                        loading={setCredMutation.isPending}
                       >
-                        {setCredMutation.isPending ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <Check size={12} />
-                        )}
                         Save
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => { setShowCredForm(false); setCredEmail(""); setCredPassword(""); setShowPassword(false); }}
-                        className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded transition-colors"
+                        variant="ghost"
                       >
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -696,18 +697,14 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                   </div>
                 )}
                 {!auth?.authenticated && creds?.has_credentials && (
-                  <button
+                  <Button
                     onClick={handleLogin}
-                    disabled={loginMutation.isPending}
-                    className="mt-1 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded transition-colors"
+                    icon={KeyRound}
+                    loading={loginMutation.isPending}
+                    className="mt-1"
                   >
-                    {loginMutation.isPending ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <KeyRound size={12} />
-                    )}
                     Login
-                  </button>
+                  </Button>
                 )}
                 {!auth?.authenticated && !creds?.has_credentials && !credQuery.isLoading && (
                   <p className="text-xs text-zinc-400">Set credentials above to login</p>
@@ -788,18 +785,16 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
           <div className="space-y-4">
             {/* Sync All button */}
             <div>
-              <button
+              <Button
                 onClick={handleSyncAll}
                 disabled={isSyncing}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded-md text-sm font-medium transition-colors"
+                size="md"
+                icon={RefreshCw}
+                loading={syncAllMutation.isPending}
+                className="w-full justify-center"
               >
-                {syncAllMutation.isPending ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <RefreshCw size={16} />
-                )}
                 Sync All + Extract
-              </button>
+              </Button>
               {syncAllMutation.isSuccess && (
                 <div className="mt-2 p-2 rounded bg-green-500/10 text-green-600 dark:text-green-400 text-xs">
                   Completed in {syncAllMutation.data.total_duration_ms}ms —{" "}
@@ -834,7 +829,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                           {label}
                         </span>
                         {artifactStatus && (
-                          <span className="text-[10px] text-zinc-400 block truncate">
+                          <span className="text-xs text-zinc-400 block truncate">
                             {artifactStatus.count} items ·{" "}
                             {timeAgo(artifactStatus.last_sync)}
                           </span>
@@ -881,11 +876,11 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                       />
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-zinc-400">
+                      <span className="text-xs text-zinc-400">
                         {timeAgo(entry.timestamp)}
                       </span>
                       {entry.details && (
-                        <span className="text-[10px] text-zinc-400">{entry.details}</span>
+                        <span className="text-xs text-zinc-400">{entry.details}</span>
                       )}
                     </div>
                   </div>

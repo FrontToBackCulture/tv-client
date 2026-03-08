@@ -4,9 +4,7 @@ import { useState } from "react";
 import { X, Trash2, Save, ChevronDown } from "lucide-react";
 import { usePortalSites } from "../../hooks/portal";
 import { cn } from "../../lib/cn";
-
-export const inputClass =
-  "w-full px-3 py-1.5 text-sm border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500";
+import { Button, IconButton } from "../../components/ui";
 
 export function DetailHeader({
   title,
@@ -30,56 +28,35 @@ export function DetailHeader({
           {title}
         </span>
         {dirty && (
-          <span className="text-[10px] text-amber-500 font-medium">
+          <span className="text-xs text-amber-500 font-medium">
             unsaved
           </span>
         )}
       </div>
       <div className="flex items-center gap-1.5">
-        <button
+        <Button
+          icon={Save}
           onClick={onSave}
           disabled={!dirty || saving}
-          className={cn(
-            "flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded transition-colors",
-            dirty
-              ? "bg-teal-600 text-white hover:bg-teal-500"
-              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
-          )}
+          loading={saving}
+          variant={dirty ? "primary" : "secondary"}
+          className="text-xs"
         >
-          <Save size={12} />
           {saving ? "Saving..." : "Save"}
-        </button>
-        <button
+        </Button>
+        <IconButton
+          icon={Trash2}
+          size={14}
+          variant="danger"
+          label="Delete"
           onClick={onDelete}
-          className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-500/10 text-zinc-400 hover:text-red-500"
-          title="Delete"
-        >
-          <Trash2 size={14} />
-        </button>
-        <button
+        />
+        <IconButton
+          icon={X}
+          label="Close"
           onClick={onClose}
-          className="w-7 h-7 flex items-center justify-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400"
-        >
-          <X size={16} />
-        </button>
+        />
       </div>
-    </div>
-  );
-}
-
-export function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-        {label}
-      </label>
-      {children}
     </div>
   );
 }
@@ -178,7 +155,7 @@ export function SiteTargeting({
                 )}
               >
                 {value.includes(site.id) && (
-                  <span className="text-white text-[8px]">&#10003;</span>
+                  <span className="text-white text-xs">&#10003;</span>
                 )}
               </span>
               {site.name}

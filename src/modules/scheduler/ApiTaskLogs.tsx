@@ -2,17 +2,14 @@ import { useState } from "react";
 import { CheckCircle, XCircle, Loader2, Slack } from "lucide-react";
 import { useApiTaskLogs } from "../../hooks/scheduler";
 import { cn } from "../../lib/cn";
+import { SectionLoading } from "../../components/ui";
 
 export function ApiTaskLogs() {
   const { data: logs = [], isLoading } = useApiTaskLogs();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={20} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="flex-1" />;
   }
 
   return (
@@ -91,7 +88,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        "px-1.5 py-0.5 text-[10px] font-medium rounded-full",
+        "px-1.5 py-0.5 text-xs font-medium rounded-full",
         status === "completed" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
         status === "failed" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
         status === "running" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",

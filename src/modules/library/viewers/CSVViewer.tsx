@@ -2,7 +2,7 @@
 // CSV file viewer with sortable table display
 
 import { useState, useMemo } from "react";
-import { ArrowUpDown, ArrowUp, ArrowDown, Table2, Copy, Check } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Copy, Check } from "lucide-react";
 import { cn } from "../../../lib/cn";
 
 interface CSVViewerProps {
@@ -51,7 +51,7 @@ function parseCSV(content: string): { headers: string[]; rows: string[][] } {
 
 type SortDirection = "asc" | "desc" | null;
 
-export function CSVViewer({ content, filename }: CSVViewerProps) {
+export function CSVViewer({ content }: CSVViewerProps) {
   const [sortColumn, setSortColumn] = useState<number | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [copied, setCopied] = useState(false);
@@ -117,15 +117,11 @@ export function CSVViewer({ content, filename }: CSVViewerProps) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <div className="flex items-center gap-2">
-          <Table2 size={16} className="text-zinc-500" />
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
-          <span className="text-xs text-zinc-500 dark:text-zinc-600">
-            {rows.length} rows × {headers.length} columns
-          </span>
-        </div>
+        <span className="text-xs text-zinc-500 dark:text-zinc-600">
+          {rows.length} rows × {headers.length} columns
+        </span>
         <button
           onClick={handleCopy}
           className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded transition-colors"

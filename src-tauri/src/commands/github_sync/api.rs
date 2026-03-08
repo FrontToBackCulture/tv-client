@@ -1,5 +1,6 @@
 // GitHub API client - fetch repo tree and file content
 
+use crate::commands::error::{CmdResult, CommandError};
 use super::mapping::GitHubFile;
 
 const GITHUB_API_BASE: &str = "https://api.github.com";
@@ -11,8 +12,8 @@ pub async fn fetch_tree(
     owner: &str,
     repo: &str,
     branch: &str,
-) -> Result<Vec<GitHubFile>, String> {
-    let client = reqwest::Client::new();
+) -> CmdResult<Vec<GitHubFile>> {
+    let client = crate::HTTP_CLIENT.clone();
     let url = format!(
         "{}/repos/{}/{}/git/trees/{}",
         GITHUB_API_BASE, owner, repo, branch
@@ -25,24 +26,22 @@ pub async fn fetch_tree(
         .header("Accept", "application/vnd.github.v3+json")
         .header("User-Agent", "tv-client")
         .send()
-        .await
-        .map_err(|e| format!("GitHub API request failed: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
-        let status = response.status();
+        let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("GitHub API error {}: {}", status, body));
+        return Err(CommandError::Http { status, body });
     }
 
     let data: serde_json::Value = response
         .json()
-        .await
-        .map_err(|e| format!("Failed to parse GitHub response: {}", e))?;
+        .await?;
 
     let tree = data
         .get("tree")
         .and_then(|t| t.as_array())
-        .ok_or_else(|| "No tree in GitHub response".to_string())?;
+        .ok_or_else(|| CommandError::Parse("No tree in GitHub response".into()))?;
 
     let files: Vec<GitHubFile> = tree
         .iter()
@@ -93,8 +92,8 @@ pub async fn fetch_file_content(
     owner: &str,
     repo: &str,
     path: &str,
-) -> Result<String, String> {
-    let client = reqwest::Client::new();
+) -> CmdResult<String> {
+    let client = crate::HTTP_CLIENT.clone();
     let url = format!(
         "{}/repos/{}/{}/contents/{}",
         GITHUB_API_BASE, owner, repo, path
@@ -106,39 +105,39 @@ pub async fn fetch_file_content(
         .header("Accept", "application/vnd.github.v3+json")
         .header("User-Agent", "tv-client")
         .send()
-        .await
-        .map_err(|e| format!("Failed to fetch file content: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
-        let status = response.status();
-        return Err(format!("GitHub API error {} for {}", status, path));
+        let status = response.status().as_u16();
+        let body = format!("GitHub API error for {}", path);
+        return Err(CommandError::Http { status, body });
     }
 
     let data: serde_json::Value = response
         .json()
-        .await
-        .map_err(|e| format!("Failed to parse file response: {}", e))?;
+        .await?;
 
     let size = data.get("size").and_then(|s| s.as_u64()).unwrap_or(0);
     if size > MAX_FILE_SIZE {
-        return Err(format!("File too large: {} bytes", size));
+        return Err(CommandError::Network(format!("File too large: {} bytes", size)));
     }
 
     // Content is base64 encoded
     let content_b64 = data
         .get("content")
         .and_then(|c| c.as_str())
-        .ok_or_else(|| "No content in response".to_string())?;
+        .ok_or_else(|| CommandError::Parse("No content in response".into()))?;
 
     // GitHub returns base64 with newlines
     let cleaned = content_b64.replace('\n', "");
     let bytes = base64_decode(&cleaned)?;
-    String::from_utf8(bytes).map_err(|e| format!("File is not valid UTF-8: {}", e))
+    String::from_utf8(bytes)
+        .map_err(|e| CommandError::Parse(format!("File is not valid UTF-8: {}", e)))
 }
 
-fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
+fn base64_decode(input: &str) -> CmdResult<Vec<u8>> {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD
         .decode(input)
-        .map_err(|e| format!("Base64 decode error: {}", e))
+        .map_err(|e| CommandError::Parse(format!("Base64 decode error: {}", e)))
 }

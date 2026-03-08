@@ -1,14 +1,16 @@
 // src/modules/library/viewers/ImageViewer.tsx
-// Image viewer with zoom, fit, and info display
+// Image viewer with info display
 
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ZoomIn, ZoomOut, Maximize2, RotateCw, Image, Loader2 } from "lucide-react";
-import { cn } from "../../../lib/cn";
+import { ZoomIn, ZoomOut, Maximize2, Minimize2, Image } from "lucide-react";
+import { DetailLoading } from "../../../components/ui/DetailStates";
+
 
 interface ImageViewerProps {
   path: string;
   filename: string;
+  refreshKey?: number;
 }
 
 // Get MIME type from extension
@@ -27,7 +29,7 @@ function getMimeType(filename: string): string {
   return mimeTypes[ext] || "image/png";
 }
 
-export function ImageViewer({ path, filename }: ImageViewerProps) {
+export function ImageViewer({ path, filename, refreshKey }: ImageViewerProps) {
   const [imageData, setImageData] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
       }
     }
     loadImage();
-  }, [path, filename]);
+  }, [path, filename, refreshKey]);
 
   // Get image dimensions when loaded
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -59,23 +61,20 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
     setDimensions({ width: img.naturalWidth, height: img.naturalHeight });
   };
 
-  const handleZoomIn = () => setZoom((z) => Math.min(z + 25, 400));
-  const handleZoomOut = () => setZoom((z) => Math.max(z - 25, 25));
+  const handleZoomIn = () => { setFitMode("actual"); setZoom((z) => Math.min(z + 25, 400)); };
+  const handleZoomOut = () => { setFitMode("actual"); setZoom((z) => Math.max(z - 25, 25)); };
   const handleFitToggle = () => {
-    setFitMode((m) => (m === "contain" ? "actual" : "contain"));
-    if (fitMode === "actual") setZoom(100);
+    if (fitMode === "contain") {
+      setFitMode("actual");
+      setZoom(100);
+    } else {
+      setFitMode("contain");
+      setZoom(100);
+    }
   };
-  const handleResetZoom = () => setZoom(100);
 
   if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 size={32} className="mx-auto mb-3 text-zinc-400 animate-spin" />
-          <p className="text-sm text-zinc-500">Loading image...</p>
-        </div>
-      </div>
-    );
+    return <DetailLoading />;
   }
 
   if (error) {
@@ -92,51 +91,35 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
-          {dimensions && (
-            <span className="text-xs text-zinc-500 dark:text-zinc-600">
-              {dimensions.width} × {dimensions.height}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleZoomOut}
-            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-            title="Zoom out"
-          >
-            <ZoomOut size={16} className="text-zinc-500 dark:text-zinc-400" />
-          </button>
-          <span className="text-xs text-zinc-500 w-12 text-center">{zoom}%</span>
-          <button
-            onClick={handleZoomIn}
-            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-            title="Zoom in"
-          >
-            <ZoomIn size={16} className="text-zinc-500 dark:text-zinc-400" />
-          </button>
-          <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-700 mx-1" />
-          <button
-            onClick={handleFitToggle}
-            className={cn(
-              "p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors",
-              fitMode === "contain" && "bg-zinc-200 dark:bg-zinc-800"
-            )}
-            title={fitMode === "contain" ? "Show actual size" : "Fit to window"}
-          >
+      {/* Zoom controls */}
+      <div className="flex items-center justify-center gap-1 px-4 py-1.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+        <button
+          onClick={handleZoomOut}
+          className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+          title="Zoom out"
+        >
+          <ZoomOut size={16} className="text-zinc-500 dark:text-zinc-400" />
+        </button>
+        <span className="text-xs text-zinc-500 w-12 text-center">{zoom}%</span>
+        <button
+          onClick={handleZoomIn}
+          className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+          title="Zoom in"
+        >
+          <ZoomIn size={16} className="text-zinc-500 dark:text-zinc-400" />
+        </button>
+        <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-700 mx-1" />
+        <button
+          onClick={handleFitToggle}
+          className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+          title={fitMode === "contain" ? "Actual size" : "Fit to window"}
+        >
+          {fitMode === "contain" ? (
             <Maximize2 size={16} className="text-zinc-500 dark:text-zinc-400" />
-          </button>
-          <button
-            onClick={handleResetZoom}
-            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-            title="Reset zoom"
-          >
-            <RotateCw size={16} className="text-zinc-500 dark:text-zinc-400" />
-          </button>
-        </div>
+          ) : (
+            <Minimize2 size={16} className="text-zinc-500 dark:text-zinc-400" />
+          )}
+        </button>
       </div>
 
       {/* Image container */}
@@ -164,9 +147,9 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
               style={{
                 maxWidth: fitMode === "contain" ? "100%" : "none",
                 maxHeight: fitMode === "contain" ? "calc(100vh - 200px)" : "none",
-                width: fitMode === "actual" ? `${zoom}%` : "auto",
+                transform: fitMode === "actual" ? `scale(${zoom / 100})` : undefined,
+                transformOrigin: "center center",
                 height: "auto",
-                imageRendering: zoom > 100 ? "pixelated" : "auto",
               }}
             />
           )}
@@ -176,7 +159,10 @@ export function ImageViewer({ path, filename }: ImageViewerProps) {
       {/* Info bar */}
       <div className="px-4 py-1.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
         <div className="flex items-center justify-between text-xs text-zinc-500">
-          <span>{getMimeType(filename)}</span>
+          <span>
+            {getMimeType(filename)}
+            {dimensions && ` · ${dimensions.width} × ${dimensions.height}`}
+          </span>
           <span>{path}</span>
         </div>
       </div>

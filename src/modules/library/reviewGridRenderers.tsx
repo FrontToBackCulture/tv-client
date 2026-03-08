@@ -18,7 +18,7 @@ export const NameCellRenderer = (params: ICellRendererParams<ReviewRow>) => {
         )
       )}
       {data.isStale && (
-        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500 text-white flex-shrink-0">Deleted</span>
+        <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-red-500 text-white flex-shrink-0">Deleted</span>
       )}
       <span className="font-medium">{data.displayName || data.name}</span>
     </div>
@@ -166,7 +166,7 @@ export const TagsCellRenderer = (params: ICellRendererParams<ReviewRow>) => {
       {tags.map((tag, index) => (
         <span
           key={index}
-          className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${getTagStyle(tag.value, tag.type)}`}
+          className={`px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${getTagStyle(tag.value, tag.type)}`}
         >
           {tag.value}
         </span>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { MessageCircle, Plus } from "lucide-react";
+import { Button } from "../../components/ui";
 import {
   usePopups,
   useCreatePopup,
@@ -10,12 +11,11 @@ import {
 } from "../../hooks/portal";
 import { cn } from "../../lib/cn";
 import {
-  inputClass,
   DetailHeader,
-  Field,
   ToggleSwitch,
   SiteTargeting,
 } from "./announcementsShared";
+import { FormField, Input, Select, Textarea } from "../../components/ui";
 
 export function PopupsList({
   selectedId,
@@ -49,14 +49,15 @@ export function PopupsList({
         <span className="text-xs text-zinc-400">
           {popups?.length ?? 0} popup{(popups?.length ?? 0) !== 1 ? "s" : ""}
         </span>
-        <button
+        <Button
+          variant="ghost"
+          icon={Plus}
           onClick={handleCreate}
-          disabled={createPopup.isPending}
-          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 rounded transition-colors"
+          loading={createPopup.isPending}
+          className="text-xs text-teal-600 dark:text-teal-400"
         >
-          <Plus size={12} />
           Add
-        </button>
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -103,7 +104,7 @@ export function PopupsList({
                     )}
                   />
                 </div>
-                <div className="text-[11px] text-zinc-400 mt-0.5">
+                <div className="text-xs text-zinc-400 mt-0.5">
                   {popup.trigger_type} &middot; {popup.frequency}
                 </div>
               </div>
@@ -207,139 +208,130 @@ export function PopupDetail({ id, onClose }: { id: string; onClose: () => void }
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <Field label="Title">
-          <input
+        <FormField label="Title">
+          <Input
             type="text"
             value={form.title}
             onChange={(e) => set("title", e.target.value)}
-            className={inputClass}
           />
-        </Field>
+        </FormField>
 
-        <Field label="Body">
-          <textarea
+        <FormField label="Body">
+          <Textarea
             value={form.body}
             onChange={(e) => set("body", e.target.value)}
             rows={5}
-            className={inputClass + " resize-none"}
+            className="resize-none"
           />
-        </Field>
+        </FormField>
 
-        <Field label="Image URL">
-          <input
+        <FormField label="Image URL">
+          <Input
             type="text"
             value={form.image_url}
             onChange={(e) => set("image_url", e.target.value)}
             placeholder="https://..."
-            className={inputClass}
           />
-        </Field>
+        </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="CTA Text">
-            <input
+          <FormField label="CTA Text">
+            <Input
               type="text"
               value={form.cta_text}
               onChange={(e) => set("cta_text", e.target.value)}
               placeholder="Learn more"
-              className={inputClass}
             />
-          </Field>
+          </FormField>
 
-          <Field label="CTA URL">
-            <input
+          <FormField label="CTA URL">
+            <Input
               type="text"
               value={form.cta_url}
               onChange={(e) => set("cta_url", e.target.value)}
               placeholder="https://..."
-              className={inputClass}
             />
-          </Field>
+          </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Trigger">
-            <select
+          <FormField label="Trigger">
+            <Select
               value={form.trigger_type}
               onChange={(e) => set("trigger_type", e.target.value)}
-              className={inputClass}
             >
               <option value="page_load">Page Load</option>
               <option value="delay">Delay</option>
               <option value="scroll_percent">Scroll %</option>
-            </select>
-          </Field>
+            </Select>
+          </FormField>
 
           {form.trigger_type !== "page_load" && (
-            <Field
+            <FormField
               label={
                 form.trigger_type === "delay"
                   ? "Delay (seconds)"
                   : "Scroll %"
               }
             >
-              <input
+              <Input
                 type="number"
                 value={form.trigger_value}
                 onChange={(e) => set("trigger_value", e.target.value)}
                 placeholder={form.trigger_type === "delay" ? "5" : "50"}
-                className={inputClass}
               />
-            </Field>
+            </FormField>
           )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Frequency">
-            <select
+          <FormField label="Frequency">
+            <Select
               value={form.frequency}
               onChange={(e) => set("frequency", e.target.value)}
-              className={inputClass}
             >
               <option value="once">Once</option>
               <option value="every_session">Every Session</option>
               <option value="every_x_days">Every X Days</option>
-            </select>
-          </Field>
+            </Select>
+          </FormField>
 
           {form.frequency === "every_x_days" && (
-            <Field label="Days">
-              <input
+            <FormField label="Days">
+              <Input
                 type="number"
                 value={form.frequency_days ?? ""}
                 onChange={(e) =>
                   set("frequency_days", e.target.value ? parseInt(e.target.value) : null)
                 }
                 placeholder="7"
-                className={inputClass}
               />
-            </Field>
+            </FormField>
           )}
         </div>
 
-        <Field label="URL Pattern">
-          <input
+        <FormField label="URL Pattern">
+          <Input
             type="text"
             value={form.url_pattern}
             onChange={(e) => set("url_pattern", e.target.value)}
             placeholder="*/pricing* (optional)"
-            className={inputClass}
           />
-        </Field>
+        </FormField>
 
-        <Field label="Active">
+        <FormField label="Active">
           <ToggleSwitch
             value={form.is_active}
             onChange={(v) => set("is_active", v)}
           />
-        </Field>
+        </FormField>
 
-        <Field label="Target Sites">
+        <FormField label="Target Sites">
           <SiteTargeting
             value={form.target_sites}
             onChange={(sites) => set("target_sites", sites)}
           />
-        </Field>
+        </FormField>
       </div>
     </div>
   );

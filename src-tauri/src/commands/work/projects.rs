@@ -1,11 +1,12 @@
 // Work Module - Project Commands
 
 use super::types::*;
+use crate::commands::error::CmdResult;
 use crate::commands::supabase::get_client;
 
 /// List all projects
 #[tauri::command]
-pub async fn work_list_projects(include_statuses: Option<bool>) -> Result<Vec<Project>, String> {
+pub async fn work_list_projects(include_statuses: Option<bool>) -> CmdResult<Vec<Project>> {
     let client = get_client().await?;
 
     // Build query with optional status join
@@ -20,7 +21,7 @@ pub async fn work_list_projects(include_statuses: Option<bool>) -> Result<Vec<Pr
 
 /// Get a single project by ID
 #[tauri::command]
-pub async fn work_get_project(project_id: String) -> Result<Project, String> {
+pub async fn work_get_project(project_id: String) -> CmdResult<Project> {
     let client = get_client().await?;
 
     let query = format!(
@@ -31,12 +32,12 @@ pub async fn work_get_project(project_id: String) -> Result<Project, String> {
     client
         .select_single("projects", &query)
         .await?
-        .ok_or_else(|| format!("Project not found: {}", project_id))
+        .ok_or_else(|| crate::commands::error::CommandError::NotFound(format!("Project not found: {}", project_id)))
 }
 
 /// Create a new project with default statuses
 #[tauri::command]
-pub async fn work_create_project(data: CreateProject) -> Result<Project, String> {
+pub async fn work_create_project(data: CreateProject) -> CmdResult<Project> {
     let client = get_client().await?;
 
     // Generate slug if not provided
@@ -75,7 +76,7 @@ pub async fn work_create_project(data: CreateProject) -> Result<Project, String>
 
 /// Update a project
 #[tauri::command]
-pub async fn work_update_project(project_id: String, data: UpdateProject) -> Result<Project, String> {
+pub async fn work_update_project(project_id: String, data: UpdateProject) -> CmdResult<Project> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", project_id);
@@ -84,7 +85,7 @@ pub async fn work_update_project(project_id: String, data: UpdateProject) -> Res
 
 /// Delete a project (soft delete by setting archived_at)
 #[tauri::command]
-pub async fn work_delete_project(project_id: String) -> Result<(), String> {
+pub async fn work_delete_project(project_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", project_id);
@@ -97,7 +98,7 @@ pub async fn work_delete_project(project_id: String) -> Result<(), String> {
 
 /// List task statuses for a project
 #[tauri::command]
-pub async fn work_list_project_statuses(project_id: String) -> Result<Vec<TaskStatus>, String> {
+pub async fn work_list_project_statuses(project_id: String) -> CmdResult<Vec<TaskStatus>> {
     let client = get_client().await?;
 
     let query = format!("project_id=eq.{}&order=sort_order.asc", project_id);
@@ -106,7 +107,7 @@ pub async fn work_list_project_statuses(project_id: String) -> Result<Vec<TaskSt
 
 /// List project updates (status updates)
 #[tauri::command]
-pub async fn work_list_project_updates(project_id: String) -> Result<Vec<ProjectUpdate>, String> {
+pub async fn work_list_project_updates(project_id: String) -> CmdResult<Vec<ProjectUpdate>> {
     let client = get_client().await?;
 
     let query = format!(
@@ -121,7 +122,7 @@ pub async fn work_list_project_updates(project_id: String) -> Result<Vec<Project
 pub async fn work_create_project_update(
     project_id: String,
     data: CreateProjectUpdate,
-) -> Result<ProjectUpdate, String> {
+) -> CmdResult<ProjectUpdate> {
     let client = get_client().await?;
 
     let insert_data = serde_json::json!({
@@ -146,7 +147,7 @@ pub async fn work_create_project_update(
 
 /// Delete a project update
 #[tauri::command]
-pub async fn work_delete_project_update(update_id: String) -> Result<(), String> {
+pub async fn work_delete_project_update(update_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", update_id);

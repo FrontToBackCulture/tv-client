@@ -7,6 +7,8 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::command;
 
+use crate::commands::error::CmdResult;
+
 // Known API key names
 pub const KEY_GAMMA_API: &str = "gamma_api_key";
 pub const KEY_GEMINI_API: &str = "gemini_api_key";
@@ -71,28 +73,25 @@ fn get_settings_path() -> PathBuf {
     get_settings_dir().join("settings.json")
 }
 
-pub fn load_settings() -> Result<Settings, String> {
+pub fn load_settings() -> CmdResult<Settings> {
     let path = get_settings_path();
     if !path.exists() {
         return Ok(Settings::default());
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read settings: {}", e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse settings: {}", e))
+    let content = fs::read_to_string(&path)?;
+    let settings = serde_json::from_str(&content)?;
+    Ok(settings)
 }
 
-fn save_settings(settings: &Settings) -> Result<(), String> {
+fn save_settings(settings: &Settings) -> CmdResult<()> {
     let dir = get_settings_dir();
     if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| format!("Failed to create settings directory: {}", e))?;
+        fs::create_dir_all(&dir)?;
     }
     let path = get_settings_path();
-    let content = serde_json::to_string_pretty(settings)
-        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
-    fs::write(&path, content)
-        .map_err(|e| format!("Failed to write settings: {}", e))
+    let content = serde_json::to_string_pretty(settings)?;
+    fs::write(&path, content)?;
+    Ok(())
 }
 
 pub fn mask_key(key: &str) -> String {
@@ -109,7 +108,7 @@ pub fn mask_key(key: &str) -> String {
 
 /// Set an API key
 #[command]
-pub fn settings_set_key(key_name: String, value: String) -> Result<(), String> {
+pub fn settings_set_key(key_name: String, value: String) -> CmdResult<()> {
     let mut settings = load_settings()?;
     settings.keys.insert(key_name, value);
     save_settings(&settings)
@@ -117,14 +116,14 @@ pub fn settings_set_key(key_name: String, value: String) -> Result<(), String> {
 
 /// Get an API key
 #[command]
-pub fn settings_get_key(key_name: String) -> Result<Option<String>, String> {
+pub fn settings_get_key(key_name: String) -> CmdResult<Option<String>> {
     let settings = load_settings()?;
     Ok(settings.keys.get(&key_name).cloned())
 }
 
 /// Delete an API key
 #[command]
-pub fn settings_delete_key(key_name: String) -> Result<(), String> {
+pub fn settings_delete_key(key_name: String) -> CmdResult<()> {
     let mut settings = load_settings()?;
     settings.keys.remove(&key_name);
     save_settings(&settings)
@@ -132,14 +131,14 @@ pub fn settings_delete_key(key_name: String) -> Result<(), String> {
 
 /// Check if an API key exists
 #[command]
-pub fn settings_has_key(key_name: String) -> Result<bool, String> {
+pub fn settings_has_key(key_name: String) -> CmdResult<bool> {
     let settings = load_settings()?;
     Ok(settings.keys.contains_key(&key_name))
 }
 
 /// Get masked value of an API key (for display)
 #[command]
-pub fn settings_get_masked_key(key_name: String) -> Result<Option<String>, String> {
+pub fn settings_get_masked_key(key_name: String) -> CmdResult<Option<String>> {
     let settings = load_settings()?;
     Ok(settings.keys.get(&key_name).map(|v| mask_key(v)))
 }
@@ -150,7 +149,7 @@ pub fn settings_get_masked_key(key_name: String) -> Result<Option<String>, Strin
 
 /// Get status of all known API keys
 #[command]
-pub fn settings_get_status() -> Result<SettingsStatus, String> {
+pub fn settings_get_status() -> CmdResult<SettingsStatus> {
     let settings = load_settings()?;
     Ok(SettingsStatus {
         gamma_api_key: settings.keys.contains_key(KEY_GAMMA_API),
@@ -168,7 +167,7 @@ pub fn settings_get_status() -> Result<SettingsStatus, String> {
 
 /// Get all API key info (for settings UI)
 #[command]
-pub fn settings_list_keys() -> Result<Vec<ApiKeyInfo>, String> {
+pub fn settings_list_keys() -> CmdResult<Vec<ApiKeyInfo>> {
     let settings = load_settings()?;
 
     let keys = vec![
@@ -213,25 +212,25 @@ pub fn settings_list_keys() -> Result<Vec<ApiKeyInfo>, String> {
 
 /// Get Gamma API key (for gamma commands)
 #[command]
-pub fn settings_get_gamma_key() -> Result<Option<String>, String> {
+pub fn settings_get_gamma_key() -> CmdResult<Option<String>> {
     settings_get_key(KEY_GAMMA_API.to_string())
 }
 
 /// Get Gemini API key (for nanobanana commands)
 #[command]
-pub fn settings_get_gemini_key() -> Result<Option<String>, String> {
+pub fn settings_get_gemini_key() -> CmdResult<Option<String>> {
     settings_get_key(KEY_GEMINI_API.to_string())
 }
 
 /// Get Intercom API key (for help center publishing)
 #[command]
-pub fn settings_get_intercom_key() -> Result<Option<String>, String> {
+pub fn settings_get_intercom_key() -> CmdResult<Option<String>> {
     settings_get_key(KEY_INTERCOM_API.to_string())
 }
 
 /// Get GitHub credentials (for auth)
 #[command]
-pub fn settings_get_github_credentials() -> Result<(Option<String>, Option<String>), String> {
+pub fn settings_get_github_credentials() -> CmdResult<(Option<String>, Option<String>)> {
     let settings = load_settings()?;
     let client_id = settings.keys.get(KEY_GITHUB_CLIENT_ID).cloned();
     let client_secret = settings.keys.get(KEY_GITHUB_CLIENT_SECRET).cloned();
@@ -240,7 +239,7 @@ pub fn settings_get_github_credentials() -> Result<(Option<String>, Option<Strin
 
 /// Get Supabase credentials
 #[command]
-pub fn settings_get_supabase_credentials() -> Result<(Option<String>, Option<String>), String> {
+pub fn settings_get_supabase_credentials() -> CmdResult<(Option<String>, Option<String>)> {
     let settings = load_settings()?;
     let url = settings.keys.get(KEY_SUPABASE_URL).cloned();
     let anon_key = settings.keys.get(KEY_SUPABASE_ANON_KEY).cloned();
@@ -249,7 +248,7 @@ pub fn settings_get_supabase_credentials() -> Result<(Option<String>, Option<Str
 
 /// Get MS Graph credentials (for Outlook)
 #[command]
-pub fn settings_get_ms_graph_credentials() -> Result<(Option<String>, Option<String>, Option<String>), String> {
+pub fn settings_get_ms_graph_credentials() -> CmdResult<(Option<String>, Option<String>, Option<String>)> {
     let settings = load_settings()?;
     let client_id = settings.keys.get(KEY_MS_GRAPH_CLIENT_ID).cloned();
     let tenant_id = settings.keys.get(KEY_MS_GRAPH_TENANT_ID).cloned();
@@ -259,13 +258,13 @@ pub fn settings_get_ms_graph_credentials() -> Result<(Option<String>, Option<Str
 
 /// Get Anthropic API key (for AI summaries)
 #[command]
-pub fn settings_get_anthropic_key() -> Result<Option<String>, String> {
+pub fn settings_get_anthropic_key() -> CmdResult<Option<String>> {
     settings_get_key(KEY_ANTHROPIC_API.to_string())
 }
 
 /// Get AWS credentials (for S3 sync)
 #[command]
-pub fn settings_get_aws_credentials() -> Result<(Option<String>, Option<String>), String> {
+pub fn settings_get_aws_credentials() -> CmdResult<(Option<String>, Option<String>)> {
     let settings = load_settings()?;
     let access_key = settings.keys.get(KEY_AWS_ACCESS_KEY_ID).cloned();
     let secret_key = settings.keys.get(KEY_AWS_SECRET_ACCESS_KEY).cloned();
@@ -287,7 +286,7 @@ pub fn settings_get_path() -> String {
 #[command]
 pub fn settings_get_val_credentials(
     domain: String,
-) -> Result<(Option<String>, Option<String>), String> {
+) -> CmdResult<(Option<String>, Option<String>)> {
     let settings = load_settings()?;
     let email = settings
         .keys
@@ -303,9 +302,8 @@ pub fn settings_get_val_credentials(
 /// Import credentials from val-sync .env file
 /// Parses VAL_DOMAIN_{DOMAIN}_EMAIL/PASSWORD entries
 #[command]
-pub fn settings_import_val_credentials(env_file_path: String) -> Result<Vec<String>, String> {
-    let content = fs::read_to_string(&env_file_path)
-        .map_err(|e| format!("Failed to read .env file: {}", e))?;
+pub fn settings_import_val_credentials(env_file_path: String) -> CmdResult<Vec<String>> {
+    let content = fs::read_to_string(&env_file_path)?;
 
     let mut settings = load_settings()?;
     let mut imported = Vec::new();
@@ -352,9 +350,8 @@ pub fn settings_import_val_credentials(env_file_path: String) -> Result<Vec<Stri
 
 /// Import settings from a JSON file or env-style file
 #[command]
-pub fn settings_import_from_file(file_path: String) -> Result<Vec<String>, String> {
-    let content = fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+pub fn settings_import_from_file(file_path: String) -> CmdResult<Vec<String>> {
+    let content = fs::read_to_string(&file_path)?;
 
     let mut imported = Vec::new();
     let mut settings = load_settings()?;
@@ -425,12 +422,10 @@ pub fn settings_import_from_file(file_path: String) -> Result<Vec<String>, Strin
 
 /// Export all settings to a JSON file
 #[command]
-pub fn settings_export_to_file(file_path: String) -> Result<usize, String> {
+pub fn settings_export_to_file(file_path: String) -> CmdResult<usize> {
     let settings = load_settings()?;
     let count = settings.keys.len();
-    let content = serde_json::to_string_pretty(&settings)
-        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
-    fs::write(&file_path, content)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+    let content = serde_json::to_string_pretty(&settings)?;
+    fs::write(&file_path, content)?;
     Ok(count)
 }

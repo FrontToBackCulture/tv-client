@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Flag, Plus } from "lucide-react";
+import { Button } from "../../components/ui";
 import {
   useBanners,
   useCreateBanner,
@@ -10,12 +11,11 @@ import {
 } from "../../hooks/portal";
 import { cn } from "../../lib/cn";
 import {
-  inputClass,
   DetailHeader,
-  Field,
   ToggleSwitch,
   SiteTargeting,
 } from "./announcementsShared";
+import { FormField, Input, Select, Textarea } from "../../components/ui";
 import { StatusChip } from "../product/StatusChip";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -57,14 +57,15 @@ export function BannersList({
         <span className="text-xs text-zinc-400">
           {banners?.length ?? 0} banner{(banners?.length ?? 0) !== 1 ? "s" : ""}
         </span>
-        <button
+        <Button
+          variant="ghost"
+          icon={Plus}
           onClick={handleCreate}
-          disabled={createBanner.isPending}
-          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 rounded transition-colors"
+          loading={createBanner.isPending}
+          className="text-xs text-teal-600 dark:text-teal-400"
         >
-          <Plus size={12} />
           Add
-        </button>
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -108,7 +109,7 @@ export function BannersList({
                     )}
                   />
                 </div>
-                <div className="text-[11px] text-zinc-400 truncate mt-0.5">
+                <div className="text-xs text-zinc-400 truncate mt-0.5">
                   {banner.type} &middot; {banner.content || "No content"}
                 </div>
               </div>
@@ -216,48 +217,46 @@ export function BannerDetail({ id, onClose }: { id: string; onClose: () => void 
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <Field label="Title">
-          <input
+        <FormField label="Title">
+          <Input
             type="text"
             value={form.title}
             onChange={(e) => set("title", e.target.value)}
-            className={inputClass}
           />
-        </Field>
+        </FormField>
 
-        <Field label="Content">
-          <textarea
+        <FormField label="Content">
+          <Textarea
             value={form.content}
             onChange={(e) => set("content", e.target.value)}
             rows={3}
-            className={inputClass + " resize-none"}
+            className="resize-none"
           />
-        </Field>
+        </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Type">
-            <select
+          <FormField label="Type">
+            <Select
               value={form.type}
               onChange={(e) => set("type", e.target.value)}
-              className={inputClass}
             >
               <option value="info">Info</option>
               <option value="warning">Warning</option>
               <option value="maintenance">Maintenance</option>
               <option value="announcement">Announcement</option>
-            </select>
-          </Field>
+            </Select>
+          </FormField>
 
-          <Field label="Active">
+          <FormField label="Active">
             <ToggleSwitch
               value={form.is_active}
               onChange={(v) => set("is_active", v)}
             />
-          </Field>
+          </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Background Color">
+          <FormField label="Background Color">
             <div className="flex gap-2">
               <input
                 type="color"
@@ -273,9 +272,9 @@ export function BannerDetail({ id, onClose }: { id: string; onClose: () => void 
                 className="flex-1 px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
               />
             </div>
-          </Field>
+          </FormField>
 
-          <Field label="Text Color">
+          <FormField label="Text Color">
             <div className="flex gap-2">
               <input
                 type="color"
@@ -291,81 +290,76 @@ export function BannerDetail({ id, onClose }: { id: string; onClose: () => void 
                 className="flex-1 px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
               />
             </div>
-          </Field>
+          </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="CTA Text">
-            <input
+          <FormField label="CTA Text">
+            <Input
               type="text"
               value={form.cta_text}
               onChange={(e) => set("cta_text", e.target.value)}
               placeholder="Learn more"
-              className={inputClass}
             />
-          </Field>
+          </FormField>
 
-          <Field label="CTA URL">
-            <input
+          <FormField label="CTA URL">
+            <Input
               type="text"
               value={form.cta_url}
               onChange={(e) => set("cta_url", e.target.value)}
               placeholder="https://..."
-              className={inputClass}
             />
-          </Field>
+          </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Dismissible">
+          <FormField label="Dismissible">
             <ToggleSwitch
               value={form.dismissible}
               onChange={(v) => set("dismissible", v)}
             />
-          </Field>
+          </FormField>
 
-          <Field label="Auto-dismiss (seconds)">
-            <input
+          <FormField label="Auto-dismiss (seconds)">
+            <Input
               type="number"
               value={form.auto_dismiss_seconds ?? ""}
               onChange={(e) =>
                 set("auto_dismiss_seconds", e.target.value ? parseInt(e.target.value) : null)
               }
               placeholder="None"
-              className={inputClass}
             />
-          </Field>
+          </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Starts at">
-            <input
+          <FormField label="Starts at">
+            <Input
               type="datetime-local"
               value={form.starts_at}
               onChange={(e) => set("starts_at", e.target.value)}
-              className={inputClass}
             />
-          </Field>
+          </FormField>
 
-          <Field label="Ends at">
-            <input
+          <FormField label="Ends at">
+            <Input
               type="datetime-local"
               value={form.ends_at}
               onChange={(e) => set("ends_at", e.target.value)}
-              className={inputClass}
             />
-          </Field>
+          </FormField>
         </div>
 
-        <Field label="Target Sites">
+        <FormField label="Target Sites">
           <SiteTargeting
             value={form.target_sites}
             onChange={(sites) => set("target_sites", sites)}
           />
-        </Field>
+        </FormField>
 
         {/* Preview */}
-        <Field label="Preview">
+        <FormField label="Preview">
           <div
             className="rounded-lg px-4 py-2.5 flex items-center justify-center gap-3 text-sm"
             style={{
@@ -381,7 +375,7 @@ export function BannerDetail({ id, onClose }: { id: string; onClose: () => void 
               <span className="opacity-70">&#215;</span>
             )}
           </div>
-        </Field>
+        </FormField>
       </div>
     </div>
   );

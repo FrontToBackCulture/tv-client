@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use super::types::{ContactRule, EmailEntry, EmailStats};
+use crate::commands::error::{CmdResult, CommandError};
 
 // ============================================================================
 // Database connection
@@ -16,20 +17,19 @@ pub struct EmailDb {
 }
 
 impl EmailDb {
-    pub fn open() -> Result<Self, String> {
+    pub fn open() -> CmdResult<Self> {
         let path = get_db_path();
-        let dir = path.parent().unwrap();
+        let dir = path.parent().unwrap_or(&path);
         if !dir.exists() {
-            std::fs::create_dir_all(dir)
-                .map_err(|e| format!("Failed to create outlook directory: {}", e))?;
+            std::fs::create_dir_all(dir)?;
         }
 
         let conn = Connection::open(&path)
-            .map_err(|e| format!("Failed to open database: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         // Enable WAL mode for better concurrent read/write
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
-            .map_err(|e| format!("Failed to set pragmas: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let db = Self {
             conn: Mutex::new(conn),
@@ -38,8 +38,8 @@ impl EmailDb {
         Ok(db)
     }
 
-    fn migrate(&self) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    fn migrate(&self) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute_batch(
             "
             CREATE TABLE IF NOT EXISTS emails (
@@ -101,15 +101,15 @@ impl EmailDb {
             );
             ",
         )
-        .map_err(|e| format!("Migration failed: {}", e))
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))
     }
 
     // ========================================================================
     // Email CRUD
     // ========================================================================
 
-    pub fn upsert_email(&self, email: &EmailEntry) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn upsert_email(&self, email: &EmailEntry) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute(
             "INSERT INTO emails (
                 id, conversation_id, subject, from_name, from_email,
@@ -158,28 +158,28 @@ impl EmailDb {
                 email.linked_company_name,
             ],
         )
-        .map_err(|e| format!("Failed to upsert email: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(())
     }
 
     #[allow(dead_code)]
-    pub fn delete_email(&self, id: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn delete_email(&self, id: &str) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute("DELETE FROM emails WHERE id = ?1", params![id])
-            .map_err(|e| format!("Failed to delete email: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(())
     }
 
-    pub fn get_email(&self, id: &str) -> Result<Option<EmailEntry>, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn get_email(&self, id: &str) -> CmdResult<Option<EmailEntry>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         let mut stmt = conn
             .prepare("SELECT * FROM emails WHERE id = ?1")
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let result = stmt
             .query_row(params![id], |row| Ok(row_to_email(row)))
             .optional()
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         match result {
             Some(Ok(email)) => Ok(Some(email)),
@@ -196,8 +196,8 @@ impl EmailDb {
         search: Option<&str>,
         limit: i64,
         offset: i64,
-    ) -> Result<Vec<EmailEntry>, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    ) -> CmdResult<Vec<EmailEntry>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
 
         let mut sql = String::from("SELECT * FROM emails WHERE 1=1");
         let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
@@ -241,74 +241,74 @@ impl EmailDb {
 
         let mut stmt = conn
             .prepare(&sql)
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let rows = stmt
             .query_map(params_ref.as_slice(), |row| Ok(row_to_email(row)))
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let mut emails = Vec::new();
         for row in rows {
             match row {
                 Ok(Ok(email)) => emails.push(email),
                 Ok(Err(e)) => return Err(e),
-                Err(e) => return Err(format!("Row error: {}", e)),
+                Err(e) => return Err(CommandError::Internal(format!("DB: {}", e))),
             }
         }
         Ok(emails)
     }
 
     #[allow(dead_code)]
-    pub fn email_exists(&self, id: &str) -> Result<bool, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn email_exists(&self, id: &str) -> CmdResult<bool> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         let count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM emails WHERE id = ?1",
                 params![id],
                 |row| row.get(0),
             )
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(count > 0)
     }
 
-    pub fn mark_read(&self, id: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn mark_read(&self, id: &str) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute(
             "UPDATE emails SET is_read = 1, status = CASE WHEN status = 'inbox' THEN 'read' ELSE status END, updated_at = datetime('now') WHERE id = ?1",
             params![id],
         )
-        .map_err(|e| format!("Failed to mark read: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(())
     }
 
-    pub fn archive_email(&self, id: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn archive_email(&self, id: &str) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute(
             "UPDATE emails SET status = 'archived', is_read = 1, updated_at = datetime('now') WHERE id = ?1",
             params![id],
         )
-        .map_err(|e| format!("Failed to archive: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(())
     }
 
-    pub fn set_body_path(&self, id: &str, body_path: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn set_body_path(&self, id: &str, body_path: &str) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute(
             "UPDATE emails SET body_path = ?2, updated_at = datetime('now') WHERE id = ?1",
             params![id, body_path],
         )
-        .map_err(|e| format!("Failed to set body path: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(())
     }
 
     #[allow(dead_code)]
-    pub fn set_ai_summary(&self, id: &str, summary: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn set_ai_summary(&self, id: &str, summary: &str) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute(
             "UPDATE emails SET ai_summary = ?2, updated_at = datetime('now') WHERE id = ?1",
             params![id, summary],
         )
-        .map_err(|e| format!("Failed to set summary: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(())
     }
 
@@ -316,12 +316,12 @@ impl EmailDb {
     // Stats
     // ========================================================================
 
-    pub fn get_stats(&self) -> Result<EmailStats, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn get_stats(&self) -> CmdResult<EmailStats> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
 
         let total: i64 = conn
             .query_row("SELECT COUNT(*) FROM emails", [], |row| row.get(0))
-            .map_err(|e| format!("Stats error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let unread: i64 = conn
             .query_row(
@@ -329,7 +329,7 @@ impl EmailDb {
                 [],
                 |row| row.get(0),
             )
-            .map_err(|e| format!("Stats error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let inbox: i64 = conn
             .query_row(
@@ -337,7 +337,7 @@ impl EmailDb {
                 [],
                 |row| row.get(0),
             )
-            .map_err(|e| format!("Stats error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let archived: i64 = conn
             .query_row(
@@ -345,7 +345,7 @@ impl EmailDb {
                 [],
                 |row| row.get(0),
             )
-            .map_err(|e| format!("Stats error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let action_required: i64 = conn
             .query_row(
@@ -353,12 +353,12 @@ impl EmailDb {
                 [],
                 |row| row.get(0),
             )
-            .map_err(|e| format!("Stats error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let mut by_category = std::collections::HashMap::new();
         let mut stmt = conn
             .prepare("SELECT category, COUNT(*) FROM emails GROUP BY category")
-            .map_err(|e| format!("Stats error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let rows = stmt
             .query_map([], |row| {
@@ -366,7 +366,7 @@ impl EmailDb {
                 let count: i64 = row.get(1)?;
                 Ok((cat, count))
             })
-            .map_err(|e| format!("Stats error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         for row in rows {
             if let Ok((cat, count)) = row {
@@ -388,8 +388,8 @@ impl EmailDb {
     // Sync state
     // ========================================================================
 
-    pub fn get_sync_state(&self, key: &str) -> Result<Option<String>, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn get_sync_state(&self, key: &str) -> CmdResult<Option<String>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         let result = conn
             .query_row(
                 "SELECT value FROM sync_state WHERE key = ?1",
@@ -397,18 +397,18 @@ impl EmailDb {
                 |row| row.get(0),
             )
             .optional()
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(result)
     }
 
-    pub fn set_sync_state(&self, key: &str, value: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn set_sync_state(&self, key: &str, value: &str) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute(
             "INSERT INTO sync_state (key, value, updated_at) VALUES (?1, ?2, datetime('now'))
              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
             params![key, value],
         )
-        .map_err(|e| format!("Failed to set sync state: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(())
     }
 
@@ -416,8 +416,8 @@ impl EmailDb {
     // Contacts
     // ========================================================================
 
-    pub fn upsert_contact(&self, rule: &ContactRule) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn upsert_contact(&self, rule: &ContactRule) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute(
             "INSERT INTO contacts (match_type, match_value, entity_type, entity_name, entity_path)
              VALUES (?1, ?2, ?3, ?4, ?5)
@@ -433,16 +433,16 @@ impl EmailDb {
                 rule.entity_path,
             ],
         )
-        .map_err(|e| format!("Failed to upsert contact: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(())
     }
 
     #[allow(dead_code)]
-    pub fn get_contacts(&self) -> Result<Vec<ContactRule>, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn get_contacts(&self) -> CmdResult<Vec<ContactRule>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         let mut stmt = conn
             .prepare("SELECT match_type, match_value, entity_type, entity_name, entity_path FROM contacts")
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let rows = stmt
             .query_map([], |row| {
@@ -454,17 +454,17 @@ impl EmailDb {
                     entity_path: row.get(4)?,
                 })
             })
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
         let mut contacts = Vec::new();
         for row in rows {
-            contacts.push(row.map_err(|e| format!("Row error: {}", e))?);
+            contacts.push(row.map_err(|e| CommandError::Internal(format!("DB: {}", e)))?);
         }
         Ok(contacts)
     }
 
-    pub fn find_contact_by_email(&self, email: &str) -> Result<Option<ContactRule>, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn find_contact_by_email(&self, email: &str) -> CmdResult<Option<ContactRule>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         let result = conn
             .query_row(
                 "SELECT match_type, match_value, entity_type, entity_name, entity_path
@@ -481,12 +481,12 @@ impl EmailDb {
                 },
             )
             .optional()
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(result)
     }
 
-    pub fn find_contact_by_domain(&self, domain: &str) -> Result<Option<ContactRule>, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn find_contact_by_domain(&self, domain: &str) -> CmdResult<Option<ContactRule>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         let result = conn
             .query_row(
                 "SELECT match_type, match_value, entity_type, entity_name, entity_path
@@ -503,19 +503,19 @@ impl EmailDb {
                 },
             )
             .optional()
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(result)
     }
 
-    pub fn is_noise_domain(&self, domain: &str) -> Result<bool, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn is_noise_domain(&self, domain: &str) -> CmdResult<bool> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         let count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM contacts WHERE match_type = 'noise_domain' AND ?1 LIKE '%' || match_value || '%'",
                 params![domain],
                 |row| row.get(0),
             )
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(count > 0)
     }
 
@@ -523,19 +523,19 @@ impl EmailDb {
     // Folder map
     // ========================================================================
 
-    pub fn upsert_folder(&self, folder_id: &str, display_name: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn upsert_folder(&self, folder_id: &str, display_name: &str) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute(
             "INSERT INTO folder_map (folder_id, display_name) VALUES (?1, ?2)
              ON CONFLICT(folder_id) DO UPDATE SET display_name = excluded.display_name",
             params![folder_id, display_name],
         )
-        .map_err(|e| format!("Failed to upsert folder: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(())
     }
 
-    pub fn get_folder_name(&self, folder_id: &str) -> Result<String, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn get_folder_name(&self, folder_id: &str) -> CmdResult<String> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         let result: Option<String> = conn
             .query_row(
                 "SELECT display_name FROM folder_map WHERE folder_id = ?1",
@@ -543,14 +543,14 @@ impl EmailDb {
                 |row| row.get(0),
             )
             .optional()
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
         Ok(result.unwrap_or_else(|| "Unknown".to_string()))
     }
 
-    pub fn get_email_count(&self) -> Result<i64, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock error: {}", e))?;
+    pub fn get_email_count(&self) -> CmdResult<i64> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.query_row("SELECT COUNT(*) FROM emails", [], |row| row.get(0))
-            .map_err(|e| format!("Count error: {}", e))
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))
     }
 }
 
@@ -566,46 +566,46 @@ fn get_db_path() -> PathBuf {
         .join("emails.db")
 }
 
-fn row_to_email(row: &rusqlite::Row) -> Result<EmailEntry, String> {
+fn row_to_email(row: &rusqlite::Row) -> CmdResult<EmailEntry> {
     let to_json: String = row
         .get::<_, String>(5)
-        .map_err(|e| format!("Row parse error: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
     let cc_json: String = row
         .get::<_, String>(6)
-        .map_err(|e| format!("Row parse error: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
 
     Ok(EmailEntry {
-        id: row.get(0).map_err(|e| format!("Row parse error: {}", e))?,
-        conversation_id: row.get(1).map_err(|e| format!("Row parse error: {}", e))?,
-        subject: row.get(2).map_err(|e| format!("Row parse error: {}", e))?,
-        from_name: row.get(3).map_err(|e| format!("Row parse error: {}", e))?,
-        from_email: row.get(4).map_err(|e| format!("Row parse error: {}", e))?,
+        id: row.get(0).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        conversation_id: row.get(1).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        subject: row.get(2).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        from_name: row.get(3).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        from_email: row.get(4).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
         to_addresses: serde_json::from_str(&to_json).unwrap_or_default(),
         cc_addresses: serde_json::from_str(&cc_json).unwrap_or_default(),
-        received_at: row.get(7).map_err(|e| format!("Row parse error: {}", e))?,
-        folder_name: row.get(8).map_err(|e| format!("Row parse error: {}", e))?,
-        importance: row.get(9).map_err(|e| format!("Row parse error: {}", e))?,
+        received_at: row.get(7).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        folder_name: row.get(8).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        importance: row.get(9).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
         is_read: row
             .get::<_, i32>(10)
-            .map_err(|e| format!("Row parse error: {}", e))?
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?
             != 0,
         has_attachments: row
             .get::<_, i32>(11)
-            .map_err(|e| format!("Row parse error: {}", e))?
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?
             != 0,
-        body_preview: row.get(12).map_err(|e| format!("Row parse error: {}", e))?,
-        body_path: row.get(13).map_err(|e| format!("Row parse error: {}", e))?,
-        category: row.get(14).map_err(|e| format!("Row parse error: {}", e))?,
-        priority_score: row.get(15).map_err(|e| format!("Row parse error: {}", e))?,
-        priority_level: row.get(16).map_err(|e| format!("Row parse error: {}", e))?,
-        ai_summary: row.get(17).map_err(|e| format!("Row parse error: {}", e))?,
+        body_preview: row.get(12).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        body_path: row.get(13).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        category: row.get(14).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        priority_score: row.get(15).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        priority_level: row.get(16).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        ai_summary: row.get(17).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
         action_required: row
             .get::<_, i32>(18)
-            .map_err(|e| format!("Row parse error: {}", e))?
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?
             != 0,
-        status: row.get(19).map_err(|e| format!("Row parse error: {}", e))?,
-        linked_company_id: row.get(20).map_err(|e| format!("Row parse error: {}", e))?,
-        linked_company_name: row.get(21).map_err(|e| format!("Row parse error: {}", e))?,
+        status: row.get(19).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        linked_company_id: row.get(20).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        linked_company_name: row.get(21).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
     })
 }
 

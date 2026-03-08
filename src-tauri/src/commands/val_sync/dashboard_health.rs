@@ -4,6 +4,7 @@
 use super::config::get_domain_config;
 use super::sync::write_json;
 use super::auth;
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -149,24 +150,22 @@ const COL_PAGE_URL: &str = "gv5b88211f306c96500f1eb44b5e53d9b7";
 // Helper functions
 // ============================================================================
 
-fn load_dashboards(global_path: &str) -> Result<Vec<Dashboard>, String> {
+fn load_dashboards(global_path: &str) -> CmdResult<Vec<Dashboard>> {
     let path = Path::new(global_path).join("all_dashboards.json");
     if !path.exists() {
-        return Err(format!("Dashboards file not found: {:?}. Run sync first.", path));
+        return Err(CommandError::NotFound(format!("Dashboards file not found: {:?}. Run sync first.", path)));
     }
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read dashboards: {}", e))?;
+    let content = fs::read_to_string(&path)?;
 
-    let data: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse dashboards JSON: {}", e))?;
+    let data: serde_json::Value = serde_json::from_str(&content)?;
 
     let items = if let Some(arr) = data.as_array() {
         arr.clone()
     } else if let Some(data_arr) = data.get("data").and_then(|d| d.as_array()) {
         data_arr.clone()
     } else {
-        return Err("Invalid dashboards JSON format".to_string());
+        return Err(CommandError::Parse("Invalid dashboards JSON format".to_string()));
     };
 
     let dashboards: Vec<Dashboard> = items
@@ -178,10 +177,10 @@ fn load_dashboards(global_path: &str) -> Result<Vec<Dashboard>, String> {
 }
 
 /// Execute SQL query against the TV domain to get session metrics
-async fn fetch_session_metrics(domain: &str, lookback_days: i64) -> Result<HashMap<i64, SessionMetrics>, String> {
+async fn fetch_session_metrics(domain: &str, lookback_days: i64) -> CmdResult<HashMap<i64, SessionMetrics>> {
     // Get TV domain config
     let tv_config = get_domain_config("tv")
-        .map_err(|_| "TV domain not configured. Session data requires tv domain access.".to_string())?;
+        .map_err(|_| CommandError::Config("TV domain not configured. Session data requires tv domain access.".to_string()))?;
 
     let base_url = format!("https://{}.thinkval.io", tv_config.api_domain());
 
@@ -221,7 +220,7 @@ async fn fetch_session_metrics(domain: &str, lookback_days: i64) -> Result<HashM
 
     // Execute SQL via VAL API
     let url = format!("{}/api/v1/sql/execute", base_url);
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
 
     let response = client
         .post(&url)
@@ -232,17 +231,15 @@ async fn fetch_session_metrics(domain: &str, lookback_days: i64) -> Result<HashM
             "page": 0
         }))
         .send()
-        .await
-        .map_err(|e| format!("Failed to execute session query: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
-        let status = response.status();
+        let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("Session query failed ({}): {}", status, body));
+        return Err(CommandError::Http { status, body });
     }
 
-    let data: serde_json::Value = response.json().await
-        .map_err(|e| format!("Failed to parse session query response: {}", e))?;
+    let data: serde_json::Value = response.json().await?;
 
     // Parse results into metrics map
     let mut metrics_map = HashMap::new();
@@ -374,7 +371,7 @@ fn calculate_dashboard_health(
 
 /// Run dashboard health analysis for a domain
 #[command]
-pub async fn val_run_dashboard_health(domain: String, lookback_days: Option<i64>) -> Result<DashboardHealthResult, String> {
+pub async fn val_run_dashboard_health(domain: String, lookback_days: Option<i64>) -> CmdResult<DashboardHealthResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -484,8 +481,7 @@ pub async fn val_run_dashboard_health(domain: String, lookback_days: Option<i64>
     };
 
     // Write results to file
-    let output_value = serde_json::to_value(&result)
-        .map_err(|e| format!("Failed to serialize dashboard health results: {}", e))?;
+    let output_value = serde_json::to_value(&result)?;
     write_json(&file_path.to_string_lossy(), &output_value)?;
 
     Ok(result)

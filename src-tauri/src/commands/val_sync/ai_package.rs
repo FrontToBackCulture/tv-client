@@ -4,6 +4,7 @@
 // Skills are assigned per-domain via ai_config.json.
 
 use super::config::load_config_internal;
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -60,12 +61,6 @@ pub struct DomainAiStatus {
     pub configured_skills: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExtractTemplatesResult {
-    pub skills_extracted: Vec<String>,
-    pub instructions_extracted: bool,
-}
-
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -79,17 +74,65 @@ fn read_ai_config(ai_path: &Path) -> DomainAiConfig {
     }
 }
 
-/// Read the description field from a skill's skill.json
-fn read_skill_description(platform_skills_path: &Path, slug: &str) -> Option<String> {
-    let skill_json_path = platform_skills_path.join(slug).join("skill.json");
-    let raw = fs::read_to_string(&skill_json_path).ok()?;
+/// Read the description field from _skills/registry.json for a given skill slug
+fn read_skill_description(skills_path: &Path, slug: &str) -> Option<String> {
+    let registry_path = skills_path.join("registry.json");
+    let raw = fs::read_to_string(&registry_path).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
-    parsed.get("description")?.as_str().map(|s| s.to_string())
+    parsed.get("skills")?
+        .get(slug)?
+        .get("description")?
+        .as_str()
+        .map(|s| s.to_string())
 }
 
 /// Files/dirs to skip when copying skill contents into a domain package
-const SKIP_FILES: &[&str] = &["SKILL.md", "skill.json", "AUDIT.md", ".DS_Store", ".claude.local.md"];
-const SKIP_DIRS: &[&str] = &["__pycache__", ".claude", "demo"];
+const SKIP_FILES: &[&str] = &["SKILL.md", "skill.json", "README.md", "AUDIT.md", "evals.json", ".DS_Store", ".claude.local.md", ".skill-source.json"];
+const SKIP_DIRS: &[&str] = &["__pycache__", ".claude", "demo", "examples", "_catalog", "_archive"];
+
+/// Strip full frontmatter from a SKILL.md and replace with only name + description.
+/// This keeps the distributed copy lean for AI consumption.
+fn strip_skill_frontmatter(content: &str) -> String {
+    // Check if content starts with frontmatter
+    if !content.starts_with("---") {
+        return content.to_string();
+    }
+
+    // Find the closing ---
+    let rest = &content[3..];
+    let end = match rest.find("\n---") {
+        Some(pos) => pos,
+        None => return content.to_string(), // malformed, return as-is
+    };
+
+    let frontmatter_block = &rest[..end];
+    let body = &rest[end + 4..]; // skip past \n---
+
+    // Extract name and description from the frontmatter
+    let mut name = String::new();
+    let mut description = String::new();
+
+    for line in frontmatter_block.lines() {
+        let trimmed = line.trim();
+        if let Some(val) = trimmed.strip_prefix("name:") {
+            name = val.trim().trim_matches('"').to_string();
+        } else if let Some(val) = trimmed.strip_prefix("description:") {
+            description = val.trim().trim_matches('"').to_string();
+        }
+    }
+
+    // Rebuild with minimal frontmatter
+    let mut result = String::from("---\n");
+    if !name.is_empty() {
+        result.push_str(&format!("name: \"{}\"\n", name));
+    }
+    if !description.is_empty() {
+        result.push_str(&format!("description: \"{}\"\n", description));
+    }
+    result.push_str("---");
+    result.push_str(body);
+    result
+}
 
 /// Recursively copy all files from a skill source dir to the domain's ai/skills/{slug}/ dir.
 /// Text files (.md, .py, .sql, .txt, .json, .csv, .html) get {{DOMAIN}} replacement.
@@ -123,6 +166,7 @@ fn copy_skill_dir_recursive(
             copy_skill_dir_recursive(&path, &sub_dest, domain, skill, errors);
         } else {
             if SKIP_FILES.contains(&fname.as_str()) { continue; }
+            if fname.ends_with(".excalidraw") { continue; }
             let dest_file = dest_dir.join(&fname);
 
             // Text files: do {{DOMAIN}} replacement. Binary files: raw copy.
@@ -151,22 +195,22 @@ fn copy_skill_dir_recursive(
 }
 
 /// Regenerate instructions.md from template or fallback.
-/// Reads skill.json for each skill to include descriptions in the instructions.
+/// Reads registry.json for each skill to include descriptions in the instructions.
 fn regenerate_instructions(
     ai_path: &Path,
     templates_base: &Path,
-    platform_skills_path: &Path,
+    skills_path: &Path,
     domain: &str,
     skills: &[String],
-) -> Result<bool, String> {
+) -> CmdResult<bool> {
     let instructions_path = ai_path.join("instructions.md");
     let instructions_template = templates_base.join("instructions.md");
 
-    // Build skill list with descriptions from skill.json
+    // Build skill list with descriptions from registry.json
     let skill_list = skills
         .iter()
         .map(|s| {
-            let desc = read_skill_description(platform_skills_path, s);
+            let desc = read_skill_description(skills_path, s);
             match desc {
                 Some(d) => format!("- `skills/{}/SKILL.md` — {}", s, d),
                 None => format!("- `skills/{}/SKILL.md`", s),
@@ -176,13 +220,11 @@ fn regenerate_instructions(
         .join("\n");
 
     if instructions_template.exists() {
-        let template = fs::read_to_string(&instructions_template)
-            .map_err(|e| format!("Failed to read instructions template: {}", e))?;
+        let template = fs::read_to_string(&instructions_template)?;
         let content = template
             .replace("{{DOMAIN}}", domain)
             .replace("{{SKILL_LIST}}", &skill_list);
-        fs::write(&instructions_path, &content)
-            .map_err(|e| format!("Failed to write instructions.md: {}", e))?;
+        fs::write(&instructions_path, &content)?;
         Ok(true)
     } else {
         let content = format!(
@@ -191,8 +233,7 @@ fn regenerate_instructions(
              ## Skills\n\n{}\n",
             domain, domain, skill_list
         );
-        fs::write(&instructions_path, &content)
-            .map_err(|e| format!("Failed to write instructions.md: {}", e))?;
+        fs::write(&instructions_path, &content)?;
         Ok(true)
     }
 }
@@ -202,17 +243,17 @@ fn regenerate_instructions(
 // ============================================================================
 
 /// Generate an AI package for a specific domain.
-/// Copies skill templates and generates instructions.md.
+/// Copies skill files from _skills/ and generates instructions.md.
 #[command]
 pub fn val_generate_ai_package(
     domain: String,
-    entities_path: String,
+    skills_path: String,
     templates_path: String,
     skills: Vec<String>,
-) -> Result<AiPackageResult, String> {
-    let entities_base = Path::new(&entities_path);
-    if !entities_base.exists() {
-        return Err(format!("Entities path does not exist: {}", entities_path));
+) -> CmdResult<AiPackageResult> {
+    let skills_base = Path::new(&skills_path);
+    if !skills_base.exists() {
+        return Err(CommandError::NotFound(format!("Skills path does not exist: {}", skills_path)));
     }
 
     // Find the domain's global_path from config
@@ -221,7 +262,7 @@ pub fn val_generate_ai_package(
         .domains
         .iter()
         .find(|d| d.domain == domain)
-        .ok_or_else(|| format!("Domain '{}' not found in config", domain))?;
+        .ok_or_else(|| CommandError::NotFound(format!("Domain '{}' not found in config", domain)))?;
 
     let global_path = Path::new(&domain_config.global_path);
     let ai_path = global_path.join("ai");
@@ -243,22 +284,14 @@ pub fn val_generate_ai_package(
         }
     }
 
-    // Copy skill templates — only the skills explicitly passed for this domain
-    // Look in 0_Platform/skills/{slug}/SKILL.md (new structure), fall back to templates/skills/{slug}.md
-    let platform_skills = entities_base.join("../../../skills");
+    // Copy skill files from _skills/{slug}/
     let templates_base = Path::new(&templates_path);
-    let templates_skills = templates_base.join("skills");
 
     for skill in &skills {
-        // New structure: 0_Platform/skills/{slug}/SKILL.md
-        let new_skill_dir = platform_skills.join(skill);
-        let new_src = new_skill_dir.join("SKILL.md");
-        // Legacy: templates/skills/{slug}.md
-        let legacy_src = templates_skills.join(format!("{}.md", skill));
-        let is_new_structure = new_src.exists();
-        let src = if is_new_structure { new_src } else { legacy_src };
-        if !src.exists() {
-            errors.push(format!("Skill template not found: {}/SKILL.md", skill));
+        let skill_src_dir = skills_base.join(skill);
+        let skill_src_md = skill_src_dir.join("SKILL.md");
+        if !skill_src_md.exists() {
+            errors.push(format!("Skill not found: _skills/{}/SKILL.md", skill));
             continue;
         }
 
@@ -270,22 +303,20 @@ pub fn val_generate_ai_package(
 
         let dest = skill_dir.join("SKILL.md");
 
-        match fs::read_to_string(&src) {
+        match fs::read_to_string(&skill_src_md) {
             Ok(content) => {
-                let replaced = content.replace("{{DOMAIN}}", &domain);
+                let stripped = strip_skill_frontmatter(&content);
+                let replaced = stripped.replace("{{DOMAIN}}", &domain);
                 match fs::write(&dest, &replaced) {
                     Ok(_) => skills_copied.push(skill.clone()),
                     Err(e) => errors.push(format!("Failed to write skill {}: {}", skill, e)),
                 }
             }
-            Err(e) => errors.push(format!("Failed to read skill template {}: {}", skill, e)),
+            Err(e) => errors.push(format!("Failed to read skill {}: {}", skill, e)),
         }
 
-        // Copy all additional files recursively (scripts, configs, data, reference docs, etc.)
-        // Skip SKILL.md (already copied above), skill.json (metadata-only), AUDIT.md, and junk
-        if is_new_structure {
-            copy_skill_dir_recursive(&new_skill_dir, &skill_dir, &domain, skill, &mut errors);
-        }
+        // Copy all additional files recursively (references/, assets/, scripts/, etc.)
+        copy_skill_dir_recursive(&skill_src_dir, &skill_dir, &domain, skill, &mut errors);
     }
 
     // Ensure ai/ dir exists (ai_config.json is managed separately by val_save_domain_ai_config)
@@ -295,11 +326,11 @@ pub fn val_generate_ai_package(
 
     // Always (re)generate instructions.md so skill lists stay current
     let instructions_generated = match regenerate_instructions(
-        &ai_path, &templates_base, &platform_skills, &domain, &skills_copied,
+        &ai_path, &templates_base, &skills_base, &domain, &skills_copied,
     ) {
         Ok(v) => v,
         Err(e) => {
-            errors.push(e);
+            errors.push(e.to_string());
             false
         }
     };
@@ -318,27 +349,24 @@ pub fn val_generate_ai_package(
 pub fn val_save_domain_ai_config(
     domain: String,
     skills: Vec<String>,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     let config = load_config_internal()?;
     let domain_config = config
         .domains
         .iter()
         .find(|d| d.domain == domain)
-        .ok_or_else(|| format!("Domain '{}' not found in config", domain))?;
+        .ok_or_else(|| CommandError::NotFound(format!("Domain '{}' not found in config", domain)))?;
 
     let global_path = Path::new(&domain_config.global_path);
     let ai_path = global_path.join("ai");
 
-    fs::create_dir_all(&ai_path)
-        .map_err(|e| format!("Failed to create ai/ dir: {}", e))?;
+    fs::create_dir_all(&ai_path)?;
 
     let ai_config = DomainAiConfig { skills };
-    let config_json = serde_json::to_string_pretty(&ai_config)
-        .map_err(|e| format!("Failed to serialize ai_config: {}", e))?;
+    let config_json = serde_json::to_string_pretty(&ai_config)?;
 
     let config_path = ai_path.join("ai_config.json");
-    fs::write(&config_path, &config_json)
-        .map_err(|e| format!("Failed to write ai_config.json: {}", e))?;
+    fs::write(&config_path, &config_json)?;
 
     Ok(())
 }
@@ -348,7 +376,7 @@ pub fn val_save_domain_ai_config(
 #[command]
 pub fn val_list_domain_ai_status(
     _entities_path: Option<String>,
-) -> Result<Vec<DomainAiStatus>, String> {
+) -> CmdResult<Vec<DomainAiStatus>> {
     let config = load_config_internal()?;
 
     let mut statuses: Vec<DomainAiStatus> = Vec::new();
@@ -399,86 +427,6 @@ pub fn val_list_domain_ai_status(
     Ok(statuses)
 }
 
-/// Extract templates from an existing domain's AI package.
-/// Copies skills and instructions to a templates folder, replacing domain name with {{DOMAIN}}.
-#[command]
-pub fn val_extract_ai_templates(
-    domain: String,
-    templates_output_path: String,
-) -> Result<ExtractTemplatesResult, String> {
-    let config = load_config_internal()?;
-    let domain_config = config
-        .domains
-        .iter()
-        .find(|d| d.domain == domain)
-        .ok_or_else(|| format!("Domain '{}' not found in config", domain))?;
-
-    let global_path = Path::new(&domain_config.global_path);
-    let ai_path = global_path.join("ai");
-
-    if !ai_path.exists() {
-        return Err(format!("No ai/ folder in domain '{}'", domain));
-    }
-
-    let output_path = Path::new(&templates_output_path);
-    let output_skills = output_path.join("skills");
-
-    let mut skills_extracted: Vec<String> = Vec::new();
-
-    // Extract skills
-    let skills_dir = ai_path.join("skills");
-    if skills_dir.exists() {
-        fs::create_dir_all(&output_skills)
-            .map_err(|e| format!("Failed to create templates/skills/: {}", e))?;
-
-        if let Ok(entries) = fs::read_dir(&skills_dir) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if !name.ends_with(".md") { continue; }
-
-                match fs::read_to_string(entry.path()) {
-                    Ok(content) => {
-                        let templatized = content.replace(&domain, "{{DOMAIN}}");
-                        let dest = output_skills.join(&name);
-                        match fs::write(&dest, &templatized) {
-                            Ok(_) => skills_extracted.push(name),
-                            Err(e) => eprintln!("Failed to write template {}: {}", name, e),
-                        }
-                    }
-                    Err(e) => eprintln!("Failed to read skill {}: {}", name, e),
-                }
-            }
-        }
-    }
-
-    // Extract instructions
-    let instructions_src = ai_path.join("instructions.md");
-    let instructions_extracted = if instructions_src.exists() {
-        match fs::read_to_string(&instructions_src) {
-            Ok(content) => {
-                fs::create_dir_all(output_path)
-                    .map_err(|e| format!("Failed to create templates dir: {}", e))?;
-                let templatized = content.replace(&domain, "{{DOMAIN}}");
-                let dest = output_path.join("instructions.md");
-                fs::write(&dest, &templatized)
-                    .map_err(|e| format!("Failed to write instructions template: {}", e))?;
-                true
-            }
-            Err(e) => {
-                eprintln!("Failed to read instructions.md: {}", e);
-                false
-            }
-        }
-    } else {
-        false
-    };
-
-    Ok(ExtractTemplatesResult {
-        skills_extracted,
-        instructions_extracted,
-    })
-}
-
 // ============================================================================
 // Skill Deployment Status — cross-domain view of a single skill
 // ============================================================================
@@ -510,9 +458,8 @@ fn count_skill_files(dir: &Path) -> usize {
 
 /// Check which domains have a given skill on S3 (single API call).
 /// Returns a list of domain names that have the skill present.
-async fn check_s3_skill_presence(skill: &str) -> Result<Vec<String>, String> {
-    let settings = crate::commands::settings::load_settings()
-        .map_err(|e| format!("Failed to load settings: {}", e))?;
+async fn check_s3_skill_presence(skill: &str) -> CmdResult<Vec<String>> {
+    let settings = crate::commands::settings::load_settings()?;
 
     let access_key = match settings.keys.get("aws_access_key_id") {
         Some(k) => k.clone(),
@@ -541,11 +488,11 @@ async fn check_s3_skill_presence(skill: &str) -> Result<Vec<String>, String> {
         .env("AWS_SECRET_ACCESS_KEY", &secret_key)
         .output()
         .await
-        .map_err(|e| format!("Failed to run aws CLI: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Failed to run aws CLI: {}", e)))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("aws s3api failed: {}", stderr.trim()));
+        return Err(CommandError::Internal(format!("aws s3api failed: {}", stderr.trim())));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -554,7 +501,7 @@ async fn check_s3_skill_presence(skill: &str) -> Result<Vec<String>, String> {
     }
 
     let json: serde_json::Value =
-        serde_json::from_str(&stdout).map_err(|e| format!("Failed to parse S3 response: {}", e))?;
+        serde_json::from_str(&stdout)?;
 
     let contents = match json.get("Contents").and_then(|c| c.as_array()) {
         Some(arr) => arr,
@@ -585,16 +532,16 @@ async fn check_s3_skill_presence(skill: &str) -> Result<Vec<String>, String> {
 #[command]
 pub async fn val_skill_deployment_status(
     skill: String,
-    platform_skills_path: String,
-) -> Result<SkillDeploymentResult, String> {
+    skills_path: String,
+) -> CmdResult<SkillDeploymentResult> {
     let config = load_config_internal()?;
-    let platform_path = Path::new(&platform_skills_path);
-    let master_skill_dir = platform_path.join(&skill);
+    let skills_base = Path::new(&skills_path);
+    let master_skill_dir = skills_base.join(&skill);
 
-    // Read master SKILL.md
+    // Read master SKILL.md (strip frontmatter to match distributed copy)
     let master_skill_md = master_skill_dir.join("SKILL.md");
-    let master_content = fs::read_to_string(&master_skill_md)
-        .map_err(|e| format!("Failed to read master SKILL.md: {}", e))?;
+    let master_raw = fs::read_to_string(&master_skill_md)?;
+    let master_content = strip_skill_frontmatter(&master_raw);
 
     let master_file_count = count_skill_files(&master_skill_dir);
 

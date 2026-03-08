@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Library,
   CheckSquare,
+  FolderOpen,
   Mail,
   Building2,
   Boxes,
@@ -16,6 +17,7 @@ import {
   Clock,
   Puzzle,
   GitBranch,
+  MailPlus,
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
@@ -51,16 +53,23 @@ const navSections: NavSection[] = [
       { id: "library", icon: Library, label: "Library", shortcut: "⌘1" },
       { id: "crm", icon: Building2, label: "CRM", shortcut: "⌘2" },
       { id: "work", icon: CheckSquare, label: "Work", shortcut: "⌘3" },
-      { id: "product", icon: Boxes, label: "Product", shortcut: "⌘4" },
+      { id: "workspace", icon: FolderOpen, label: "Workspaces", shortcut: "⌘4" },
+      { id: "product", icon: Boxes, label: "Product", shortcut: "⌘5" },
     ],
   },
   {
     label: "Technical",
     items: [
-      { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘5" },
-      { id: "skills", icon: Puzzle, label: "Skills", shortcut: "⌘6" },
-      { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "⌘7" },
-      { id: "repos", icon: GitBranch, label: "Repos", shortcut: "⌘8" },
+      { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘6" },
+      { id: "skills", icon: Puzzle, label: "Skills", shortcut: "⌘7" },
+      { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "⌘8" },
+      { id: "repos", icon: GitBranch, label: "Repos", shortcut: "⌘9" },
+    ],
+  },
+  {
+    label: "Marketing",
+    items: [
+      { id: "email", icon: MailPlus, label: "Email", shortcut: "" },
     ],
   },
   {
@@ -115,7 +124,7 @@ function ActivityBarContextMenu({ menu, onClose }: { menu: ContextMenuState; onC
 function SectionHeader({ label }: { label: string }) {
   return (
     <div className="w-full px-3 pt-2 pb-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+      <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
         {label}
       </span>
     </div>
@@ -182,7 +191,7 @@ function NavButton({
       <Icon size={18} className="shrink-0" />
       <span className="text-sm truncate flex-1 text-left">{item.label}</span>
       {item.shortcut && (
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-600 shrink-0">{item.shortcut}</span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-600 shrink-0">{item.shortcut}</span>
       )}
     </button>
   );
@@ -207,7 +216,7 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
     <div
       data-help-id="activity-bar"
       className={cn(
-        "bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col py-2 gap-0.5 transition-all duration-200 overflow-hidden",
+        "bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col py-2 gap-0.5 transition-all duration-200 overflow-hidden select-none",
         isExpanded ? "w-48 items-stretch px-1.5" : "w-12 items-center"
       )}
     >
@@ -272,7 +281,7 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
           >
             <PanelRight size={18} className="shrink-0" />
             <span className="text-sm truncate flex-1 text-left">Doc Panel</span>
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-600 shrink-0">⌘.</span>
+            <span className="text-xs text-zinc-400 dark:text-zinc-600 shrink-0">⌘.</span>
           </button>
         ) : (
           <button
@@ -299,7 +308,7 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
         >
           <Settings size={18} className="shrink-0" />
           <span className="text-sm truncate flex-1 text-left">Settings</span>
-          <span className="text-[10px] text-zinc-400 dark:text-zinc-600 shrink-0">⌘,</span>
+          <span className="text-xs text-zinc-400 dark:text-zinc-600 shrink-0">⌘,</span>
         </button>
       ) : (
         <button

@@ -82,13 +82,18 @@ export const useFavoritesStore = create<FavoritesState>()(
 
 // Hook wrapper for backward compatibility
 export function useFavorites() {
-  const store = useFavoritesStore();
+  const items = useFavoritesStore((s) => s.items);
+  const isFavorite = useFavoritesStore((s) => s.isFavorite);
+  const addFavorite = useFavoritesStore((s) => s.addFavorite);
+  const removeFavorite = useFavoritesStore((s) => s.removeFavorite);
+  const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
+  const clearFavorites = useFavoritesStore((s) => s.clearFavorites);
   return {
-    favorites: store.items,
-    isFavorite: store.isFavorite,
-    addFavorite: store.addFavorite,
-    removeFavorite: store.removeFavorite,
-    toggleFavorite: store.toggleFavorite,
-    clearFavorites: store.clearFavorites,
+    favorites: items,
+    isFavorite,
+    addFavorite,
+    removeFavorite,
+    toggleFavorite,
+    clearFavorites,
   };
 }

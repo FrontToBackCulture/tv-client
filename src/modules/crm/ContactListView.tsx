@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Contact } from "../../lib/crm/types";
 import { ContactForm } from "./ContactForm";
 import { Pencil, Mail, Phone, Users } from "lucide-react";
+import { EmptyState } from "../../components/EmptyState";
 
 interface ContactListViewProps {
   contacts: Contact[];
@@ -15,12 +16,7 @@ export function ContactListView({ contacts, onContactUpdated }: ContactListViewP
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
 
   if (contacts.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <Users size={32} className="mx-auto text-zinc-300 dark:text-zinc-700 mb-2" />
-        <p className="text-zinc-500 text-sm">No contacts yet</p>
-      </div>
-    );
+    return <EmptyState icon={Users} message="No contacts yet" />;
   }
 
   return (
@@ -38,12 +34,12 @@ export function ContactListView({ contacts, onContactUpdated }: ContactListViewP
                     {contact.name}
                   </h4>
                   {contact.is_primary && (
-                    <span className="px-1.5 py-0.5 bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 text-[11px] rounded">
+                    <span className="px-1.5 py-0.5 bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 text-xs rounded">
                       Primary
                     </span>
                   )}
                   {!contact.is_active && (
-                    <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-500 text-[11px] rounded">
+                    <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-500 text-xs rounded">
                       Inactive
                     </span>
                   )}

@@ -42,11 +42,6 @@ export interface AiPackageResult {
   errors: string[];
 }
 
-export interface ExtractTemplatesResult {
-  skills_extracted: string[];
-  instructions_extracted: boolean;
-}
-
 // ============================================================
 // Hooks
 // ============================================================
@@ -69,13 +64,13 @@ export function useGenerateAiPackage() {
   return useMutation({
     mutationFn: (params: {
       domain: string;
-      entitiesPath: string;
+      skillsPath: string;
       templatesPath: string;
       skills: string[];
     }) =>
       invoke<AiPackageResult>("val_generate_ai_package", {
         domain: params.domain,
-        entitiesPath: params.entitiesPath,
+        skillsPath: params.skillsPath,
         templatesPath: params.templatesPath,
         skills: params.skills,
       }),
@@ -103,34 +98,16 @@ export function useSaveDomainAiConfig() {
 /** Get deployment status for a skill across all domains (configured, generated, S3, drift) */
 export function useSkillDeploymentStatus(
   skill: string | null,
-  platformSkillsPath: string | null
+  skillsPath: string | null
 ) {
   return useQuery({
     queryKey: ["skill-deployment-status", skill],
     queryFn: () =>
       invoke<SkillDeploymentResult>("val_skill_deployment_status", {
         skill: skill!,
-        platformSkillsPath: platformSkillsPath!,
+        skillsPath: skillsPath!,
       }),
-    enabled: !!skill && !!platformSkillsPath,
+    enabled: !!skill && !!skillsPath,
     staleTime: 30_000,
-  });
-}
-
-/** Extract templates from an existing domain's AI package */
-export function useExtractAiTemplates() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (params: {
-      domain: string;
-      templatesOutputPath: string;
-    }) =>
-      invoke<ExtractTemplatesResult>("val_extract_ai_templates", {
-        domain: params.domain,
-        templatesOutputPath: params.templatesOutputPath,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["domain-ai-status"] });
-    },
   });
 }

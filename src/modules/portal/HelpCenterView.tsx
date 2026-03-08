@@ -11,6 +11,7 @@ import {
   FileText,
   ChevronDown,
 } from "lucide-react";
+import { Button, IconButton, FormField, Input, Select, Textarea } from "../../components/ui";
 import {
   usePortalDocs,
   useCreateDoc,
@@ -72,14 +73,14 @@ export function HelpCenterView({
           <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             {docs?.length ?? 0} articles
           </span>
-          <button
+          <Button
+            icon={Plus}
             onClick={handleCreate}
-            disabled={createDoc.isPending}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded bg-teal-600 text-white hover:bg-teal-500 transition-colors"
+            loading={createDoc.isPending}
+            className="text-xs"
           >
-            <Plus size={12} />
             New Article
-          </button>
+          </Button>
         </div>
 
         {/* List */}
@@ -124,22 +125,22 @@ export function HelpCenterView({
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {doc.category && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-gray-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 capitalize">
+                      <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 capitalize">
                         {doc.category}
                       </span>
                     )}
                     {doc.doc_type && (
-                      <span className="text-[10px] text-zinc-400 capitalize">
+                      <span className="text-xs text-zinc-400 capitalize">
                         {doc.doc_type}
                       </span>
                     )}
-                    <span className="text-[10px] text-zinc-400">
+                    <span className="text-xs text-zinc-400">
                       {doc.view_count} views
                     </span>
                   </div>
                   <div className="mt-1">
                     <span className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                      "text-xs px-1.5 py-0.5 rounded font-medium",
                       doc.target_sites.length === 0
                         ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
                         : "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400"
@@ -175,9 +176,6 @@ export function HelpCenterView({
 }
 
 // ── Detail Editor ──
-
-const inputClass =
-  "w-full px-3 py-1.5 text-sm border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500";
 
 function DocDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const { data: docs } = usePortalDocs();
@@ -262,117 +260,107 @@ function DocDetail({ id, onClose }: { id: string; onClose: () => void }) {
             Edit Article
           </span>
           {dirty && (
-            <span className="text-[10px] text-amber-500 font-medium">
+            <span className="text-xs text-amber-500 font-medium">
               unsaved
             </span>
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <button
+          <Button
+            icon={Save}
             onClick={handleSave}
             disabled={!dirty || updateDoc.isPending}
-            className={cn(
-              "flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded transition-colors",
-              dirty
-                ? "bg-teal-600 text-white hover:bg-teal-500"
-                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
-            )}
+            loading={updateDoc.isPending}
+            variant={dirty ? "primary" : "secondary"}
+            className="text-xs"
           >
-            <Save size={12} />
             {updateDoc.isPending ? "Saving..." : "Save"}
-          </button>
-          <button
+          </Button>
+          <IconButton
+            icon={Trash2}
+            size={14}
+            variant="danger"
+            label="Delete"
             onClick={handleDelete}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-500/10 text-zinc-400 hover:text-red-500"
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
-          <button
+          />
+          <IconButton
+            icon={X}
+            label="Close"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400"
-          >
-            <X size={16} />
-          </button>
+          />
         </div>
       </div>
 
       {/* Form */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <Field label="Title">
-          <input
+        <FormField label="Title">
+          <Input
             type="text"
             value={form.title}
             onChange={(e) => set("title", e.target.value)}
-            className={inputClass}
           />
-        </Field>
+        </FormField>
 
-        <Field label="Summary">
-          <input
+        <FormField label="Summary">
+          <Input
             type="text"
             value={form.summary}
             onChange={(e) => set("summary", e.target.value)}
             placeholder="Brief description shown in article list"
-            className={inputClass}
           />
-        </Field>
+        </FormField>
 
-        <Field label="Content (Markdown)">
-          <textarea
+        <FormField label="Content (Markdown)">
+          <Textarea
             value={form.content}
             onChange={(e) => set("content", e.target.value)}
             rows={16}
-            className={inputClass + " resize-none font-mono text-xs"}
+            className="resize-none font-mono text-xs"
           />
-        </Field>
+        </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Category">
-            <input
+          <FormField label="Category">
+            <Input
               type="text"
               value={form.category}
               onChange={(e) => set("category", e.target.value)}
               placeholder="e.g. getting-started, documentation"
-              className={inputClass}
             />
-          </Field>
+          </FormField>
 
-          <Field label="Doc Type">
-            <select
+          <FormField label="Doc Type">
+            <Select
               value={form.doc_type}
               onChange={(e) => set("doc_type", e.target.value)}
-              className={inputClass}
             >
               <option value="article">Article</option>
               <option value="guide">Guide</option>
               <option value="faq">FAQ</option>
               <option value="tutorial">Tutorial</option>
-            </select>
-          </Field>
+            </Select>
+          </FormField>
         </div>
 
-        <Field label="Tags (comma-separated)">
-          <input
+        <FormField label="Tags (comma-separated)">
+          <Input
             type="text"
             value={form.tags}
             onChange={(e) => set("tags", e.target.value)}
             placeholder="e.g. data-dictionary, reference"
-            className={inputClass}
           />
-        </Field>
+        </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Sort Order">
-            <input
+          <FormField label="Sort Order">
+            <Input
               type="number"
               value={form.sort_order}
               onChange={(e) => set("sort_order", parseInt(e.target.value) || 0)}
-              className={inputClass}
             />
-          </Field>
+          </FormField>
 
-          <Field label="Visible in Widget">
+          <FormField label="Visible in Widget">
             <div className="flex items-center gap-2 py-1">
               <ToggleSwitch
                 value={form.is_widget_visible}
@@ -390,38 +378,21 @@ function DocDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 )}
               </span>
             </div>
-          </Field>
+          </FormField>
         </div>
 
-        <Field label="Site Targeting">
+        <FormField label="Site Targeting">
           <SiteTargeting
             value={form.target_sites}
             onChange={(sites) => set("target_sites", sites)}
           />
-        </Field>
+        </FormField>
       </div>
     </div>
   );
 }
 
 // ── Shared Components ──
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
 
 function ToggleSwitch({
   value,
@@ -495,7 +466,7 @@ function SiteTargeting({
             >
               <span
                 className={cn(
-                  "w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px]",
+                  "w-3.5 h-3.5 rounded border flex items-center justify-center text-xs",
                   value.includes(site.id)
                     ? "bg-teal-500 border-teal-500 text-white"
                     : "border-zinc-300 dark:border-zinc-600"

@@ -11,6 +11,7 @@
 use super::config::get_domain_config;
 use super::domain_model::SchemaJson;
 use super::sql::val_execute_sql;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::settings;
 use crate::AppState;
 use chrono::{DateTime, Utc};
@@ -747,7 +748,7 @@ fn scan_dashboard_dependencies(global_path: &Path, query_dsids: &[i64]) -> Vec<V
 
 /// List available tables in a domain's data_models folder with display names
 #[command]
-pub async fn val_list_domain_tables(domain: String) -> Result<Vec<TableInfo>, String> {
+pub async fn val_list_domain_tables(domain: String) -> CmdResult<Vec<TableInfo>> {
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
 
@@ -845,14 +846,14 @@ pub async fn val_prepare_table_overview(
     overwrite: bool,
     skip_sql: bool,
     freshness_column: Option<String>,
-) -> Result<TablePipelineResult, String> {
+) -> CmdResult<TablePipelineResult> {
     let start = std::time::Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
 
     let data_models_path = Path::new(global_path).join("data_models");
     if !data_models_path.exists() {
-        return Err(format!("data_models folder not found at {:?}", data_models_path));
+        return Err(CommandError::NotFound(format!("data_models folder not found at {:?}", data_models_path)));
     }
 
     // Load supporting data files
@@ -1294,7 +1295,8 @@ pub async fn val_prepare_table_overview(
                         .and_then(|s| DateTime::parse_from_rfc3339(s).ok().or_else(|| {
                             chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f")
                                 .ok()
-                                .map(|dt| dt.and_local_timezone(sgt_offset).unwrap().fixed_offset())
+                                .and_then(|dt| dt.and_local_timezone(sgt_offset).earliest())
+                                .map(|dt| dt.fixed_offset())
                         }));
 
                     let latest = range.get("latest")
@@ -1302,11 +1304,14 @@ pub async fn val_prepare_table_overview(
                         .and_then(|s| DateTime::parse_from_rfc3339(s).ok().or_else(|| {
                             chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f")
                                 .ok()
-                                .map(|dt| dt.and_local_timezone(sgt_offset).unwrap().fixed_offset())
+                                .and_then(|dt| dt.and_local_timezone(sgt_offset).earliest())
+                                .map(|dt| dt.fixed_offset())
                                 .or_else(|| {
                                     chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
                                         .ok()
-                                        .map(|d| d.and_hms_opt(23, 59, 59).unwrap().and_local_timezone(sgt_offset).unwrap().fixed_offset())
+                                        .and_then(|d| d.and_hms_opt(23, 59, 59))
+                                        .and_then(|dt| dt.and_local_timezone(sgt_offset).earliest())
+                                        .map(|dt| dt.fixed_offset())
                                 })
                         }));
 
@@ -1548,9 +1553,9 @@ pub async fn val_prepare_table_overview(
 
     // Write definition_details.json
     let content = serde_json::to_string_pretty(&overview_data)
-        .map_err(|e| format!("Failed to serialize: {}", e))?;
+?;
     fs::write(&details_path, content)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+?;
 
     Ok(TablePipelineResult {
         domain,
@@ -1579,7 +1584,7 @@ pub async fn val_sample_table_data(
     row_count: Option<usize>,
     order_by: Option<String>,
     overwrite: bool,
-) -> Result<TablePipelineResult, String> {
+) -> CmdResult<TablePipelineResult> {
     let start = std::time::Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -1606,7 +1611,7 @@ pub async fn val_sample_table_data(
     }
 
     if !definition_path.exists() {
-        return Err(format!("Table definition not found at {:?}", definition_path));
+        return Err(CommandError::NotFound(format!("Table definition not found at {:?}", definition_path)));
     }
 
     // Load table definition
@@ -1718,9 +1723,9 @@ pub async fn val_sample_table_data(
 
     // Write definition_sample.json
     let content = serde_json::to_string_pretty(&sample_data)
-        .map_err(|e| format!("Failed to serialize: {}", e))?;
+?;
     fs::write(&sample_path, content)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+?;
 
     Ok(TablePipelineResult {
         domain,
@@ -1744,7 +1749,7 @@ pub async fn val_fetch_categorical_values(
     table_name: String,
     overwrite: bool,
     schema_path: Option<String>,
-) -> Result<TablePipelineResult, String> {
+) -> CmdResult<TablePipelineResult> {
     let start = std::time::Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -1769,7 +1774,7 @@ pub async fn val_fetch_categorical_values(
     }
 
     if !definition_path.exists() {
-        return Err(format!("Table definition not found at {:?}", definition_path));
+        return Err(CommandError::NotFound(format!("Table definition not found at {:?}", definition_path)));
     }
 
     // Load table definition
@@ -2023,9 +2028,9 @@ pub async fn val_fetch_categorical_values(
 
     // Write definition_categorical.json
     let content = serde_json::to_string_pretty(&categorical_data)
-        .map_err(|e| format!("Failed to serialize: {}", e))?;
+?;
     fs::write(&categorical_path, content)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+?;
 
     Ok(TablePipelineResult {
         domain,
@@ -2223,7 +2228,7 @@ fn build_table_analysis_context(
 }
 
 /// Extract JSON from an AI response that may be wrapped in markdown code blocks.
-fn parse_ai_json_response(ai_text: &str) -> Result<Value, String> {
+fn parse_ai_json_response(ai_text: &str) -> CmdResult<Value> {
     let text = ai_text.trim();
     let json_str = if let Some(start) = text.find("```json") {
         let after = &text[start + 7..];
@@ -2245,8 +2250,7 @@ fn parse_ai_json_response(ai_text: &str) -> Result<Value, String> {
         text
     };
 
-    serde_json::from_str(json_str.trim())
-        .map_err(|e| format!("Failed to parse AI response as JSON: {}", e))
+    Ok(serde_json::from_str(json_str.trim())?)
 }
 
 /// Read existing analysis file (if any), merge new fields, and write back.
@@ -2256,7 +2260,7 @@ fn merge_and_write_analysis(
     table_name: &str,
     details: &Value,
     sample_exists: bool,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     let now: DateTime<Utc> = Utc::now();
 
     // Read existing file if present
@@ -2290,10 +2294,8 @@ fn merge_and_write_analysis(
         }
     }
 
-    let content = serde_json::to_string_pretty(&existing)
-        .map_err(|e| format!("Failed to serialize: {}", e))?;
-    fs::write(analysis_path, content)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+    let content = serde_json::to_string_pretty(&existing)?;
+    fs::write(analysis_path, content)?;
     Ok(())
 }
 
@@ -2304,9 +2306,9 @@ async fn call_anthropic_api(
     user_prompt: &str,
     table_name: &str,
     context_len: usize,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     eprintln!("[tv-client]   Calling Anthropic API for table: {} (context len: {} chars)", table_name, context_len);
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .post("https://api.anthropic.com/v1/messages")
         .header("Content-Type", "application/json")
@@ -2328,27 +2330,24 @@ async fn call_anthropic_api(
         .await
         .map_err(|e| {
             eprintln!("[tv-client]   API request failed: {}", e);
-            format!("API request failed: {}", e)
+            CommandError::Network(format!("API request failed: {}", e))
         })?;
 
     eprintln!("[tv-client]   API response status: {}", response.status());
     if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
+        let status = response.status().as_u16();
+        let body: String = response.text().await.unwrap_or_default();
         eprintln!("[tv-client]   API error body: {}", &body[..body.len().min(500)]);
-        return Err(format!("Anthropic API error ({}): {}", status, body));
+        return Err(CommandError::Http { status, body });
     }
 
-    let api_response: AnthropicResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse API response: {}", e))?;
+    let api_response: AnthropicResponse = response.json().await?;
 
     api_response
         .content
         .first()
         .and_then(|c| c.text.clone())
-        .ok_or_else(|| "No text in API response".to_string())
+        .ok_or_else(|| CommandError::Parse("No text in API response".to_string()))
 }
 
 // ============================================================================
@@ -2360,7 +2359,7 @@ pub async fn val_describe_table_data(
     domain: String,
     table_name: String,
     overwrite: bool,
-) -> Result<TablePipelineResult, String> {
+) -> CmdResult<TablePipelineResult> {
     let start = std::time::Instant::now();
     eprintln!("[tv-client] val_describe_table_data: domain={}, table={}, overwrite={}", domain, table_name, overwrite);
     let domain_config = get_domain_config(&domain)?;
@@ -2573,7 +2572,7 @@ pub async fn val_classify_table_data(
     domain: String,
     table_name: String,
     overwrite: bool,
-) -> Result<TablePipelineResult, String> {
+) -> CmdResult<TablePipelineResult> {
     let start = std::time::Instant::now();
     eprintln!("[tv-client] val_classify_table_data: domain={}, table={}, overwrite={}", domain, table_name, overwrite);
     let domain_config = get_domain_config(&domain)?;
@@ -2698,7 +2697,7 @@ pub async fn val_analyze_table_data(
     domain: String,
     table_name: String,
     overwrite: bool,
-) -> Result<TablePipelineResult, String> {
+) -> CmdResult<TablePipelineResult> {
     let start = std::time::Instant::now();
     eprintln!("[tv-client] val_analyze_table_data: domain={}, table={}, overwrite={}", domain, table_name, overwrite);
 
@@ -2727,7 +2726,7 @@ pub async fn val_extract_table_calc_fields(
     domain: String,
     table_name: String,
     overwrite: bool,
-) -> Result<TablePipelineResult, String> {
+) -> CmdResult<TablePipelineResult> {
     let start = std::time::Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -2765,10 +2764,10 @@ pub async fn val_extract_table_calc_fields(
     }
 
     if !all_calc_fields_path.exists() {
-        return Err(format!(
+        return Err(CommandError::NotFound(format!(
             "all_calculated_fields.json not found at {:?}",
             all_calc_fields_path
-        ));
+        )));
     }
 
     // Load data
@@ -2813,9 +2812,9 @@ pub async fn val_extract_table_calc_fields(
         });
 
         let content = serde_json::to_string_pretty(&empty_output)
-            .map_err(|e| format!("Failed to serialize: {}", e))?;
+    ?;
         fs::write(&output_path, content)
-            .map_err(|e| format!("Failed to write file: {}", e))?;
+    ?;
 
         return Ok(TablePipelineResult {
             domain,
@@ -2950,9 +2949,9 @@ pub async fn val_extract_table_calc_fields(
 
     // Write file
     let content = serde_json::to_string_pretty(&output)
-        .map_err(|e| format!("Failed to serialize: {}", e))?;
+?;
     fs::write(&output_path, content)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+?;
 
     let rule_types_str: String = rule_type_counts
         .iter()
@@ -3121,7 +3120,7 @@ pub async fn val_generate_table_overview_md(
     domain: String,
     table_name: String,
     overwrite: bool,
-) -> Result<TablePipelineResult, String> {
+) -> CmdResult<TablePipelineResult> {
     let start = std::time::Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -3867,7 +3866,7 @@ pub async fn val_generate_table_overview_md(
     // Write overview.md
     let content = lines.join("\n");
     fs::write(&overview_path, content)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+?;
 
     Ok(TablePipelineResult {
         domain,
@@ -3890,14 +3889,14 @@ pub async fn val_run_table_pipeline(
     table_name: String,
     overwrite: bool,
     skip_steps: Option<String>,
-) -> Result<PipelineRunResult, String> {
+) -> CmdResult<PipelineRunResult> {
     let start = std::time::Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
 
     let data_models_path = Path::new(global_path).join("data_models");
     if !data_models_path.exists() {
-        return Err(format!("data_models folder not found at {:?}", data_models_path));
+        return Err(CommandError::NotFound(format!("data_models folder not found at {:?}", data_models_path)));
     }
 
     // Parse skip steps
@@ -3960,7 +3959,7 @@ pub async fn val_run_table_pipeline(
                 }
                 Err(e) => {
                     table_result.steps.insert("1_details".to_string(), "error".to_string());
-                    table_result.error = Some(e);
+                    table_result.error = Some(e.to_string());
                     table_result.status = "error".to_string();
                 }
             }
@@ -3980,7 +3979,7 @@ pub async fn val_run_table_pipeline(
                 }
                 Err(e) => {
                     table_result.steps.insert("2_sample".to_string(), "error".to_string());
-                    table_result.error = Some(e);
+                    table_result.error = Some(e.to_string());
                 }
             }
         } else if steps_to_skip.contains("2") {
@@ -3998,11 +3997,12 @@ pub async fn val_run_table_pipeline(
                     }
                 }
                 Err(e) => {
-                    if e.contains("API key") {
+                    let err_msg = e.to_string();
+                    if err_msg.contains("API key") {
                         table_result.steps.insert("3a_describe".to_string(), "skipped (no API key)".to_string());
                     } else {
                         table_result.steps.insert("3a_describe".to_string(), "error".to_string());
-                        eprintln!("[tv-client]   Warning: describe step failed: {}", e);
+                        eprintln!("[tv-client]   Warning: describe step failed: {}", err_msg);
                     }
                 }
             }
@@ -4024,11 +4024,12 @@ pub async fn val_run_table_pipeline(
                     }
                 }
                 Err(e) => {
-                    if e.contains("API key") {
+                    let err_msg = e.to_string();
+                    if err_msg.contains("API key") {
                         table_result.steps.insert("3b_classify".to_string(), "skipped (no API key)".to_string());
                     } else {
                         table_result.steps.insert("3b_classify".to_string(), "error".to_string());
-                        eprintln!("[tv-client]   Warning: classify step failed: {}", e);
+                        eprintln!("[tv-client]   Warning: classify step failed: {}", err_msg);
                     }
                 }
             }
@@ -4048,7 +4049,7 @@ pub async fn val_run_table_pipeline(
                 }
                 Err(e) => {
                     table_result.steps.insert("4_calc_fields".to_string(), "error".to_string());
-                    table_result.error = Some(e);
+                    table_result.error = Some(e.to_string());
                 }
             }
         } else if steps_to_skip.contains("4") {
@@ -4067,7 +4068,7 @@ pub async fn val_run_table_pipeline(
                 }
                 Err(e) => {
                     table_result.steps.insert("5_overview".to_string(), "error".to_string());
-                    table_result.error = Some(e);
+                    table_result.error = Some(e.to_string());
                 }
             }
         } else if steps_to_skip.contains("5") {
@@ -4118,7 +4119,7 @@ pub struct CategoryEntry {
 
 /// Scan all definition_analysis.json files across all domains to extract unique classification values
 #[command]
-pub async fn val_scan_category_library(state: State<'_, AppState>) -> Result<CategoryLibrary, String> {
+pub async fn val_scan_category_library(state: State<'_, AppState>) -> CmdResult<CategoryLibrary> {
     let base_path = &state.knowledge_path;
 
     let domains_path = Path::new(base_path).join("0_Platform/domains/production");
@@ -4134,8 +4135,7 @@ pub async fn val_scan_category_library(state: State<'_, AppState>) -> Result<Cat
     let mut domains_scanned: Vec<String> = Vec::new();
 
     // Read domains directory
-    let domains_dir = fs::read_dir(&domains_path)
-        .map_err(|e| format!("Failed to read domains directory: {}", e))?;
+    let domains_dir = fs::read_dir(&domains_path)?;
 
     for domain_entry in domains_dir.flatten() {
         if !domain_entry.path().is_dir() {

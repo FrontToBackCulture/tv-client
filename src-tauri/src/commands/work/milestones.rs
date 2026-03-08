@@ -1,11 +1,12 @@
 // Work Module - Milestone Commands
 
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
 
 /// List milestones for a project
 #[tauri::command]
-pub async fn work_list_milestones(project_id: String) -> Result<Vec<Milestone>, String> {
+pub async fn work_list_milestones(project_id: String) -> CmdResult<Vec<Milestone>> {
     let client = get_client().await?;
 
     let query = format!(
@@ -18,7 +19,7 @@ pub async fn work_list_milestones(project_id: String) -> Result<Vec<Milestone>, 
 
 /// Get a single milestone by ID
 #[tauri::command]
-pub async fn work_get_milestone(milestone_id: String) -> Result<Milestone, String> {
+pub async fn work_get_milestone(milestone_id: String) -> CmdResult<Milestone> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", milestone_id);
@@ -26,12 +27,12 @@ pub async fn work_get_milestone(milestone_id: String) -> Result<Milestone, Strin
     client
         .select_single("milestones", &query)
         .await?
-        .ok_or_else(|| format!("Milestone not found: {}", milestone_id))
+        .ok_or_else(|| CommandError::NotFound(format!("Milestone not found: {}", milestone_id)))
 }
 
 /// Create a new milestone
 #[tauri::command]
-pub async fn work_create_milestone(data: CreateMilestone) -> Result<Milestone, String> {
+pub async fn work_create_milestone(data: CreateMilestone) -> CmdResult<Milestone> {
     let client = get_client().await?;
 
     client.insert("milestones", &data).await
@@ -42,7 +43,7 @@ pub async fn work_create_milestone(data: CreateMilestone) -> Result<Milestone, S
 pub async fn work_update_milestone(
     milestone_id: String,
     data: UpdateMilestone,
-) -> Result<Milestone, String> {
+) -> CmdResult<Milestone> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", milestone_id);
@@ -51,7 +52,7 @@ pub async fn work_update_milestone(
 
 /// Delete a milestone
 #[tauri::command]
-pub async fn work_delete_milestone(milestone_id: String) -> Result<(), String> {
+pub async fn work_delete_milestone(milestone_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", milestone_id);

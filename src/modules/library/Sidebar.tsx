@@ -25,6 +25,7 @@ import { useRecentFiles, RecentFile } from "../../hooks/useRecentFiles";
 import { useFavorites, Favorite } from "../../hooks/useFavorites";
 import { useFolderExpansion } from "../../stores/folderExpansionStore";
 import { cn } from "../../lib/cn";
+import { InlineLoading } from "../../components/ui/DetailStates";
 
 interface SidebarProps {
   knowledgePath: string;
@@ -191,7 +192,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
                 <button
                   onClick={() => setShowFavorites(!showFavorites)}
                   data-help-id="library-favorites"
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
                 >
                   {showFavorites ? (
                     <ChevronDown size={12} />
@@ -223,7 +224,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
               <div className="border-b border-zinc-200 dark:border-zinc-800">
                 <button
                   onClick={() => setShowRecent(!showRecent)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
                 >
                   {showRecent ? (
                     <ChevronDown size={12} />
@@ -252,7 +253,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
 
             {/* File Tree */}
             {treeLoading ? (
-              <div className="p-4 text-center text-zinc-500 dark:text-zinc-500 text-sm">Loading...</div>
+              <div className="p-4"><InlineLoading message="Loading..." /></div>
             ) : fileTree ? (
               <FileTree
                 node={fileTree}
@@ -295,9 +296,9 @@ function FavoriteItem({
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 px-3 py-1 cursor-pointer transition-colors",
+        "group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors",
         isSelected
-          ? "bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300"
+          ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
           : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-zinc-300"
       )}
       onClick={onClick}
@@ -337,9 +338,9 @@ function RecentItem({
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 px-3 py-1 cursor-pointer transition-colors",
+        "group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors",
         isSelected
-          ? "bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300"
+          ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
           : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-zinc-300"
       )}
       onClick={onClick}

@@ -1,6 +1,7 @@
 // CRM Module - Activity and Email Link Commands
 
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
 
 /// List activities with optional filters
@@ -10,7 +11,7 @@ pub async fn crm_list_activities(
     deal_id: Option<String>,
     activity_type: Option<String>,
     limit: Option<i32>,
-) -> Result<Vec<Activity>, String> {
+) -> CmdResult<Vec<Activity>> {
     let client = get_client().await?;
 
     let mut filters = vec![];
@@ -35,11 +36,11 @@ pub async fn crm_list_activities(
 
 /// Log an activity (note, call, meeting, etc.)
 #[tauri::command]
-pub async fn crm_log_activity(data: CreateActivity) -> Result<Activity, String> {
+pub async fn crm_log_activity(data: CreateActivity) -> CmdResult<Activity> {
     let client = get_client().await?;
 
     // Set activity_date if not provided
-    let mut insert_data = serde_json::to_value(&data).map_err(|e| e.to_string())?;
+    let mut insert_data = serde_json::to_value(&data)?;
     if let Some(obj) = insert_data.as_object_mut() {
         if obj.get("activity_date").map_or(true, |v| v.is_null()) {
             obj.insert(
@@ -64,7 +65,7 @@ pub async fn crm_log_activity(data: CreateActivity) -> Result<Activity, String> 
 
 /// Delete an activity
 #[tauri::command]
-pub async fn crm_delete_activity(activity_id: String) -> Result<(), String> {
+pub async fn crm_delete_activity(activity_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", activity_id);
@@ -77,7 +78,7 @@ pub async fn crm_delete_activity(activity_id: String) -> Result<(), String> {
 
 /// Get email-company link for an email
 #[tauri::command]
-pub async fn crm_get_email_link(email_id: String) -> Result<Option<EmailCompanyLink>, String> {
+pub async fn crm_get_email_link(email_id: String) -> CmdResult<Option<EmailCompanyLink>> {
     let client = get_client().await?;
 
     let query = format!(
@@ -90,7 +91,7 @@ pub async fn crm_get_email_link(email_id: String) -> Result<Option<EmailCompanyL
 
 /// Link an email to a company
 #[tauri::command]
-pub async fn crm_link_email(data: LinkEmailRequest) -> Result<EmailCompanyLink, String> {
+pub async fn crm_link_email(data: LinkEmailRequest) -> CmdResult<EmailCompanyLink> {
     let client = get_client().await?;
 
     // Check if link already exists
@@ -102,7 +103,7 @@ pub async fn crm_link_email(data: LinkEmailRequest) -> Result<EmailCompanyLink, 
         .await?;
 
     if existing.is_some() {
-        return Err("Email is already linked to a company".to_string());
+        return Err(CommandError::Internal("Email is already linked to a company".into()));
     }
 
     // Create the link
@@ -130,7 +131,7 @@ pub async fn crm_link_email(data: LinkEmailRequest) -> Result<EmailCompanyLink, 
 
 /// Unlink an email from a company
 #[tauri::command]
-pub async fn crm_unlink_email(email_id: String, company_id: String) -> Result<(), String> {
+pub async fn crm_unlink_email(email_id: String, company_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     let query = format!("email_id=eq.{}&company_id=eq.{}", email_id, company_id);
@@ -143,7 +144,7 @@ pub async fn crm_auto_link_email(
     email_id: String,
     sender_email: String,
     recipient_emails: Option<Vec<String>>,
-) -> Result<Option<EmailCompanyLink>, String> {
+) -> CmdResult<Option<EmailCompanyLink>> {
     let client = get_client().await?;
 
     // Check if already linked

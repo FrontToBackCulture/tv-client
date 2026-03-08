@@ -27,7 +27,7 @@ function sanitizeHtml(html: string): string {
 const BASE_STYLES = `
 <style>
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 14px;
     line-height: 1.6;
     color: #1a1a1a;

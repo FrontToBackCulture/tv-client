@@ -41,10 +41,15 @@ function getLanguage(path: string): string {
 // ---------- SidePanel ----------
 
 export function SidePanel() {
-  const {
-    filePath, fileName, panelWidth, isPickerOpen,
-    openPanel, closePanel, setPanelWidth, openPicker, closePicker,
-  } = useSidePanelStore();
+  const filePath = useSidePanelStore((s) => s.filePath);
+  const fileName = useSidePanelStore((s) => s.fileName);
+  const panelWidth = useSidePanelStore((s) => s.panelWidth);
+  const isPickerOpen = useSidePanelStore((s) => s.isPickerOpen);
+  const openPanel = useSidePanelStore((s) => s.openPanel);
+  const closePanel = useSidePanelStore((s) => s.closePanel);
+  const setPanelWidth = useSidePanelStore((s) => s.setPanelWidth);
+  const openPicker = useSidePanelStore((s) => s.openPicker);
+  const closePicker = useSidePanelStore((s) => s.closePicker);
 
   // ---- resize handle ----
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -312,7 +317,7 @@ function PickerTree({ root, initialFolder, onSelect }: { root: string; initialFo
           <ChevronRight size={12} className="rotate-180" />
           <FolderOpen size={14} className="text-teal-500 flex-shrink-0" />
           <span className="truncate font-medium" title={folderName}>{folderName}</span>
-          <span className="text-[10px] text-zinc-400 ml-auto">↑ Back</span>
+          <span className="text-xs text-zinc-400 ml-auto">↑ Back</span>
         </button>
       )}
 

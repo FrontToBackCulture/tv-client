@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { X, BookOpen, Trash2, RefreshCw, ExternalLink } from "lucide-react";
+import { X, BookOpen, Trash2, ExternalLink } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { Button, IconButton, FormField, Select } from "../../components/ui";
+import { InlineLoading, ErrorBanner } from "../../components/ui/DetailStates";
 
 interface IntercomCollection {
   id: string;
@@ -178,12 +180,7 @@ export function IntercomModal({
               {isUpdateMode ? "Update Help Center Article" : "Publish to Help Center"}
             </h3>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            <X className="w-4 h-4 text-zinc-500" />
-          </button>
+          <IconButton icon={X} label="Close" onClick={onClose} />
         </div>
 
         {/* Body */}
@@ -202,45 +199,33 @@ export function IntercomModal({
 
           {/* Error */}
           {error && (
-            <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded">
-              {error}
-            </div>
+            <ErrorBanner message={error} />
           )}
 
           {/* Collection picker */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Collection
-            </label>
+          <FormField label="Collection">
             {loadingCollections ? (
-              <div className="flex items-center gap-2 text-sm text-zinc-500 py-2">
-                <RefreshCw className="w-3 h-3 animate-spin" />
-                Loading collections...
-              </div>
+              <InlineLoading message="Loading collections..." />
             ) : collections.length === 0 ? (
               <div className="text-sm text-zinc-500 py-2">
                 No collections found. Create one in Intercom first.
               </div>
             ) : (
-              <select
+              <Select
                 value={selectedCollectionId}
                 onChange={(e) => setSelectedCollectionId(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 {collections.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             )}
-          </div>
+          </FormField>
 
           {/* State picker */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              State
-            </label>
+          <FormField label="State">
             <div className="flex gap-2">
               <button
                 onClick={() => setPublishState("published")}
@@ -265,7 +250,7 @@ export function IntercomModal({
                 Draft
               </button>
             </div>
-          </div>
+          </FormField>
 
           {/* Delete confirmation */}
           {isUpdateMode && confirmDelete && (
@@ -274,19 +259,12 @@ export function IntercomModal({
                 Delete this article from Intercom? This cannot be undone.
               </p>
               <div className="flex gap-2">
-                <button
-                  onClick={handleDelete}
-                  disabled={loading}
-                  className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                >
+                <Button variant="danger" onClick={handleDelete} disabled={loading}>
                   {loading ? "Deleting..." : "Confirm Delete"}
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="px-3 py-1.5 text-xs rounded border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                >
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -296,40 +274,24 @@ export function IntercomModal({
         <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
           <div>
             {isUpdateMode && !confirmDelete && (
-              <button
-                onClick={() => setConfirmDelete(true)}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-              >
-                <Trash2 className="w-3 h-3" />
+              <Button variant="ghost" icon={Trash2} onClick={() => setConfirmDelete(true)} disabled={loading} className="text-red-500 hover:text-red-600">
                 Delete
-              </button>
+              </Button>
             )}
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-3 py-1.5 text-xs rounded border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-            >
+            <Button variant="ghost" onClick={onClose}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={isUpdateMode ? handleUpdate : handlePublish}
               disabled={loading || loadingCollections || collections.length === 0}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              loading={loading}
+              icon={loading ? undefined : ExternalLink}
+              className="bg-blue-600 hover:bg-blue-700"
             >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  {isUpdateMode ? "Updating..." : "Publishing..."}
-                </>
-              ) : (
-                <>
-                  <ExternalLink className="w-3 h-3" />
-                  {isUpdateMode ? "Update" : "Publish"}
-                </>
-              )}
-            </button>
+              {isUpdateMode ? (loading ? "Updating..." : "Update") : (loading ? "Publishing..." : "Publish")}
+            </Button>
           </div>
         </div>
       </div>

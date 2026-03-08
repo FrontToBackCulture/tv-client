@@ -5,7 +5,9 @@ import { useState } from "react";
 import { useProductDeploymentWithRelations } from "../../hooks/product";
 import { DEPLOYMENT_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
-import { X, Loader2, Building2, FileText, ExternalLink } from "lucide-react";
+import { X, Building2, FileText, ExternalLink } from "lucide-react";
+import { IconButton } from "../../components/ui";
+import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 
 interface DeploymentDetailPanelProps {
@@ -19,21 +21,9 @@ export function DeploymentDetailPanel({ id, onClose }: DeploymentDetailPanelProp
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const { data, isLoading } = useProductDeploymentWithRelations(id);
 
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
-  if (!data) {
-    return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-        Deployment not found
-      </div>
-    );
-  }
+  if (!data) return <DetailNotFound message="Deployment not found" />;
 
   const statusDef = DEPLOYMENT_STATUSES.find((s) => s.value === data.status);
 
@@ -48,14 +38,12 @@ export function DeploymentDetailPanel({ id, onClose }: DeploymentDetailPanelProp
       {/* Header */}
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 font-mono">{data.domain_id}</h2>
+          <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">{data.domain_id}</h2>
           <div className="flex items-center gap-2 mt-1">
             {statusDef && <StatusChip label={statusDef.label} color={statusDef.color} />}
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
-          <X size={16} />
-        </button>
+        <IconButton onClick={onClose} icon={X} label="Close" />
       </div>
 
       {/* Tabs */}
@@ -82,19 +70,19 @@ export function DeploymentDetailPanel({ id, onClose }: DeploymentDetailPanelProp
       {/* Tab content */}
       <div className="flex-1 overflow-auto p-4">
         {activeTab === "overview" && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {data.description && (
               <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Description</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
+                <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">Description</h3>
+                <p className="text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
               </div>
             )}
 
             {/* Company link */}
             {data.company && (
               <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Company</label>
-                <div className="mt-1 p-2 rounded border border-zinc-200 dark:border-zinc-800 flex items-center gap-2">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">Company</h3>
+                <div className="p-2 rounded-lg border border-zinc-200/60 dark:border-zinc-800/60 bg-white dark:bg-zinc-900 flex items-center gap-2">
                   <Building2 size={14} className="text-zinc-400" />
                   <span className="text-sm text-zinc-700 dark:text-zinc-300">
                     {data.company.display_name || data.company.name}
@@ -104,32 +92,33 @@ export function DeploymentDetailPanel({ id, onClose }: DeploymentDetailPanelProp
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Go Live Date</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-                  {data.go_live_date
-                    ? new Date(data.go_live_date).toLocaleDateString()
-                    : "Not set"}
-                </p>
+            <div className="rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 p-3 space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Go Live Date</span>
+                  <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
+                    {data.go_live_date
+                      ? new Date(data.go_live_date).toLocaleDateString()
+                      : "Not set"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Status</span>
+                  <p className="mt-1">
+                    {statusDef && <StatusChip label={statusDef.label} color={statusDef.color} size="md" />}
+                  </p>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</label>
-                <p className="mt-1">
-                  {statusDef && <StatusChip label={statusDef.label} color={statusDef.color} size="md" />}
-                </p>
-              </div>
+              {data.domain_path && (
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Domain Path</span>
+                  <p className="mt-1 text-sm text-zinc-500 flex items-center gap-1">
+                    <FileText size={12} />
+                    {data.domain_path}
+                  </p>
+                </div>
+              )}
             </div>
-
-            {data.domain_path && (
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Domain Path</label>
-                <p className="mt-1 text-sm text-zinc-500 flex items-center gap-1">
-                  <FileText size={14} />
-                  {data.domain_path}
-                </p>
-              </div>
-            )}
           </div>
         )}
 

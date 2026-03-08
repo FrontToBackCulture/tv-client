@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@supabase/supabase-js": "^2.91.0",
     "@tanstack/react-query": "^5.0.0",
     "@tauri-apps/api": "^2.0.0",

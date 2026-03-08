@@ -1,6 +1,7 @@
 // VAL Sync Config - Domain configuration management
 // Stores domain configs in ~/.tv-desktop/val-sync-config.json
 
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -81,38 +82,34 @@ fn get_config_path() -> PathBuf {
         .join("val-sync-config.json")
 }
 
-pub fn load_config_internal() -> Result<ValSyncConfig, String> {
+pub fn load_config_internal() -> CmdResult<ValSyncConfig> {
     let path = get_config_path();
     if !path.exists() {
         return Ok(ValSyncConfig { domains: vec![] });
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read val-sync config: {}", e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse val-sync config: {}", e))
+    let content = fs::read_to_string(&path)?;
+    Ok(serde_json::from_str(&content)?)
 }
 
-fn save_config_internal(config: &ValSyncConfig) -> Result<(), String> {
+fn save_config_internal(config: &ValSyncConfig) -> CmdResult<()> {
     let path = get_config_path();
     if let Some(dir) = path.parent() {
         if !dir.exists() {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("Failed to create config directory: {}", e))?;
+            fs::create_dir_all(dir)?;
         }
     }
-    let content = serde_json::to_string_pretty(config)
-        .map_err(|e| format!("Failed to serialize config: {}", e))?;
-    fs::write(&path, content)
-        .map_err(|e| format!("Failed to write config: {}", e))
+    let content = serde_json::to_string_pretty(config)?;
+    fs::write(&path, content)?;
+    Ok(())
 }
 
-pub fn get_domain_config(domain: &str) -> Result<DomainConfig, String> {
+pub fn get_domain_config(domain: &str) -> CmdResult<DomainConfig> {
     let config = load_config_internal()?;
     config
         .domains
         .into_iter()
         .find(|d| d.domain == domain)
-        .ok_or_else(|| format!("Domain '{}' not found in val-sync config", domain))
+        .ok_or_else(|| CommandError::NotFound(format!("Domain '{}' not found in val-sync config", domain)))
 }
 
 /// Resolve ${tv-knowledge} in paths.
@@ -148,19 +145,19 @@ fn resolve_path_variable(path: &str, tv_knowledge_path: Option<&str>) -> String 
 
 /// Load val-sync configuration
 #[command]
-pub fn val_sync_load_config() -> Result<ValSyncConfig, String> {
+pub fn val_sync_load_config() -> CmdResult<ValSyncConfig> {
     load_config_internal()
 }
 
 /// Save val-sync configuration
 #[command]
-pub fn val_sync_save_config(config: ValSyncConfig) -> Result<(), String> {
+pub fn val_sync_save_config(config: ValSyncConfig) -> CmdResult<()> {
     save_config_internal(&config)
 }
 
 /// List all configured domains (summary)
 #[command]
-pub fn val_sync_list_domains() -> Result<Vec<DomainSummary>, String> {
+pub fn val_sync_list_domains() -> CmdResult<Vec<DomainSummary>> {
     let config = load_config_internal()?;
     Ok(config
         .domains
@@ -186,18 +183,16 @@ pub fn val_sync_list_domains() -> Result<Vec<DomainSummary>, String> {
 pub fn val_sync_import_config(
     file_path: String,
     tv_knowledge_path: Option<String>,
-) -> Result<ValSyncConfig, String> {
-    let content = fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read config file: {}", e))?;
+) -> CmdResult<ValSyncConfig> {
+    let content = fs::read_to_string(&file_path)?;
 
     // Parse the val-sync config.json format
-    let raw: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse config JSON: {}", e))?;
+    let raw: serde_json::Value = serde_json::from_str(&content)?;
 
     let domains_array = raw
         .get("domains")
         .and_then(|d| d.as_array())
-        .ok_or_else(|| "Config must have a 'domains' array".to_string())?;
+        .ok_or_else(|| CommandError::Parse("Config must have a 'domains' array".to_string()))?;
 
     let tk_path = tv_knowledge_path.as_deref();
     let mut domains = Vec::new();
@@ -287,10 +282,10 @@ pub fn val_sync_import_config(
 /// Discover domains from the file system at {repo}/0_Platform/domains/
 /// Scans production/, demo/, templates/ subdirectories and auto-writes val-sync-config.json
 #[command]
-pub fn val_sync_discover_domains(domains_path: String) -> Result<Vec<DiscoveredDomain>, String> {
+pub fn val_sync_discover_domains(domains_path: String) -> CmdResult<Vec<DiscoveredDomain>> {
     let base = std::path::Path::new(&domains_path);
     if !base.exists() {
-        return Err(format!("Domains path does not exist: {}", domains_path));
+        return Err(CommandError::NotFound(format!("Domains path does not exist: {}", domains_path)));
     }
 
     // Load existing config to preserve actual_domain aliases and projects
@@ -318,8 +313,7 @@ pub fn val_sync_discover_domains(domains_path: String) -> Result<Vec<DiscoveredD
             continue;
         }
 
-        let entries = fs::read_dir(&type_dir)
-            .map_err(|e| format!("Failed to read {}: {}", type_dir.display(), e))?;
+        let entries = fs::read_dir(&type_dir)?;
 
         let mut folder_domains: Vec<(String, String)> = Vec::new();
         for entry in entries.flatten() {

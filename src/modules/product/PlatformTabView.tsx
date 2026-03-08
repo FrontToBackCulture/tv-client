@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Search, X, Plus, ChevronRight, FileText, Play } from "lucide-react";
+import { Button } from "../../components/ui";
 import { useProductModules, useProductFeatures } from "../../hooks/product";
 import { useRepository } from "../../stores/repositoryStore";
 import { invoke } from "@tauri-apps/api/core";
@@ -268,10 +269,10 @@ export function PlatformTabView({
             size={10}
             className={`text-zinc-400 transition-transform flex-shrink-0 ${modulesExpanded ? "rotate-90" : ""}`}
           />
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          <span className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
             Modules
           </span>
-          <span className="text-[9px] text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums">
+          <span className="text-xs text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums">
             {totalCount}
           </span>
         </button>
@@ -291,13 +292,13 @@ export function PlatformTabView({
                   {/* Layer header */}
                   <button
                     onClick={() => toggle(layerKey)}
-                    className="w-full text-left pl-4 pr-2.5 py-0.5 flex items-center gap-1"
+                    className="w-full text-left pl-4 pr-2.5 py-1 flex items-center gap-1"
                   >
                     <ChevronRight
                       size={9}
                       className={`text-zinc-400 transition-transform flex-shrink-0 ${layerExpanded ? "rotate-90" : ""}`}
                     />
-                    <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-500">
+                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
                       {LAYER_LABELS[layer]}
                     </span>
                   </button>
@@ -320,7 +321,7 @@ export function PlatformTabView({
                             {/* Module row */}
                             <button
                               onClick={() => handleSelectModule(mod.id)}
-                              className={`w-full text-left flex items-center gap-1.5 px-2.5 pl-6 py-1 rounded-md text-xs transition-colors ${
+                              className={`w-full text-left flex items-center gap-1.5 px-2.5 pl-6 py-1.5 rounded-md text-xs transition-colors ${
                                 isSelected
                                   ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
                                   : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
@@ -338,7 +339,7 @@ export function PlatformTabView({
                               )}
                               <span className="truncate">{mod.name}</span>
                               {featureCount > 0 && (
-                                <span className="text-[9px] text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums flex-shrink-0">
+                                <span className="text-xs text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums flex-shrink-0">
                                   {featureCount}
                                 </span>
                               )}
@@ -353,7 +354,7 @@ export function PlatformTabView({
                                     <button
                                       key={feat.id}
                                       onClick={() => handleSelectFeature(feat.id)}
-                                      className={`w-full text-left pl-10 pr-2.5 py-0.5 text-[11px] transition-colors rounded-md ${
+                                      className={`w-full text-left pl-10 pr-2.5 py-1 text-xs transition-colors rounded-md ${
                                         isFeatSelected
                                           ? "text-teal-600 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-950/20"
                                           : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
@@ -425,13 +426,13 @@ export function PlatformTabView({
 
         {/* New button */}
         <div className="px-2 py-2 border-t border-zinc-200 dark:border-zinc-800">
-          <button
+          <Button
             onClick={() => onNew(newButtonType)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs font-medium transition-colors"
+            icon={Plus}
+            className="w-full justify-center"
           >
-            <Plus size={14} />
             {newButtonLabel}
-          </button>
+          </Button>
         </div>
 
         {/* Sidebar resize handle */}

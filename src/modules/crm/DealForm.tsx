@@ -10,7 +10,9 @@ import {
   DEAL_STAGES,
   DEAL_SOLUTIONS,
 } from "../../lib/crm/types";
-import { X } from "lucide-react";
+import { FormModal } from "../../components/ui/FormModal";
+import { FormField, Input, Select, Textarea } from "../../components/ui";
+import { toast } from "../../stores/toastStore";
 
 interface DealFormProps {
   deal?: Deal;
@@ -57,6 +59,7 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
       } else {
         await createMutation.mutateAsync(formData as DealInsert);
       }
+      toast.success(isEditing ? "Deal updated" : "Deal created");
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save deal");
@@ -64,185 +67,119 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden animate-modal-in">
-        <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            {isEditing ? "Edit Deal" : "New Deal"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+    <FormModal
+      title={isEditing ? "Edit Deal" : "New Deal"}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      submitLabel={isEditing ? "Save Changes" : "Create Deal"}
+      isSaving={isSaving}
+      error={error}
+      maxWidth="max-w-md"
+    >
+      <FormField label="Deal Name" required>
+        <Input
+          type="text"
+          value={formData.name || ""}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          required
+        />
+      </FormField>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Stage">
+          <Select
+            value={formData.stage || "qualified"}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                stage: e.target.value as Deal["stage"],
+              })
+            }
           >
-            <X size={18} />
-          </button>
-        </div>
+            {DEAL_STAGES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
 
-        <form
-          onSubmit={handleSubmit}
-          className="p-4 space-y-4 overflow-y-auto max-h-[calc(90vh-130px)]"
-        >
-          {error && (
-            <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 rounded text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Deal Name *
-            </label>
-            <input
-              type="text"
-              value={formData.name || ""}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Stage
-              </label>
-              <select
-                value={formData.stage || "qualified"}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    stage: e.target.value as Deal["stage"],
-                  })
-                }
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              >
-                {DEAL_STAGES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Solution
-              </label>
-              <select
-                value={formData.solution || "ap_automation"}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    solution: e.target.value as Deal["solution"],
-                  })
-                }
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              >
-                {DEAL_SOLUTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Value
-              </label>
-              <input
-                type="number"
-                value={formData.value || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    value: e.target.value ? parseInt(e.target.value) : 0,
-                  })
-                }
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-                placeholder="0"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Currency
-              </label>
-              <select
-                value={formData.currency || "SGD"}
-                onChange={(e) =>
-                  setFormData({ ...formData, currency: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              >
-                <option value="SGD">SGD</option>
-                <option value="USD">USD</option>
-                <option value="MYR">MYR</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Expected Close Date
-            </label>
-            <input
-              type="date"
-              value={formData.expected_close_date || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, expected_close_date: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Description
-            </label>
-            <input
-              type="text"
-              value={formData.description || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              placeholder="Brief description..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Notes
-            </label>
-            <textarea
-              value={formData.notes || ""}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={3}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-            />
-          </div>
-        </form>
-
-        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+        <FormField label="Solution">
+          <Select
+            value={formData.solution || "ap_automation"}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                solution: e.target.value as Deal["solution"],
+              })
+            }
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSaving}
-            className="px-4 py-2 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 transition-colors"
-          >
-            {isSaving ? "Saving..." : isEditing ? "Save Changes" : "Create Deal"}
-          </button>
-        </div>
+            {DEAL_SOLUTIONS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
       </div>
-    </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Value">
+          <Input
+            type="number"
+            value={formData.value || ""}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                value: e.target.value ? parseInt(e.target.value) : 0,
+              })
+            }
+            placeholder="0"
+          />
+        </FormField>
+
+        <FormField label="Currency">
+          <Select
+            value={formData.currency || "SGD"}
+            onChange={(e) =>
+              setFormData({ ...formData, currency: e.target.value })
+            }
+          >
+            <option value="SGD">SGD</option>
+            <option value="USD">USD</option>
+            <option value="MYR">MYR</option>
+          </Select>
+        </FormField>
+      </div>
+
+      <FormField label="Expected Close Date">
+        <Input
+          type="date"
+          value={formData.expected_close_date || ""}
+          onChange={(e) =>
+            setFormData({ ...formData, expected_close_date: e.target.value })
+          }
+        />
+      </FormField>
+
+      <FormField label="Description">
+        <Input
+          type="text"
+          value={formData.description || ""}
+          onChange={(e) =>
+            setFormData({ ...formData, description: e.target.value })
+          }
+          placeholder="Brief description..."
+        />
+      </FormField>
+
+      <FormField label="Notes">
+        <Textarea
+          value={formData.notes || ""}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          rows={3}
+        />
+      </FormField>
+    </FormModal>
   );
 }

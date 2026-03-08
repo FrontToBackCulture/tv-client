@@ -1,6 +1,7 @@
 // CRM Module - Company Commands
 
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
 
 /// List companies with optional filters
@@ -10,7 +11,7 @@ pub async fn crm_list_companies(
     stage: Option<String>,
     industry: Option<String>,
     limit: Option<i32>,
-) -> Result<Vec<Company>, String> {
+) -> CmdResult<Vec<Company>> {
     let client = get_client().await?;
 
     let mut filters = vec![];
@@ -39,7 +40,7 @@ pub async fn crm_list_companies(
 pub async fn crm_find_company(
     name: Option<String>,
     domain: Option<String>,
-) -> Result<Option<Company>, String> {
+) -> CmdResult<Option<Company>> {
     let client = get_client().await?;
 
     if let Some(n) = name {
@@ -59,7 +60,7 @@ pub async fn crm_find_company(
 
 /// Get a single company by ID with optional relations
 #[tauri::command]
-pub async fn crm_get_company(company_id: String, include_relations: Option<bool>) -> Result<Company, String> {
+pub async fn crm_get_company(company_id: String, include_relations: Option<bool>) -> CmdResult<Company> {
     let client = get_client().await?;
 
     let query = if include_relations.unwrap_or(false) {
@@ -74,16 +75,16 @@ pub async fn crm_get_company(company_id: String, include_relations: Option<bool>
     client
         .select_single("crm_companies", &query)
         .await?
-        .ok_or_else(|| format!("Company not found: {}", company_id))
+        .ok_or_else(|| CommandError::NotFound(format!("Company not found: {}", company_id)))
 }
 
 /// Create a new company
 #[tauri::command]
-pub async fn crm_create_company(data: CreateCompany) -> Result<Company, String> {
+pub async fn crm_create_company(data: CreateCompany) -> CmdResult<Company> {
     let client = get_client().await?;
 
     // Set default stage if not provided
-    let mut insert_data = serde_json::to_value(&data).map_err(|e| e.to_string())?;
+    let mut insert_data = serde_json::to_value(&data)?;
     if let Some(obj) = insert_data.as_object_mut() {
         if obj.get("stage").map_or(true, |v| v.is_null()) {
             obj.insert("stage".to_string(), serde_json::Value::String("prospect".to_string()));
@@ -98,7 +99,7 @@ pub async fn crm_create_company(data: CreateCompany) -> Result<Company, String> 
 
 /// Update a company
 #[tauri::command]
-pub async fn crm_update_company(company_id: String, data: UpdateCompany) -> Result<Company, String> {
+pub async fn crm_update_company(company_id: String, data: UpdateCompany) -> CmdResult<Company> {
     let client = get_client().await?;
 
     // Check if stage is changing for activity logging
@@ -125,7 +126,7 @@ pub async fn crm_update_company(company_id: String, data: UpdateCompany) -> Resu
 
 /// Delete a company and all related records
 #[tauri::command]
-pub async fn crm_delete_company(company_id: String) -> Result<(), String> {
+pub async fn crm_delete_company(company_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     // Delete in order: activities, email_links, deals, contacts, company

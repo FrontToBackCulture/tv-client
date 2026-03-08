@@ -3,6 +3,7 @@ import { ArrowLeft, Settings2 } from "lucide-react";
 import { RepoDashboard } from "./RepoDashboard";
 import { RepoDetail } from "./RepoDetail";
 import { RepoSettingsDialog } from "./RepoSettingsDialog";
+import { IconButton } from "../../components/ui";
 
 type ReposView =
   | { kind: "dashboard" }
@@ -17,25 +18,14 @@ export function ReposModule() {
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
         {view.kind === "detail" && (
-          <button
-            onClick={() => setView({ kind: "dashboard" })}
-            className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500"
-          >
-            <ArrowLeft size={16} />
-          </button>
+          <IconButton icon={ArrowLeft} label="Back to dashboard" onClick={() => setView({ kind: "dashboard" })} />
         )}
         <h1 className="text-sm font-semibold flex-1">
           {view.kind === "dashboard"
             ? "Repos"
             : `${view.owner}/${view.repo}`}
         </h1>
-        <button
-          onClick={() => setShowSettings(true)}
-          className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500"
-          title="Manage repos"
-        >
-          <Settings2 size={16} />
-        </button>
+        <IconButton icon={Settings2} label="Manage repos" onClick={() => setShowSettings(true)} />
       </div>
 
       {/* Content */}

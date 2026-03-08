@@ -10,7 +10,9 @@ import {
   COMPANY_STAGES,
   COMPANY_SOURCES,
 } from "../../lib/crm/types";
-import { X } from "lucide-react";
+import { FormModal } from "../../components/ui/FormModal";
+import { FormField, Input, Select, Textarea, inputClass, labelClass } from "../../components/ui";
+import { toast } from "../../stores/toastStore";
 
 interface CompanyFormProps {
   company?: Company;
@@ -58,6 +60,7 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
       } else {
         await createMutation.mutateAsync(formData as CompanyInsert);
       }
+      toast.success(isEditing ? "Company updated" : "Company created");
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save company");
@@ -82,239 +85,168 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden animate-modal-in">
-        <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            {isEditing ? "Edit Company" : "New Company"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+    <FormModal
+      title={isEditing ? "Edit Company" : "New Company"}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      submitLabel={isEditing ? "Save Changes" : "Create Company"}
+      isSaving={isSaving}
+      error={error}
+    >
+      <FormField label="Company Name" required>
+        <Input
+          type="text"
+          value={formData.name || ""}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          required
+        />
+      </FormField>
+
+      <FormField label="Display Name">
+        <Input
+          type="text"
+          value={formData.display_name || ""}
+          onChange={(e) =>
+            setFormData({ ...formData, display_name: e.target.value })
+          }
+          placeholder="Friendly name (optional)"
+        />
+      </FormField>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Stage">
+          <Select
+            value={formData.stage || "prospect"}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                stage: e.target.value as Company["stage"],
+              })
+            }
           >
-            <X size={18} />
-          </button>
-        </div>
+            {COMPANY_STAGES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
 
-        <form
-          onSubmit={handleSubmit}
-          className="p-4 space-y-4 overflow-y-auto max-h-[calc(90vh-130px)]"
-        >
-          {error && (
-            <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 rounded text-sm">
-              {error}
-            </div>
-          )}
+        <FormField label="Source">
+          <Select
+            value={formData.source || "manual"}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                source: e.target.value as Company["source"],
+              })
+            }
+          >
+            {COMPANY_SOURCES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+      </div>
 
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Company Name *
-            </label>
-            <input
-              type="text"
-              value={formData.name || ""}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              required
-            />
-          </div>
+      <FormField label="Industry">
+        <Input
+          type="text"
+          value={formData.industry || ""}
+          onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+          placeholder="e.g., F&B, Retail"
+        />
+      </FormField>
 
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Display Name
-            </label>
-            <input
-              type="text"
-              value={formData.display_name || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, display_name: e.target.value })
+      <FormField label="Website">
+        <Input
+          type="url"
+          value={formData.website || ""}
+          onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+          placeholder="https://"
+        />
+      </FormField>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Client Folder Path">
+          <Input
+            type="text"
+            value={formData.client_folder_path || ""}
+            onChange={(e) =>
+              setFormData({ ...formData, client_folder_path: e.target.value })
+            }
+            placeholder="3_Clients/by_industry/fnb/..."
+          />
+        </FormField>
+
+        <FormField label="Domain ID">
+          <Input
+            type="text"
+            value={formData.domain_id || ""}
+            onChange={(e) =>
+              setFormData({ ...formData, domain_id: e.target.value })
+            }
+            placeholder="e.g., koi, suntec"
+          />
+        </FormField>
+      </div>
+
+      <div>
+        <label className={labelClass}>
+          Tags
+        </label>
+        <div className="flex gap-2 mb-2">
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAddTag();
               }
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              placeholder="Friendly name (optional)"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Stage
-              </label>
-              <select
-                value={formData.stage || "prospect"}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    stage: e.target.value as Company["stage"],
-                  })
-                }
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              >
-                {COMPANY_STAGES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Source
-              </label>
-              <select
-                value={formData.source || "manual"}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    source: e.target.value as Company["source"],
-                  })
-                }
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              >
-                {COMPANY_SOURCES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Industry
-            </label>
-            <input
-              type="text"
-              value={formData.industry || ""}
-              onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              placeholder="e.g., F&B, Retail"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Website
-            </label>
-            <input
-              type="url"
-              value={formData.website || ""}
-              onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              placeholder="https://"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Client Folder Path
-              </label>
-              <input
-                type="text"
-                value={formData.client_folder_path || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, client_folder_path: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-                placeholder="3_Clients/by_industry/fnb/..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Domain ID
-              </label>
-              <input
-                type="text"
-                value={formData.domain_id || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, domain_id: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-                placeholder="e.g., koi, suntec"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Tags
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddTag();
-                  }
-                }}
-                className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-                placeholder="Add tag..."
-              />
-              <button
-                type="button"
-                onClick={handleAddTag}
-                className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
-              >
-                Add
-              </button>
-            </div>
-            {formData.tags && formData.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {formData.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded text-sm"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-red-500 dark:hover:text-red-400"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Notes
-            </label>
-            <textarea
-              value={formData.notes || ""}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={3}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-            />
-          </div>
-        </form>
-
-        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-2">
+            }}
+            className={`flex-1 ${inputClass}`}
+            placeholder="Add tag..."
+          />
           <button
             type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+            onClick={handleAddTag}
+            className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSaving}
-            className="px-4 py-2 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 transition-colors"
-          >
-            {isSaving ? "Saving..." : isEditing ? "Save Changes" : "Create Company"}
+            Add
           </button>
         </div>
+        {formData.tags && formData.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {formData.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 px-2 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded text-sm"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTag(tag)}
+                  className="hover:text-red-500 dark:hover:text-red-400"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+
+      <FormField label="Notes">
+        <Textarea
+          value={formData.notes || ""}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          rows={3}
+        />
+      </FormField>
+    </FormModal>
   );
 }

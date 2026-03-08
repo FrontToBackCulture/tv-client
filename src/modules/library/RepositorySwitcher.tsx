@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useRepository, Repository } from "../../stores/repositoryStore";
 import { cn } from "../../lib/cn";
+import { Button } from "../../components/ui";
 
 interface RepositorySwitcherProps {
   onRepositoryChange?: () => void;
@@ -234,32 +235,28 @@ export function RepositorySwitcher({ onRepositoryChange }: RepositorySwitcherPro
                       placeholder="/path/to/folder"
                       className="flex-1 min-w-0 px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-sm text-zinc-800 dark:text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:border-teal-600"
                     />
-                    <button
-                      onClick={handleBrowse}
-                      className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors whitespace-nowrap"
-                    >
+                    <Button variant="secondary" onClick={handleBrowse}>
                       Browse...
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <div className="flex gap-2 justify-end pt-1">
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={() => {
                       setIsAdding(false);
                       setNewName("");
                       setNewPath("");
                     }}
-                    className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={handleAdd}
                     disabled={!newName || !newPath}
-                    className="px-4 py-1.5 bg-teal-600 text-white text-sm rounded hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Add
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (

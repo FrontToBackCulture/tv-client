@@ -128,7 +128,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
           )}
         </div>
         {frontmatter.status && (
-          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${
+          <span className={`text-xs font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${
             frontmatter.status === "published"
               ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
               : frontmatter.status === "draft"
@@ -174,7 +174,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
               {frontmatter.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                  className="text-xs px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
                 >
                   {tag}
                 </span>

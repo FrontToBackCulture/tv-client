@@ -1,7 +1,7 @@
 // src/modules/product/DomainTabView.tsx
 // Domains tab — sidebar + batch dashboard + detail panel (bot-style layout)
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   useDiscoverDomains,
   useSyncAllDomains,
@@ -33,7 +33,10 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
+import { Button } from "../../components/ui";
+import { useRegisterCommands } from "../../stores/commandStore";
 import { DomainDetailPanel } from "./DomainDetailPanel";
+import { DetailLoading } from "../../components/ui/DetailStates";
 
 // ============================
 // Props
@@ -354,14 +357,32 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     { label: "Generate Overview HTML", onClick: () => runOverview(domainNames), isRunning: isOverviewRunning, tooltip: "Generate static HTML overview pages" },
   ];
 
+  // Register contextual commands for Command Palette (⌘K)
+  const paletteCommands = useMemo(() => [
+    // Sync
+    { id: "domain-sync-all", label: "Sync All (Schema)", description: "Fetch all schema data from VAL API for every domain", icon: <RefreshCw size={15} />, action: () => syncAll(domainNames) },
+    { id: "domain-sync-monitoring", label: "Sync Workflow Executions", description: "Fetch recent workflow execution history", icon: <RefreshCw size={15} />, action: () => syncMonitoring(domainNames) },
+    { id: "domain-sync-sod", label: "Sync SOD Tables", description: "Fetch Start-of-Day table sync status", icon: <RefreshCw size={15} />, action: () => syncSod(domainNames) },
+    { id: "domain-sync-importer", label: "Sync Importer Errors", description: "Fetch recent importer errors across domains", icon: <RefreshCw size={15} />, action: () => syncImporterErrors(domainNames) },
+    { id: "domain-sync-integration", label: "Sync Integration Errors", description: "Fetch recent integration errors across domains", icon: <RefreshCw size={15} />, action: () => syncIntegrationErrors(domainNames) },
+    { id: "domain-sync-s3", label: "Push AI to S3", description: "Upload all domain AI folders to S3 storage", icon: <RefreshCw size={15} />, action: () => syncAiToS3(all.map(d => ({ domain: d.domain, global_path: d.global_path }))) },
+    { id: "domain-sync-ga4", label: "Sync GA4 Analytics", description: "Fetch dashboard page views from Google Analytics", icon: <BarChart3 size={15} />, action: handleSyncGa4 },
+    // Health
+    { id: "domain-health-data", label: "Data Model Health", description: "Check table freshness and data staleness across domains", icon: <Zap size={15} />, action: () => runDataModelHealth(domainNames) },
+    { id: "domain-health-workflow", label: "Workflow Health", description: "Analyze workflow execution success rates", icon: <Zap size={15} />, action: () => runWorkflowHealth(domainNames) },
+    { id: "domain-health-query", label: "Query Health", description: "Analyze query health based on dashboard usage", icon: <Zap size={15} />, action: () => runQueryHealth(domainNames) },
+    // Analysis
+    { id: "domain-artifact-audit", label: "Artifact Audit", description: "Compare local artifacts vs remote VAL state", icon: <Zap size={15} />, action: () => runArtifactAudit(domainNames) },
+    { id: "domain-overview", label: "Generate Overview HTML", description: "Generate static HTML overview pages for each domain", icon: <Zap size={15} />, action: () => runOverview(domainNames) },
+    { id: "domain-full-analysis", label: "Full Analysis Pipeline", description: "Sync All → Query Health → Artifact Audit → Generate Overview", icon: <Zap size={15} />, action: handleFullAnalysis },
+    // Stop
+    ...(anyRunning ? [{ id: "domain-stop", label: "Stop Running Operation", description: "Abort the currently running batch operation", icon: <Square size={15} />, action: handleStop }] : []),
+  ], [domainNames, anyRunning, all]);
+
+  useRegisterCommands(paletteCommands, [domainNames, anyRunning, all]);
+
   // ── Loading / Error / Empty states ──
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   if (isError) {
     return (
@@ -373,13 +394,14 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
             ? "Restart the app to load the new val-sync commands (Rust rebuild required)"
             : String(error)}
         </p>
-        <button
+        <Button
           onClick={() => refetch()}
-          className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-600 hover:text-teal-500 border border-teal-600/30 rounded transition-colors"
+          variant="secondary"
+          icon={RefreshCw}
+          className="mt-3"
         >
-          <RefreshCw size={12} />
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
@@ -442,10 +464,10 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
                         !isCollapsed && "rotate-90"
                       )}
                     />
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
                       {TYPE_LABELS[type] ?? type}
                     </span>
-                    <span className="text-[9px] text-zinc-400/60 ml-auto">{items.length}</span>
+                    <span className="text-xs text-zinc-400/60 ml-auto">{items.length}</span>
                   </button>
                   {/* Items */}
                   {!isCollapsed && items.map((d) => (
@@ -460,9 +482,9 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
                       )}
                       style={{ width: "calc(100% - 8px)" }}
                     >
-                      <span className="font-mono font-medium block truncate">{d.domain}</span>
+                      <span className="font-medium block truncate">{d.domain}</span>
                       {d.last_sync && (
-                        <span className="text-[10px] text-zinc-400 block mt-0.5">
+                        <span className="text-xs text-zinc-400 block mt-0.5">
                           {formatRelativeTime(d.last_sync)}
                         </span>
                       )}
@@ -504,19 +526,16 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
             {/* Batch controls */}
             <div className="px-6 py-3 space-y-3">
               {/* Full Analysis button */}
-              <button
+              <Button
                 onClick={handleFullAnalysis}
                 disabled={anyRunning}
                 title="Run complete analysis pipeline: Sync All → Query Health → Artifact Audit → Generate Overview"
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-500 rounded-lg transition-colors disabled:opacity-50"
+                size="md"
+                icon={Zap}
+                loading={fullAnalysisRunning}
               >
-                {fullAnalysisRunning ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Zap size={14} />
-                )}
                 Full Analysis
-              </button>
+              </Button>
 
               {/* Dropdown menus row */}
               <div className="flex items-center gap-2">
@@ -543,18 +562,18 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
                 {anyRunning && (
                   <>
                     <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 ml-1" />
-                    <button
+                    <Button
                       onClick={handleStop}
-                      className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-red-600 hover:text-red-500 border border-red-300 dark:border-red-800 rounded transition-colors"
+                      variant="danger"
+                      icon={Square}
                     >
-                      <Square size={10} />
                       Stop
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
 
-              <p className="text-[10px] text-zinc-400">
+              <p className="text-xs text-zinc-400">
                 Full Analysis: Sync → Query Health → Audit → Overview
               </p>
             </div>

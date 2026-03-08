@@ -1,6 +1,7 @@
 // CRM Module - Deal Commands
 
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
 
 /// List deals with optional filters
@@ -8,7 +9,7 @@ use crate::commands::supabase::get_client;
 pub async fn crm_list_deals(
     company_id: Option<String>,
     stage: Option<String>,
-) -> Result<Vec<Deal>, String> {
+) -> CmdResult<Vec<Deal>> {
     let client = get_client().await?;
 
     let mut filters = vec!["select=*,company:crm_companies(id,name,display_name)".to_string()];
@@ -28,7 +29,7 @@ pub async fn crm_list_deals(
 
 /// Get a single deal by ID
 #[tauri::command]
-pub async fn crm_get_deal(deal_id: String, include_relations: Option<bool>) -> Result<Deal, String> {
+pub async fn crm_get_deal(deal_id: String, include_relations: Option<bool>) -> CmdResult<Deal> {
     let client = get_client().await?;
 
     let query = if include_relations.unwrap_or(false) {
@@ -43,16 +44,16 @@ pub async fn crm_get_deal(deal_id: String, include_relations: Option<bool>) -> R
     client
         .select_single("crm_deals", &query)
         .await?
-        .ok_or_else(|| format!("Deal not found: {}", deal_id))
+        .ok_or_else(|| CommandError::NotFound(format!("Deal not found: {}", deal_id)))
 }
 
 /// Create a new deal
 #[tauri::command]
-pub async fn crm_create_deal(data: CreateDeal) -> Result<Deal, String> {
+pub async fn crm_create_deal(data: CreateDeal) -> CmdResult<Deal> {
     let client = get_client().await?;
 
     // Set defaults
-    let mut insert_data = serde_json::to_value(&data).map_err(|e| e.to_string())?;
+    let mut insert_data = serde_json::to_value(&data)?;
     let now = chrono::Utc::now().to_rfc3339();
 
     if let Some(obj) = insert_data.as_object_mut() {
@@ -72,7 +73,7 @@ pub async fn crm_create_deal(data: CreateDeal) -> Result<Deal, String> {
     let company: Company = client
         .select_single("crm_companies", &format!("id=eq.{}", data.company_id))
         .await?
-        .ok_or("Company not found")?;
+        .ok_or_else(|| CommandError::NotFound("Company not found".into()))?;
 
     if company.stage.as_deref() == Some("prospect") {
         let update_data = serde_json::json!({ "stage": "opportunity" });
@@ -96,7 +97,7 @@ pub async fn crm_create_deal(data: CreateDeal) -> Result<Deal, String> {
 
 /// Update a deal
 #[tauri::command]
-pub async fn crm_update_deal(deal_id: String, data: UpdateDeal) -> Result<Deal, String> {
+pub async fn crm_update_deal(deal_id: String, data: UpdateDeal) -> CmdResult<Deal> {
     let client = get_client().await?;
 
     // Get current deal for stage change detection
@@ -104,7 +105,7 @@ pub async fn crm_update_deal(deal_id: String, data: UpdateDeal) -> Result<Deal, 
     let now = chrono::Utc::now().to_rfc3339();
 
     // Build update data
-    let mut update_data = serde_json::to_value(&data).map_err(|e| e.to_string())?;
+    let mut update_data = serde_json::to_value(&data)?;
 
     // Check if stage is changing
     if let Some(new_stage) = &data.stage {
@@ -156,7 +157,7 @@ pub async fn crm_update_deal(deal_id: String, data: UpdateDeal) -> Result<Deal, 
 
 /// Delete a deal
 #[tauri::command]
-pub async fn crm_delete_deal(deal_id: String) -> Result<(), String> {
+pub async fn crm_delete_deal(deal_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     // Delete related activities first
@@ -168,7 +169,7 @@ pub async fn crm_delete_deal(deal_id: String) -> Result<(), String> {
 
 /// Get pipeline statistics
 #[tauri::command]
-pub async fn crm_get_pipeline() -> Result<PipelineStats, String> {
+pub async fn crm_get_pipeline() -> CmdResult<PipelineStats> {
     let client = get_client().await?;
 
     // Get all active deals (not won/lost)
@@ -209,7 +210,7 @@ pub async fn crm_get_pipeline() -> Result<PipelineStats, String> {
 
 /// Link a task to a deal via the junction table
 #[tauri::command]
-pub async fn crm_link_task_to_deal(task_id: String, deal_id: String) -> Result<serde_json::Value, String> {
+pub async fn crm_link_task_to_deal(task_id: String, deal_id: String) -> CmdResult<serde_json::Value> {
     let client = get_client().await?;
 
     // Insert into junction table

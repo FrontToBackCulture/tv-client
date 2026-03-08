@@ -3,6 +3,7 @@
 
 use super::config::get_domain_config;
 use super::sync::write_json;
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -162,17 +163,15 @@ struct DashboardHealthStatusInfo {
 // Helper functions
 // ============================================================================
 
-fn load_queries(global_path: &str) -> Result<Vec<Query>, String> {
+fn load_queries(global_path: &str) -> CmdResult<Vec<Query>> {
     let path = Path::new(global_path).join("all_queries.json");
     if !path.exists() {
-        return Err(format!("Queries file not found: {:?}. Run sync first.", path));
+        return Err(CommandError::NotFound(format!("Queries file not found: {:?}. Run sync first.", path)));
     }
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read queries: {}", e))?;
+    let content = fs::read_to_string(&path)?;
 
-    let data: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse queries JSON: {}", e))?;
+    let data: serde_json::Value = serde_json::from_str(&content)?;
 
     // Handle both array and { data: [...] } formats
     let items = if let Some(arr) = data.as_array() {
@@ -180,7 +179,7 @@ fn load_queries(global_path: &str) -> Result<Vec<Query>, String> {
     } else if let Some(data_arr) = data.get("data").and_then(|d| d.as_array()) {
         data_arr.clone()
     } else {
-        return Err("Invalid queries JSON format".to_string());
+        return Err(CommandError::Parse("Invalid queries JSON format".to_string()));
     };
 
     let queries: Vec<Query> = items
@@ -191,24 +190,22 @@ fn load_queries(global_path: &str) -> Result<Vec<Query>, String> {
     Ok(queries)
 }
 
-fn load_dashboards(global_path: &str) -> Result<Vec<Dashboard>, String> {
+fn load_dashboards(global_path: &str) -> CmdResult<Vec<Dashboard>> {
     let path = Path::new(global_path).join("all_dashboards.json");
     if !path.exists() {
-        return Err(format!("Dashboards file not found: {:?}. Run sync first.", path));
+        return Err(CommandError::NotFound(format!("Dashboards file not found: {:?}. Run sync first.", path)));
     }
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read dashboards: {}", e))?;
+    let content = fs::read_to_string(&path)?;
 
-    let data: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse dashboards JSON: {}", e))?;
+    let data: serde_json::Value = serde_json::from_str(&content)?;
 
     let items = if let Some(arr) = data.as_array() {
         arr.clone()
     } else if let Some(data_arr) = data.get("data").and_then(|d| d.as_array()) {
         data_arr.clone()
     } else {
-        return Err("Invalid dashboards JSON format".to_string());
+        return Err(CommandError::Parse("Invalid dashboards JSON format".to_string()));
     };
 
     let dashboards: Vec<Dashboard> = items
@@ -393,7 +390,7 @@ fn calculate_query_health(dashboard_health_levels: &[String]) -> QueryHealth {
 
 /// Run query health analysis for a domain
 #[command]
-pub async fn val_run_query_health(domain: String) -> Result<QueryHealthResult, String> {
+pub async fn val_run_query_health(domain: String) -> CmdResult<QueryHealthResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -505,8 +502,7 @@ pub async fn val_run_query_health(domain: String) -> Result<QueryHealthResult, S
     };
 
     // Write results to file
-    let output_value = serde_json::to_value(&result)
-        .map_err(|e| format!("Failed to serialize query health results: {}", e))?;
+    let output_value = serde_json::to_value(&result)?;
     write_json(&file_path.to_string_lossy(), &output_value)?;
 
     Ok(result)

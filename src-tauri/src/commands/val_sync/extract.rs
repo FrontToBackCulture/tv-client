@@ -5,6 +5,7 @@ use super::api::val_api_fetch;
 use super::auth;
 use super::config::get_domain_config;
 use super::metadata;
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -32,37 +33,34 @@ pub struct ExtractResult {
 // ============================================================================
 
 /// Read and parse a JSON file, returning empty Value on missing/error
-fn read_json(path: &str) -> Result<Value, String> {
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read {}: {}", path, e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse {}: {}", path, e))
+fn read_json(path: &str) -> CmdResult<Value> {
+    let content = fs::read_to_string(path)?;
+    Ok(serde_json::from_str(&content)?)
 }
 
 /// Write JSON to file, creating parent directories
-fn write_json(path: &str, value: &Value) -> Result<(), String> {
+fn write_json(path: &str, value: &Value) -> CmdResult<()> {
     let p = Path::new(path);
     if let Some(dir) = p.parent() {
         if !dir.exists() {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("Failed to create directory: {}", e))?;
+            fs::create_dir_all(dir)?;
         }
     }
-    let content = serde_json::to_string_pretty(value)
-        .map_err(|e| format!("Failed to serialize JSON: {}", e))?;
-    fs::write(p, content).map_err(|e| format!("Failed to write file: {}", e))
+    let content = serde_json::to_string_pretty(value)?;
+    fs::write(p, content)?;
+    Ok(())
 }
 
 /// Write text to file, creating parent directories
-fn write_text(path: &str, content: &str) -> Result<(), String> {
+fn write_text(path: &str, content: &str) -> CmdResult<()> {
     let p = Path::new(path);
     if let Some(dir) = p.parent() {
         if !dir.exists() {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("Failed to create directory: {}", e))?;
+            fs::create_dir_all(dir)?;
         }
     }
-    fs::write(p, content).map_err(|e| format!("Failed to write file: {}", e))
+    fs::write(p, content)?;
+    Ok(())
 }
 
 /// Extract items array from flexible JSON structure
@@ -190,7 +188,7 @@ fn extract_sql_from_plugin(plugin: &Value) -> Vec<(String, String)> {
 // Extract operations
 // ============================================================================
 
-fn extract_queries_internal(global_path: &str) -> Result<usize, String> {
+fn extract_queries_internal(global_path: &str) -> CmdResult<usize> {
     let input = format!("{}/all_queries.json", global_path);
     let data = read_json(&input)?;
     let items = extract_array(&data, "queries");
@@ -216,7 +214,7 @@ fn extract_queries_internal(global_path: &str) -> Result<usize, String> {
     Ok(count)
 }
 
-fn extract_workflows_internal(global_path: &str) -> Result<usize, String> {
+fn extract_workflows_internal(global_path: &str) -> CmdResult<usize> {
     let input = format!("{}/all_workflows.json", global_path);
     let data = read_json(&input)?;
     let items = extract_array(&data, "workflows");
@@ -242,7 +240,7 @@ fn extract_workflows_internal(global_path: &str) -> Result<usize, String> {
     Ok(count)
 }
 
-fn extract_dashboards_internal(global_path: &str) -> Result<usize, String> {
+fn extract_dashboards_internal(global_path: &str) -> CmdResult<usize> {
     let input = format!("{}/all_dashboards.json", global_path);
     let data = read_json(&input)?;
     let items = extract_array(&data, "dashboards");
@@ -269,7 +267,7 @@ fn extract_dashboards_internal(global_path: &str) -> Result<usize, String> {
 }
 
 /// Tables: recursive tree traversal + per-table API fetch
-async fn extract_tables_internal(domain: &str, global_path: &str) -> Result<usize, String> {
+async fn extract_tables_internal(domain: &str, global_path: &str) -> CmdResult<usize> {
     let input = format!("{}/all_tables.json", global_path);
     let data = read_json(&input)?;
 
@@ -319,7 +317,7 @@ async fn extract_tables_internal(domain: &str, global_path: &str) -> Result<usiz
 }
 
 /// SQL extraction from workflow definitions
-fn extract_sql_internal(global_path: &str) -> Result<usize, String> {
+fn extract_sql_internal(global_path: &str) -> CmdResult<usize> {
     let workflows_dir = format!("{}/workflows", global_path);
     let workflows_path = Path::new(&workflows_dir);
     if !workflows_path.exists() {
@@ -329,8 +327,7 @@ fn extract_sql_internal(global_path: &str) -> Result<usize, String> {
     let mut count = 0;
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
 
-    let entries = fs::read_dir(workflows_path)
-        .map_err(|e| format!("Failed to read workflows dir: {}", e))?;
+    let entries = fs::read_dir(workflows_path)?;
 
     for entry in entries.flatten() {
         let entry_path = entry.path();
@@ -414,7 +411,7 @@ fn extract_sql_internal(global_path: &str) -> Result<usize, String> {
 }
 
 /// Calc fields: enrich data model definitions with ruleField
-fn extract_calc_fields_internal(global_path: &str) -> Result<usize, String> {
+fn extract_calc_fields_internal(global_path: &str) -> CmdResult<usize> {
     let input = format!("{}/all_calculated_fields.json", global_path);
     let data = match read_json(&input) {
         Ok(d) => d,
@@ -463,8 +460,7 @@ fn extract_calc_fields_internal(global_path: &str) -> Result<usize, String> {
 
     let mut enriched_count = 0;
 
-    let entries = fs::read_dir(dm_path)
-        .map_err(|e| format!("Failed to read data_models dir: {}", e))?;
+    let entries = fs::read_dir(dm_path)?;
 
     for entry in entries.flatten() {
         let entry_path = entry.path();
@@ -534,7 +530,7 @@ fn extract_calc_fields_internal(global_path: &str) -> Result<usize, String> {
 // Public API (called by sync.rs)
 // ============================================================================
 
-pub async fn run_extract(domain: &str, extract_type: &str) -> Result<ExtractResult, String> {
+pub async fn run_extract(domain: &str, extract_type: &str) -> CmdResult<ExtractResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(domain)?;
     let global_path = &domain_config.global_path;
@@ -546,7 +542,7 @@ pub async fn run_extract(domain: &str, extract_type: &str) -> Result<ExtractResu
         "tables" => extract_tables_internal(domain, global_path).await?,
         "sql" => extract_sql_internal(global_path)?,
         "calc-fields" => extract_calc_fields_internal(global_path)?,
-        _ => return Err(format!("Unknown extract type: {}", extract_type)),
+        _ => return Err(CommandError::Internal(format!("Unknown extract type: {}", extract_type))),
     };
 
     let duration_ms = start.elapsed().as_millis() as u64;
@@ -568,31 +564,31 @@ pub async fn run_extract(domain: &str, extract_type: &str) -> Result<ExtractResu
 // ============================================================================
 
 #[command]
-pub async fn val_extract_queries(domain: String) -> Result<ExtractResult, String> {
+pub async fn val_extract_queries(domain: String) -> CmdResult<ExtractResult> {
     run_extract(&domain, "queries").await
 }
 
 #[command]
-pub async fn val_extract_workflows(domain: String) -> Result<ExtractResult, String> {
+pub async fn val_extract_workflows(domain: String) -> CmdResult<ExtractResult> {
     run_extract(&domain, "workflows").await
 }
 
 #[command]
-pub async fn val_extract_dashboards(domain: String) -> Result<ExtractResult, String> {
+pub async fn val_extract_dashboards(domain: String) -> CmdResult<ExtractResult> {
     run_extract(&domain, "dashboards").await
 }
 
 #[command]
-pub async fn val_extract_tables(domain: String) -> Result<ExtractResult, String> {
+pub async fn val_extract_tables(domain: String) -> CmdResult<ExtractResult> {
     run_extract(&domain, "tables").await
 }
 
 #[command]
-pub async fn val_extract_sql(domain: String) -> Result<ExtractResult, String> {
+pub async fn val_extract_sql(domain: String) -> CmdResult<ExtractResult> {
     run_extract(&domain, "sql").await
 }
 
 #[command]
-pub async fn val_extract_calc_fields(domain: String) -> Result<ExtractResult, String> {
+pub async fn val_extract_calc_fields(domain: String) -> CmdResult<ExtractResult> {
     run_extract(&domain, "calc-fields").await
 }

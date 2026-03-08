@@ -10,12 +10,12 @@
 // is incomplete. Internal users (thinkval.com) are flagged, not filtered.
 
 use chrono::{NaiveDate, Utc};
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::command;
 
 use super::{upsert_page_views, AnalyticsPageView, AnalyticsSyncResult};
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::settings;
 
 // ============================================================================
@@ -70,11 +70,11 @@ const INTERNAL_EMAIL_DOMAINS: &[&str] = &["thinkval.com"];
 // Auth — Service Account JWT → Access Token
 // ============================================================================
 
-async fn get_access_token(sa_path: &str) -> Result<String, String> {
+async fn get_access_token(sa_path: &str) -> CmdResult<String> {
     {
         let cache = TOKEN_CACHE
             .lock()
-            .map_err(|e| format!("Lock error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         if let Some(ref cached) = *cache {
             if Utc::now().timestamp() < cached.expires_at - 60 {
                 return Ok(cached.access_token.clone());
@@ -82,10 +82,8 @@ async fn get_access_token(sa_path: &str) -> Result<String, String> {
         }
     }
 
-    let sa_content = std::fs::read_to_string(sa_path)
-        .map_err(|e| format!("Failed to read service account file: {}", e))?;
-    let sa: ServiceAccountKey = serde_json::from_str(&sa_content)
-        .map_err(|e| format!("Failed to parse service account JSON: {}", e))?;
+    let sa_content = std::fs::read_to_string(sa_path)?;
+    let sa: ServiceAccountKey = serde_json::from_str(&sa_content)?;
 
     let now = Utc::now().timestamp();
     let exp = now + 3600;
@@ -108,13 +106,13 @@ async fn get_access_token(sa_path: &str) -> Result<String, String> {
     };
 
     let key = jsonwebtoken::EncodingKey::from_rsa_pem(sa.private_key.as_bytes())
-        .map_err(|e| format!("Failed to parse RSA private key: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to parse RSA private key: {}", e)))?;
 
     let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
     let jwt = jsonwebtoken::encode(&header, &claims, &key)
-        .map_err(|e| format!("Failed to encode JWT: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Failed to encode JWT: {}", e)))?;
 
-    let client = Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let resp = client
         .post(&sa.token_uri)
         .form(&[
@@ -122,27 +120,23 @@ async fn get_access_token(sa_path: &str) -> Result<String, String> {
             ("assertion", &jwt),
         ])
         .send()
-        .await
-        .map_err(|e| format!("Token request failed: {}", e))?;
+        .await?;
 
     if !resp.status().is_success() {
         let body = resp.text().await.unwrap_or_default();
-        return Err(format!("Token exchange failed: {}", body));
+        return Err(CommandError::Network(format!("Token exchange failed: {}", body)));
     }
 
-    let token_resp: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse token response: {}", e))?;
+    let token_resp: serde_json::Value = resp.json().await?;
     let access_token = token_resp["access_token"]
         .as_str()
-        .ok_or("No access_token in response")?
+        .ok_or_else(|| CommandError::Parse("No access_token in response".into()))?
         .to_string();
 
     {
         let mut cache = TOKEN_CACHE
             .lock()
-            .map_err(|e| format!("Lock error: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         *cache = Some(CachedToken {
             access_token: access_token.clone(),
             expires_at: exp,
@@ -165,8 +159,8 @@ struct FetchResult {
 async fn fetch_page_views(
     access_token: &str,
     property_id: &str,
-) -> Result<FetchResult, String> {
-    let client = Client::new();
+) -> CmdResult<FetchResult> {
+    let client = crate::HTTP_CLIENT.clone();
     let url = format!(
         "https://analyticsdata.googleapis.com/v1beta/properties/{}:runReport",
         property_id
@@ -209,8 +203,7 @@ async fn fetch_page_views(
         .bearer_auth(access_token)
         .json(&body)
         .send()
-        .await
-        .map_err(|e| format!("GA4 API request failed: {}", e))?;
+        .await?;
 
     if !resp.status().is_success() {
         let body_text = resp.text().await.unwrap_or_default();
@@ -219,14 +212,11 @@ async fn fetch_page_views(
             // Fall back: try with just UserID (no Domain)
             return fetch_page_views_no_domain(access_token, property_id).await;
         }
-        return Err(format!("GA4 API error: {}", body_text));
+        return Err(CommandError::Network(format!("GA4 API error: {}", body_text)));
     }
 
     // Full dimensions available — parse with Domain + UserID
-    let report: Ga4RunReportResponse = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse GA4 response: {}", e))?;
+    let report: Ga4RunReportResponse = resp.json().await?;
 
     let mut results = Vec::new();
     if let Some(rows) = report.rows {
@@ -288,8 +278,8 @@ async fn fetch_page_views(
 async fn fetch_page_views_no_domain(
     access_token: &str,
     property_id: &str,
-) -> Result<FetchResult, String> {
-    let client = Client::new();
+) -> CmdResult<FetchResult> {
+    let client = crate::HTTP_CLIENT.clone();
     let url = format!(
         "https://analyticsdata.googleapis.com/v1beta/properties/{}:runReport",
         property_id
@@ -330,8 +320,7 @@ async fn fetch_page_views_no_domain(
         .bearer_auth(access_token)
         .json(&body)
         .send()
-        .await
-        .map_err(|e| format!("GA4 API request failed: {}", e))?;
+        .await?;
 
     if !resp.status().is_success() {
         let body_text = resp.text().await.unwrap_or_default();
@@ -340,13 +329,10 @@ async fn fetch_page_views_no_domain(
             // Fall back further: no Domain, no UserID
             return fetch_page_views_basic(access_token, property_id).await;
         }
-        return Err(format!("GA4 API error: {}", body_text));
+        return Err(CommandError::Network(format!("GA4 API error: {}", body_text)));
     }
 
-    let report: Ga4RunReportResponse = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse GA4 response: {}", e))?;
+    let report: Ga4RunReportResponse = resp.json().await?;
 
     let mut results = Vec::new();
     if let Some(rows) = report.rows {
@@ -403,8 +389,8 @@ async fn fetch_page_views_no_domain(
 async fn fetch_page_views_basic(
     access_token: &str,
     property_id: &str,
-) -> Result<FetchResult, String> {
-    let client = Client::new();
+) -> CmdResult<FetchResult> {
+    let client = crate::HTTP_CLIENT.clone();
     let url = format!(
         "https://analyticsdata.googleapis.com/v1beta/properties/{}:runReport",
         property_id
@@ -444,19 +430,18 @@ async fn fetch_page_views_basic(
         .bearer_auth(access_token)
         .json(&body)
         .send()
-        .await
-        .map_err(|e| format!("GA4 API request failed: {}", e))?;
+        .await?;
 
     if !resp.status().is_success() {
         let status = resp.status();
         let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!("GA4 API error ({}): {}", status, body_text));
+        return Err(CommandError::Http {
+            status: status.as_u16(),
+            body: body_text,
+        });
     }
 
-    let report: Ga4RunReportResponse = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse GA4 response: {}", e))?;
+    let report: Ga4RunReportResponse = resp.json().await?;
 
     let mut results = Vec::new();
     if let Some(rows) = report.rows {
@@ -498,7 +483,7 @@ async fn fetch_page_views_basic(
 
 /// Check if GA4 service account and property ID are configured
 #[command]
-pub fn ga4_check_config() -> Result<Ga4ConfigStatus, String> {
+pub fn ga4_check_config() -> CmdResult<Ga4ConfigStatus> {
     let s = settings::load_settings()?;
     let sa_path = s
         .keys
@@ -519,17 +504,17 @@ pub fn ga4_check_config() -> Result<Ga4ConfigStatus, String> {
 /// List all available dimensions for the GA4 property (including custom event params).
 /// Use this to discover the correct API names for custom dimensions.
 #[command]
-pub async fn ga4_list_dimensions() -> Result<Vec<String>, String> {
+pub async fn ga4_list_dimensions() -> CmdResult<Vec<String>> {
     let s = settings::load_settings()?;
     let sa_path = s
         .keys
         .get(settings::KEY_GA4_SERVICE_ACCOUNT_PATH)
-        .ok_or("GA4 service account path not configured")?
+        .ok_or_else(|| CommandError::Config("GA4 service account path not configured".into()))?
         .clone();
     let property_id = s
         .keys
         .get(settings::KEY_GA4_PROPERTY_ID)
-        .ok_or("GA4 property ID not configured")?
+        .ok_or_else(|| CommandError::Config("GA4 property ID not configured".into()))?
         .clone();
 
     let sa_path = if sa_path.starts_with("~/") {
@@ -541,7 +526,7 @@ pub async fn ga4_list_dimensions() -> Result<Vec<String>, String> {
     };
 
     let access_token = get_access_token(&sa_path).await?;
-    let client = Client::new();
+    let client = crate::HTTP_CLIENT.clone();
 
     // GA4 Metadata API — returns all valid dimensions and metrics
     let url = format!(
@@ -553,18 +538,14 @@ pub async fn ga4_list_dimensions() -> Result<Vec<String>, String> {
         .get(&url)
         .bearer_auth(&access_token)
         .send()
-        .await
-        .map_err(|e| format!("GA4 metadata request failed: {}", e))?;
+        .await?;
 
     if !resp.status().is_success() {
         let body = resp.text().await.unwrap_or_default();
-        return Err(format!("GA4 metadata error: {}", body));
+        return Err(CommandError::Network(format!("GA4 metadata error: {}", body)));
     }
 
-    let metadata: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse metadata: {}", e))?;
+    let metadata: serde_json::Value = resp.json().await?;
 
     // Extract dimension apiNames, filter to customEvent: ones for readability
     let mut dimensions = Vec::new();
@@ -589,17 +570,17 @@ pub async fn ga4_list_dimensions() -> Result<Vec<String>, String> {
 pub async fn ga4_fetch_analytics(
     supabase_url: String,
     supabase_key: String,
-) -> Result<AnalyticsSyncResult, String> {
+) -> CmdResult<AnalyticsSyncResult> {
     let s = settings::load_settings()?;
     let sa_path = s
         .keys
         .get(settings::KEY_GA4_SERVICE_ACCOUNT_PATH)
-        .ok_or("GA4 service account path not configured")?
+        .ok_or_else(|| CommandError::Config("GA4 service account path not configured".into()))?
         .clone();
     let property_id = s
         .keys
         .get(settings::KEY_GA4_PROPERTY_ID)
-        .ok_or("GA4 property ID not configured")?
+        .ok_or_else(|| CommandError::Config("GA4 property ID not configured".into()))?
         .clone();
 
     // Resolve ~ in path

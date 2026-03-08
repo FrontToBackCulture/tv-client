@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { Mail, CheckCircle, Loader2, AlertTriangle } from "lucide-react";
+import { Button } from "../../components/ui";
 import { useOutlookLogin, useOutlookAuth } from "../../hooks/useOutlook";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -173,20 +174,17 @@ export function OutlookSetup() {
             </div>
           )}
 
-          <button
+          <Button
+            size="md"
             onClick={handleConnect}
-            disabled={!clientId || !tenantId || !clientSecret || state === "connecting" || login.isPending}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white rounded-lg transition-colors font-medium"
+            disabled={!clientId || !tenantId || !clientSecret}
+            loading={state === "connecting" || login.isPending}
+            className="w-full rounded-lg"
           >
-            {state === "connecting" || login.isPending ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Waiting for browser...
-              </>
-            ) : (
-              "Connect with Microsoft"
-            )}
-          </button>
+            {state === "connecting" || login.isPending
+              ? "Waiting for browser..."
+              : "Connect with Microsoft"}
+          </Button>
 
           <p className="text-xs text-zinc-400 text-center">
             Opens Microsoft login in your browser.

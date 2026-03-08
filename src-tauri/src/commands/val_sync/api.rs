@@ -63,10 +63,7 @@ pub async fn val_api_fetch(
     artifact_type: &str,
     id: Option<&str>,
 ) -> Result<Value, ValApiError> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| ValApiError::Network(e.to_string()))?;
+    let client = crate::HTTP_CLIENT.clone();
 
     let (method, path, query_params, body) = match artifact_type {
         "fields" => (

@@ -1,13 +1,15 @@
 // src/modules/skills/SkillsModule.tsx
 // Main entry — central skill registry module
 
-import { Loader2, AlertCircle, Download } from "lucide-react";
+import { AlertCircle, Download } from "lucide-react";
 import {
   useSkillRegistry,
   useSkillCheckAll,
   useSkillInit,
 } from "./useSkillRegistry";
 import { SkillCatalogView } from "./SkillCatalogView";
+import { Button } from "../../components/ui";
+import { DetailLoading } from "../../components/ui/DetailStates";
 
 export function SkillsModule() {
   const { data: registry, isLoading, error } = useSkillRegistry();
@@ -20,14 +22,7 @@ export function SkillsModule() {
 
   // Loading state
   if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center bg-white dark:bg-zinc-950">
-        <div className="text-center">
-          <Loader2 size={24} className="mx-auto mb-2 text-teal-600 animate-spin" />
-          <p className="text-xs text-zinc-500">Loading skill registry...</p>
-        </div>
-      </div>
-    );
+    return <DetailLoading />;
   }
 
   // Error / not initialized — show init button
@@ -42,14 +37,14 @@ export function SkillsModule() {
           <p className="text-xs text-zinc-400 mb-4">
             Initialize the registry to import all bot and platform skills into the central <code className="font-mono">_skills/</code> folder.
           </p>
-          <button
+          <Button
             onClick={handleInit}
-            disabled={init.isPending}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 transition-colors"
+            loading={init.isPending}
+            icon={Download}
+            size="md"
           >
-            {init.isPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
             Initialize Registry
-          </button>
+          </Button>
           {init.isSuccess && init.data && (
             <p className="mt-3 text-xs text-emerald-600">
               Created {init.data.skills_created} skills ({init.data.bot_skills} bot, {init.data.platform_skills} platform)

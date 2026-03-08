@@ -6,7 +6,9 @@ import { useProductModuleWithRelations } from "../../hooks/product";
 import { MODULE_LAYERS, MODULE_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
 import { ProductActivityTimeline } from "./ProductActivityTimeline";
-import { X, Loader2, FileText } from "lucide-react";
+import { X, FileText } from "lucide-react";
+import { IconButton } from "../../components/ui";
+import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 
 interface ModuleDetailPanelProps {
@@ -20,21 +22,9 @@ export function ModuleDetailPanel({ id, onClose }: ModuleDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const { data, isLoading } = useProductModuleWithRelations(id);
 
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
-  if (!data) {
-    return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-        Module not found
-      </div>
-    );
-  }
+  if (!data) return <DetailNotFound message="Module not found" />;
 
   const statusDef = MODULE_STATUSES.find((s) => s.value === data.status);
   const layerDef = MODULE_LAYERS.find((l) => l.value === data.layer);
@@ -50,15 +40,13 @@ export function ModuleDetailPanel({ id, onClose }: ModuleDetailPanelProps) {
       {/* Header */}
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{data.name}</h2>
+          <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">{data.name}</h2>
           <div className="flex items-center gap-2 mt-1">
             {statusDef && <StatusChip label={statusDef.label} color={statusDef.color} />}
             {layerDef && <StatusChip label={layerDef.label} color={layerDef.color} />}
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
-          <X size={16} />
-        </button>
+        <IconButton onClick={onClose} icon={X} label="Close" />
       </div>
 
       {/* Tabs */}
@@ -85,32 +73,34 @@ export function ModuleDetailPanel({ id, onClose }: ModuleDetailPanelProps) {
       {/* Tab content */}
       <div className="flex-1 overflow-auto p-4">
         {activeTab === "overview" && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {data.description && (
               <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Description</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
+                <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">Description</h3>
+                <p className="text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Slug</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300 font-mono">{data.slug}</p>
+            <div className="rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 p-3 space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Slug</span>
+                  <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300 font-mono">{data.slug}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Layer</span>
+                  <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300 capitalize">{data.layer}</p>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Layer</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300 capitalize">{data.layer}</p>
-              </div>
+              {data.doc_path && (
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Documentation</span>
+                  <p className="mt-1 text-sm text-zinc-500 flex items-center gap-1">
+                    <FileText size={12} />
+                    {data.doc_path}
+                  </p>
+                </div>
+              )}
             </div>
-            {data.doc_path && (
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Documentation</label>
-                <p className="mt-1 text-sm text-zinc-500 flex items-center gap-1">
-                  <FileText size={14} />
-                  {data.doc_path}
-                </p>
-              </div>
-            )}
           </div>
         )}
 

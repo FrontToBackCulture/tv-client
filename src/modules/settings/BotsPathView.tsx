@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useBotSettingsStore } from "../../stores/botSettingsStore";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Trash2, Bot, Clock } from "lucide-react";
+import { IconButton } from "../../components/ui";
 
 export function BotsPathView() {
   const botsPath = useBotSettingsStore((s) => s.botsPath);
@@ -71,21 +72,9 @@ export function BotsPathView() {
             placeholder="/path/to/tv-knowledge/_team"
             className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm placeholder:text-zinc-400"
           />
-          <button
-            onClick={handleBrowseBots}
-            className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
-            title="Browse..."
-          >
-            <FolderOpen size={16} />
-          </button>
+          <IconButton icon={FolderOpen} label="Browse..." onClick={handleBrowseBots} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 p-2" />
           {botsPath && (
-            <button
-              onClick={() => setBotsPath("")}
-              className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-zinc-400 hover:text-red-500 transition-colors"
-              title="Clear path"
-            >
-              <Trash2 size={16} />
-            </button>
+            <IconButton icon={Trash2} variant="danger" label="Clear path" onClick={() => setBotsPath("")} className="p-2" />
           )}
         </div>
 
@@ -113,21 +102,9 @@ export function BotsPathView() {
             placeholder="/path/to/tv-knowledge/_team/melvin/sessions"
             className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm placeholder:text-zinc-400"
           />
-          <button
-            onClick={handleBrowseSessions}
-            className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
-            title="Browse..."
-          >
-            <FolderOpen size={16} />
-          </button>
+          <IconButton icon={FolderOpen} label="Browse..." onClick={handleBrowseSessions} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 p-2" />
           {sessionsPath && (
-            <button
-              onClick={() => setSessionsPath("")}
-              className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-zinc-400 hover:text-red-500 transition-colors"
-              title="Clear path"
-            >
-              <Trash2 size={16} />
-            </button>
+            <IconButton icon={Trash2} variant="danger" label="Clear path" onClick={() => setSessionsPath("")} className="p-2" />
           )}
         </div>
 

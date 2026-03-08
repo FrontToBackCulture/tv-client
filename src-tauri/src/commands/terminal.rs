@@ -1,6 +1,7 @@
 // src-tauri/src/commands/terminal.rs
 // Terminal/PTY commands for the Console module
 
+use crate::commands::error::{CmdResult, CommandError};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -44,7 +45,7 @@ pub fn terminal_create(
     cols: u16,
     cwd: Option<String>,
     sessions: State<'_, TerminalSessions>,
-) -> Result<TerminalInfo, String> {
+) -> CmdResult<TerminalInfo> {
     let pty_system = native_pty_system();
 
     let pair = pty_system
@@ -54,7 +55,7 @@ pub fn terminal_create(
             pixel_width: 0,
             pixel_height: 0,
         })
-        .map_err(|e| format!("Failed to open PTY: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to open PTY: {}", e)))?;
 
     // Build shell command
     let mut cmd = CommandBuilder::new(get_default_shell());
@@ -76,17 +77,17 @@ pub fn terminal_create(
     let child = pair
         .slave
         .spawn_command(cmd)
-        .map_err(|e| format!("Failed to spawn shell: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to spawn shell: {}", e)))?;
 
     // Get reader and writer
     let mut reader = pair
         .master
         .try_clone_reader()
-        .map_err(|e| format!("Failed to clone reader: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to clone reader: {}", e)))?;
     let writer = pair
         .master
         .take_writer()
-        .map_err(|e| format!("Failed to take writer: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to take writer: {}", e)))?;
 
     // Spawn background thread to read PTY output into buffer
     let output_buffer = Arc::new(Mutex::new(Vec::<u8>::new()));
@@ -116,7 +117,7 @@ pub fn terminal_create(
     sessions
         .sessions
         .lock()
-        .map_err(|e| format!("Lock error: {}", e))?
+        .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?
         .insert(id.clone(), session);
 
     Ok(TerminalInfo { id, rows, cols })
@@ -128,45 +129,45 @@ pub fn terminal_write(
     id: String,
     data: String,
     sessions: State<'_, TerminalSessions>,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     let mut sessions_guard = sessions
         .sessions
         .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
 
     let session = sessions_guard
         .get_mut(&id)
-        .ok_or_else(|| "Session not found".to_string())?;
+        .ok_or_else(|| CommandError::NotFound("Session not found".to_string()))?;
 
     session
         .writer
         .write_all(data.as_bytes())
-        .map_err(|e| format!("Write error: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Write error: {}", e)))?;
 
     session
         .writer
         .flush()
-        .map_err(|e| format!("Flush error: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Flush error: {}", e)))?;
 
     Ok(())
 }
 
 /// Read data from terminal (non-blocking — drains buffered output)
 #[tauri::command]
-pub fn terminal_read(id: String, sessions: State<'_, TerminalSessions>) -> Result<String, String> {
+pub fn terminal_read(id: String, sessions: State<'_, TerminalSessions>) -> CmdResult<String> {
     let sessions_guard = sessions
         .sessions
         .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
 
     let session = sessions_guard
         .get(&id)
-        .ok_or_else(|| "Session not found".to_string())?;
+        .ok_or_else(|| CommandError::NotFound("Session not found".to_string()))?;
 
     let mut buffer = session
         .output_buffer
         .lock()
-        .map_err(|e| format!("Buffer lock error: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Buffer lock error: {}", e)))?;
 
     if buffer.is_empty() {
         return Ok(String::new());
@@ -184,7 +185,7 @@ pub fn terminal_resize(
     rows: u16,
     cols: u16,
     sessions: State<'_, TerminalSessions>,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     // Note: portable-pty doesn't easily support resize after creation
     // This is a placeholder - in practice, you might need to recreate the session
     log::info!("Terminal {} resize requested: {}x{}", id, cols, rows);
@@ -192,10 +193,10 @@ pub fn terminal_resize(
     let sessions_guard = sessions
         .sessions
         .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
 
     if !sessions_guard.contains_key(&id) {
-        return Err("Session not found".to_string());
+        return Err(CommandError::NotFound("Session not found".to_string()));
     }
 
     Ok(())
@@ -203,11 +204,11 @@ pub fn terminal_resize(
 
 /// Close terminal session
 #[tauri::command]
-pub fn terminal_close(id: String, sessions: State<'_, TerminalSessions>) -> Result<(), String> {
+pub fn terminal_close(id: String, sessions: State<'_, TerminalSessions>) -> CmdResult<()> {
     let mut sessions_guard = sessions
         .sessions
         .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
 
     sessions_guard.remove(&id);
     log::info!("Terminal {} closed", id);
@@ -217,11 +218,11 @@ pub fn terminal_close(id: String, sessions: State<'_, TerminalSessions>) -> Resu
 
 /// List active terminal sessions
 #[tauri::command]
-pub fn terminal_list(sessions: State<'_, TerminalSessions>) -> Result<Vec<String>, String> {
+pub fn terminal_list(sessions: State<'_, TerminalSessions>) -> CmdResult<Vec<String>> {
     let sessions_guard = sessions
         .sessions
         .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
 
     Ok(sessions_guard.keys().cloned().collect())
 }

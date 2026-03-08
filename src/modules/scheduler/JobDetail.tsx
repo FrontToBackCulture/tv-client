@@ -8,6 +8,7 @@ import {
 import type { SchedulerJob, JobRun, RunStep } from "../../hooks/scheduler";
 import { useRunningJobsStore, useRunSteps } from "../../hooks/scheduler";
 import { cn } from "../../lib/cn";
+import { Button, IconButton } from "../../components/ui";
 
 interface JobDetailProps {
   job: SchedulerJob;
@@ -39,44 +40,37 @@ export function JobDetail({ job, runs, onRunNow, onEdit, onStopJob }: JobDetailP
       {/* Header */}
       <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{job.name}</h3>
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{job.name}</h3>
           {isRunning ? (
             <div className="flex items-center gap-2">
               <RunningIndicator startedAt={runningInfo?.startedAt} step={runningInfo?.step} />
               {onStopJob && runningInfo?.runId && (
-                <button
+                <Button
+                  variant="danger"
+                  icon={Square}
                   onClick={() => onStopJob(runningInfo.runId)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  className="[&_svg]:fill-current"
                 >
-                  <Square size={10} className="fill-current" />
                   Stop
-                </button>
+                </Button>
               )}
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
               {onEdit && (
-                <button
-                  onClick={() => onEdit(job)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  <Pencil size={12} />
+                <Button variant="secondary" icon={Pencil} onClick={() => onEdit(job)}>
                   Edit
-                </button>
+                </Button>
               )}
-              <button
-                onClick={() => onRunNow(job.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-500 transition-colors"
-              >
-                <Play size={12} />
+              <Button icon={Play} onClick={() => onRunNow(job.id)}>
                 Run Now
-              </button>
+              </Button>
             </div>
           )}
         </div>
         <div className="flex items-center gap-3 mt-1">
           <span className={cn(
-            "px-1.5 py-0.5 text-[10px] font-medium rounded-full",
+            "px-1.5 py-0.5 text-xs font-medium rounded-full",
             job.enabled
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
               : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
@@ -88,19 +82,20 @@ export function JobDetail({ job, runs, onRunNow, onEdit, onStopJob }: JobDetailP
       </div>
 
       {/* Config */}
-      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50 space-y-2">
+      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+        <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 p-3 space-y-2">
         <div className="flex items-start gap-2">
-          <Clock size={14} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+          <Clock size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Schedule</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Schedule</p>
             <p className="text-xs text-zinc-500 font-mono">{job.cronExpression}</p>
           </div>
         </div>
         {job.skillRefs && job.skillRefs.length > 0 && (
           <div className="flex items-start gap-2">
-            <Puzzle size={14} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+            <Puzzle size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Skills</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Skills</p>
               <p className="text-xs text-zinc-500 mt-0.5">
                 {job.skillRefs.map((r) => r.title).join(" · ")}
               </p>
@@ -108,42 +103,43 @@ export function JobDetail({ job, runs, onRunNow, onEdit, onStopJob }: JobDetailP
           </div>
         )}
         <div className="flex items-start gap-2">
-          <Terminal size={14} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+          <Terminal size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Prompt</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Prompt</p>
             <pre className="text-xs text-zinc-500 whitespace-pre-wrap break-words font-sans max-h-40 overflow-y-auto mt-0.5 p-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-md">{job.skillPrompt}</pre>
           </div>
         </div>
         {job.allowedTools.length > 0 && (
           <div className="flex items-start gap-2">
-            <Hash size={14} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+            <Hash size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Tools ({job.allowedTools.length})</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Tools ({job.allowedTools.length})</p>
               <p className="text-xs text-zinc-500 font-mono truncate">{job.allowedTools.slice(0, 3).join(", ")}{job.allowedTools.length > 3 ? ` +${job.allowedTools.length - 3} more` : ""}</p>
             </div>
           </div>
         )}
         {job.slackChannelName && (
           <div className="flex items-start gap-2">
-            <Slack size={14} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+            <Slack size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Slack</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Slack</p>
               <p className="text-xs text-zinc-500">{job.slackChannelName}</p>
             </div>
           </div>
         )}
         <div className="flex items-start gap-2">
-          <FileText size={14} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+          <FileText size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">HTML Report</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">HTML Report</p>
             <p className="text-xs text-zinc-500">{job.generateReport ? "Saved to S3" : "Off"}</p>
           </div>
+        </div>
         </div>
       </div>
 
       {/* Recent Runs */}
       <div className="px-4 py-3 flex-1">
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Recent Runs</h4>
+        <h4 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Recent Runs</h4>
         {runs.length === 0 && !isRunning ? (
           <p className="text-xs text-zinc-400">No runs yet — click Run Now to test</p>
         ) : (
@@ -165,21 +161,21 @@ export function JobDetail({ job, runs, onRunNow, onEdit, onStopJob }: JobDetailP
                     </span>
                   </div>
                 </div>
-                <span className="text-[10px] text-zinc-400">
+                <span className="text-xs text-zinc-400">
                   {run.trigger === "scheduled" ? "auto" : "manual"}
                 </span>
                 {run.durationSecs != null && (
-                  <span className="text-[10px] text-zinc-400 tabular-nums">
+                  <span className="text-xs text-zinc-400 tabular-nums">
                     {formatDuration(run.durationSecs)}
                   </span>
                 )}
                 {run.inputTokens != null && run.outputTokens != null && (
-                  <span className="text-[10px] text-zinc-400 tabular-nums" title={`In: ${formatTokens(run.inputTokens)} Out: ${formatTokens(run.outputTokens)}`}>
+                  <span className="text-xs text-zinc-400 tabular-nums" title={`In: ${formatTokens(run.inputTokens)} Out: ${formatTokens(run.outputTokens)}`}>
                     {formatTokens(run.inputTokens + run.outputTokens + (run.cacheReadTokens ?? 0))} tok
                   </span>
                 )}
                 {run.costUsd != null && run.costUsd > 0 && (
-                  <span className="text-[10px] text-zinc-400 tabular-nums">
+                  <span className="text-xs text-zinc-400 tabular-nums">
                     ${run.costUsd.toFixed(2)}
                   </span>
                 )}
@@ -203,9 +199,7 @@ function RunOutputViewer({ run, onBack }: { run: JobRun; onBack: () => void }) {
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
-        <button onClick={onBack} className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-          <ArrowLeft size={16} />
-        </button>
+        <IconButton icon={ArrowLeft} label="Back" onClick={onBack} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <RunStatusIcon status={run.status} />
@@ -216,24 +210,24 @@ function RunOutputViewer({ run, onBack }: { run: JobRun; onBack: () => void }) {
             </span>
           </div>
           <div className="flex items-center gap-3 mt-0.5">
-            <span className="text-[10px] text-zinc-400">{run.trigger}</span>
+            <span className="text-xs text-zinc-400">{run.trigger}</span>
             {run.durationSecs != null && (
-              <span className="text-[10px] text-zinc-400">{formatDuration(run.durationSecs)}</span>
+              <span className="text-xs text-zinc-400">{formatDuration(run.durationSecs)}</span>
             )}
             {run.numTurns != null && (
-              <span className="text-[10px] text-zinc-400">{run.numTurns} turns</span>
+              <span className="text-xs text-zinc-400">{run.numTurns} turns</span>
             )}
             {run.inputTokens != null && (
-              <span className="text-[10px] text-zinc-400">
+              <span className="text-xs text-zinc-400">
                 {formatTokens(run.inputTokens)} in / {formatTokens(run.outputTokens ?? 0)} out
                 {run.cacheReadTokens ? ` / ${formatTokens(run.cacheReadTokens)} cached` : ""}
               </span>
             )}
             {run.costUsd != null && run.costUsd > 0 && (
-              <span className="text-[10px] text-zinc-400">${run.costUsd.toFixed(4)}</span>
+              <span className="text-xs text-zinc-400">${run.costUsd.toFixed(4)}</span>
             )}
             {run.slackPosted && (
-              <span className="text-[10px] text-emerald-500">Slack posted</span>
+              <span className="text-xs text-emerald-500">Slack posted</span>
             )}
           </div>
         </div>
@@ -270,7 +264,7 @@ function RunOutputViewer({ run, onBack }: { run: JobRun; onBack: () => void }) {
               prose-p:text-xs prose-p:my-1 prose-li:text-xs
               prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1
               prose-th:bg-zinc-50 dark:prose-th:bg-zinc-800/50
-              prose-code:text-[11px] prose-pre:text-[11px] prose-pre:bg-zinc-50 dark:prose-pre:bg-zinc-900/50
+              prose-code:text-xs prose-pre:text-xs prose-pre:bg-zinc-50 dark:prose-pre:bg-zinc-900/50
             ">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{run.output}</ReactMarkdown>
             </div>
@@ -288,14 +282,14 @@ function StepsTable({ steps }: { steps: RunStep[] }) {
   if (steps.length === 0) {
     return (
       <div className="px-4 pb-2">
-        <p className="text-[10px] text-zinc-400">No step data available</p>
+        <p className="text-xs text-zinc-400">No step data available</p>
       </div>
     );
   }
 
   return (
     <div className="px-4 pb-2 overflow-x-auto">
-      <table className="w-full text-[11px]">
+      <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-zinc-400">
             <th className="pr-2 py-1 font-medium">Turn</th>
@@ -320,7 +314,7 @@ function StepsTable({ steps }: { steps: RunStep[] }) {
                     {step.toolDetails.map((td, i) => (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-[10px] max-w-[200px] truncate"
+                        className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs max-w-[200px] truncate"
                         title={td.target ? `${td.name}: ${td.target}` : td.name}
                       >
                         <span className="font-medium text-zinc-600 dark:text-zinc-300">{shortenToolName(td.name)}</span>
@@ -370,7 +364,7 @@ function RunningIndicator({ startedAt, step }: { startedAt?: number; step?: stri
         Running{startedAt ? ` ${formatDuration(elapsed)}` : "..."}
       </div>
       {step && (
-        <span className="text-[10px] text-blue-500 dark:text-blue-400/70 pr-1">{step}</span>
+        <span className="text-xs text-blue-500 dark:text-blue-400/70 pr-1">{step}</span>
       )}
     </div>
   );

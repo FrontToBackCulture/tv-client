@@ -9,6 +9,7 @@ use tauri::{Emitter, Manager};
 
 use super::storage;
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 
 const S3_BUCKET: &str = "signalval";
 const S3_REGION: &str = "ap-southeast-1";
@@ -23,8 +24,8 @@ static RUNNING_PROCESSES: Lazy<Mutex<HashMap<String, u32>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Stop a running job by killing its process tree.
-pub fn stop_job(run_id: &str) -> Result<(), String> {
-    let mut map = RUNNING_PROCESSES.lock().unwrap();
+pub fn stop_job(run_id: &str) -> CmdResult<()> {
+    let mut map = RUNNING_PROCESSES.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
     if let Some(pid) = map.remove(run_id) {
         eprintln!("[scheduler] Stopping job run {} (PID {})", run_id, pid);
         // Kill the claude process directly; it will clean up its own children
@@ -40,7 +41,7 @@ pub fn stop_job(run_id: &str) -> Result<(), String> {
         }
         Ok(())
     } else {
-        Err("No running process found for this run".into())
+        Err(CommandError::NotFound("No running process found for this run".to_string()))
     }
 }
 
@@ -162,7 +163,7 @@ pub async fn execute_job(
         }
         Err(err) => {
             run.status = RunStatus::Failed;
-            run.error = Some(err);
+            run.error = Some(err.to_string());
         }
     }
 
@@ -275,7 +276,7 @@ struct TokenUsage {
 }
 
 /// Spawn `claude -p` with JSON output format to capture both result text and cost
-async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> Result<ClaudeOutput, String> {
+async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> Result<ClaudeOutput, CommandError> {
     use tokio::process::Command;
     use std::process::Stdio;
 
@@ -323,12 +324,14 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> R
         .map_err(|e| {
             let err = format!("Failed to spawn claude: {}. Is claude CLI installed?", e);
             let _ = std::fs::write("/tmp/scheduler-debug.log", format!("{}\nSPAWN ERROR: {}", debug_msg, err));
-            err
+            CommandError::Io(err)
         })?;
 
     // Track PID for stop_job()
     if let Some(pid) = child.id() {
-        RUNNING_PROCESSES.lock().unwrap().insert(run_id.to_string(), pid);
+        if let Ok(mut map) = RUNNING_PROCESSES.lock() {
+            map.insert(run_id.to_string(), pid);
+        }
     }
 
     if let Some(mut stdin) = child.stdin.take() {
@@ -340,10 +343,12 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> R
     let output = child
         .wait_with_output()
         .await
-        .map_err(|e| format!("Failed to wait for claude: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to wait for claude: {}", e)))?;
 
     // Remove from tracking once finished
-    RUNNING_PROCESSES.lock().unwrap().remove(run_id);
+    if let Ok(mut map) = RUNNING_PROCESSES.lock() {
+        map.remove(run_id);
+    }
 
     // Debug: log exit status
     let debug_exit = format!(
@@ -393,12 +398,12 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> R
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        Err(format!(
+        Err(CommandError::Internal(format!(
             "claude exited with code {:?}\nstdout: {}\nstderr: {}",
             output.status.code(),
             stdout.chars().take(1000).collect::<String>(),
             stderr.chars().take(1000).collect::<String>(),
-        ))
+        )))
     }
 }
 
@@ -406,19 +411,18 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> R
 // S3 upload
 // ============================================================================
 
-async fn upload_html_to_s3(prefix: &str, date_str: &str, html: &str) -> Result<String, String> {
+async fn upload_html_to_s3(prefix: &str, date_str: &str, html: &str) -> Result<String, CommandError> {
     let settings = crate::commands::settings::load_settings()
-        .map_err(|e| format!("Failed to load settings: {}", e))?;
+        .map_err(|e| CommandError::Config(format!("Failed to load settings: {}", e)))?;
 
     let access_key = settings.keys.get("aws_access_key_id")
-        .ok_or_else(|| "AWS Access Key ID not configured. Go to Settings to add it.".to_string())?;
+        .ok_or_else(|| CommandError::Config("AWS Access Key ID not configured. Go to Settings to add it.".to_string()))?;
     let secret_key = settings.keys.get("aws_secret_access_key")
-        .ok_or_else(|| "AWS Secret Access Key not configured. Go to Settings to add it.".to_string())?;
+        .ok_or_else(|| CommandError::Config("AWS Secret Access Key not configured. Go to Settings to add it.".to_string()))?;
 
     // Write HTML to a temp file
     let tmp_path = std::env::temp_dir().join(format!("{}-report-{}.html", prefix, date_str));
-    std::fs::write(&tmp_path, html)
-        .map_err(|e| format!("Failed to write temp HTML: {}", e))?;
+    std::fs::write(&tmp_path, html)?;
 
     let s3_key = format!("{}/{}-{}.html", S3_REPORT_PREFIX, prefix, date_str);
     let s3_dest = format!("s3://{}/{}", S3_BUCKET, s3_key);
@@ -436,14 +440,14 @@ async fn upload_html_to_s3(prefix: &str, date_str: &str, html: &str) -> Result<S
         .env("AWS_SECRET_ACCESS_KEY", secret_key)
         .output()
         .await
-        .map_err(|e| format!("Failed to run aws CLI: {}. Is aws CLI installed?", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to run aws CLI: {}. Is aws CLI installed?", e)))?;
 
     // Clean up temp file
     let _ = std::fs::remove_file(&tmp_path);
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("aws s3 cp failed: {}", stderr.trim()));
+        return Err(CommandError::Internal(format!("aws s3 cp failed: {}", stderr.trim())));
     }
 
     // Return public URL
@@ -461,7 +465,7 @@ async fn post_to_slack(
     job_name: &str,
     output: &str,
     report_url: Option<&str>,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     let summary = extract_summary(output);
 
     let mut blocks = vec![
@@ -499,18 +503,18 @@ async fn post_to_slack(
 
     let payload = serde_json::json!({ "blocks": blocks });
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let resp = client
         .post(webhook_url)
         .json(&payload)
         .send()
         .await
-        .map_err(|e| format!("Slack request failed: {}", e))?;
+        .map_err(|e| CommandError::Network(format!("Slack request failed: {}", e)))?;
 
     let status = resp.status();
     if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();
-        return Err(format!("Slack returned {}: {}", status, body));
+        return Err(CommandError::Http { status: status.as_u16(), body });
     }
 
     Ok(())
@@ -611,7 +615,7 @@ fn extract_summary(output: &str) -> String {
 
 /// Parse token usage from a Claude session JSONL file.
 /// Searches ~/.claude/projects/ for the session file and sums all assistant message usage.
-fn parse_session_tokens(session_id: &str) -> Result<TokenUsage, String> {
+fn parse_session_tokens(session_id: &str) -> Result<TokenUsage, CommandError> {
     let content = read_session_file(session_id)?;
 
     let mut usage = TokenUsage {
@@ -644,7 +648,7 @@ fn parse_session_tokens(session_id: &str) -> Result<TokenUsage, String> {
 
 /// Parse per-turn step data from a Claude session JSONL file.
 /// Each assistant message becomes one step with token usage and tool info.
-fn parse_session_steps(session_id: &str) -> Result<Vec<RunStep>, String> {
+fn parse_session_steps(session_id: &str) -> Result<Vec<RunStep>, CommandError> {
     let content = read_session_file(session_id)?;
 
     let mut steps: Vec<RunStep> = Vec::new();
@@ -783,13 +787,13 @@ fn shorten_path(path: &str) -> String {
 }
 
 /// Read a session JSONL file by session ID (shared helper)
-fn read_session_file(session_id: &str) -> Result<String, String> {
+fn read_session_file(session_id: &str) -> Result<String, CommandError> {
     let claude_dir = dirs::home_dir()
-        .ok_or_else(|| "No home directory".to_string())?
+        .ok_or_else(|| CommandError::NotFound("No home directory".to_string()))?
         .join(".claude/projects");
 
     if !claude_dir.exists() {
-        return Err("~/.claude/projects/ does not exist".to_string());
+        return Err(CommandError::NotFound("~/.claude/projects/ does not exist".to_string()));
     }
 
     let filename = format!("{}.jsonl", session_id);
@@ -805,9 +809,9 @@ fn read_session_file(session_id: &str) -> Result<String, String> {
         }
     }
 
-    let path = session_path.ok_or_else(|| format!("Session file {} not found", filename))?;
+    let path = session_path.ok_or_else(|| CommandError::NotFound(format!("Session file {} not found", filename)))?;
     std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))
+        .map_err(|e| CommandError::Io(format!("Failed to read {}: {}", path.display(), e)))
 }
 
 // ============================================================================

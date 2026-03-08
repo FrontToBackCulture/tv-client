@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
+import { workKeys } from "../../hooks/work/keys";
 import { StatusIcon, PriorityBars } from "./StatusIcon";
 import type {
   TaskWithRelations, Project, Initiative, User as WorkUser,
@@ -57,7 +58,7 @@ export function getUserName(users: WorkUser[], userId: string | null): string {
 // ============================
 export function useInitiativeProjects() {
   return useQuery({
-    queryKey: ["work", "initiative_projects"],
+    queryKey: workKeys.initiativeProjects(),
     queryFn: async (): Promise<InitiativeProjectLink[]> => {
       const { data, error } = await supabase
         .from("initiative_projects")
@@ -97,7 +98,7 @@ export function HealthBadge({ health }: { health: string | null }) {
   const color = InitiativeHealthColors[health as InitiativeHealth] || "#6B7280";
   return (
     <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
       style={{ backgroundColor: `${color}20`, color }}
     >
       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
@@ -110,7 +111,7 @@ export function StatusBadge({ status }: { status: string | null }) {
   if (!status) return null;
   const label = InitiativeStatusLabels[status as InitiativeStatus] || status;
   return (
-    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+    <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
       {label}
     </span>
   );
@@ -123,7 +124,7 @@ export function ProgressBar({ completed, total, color = "#0D7680" }: { completed
       <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
       </div>
-      <span className="text-[10px] text-zinc-500 tabular-nums">{completed}/{total}</span>
+      <span className="text-xs text-zinc-500 tabular-nums">{completed}/{total}</span>
     </div>
   );
 }
@@ -138,7 +139,7 @@ export function Stat({ label, value, icon: Icon, color }: {
       </div>
       <div>
         <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 tabular-nums">{value}</div>
-        <div className="text-[10px] text-zinc-500 uppercase tracking-wide">{label}</div>
+        <div className="text-xs text-zinc-500 uppercase tracking-wide">{label}</div>
       </div>
     </div>
   );
@@ -168,13 +169,13 @@ export function ScopeFilterBar({
   return (
     <div className="flex-shrink-0 flex items-center gap-2 px-6 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
       <Filter size={12} className="text-zinc-400" />
-      <span className="text-[10px] text-zinc-400 uppercase tracking-wide">Scope:</span>
+      <span className="text-xs text-zinc-400 uppercase tracking-wide">Scope:</span>
 
       {/* Initiative filter */}
       <div className="relative">
         <button
           onClick={() => { setInitDdOpen(!initDdOpen); setProjDdOpen(false); }}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
             selectedInitiativeId
               ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
               : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
@@ -211,7 +212,7 @@ export function ScopeFilterBar({
       <div className="relative">
         <button
           onClick={() => { setProjDdOpen(!projDdOpen); setInitDdOpen(false); }}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
             selectedProjectId
               ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
               : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
@@ -252,7 +253,7 @@ export function ScopeFilterBar({
       {hasFilter && (
         <button
           onClick={() => { onInitiativeChange(null); onProjectChange(null); }}
-          className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           Clear
         </button>
@@ -274,18 +275,18 @@ export const TaskRow = memo(function TaskRow({ task, onSelect }: { task: TaskWit
         <StatusIcon type={task.status.type as StatusType} color={task.status.color || "#6B7280"} size={14} />
       )}
       <PriorityBars priority={task.priority || 0} size={11} />
-      <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
+      <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
       <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
       {task.assignee?.name && (
         <div
-          className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
+          className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
           title={task.assignee.name}
         >
           {initials(task.assignee.name)}
         </div>
       )}
       {task.due_date && (
-        <span className={`text-[10px] flex-shrink-0 ${isOverdue(task.due_date) ? "text-red-500" : "text-zinc-400"}`}>
+        <span className={`text-xs flex-shrink-0 ${isOverdue(task.due_date) ? "text-red-500" : "text-zinc-400"}`}>
           {formatDate(task.due_date)}
         </span>
       )}

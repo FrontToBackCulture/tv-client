@@ -3,11 +3,12 @@
 
 use super::db::EmailDb;
 use super::types::ContactRule;
+use crate::commands::error::CmdResult;
 use std::fs;
 use std::path::Path;
 
 /// Bootstrap contacts from the knowledge base 3_Clients folder
-pub fn bootstrap_contacts(db: &EmailDb, knowledge_path: &str) -> Result<usize, String> {
+pub fn bootstrap_contacts(db: &EmailDb, knowledge_path: &str) -> CmdResult<usize> {
     let mut count = 0;
 
     // 1. Default noise domains

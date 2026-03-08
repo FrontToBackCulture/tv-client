@@ -4,6 +4,7 @@
 //
 // API Reference: https://ai.google.dev/gemini-api/docs/image-generation
 
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -132,12 +133,12 @@ pub async fn nanobanana_generate(
     api_key: String,
     prompt: String,
     options: Option<NanobananOptions>,
-) -> Result<NanobananaResult, String> {
+) -> CmdResult<NanobananaResult> {
     if api_key.is_empty() {
-        return Err("Gemini API key is required".to_string());
+        return Err(CommandError::Config("Gemini API key is required".to_string()));
     }
     if prompt.trim().is_empty() {
-        return Err("Image prompt is required".to_string());
+        return Err(CommandError::Config("Image prompt is required".to_string()));
     }
 
     let opts = options.unwrap_or_default();
@@ -173,32 +174,30 @@ pub async fn nanobanana_generate(
         },
     };
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .post(&url)
         .header("Content-Type", "application/json")
         .json(&request)
         .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+        .await?;
 
     let gemini_response: GeminiResponse = response
         .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        .await?;
 
     // Check for API errors
     if let Some(error) = gemini_response.error {
-        return Err(format!("Gemini API error: {}", error.message));
+        return Err(CommandError::Network(format!("Gemini API error: {}", error.message)));
     }
 
     // Extract image from response
     let candidates = gemini_response
         .candidates
-        .ok_or("No candidates in response")?;
+        .ok_or(CommandError::Internal("No candidates in response".to_string()))?;
 
     if candidates.is_empty() {
-        return Err("No candidates in response".to_string());
+        return Err(CommandError::Internal("No candidates in response".to_string()));
     }
 
     let content = candidates[0]
@@ -208,10 +207,10 @@ pub async fn nanobanana_generate(
             // Check for finish reason
             if let Some(reason) = &candidates[0].finish_reason {
                 if reason == "RECITATION" {
-                    return "Image generation blocked due to content policy. Please modify your prompt.".to_string();
+                    return CommandError::Internal("Image generation blocked due to content policy. Please modify your prompt.".to_string());
                 }
             }
-            "No content in response".to_string()
+            CommandError::Internal("No content in response".to_string())
         })?;
 
     // Find the inline data (image) part
@@ -227,11 +226,11 @@ pub async fn nanobanana_generate(
     // Check if there's text explaining why image wasn't generated
     for part in &content.parts {
         if let Some(text) = &part.text {
-            return Err(format!("Image generation failed: {}", text));
+            return Err(CommandError::Internal(format!("Image generation failed: {}", text)));
         }
     }
 
-    Err("No image data in response".to_string())
+    Err(CommandError::Internal("No image data in response".to_string()))
 }
 
 /// Generate an image and save it to a file
@@ -241,7 +240,7 @@ pub async fn nanobanana_generate_to_file(
     prompt: String,
     output_path: String,
     options: Option<NanobananOptions>,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     let result = nanobanana_generate(api_key, prompt, options).await?;
 
     // Determine file extension from mime type
@@ -259,16 +258,16 @@ pub async fn nanobanana_generate_to_file(
         &base64::engine::general_purpose::STANDARD,
         &result.image_data,
     )
-    .map_err(|e| format!("Failed to decode image data: {}", e))?;
+    .map_err(|e| CommandError::Parse(format!("Failed to decode image data: {}", e)))?;
 
-    fs::write(&output_path, image_data).map_err(|e| format!("Failed to write file: {}", e))?;
+    fs::write(&output_path, image_data)?;
 
     Ok(output_path)
 }
 
 /// Parse nanobanana config from markdown frontmatter or JSON
 #[command]
-pub fn nanobanana_parse_config(content: String) -> Result<NanobananaConfig, String> {
+pub fn nanobanana_parse_config(content: String) -> CmdResult<NanobananaConfig> {
     // Try to parse as JSON first (for .nanobanana.json files)
     if let Ok(json_config) = serde_json::from_str::<serde_json::Value>(&content) {
         let prompt = json_config
@@ -310,7 +309,7 @@ pub fn nanobanana_parse_config(content: String) -> Result<NanobananaConfig, Stri
 
     // Match frontmatter between --- markers
     let frontmatter_regex = regex::Regex::new(r"^---\s*\n([\s\S]*?)\n---")
-        .map_err(|e| format!("Regex error: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Regex error: {}", e)))?;
 
     if let Some(captures) = frontmatter_regex.captures(&content) {
         let frontmatter = &captures[1];
@@ -351,15 +350,14 @@ pub async fn nanobanana_generate_from_file(
     file_path: String,
     output_path: Option<String>,
     options: Option<NanobananOptions>,
-) -> Result<String, String> {
-    let content =
-        fs::read_to_string(&file_path).map_err(|e| format!("Failed to read file: {}", e))?;
+) -> CmdResult<String> {
+    let content = fs::read_to_string(&file_path)?;
 
     let config = nanobanana_parse_config(content)?;
 
     let prompt = config
         .prompt
-        .ok_or("No nanobanana_prompt found in frontmatter")?;
+        .ok_or(CommandError::Config("No nanobanana_prompt found in frontmatter".to_string()))?;
 
     // Merge options
     let mut merged_options = options.unwrap_or_default();

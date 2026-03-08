@@ -6,6 +6,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Shell } from "./shell/Shell";
 import { LibraryModule } from "./modules/library/LibraryModule";
 import { WorkModule } from "./modules/work/WorkModule";
+import { WorkspaceModule } from "./modules/workspace";
 import { InboxModule } from "./modules/inbox/InboxModule";
 import { CrmModule } from "./modules/crm/CrmModule";
 import { BotModule } from "./modules/bot/BotModule";
@@ -14,6 +15,7 @@ import { PortalModule } from "./modules/portal";
 import { SchedulerModule } from "./modules/scheduler";
 import { ReposModule } from "./modules/repos";
 import { SkillsModule } from "./modules/skills/SkillsModule";
+import { EmailModule } from "./modules/email/EmailModule";
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { useAppStore, ModuleId } from "./stores/appStore";
@@ -27,6 +29,7 @@ import { Loader2 } from "lucide-react";
 const modules: Record<ModuleId, React.ComponentType> = {
   library: LibraryModule,
   work: WorkModule,
+  workspace: WorkspaceModule,
   inbox: InboxModule,
   crm: CrmModule,
   product: ProductModule,
@@ -35,10 +38,12 @@ const modules: Record<ModuleId, React.ComponentType> = {
   portal: PortalModule,
   scheduler: SchedulerModule,
   repos: ReposModule,
+  email: EmailModule,
 };
 
 export default function App() {
-  const { activeModule, setActiveModule } = useAppStore();
+  const activeModule = useAppStore((s) => s.activeModule);
+  const setActiveModule = useAppStore((s) => s.setActiveModule);
   const { user, isLoading, isInitialized, initialize } = useAuth();
   const [setupDone, setSetupDone] = useState(isSetupComplete);
 
@@ -59,6 +64,7 @@ export default function App() {
           "library",
           "crm",
           "work",
+          "workspace",
           "product",
           "bot",
           "skills",
@@ -118,6 +124,34 @@ export default function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [setActiveModule]);
+
+  // Listen for native menu events (preferences, zoom)
+  useEffect(() => {
+    const onPreferences = () => {
+      const store = useAppStore.getState();
+      if (store.settingsOpen) {
+        store.closeSettings();
+      } else {
+        store.openSettings();
+      }
+    };
+    const onZoom = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const current = parseFloat(localStorage.getItem("tv-zoom") || "1");
+      let next = current;
+      if (detail === "in") next = Math.min(current + 0.1, 2.0);
+      else if (detail === "out") next = Math.max(current - 0.1, 0.5);
+      else if (detail === "reset") next = 1;
+      localStorage.setItem("tv-zoom", String(next));
+      getCurrentWebview().setZoom(next);
+    };
+    window.addEventListener("menu-preferences", onPreferences);
+    window.addEventListener("menu-zoom", onZoom);
+    return () => {
+      window.removeEventListener("menu-preferences", onPreferences);
+      window.removeEventListener("menu-zoom", onZoom);
+    };
+  }, []);
 
   // Restore saved zoom level on mount
   useEffect(() => {

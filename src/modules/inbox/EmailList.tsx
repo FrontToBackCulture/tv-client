@@ -12,6 +12,7 @@ import {
   UserPlus,
   AlertCircle,
 } from "lucide-react";
+import { IconButton } from "../../components/ui";
 import type { OutlookEmail } from "../../hooks/useOutlook";
 import { formatDateRelative as formatDate } from "../../lib/date";
 
@@ -181,27 +182,25 @@ export function EmailList({
                 {hoveredId === email.id && (
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {!email.isRead && (
-                      <button
+                      <IconButton
+                        icon={MailOpen}
+                        size={14}
+                        label="Mark as read"
                         onClick={(e) => {
                           e.stopPropagation();
                           onMarkRead(email.id);
                         }}
-                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                        title="Mark as read"
-                      >
-                        <MailOpen size={14} className="text-zinc-500" />
-                      </button>
+                      />
                     )}
-                    <button
+                    <IconButton
+                      icon={Archive}
+                      size={14}
+                      label="Archive"
                       onClick={(e) => {
                         e.stopPropagation();
                         onArchive(email.id);
                       }}
-                      className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                      title="Archive"
-                    >
-                      <Archive size={14} className="text-zinc-500" />
-                    </button>
+                    />
                   </div>
                 )}
               </div>

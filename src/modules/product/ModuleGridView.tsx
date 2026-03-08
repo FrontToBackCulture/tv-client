@@ -5,7 +5,8 @@ import { useProductModules } from "../../hooks/product";
 import { MODULE_LAYERS, MODULE_STATUSES } from "../../lib/product/types";
 import type { ProductModule } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
-import { Loader2, Boxes } from "lucide-react";
+import { Boxes } from "lucide-react";
+import { DetailLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 
 interface ModuleGridViewProps {
@@ -19,13 +20,7 @@ export function ModuleGridView({ search, selectedId, onSelect }: ModuleGridViewP
     search ? { search } : undefined
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   const allModules = modules ?? [];
 

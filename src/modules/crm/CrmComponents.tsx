@@ -95,29 +95,29 @@ export const CompanyRow = memo(function CompanyRow({ company, isSelected, onSele
         isSelected ? "bg-teal-50 dark:bg-teal-950/20 border-l-2 border-teal-500"
           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30 border-l-2 border-transparent"
       }`}>
-      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${freshnessColor(company.updated_at)}`} />
+      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${freshnessColor(company.updated_at || "")}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 truncate">
+          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">
             {company.display_name || company.name}
           </span>
           {company.industry && (
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 truncate max-w-[80px]">
+            <span className="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0 truncate max-w-[80px]">
               {company.industry}
             </span>
           )}
         </div>
         {matchedContact ? (
-          <p className="text-[11px] text-teal-600 dark:text-teal-400 truncate mt-0.5">
+          <p className="text-xs text-teal-600 dark:text-teal-400 truncate mt-0.5">
             <User size={9} className="inline mr-1" />via {matchedContact}
           </p>
         ) : company.notes ? (
-          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{company.notes}</p>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{company.notes}</p>
         ) : null}
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-600 tabular-nums">{timeAgo(company.updated_at)}</span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-600 tabular-nums">{timeAgo(company.updated_at || "")}</span>
       </div>
     </button>
   );

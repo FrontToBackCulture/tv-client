@@ -16,7 +16,7 @@ import {
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { useClassificationStore } from "../../stores/classificationStore";
 
@@ -25,6 +25,7 @@ import { groupRowStyles, themeStyles } from "./reviewGridStyles";
 import { buildReviewColumnDefs } from "./reviewColumns";
 import { loadReviewData } from "./reviewLoader";
 import { ReviewGridToolbar } from "./ReviewGridToolbar";
+import { DetailLoading } from "../../components/ui/DetailStates";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
@@ -328,14 +329,7 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
   }, []);
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 size={32} className="mx-auto mb-3 text-zinc-400 animate-spin" />
-          <p className="text-sm text-zinc-500">Loading...</p>
-        </div>
-      </div>
-    );
+    return <DetailLoading />;
   }
 
   if (error) {

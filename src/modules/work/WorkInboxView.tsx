@@ -112,7 +112,7 @@ export function InboxView({
                   onClick={() => onSelectTask(task.id)}
                   className="w-full flex items-center gap-3 px-6 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
                 >
-                  <span className="text-[10px] text-zinc-300 dark:text-zinc-600 tabular-nums w-5 text-right flex-shrink-0">
+                  <span className="text-xs text-zinc-300 dark:text-zinc-600 tabular-nums w-5 text-right flex-shrink-0">
                     {idx + 1}
                   </span>
                   {task.status && (
@@ -124,17 +124,17 @@ export function InboxView({
                     style={{ backgroundColor: task.project?.color || "#6B7280" }}
                     title={task.project?.name || ""}
                   />
-                  <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
+                  <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
                   <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
                   {task.assignee?.name && (
                     <div
-                      className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
+                      className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
                       title={task.assignee.name}
                     >
                       {initials(task.assignee.name)}
                     </div>
                   )}
-                  <span className={`text-[10px] flex-shrink-0 tabular-nums ${urgency.color}`}>
+                  <span className={`text-xs flex-shrink-0 tabular-nums ${urgency.color}`}>
                     {urgency.text}
                   </span>
                 </button>

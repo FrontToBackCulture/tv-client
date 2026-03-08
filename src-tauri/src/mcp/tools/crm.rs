@@ -268,7 +268,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let limit = args.get("limit").and_then(|v| v.as_i64()).map(|n| n as i32);
             match crm::crm_list_companies(search, stage, industry, limit).await {
                 Ok(companies) => ToolResult::json(&companies),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "find-crm-company" => {
@@ -276,7 +276,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let domain = args.get("domain").and_then(|v| v.as_str()).map(|s| s.to_string());
             match crm::crm_find_company(name, domain).await {
                 Ok(company) => ToolResult::json(&company),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "get-crm-company" => {
@@ -287,7 +287,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let include_relations = args.get("include_relations").and_then(|v| v.as_bool());
             match crm::crm_get_company(company_id, include_relations).await {
                 Ok(company) => ToolResult::json(&company),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "create-crm-company" => {
@@ -297,7 +297,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_create_company(data).await {
                 Ok(company) => ToolResult::json(&company),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "update-crm-company" => {
@@ -315,7 +315,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_update_company(company_id, data).await {
                 Ok(company) => ToolResult::json(&company),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "delete-crm-company" => {
@@ -325,7 +325,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_delete_company(company_id).await {
                 Ok(()) => ToolResult::text("Company deleted successfully".to_string()),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -335,7 +335,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let search = args.get("search").and_then(|v| v.as_str()).map(|s| s.to_string());
             match crm::crm_list_contacts(company_id, search).await {
                 Ok(contacts) => ToolResult::json(&contacts),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "find-crm-contact" => {
@@ -345,7 +345,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_find_contact(email).await {
                 Ok(contact) => ToolResult::json(&contact),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "create-crm-contact" => {
@@ -355,7 +355,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_create_contact(data).await {
                 Ok(contact) => ToolResult::json(&contact),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "update-crm-contact" => {
@@ -373,7 +373,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_update_contact(contact_id, data).await {
                 Ok(contact) => ToolResult::json(&contact),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -383,7 +383,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let stage = args.get("stage").and_then(|v| v.as_str()).map(|s| s.to_string());
             match crm::crm_list_deals(company_id, stage).await {
                 Ok(deals) => ToolResult::json(&deals),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "create-crm-deal" => {
@@ -393,7 +393,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_create_deal(data).await {
                 Ok(deal) => ToolResult::json(&deal),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "update-crm-deal" => {
@@ -411,7 +411,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_update_deal(deal_id, data).await {
                 Ok(deal) => ToolResult::json(&deal),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -423,7 +423,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_log_activity(data).await {
                 Ok(activity) => ToolResult::json(&activity),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "list-crm-activities" => {
@@ -433,7 +433,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let limit = args.get("limit").and_then(|v| v.as_i64()).map(|n| n as i32);
             match crm::crm_list_activities(company_id, deal_id, activity_type, limit).await {
                 Ok(activities) => ToolResult::json(&activities),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -441,7 +441,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         "get-crm-pipeline" => {
             match crm::crm_get_pipeline().await {
                 Ok(stats) => ToolResult::json(&stats),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -457,7 +457,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match crm::crm_link_task_to_deal(task_id, deal_id).await {
                 Ok(result) => ToolResult::json(&result),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 

@@ -14,7 +14,6 @@ import { CompanyForm } from "./CompanyForm";
 import { ContactForm } from "./ContactForm";
 import { DealForm } from "./DealForm";
 import {
-  Loader2,
   X,
   Pencil,
   Trash2,
@@ -22,6 +21,8 @@ import {
   FolderOpen,
   Globe,
 } from "lucide-react";
+import { DetailLoading, DetailNotFound, DeleteConfirm, IconButton, Badge, Button } from "../../components/ui";
+import { toast } from "../../stores/toastStore";
 
 interface CompanyDetailPanelProps {
   companyId: string;
@@ -54,7 +55,8 @@ export function CompanyDetailPanel({
     const name = company?.display_name || company?.name;
     if (name) setViewDetail(`${name} → ${tabLabels[activeTab]}`);
   }, [company, activeTab, setViewDetail]);
-  const { openPanel, isOpen: sidePanelOpen } = useSidePanelStore();
+  const openPanel = useSidePanelStore((s) => s.openPanel);
+  const sidePanelOpen = useSidePanelStore((s) => s.isOpen);
 
   // Open client folder in side panel
   function handleOpenFolder() {
@@ -78,35 +80,25 @@ export function CompanyDetailPanel({
   async function handleDelete() {
     try {
       await deleteMutation.mutateAsync(companyId);
+      toast.success("Company deleted");
       onCompanyDeleted?.();
       onClose?.();
     } catch (error) {
+      toast.error("Failed to delete company");
       console.error("Failed to delete company:", error);
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <Loader2 size={24} className="text-zinc-400 dark:text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
-
-  if (!company) {
-    return (
-      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <p className="text-zinc-500">Company not found</p>
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
+  if (!company) return <DetailNotFound message="Company not found" />;
 
   const stageConfig = COMPANY_STAGES.find((s) => s.value === company.stage);
 
   return (
     <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-3">
+        {/* Company name + actions */}
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -117,84 +109,55 @@ export function CompanyDetailPanel({
                 stage={company.stage}
                 label={stageConfig?.label || company.stage}
               />
-              <button
-                onClick={() => setShowEditForm(true)}
-                className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                title="Edit company"
-              >
-                <Pencil size={14} />
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="p-1 text-zinc-500 hover:text-red-500 dark:hover:text-red-400 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                title="Delete company"
-              >
-                <Trash2 size={14} />
-              </button>
+              <IconButton icon={Pencil} size={14} label="Edit company" onClick={() => setShowEditForm(true)} />
+              <IconButton icon={Trash2} size={14} label="Delete company" variant="danger" onClick={() => setShowDeleteConfirm(true)} />
             </div>
             {company.industry && (
-              <span className="text-xs text-zinc-500">{company.industry}</span>
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">{company.industry}</span>
             )}
           </div>
           {onClose && (
-            <button
-              onClick={onClose}
-              className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <X size={18} />
-            </button>
+            <IconButton icon={X} size={18} label="Close" onClick={onClose} />
           )}
         </div>
 
         {/* Quick stats */}
-        <div className="flex gap-4 mt-2 text-xs">
-          <div className="text-zinc-500">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">
-              {company.contacts?.length || 0}
-            </span>{" "}
-            contacts
+        <div className="flex gap-3">
+          <div className="flex-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 px-3 py-2 text-center">
+            <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{company.contacts?.length || 0}</div>
+            <div className="text-xs text-zinc-400 dark:text-zinc-500">Contacts</div>
           </div>
-          <div className="text-zinc-500">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">
-              {company.activeDealCount || 0}
-            </span>{" "}
-            active deals
+          <div className="flex-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 px-3 py-2 text-center">
+            <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{company.activeDealCount || 0}</div>
+            <div className="text-xs text-zinc-400 dark:text-zinc-500">Active Deals</div>
           </div>
-          <div className="text-zinc-500">
-            <span className="font-medium text-teal-600 dark:text-teal-400">
-              ${((company.totalDealValue || 0) / 1000).toFixed(0)}K
-            </span>{" "}
-            won
+          <div className="flex-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 px-3 py-2 text-center">
+            <div className="text-sm font-semibold text-teal-600 dark:text-teal-400">${((company.totalDealValue || 0) / 1000).toFixed(0)}K</div>
+            <div className="text-xs text-zinc-400 dark:text-zinc-500">Won</div>
           </div>
         </div>
 
         {/* Quick links */}
         {(company.client_folder_path || company.domain_id || company.website) && (
-          <div className="flex gap-2 mt-2">
+          <div className="flex gap-2">
             {company.client_folder_path && (
-              <button
-                onClick={handleOpenFolder}
-                className="flex items-center gap-1 text-[11px] px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
-                title="Open in side panel"
-              >
-                <FolderOpen size={12} />
+              <Button variant="link" size="sm" icon={FolderOpen} onClick={handleOpenFolder} className="text-xs py-1">
                 Folder
-              </button>
+              </Button>
             )}
             {company.domain_id && (
-              <button className="flex items-center gap-1 text-[11px] px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors">
-                <ExternalLink size={12} />
+              <Button variant="link" size="sm" icon={ExternalLink} className="text-xs py-1">
                 Domain
-              </button>
+              </Button>
             )}
             {company.website && (
               <a
                 href={company.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[11px] px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
+                className="inline-flex items-center gap-1 text-xs px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors font-medium"
               >
-                <Globe size={12} />
+                <Globe size={14} />
                 Website
               </a>
             )}
@@ -234,13 +197,9 @@ export function CompanyDetailPanel({
         {activeTab === "contacts" && (
           <div className="p-4">
             <div className="flex justify-end mb-3">
-              <button
-                onClick={() => setShowContactForm(true)}
-                data-help-id="crm-add-contact"
-                className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-500 transition-colors"
-              >
+              <Button onClick={() => setShowContactForm(true)} data-help-id="crm-add-contact">
                 + Add Contact
-              </button>
+              </Button>
             </div>
             <ContactListView
               contacts={company.contacts || []}
@@ -251,13 +210,9 @@ export function CompanyDetailPanel({
         {activeTab === "deals" && (
           <div className="p-4">
             <div className="flex justify-end mb-3">
-              <button
-                onClick={() => setShowDealForm(true)}
-                data-help-id="crm-add-deal"
-                className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-500 transition-colors"
-              >
+              <Button onClick={() => setShowDealForm(true)} data-help-id="crm-add-deal">
                 + Add Deal
-              </button>
+              </Button>
             </div>
             <div className="space-y-3">
               {company.deals?.map((deal) => (
@@ -316,57 +271,27 @@ export function CompanyDetailPanel({
         />
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 max-w-sm w-full mx-4 shadow-xl animate-modal-in">
-            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-              Delete Company
-            </h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-              Delete <strong>{company?.display_name || company?.name}</strong> and
-              all associated contacts, deals, and activities? This cannot be
-              undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
-                disabled={deleteMutation.isPending}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-500 disabled:opacity-50 transition-colors"
-              >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteConfirm
+          title="Delete Company"
+          message={<>Delete <strong>{company?.display_name || company?.name}</strong> and all associated contacts, deals, and activities? This cannot be undone.</>}
+          isDeleting={deleteMutation.isPending}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       )}
     </div>
   );
 }
 
-function StageChip({ stage, label }: { stage: string; label: string }) {
-  const colors: Record<string, string> = {
-    prospect: "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
-    opportunity: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
-    client: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
-    churned: "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400",
-    partner: "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400",
-  };
+const stageColors: Record<string, "zinc" | "blue" | "green" | "red" | "purple"> = {
+  prospect: "zinc",
+  opportunity: "blue",
+  client: "green",
+  churned: "red",
+  partner: "purple",
+};
 
-  return (
-    <span
-      className={`px-2 py-0.5 rounded text-xs font-medium ${
-        colors[stage] || colors.prospect
-      }`}
-    >
-      {label}
-    </span>
-  );
+function StageChip({ stage, label }: { stage: string; label: string }) {
+  return <Badge color={stageColors[stage] || "zinc"}>{label}</Badge>;
 }

@@ -18,10 +18,8 @@ import {
   PriorityLabels,
 } from "../../lib/work/types";
 import { StatusIcon } from "./StatusIcon";
-import { EmptyState } from "../../components/EmptyState";
 import {
   X,
-  Loader2,
   Calendar,
   User,
   Flag,
@@ -30,6 +28,10 @@ import {
   Trash2,
   Clock,
 } from "lucide-react";
+import { Button, IconButton } from "../../components/ui";
+import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
+import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
+import { toast } from "../../stores/toastStore";
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -65,24 +67,12 @@ export function TaskDetailPanel({
   const [descriptionValue, setDescriptionValue] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <Loader2 size={24} className="text-zinc-400 dark:text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
-  if (!task) {
-    return (
-      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <EmptyState message="Task not found" />
-      </div>
-    );
-  }
+  if (!task) return <DetailNotFound message="Task not found" />;
 
   const identifier = getTaskIdentifier(task);
-  const statusType = task.status?.type || "unstarted";
+  const statusType = (task.status?.type || "unstarted") as import("../../lib/work/types").StatusType;
   const statusColor = task.status?.color || "#6B7280";
 
   async function handleUpdateField(field: string, value: unknown) {
@@ -115,9 +105,11 @@ export function TaskDetailPanel({
   async function handleDelete() {
     try {
       await deleteMutation.mutateAsync(taskId);
+      toast.success("Task deleted");
       onDeleted?.();
       onClose();
     } catch (error) {
+      toast.error("Failed to delete task");
       console.error("Failed to delete task:", error);
     }
   }
@@ -141,12 +133,7 @@ export function TaskDetailPanel({
             </span>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-        >
-          <X size={18} />
-        </button>
+        <IconButton icon={X} size={18} label="Close" onClick={onClose} />
       </div>
 
       {/* Content */}
@@ -181,10 +168,10 @@ export function TaskDetailPanel({
           </div>
 
           {/* Fields */}
-          <div className="space-y-3">
+          <div className="rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 p-3 space-y-3">
             {/* Status */}
             <div className="flex items-center gap-3">
-              <span className="w-24 text-sm text-zinc-500">Status</span>
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500">Status</span>
               <select
                 value={task.status_id || ""}
                 onChange={(e) => handleUpdateField("status_id", e.target.value)}
@@ -200,8 +187,8 @@ export function TaskDetailPanel({
 
             {/* Priority */}
             <div className="flex items-center gap-3">
-              <span className="w-24 text-sm text-zinc-500 flex items-center gap-1">
-                <Flag size={14} />
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                <Flag size={12} />
                 Priority
               </span>
               <select
@@ -219,8 +206,8 @@ export function TaskDetailPanel({
 
             {/* Assignee */}
             <div className="flex items-center gap-3">
-              <span className="w-24 text-sm text-zinc-500 flex items-center gap-1">
-                <User size={14} />
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                <User size={12} />
                 Assignee
               </span>
               <select
@@ -241,8 +228,8 @@ export function TaskDetailPanel({
 
             {/* Milestone */}
             <div className="flex items-center gap-3">
-              <span className="w-24 text-sm text-zinc-500 flex items-center gap-1">
-                <MilestoneIcon size={14} />
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                <MilestoneIcon size={12} />
                 Milestone
               </span>
               <select
@@ -263,8 +250,8 @@ export function TaskDetailPanel({
 
             {/* Due Date */}
             <div className="flex items-center gap-3">
-              <span className="w-24 text-sm text-zinc-500 flex items-center gap-1">
-                <Calendar size={14} />
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                <Calendar size={12} />
                 Due Date
               </span>
               <input
@@ -283,8 +270,8 @@ export function TaskDetailPanel({
             {/* Labels */}
             {task.labels && task.labels.length > 0 && (
               <div className="flex items-start gap-3">
-                <span className="w-24 text-sm text-zinc-500 flex items-center gap-1 pt-1">
-                  <Tag size={14} />
+                <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 pt-1">
+                  <Tag size={12} />
                   Labels
                 </span>
                 <div className="flex-1 flex flex-wrap gap-1">
@@ -307,7 +294,7 @@ export function TaskDetailPanel({
 
           {/* Description */}
           <div>
-            <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">Description</h3>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Description</h3>
             {editingDescription ? (
               <div>
                 <textarea
@@ -318,18 +305,12 @@ export function TaskDetailPanel({
                   autoFocus
                 />
                 <div className="flex justify-end gap-2 mt-2">
-                  <button
-                    onClick={() => setEditingDescription(false)}
-                    className="px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
-                  >
+                  <Button variant="ghost" onClick={() => setEditingDescription(false)}>
                     Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveDescription}
-                    className="px-3 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-500"
-                  >
+                  </Button>
+                  <Button onClick={handleSaveDescription}>
                     Save
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -350,7 +331,7 @@ export function TaskDetailPanel({
           {/* Activity */}
           {task.activity && task.activity.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">Activity</h3>
+              <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Activity</h3>
               <div className="space-y-2">
                 {task.activity.slice(0, 5).map((activity) => (
                   <div
@@ -373,7 +354,7 @@ export function TaskDetailPanel({
           )}
 
           {/* Metadata */}
-          <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 dark:text-zinc-600 space-y-1">
+          <div className="text-xs text-zinc-400 dark:text-zinc-600 space-y-1">
             <p>Created: {formatDate(task.created_at)}</p>
             <p>Updated: {formatDate(task.updated_at)}</p>
             {task.creator && <p>Created by: {task.creator.name}</p>}
@@ -383,49 +364,27 @@ export function TaskDetailPanel({
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex justify-between">
-        <button
+        <Button
+          variant="ghost"
+          icon={Trash2}
           onClick={() => setShowDeleteConfirm(true)}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20 rounded transition-colors"
+          className="text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20"
         >
-          <Trash2 size={14} />
           Delete
-        </button>
-        <button
-          onClick={onClose}
-          className="px-4 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
-        >
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
           Close
-        </button>
+        </Button>
       </div>
 
-      {/* Delete Confirmation */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 max-w-sm w-full mx-4 shadow-xl animate-modal-in">
-            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-              Delete Task
-            </h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-              Delete <strong>{identifier}</strong>? This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
-                disabled={deleteMutation.isPending}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-500 disabled:opacity-50 transition-colors"
-              >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteConfirm
+          title="Delete Task"
+          message={<>Delete <strong>{identifier}</strong>? This cannot be undone.</>}
+          isDeleting={deleteMutation.isPending}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       )}
     </div>
   );

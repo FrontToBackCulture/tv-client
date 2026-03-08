@@ -9,14 +9,15 @@ import { SidePanel } from "./SidePanel";
 
 import { ModuleId, isSecondaryWindow } from "../stores/appStore";
 import { useSidePanelStore } from "../stores/sidePanelStore";
-import { HelpButton } from "../components/help/HelpButton";
-import { HelpPanel } from "../components/help/HelpPanel";
 import { HelpHighlight } from "../components/help/HelpHighlight";
 import { SettingsModal } from "../modules/settings/SettingsModule";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import { ToastContainer } from "../components/ui/ToastContainer";
 
 const moduleLabels: Record<ModuleId, string> = {
   library: "Library",
   work: "Work",
+  workspace: "Workspaces",
   inbox: "Inbox",
   crm: "CRM",
   product: "Product",
@@ -25,6 +26,7 @@ const moduleLabels: Record<ModuleId, string> = {
   portal: "Portal",
   scheduler: "Scheduler",
   repos: "Repos",
+  email: "Email",
 };
 
 interface ShellProps {
@@ -50,11 +52,11 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
   }, [activeModule, secondary]);
 
   return (
-    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 select-none">
+    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
       {/* Draggable title bar region for macOS */}
       <div
         onMouseDown={() => getCurrentWindow().startDragging()}
-        className="h-10 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center"
+        className="h-10 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center select-none"
       >
         {/* Leave space for macOS traffic lights (close/minimize/fullscreen) */}
         <div className="w-20 flex-shrink-0" />
@@ -75,7 +77,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
 
         {/* Module content */}
         <div className="flex-1 overflow-hidden min-w-0 relative">
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </div>
 
         {/* Side document panel (hidden in Library which has its own viewer) */}
@@ -86,11 +88,10 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
       <StatusBar />
 
       {/* Overlays */}
+      <ToastContainer />
       <CommandPalette />
       <SettingsModal />
       <HelpHighlight />
-      <HelpButton />
-      <HelpPanel />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 // Defines and dispatches tools for Claude Code
 
 pub mod work;
+pub mod workspace;
 pub mod crm;
 pub mod generate;
 pub mod intercom;
@@ -17,6 +18,9 @@ pub fn list_tools() -> Vec<Tool> {
 
     // Work module tools
     tools.extend(work::tools());
+
+    // Workspace module tools
+    tools.extend(workspace::tools());
 
     // CRM module tools
     tools.extend(crm::tools());
@@ -38,6 +42,15 @@ pub fn list_tools() -> Vec<Tool> {
 
 /// Call a tool by name
 pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
+    // Workspace module tools (checked BEFORE work — "create-workspace" would match "create-work-*")
+    if name.ends_with("-workspace") || name.ends_with("-workspaces") ||
+       name.starts_with("get-workspace") || name.starts_with("create-workspace") ||
+       name.starts_with("update-workspace") || name.starts_with("delete-workspace") ||
+       name.starts_with("add-workspace-") || name.starts_with("remove-workspace-") ||
+       name == "list-workspaces" {
+        return workspace::call(name, arguments).await;
+    }
+
     // Work module tools
     if name.starts_with("list-work-") || name.starts_with("get-work-") ||
        name.starts_with("create-work-") || name.starts_with("update-work-") ||

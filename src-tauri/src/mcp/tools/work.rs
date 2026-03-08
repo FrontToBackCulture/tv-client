@@ -335,7 +335,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let include_statuses = args.get("include_statuses").and_then(|v| v.as_bool());
             match work::work_list_projects(include_statuses).await {
                 Ok(projects) => ToolResult::json(&projects),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "get-work-project" => {
@@ -345,7 +345,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_get_project(project_id).await {
                 Ok(project) => ToolResult::json(&project),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "create-work-project" => {
@@ -355,7 +355,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_create_project(data).await {
                 Ok(project) => ToolResult::json(&project),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "update-work-project" => {
@@ -373,7 +373,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_update_project(project_id, data).await {
                 Ok(project) => ToolResult::json(&project),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "delete-work-project" => {
@@ -383,7 +383,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_delete_project(project_id).await {
                 Ok(()) => ToolResult::text("Project deleted successfully.".to_string()),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -396,7 +396,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let milestone_id = args.get("milestone_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             match work::work_list_tasks(project_id, status_id, status_type, assignee_id, milestone_id).await {
                 Ok(tasks) => ToolResult::json(&tasks),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "get-work-task" => {
@@ -406,7 +406,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_get_task(task_id).await {
                 Ok(task) => ToolResult::json(&task),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "create-work-task" => {
@@ -416,7 +416,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_create_task(data).await {
                 Ok(task) => ToolResult::json(&task),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "update-work-task" => {
@@ -434,7 +434,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_update_task(task_id, data).await {
                 Ok(task) => ToolResult::json(&task),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -446,7 +446,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_list_milestones(project_id).await {
                 Ok(milestones) => ToolResult::json(&milestones),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "create-work-milestone" => {
@@ -456,7 +456,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_create_milestone(data).await {
                 Ok(milestone) => ToolResult::json(&milestone),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "update-work-milestone" => {
@@ -474,7 +474,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_update_milestone(milestone_id, data).await {
                 Ok(milestone) => ToolResult::json(&milestone),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -483,7 +483,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let include_projects = args.get("include").and_then(|v| v.as_str()) == Some("projects");
             match work::work_list_initiatives(Some(include_projects)).await {
                 Ok(initiatives) => ToolResult::json(&initiatives),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "create-work-initiative" => {
@@ -493,7 +493,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_create_initiative(data).await {
                 Ok(initiative) => ToolResult::json(&initiative),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "update-work-initiative" => {
@@ -511,7 +511,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_update_initiative(initiative_id, data).await {
                 Ok(initiative) => ToolResult::json(&initiative),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -522,7 +522,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_delete_initiative(initiative_id, Some(true)).await {
                 Ok(()) => ToolResult::text("Initiative deleted successfully.".to_string()),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -538,7 +538,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_add_project_to_initiative(initiative_id, project_id).await {
                 Ok(link) => ToolResult::json(&link),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "remove-project-from-initiative" => {
@@ -552,7 +552,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_remove_project_from_initiative(initiative_id, project_id).await {
                 Ok(()) => ToolResult::text("Project removed from initiative successfully.".to_string()),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "list-initiative-projects" => {
@@ -562,7 +562,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_list_initiative_projects(initiative_id).await {
                 Ok(projects) => ToolResult::json(&projects),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -570,7 +570,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         "list-work-labels" => {
             match work::work_list_labels().await {
                 Ok(labels) => ToolResult::json(&labels),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "create-work-label" => {
@@ -580,7 +580,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_create_label(data).await {
                 Ok(label) => ToolResult::json(&label),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -588,13 +588,13 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         "list-work-users" => {
             match work::work_list_users().await {
                 Ok(users) => ToolResult::json(&users),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "list-work-bots" => {
             match work::work_list_bots().await {
                 Ok(bots) => ToolResult::json(&bots),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -606,7 +606,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_list_project_updates(project_id).await {
                 Ok(updates) => ToolResult::json(&updates),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "create-work-project-update" => {
@@ -624,7 +624,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             };
             match work::work_create_project_update(project_id, data).await {
                 Ok(update) => ToolResult::json(&update),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 

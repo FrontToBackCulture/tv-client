@@ -262,10 +262,10 @@ export function SessionsTimeline({
             )}
           >
             <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{relativeDate(s.date)}</span>
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-600">{s.date}</span>
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{relativeDate(s.date)}</span>
+              <span className="text-xs text-zinc-400 dark:text-zinc-600">{s.date}</span>
               {s.owner && (
-                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 capitalize">{s.owner}</span>
+                <span className="ml-auto text-xs px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 capitalize">{s.owner}</span>
               )}
             </div>
             {s.title && (
@@ -277,7 +277,7 @@ export function SessionsTimeline({
               )} title={s.title}>{s.title}</p>
             )}
             {s.summary && (
-              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 line-clamp-1 mt-0.5">{s.summary}</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 line-clamp-1 mt-0.5">{s.summary}</p>
             )}
           </button>
         ))}

@@ -6,6 +6,7 @@ use std::path::Path;
 use tauri::command;
 use tauri::Emitter;
 
+use crate::commands::error::{CmdResult, CommandError};
 use super::api;
 use super::config::load_config_internal;
 use super::mapping::{
@@ -62,14 +63,14 @@ pub async fn github_sync_preview(
     token: String,
     owner: String,
     repo: String,
-) -> Result<PreviewResult, String> {
+) -> CmdResult<PreviewResult> {
     // Load config to find this repo
     let config = load_config_internal()?;
     let repo_config = config
         .repositories
         .iter()
         .find(|r| r.owner == owner && r.repo == repo)
-        .ok_or_else(|| format!("Repository {}/{} not found in config", owner, repo))?;
+        .ok_or_else(|| CommandError::NotFound(format!("Repository {}/{} not found in config", owner, repo)))?;
 
     // Fetch tree
     let files = api::fetch_tree(&token, &owner, &repo, &repo_config.branch).await?;
@@ -110,14 +111,14 @@ pub async fn github_sync_run(
     token: String,
     owner: String,
     repo: String,
-) -> Result<SyncResult, String> {
+) -> CmdResult<SyncResult> {
     // Load config
     let config = load_config_internal()?;
     let repo_config = config
         .repositories
         .iter()
         .find(|r| r.owner == owner && r.repo == repo)
-        .ok_or_else(|| format!("Repository {}/{} not found in config", owner, repo))?
+        .ok_or_else(|| CommandError::NotFound(format!("Repository {}/{} not found in config", owner, repo)))?
         .clone();
 
     // Phase 1: Fetch tree
@@ -143,7 +144,14 @@ pub async fn github_sync_run(
     let mut errors = Vec::new();
 
     for (i, file) in to_sync.iter().enumerate() {
-        let target_path = file.target_path.as_ref().unwrap();
+        let target_path = match file.target_path.as_ref() {
+            Some(p) => p,
+            None => {
+                errors.push(format!("{}: missing target path", file.file.filename));
+                failed += 1;
+                continue;
+            }
+        };
 
         emit_progress(
             &app_handle,
@@ -222,15 +230,15 @@ fn emit_progress(
     );
 }
 
-fn write_file(target_path: &str, content: &str) -> Result<(), String> {
+fn write_file(target_path: &str, content: &str) -> CmdResult<()> {
     let path = Path::new(target_path);
     if let Some(dir) = path.parent() {
         if !dir.exists() {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("Failed to create directory: {}", e))?;
+            fs::create_dir_all(dir)?;
         }
     }
-    fs::write(path, content).map_err(|e| format!("Failed to write file: {}", e))
+    fs::write(path, content)?;
+    Ok(())
 }
 
 fn write_placeholder(
@@ -238,7 +246,7 @@ fn write_placeholder(
     file: &GitHubFile,
     owner: &str,
     repo: &str,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     let content = format!(
         "# {}\n\n\
          **Source:** [{}/{}](https://github.com/{}/{})\n\

@@ -169,6 +169,57 @@ export function useRealtimeSync() {
 
     channels.push(schedulerChannel);
 
+    // Subscribe to Workspace tables
+    const workspaceChannel = supabase
+      .channel("workspace-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "workspaces",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "workspace_sessions",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "workspace_artifacts",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "workspace_context",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        }
+      )
+      .subscribe();
+
+    channels.push(workspaceChannel);
+
     // Cleanup on unmount
     return () => {
       channels.forEach((channel) => {

@@ -3,6 +3,7 @@
 
 use super::config::get_domain_config;
 use super::metadata::load_metadata;
+use crate::commands::error::CmdResult;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -310,7 +311,7 @@ fn generate_overview_html(domain: &str, global_path: &str) -> String {
 
 /// Generate HTML overview page for a domain
 #[command]
-pub async fn val_generate_overview(domain: String) -> Result<OverviewResult, String> {
+pub async fn val_generate_overview(domain: String) -> CmdResult<OverviewResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -320,8 +321,7 @@ pub async fn val_generate_overview(domain: String) -> Result<OverviewResult, Str
 
     // Write to file
     let file_path = Path::new(global_path).join("overview.html");
-    fs::write(&file_path, html)
-        .map_err(|e| format!("Failed to write overview.html: {}", e))?;
+    fs::write(&file_path, html)?;
 
     Ok(OverviewResult {
         domain,

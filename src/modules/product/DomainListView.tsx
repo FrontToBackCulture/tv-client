@@ -7,6 +7,8 @@ import { useRepository } from "../../stores/repositoryStore";
 import { useJobsStore } from "../../stores/jobsStore";
 import { Loader2, Database, FolderOpen, AlertCircle, RefreshCw, Square, ChevronDown, ChevronRight, Zap } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { Button } from "../../components/ui";
+import { DetailLoading } from "../../components/ui/DetailStates";
 
 interface DomainListViewProps {
   search: string;
@@ -259,13 +261,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
     }
   }, [domainNames, anyRunning, syncAll, runQueryHealth, runArtifactAudit, runOverview, addJob, updateJob, syncProgress?.isRunning, queryHealthProgress?.isRunning, artifactAuditProgress?.isRunning, overviewProgress?.isRunning]);
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   if (isError) {
     return (
@@ -279,13 +275,14 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
             ? "Restart the app to load the new val-sync commands (Rust rebuild required)"
             : String(error)}
         </p>
-        <button
+        <Button
           onClick={() => refetch()}
-          className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-600 hover:text-teal-500 border border-teal-600/30 rounded transition-colors"
+          variant="secondary"
+          icon={RefreshCw}
+          className="mt-3"
         >
-          <RefreshCw size={12} />
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
@@ -400,31 +397,27 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-zinc-500">{all.length} domains</span>
           {anyRunning && (
-            <button
+            <Button
               onClick={abortSync}
-              className="flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium text-red-600 hover:text-red-500 border border-red-300 dark:border-red-800 rounded transition-colors"
+              variant="danger"
+              icon={Square}
             >
-              <Square size={10} />
               Stop
-            </button>
+            </Button>
           )}
         </div>
 
         <div className="flex items-center gap-2">
           {/* Primary action: Full Analysis */}
-          <button
+          <Button
             onClick={handleFullAnalysis}
             disabled={anyRunning}
             title="Run complete analysis pipeline: Sync All → Dashboard Health → Query Health → Artifact Audit → Generate Overview. Best for initial setup or full refresh."
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-500 rounded transition-colors disabled:opacity-50"
+            icon={Zap}
+            loading={fullAnalysisRunning}
           >
-            {fullAnalysisRunning ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <Zap size={12} />
-            )}
             Full Analysis
-          </button>
+          </Button>
 
           <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700" />
 
@@ -452,7 +445,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
         </div>
 
         {/* Tooltip showing sequence */}
-        <p className="text-[10px] text-zinc-400 mt-1.5">
+        <p className="text-xs text-zinc-400 mt-1.5">
           Full Analysis: Sync → Dashboard Health → Query Health → Audit → Overview
         </p>
       </div>
@@ -512,7 +505,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
                     !isCollapsed && "rotate-90"
                   )}
                 />
-                <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
                   {TYPE_LABELS[type] ?? type} ({items.length})
                 </span>
               </button>
@@ -530,7 +523,7 @@ export function DomainListView({ search, selectedId, onSelect }: DomainListViewP
                   )}
                 >
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 font-mono block truncate">
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 block truncate">
                       {domain.domain}
                     </span>
                     <span className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5 truncate">

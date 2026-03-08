@@ -2,7 +2,7 @@
 // Editable JSON with validation and formatting
 
 import { useState, useCallback, useRef } from "react";
-import { FileJson, AlertCircle, Check, WrapText, AlignLeft } from "lucide-react";
+import { AlertCircle, WrapText, AlignLeft } from "lucide-react";
 
 interface JSONEditorProps {
   content: string;
@@ -11,7 +11,7 @@ interface JSONEditorProps {
   saveStatus: "saved" | "saving" | "unsaved";
 }
 
-export function JSONEditor({ content, filename, onChange, saveStatus }: JSONEditorProps) {
+export function JSONEditor({ content, onChange }: JSONEditorProps) {
   const [text, setText] = useState(() => {
     // Try to format on initial load
     try {
@@ -72,29 +72,10 @@ export function JSONEditor({ content, filename, onChange, saveStatus }: JSONEdit
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/80">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <FileJson size={16} className="text-green-500 dark:text-green-400" />
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
-          </div>
-
-          {/* Status */}
-          {error ? (
+          {error && (
             <div className="flex items-center gap-1 text-red-400">
               <AlertCircle size={12} />
               <span className="text-xs">Invalid JSON</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              {saveStatus === "saved" && <Check size={12} className="text-green-500" />}
-              <span className={`text-xs ${
-                saveStatus === "saving" ? "text-zinc-500" :
-                saveStatus === "unsaved" ? "text-amber-500" :
-                "text-zinc-600"
-              }`}>
-                {saveStatus === "saving" ? "Saving..." :
-                 saveStatus === "unsaved" ? "Unsaved" :
-                 "Saved"}
-              </span>
             </div>
           )}
         </div>

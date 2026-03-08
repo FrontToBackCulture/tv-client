@@ -11,6 +11,16 @@ pub struct AppState {
     pub knowledge_path: String,
 }
 
+/// Shared HTTP client — reuses connections, TLS sessions, and DNS cache.
+/// 120s default timeout; individual requests can override with `.timeout()`.
+pub static HTTP_CLIENT: once_cell::sync::Lazy<reqwest::Client> =
+    once_cell::sync::Lazy::new(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()
+            .expect("Failed to create HTTP client")
+    });
+
 fn create_new_window(app: &tauri::AppHandle) {
     let millis = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -59,6 +69,9 @@ fn main() {
                         .unwrap_or_default()
                 });
 
+            // Eagerly initialize the shared HTTP client
+            let _ = &*crate::HTTP_CLIENT;
+
             let state = AppState { knowledge_path };
             app.manage(state);
 
@@ -85,15 +98,32 @@ fn main() {
             // Build native macOS menu bar
             let handle = app.handle();
 
+            // App menu (macOS: first menu uses app name)
+            let preferences = MenuItem::with_id(handle, "preferences", "Settings...", true, Some("CmdOrCtrl+,"))?;
+            let app_menu = Submenu::with_items(handle, "TV Client", true, &[
+                &PredefinedMenuItem::about(handle, Some("About TV Client"), None)?,
+                &PredefinedMenuItem::separator(handle)?,
+                &preferences,
+                &PredefinedMenuItem::separator(handle)?,
+                &PredefinedMenuItem::services(handle, None)?,
+                &PredefinedMenuItem::separator(handle)?,
+                &PredefinedMenuItem::hide(handle, None)?,
+                &PredefinedMenuItem::hide_others(handle, None)?,
+                &PredefinedMenuItem::show_all(handle, None)?,
+                &PredefinedMenuItem::separator(handle)?,
+                &PredefinedMenuItem::quit(handle, None)?,
+            ])?;
+
+            // File menu
             let new_window = MenuItem::with_id(handle, "new-window", "New Window", true, Some("CmdOrCtrl+N"))?;
             let close_window = PredefinedMenuItem::close_window(handle, None)?;
-
             let file_menu = Submenu::with_items(handle, "File", true, &[
                 &new_window,
                 &PredefinedMenuItem::separator(handle)?,
                 &close_window,
             ])?;
 
+            // Edit menu
             let edit_menu = Submenu::with_items(handle, "Edit", true, &[
                 &PredefinedMenuItem::undo(handle, None)?,
                 &PredefinedMenuItem::redo(handle, None)?,
@@ -104,23 +134,76 @@ fn main() {
                 &PredefinedMenuItem::select_all(handle, None)?,
             ])?;
 
+            // View menu
+            let reload = MenuItem::with_id(handle, "reload", "Reload", true, Some("CmdOrCtrl+R"))?;
+            let zoom_in = MenuItem::with_id(handle, "zoom-in", "Zoom In", true, Some("CmdOrCtrl+="))?;
+            let zoom_out = MenuItem::with_id(handle, "zoom-out", "Zoom Out", true, Some("CmdOrCtrl+-"))?;
+            let zoom_reset = MenuItem::with_id(handle, "zoom-reset", "Actual Size", true, Some("CmdOrCtrl+0"))?;
+            let fullscreen = MenuItem::with_id(handle, "fullscreen", "Toggle Full Screen", true, Some("Ctrl+CmdOrCtrl+F"))?;
+            let view_menu = Submenu::with_items(handle, "View", true, &[
+                &reload,
+                &PredefinedMenuItem::separator(handle)?,
+                &zoom_in,
+                &zoom_out,
+                &zoom_reset,
+                &PredefinedMenuItem::separator(handle)?,
+                &fullscreen,
+            ])?;
+
+            // Window menu
             let window_menu = Submenu::with_items(handle, "Window", true, &[
                 &PredefinedMenuItem::minimize(handle, None)?,
                 &PredefinedMenuItem::maximize(handle, None)?,
-                &PredefinedMenuItem::separator(handle)?,
             ])?;
 
             let menu = Menu::with_items(handle, &[
+                &app_menu,
                 &file_menu,
                 &edit_menu,
+                &view_menu,
                 &window_menu,
             ])?;
 
             app.set_menu(menu)?;
 
             app.on_menu_event(|app_handle, event| {
-                if event.id().as_ref() == "new-window" {
-                    create_new_window(app_handle);
+                match event.id().as_ref() {
+                    "new-window" => {
+                        create_new_window(app_handle);
+                    }
+                    "preferences" => {
+                        // Emit event to frontend to toggle settings modal
+                        if let Some(webview) = app_handle.webview_windows().values().next() {
+                            let _ = webview.eval("window.dispatchEvent(new CustomEvent('menu-preferences'))");
+                        }
+                    }
+                    "reload" => {
+                        if let Some(webview) = app_handle.webview_windows().values().next() {
+                            let _ = webview.eval("window.location.reload()");
+                        }
+                    }
+                    "zoom-in" => {
+                        if let Some(webview) = app_handle.webview_windows().values().next() {
+                            let _ = webview.eval("window.dispatchEvent(new CustomEvent('menu-zoom', { detail: 'in' }))");
+                        }
+                    }
+                    "zoom-out" => {
+                        if let Some(webview) = app_handle.webview_windows().values().next() {
+                            let _ = webview.eval("window.dispatchEvent(new CustomEvent('menu-zoom', { detail: 'out' }))");
+                        }
+                    }
+                    "zoom-reset" => {
+                        if let Some(webview) = app_handle.webview_windows().values().next() {
+                            let _ = webview.eval("window.dispatchEvent(new CustomEvent('menu-zoom', { detail: 'reset' }))");
+                        }
+                    }
+                    "fullscreen" => {
+                        if let Some(window) = app_handle.webview_windows().values().next() {
+                            let is_fullscreen = window.is_fullscreen().unwrap_or(false);
+                            let _ = window.set_fullscreen(!is_fullscreen);
+                        }
+                    }
+                    _ => {}
                 }
             });
 
@@ -338,7 +421,6 @@ fn main() {
             commands::val_sync::ai_package::val_generate_ai_package,
             commands::val_sync::ai_package::val_list_domain_ai_status,
             commands::val_sync::ai_package::val_save_domain_ai_config,
-            commands::val_sync::ai_package::val_extract_ai_templates,
             commands::val_sync::ai_package::val_skill_deployment_status,
             // VAL Sync - S3 sync (push AI folders to S3)
             commands::val_sync::s3_sync::val_sync_ai_to_s3,
@@ -434,6 +516,8 @@ fn main() {
             commands::outlook::commands::outlook_sync_status,
             commands::outlook::commands::outlook_get_folders,
             commands::outlook::commands::outlook_bootstrap_contacts,
+            // Email (SES campaign sending)
+            commands::email::email_send_campaign,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

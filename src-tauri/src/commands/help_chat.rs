@@ -7,6 +7,7 @@ use serde_json::json;
 use std::path::PathBuf;
 use tauri::command;
 
+use super::error::{CmdResult, CommandError};
 use super::settings;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,9 +54,9 @@ pub async fn help_chat_ask(
     history: Vec<HelpChatMessage>,
     system_prompt: String,
     knowledge_base_path: Option<String>,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     let api_key = settings::settings_get_anthropic_key()?
-        .ok_or_else(|| "Anthropic API key not configured. Go to Settings (⌘,) to add it.".to_string())?;
+        .ok_or_else(|| CommandError::Config("Anthropic API key not configured. Go to Settings (⌘,) to add it.".into()))?;
 
     // Build full system prompt: knowledge base + module context
     let full_prompt = if let Some(kb_path) = knowledge_base_path {
@@ -79,7 +80,7 @@ pub async fn help_chat_ask(
         "content": question,
     }));
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .post("https://api.anthropic.com/v1/messages")
         .header("Content-Type", "application/json")
@@ -93,19 +94,18 @@ pub async fn help_chat_ask(
             "messages": messages,
         }))
         .send()
-        .await
-        .map_err(|e| format!("API request failed: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
-        let status = response.status();
+        let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("Anthropic API error ({}): {}", status, &body[..body.len().min(500)]));
+        return Err(CommandError::Http {
+            status,
+            body: body[..body.len().min(500)].to_string(),
+        });
     }
 
-    let api_response: AnthropicResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse API response: {}", e))?;
+    let api_response: AnthropicResponse = response.json().await?;
 
     let answer = api_response
         .content

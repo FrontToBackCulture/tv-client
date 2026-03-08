@@ -6,7 +6,21 @@ import { useUpdateDeal, useDeleteDeal } from "../../hooks/crm";
 import { Deal, DealTask, DEAL_STAGES } from "../../lib/crm/types";
 import { DealForm } from "./DealForm";
 import { Pencil, Trash2, User, Calendar, ClipboardList, Circle, CheckCircle2 } from "lucide-react";
+import { IconButton, Badge } from "../../components/ui";
+import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
+import { toast } from "../../stores/toastStore";
 import { formatDateShort as formatDate } from "../../lib/date";
+
+const stageColorMap: Record<string, "zinc" | "blue" | "purple" | "teal" | "orange" | "green" | "red"> = {
+  prospect: "zinc",
+  lead: "zinc",
+  qualified: "blue",
+  pilot: "purple",
+  proposal: "teal",
+  negotiation: "orange",
+  won: "green",
+  lost: "red",
+};
 
 interface DealCardProps {
   deal: Deal & {
@@ -30,7 +44,7 @@ function getStaleStatus(deal: Deal): {
 } {
   const stageDate = deal.stage_changed_at
     ? new Date(deal.stage_changed_at)
-    : new Date(deal.created_at);
+    : new Date(deal.created_at || 0);
   const now = new Date();
   const days = Math.floor(
     (now.getTime() - stageDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -82,8 +96,10 @@ export const DealCard = memo(function DealCard({
   async function handleDelete() {
     try {
       await deleteMutation.mutateAsync(deal.id);
+      toast.success("Deal deleted");
       onDealUpdated?.();
     } catch (error) {
+      toast.error("Failed to delete deal");
       console.error("Failed to delete deal:", error);
     }
   }
@@ -129,7 +145,7 @@ export const DealCard = memo(function DealCard({
           <div className="flex items-center justify-between gap-2">
             <div className="flex-1 min-w-0">
               {deal.company?.name && (
-                <p className="text-[11px] text-teal-600 dark:text-teal-400/80 leading-tight">
+                <p className="text-xs text-teal-600 dark:text-teal-400/80 leading-tight">
                   {deal.company.name}
                   {deal.company.referred_by && (
                     <span className="text-blue-500/70 dark:text-blue-400/60"> (via {deal.company.referred_by})</span>
@@ -151,7 +167,7 @@ export const DealCard = memo(function DealCard({
                   e.stopPropagation();
                   setShowSnoozeMenu(!showSnoozeMenu);
                 }}
-                className={`text-[10px] tabular-nums ${staleDaysColor}`}
+                className={`text-xs tabular-nums ${staleDaysColor}`}
                 title={staleStatus.isDormant ? "Dormant - click to reactivate" : `${staleStatus.days} days in stage`}
               >
                 {staleStatus.isDormant ? "zzz" : `${staleStatus.days}d`}
@@ -172,7 +188,7 @@ export const DealCard = memo(function DealCard({
           )}
 
           {/* Meta row */}
-          <div className="flex items-center gap-2 mt-1.5 text-[11px]">
+          <div className="flex items-center gap-2 mt-1.5 text-xs">
             {deal.primaryContact?.name && (
               <span className="flex items-center gap-1 text-zinc-500">
                 <User size={10} />
@@ -194,7 +210,7 @@ export const DealCard = memo(function DealCard({
                   {formatDate(deal.nextTask.due_date)}
                 </span>
                 {deal.nextTask?.title && (
-                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-[10px] font-medium text-white bg-zinc-800 rounded shadow-lg whitespace-nowrap opacity-0 invisible group-hover/task:opacity-100 group-hover/task:visible transition-opacity z-50 pointer-events-none">
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-xs font-medium text-white bg-zinc-800 rounded shadow-lg whitespace-nowrap opacity-0 invisible group-hover/task:opacity-100 group-hover/task:visible transition-opacity z-50 pointer-events-none">
                     {deal.nextTask.title}
                     <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
                   </span>
@@ -229,7 +245,7 @@ export const DealCard = memo(function DealCard({
               <h4 className="text-sm font-medium text-zinc-800 dark:text-zinc-200 leading-tight">
                 {deal.name}
               </h4>
-              <StageChip stage={deal.stage} label={stageConfig?.label || deal.stage} />
+              <Badge color={stageColorMap[deal.stage] || "blue"} className="px-1.5 text-xs">{stageConfig?.label || deal.stage}</Badge>
             </div>
             {deal.description && (
               <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">
@@ -238,20 +254,8 @@ export const DealCard = memo(function DealCard({
             )}
           </div>
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => setShowEditForm(true)}
-              className="p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700"
-              title="Edit deal"
-            >
-              <Pencil size={14} />
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="p-1 text-zinc-500 hover:text-red-500 dark:hover:text-red-400 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700"
-              title="Delete deal"
-            >
-              <Trash2 size={14} />
-            </button>
+            <IconButton icon={Pencil} size={14} label="Edit deal" onClick={() => setShowEditForm(true)} />
+            <IconButton icon={Trash2} size={14} label="Delete deal" variant="danger" onClick={() => setShowDeleteConfirm(true)} />
           </div>
         </div>
 
@@ -325,57 +329,16 @@ export const DealCard = memo(function DealCard({
         />
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md p-4 max-w-sm w-full mx-4 shadow-lg animate-modal-in">
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Delete Deal</h3>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-3">
-              Are you sure you want to delete <strong>{deal.name}</strong>? This
-              action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
-                disabled={deleteMutation.isPending}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteMutation.isPending}
-                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-500 disabled:opacity-50"
-              >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteConfirm
+          title="Delete Deal"
+          message={<>Are you sure you want to delete <strong>{deal.name}</strong>? This action cannot be undone.</>}
+          isDeleting={deleteMutation.isPending}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       )}
     </>
   );
 });
 
-function StageChip({ stage, label }: { stage: string; label: string }) {
-  const colors: Record<string, string> = {
-    prospect: "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400",
-    lead: "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400",
-    qualified: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
-    pilot: "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400",
-    proposal: "bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-400",
-    negotiation: "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400",
-    won: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
-    lost: "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400",
-  };
-
-  return (
-    <span
-      className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${
-        colors[stage] || colors.qualified
-      }`}
-    >
-      {label}
-    </span>
-  );
-}

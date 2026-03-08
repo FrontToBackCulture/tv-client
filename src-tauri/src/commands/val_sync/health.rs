@@ -4,6 +4,7 @@
 use super::config::get_domain_config;
 use super::auth;
 use super::sync::write_json;
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -343,15 +344,14 @@ fn load_health_config(global_path: &str) -> Option<HealthConfig> {
     serde_json::from_str(&content).ok()
 }
 
-fn scan_table_definitions(global_path: &str) -> Result<Vec<(String, TableDefinition)>, String> {
+fn scan_table_definitions(global_path: &str) -> CmdResult<Vec<(String, TableDefinition)>> {
     let data_models_path = Path::new(global_path).join("data_models");
     if !data_models_path.exists() {
-        return Err(format!("data_models folder not found at {}", data_models_path.display()));
+        return Err(CommandError::NotFound(format!("data_models folder not found at {}", data_models_path.display())));
     }
 
     let mut tables = Vec::new();
-    let entries = fs::read_dir(&data_models_path)
-        .map_err(|e| format!("Failed to read data_models: {}", e))?;
+    let entries = fs::read_dir(&data_models_path)?;
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -577,11 +577,8 @@ async fn execute_sql_query(
     token: &str,
     domain: &str,
     sql: &str,
-) -> Result<SqlQueryResponse, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+) -> CmdResult<SqlQueryResponse> {
+    let client = crate::HTTP_CLIENT.clone();
 
     let url = format!("https://{}.thinkval.io/api/v1/query/data", domain);
 
@@ -591,18 +588,15 @@ async fn execute_sql_query(
         .query(&[("token", token)])
         .json(&SqlQueryRequest { query: sql.to_string() })
         .send()
-        .await
-        .map_err(|e| format!("SQL query failed: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
+        let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("SQL error: {}", body));
+        return Err(CommandError::Http { status, body });
     }
 
-    response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse SQL response: {}", e))
+    Ok(response.json().await?)
 }
 
 async fn get_table_row_count(
@@ -628,7 +622,7 @@ async fn get_table_row_count(
         Err(e) => TableStats {
             table_name: table_name.to_string(),
             row_count: None,
-            error: Some(e),
+            error: Some(e.to_string()),
         },
     }
 }
@@ -683,7 +677,7 @@ async fn get_table_freshness(
             date_column: Some(date_col.to_string()),
             max_date: None,
             days_since_update: None,
-            error: Some(e),
+            error: Some(e.to_string()),
         },
     }
 }
@@ -694,7 +688,7 @@ async fn get_table_freshness(
 
 /// Generate health config template by scanning table definitions
 #[command]
-pub async fn val_generate_health_config(domain: String) -> Result<GenerateConfigResult, String> {
+pub async fn val_generate_health_config(domain: String) -> CmdResult<GenerateConfigResult> {
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
 
@@ -759,11 +753,9 @@ pub async fn val_generate_health_config(domain: String) -> Result<GenerateConfig
     };
 
     let file_path = Path::new(global_path).join("health-config.template.json");
-    let content = serde_json::to_string_pretty(&template)
-        .map_err(|e| format!("Failed to serialize template: {}", e))?;
+    let content = serde_json::to_string_pretty(&template)?;
 
-    fs::write(&file_path, content)
-        .map_err(|e| format!("Failed to write template: {}", e))?;
+    fs::write(&file_path, content)?;
 
     Ok(GenerateConfigResult {
         domain,
@@ -785,7 +777,7 @@ pub async fn val_run_data_model_health(
     skip_freshness: bool,
     skip_dependencies: bool,
     limit: Option<usize>,
-) -> Result<HealthCheckResult, String> {
+) -> CmdResult<HealthCheckResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -898,8 +890,7 @@ pub async fn val_run_data_model_health(
 
     // Write output
     let output_path = Path::new(global_path).join("data-model-health.json");
-    let output_value = serde_json::to_value(&result)
-        .map_err(|e| format!("Failed to serialize result: {}", e))?;
+    let output_value = serde_json::to_value(&result)?;
     write_json(&output_path.to_string_lossy(), &output_value)?;
 
     let duration_ms = start.elapsed().as_millis() as u64;
@@ -923,7 +914,7 @@ pub async fn val_run_data_model_health(
 pub async fn val_run_workflow_health(
     domain: String,
     lookback_days: Option<i64>,
-) -> Result<HealthCheckResult, String> {
+) -> CmdResult<HealthCheckResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -933,13 +924,11 @@ pub async fn val_run_workflow_health(
     // Load synced workflows
     let all_workflows_path = Path::new(global_path).join("all_workflows.json");
     if !all_workflows_path.exists() {
-        return Err("all_workflows.json not found. Run sync first.".to_string());
+        return Err(CommandError::NotFound("all_workflows.json not found. Run sync first.".to_string()));
     }
 
-    let workflows_content = fs::read_to_string(&all_workflows_path)
-        .map_err(|e| format!("Failed to read all_workflows.json: {}", e))?;
-    let workflows: Vec<WorkflowDefinition> = serde_json::from_str(&workflows_content)
-        .map_err(|e| format!("Failed to parse all_workflows.json: {}", e))?;
+    let workflows_content = fs::read_to_string(&all_workflows_path)?;
+    let workflows: Vec<WorkflowDefinition> = serde_json::from_str(&workflows_content)?;
 
     // Load synced execution data if available
     let monitoring_path = Path::new(global_path).join("monitoring");
@@ -1080,8 +1069,7 @@ pub async fn val_run_workflow_health(
 
     // Write output
     let output_path = Path::new(global_path).join("workflow-health.json");
-    let output_value = serde_json::to_value(&result)
-        .map_err(|e| format!("Failed to serialize result: {}", e))?;
+    let output_value = serde_json::to_value(&result)?;
     write_json(&output_path.to_string_lossy(), &output_value)?;
 
     let duration_ms = start.elapsed().as_millis() as u64;

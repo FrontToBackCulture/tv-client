@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { X, Send, Eye, EyeOff, CheckCircle } from "lucide-react";
+import { Button, IconButton } from "../../components/ui";
 import {
   useConversation,
   useMessages,
@@ -86,7 +87,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
             {conversation?.customer_name || "Anonymous"}
           </div>
           {conversation?.customer_email && (
-            <div className="text-[11px] text-zinc-400 truncate">
+            <div className="text-xs text-zinc-400 truncate">
               {conversation.customer_email}
             </div>
           )}
@@ -94,21 +95,20 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
         <div className="flex items-center gap-1.5">
           {conversation?.status !== "resolved" &&
             conversation?.status !== "closed" && (
-              <button
+              <Button
+                variant="ghost"
+                icon={CheckCircle}
                 onClick={handleResolve}
-                className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 rounded transition-colors"
-                title="Resolve conversation"
+                className="text-xs text-green-600 dark:text-green-400"
               >
-                <CheckCircle size={13} />
                 Resolve
-              </button>
+              </Button>
             )}
-          <button
+          <IconButton
+            icon={X}
+            label="Close"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400"
-          >
-            <X size={16} />
-          </button>
+          />
         </div>
       </div>
 
@@ -131,7 +131,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
           <button
             onClick={() => setIsInternal(!isInternal)}
             className={cn(
-              "flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full border transition-colors",
+              "flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border transition-colors",
               isInternal
                 ? "border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10"
                 : "border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:border-zinc-400"
@@ -141,7 +141,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
             {isInternal ? "Internal note" : "Reply"}
           </button>
           {isInternal && (
-            <span className="text-[10px] text-amber-500">
+            <span className="text-xs text-amber-500">
               Only visible to your team
             </span>
           )}
@@ -164,18 +164,17 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
                 : "border-zinc-200 dark:border-zinc-700 focus:border-teal-500"
             )}
           />
-          <button
+          <Button
+            size="md"
+            icon={Send}
             onClick={handleSend}
-            disabled={!input.trim() || sendMessage.isPending}
+            disabled={!input.trim()}
+            loading={sendMessage.isPending}
             className={cn(
-              "px-3 py-2 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50",
-              isInternal
-                ? "bg-amber-500 hover:bg-amber-600"
-                : "bg-teal-600 hover:bg-teal-500"
+              "rounded-lg",
+              isInternal && "bg-amber-500 hover:bg-amber-600"
             )}
-          >
-            <Send size={16} />
-          </button>
+          />
         </div>
       </div>
     </div>
@@ -189,7 +188,7 @@ function MessageBubble({ message }: { message: Message }) {
 
   if (isSystem) {
     return (
-      <div className="text-center text-[11px] text-zinc-400 py-1">
+      <div className="text-center text-xs text-zinc-400 py-1">
         {message.content}
       </div>
     );
@@ -210,7 +209,7 @@ function MessageBubble({ message }: { message: Message }) {
         {/* Sender name */}
         <div
           className={cn(
-            "text-[11px] font-medium mb-0.5",
+            "text-xs font-medium mb-0.5",
             isInternal
               ? "text-amber-600 dark:text-amber-400"
               : isCustomer
@@ -228,7 +227,7 @@ function MessageBubble({ message }: { message: Message }) {
         {/* Timestamp */}
         <div
           className={cn(
-            "text-[10px] mt-1",
+            "text-xs mt-1",
             isInternal
               ? "text-amber-500/60"
               : isCustomer

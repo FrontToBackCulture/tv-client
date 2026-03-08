@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
-import { FileText, FileCode, FileJson, Image, Loader2, FolderOpen, MessageCircle, Files } from "lucide-react";
+import { FileText, FileCode, FileJson, Image, FolderOpen, MessageCircle, Files } from "lucide-react";
 import { useFolderFiles, useFolderEntries, FolderFile, FolderEntry } from "../../hooks/useFolderFiles";
 import { useFavorites } from "../../hooks/useFavorites";
 import { Breadcrumbs } from "./Breadcrumbs";
@@ -14,6 +14,7 @@ import { FileActions } from "./FileActions";
 import { detectFolderType, type FolderType } from "../../lib/folderTypes";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
 import { EmptyState } from "../../components/EmptyState";
+import { InlineLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 
 interface FolderViewProps {
@@ -189,9 +190,8 @@ function FilesView({
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 text-zinc-500 py-8">
-            <Loader2 size={20} className="animate-spin" />
-            <span>Loading...</span>
+          <div className="flex items-center justify-center py-8">
+            <InlineLoading message="Loading..." />
           </div>
         ) : isError ? (
           <div className="text-center py-8">

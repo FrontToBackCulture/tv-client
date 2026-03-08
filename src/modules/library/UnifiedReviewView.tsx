@@ -65,7 +65,8 @@ export function UnifiedReviewView({
   const gridRef = useRef<ReviewGridHandle>(null);
 
   // Classification store for auto-adding new values
-  const classificationStore = useClassificationStore();
+  const addClassificationValue = useClassificationStore((s) => s.addValue);
+  const addClassificationValues = useClassificationStore((s) => s.addValues);
 
   // Panel resizing
   const [panelWidth, setPanelWidth] = useState(400);
@@ -80,7 +81,9 @@ export function UnifiedReviewView({
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Jobs store for background operations (tables only)
-  const { addJob, updateJob, jobs } = useJobsStore();
+  const addJob = useJobsStore((s) => s.addJob);
+  const updateJob = useJobsStore((s) => s.updateJob);
+  const jobs = useJobsStore((s) => s.jobs);
 
   // Check if any batch operation is running
   const runningJobs = jobs.filter((j) => j.status === "running");
@@ -139,16 +142,16 @@ export function UnifiedReviewView({
     try {
       const content = await invoke<string>("read_file", { path: filePath });
       const analysis = JSON.parse(content);
-      if (analysis.dataCategory) classificationStore.addValue("dataCategory", analysis.dataCategory);
-      if (analysis.dataSubCategory) classificationStore.addValue("dataSubCategory", analysis.dataSubCategory);
+      if (analysis.dataCategory) addClassificationValue("dataCategory", analysis.dataCategory);
+      if (analysis.dataSubCategory) addClassificationValue("dataSubCategory", analysis.dataSubCategory);
       if (analysis.tags) {
         const tags = (analysis.tags as string).split(",").map((t: string) => t.trim()).filter(Boolean);
-        classificationStore.addValues("tags", tags);
+        addClassificationValues("tags", tags);
       }
-      if (analysis.classification?.dataType) classificationStore.addValue("dataType", analysis.classification.dataType);
-      if (analysis.usageStatus) classificationStore.addValue("usageStatus", analysis.usageStatus);
+      if (analysis.classification?.dataType) addClassificationValue("dataType", analysis.classification.dataType);
+      if (analysis.usageStatus) addClassificationValue("usageStatus", analysis.usageStatus);
     } catch { /* Non-critical */ }
-  }, [classificationStore]);
+  }, [addClassificationValue, addClassificationValues]);
 
   // Handle row selection
   const handleRowSelected = useCallback((path: string | null, name: string | null, rowData: ReviewRow | null) => {
@@ -163,11 +166,11 @@ export function UnifiedReviewView({
     if (!storeField || !value || typeof value !== "string") return;
     if (storeField === "tags") {
       const tags = value.split(",").map((t: string) => t.trim()).filter(Boolean);
-      classificationStore.addValues("tags", tags);
+      addClassificationValues("tags", tags);
     } else {
-      classificationStore.addValue(storeField, value);
+      addClassificationValue(storeField, value);
     }
-  }, [classificationStore]);
+  }, [addClassificationValue, addClassificationValues]);
 
   // Handle cell edit from grid
   const handleCellEdited = useCallback((key: string, field: string, newValue: unknown) => {

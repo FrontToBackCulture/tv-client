@@ -5,6 +5,7 @@ use super::auth;
 use super::config::get_domain_config;
 use super::metadata;
 use super::sync::{count_items, write_json, SyncResult};
+use crate::commands::error::{CmdResult, CommandError};
 use std::time::Instant;
 use tauri::command;
 
@@ -44,7 +45,7 @@ pub async fn val_sync_workflow_executions(
     domain: String,
     from: String,
     to: String,
-) -> Result<SyncResult, String> {
+) -> CmdResult<SyncResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -68,9 +69,9 @@ pub async fn val_sync_workflow_executions(
             let (new_token, _) = auth::reauth(&domain).await?;
             fetch_workflow_executions(&base_url, &new_token, &from, &to)
                 .await
-                .map_err(|e| format!("Workflow executions failed after reauth: {}", e))?
+                .map_err(|e| CommandError::Network(format!("Workflow executions failed after reauth: {}", e)))?
         }
-        Err(e) => return Err(format!("Workflow executions failed: {}", e)),
+        Err(e) => return Err(CommandError::Network(format!("Workflow executions failed: {}", e))),
     };
 
     let count = count_items(&data);
@@ -104,10 +105,7 @@ async fn fetch_workflow_executions(
     from: &str,
     to: &str,
 ) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let client = crate::HTTP_CLIENT.clone();
 
     let url = format!("{}/api/v1/workflow/executions", base_url);
 
@@ -197,7 +195,7 @@ pub async fn val_sync_sod_tables_status(
     domain: String,
     date: String,
     regenerate: bool,
-) -> Result<SyncResult, String> {
+) -> CmdResult<SyncResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -219,9 +217,9 @@ pub async fn val_sync_sod_tables_status(
             let (new_token, _) = auth::reauth(&domain).await?;
             fetch_sod_tables_status(&base_url, &api_domain, &new_token, &date, regenerate)
                 .await
-                .map_err(|e| format!("SOD tables status failed after reauth: {}", e))?
+                .map_err(|e| CommandError::Network(format!("SOD tables status failed after reauth: {}", e)))?
         }
-        Err(e) => return Err(format!("SOD tables status failed: {}", e)),
+        Err(e) => return Err(CommandError::Network(format!("SOD tables status failed: {}", e))),
     };
 
     let count = count_items(&data);
@@ -256,10 +254,7 @@ async fn fetch_sod_tables_status(
     date: &str,
     regenerate: bool,
 ) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let client = crate::HTTP_CLIENT.clone();
 
     let url = format!("{}/api/v1/sync/sod/tables/status/{}", base_url, date);
 

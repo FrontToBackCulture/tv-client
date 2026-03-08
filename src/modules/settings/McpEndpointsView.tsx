@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import { Button, IconButton, SectionLoading } from "../../components/ui";
 import { useRepository } from "../../stores/repositoryStore";
 import {
   useDiscoverDomains,
@@ -75,7 +76,7 @@ function DomainMcpRow({ domain }: { domain: DiscoveredDomain }) {
           <span className="text-sm font-mono font-medium text-zinc-800 dark:text-zinc-200">
             {domain.domain}
           </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+          <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
             {domain.domain_type}
           </span>
         </div>
@@ -102,31 +103,21 @@ function DomainMcpRow({ domain }: { domain: DiscoveredDomain }) {
             {savedUrl}
           </span>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              onClick={handleEdit}
-              className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-            >
+            <Button variant="ghost" onClick={handleEdit}>
               Edit
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={saving}
-              className="text-xs text-zinc-400 hover:text-red-500 transition-colors disabled:opacity-50"
-            >
+            </Button>
+            <Button variant="ghost" onClick={handleDelete} disabled={saving} className="text-zinc-400 hover:text-red-500">
               Delete
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {!isEditing && !savedUrl && !loading && (
         <div className="mt-2">
-          <button
-            onClick={() => setIsEditing(true)}
-            className="text-xs text-teal-600 hover:text-teal-500 font-medium transition-colors"
-          >
+          <Button variant="ghost" onClick={() => setIsEditing(true)} className="text-teal-600 hover:text-teal-500">
             Set MCP URL
-          </button>
+          </Button>
         </div>
       )}
 
@@ -145,20 +136,12 @@ function DomainMcpRow({ domain }: { domain: DiscoveredDomain }) {
             }}
           />
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleSave}
-              disabled={saving || !url.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded transition-colors"
-            >
-              {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+            <Button icon={Check} onClick={handleSave} disabled={saving || !url.trim()} loading={saving}>
               Save
-            </button>
-            <button
-              onClick={() => { setIsEditing(false); setUrl(savedUrl ?? ""); }}
-              className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded transition-colors"
-            >
+            </Button>
+            <Button variant="ghost" onClick={() => { setIsEditing(false); setUrl(savedUrl ?? ""); }}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -175,11 +158,7 @@ export function McpEndpointsView() {
   const domains = domainsQuery.data ?? [];
 
   if (domainsQuery.isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center py-12">
-        <Loader2 size={32} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="flex-1 py-12" />;
   }
 
   // Group by type
@@ -203,13 +182,7 @@ export function McpEndpointsView() {
             Configure MCP SQL endpoint URLs for each VAL domain
           </p>
         </div>
-        <button
-          onClick={() => domainsQuery.refetch()}
-          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
-          title="Refresh"
-        >
-          <RefreshCw size={18} />
-        </button>
+        <IconButton icon={RefreshCw} size={18} label="Refresh" onClick={() => domainsQuery.refetch()} />
       </div>
 
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">

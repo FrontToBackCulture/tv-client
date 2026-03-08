@@ -100,6 +100,101 @@ src/components/SetupWizard.tsx
 
 ---
 
+## UI Primitives (`src/components/ui/`)
+
+Shared UI component library. **Import from `../../components/ui` instead of writing inline Tailwind.**
+
+```tsx
+import { Button, IconButton, Badge, FormField, Input, Select, Textarea, CheckboxField } from "../../components/ui"
+```
+
+### Button
+
+Standard button with variants, sizes, icon support, and loading state.
+
+```tsx
+import { Button } from "../../components/ui"
+import { Plus } from "lucide-react"
+
+<Button variant="primary" icon={Plus}>New Widget</Button>
+<Button variant="secondary" onClick={handleCancel}>Cancel</Button>
+<Button variant="ghost" size="md" onClick={handleCancel}>Cancel</Button>
+<Button variant="danger" loading={isDeleting}>Delete</Button>
+<Button variant="link" icon={FolderOpen}>Folder</Button>
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `variant` | `"primary" \| "secondary" \| "ghost" \| "danger" \| "link"` | `"primary"` | Visual style |
+| `size` | `"sm" \| "md"` | `"sm"` | Padding/text size |
+| `icon` | `LucideIcon?` | — | Left icon |
+| `iconRight` | `LucideIcon?` | — | Right icon |
+| `loading` | `boolean?` | — | Show spinner, disable button |
+
+### IconButton
+
+Icon-only button with accessible label and tooltip.
+
+```tsx
+import { IconButton } from "../../components/ui"
+import { Pencil, Trash2, X } from "lucide-react"
+
+<IconButton icon={Pencil} label="Edit company" onClick={handleEdit} />
+<IconButton icon={Trash2} label="Delete" variant="danger" onClick={handleDelete} />
+<IconButton icon={X} size={18} label="Close" onClick={onClose} />
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `icon` | `LucideIcon` | — | Icon to render |
+| `size` | `number?` | `16` | Icon size in px |
+| `variant` | `"default" \| "danger"` | `"default"` | Hover color |
+| `label` | `string` | — | Tooltip text + aria-label |
+
+### Badge
+
+Color-coded status/label chip.
+
+```tsx
+import { Badge } from "../../components/ui"
+
+<Badge color="green">Active</Badge>
+<Badge color="blue">Opportunity</Badge>
+<Badge color="red">Churned</Badge>
+<Badge>Default</Badge>
+```
+
+Colors: `zinc` (default), `teal`, `blue`, `green`, `red`, `orange`, `purple`, `yellow`
+
+### FormField
+
+Label + input wrapper with error/hint support. Use with `Input`, `Select`, `Textarea`.
+
+```tsx
+import { FormField, Input, Select, Textarea, CheckboxField } from "../../components/ui"
+
+<FormField label="Company Name" required error={errors.name}>
+  <Input value={name} onChange={e => setName(e.target.value)} />
+</FormField>
+
+<FormField label="Priority" icon={Flag}>
+  <Select value={priority} onChange={e => setPriority(e.target.value)}>
+    <option value="high">High</option>
+    <option value="low">Low</option>
+  </Select>
+</FormField>
+
+<FormField label="Notes">
+  <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
+</FormField>
+
+<CheckboxField label="Requires review" checked={review} onChange={setReview} />
+```
+
+**Backwards compatibility:** `inputClass`, `labelClass`, `selectClass` are still exported from both `FormModal` and `FormField` for existing forms.
+
+---
+
 ## Help System (`src/components/help/`)
 
 Inline help overlay system. Components work together via `helpStore` and `viewContextStore`.

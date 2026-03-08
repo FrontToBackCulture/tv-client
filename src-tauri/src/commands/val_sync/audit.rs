@@ -5,6 +5,7 @@ use super::api::val_api_fetch;
 use super::auth;
 use super::config::get_domain_config;
 use super::sync::write_json;
+use crate::commands::error::CmdResult;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -263,7 +264,7 @@ pub struct MarkStaleResult {
 }
 
 /// Mark stale artifacts with .stale marker files, and remove markers for restored artifacts
-pub async fn mark_stale_artifacts(domain: &str) -> Result<MarkStaleResult, String> {
+pub async fn mark_stale_artifacts(domain: &str) -> CmdResult<MarkStaleResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(domain)?;
     let global_path = &domain_config.global_path;
@@ -345,7 +346,7 @@ pub async fn mark_stale_artifacts(domain: &str) -> Result<MarkStaleResult, Strin
 
 /// Run artifact audit for a domain - compares local vs remote artifacts
 #[command]
-pub async fn val_run_artifact_audit(domain: String) -> Result<AuditResult, String> {
+pub async fn val_run_artifact_audit(domain: String) -> CmdResult<AuditResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
@@ -396,8 +397,7 @@ pub async fn val_run_artifact_audit(domain: String) -> Result<AuditResult, Strin
     };
 
     // Write results to file
-    let output_value = serde_json::to_value(&result)
-        .map_err(|e| format!("Failed to serialize audit results: {}", e))?;
+    let output_value = serde_json::to_value(&result)?;
     write_json(&file_path.to_string_lossy(), &output_value)?;
 
     Ok(result)

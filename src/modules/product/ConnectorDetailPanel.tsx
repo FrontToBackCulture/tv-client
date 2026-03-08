@@ -13,7 +13,6 @@ import { CONNECTOR_TYPES, CONNECTOR_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
 import {
   X,
-  Loader2,
   FileCode,
   FileText,
   FolderOpen,
@@ -22,6 +21,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { IconButton } from "../../components/ui";
+import { DetailLoading, DetailNotFound, InlineLoading } from "../../components/ui/DetailStates";
 
 interface ConnectorDetailPanelProps {
   id: string;
@@ -48,21 +49,9 @@ export function ConnectorDetailPanel({
   const { data: entries, isLoading: entriesLoading } =
     useFolderEntries(sourceFolder);
 
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
-  if (!data) {
-    return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-        Connector not found
-      </div>
-    );
-  }
+  if (!data) return <DetailNotFound message="Connector not found" />;
 
   const typeDef = CONNECTOR_TYPES.find((t) => t.value === data.connector_type);
   const statusDef = CONNECTOR_STATUSES.find((s) => s.value === data.status);
@@ -75,7 +64,7 @@ export function ConnectorDetailPanel({
       {/* Header */}
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+          <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">
             {data.name}
           </h2>
           <div className="flex items-center gap-2 mt-1">
@@ -98,12 +87,12 @@ export function ConnectorDetailPanel({
             <p className="text-xs text-zinc-500 mt-1.5">{data.description}</p>
           )}
         </div>
-        <button
+        <IconButton
           onClick={onClose}
-          className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 self-start"
-        >
-          <X size={16} />
-        </button>
+          icon={X}
+          label="Close"
+          className="self-start"
+        />
       </div>
 
       {/* Sub-connector folders */}
@@ -115,10 +104,7 @@ export function ConnectorDetailPanel({
         )}
 
         {sourceFolder && entriesLoading && (
-          <div className="flex items-center gap-2 text-sm text-zinc-500">
-            <Loader2 size={14} className="animate-spin" />
-            Loading...
-          </div>
+          <InlineLoading />
         )}
 
         {sourceFolder && !entriesLoading && folders.length === 0 && topFiles.length === 0 && (
@@ -197,9 +183,8 @@ function SubConnectorFolder({ folder }: { folder: FolderEntry }) {
       {expanded && (
         <div className="border-t border-zinc-100 dark:border-zinc-800">
           {isLoading && (
-            <div className="px-3 py-2 text-xs text-zinc-400">
-              <Loader2 size={12} className="animate-spin inline mr-1" />
-              Loading...
+            <div className="px-3">
+              <InlineLoading />
             </div>
           )}
           {!isLoading && fileList.length === 0 && (
@@ -235,7 +220,7 @@ function SourceFileRow({ name, size }: { name: string; size: number }) {
       ) : (
         <FileText size={14} className="text-zinc-400 flex-shrink-0" />
       )}
-      <span className="font-mono text-zinc-700 dark:text-zinc-300 truncate">
+      <span className="text-zinc-700 dark:text-zinc-300 truncate">
         {name}
       </span>
       <span className="ml-auto text-zinc-400 flex-shrink-0">{sizeStr}</span>

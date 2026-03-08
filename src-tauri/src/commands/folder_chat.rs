@@ -6,6 +6,7 @@ use std::fs;
 use std::path::Path;
 use tauri::command;
 
+use super::error::{CmdResult, CommandError};
 use super::settings;
 
 // ============================================================================
@@ -262,9 +263,9 @@ pub async fn folder_chat_ask(
     folder_path: String,
     question: String,
     conversation_history: Vec<ChatMessage>,
-) -> Result<FolderChatResponse, String> {
+) -> CmdResult<FolderChatResponse> {
     let api_key = settings::settings_get_anthropic_key()?
-        .ok_or_else(|| "Anthropic API key not configured. Set it in Settings.".to_string())?;
+        .ok_or_else(|| CommandError::Config("Anthropic API key not configured. Set it in Settings.".into()))?;
 
     let folder_name = Path::new(&folder_path)
         .file_name()
@@ -328,8 +329,7 @@ You have access to tools to explore the folder:
         }
     );
 
-    let tools: serde_json::Value =
-        serde_json::from_str(TOOLS_SCHEMA).map_err(|e| format!("Failed to parse tools schema: {}", e))?;
+    let tools: serde_json::Value = serde_json::from_str(TOOLS_SCHEMA)?;
 
     // Build messages array
     let mut messages = Vec::new();
@@ -356,7 +356,7 @@ You have access to tools to explore the folder:
     // Track read files for sources
     let mut read_files: Vec<String> = Vec::new();
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let max_iterations = 10;
 
     for iteration in 0..max_iterations {
@@ -381,19 +381,18 @@ You have access to tools to explore the folder:
                 "messages": messages,
             }))
             .send()
-            .await
-            .map_err(|e| format!("API request failed: {}", e))?;
+            .await?;
 
         if !response.status().is_success() {
-            let status = response.status();
+            let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
-            return Err(format!("Anthropic API error ({}): {}", status, &body[..body.len().min(500)]));
+            return Err(CommandError::Http {
+                status,
+                body: body[..body.len().min(500)].to_string(),
+            });
         }
 
-        let api_response: AnthropicResponse = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse API response: {}", e))?;
+        let api_response: AnthropicResponse = response.json().await?;
 
         // Check if there are tool calls
         let has_tool_use = api_response.content.iter().any(|b| matches!(b, ContentBlock::ToolUse { .. }));

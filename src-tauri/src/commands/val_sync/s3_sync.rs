@@ -4,6 +4,7 @@
 use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region};
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::{Delete, ObjectIdentifier};
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -34,17 +35,16 @@ pub struct S3SyncResult {
 
 /// Sync a single domain's ai/ folder to S3
 #[command]
-pub async fn val_sync_ai_to_s3(domain: String, global_path: String) -> Result<S3SyncResult, String> {
+pub async fn val_sync_ai_to_s3(domain: String, global_path: String) -> CmdResult<S3SyncResult> {
     let start = Instant::now();
 
     // Load AWS credentials from settings
-    let settings = crate::commands::settings::load_settings()
-        .map_err(|e| format!("Failed to load settings: {}", e))?;
+    let settings = crate::commands::settings::load_settings()?;
 
     let access_key = settings.keys.get("aws_access_key_id")
-        .ok_or_else(|| "AWS Access Key ID not configured. Go to Settings to add it.".to_string())?;
+        .ok_or_else(|| CommandError::Config("AWS Access Key ID not configured. Go to Settings to add it.".to_string()))?;
     let secret_key = settings.keys.get("aws_secret_access_key")
-        .ok_or_else(|| "AWS Secret Access Key not configured. Go to Settings to add it.".to_string())?;
+        .ok_or_else(|| CommandError::Config("AWS Secret Access Key not configured. Go to Settings to add it.".to_string()))?;
 
     // Check ai/ folder exists
     let ai_path = std::path::Path::new(&global_path).join("ai");
@@ -73,7 +73,7 @@ pub async fn val_sync_ai_to_s3(domain: String, global_path: String) -> Result<S3
         let full_path = ai_path.join(rel_path);
         let body = tokio::fs::read(&full_path)
             .await
-            .map_err(|e| format!("Failed to read {}: {}", rel_path, e))?;
+            .map_err(|e| CommandError::Io(format!("Failed to read {}: {}", rel_path, e)))?;
 
         let s3_key = format!("{}{}", s3_prefix, rel_path);
         client
@@ -83,7 +83,7 @@ pub async fn val_sync_ai_to_s3(domain: String, global_path: String) -> Result<S3
             .body(ByteStream::from(body))
             .send()
             .await
-            .map_err(|e| format!("Failed to upload {}: {}", rel_path, e))?;
+            .map_err(|e| CommandError::Network(format!("Failed to upload {}: {}", rel_path, e)))?;
 
         files_uploaded += 1;
     }
@@ -130,15 +130,14 @@ pub struct S3StatusResult {
 
 /// Get S3 status for a domain - compare local ai/ folder with S3 contents
 #[command]
-pub async fn val_s3_ai_status(domain: String, global_path: String) -> Result<S3StatusResult, String> {
+pub async fn val_s3_ai_status(domain: String, global_path: String) -> CmdResult<S3StatusResult> {
     // Load AWS credentials
-    let settings = crate::commands::settings::load_settings()
-        .map_err(|e| format!("Failed to load settings: {}", e))?;
+    let settings = crate::commands::settings::load_settings()?;
 
     let access_key = settings.keys.get("aws_access_key_id")
-        .ok_or_else(|| "AWS Access Key ID not configured".to_string())?;
+        .ok_or_else(|| CommandError::Config("AWS Access Key ID not configured".to_string()))?;
     let secret_key = settings.keys.get("aws_secret_access_key")
-        .ok_or_else(|| "AWS Secret Access Key not configured".to_string())?;
+        .ok_or_else(|| CommandError::Config("AWS Secret Access Key not configured".to_string()))?;
 
     let ai_path = std::path::Path::new(&global_path).join("ai");
     let has_ai_folder = ai_path.exists();
@@ -224,7 +223,7 @@ fn collect_local_files(base: &std::path::Path, dir: &std::path::Path, out: &mut 
 }
 
 /// Delete all objects under an S3 prefix
-async fn delete_s3_prefix(client: &aws_sdk_s3::Client, prefix: &str) -> Result<(), String> {
+async fn delete_s3_prefix(client: &aws_sdk_s3::Client, prefix: &str) -> CmdResult<()> {
     // List all objects under the prefix
     let objects = list_s3_keys(client, prefix).await?;
     if objects.is_empty() {
@@ -243,7 +242,7 @@ async fn delete_s3_prefix(client: &aws_sdk_s3::Client, prefix: &str) -> Result<(
             .set_objects(Some(ids))
             .quiet(true)
             .build()
-            .map_err(|e| format!("Failed to build delete request: {}", e))?;
+            .map_err(|e| CommandError::Internal(format!("Failed to build delete request: {}", e)))?;
 
         client
             .delete_objects()
@@ -251,14 +250,14 @@ async fn delete_s3_prefix(client: &aws_sdk_s3::Client, prefix: &str) -> Result<(
             .delete(delete)
             .send()
             .await
-            .map_err(|e| format!("Failed to delete S3 objects: {}", e))?;
+            .map_err(|e| CommandError::Network(format!("Failed to delete S3 objects: {}", e)))?;
     }
 
     Ok(())
 }
 
 /// List all object keys under a prefix (handles pagination)
-async fn list_s3_keys(client: &aws_sdk_s3::Client, prefix: &str) -> Result<Vec<String>, String> {
+async fn list_s3_keys(client: &aws_sdk_s3::Client, prefix: &str) -> CmdResult<Vec<String>> {
     let mut keys = Vec::new();
     let mut continuation_token: Option<String> = None;
 
@@ -273,7 +272,7 @@ async fn list_s3_keys(client: &aws_sdk_s3::Client, prefix: &str) -> Result<Vec<S
         }
 
         let resp = req.send().await
-            .map_err(|e| format!("Failed to list S3 objects: {}", e))?;
+            .map_err(|e| CommandError::Network(format!("Failed to list S3 objects: {}", e)))?;
 
         for obj in resp.contents() {
             if let Some(key) = obj.key() {
@@ -294,7 +293,7 @@ async fn list_s3_keys(client: &aws_sdk_s3::Client, prefix: &str) -> Result<Vec<S
 async fn list_s3_files(
     client: &aws_sdk_s3::Client,
     prefix: &str,
-) -> Result<Vec<(String, String, u64)>, String> {
+) -> CmdResult<Vec<(String, String, u64)>> {
     let mut files = Vec::new();
     let mut continuation_token: Option<String> = None;
 
@@ -309,7 +308,7 @@ async fn list_s3_files(
         }
 
         let resp = req.send().await
-            .map_err(|e| format!("Failed to list S3 objects: {}", e))?;
+            .map_err(|e| CommandError::Network(format!("Failed to list S3 objects: {}", e)))?;
 
         for obj in resp.contents() {
             let key = obj.key().unwrap_or("");

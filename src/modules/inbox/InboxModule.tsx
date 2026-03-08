@@ -14,6 +14,8 @@ import {
 import { useOutlookSync } from "../../hooks/useOutlookSync";
 import { cn } from "../../lib/cn";
 import { RefreshCw } from "lucide-react";
+import { Button } from "../../components/ui";
+import { DetailLoading } from "../../components/ui/DetailStates";
 import { InboxSidebar } from "./InboxSidebar";
 import { EmailList } from "./EmailList";
 import { EmailDetail } from "./EmailDetail";
@@ -118,11 +120,7 @@ export function InboxModule() {
 
   // Show loading while checking auth
   if (isLoadingAuth) {
-    return (
-      <div className="h-full flex items-center justify-center bg-white dark:bg-zinc-950">
-        <div className="animate-pulse text-zinc-400">Loading...</div>
-      </div>
-    );
+    return <DetailLoading />;
   }
 
   // Show setup if not authenticated
@@ -210,12 +208,13 @@ export function InboxModule() {
           {syncErrorMsg && (
             <>
               <span>Sync error: {syncErrorMsg}</span>
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => syncStart.reset()}
                 className="ml-auto underline hover:no-underline"
               >
                 Dismiss
-              </button>
+              </Button>
             </>
           )}
         </div>

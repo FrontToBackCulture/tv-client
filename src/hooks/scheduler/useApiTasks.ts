@@ -14,8 +14,8 @@ export interface ApiTask {
   error?: string;
 }
 
-const TV_API_URL = "http://localhost:23817";
-const TV_API_KEY = "test-api-key-12345";
+const TV_API_URL = import.meta.env.VITE_TV_API_URL || "http://localhost:23817";
+const TV_API_KEY = import.meta.env.VITE_TV_API_KEY || "test-api-key-12345";
 
 async function fetchApiTasks(): Promise<ApiTask[]> {
   const res = await fetch(`${TV_API_URL}/api/v1/tasks`, {

@@ -4,6 +4,7 @@
 //
 // API Reference: https://developers.gamma.app/docs/generate-api-parameters-explained
 
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use tauri::command;
 
@@ -174,15 +175,15 @@ pub async fn gamma_create_generation(
     api_key: String,
     input_text: String,
     options: Option<GammaGenerationOptions>,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     if api_key.is_empty() {
-        return Err("Gamma API key is required".to_string());
+        return Err(CommandError::Config("Gamma API key is required".to_string()));
     }
     if input_text.trim().is_empty() {
-        return Err("Input text is required".to_string());
+        return Err(CommandError::Config("Input text is required".to_string()));
     }
     if input_text.len() > 400_000 {
-        return Err("Input text exceeds maximum length of 400,000 characters".to_string());
+        return Err(CommandError::Config("Input text exceeds maximum length of 400,000 characters".to_string()));
     }
 
     let defaults = GammaGenerationOptions::default();
@@ -201,28 +202,26 @@ pub async fn gamma_create_generation(
         additional_instructions: opts.additional_instructions,
     };
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .post(format!("{}/generations", GAMMA_API_BASE))
         .header("Content-Type", "application/json")
         .header("X-API-KEY", &api_key)
         .json(&request)
         .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let error: GammaError = response
             .json()
             .await
             .unwrap_or(GammaError { message: "Unknown error".to_string() });
-        return Err(format!("Gamma API error: {}", error.message));
+        return Err(CommandError::Network(format!("Gamma API error: {}", error.message)));
     }
 
     let result: GammaCreateResponse = response
         .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        .await?;
 
     Ok(result.generation_id)
 }
@@ -232,31 +231,29 @@ pub async fn gamma_create_generation(
 pub async fn gamma_get_status(
     api_key: String,
     generation_id: String,
-) -> Result<GammaStatusResponse, String> {
+) -> CmdResult<GammaStatusResponse> {
     if api_key.is_empty() {
-        return Err("Gamma API key is required".to_string());
+        return Err(CommandError::Config("Gamma API key is required".to_string()));
     }
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .get(format!("{}/generations/{}", GAMMA_API_BASE, generation_id))
         .header("X-API-KEY", &api_key)
         .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let error: GammaError = response
             .json()
             .await
             .unwrap_or(GammaError { message: "Unknown error".to_string() });
-        return Err(format!("Gamma API error: {}", error.message));
+        return Err(CommandError::Network(format!("Gamma API error: {}", error.message)));
     }
 
     let status: GammaStatusResponse = response
         .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        .await?;
 
     Ok(status)
 }
@@ -268,7 +265,7 @@ pub async fn gamma_generate(
     api_key: String,
     input_text: String,
     options: Option<GammaGenerationOptions>,
-) -> Result<GammaGenerationResult, String> {
+) -> CmdResult<GammaGenerationResult> {
     // Create generation
     let generation_id = gamma_create_generation(api_key.clone(), input_text, options).await?;
 
@@ -290,16 +287,16 @@ pub async fn gamma_generate(
                 });
             }
             "failed" | "error" => {
-                return Err(format!(
+                return Err(CommandError::Internal(format!(
                     "Generation failed: {}",
                     status.message.unwrap_or_else(|| "Unknown error".to_string())
-                ));
+                )));
             }
             _ => continue,
         }
     }
 
-    Err("Generation timed out after 10 minutes".to_string())
+    Err(CommandError::Internal("Generation timed out after 10 minutes".to_string()))
 }
 
 /// List available Gamma themes
@@ -309,9 +306,9 @@ pub async fn gamma_list_themes(
     query: Option<String>,
     limit: Option<i32>,
     after: Option<String>,
-) -> Result<GammaThemesResponse, String> {
+) -> CmdResult<GammaThemesResponse> {
     if api_key.is_empty() {
-        return Err("Gamma API key is required".to_string());
+        return Err(CommandError::Config("Gamma API key is required".to_string()));
     }
 
     let mut url = format!("{}/themes", GAMMA_API_BASE);
@@ -331,26 +328,24 @@ pub async fn gamma_list_themes(
         url = format!("{}?{}", url, params.join("&"));
     }
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .get(&url)
         .header("X-API-KEY", &api_key)
         .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let error: GammaError = response
             .json()
             .await
             .unwrap_or(GammaError { message: "Unknown error".to_string() });
-        return Err(format!("Gamma API error: {}", error.message));
+        return Err(CommandError::Network(format!("Gamma API error: {}", error.message)));
     }
 
     let themes: GammaThemesResponse = response
         .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        .await?;
 
     Ok(themes)
 }
@@ -360,7 +355,7 @@ pub async fn gamma_list_themes(
 pub async fn gamma_list_all_themes(
     api_key: String,
     query: Option<String>,
-) -> Result<Vec<GammaTheme>, String> {
+) -> CmdResult<Vec<GammaTheme>> {
     let mut all_themes = Vec::new();
     let mut cursor: Option<String> = None;
 
@@ -385,9 +380,9 @@ pub async fn gamma_list_folders(
     query: Option<String>,
     limit: Option<i32>,
     after: Option<String>,
-) -> Result<GammaFoldersResponse, String> {
+) -> CmdResult<GammaFoldersResponse> {
     if api_key.is_empty() {
-        return Err("Gamma API key is required".to_string());
+        return Err(CommandError::Config("Gamma API key is required".to_string()));
     }
 
     let mut url = format!("{}/folders", GAMMA_API_BASE);
@@ -407,26 +402,24 @@ pub async fn gamma_list_folders(
         url = format!("{}?{}", url, params.join("&"));
     }
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .get(&url)
         .header("X-API-KEY", &api_key)
         .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let error: GammaError = response
             .json()
             .await
             .unwrap_or(GammaError { message: "Unknown error".to_string() });
-        return Err(format!("Gamma API error: {}", error.message));
+        return Err(CommandError::Network(format!("Gamma API error: {}", error.message)));
     }
 
     let folders: GammaFoldersResponse = response
         .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        .await?;
 
     Ok(folders)
 }

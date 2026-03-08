@@ -10,11 +10,11 @@ import {
   EyeOff,
   Check,
   X,
-  Loader2,
   RefreshCw,
   Download,
   Upload,
 } from "lucide-react";
+import { Button, IconButton, SectionLoading, ErrorBanner } from "../../components/ui";
 
 interface KeyEditorProps {
   keyInfo: ApiKeyInfo;
@@ -95,20 +95,13 @@ function KeyEditor({ keyInfo, onSave, onDelete }: KeyEditorProps) {
 
         {!isEditing && (
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsEditing(true)}
-              className="px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-            >
+            <Button variant="secondary" onClick={() => setIsEditing(true)}>
               {keyInfo.is_set ? "Update" : "Set"}
-            </button>
+            </Button>
             {keyInfo.is_set && (
-              <button
-                onClick={handleDelete}
-                disabled={saving}
-                className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-              >
+              <Button variant="ghost" onClick={handleDelete} disabled={saving} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
                 Delete
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -125,38 +118,23 @@ function KeyEditor({ keyInfo, onSave, onDelete }: KeyEditorProps) {
               className="w-full px-3 py-2 pr-10 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm"
               autoFocus
             />
-            <button
-              type="button"
+            <IconButton
+              icon={showValue ? EyeOff : Eye}
+              label={showValue ? "Hide value" : "Show value"}
               onClick={() => setShowValue(!showValue)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600"
-            >
-              {showValue ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
+              className="absolute right-2 top-1/2 -translate-y-1/2"
+            />
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Check size={14} />
-              )}
+            <Button icon={Check} onClick={handleSave} disabled={saving} loading={saving}>
               Save
-            </button>
-            <button
-              onClick={handleCancel}
-              disabled={saving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-            >
-              <X size={14} />
+            </Button>
+            <Button variant="ghost" icon={X} onClick={handleCancel} disabled={saving}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -257,11 +235,7 @@ export function ApiKeysView() {
   );
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={32} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="flex-1" />;
   }
 
   return (
@@ -276,31 +250,13 @@ export function ApiKeysView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleImport}
-            disabled={busy}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
-            title="Import from JSON or .env file"
-          >
-            {busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+          <Button variant="secondary" icon={Upload} onClick={handleImport} disabled={busy} loading={busy} title="Import from JSON or .env file">
             Import
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={busy}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
-            title="Export all settings to JSON"
-          >
-            {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          </Button>
+          <Button variant="secondary" icon={Download} onClick={handleExport} disabled={busy} loading={busy} title="Export all settings to JSON">
             Export
-          </button>
-          <button
-            onClick={refresh}
-            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
-            title="Refresh"
-          >
-            <RefreshCw size={18} />
-          </button>
+          </Button>
+          <IconButton icon={RefreshCw} size={18} label="Refresh" onClick={refresh} />
         </div>
       </div>
 
@@ -316,11 +272,7 @@ export function ApiKeysView() {
         </div>
       )}
 
-      {error && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <p className="text-sm text-blue-700 dark:text-blue-400">

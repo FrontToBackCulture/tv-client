@@ -8,6 +8,7 @@ import { Database, Tag, Folder, Activity, CheckCircle, Server, X, Plus, RotateCc
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
+import { Button, IconButton } from "../../components/ui";
 import {
   useClassificationStore,
   type ClassificationField,
@@ -254,14 +255,14 @@ export function CategoryLibraryPanel() {
             Edit classification values used in data model dropdowns
           </p>
         </div>
-        <button
+        <Button
           onClick={() => resetField(activeTab.field)}
-          className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          variant="ghost"
+          icon={RotateCcw}
           title={`Reset ${activeTab.label} to defaults`}
         >
-          <RotateCcw size={12} />
           Reset
-        </button>
+        </Button>
       </div>
 
       {/* Tabs */}
@@ -284,7 +285,7 @@ export function CategoryLibraryPanel() {
               <Icon size={12} />
               {tab.label}
               <span className={cn(
-                "px-1.5 py-0.5 text-[10px] rounded-full",
+                "px-1.5 py-0.5 text-xs rounded-full",
                 isActive
                   ? "bg-teal-200 dark:bg-teal-800 text-teal-800 dark:text-teal-200"
                   : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
@@ -307,14 +308,13 @@ export function CategoryLibraryPanel() {
           placeholder={`Add new ${activeTab.label.toLowerCase()}...`}
           className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-teal-500"
         />
-        <button
+        <Button
           onClick={handleAdd}
           disabled={!newValue.trim()}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          icon={Plus}
         >
-          <Plus size={14} />
           Add
-        </button>
+        </Button>
       </div>
 
       {/* Filter + Sort bar */}
@@ -327,7 +327,7 @@ export function CategoryLibraryPanel() {
           placeholder="Filter values..."
           className="flex-1 min-w-0 bg-transparent text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none"
         />
-        <div className="flex gap-1 ml-auto shrink-0 text-[10px] font-medium">
+        <div className="flex gap-1 ml-auto shrink-0 text-xs font-medium">
           <button
             onClick={() => setSortBy("name")}
             className={cn(
@@ -365,16 +365,17 @@ export function CategoryLibraryPanel() {
                 <span className="text-sm text-zinc-800 dark:text-zinc-200 truncate flex-1 min-w-0">
                   {value}
                 </span>
-                <span className="text-[11px] text-zinc-400 tabular-nums shrink-0">
+                <span className="text-xs text-zinc-400 tabular-nums shrink-0">
                   {countsLoading ? "\u2014" : count}
                 </span>
-                <button
+                <IconButton
                   onClick={() => removeValue(activeTab.field, value)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shrink-0"
-                  title={`Remove "${value}"`}
-                >
-                  <X size={12} />
-                </button>
+                  icon={X}
+                  variant="danger"
+                  label={`Remove "${value}"`}
+                  size={12}
+                  className="opacity-0 group-hover:opacity-100 shrink-0"
+                />
               </div>
             ))}
           </div>

@@ -5,7 +5,7 @@ use super::types::{RepoCommit, RepoRelease, WorkflowRun};
 const GITHUB_API: &str = "https://api.github.com";
 
 fn github_client(token: &str) -> Result<(reqwest::Client, Vec<(String, String)>), String> {
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let headers = vec![
         ("Authorization".into(), format!("Bearer {}", token)),
         ("Accept".into(), "application/vnd.github.v3+json".into()),

@@ -1,6 +1,7 @@
 // VAL Sync Auth - JWT token management and VAL platform login
 // Tokens cached in ~/.tv-desktop/val-tokens.json
 
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::settings::load_settings;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -52,29 +53,25 @@ fn get_tokens_path() -> PathBuf {
         .join("val-tokens.json")
 }
 
-fn load_tokens() -> Result<HashMap<String, String>, String> {
+fn load_tokens() -> CmdResult<HashMap<String, String>> {
     let path = get_tokens_path();
     if !path.exists() {
         return Ok(HashMap::new());
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read tokens: {}", e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse tokens: {}", e))
+    let content = fs::read_to_string(&path)?;
+    Ok(serde_json::from_str(&content)?)
 }
 
-fn save_tokens(tokens: &HashMap<String, String>) -> Result<(), String> {
+fn save_tokens(tokens: &HashMap<String, String>) -> CmdResult<()> {
     let path = get_tokens_path();
     if let Some(dir) = path.parent() {
         if !dir.exists() {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("Failed to create tokens directory: {}", e))?;
+            fs::create_dir_all(dir)?;
         }
     }
-    let content = serde_json::to_string_pretty(tokens)
-        .map_err(|e| format!("Failed to serialize tokens: {}", e))?;
-    fs::write(&path, content)
-        .map_err(|e| format!("Failed to write tokens: {}", e))
+    let content = serde_json::to_string_pretty(tokens)?;
+    fs::write(&path, content)?;
+    Ok(())
 }
 
 /// Decode JWT payload (base64) and check expiration
@@ -158,7 +155,7 @@ fn token_preview(token: &str) -> String {
 }
 
 /// Get per-domain credentials from settings.json
-fn get_domain_credentials(domain: &str) -> Result<(String, String), String> {
+fn get_domain_credentials(domain: &str) -> CmdResult<(String, String)> {
     let settings = load_settings()?;
     let email_key = format!("val_email_{}", domain);
     let password_key = format!("val_password_{}", domain);
@@ -167,24 +164,21 @@ fn get_domain_credentials(domain: &str) -> Result<(String, String), String> {
         .keys
         .get(&email_key)
         .cloned()
-        .ok_or_else(|| format!("No email configured for domain '{}'. Set key '{}'", domain, email_key))?;
+        .ok_or_else(|| CommandError::Config(format!("No email configured for domain '{}'. Set key '{}'", domain, email_key)))?;
     let password = settings
         .keys
         .get(&password_key)
         .cloned()
-        .ok_or_else(|| format!("No password configured for domain '{}'. Set key '{}'", domain, password_key))?;
+        .ok_or_else(|| CommandError::Config(format!("No password configured for domain '{}'. Set key '{}'", domain, password_key)))?;
 
     Ok((email, password))
 }
 
 /// Login to VAL and return JWT token
-async fn login_to_val(api_domain: &str, email: &str, password: &str) -> Result<String, String> {
+async fn login_to_val(api_domain: &str, email: &str, password: &str) -> CmdResult<String> {
     let url = format!("https://{}.thinkval.io/api/v1/users/login", api_domain);
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let client = crate::HTTP_CLIENT.clone();
 
     let body = serde_json::json!({
         "email": email,
@@ -198,33 +192,29 @@ async fn login_to_val(api_domain: &str, email: &str, password: &str) -> Result<S
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
-        .await
-        .map_err(|e| format!("Login request failed for {}: {}", api_domain, e))?;
+        .await?;
 
     let status = response.status();
     if !status.is_success() {
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("Login failed for {} (HTTP {}): {}", api_domain, status, text));
+        return Err(CommandError::Http { status: status.as_u16(), body: format!("Login failed for {}: {}", api_domain, text) });
     }
 
-    let data: LoginResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse login response: {}", e))?;
+    let data: LoginResponse = response.json().await?;
 
     // Token can be at response.data.user or response.user
     let token = data
         .data
         .and_then(|d| d.user)
         .or(data.user)
-        .ok_or_else(|| format!("No token in login response for {}", api_domain))?;
+        .ok_or_else(|| CommandError::Internal(format!("No token in login response for {}", api_domain)))?;
 
     Ok(token)
 }
 
 /// Ensure we have a valid token for a domain, logging in if needed.
 /// Returns (token, api_domain).
-pub async fn ensure_auth(domain: &str) -> Result<(String, String), String> {
+pub async fn ensure_auth(domain: &str) -> CmdResult<(String, String)> {
     let domain_config = super::config::get_domain_config(domain)?;
     let api_domain = domain_config.api_domain().to_string();
 
@@ -250,7 +240,7 @@ pub async fn ensure_auth(domain: &str) -> Result<(String, String), String> {
 
 /// Same as ensure_auth but clears token first and retries login.
 /// Used after auth errors (401/403).
-pub async fn reauth(domain: &str) -> Result<(String, String), String> {
+pub async fn reauth(domain: &str) -> CmdResult<(String, String)> {
     // Clear existing token
     let mut tokens = load_tokens()?;
     tokens.remove(domain);
@@ -266,7 +256,7 @@ pub async fn reauth(domain: &str) -> Result<(String, String), String> {
 
 /// Login to a VAL domain using stored credentials
 #[command]
-pub async fn val_sync_login(domain: String) -> Result<AuthResult, String> {
+pub async fn val_sync_login(domain: String) -> CmdResult<AuthResult> {
     match ensure_auth(&domain).await {
         Ok((token, _api_domain)) => Ok(AuthResult {
             domain: domain.clone(),
@@ -280,7 +270,7 @@ pub async fn val_sync_login(domain: String) -> Result<AuthResult, String> {
             authenticated: false,
             token_preview: None,
             expires_at: None,
-            message: e,
+            message: e.to_string(),
         }),
     }
 }
@@ -291,7 +281,7 @@ pub async fn val_sync_login_with_credentials(
     domain: String,
     email: String,
     password: String,
-) -> Result<AuthResult, String> {
+) -> CmdResult<AuthResult> {
     let domain_config = super::config::get_domain_config(&domain)?;
     let api_domain = domain_config.api_domain().to_string();
 
@@ -315,14 +305,14 @@ pub async fn val_sync_login_with_credentials(
             authenticated: false,
             token_preview: None,
             expires_at: None,
-            message: e,
+            message: e.to_string(),
         }),
     }
 }
 
 /// Check auth status for a domain (does not login)
 #[command]
-pub fn val_sync_check_auth(domain: String) -> Result<AuthResult, String> {
+pub fn val_sync_check_auth(domain: String) -> CmdResult<AuthResult> {
     let tokens = load_tokens()?;
     match tokens.get(&domain) {
         Some(token) => {
@@ -351,7 +341,7 @@ pub fn val_sync_check_auth(domain: String) -> Result<AuthResult, String> {
 
 /// Clear cached token for a domain
 #[command]
-pub fn val_sync_clear_token(domain: String) -> Result<(), String> {
+pub fn val_sync_clear_token(domain: String) -> CmdResult<()> {
     let mut tokens = load_tokens()?;
     tokens.remove(&domain);
     save_tokens(&tokens)

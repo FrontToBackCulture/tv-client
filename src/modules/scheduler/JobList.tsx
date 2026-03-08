@@ -3,6 +3,7 @@ import { Play, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Plus } from "lu
 import type { SchedulerJob } from "../../hooks/scheduler";
 import { useRunningJobsStore } from "../../hooks/scheduler";
 import { cn } from "../../lib/cn";
+import { Button, IconButton } from "../../components/ui";
 
 interface JobListProps {
   jobs: SchedulerJob[];
@@ -32,13 +33,9 @@ export function JobList({
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm text-zinc-400 dark:text-zinc-500">
         No scheduled jobs yet.
         {onAddNew && (
-          <button
-            onClick={onAddNew}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-500 transition-colors"
-          >
-            <Plus size={12} />
+          <Button icon={Plus} onClick={onAddNew}>
             New Job
-          </button>
+          </Button>
         )}
       </div>
     );
@@ -63,13 +60,9 @@ export function JobList({
       </div>
       {onAddNew && (
         <div className="flex-shrink-0 p-2 border-t border-zinc-100 dark:border-zinc-800/50">
-          <button
-            onClick={onAddNew}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-          >
-            <Plus size={12} />
+          <Button variant="ghost" icon={Plus} onClick={onAddNew} className="w-full justify-center">
             New Job
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -103,9 +96,9 @@ function JobRow({
       <div
         onClick={() => onSelect(job.id)}
         className={cn(
-          "flex items-center gap-2 px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors",
+          "flex items-center gap-2 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors",
           "hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
-          isSelected && "bg-teal-50/50 dark:bg-teal-900/10 border-l-2 border-l-teal-500"
+          isSelected && "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
         )}
       >
         <button
@@ -133,11 +126,11 @@ function JobRow({
             </span>
           </div>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+            <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">
               {describeCronShort(job.cronExpression)}
             </span>
             {job.skillRefs && job.skillRefs.length > 0 && (
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">
                 {job.skillRefs.length}sk
               </span>
             )}
@@ -152,9 +145,9 @@ function JobRow({
     <div
       onClick={() => onSelect(job.id)}
       className={cn(
-        "flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors",
+        "flex items-center gap-3 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors",
         "hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
-        isSelected && "bg-teal-50/50 dark:bg-teal-900/10"
+        isSelected && "bg-teal-50 dark:bg-teal-950/30"
       )}
     >
       {/* Toggle */}
@@ -210,37 +203,35 @@ function JobRow({
         {isRunning ? (
           <Loader2 size={14} className="text-blue-500 animate-spin mx-1.5" />
         ) : (
-          <button
+          <IconButton
+            icon={Play}
+            size={14}
+            label="Run Now"
             onClick={(e) => {
               e.stopPropagation();
               onRunNow(job.id);
             }}
-            className="p-1.5 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            title="Run Now"
-          >
-            <Play size={14} />
-          </button>
+          />
         )}
-        <button
+        <IconButton
+          icon={Pencil}
+          size={14}
+          label="Edit"
           onClick={(e) => {
             e.stopPropagation();
             onEdit(job);
           }}
-          className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          title="Edit"
-        >
-          <Pencil size={14} />
-        </button>
-        <button
+        />
+        <IconButton
+          icon={Trash2}
+          size={14}
+          variant="danger"
+          label="Delete"
           onClick={(e) => {
             e.stopPropagation();
             if (confirm(`Delete job "${job.name}"?`)) onDelete(job.id);
           }}
-          className="p-1.5 text-zinc-400 hover:text-red-500 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          title="Delete"
-        >
-          <Trash2 size={14} />
-        </button>
+        />
       </div>
     </div>
   );
@@ -260,7 +251,7 @@ function RunningBadge({ startedAt, step }: { startedAt?: number; step?: string }
   }, [startedAt]);
 
   return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
       <Loader2 size={10} className="animate-spin" />
       {step || "running"} {startedAt ? formatElapsed(elapsed) : ""}
     </span>
@@ -277,7 +268,7 @@ function StatusBadge({ status }: { status: string | null }) {
   };
 
   return (
-    <span className={cn("px-1.5 py-0.5 text-[10px] font-medium rounded-full", styles[status] ?? "")}>
+    <span className={cn("px-1.5 py-0.5 text-xs font-medium rounded-full", styles[status] ?? "")}>
       {status}
     </span>
   );

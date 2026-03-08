@@ -1,9 +1,10 @@
 // src/modules/library/PortalPublishModal.tsx
 
 import { useState, useEffect, useMemo } from "react";
-import { X, Globe, Trash2, RefreshCw } from "lucide-react";
+import { X, Globe, Trash2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
+import { Button, IconButton, FormField, Input, Select } from "../../components/ui";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 
 const DOMAINS = [
@@ -252,12 +253,11 @@ export function PortalPublishModal({
               {isUpdateMode ? "Update Portal Document" : "Publish to Portal"}
             </h3>
           </div>
-          <button
+          <IconButton
+            icon={X}
+            label="Close"
             onClick={onClose}
-            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            <X className="w-4 h-4 text-zinc-500" />
-          </button>
+          />
         </div>
 
         {/* Body */}
@@ -277,10 +277,7 @@ export function PortalPublishModal({
           )}
 
           {/* Doc Type */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Type
-            </label>
+          <FormField label="Type">
             <div className="flex gap-2">
               <button
                 onClick={() => setDocType("domain")}
@@ -320,18 +317,14 @@ export function PortalPublishModal({
                 General Guide
               </button>
             </div>
-          </div>
+          </FormField>
 
           {/* Domain selector */}
           {(docType === "domain" || docType === "report") && (
-            <div>
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Domain
-              </label>
-              <select
+            <FormField label="Domain">
+              <Select
                 value={selectedDomain}
                 onChange={(e) => setSelectedDomain(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
               >
                 <option value="">Select domain...</option>
                 {DOMAINS.map((d) => (
@@ -339,51 +332,39 @@ export function PortalPublishModal({
                     {d.name} ({d.slug})
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
           )}
 
           {/* Title */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Title
-            </label>
-            <input
+          <FormField label="Title">
+            <Input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Document title"
-              className="w-full px-3 py-2 text-sm rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
             />
-          </div>
+          </FormField>
 
           {/* Summary */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Summary <span className="text-zinc-400">(optional)</span>
-            </label>
-            <input
+          <FormField label="Summary (optional)">
+            <Input
               type="text"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               placeholder="Brief description for the portal card"
-              className="w-full px-3 py-2 text-sm rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
             />
-          </div>
+          </FormField>
 
           {/* Category */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Category <span className="text-zinc-400">(optional)</span>
-            </label>
-            <input
+          <FormField label="Category (optional)">
+            <Input
               type="text"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               placeholder="e.g. Getting Started, Data Management"
-              className="w-full px-3 py-2 text-sm rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
             />
-          </div>
+          </FormField>
 
           {/* Delete confirmation */}
           {isUpdateMode && confirmDelete && (
@@ -392,19 +373,12 @@ export function PortalPublishModal({
                 Remove this document from the portal? The file itself won't be deleted.
               </p>
               <div className="flex gap-2">
-                <button
-                  onClick={handleDelete}
-                  disabled={loading}
-                  className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                >
+                <Button variant="danger" onClick={handleDelete} disabled={loading}>
                   {loading ? "Removing..." : "Confirm Remove"}
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="px-3 py-1.5 text-xs rounded border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                >
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -414,40 +388,23 @@ export function PortalPublishModal({
         <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
           <div>
             {isUpdateMode && !confirmDelete && (
-              <button
-                onClick={() => setConfirmDelete(true)}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-              >
-                <Trash2 className="w-3 h-3" />
+              <Button variant="ghost" icon={Trash2} onClick={() => setConfirmDelete(true)} disabled={loading} className="text-red-500 hover:text-red-600">
                 Remove
-              </button>
+              </Button>
             )}
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-3 py-1.5 text-xs rounded border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-            >
+            <Button variant="ghost" onClick={onClose}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handlePublish}
               disabled={loading || !canSubmit}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              loading={loading}
+              icon={loading ? undefined : Globe}
             >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  {isUpdateMode ? "Updating..." : "Publishing..."}
-                </>
-              ) : (
-                <>
-                  <Globe className="w-3 h-3" />
-                  {isUpdateMode ? "Update" : "Publish"}
-                </>
-              )}
-            </button>
+              {isUpdateMode ? (loading ? "Updating..." : "Update") : (loading ? "Publishing..." : "Publish")}
+            </Button>
           </div>
         </div>
       </div>

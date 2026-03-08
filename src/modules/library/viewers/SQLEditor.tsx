@@ -2,7 +2,7 @@
 // Editable SQL with line numbers and auto-save
 
 import { useState, useCallback, useRef } from "react";
-import { FileCode, Check, WrapText } from "lucide-react";
+import { WrapText } from "lucide-react";
 
 interface SQLEditorProps {
   content: string;
@@ -11,7 +11,7 @@ interface SQLEditorProps {
   saveStatus: "saved" | "saving" | "unsaved";
 }
 
-export function SQLEditor({ content, filename, onChange, saveStatus }: SQLEditorProps) {
+export function SQLEditor({ content, onChange }: SQLEditorProps) {
   const [text, setText] = useState(content);
   const [wordWrap, setWordWrap] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -54,29 +54,7 @@ export function SQLEditor({ content, filename, onChange, saveStatus }: SQLEditor
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-900">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/80">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <FileCode size={16} className="text-cyan-500 dark:text-cyan-400" />
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
-            <span className="text-xs text-zinc-600 dark:text-zinc-600 bg-zinc-200 dark:bg-zinc-800 px-2 py-0.5 rounded">SQL</span>
-          </div>
-
-          {/* Status */}
-          <div className="flex items-center gap-1">
-            {saveStatus === "saved" && <Check size={12} className="text-green-500" />}
-            <span className={`text-xs ${
-              saveStatus === "saving" ? "text-zinc-500" :
-              saveStatus === "unsaved" ? "text-amber-500" :
-              "text-zinc-600"
-            }`}>
-              {saveStatus === "saving" ? "Saving..." :
-               saveStatus === "unsaved" ? "Unsaved" :
-               "Saved"}
-            </span>
-          </div>
-        </div>
-
+      <div className="flex items-center justify-end px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/80">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setWordWrap(!wordWrap)}

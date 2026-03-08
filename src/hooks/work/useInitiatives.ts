@@ -96,3 +96,48 @@ export function useUpdateInitiative() {
     },
   });
 }
+
+export function useSetInitiativeProjects() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      initiativeId,
+      projectIds,
+    }: {
+      initiativeId: string;
+      projectIds: string[];
+    }): Promise<void> => {
+      // Delete all existing links for this initiative
+      const { error: deleteError } = await supabase
+        .from("initiative_projects")
+        .delete()
+        .eq("initiative_id", initiativeId);
+      if (deleteError)
+        throw new Error(
+          `Failed to clear initiative projects: ${deleteError.message}`
+        );
+
+      // Insert new links
+      if (projectIds.length > 0) {
+        const rows = projectIds.map((pid, i) => ({
+          initiative_id: initiativeId,
+          project_id: pid,
+          sort_order: i,
+        }));
+        const { error: insertError } = await supabase
+          .from("initiative_projects")
+          .insert(rows);
+        if (insertError)
+          throw new Error(
+            `Failed to set initiative projects: ${insertError.message}`
+          );
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: workKeys.initiativeProjects(),
+      });
+    },
+  });
+}

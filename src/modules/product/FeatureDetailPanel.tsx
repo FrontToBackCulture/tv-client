@@ -10,8 +10,10 @@ import { StatusChip } from "./StatusChip";
 import { ProductActivityTimeline } from "./ProductActivityTimeline";
 import { MarkdownViewer } from "../library/MarkdownViewer";
 import { DemoPlayer } from "./DemoPlayer";
-import { Loader2, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { Button } from "../../components/ui";
+import { DetailLoading, DetailNotFound, SectionLoading } from "../../components/ui/DetailStates";
 
 interface FeatureDetailPanelProps {
   id: string;
@@ -48,21 +50,9 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
   const { data: demoJsonContent } = useReadFile(demoJsonPath);
   const hasDemo = !!demoJsonContent;
 
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
-  if (!data) {
-    return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-        Feature not found
-      </div>
-    );
-  }
+  if (!data) return <DetailNotFound message="Feature not found" />;
 
   const statusDef = FEATURE_STATUSES.find((s) => s.value === data.status);
 
@@ -79,7 +69,7 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
       {/* Header */}
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{data.name}</h2>
+          <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">{data.name}</h2>
           <div className="flex items-center gap-2 mt-1">
             {statusDef && <StatusChip label={statusDef.label} color={statusDef.color} />}
             {data.module && (
@@ -89,13 +79,13 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
         </div>
         {/* Create Demo button — shown when feature has a doc folder but no demo.json yet */}
         {docBasePath && !hasDemo && (
-          <button
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800 rounded-md hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors"
+          <Button
+            variant="secondary"
+            icon={Play}
             title="Run capture-demo.js to generate an interactive demo for this feature"
           >
-            <Play size={12} />
             Create Demo
-          </button>
+          </Button>
         )}
       </div>
 
@@ -131,27 +121,27 @@ export function FeatureDetailPanel({ id }: FeatureDetailPanelProps) {
             {docContent ? (
               <MarkdownViewer content={docContent} basePath={docBasePath} />
             ) : docLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 size={20} className="text-zinc-400 animate-spin" />
-              </div>
+              <SectionLoading className="py-12" />
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {data.description && (
                   <div>
-                    <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Description</label>
-                    <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
+                    <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">Description</h3>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-4">
-                  {data.category && (
+                <div className="rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 p-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    {data.category && (
+                      <div>
+                        <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Category</span>
+                        <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.category}</p>
+                      </div>
+                    )}
                     <div>
-                      <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Category</label>
-                      <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.category}</p>
+                      <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Priority</span>
+                      <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.priority}</p>
                     </div>
-                  )}
-                  <div>
-                    <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Priority</label>
-                    <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.priority}</p>
                   </div>
                 </div>
                 {!data.doc_path && (

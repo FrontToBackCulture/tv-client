@@ -3,11 +3,11 @@
 import { useState } from "react";
 import {
   Check,
-  Loader2,
   RefreshCw,
   Globe,
   Palette,
 } from "lucide-react";
+import { Button, SectionLoading } from "../../components/ui";
 import { usePortalSites, useCreateSite, useUpdateSite, useDeleteSite } from "../../hooks/portal";
 import type { PortalSite } from "../../lib/portal/types";
 import { cn } from "../../lib/cn";
@@ -112,17 +112,17 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
               <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 truncate">
                 {site.name}
               </span>
-              <span className="text-[10px] font-mono text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded flex-shrink-0">
+              <span className="text-xs font-mono text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded flex-shrink-0">
                 {site.slug}
               </span>
             </div>
             {site.base_url && (
-              <div className="text-[11px] text-zinc-400 font-mono truncate">{site.base_url}</div>
+              <div className="text-xs text-zinc-400 font-mono truncate">{site.base_url}</div>
             )}
           </div>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
-          <span className="text-[11px] text-zinc-400">
+          <span className="text-xs text-zinc-400">
             {enabledCount}/{FEATURE_CONFIG.length} features
           </span>
           <RefreshCw
@@ -147,19 +147,12 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
               <div className="flex items-center gap-1">
                 {!isEditing && (
                   <>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-                      className="px-2.5 py-1 text-xs text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-white dark:hover:bg-zinc-800 rounded transition-colors"
-                    >
+                    <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>
                       Edit
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-                      disabled={deleteSite.isPending}
-                      className="px-2.5 py-1 text-xs text-zinc-400 hover:text-red-500 hover:bg-white dark:hover:bg-zinc-800 rounded transition-colors disabled:opacity-50"
-                    >
+                    </Button>
+                    <Button variant="ghost" onClick={(e) => { e.stopPropagation(); handleDelete(); }} disabled={deleteSite.isPending} className="text-zinc-400 hover:text-red-500">
                       Delete
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -169,7 +162,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
               <div className="space-y-3">
                 <div className="grid grid-cols-[1fr_140px] gap-3">
                   <div>
-                    <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                    <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
                       Name
                     </label>
                     <input
@@ -182,7 +175,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                    <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
                       Slug
                     </label>
                     <input
@@ -195,7 +188,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
                     Base URL
                   </label>
                   <input
@@ -207,34 +200,26 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                   />
                 </div>
                 <div className="flex items-center gap-2 pt-1">
-                  <button
-                    onClick={handleSave}
-                    disabled={updateSite.isPending || !editName.trim() || !editSlug.trim()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded-md transition-colors disabled:opacity-50"
-                  >
-                    {updateSite.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                  <Button icon={Check} onClick={handleSave} disabled={updateSite.isPending || !editName.trim() || !editSlug.trim()} loading={updateSite.isPending}>
                     Save
-                  </button>
-                  <button
-                    onClick={cancelEdit}
-                    className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-                  >
+                  </Button>
+                  <Button variant="ghost" onClick={cancelEdit}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
-                  <div className="text-[10px] font-medium text-zinc-400 uppercase tracking-wide mb-0.5">Name</div>
+                  <div className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-0.5">Name</div>
                   <div className="text-zinc-900 dark:text-zinc-100">{site.name}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-medium text-zinc-400 uppercase tracking-wide mb-0.5">Slug</div>
+                  <div className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-0.5">Slug</div>
                   <div className="text-zinc-900 dark:text-zinc-100 font-mono">{site.slug}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-medium text-zinc-400 uppercase tracking-wide mb-0.5">Base URL</div>
+                  <div className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-0.5">Base URL</div>
                   <div className="text-zinc-900 dark:text-zinc-100 font-mono text-xs truncate">
                     {site.base_url || <span className="text-zinc-300 dark:text-zinc-600">&mdash;</span>}
                   </div>
@@ -260,7 +245,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                       <span className="text-sm flex-shrink-0">{icon}</span>
                       <div className="min-w-0">
                         <div className="text-sm text-zinc-900 dark:text-zinc-100">{label}</div>
-                        <div className="text-[11px] text-zinc-400 truncate">{desc}</div>
+                        <div className="text-xs text-zinc-400 truncate">{desc}</div>
                       </div>
                     </div>
                     <button
@@ -293,14 +278,9 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                 </h4>
               </div>
               {brandingDirty && (
-                <button
-                  onClick={handleBrandingSave}
-                  disabled={updateSite.isPending}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded transition-colors disabled:opacity-50"
-                >
-                  {updateSite.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                <Button icon={Check} onClick={handleBrandingSave} disabled={updateSite.isPending} loading={updateSite.isPending}>
                   Save
-                </button>
+                </Button>
               )}
             </div>
 
@@ -308,7 +288,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
               {/* Colors */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
                     Primary Color
                   </label>
                   <div className="flex items-center gap-2">
@@ -327,7 +307,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
                     Accent Color
                   </label>
                   <div className="flex items-center gap-2">
@@ -349,7 +329,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
 
               {/* Logo URL */}
               <div>
-                <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
                   Logo URL
                 </label>
                 <input
@@ -363,7 +343,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
 
               {/* Greeting */}
               <div>
-                <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
                   Greeting
                 </label>
                 <input
@@ -377,7 +357,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
 
               {/* Greeting subtext */}
               <div>
-                <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wide">
                   Greeting Subtext
                 </label>
                 <input
@@ -436,11 +416,7 @@ export function PortalSettingsView() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center py-12">
-        <Loader2 size={32} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="flex-1 py-12" />;
   }
 
   return (
@@ -456,12 +432,9 @@ export function PortalSettingsView() {
           </p>
         </div>
         {!showCreate && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
-          >
+          <Button onClick={() => setShowCreate(true)}>
             + Add Site
-          </button>
+          </Button>
         )}
       </div>
 
@@ -474,7 +447,7 @@ export function PortalSettingsView() {
           <div className="space-y-3">
             <div className="grid grid-cols-[1fr_160px] gap-3">
               <div>
-                <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wide">Name</label>
+                <label className="block text-xs font-medium text-zinc-500 mb-1 uppercase tracking-wide">Name</label>
                 <input
                   type="text"
                   value={newName}
@@ -485,7 +458,7 @@ export function PortalSettingsView() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wide">Slug</label>
+                <label className="block text-xs font-medium text-zinc-500 mb-1 uppercase tracking-wide">Slug</label>
                 <input
                   type="text"
                   value={newSlug}
@@ -496,7 +469,7 @@ export function PortalSettingsView() {
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wide">Base URL</label>
+              <label className="block text-xs font-medium text-zinc-500 mb-1 uppercase tracking-wide">Base URL</label>
               <input
                 type="url"
                 value={newUrl}
@@ -506,20 +479,12 @@ export function PortalSettingsView() {
               />
             </div>
             <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={handleCreate}
-                disabled={createSite.isPending || !newName.trim() || !newSlug.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-colors disabled:opacity-50"
-              >
-                {createSite.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              <Button size="md" icon={Check} onClick={handleCreate} disabled={createSite.isPending || !newName.trim() || !newSlug.trim()} loading={createSite.isPending}>
                 Create
-              </button>
-              <button
-                onClick={() => { setShowCreate(false); setNewName(""); setNewSlug(""); setNewUrl(""); }}
-                className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-              >
+              </Button>
+              <Button variant="ghost" size="md" onClick={() => { setShowCreate(false); setNewName(""); setNewSlug(""); setNewUrl(""); }}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -546,7 +511,7 @@ export function PortalSettingsView() {
       {sites && sites.length > 0 && (
         <div className="p-3.5 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Each site gets its own widget via <code className="text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">?site=slug</code>.
+            Each site gets its own widget via <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">?site=slug</code>.
             Feature toggles are master switches — when off, the feature won't appear in the widget regardless of content targeting.
           </p>
         </div>

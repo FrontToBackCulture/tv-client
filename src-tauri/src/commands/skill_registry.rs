@@ -1,6 +1,7 @@
 // src-tauri/src/commands/skill_registry.rs
 // Skill registry commands: init migration, distribute, check drift, pull
 
+use crate::commands::error::{CmdResult, CommandError};
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -94,8 +95,8 @@ pub struct SkillModInfo {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/// Compute SHA-256 hash of all files in a skill folder (excluding .skill-source.json, .DS_Store)
-fn hash_skill_folder(folder: &Path) -> Result<String, String> {
+/// Compute SHA-256 hash of all files in a skill folder (excluding non-distributed files)
+fn hash_skill_folder(folder: &Path) -> CmdResult<String> {
     let mut entries: Vec<PathBuf> = Vec::new();
     collect_files(folder, &mut entries)?;
     entries.sort();
@@ -104,12 +105,16 @@ fn hash_skill_folder(folder: &Path) -> Result<String, String> {
     for entry in &entries {
         let rel = entry.strip_prefix(folder).unwrap_or(entry);
         let name = rel.to_string_lossy();
-        // Skip marker and OS files
+        // Skip marker, OS files, and authoring-only artifacts
         if name == ".skill-source.json" || name.contains(".DS_Store") || name.starts_with('.') {
             continue;
         }
+        let file_name = entry.file_name().unwrap_or_default().to_string_lossy();
+        if file_name == "README.md" || file_name == "AUDIT.md" || file_name == "evals.json" || file_name.ends_with(".excalidraw") {
+            continue;
+        }
         let content = fs::read(entry)
-            .map_err(|e| format!("Failed to read {}: {}", entry.display(), e))?;
+            .map_err(|e| CommandError::Io(format!("Failed to read {}: {}", entry.display(), e)))?;
         hasher.update(name.as_bytes());
         hasher.update(&content);
     }
@@ -118,12 +123,12 @@ fn hash_skill_folder(folder: &Path) -> Result<String, String> {
     Ok(format!("sha256:{:x}", result))
 }
 
-fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> CmdResult<()> {
     if !dir.is_dir() {
         return Ok(());
     }
     let entries = fs::read_dir(dir)
-        .map_err(|e| format!("Failed to read dir {}: {}", dir.display(), e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read dir {}: {}", dir.display(), e)))?;
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -170,7 +175,7 @@ fn get_folder_latest_modified(path: &Path) -> String {
 }
 
 /// Copy a folder recursively, excluding .skill-source.json and .DS_Store
-fn copy_skill_folder(src: &Path, dst: &Path) -> Result<(), String> {
+fn copy_skill_folder(src: &Path, dst: &Path) -> CmdResult<()> {
     if dst.exists() {
         // Remove existing contents (except .skill-source.json which we'll write later)
         let old_marker = dst.join(".skill-source.json");
@@ -179,36 +184,43 @@ fn copy_skill_folder(src: &Path, dst: &Path) -> Result<(), String> {
         } else {
             None
         };
-        fs::remove_dir_all(dst).map_err(|e| format!("Failed to clear {}: {}", dst.display(), e))?;
-        fs::create_dir_all(dst).map_err(|e| format!("Failed to create {}: {}", dst.display(), e))?;
+        fs::remove_dir_all(dst)
+            .map_err(|e| CommandError::Io(format!("Failed to clear {}: {}", dst.display(), e)))?;
+        fs::create_dir_all(dst)
+            .map_err(|e| CommandError::Io(format!("Failed to create {}: {}", dst.display(), e)))?;
         // Restore marker temporarily (will be overwritten by caller)
         if let Some(content) = marker_content {
             let _ = fs::write(&old_marker, content);
         }
     } else {
-        fs::create_dir_all(dst).map_err(|e| format!("Failed to create {}: {}", dst.display(), e))?;
+        fs::create_dir_all(dst)
+            .map_err(|e| CommandError::Io(format!("Failed to create {}: {}", dst.display(), e)))?;
     }
 
     copy_dir_contents(src, dst)
 }
 
-fn copy_dir_contents(src: &Path, dst: &Path) -> Result<(), String> {
+fn copy_dir_contents(src: &Path, dst: &Path) -> CmdResult<()> {
     let entries = fs::read_dir(src)
-        .map_err(|e| format!("Failed to read {}: {}", src.display(), e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read {}: {}", src.display(), e)))?;
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
         if name == ".skill-source.json" || name == ".DS_Store" || name.starts_with('.') {
+            continue;
+        }
+        // Skip authoring/maintenance artifacts — only distribute execution files
+        if name == "README.md" || name == "AUDIT.md" || name == "evals.json" || name.ends_with(".excalidraw") {
             continue;
         }
         let src_path = entry.path();
         let dst_path = dst.join(&name);
         if src_path.is_dir() {
             fs::create_dir_all(&dst_path)
-                .map_err(|e| format!("Failed to create dir {}: {}", dst_path.display(), e))?;
+                .map_err(|e| CommandError::Io(format!("Failed to create dir {}: {}", dst_path.display(), e)))?;
             copy_dir_contents(&src_path, &dst_path)?;
         } else {
             fs::copy(&src_path, &dst_path)
-                .map_err(|e| format!("Failed to copy {}: {}", src_path.display(), e))?;
+                .map_err(|e| CommandError::Io(format!("Failed to copy {}: {}", src_path.display(), e)))?;
         }
     }
     Ok(())
@@ -241,39 +253,15 @@ fn now_sgt() -> String {
         .to_string()
 }
 
-/// Extract domain from a platform skill slug (e.g., "analytics-grain-l1-sales-kpi" → "grain")
-fn extract_domain(slug: &str) -> Option<String> {
-    // Pattern: {type}-{domain}-{rest}
-    let parts: Vec<&str> = slug.splitn(3, '-').collect();
-    if parts.len() >= 2 {
-        Some(parts[1].to_string())
-    } else {
-        None
-    }
-}
-
-/// Determine category from platform skill slug prefix
-fn platform_skill_category(slug: &str) -> String {
-    if slug.starts_with("analytics-") {
-        "analytics".to_string()
-    } else if slug.starts_with("insights-") {
-        "insights".to_string()
-    } else if slug.starts_with("recon-") {
-        "recon".to_string()
-    } else {
-        "platform".to_string()
-    }
-}
-
 // ─── Commands ────────────────────────────────────────────────────────────────
 
 /// One-time migration: copy existing skills into _skills/ and generate registry.json
 #[command]
-pub async fn skill_init(state: State<'_, AppState>) -> Result<SkillInitResult, String> {
+pub async fn skill_init(state: State<'_, AppState>) -> CmdResult<SkillInitResult> {
     let kb = &state.knowledge_path;
     let skills_dir = PathBuf::from(kb).join("_skills");
     fs::create_dir_all(&skills_dir)
-        .map_err(|e| format!("Failed to create _skills/: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to create _skills/: {}", e)))?;
 
     let mut registry = SkillRegistry {
         version: 1,
@@ -382,77 +370,11 @@ pub async fn skill_init(state: State<'_, AppState>) -> Result<SkillInitResult, S
         }
     }
 
-    // ── Migrate platform skills ──
-    let platform_skills_dir = PathBuf::from(kb).join("0_Platform/skills");
-    if platform_skills_dir.exists() {
-        if let Ok(entries) = fs::read_dir(&platform_skills_dir) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if !entry.path().is_dir() || name.starts_with('_') || name.starts_with('.') {
-                    continue;
-                }
-
-                let slug = name.clone();
-                let src = entry.path();
-                let dst = skills_dir.join(&slug);
-
-                // Copy skill folder
-                if let Err(e) = copy_skill_folder(&src, &dst) {
-                    result.errors.push(format!("Platform skill {}: {}", slug, e));
-                    continue;
-                }
-
-                // Read metadata from skill.json
-                let skill_json_path = dst.join("skill.json");
-                let (skill_name, description) = if skill_json_path.exists() {
-                    let content = fs::read_to_string(&skill_json_path).unwrap_or_default();
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
-                        let name = parsed.get("name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(&slug)
-                            .to_string();
-                        let desc = parsed.get("description")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        (name, desc)
-                    } else {
-                        (slug.clone(), String::new())
-                    }
-                } else {
-                    (slug.clone(), String::new())
-                };
-
-                let category = platform_skill_category(&slug);
-                let domain = extract_domain(&slug);
-
-                registry.skills.insert(slug.clone(), SkillEntry {
-                    name: skill_name,
-                    description,
-                    category,
-                    target: "platform".to_string(),
-                    status: "active".to_string(),
-                    command: None,
-                    domain,
-                    verified: None,
-                    rating: None,
-                    distributions: vec![SkillDistribution {
-                        path: format!("0_Platform/skills/{}", slug),
-                        dist_type: "platform".to_string(),
-                    }],
-                });
-
-                result.platform_skills += 1;
-                result.skills_created += 1;
-            }
-        }
-    }
-
     // ── Write registry.json ──
     let registry_json = serde_json::to_string_pretty(&registry)
-        .map_err(|e| format!("Failed to serialize registry: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to serialize registry: {}", e)))?;
     fs::write(skills_dir.join("registry.json"), registry_json)
-        .map_err(|e| format!("Failed to write registry.json: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to write registry.json: {}", e)))?;
 
     Ok(result)
 }
@@ -462,24 +384,24 @@ pub async fn skill_init(state: State<'_, AppState>) -> Result<SkillInitResult, S
 pub async fn skill_distribute(
     state: State<'_, AppState>,
     slug: String,
-) -> Result<Vec<SkillDriftStatus>, String> {
+) -> CmdResult<Vec<SkillDriftStatus>> {
     let kb = &state.knowledge_path;
     let skills_dir = PathBuf::from(kb).join("_skills");
     let source_dir = skills_dir.join(&slug);
 
     if !source_dir.exists() {
-        return Err(format!("Skill '{}' not found in _skills/", slug));
+        return Err(CommandError::NotFound(format!("Skill '{}' not found in _skills/", slug)));
     }
 
     // Read registry
     let registry_path = skills_dir.join("registry.json");
     let registry_content = fs::read_to_string(&registry_path)
-        .map_err(|e| format!("Failed to read registry.json: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read registry.json: {}", e)))?;
     let registry: SkillRegistry = serde_json::from_str(&registry_content)
-        .map_err(|e| format!("Failed to parse registry.json: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to parse registry.json: {}", e)))?;
 
     let entry = registry.skills.get(&slug)
-        .ok_or_else(|| format!("Skill '{}' not found in registry", slug))?;
+        .ok_or_else(|| CommandError::NotFound(format!("Skill '{}' not found in registry", slug)))?;
 
     let source_hash = hash_skill_folder(&source_dir)?;
     let mut results = Vec::new();
@@ -497,9 +419,9 @@ pub async fn skill_distribute(
             content_hash: source_hash.clone(),
         };
         let marker_json = serde_json::to_string_pretty(&marker)
-            .map_err(|e| format!("Failed to serialize marker: {}", e))?;
+            .map_err(|e| CommandError::Parse(format!("Failed to serialize marker: {}", e)))?;
         fs::write(target_path.join(".skill-source.json"), marker_json)
-            .map_err(|e| format!("Failed to write marker: {}", e))?;
+            .map_err(|e| CommandError::Io(format!("Failed to write marker: {}", e)))?;
 
         let mod_time = get_folder_latest_modified(&source_dir);
         results.push(SkillDriftStatus {
@@ -533,24 +455,24 @@ pub async fn skill_distribute(
 pub async fn skill_check(
     state: State<'_, AppState>,
     slug: String,
-) -> Result<Vec<SkillDriftStatus>, String> {
+) -> CmdResult<Vec<SkillDriftStatus>> {
     let kb = &state.knowledge_path;
     let skills_dir = PathBuf::from(kb).join("_skills");
     let source_dir = skills_dir.join(&slug);
 
     if !source_dir.exists() {
-        return Err(format!("Skill '{}' not found in _skills/", slug));
+        return Err(CommandError::NotFound(format!("Skill '{}' not found in _skills/", slug)));
     }
 
     // Read registry
     let registry_path = skills_dir.join("registry.json");
     let registry_content = fs::read_to_string(&registry_path)
-        .map_err(|e| format!("Failed to read registry.json: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read registry.json: {}", e)))?;
     let registry: SkillRegistry = serde_json::from_str(&registry_content)
-        .map_err(|e| format!("Failed to parse registry.json: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to parse registry.json: {}", e)))?;
 
     let entry = registry.skills.get(&slug)
-        .ok_or_else(|| format!("Skill '{}' not found in registry", slug))?;
+        .ok_or_else(|| CommandError::NotFound(format!("Skill '{}' not found in registry", slug)))?;
 
     let source_hash = hash_skill_folder(&source_dir)?;
     let mut results = Vec::new();
@@ -617,14 +539,14 @@ pub async fn skill_pull(
     state: State<'_, AppState>,
     slug: String,
     target_path: String,
-) -> Result<SkillDriftStatus, String> {
+) -> CmdResult<SkillDriftStatus> {
     let kb = &state.knowledge_path;
     let skills_dir = PathBuf::from(kb).join("_skills");
     let source_dir = skills_dir.join(&slug);
     let target_dir = PathBuf::from(kb).join(&target_path);
 
     if !target_dir.exists() {
-        return Err(format!("Target path '{}' not found", target_path));
+        return Err(CommandError::NotFound(format!("Target path '{}' not found", target_path)));
     }
 
     // Copy target → source
@@ -640,9 +562,9 @@ pub async fn skill_pull(
         content_hash: source_hash.clone(),
     };
     let marker_json = serde_json::to_string_pretty(&marker)
-        .map_err(|e| format!("Failed to serialize marker: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to serialize marker: {}", e)))?;
     fs::write(target_dir.join(".skill-source.json"), marker_json)
-        .map_err(|e| format!("Failed to write marker: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to write marker: {}", e)))?;
 
     let mod_time = get_folder_latest_modified(&source_dir);
     Ok(SkillDriftStatus {
@@ -663,7 +585,7 @@ pub async fn skill_pull(
 #[command]
 pub async fn skill_check_all(
     state: State<'_, AppState>,
-) -> Result<Vec<SkillDriftStatus>, String> {
+) -> CmdResult<Vec<SkillDriftStatus>> {
     let kb = &state.knowledge_path;
     let skills_dir = PathBuf::from(kb).join("_skills");
     let registry_path = skills_dir.join("registry.json");
@@ -673,9 +595,9 @@ pub async fn skill_check_all(
     }
 
     let registry_content = fs::read_to_string(&registry_path)
-        .map_err(|e| format!("Failed to read registry.json: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read registry.json: {}", e)))?;
     let registry: SkillRegistry = serde_json::from_str(&registry_content)
-        .map_err(|e| format!("Failed to parse registry.json: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to parse registry.json: {}", e)))?;
 
     let mut all_results = Vec::new();
 
@@ -772,43 +694,6 @@ pub async fn skill_check_all(
         }
     }
 
-    // 3. Scan platform skills for unregistered copies
-    let platform_skills_dir = PathBuf::from(kb).join("0_Platform/skills");
-    if platform_skills_dir.exists() {
-        if let Ok(entries) = fs::read_dir(&platform_skills_dir) {
-            for entry in entries.flatten() {
-                let skill_name = entry.file_name().to_string_lossy().to_string();
-                if !entry.path().is_dir()
-                    || skill_name.starts_with('_')
-                    || skill_name.starts_with('.')
-                {
-                    continue;
-                }
-
-                if !registry.skills.contains_key(&skill_name) {
-                    continue;
-                }
-
-                let dist_path = format!("0_Platform/skills/{}", skill_name);
-
-                if registered_paths.contains(&dist_path) {
-                    continue;
-                }
-
-                let source_dir = skills_dir.join(&skill_name);
-                let source_hash = if source_dir.exists() {
-                    hash_skill_folder(&source_dir).unwrap_or_default()
-                } else {
-                    String::new()
-                };
-
-                let target_path = PathBuf::from(kb).join(&dist_path);
-                let result = check_distribution(&skill_name, &dist_path, &source_hash, &source_dir, &target_path);
-                all_results.push(result);
-            }
-        }
-    }
-
     Ok(all_results)
 }
 
@@ -863,7 +748,7 @@ fn check_distribution(slug: &str, dist_path: &str, source_hash: &str, source_pat
 
 /// Regenerate _categories.json for a specific bot's skills directory.
 /// Scans which skills from the registry are actually present in this bot's skills dir.
-fn regenerate_bot_categories_for(kb: &str, bot_skills_dir: &str, registry: &SkillRegistry) -> Result<(), String> {
+fn regenerate_bot_categories_for(kb: &str, bot_skills_dir: &str, registry: &SkillRegistry) -> CmdResult<()> {
     let bot_dir = PathBuf::from(kb).join(bot_skills_dir);
     let categories_path = bot_dir.join("_categories.json");
 
@@ -889,9 +774,9 @@ fn regenerate_bot_categories_for(kb: &str, bot_skills_dir: &str, registry: &Skil
     });
 
     let json = serde_json::to_string_pretty(&output)
-        .map_err(|e| format!("Failed to serialize categories: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to serialize categories: {}", e)))?;
     fs::write(&categories_path, json)
-        .map_err(|e| format!("Failed to write categories: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to write categories: {}", e)))?;
 
     Ok(())
 }
@@ -899,7 +784,7 @@ fn regenerate_bot_categories_for(kb: &str, bot_skills_dir: &str, registry: &Skil
 /// Discover all bots under _team/ that have (or could have) a skills/ directory.
 /// Skips _templates and _deprecated.
 #[command]
-pub async fn skill_list_bots(state: State<'_, AppState>) -> Result<Vec<BotInfo>, String> {
+pub async fn skill_list_bots(state: State<'_, AppState>) -> CmdResult<Vec<BotInfo>> {
     let kb = &state.knowledge_path;
     let team_dir = PathBuf::from(kb).join("_team");
 
@@ -911,7 +796,7 @@ pub async fn skill_list_bots(state: State<'_, AppState>) -> Result<Vec<BotInfo>,
 
     // Scan _team/{person}/ for bot-* dirs
     let persons = fs::read_dir(&team_dir)
-        .map_err(|e| format!("Failed to read _team/: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read _team/: {}", e)))?;
 
     for person_entry in persons.flatten() {
         let person_name = person_entry.file_name().to_string_lossy().to_string();
@@ -956,13 +841,13 @@ pub async fn skill_distribute_to(
     slug: String,
     target_path: String,
     dist_type: String,
-) -> Result<SkillDriftStatus, String> {
+) -> CmdResult<SkillDriftStatus> {
     let kb = &state.knowledge_path;
     let skills_dir = PathBuf::from(kb).join("_skills");
     let source_dir = skills_dir.join(&slug);
 
     if !source_dir.exists() {
-        return Err(format!("Skill '{}' not found in _skills/", slug));
+        return Err(CommandError::NotFound(format!("Skill '{}' not found in _skills/", slug)));
     }
 
     // Build full target: for bot, target_path is like "_team/melvin/bot-mel/skills"
@@ -981,16 +866,16 @@ pub async fn skill_distribute_to(
         content_hash: source_hash.clone(),
     };
     let marker_json = serde_json::to_string_pretty(&marker)
-        .map_err(|e| format!("Failed to serialize marker: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to serialize marker: {}", e)))?;
     fs::write(target_dir.join(".skill-source.json"), marker_json)
-        .map_err(|e| format!("Failed to write marker: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to write marker: {}", e)))?;
 
     // Update registry.json — add this distribution if not already present
     let registry_path = skills_dir.join("registry.json");
     let registry_content = fs::read_to_string(&registry_path)
-        .map_err(|e| format!("Failed to read registry.json: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read registry.json: {}", e)))?;
     let mut registry: SkillRegistry = serde_json::from_str(&registry_content)
-        .map_err(|e| format!("Failed to parse registry.json: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to parse registry.json: {}", e)))?;
 
     if let Some(entry) = registry.skills.get_mut(&slug) {
         let already_exists = entry.distributions.iter().any(|d| d.path == full_target);
@@ -1005,9 +890,9 @@ pub async fn skill_distribute_to(
     // Write updated registry
     registry.updated = now_sgt();
     let updated_json = serde_json::to_string_pretty(&registry)
-        .map_err(|e| format!("Failed to serialize registry: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to serialize registry: {}", e)))?;
     fs::write(&registry_path, updated_json)
-        .map_err(|e| format!("Failed to write registry.json: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to write registry.json: {}", e)))?;
 
     // Regenerate _categories.json for bot targets
     if dist_type == "bot" {
@@ -1032,7 +917,7 @@ pub async fn skill_distribute_to(
 #[command]
 pub async fn skill_summary(
     state: State<'_, AppState>,
-) -> Result<Vec<SkillModInfo>, String> {
+) -> CmdResult<Vec<SkillModInfo>> {
     let kb = &state.knowledge_path;
     let skills_dir = PathBuf::from(kb).join("_skills");
 
@@ -1042,7 +927,7 @@ pub async fn skill_summary(
 
     let mut results = Vec::new();
     let entries = fs::read_dir(&skills_dir)
-        .map_err(|e| format!("Failed to read _skills/: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read _skills/: {}", e)))?;
 
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
@@ -1104,7 +989,7 @@ pub struct SkillExample {
 #[command]
 pub async fn skill_list_examples(
     state: State<'_, AppState>,
-) -> Result<Vec<SkillExample>, String> {
+) -> CmdResult<Vec<SkillExample>> {
     let kb = &state.knowledge_path;
     let skills_dir = PathBuf::from(kb).join("_skills");
 
@@ -1125,7 +1010,7 @@ pub async fn skill_list_examples(
     let mut results = Vec::new();
 
     let entries = fs::read_dir(&skills_dir)
-        .map_err(|e| format!("Failed to read _skills/: {}", e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read _skills/: {}", e)))?;
 
     for entry in entries.flatten() {
         let slug = entry.file_name().to_string_lossy().to_string();

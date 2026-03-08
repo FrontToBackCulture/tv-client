@@ -39,6 +39,7 @@ import {
 import { useRepository } from "../../stores/repositoryStore";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
+import { SectionLoading } from "../../components/ui/DetailStates";
 
 // ============================
 // Constants
@@ -546,7 +547,7 @@ export function DriveTabView() {
               onClick={handleScanAll}
               disabled={scanRunning}
               className={cn(
-                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded transition-colors",
+                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded transition-colors",
                 scanRunning
                   ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-wait"
                   : "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-950/50 border border-teal-200 dark:border-teal-800"
@@ -567,7 +568,7 @@ export function DriveTabView() {
                 setEditingConfig(null);
               }}
               className={cn(
-                "flex items-center justify-center px-1.5 py-1.5 text-[11px] rounded transition-colors border",
+                "flex items-center justify-center px-1.5 py-1.5 text-xs rounded transition-colors border",
                 showScanConfig
                   ? "bg-teal-100 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700"
                   : "bg-zinc-50 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -582,9 +583,7 @@ export function DriveTabView() {
         {/* Domain list */}
         <div className="flex-1 overflow-y-auto py-1">
           {domainsQuery.isLoading && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 size={16} className="animate-spin text-zinc-400" />
-            </div>
+            <SectionLoading />
           )}
 
           {Array.from(grouped.entries()).map(([type, domains]) => {
@@ -593,7 +592,7 @@ export function DriveTabView() {
               <div key={type}>
                 <button
                   onClick={() => toggleSection(type)}
-                  className="w-full flex items-center gap-1 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-400"
+                  className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-400"
                 >
                   {isCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
                   {TYPE_LABELS[type] ?? type} ({domains.length})
@@ -708,9 +707,7 @@ export function DriveTabView() {
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               {isLoading && (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 size={20} className="animate-spin text-zinc-400" />
-                </div>
+                <SectionLoading className="py-12" />
               )}
 
               {!isLoading && (
@@ -718,7 +715,7 @@ export function DriveTabView() {
                   {/* Folders */}
                   {allFolders.length > 0 && (
                     <div>
-                      <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
                         Folders ({allFolders.length})
                       </h3>
                       <div className="space-y-0.5">
@@ -746,11 +743,11 @@ export function DriveTabView() {
                   {/* Unprocessed files */}
                   {unprocessedFiles.length > 0 && (
                     <div>
-                      <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 flex items-center gap-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 flex items-center gap-2">
                         {folderExpectsProcessed ? "Unprocessed Files" : "Files"} ({unprocessedFiles.length})
                         {currentFolderWorkflow && (
                           <span className={cn(
-                            "text-[9px] font-normal normal-case tracking-normal px-1.5 py-0.5 rounded",
+                            "text-xs font-normal normal-case tracking-normal px-1.5 py-0.5 rounded",
                             folderExpectsProcessed
                               ? "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400"
                               : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
@@ -770,7 +767,7 @@ export function DriveTabView() {
                   {/* Processed files */}
                   {processedFiles.length > 0 && (
                     <div>
-                      <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
                         Recently Processed ({processedFiles.length})
                       </h3>
                       <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
@@ -944,9 +941,7 @@ function ScanConfigPanel({
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-1">
         {isLoading && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 size={20} className="animate-spin text-zinc-400" />
-          </div>
+          <SectionLoading className="py-12" />
         )}
 
         {!isLoading && isEmpty && (
@@ -990,7 +985,7 @@ function ScanConfigPanel({
                   <span className="font-medium text-zinc-700 dark:text-zinc-300">
                     {domain}
                   </span>
-                  <span className="text-[10px] text-zinc-400 ml-auto">
+                  <span className="text-xs text-zinc-400 ml-auto">
                     {totalCount} folder{totalCount !== 1 ? "s" : ""}, {enabledCount} enabled
                   </span>
                 </button>
@@ -1019,7 +1014,7 @@ function ScanConfigPanel({
                         </label>
                         <span
                           className={cn(
-                            "text-[9px] px-1.5 py-0.5 rounded flex-shrink-0",
+                            "text-xs px-1.5 py-0.5 rounded flex-shrink-0",
                             folder.source === "workflow"
                               ? "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400"
                               : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
@@ -1028,7 +1023,7 @@ function ScanConfigPanel({
                           {folder.source === "workflow" ? "wf" : "manual"}
                         </span>
                         {folder.move_to_processed && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 flex-shrink-0">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 flex-shrink-0">
                             processed
                           </span>
                         )}
@@ -1146,7 +1141,7 @@ function ScanAllView({
           Drive Scan — All Domains
         </span>
         {lastScanAt && (
-          <span className="text-[10px] text-zinc-400" title={new Date(lastScanAt).toLocaleString()}>
+          <span className="text-xs text-zinc-400" title={new Date(lastScanAt).toLocaleString()}>
             Last scanned {formatRelativeTime(lastScanAt)}
           </span>
         )}
@@ -1198,7 +1193,7 @@ function ScanAllView({
         {/* Stale domains (needs attention) */}
         {stale.length > 0 && (
           <div>
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1">
               <AlertTriangle size={10} />
               Stale Files — Needs Attention ({stale.length})
             </h3>
@@ -1211,7 +1206,7 @@ function ScanAllView({
         {/* Domains with recent files */}
         {hasFiles.length > 0 && (
           <div>
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1">
               <Clock size={10} />
               Unprocessed — Monitoring ({hasFiles.length})
             </h3>
@@ -1224,7 +1219,7 @@ function ScanAllView({
         {/* Errors */}
         {errors.length > 0 && (
           <div>
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-red-500 mb-2 flex items-center gap-1">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-red-500 mb-2 flex items-center gap-1">
               <XCircle size={10} />
               Failed ({errors.length})
             </h3>
@@ -1240,7 +1235,7 @@ function ScanAllView({
         {/* Clean domains */}
         {clean.length > 0 && (
           <div>
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 flex items-center gap-1">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 flex items-center gap-1">
               <CheckCircle2 size={10} />
               Clean ({clean.length})
             </h3>
@@ -1327,7 +1322,7 @@ function ScanDomainCard({
                 e.stopPropagation();
                 setExpanded(!expanded);
               }}
-              className="w-full px-3 py-1.5 text-[10px] text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 text-center border-t border-zinc-50 dark:border-zinc-800/30 transition-colors"
+              className="w-full px-3 py-1.5 text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 text-center border-t border-zinc-50 dark:border-zinc-800/30 transition-colors"
             >
               {expanded
                 ? "Show less"
@@ -1367,7 +1362,7 @@ function FileRow({
       <File size={13} className="flex-shrink-0 text-zinc-400" />
       <span className="truncate flex-1 text-zinc-700 dark:text-zinc-300">{file.name}</span>
       {ext && (
-        <span className="text-[10px] uppercase font-medium text-zinc-400 dark:text-zinc-500 px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">
+        <span className="text-xs uppercase font-medium text-zinc-400 dark:text-zinc-500 px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">
           {ext}
         </span>
       )}

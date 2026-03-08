@@ -103,14 +103,14 @@ export function SkillModal({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
-                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">&middot;</span>
-                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{skillName}</span>
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">&middot;</span>
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">{skillName}</span>
                 {/* Status badge with dropdown */}
                 <div className="relative">
                   <button
                     onClick={() => setShowStatusMenu(!showStatusMenu)}
                     className={cn(
-                      "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors",
+                      "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors",
                       SKILL_STATUS_CONFIG[currentStatus].badge,
                       SKILL_STATUS_CONFIG[currentStatus].text
                     )}
@@ -137,20 +137,20 @@ export function SkillModal({
                   )}
                 </div>
                 {lastRevised && (
-                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500">revised {relativeDate(lastRevised)}</span>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">revised {relativeDate(lastRevised)}</span>
                 )}
                 {usage && (usage.invocations > 0 || usage.mentions > 0) && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 tabular-nums">
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 tabular-nums">
                     {usage.invocations > 0 ? `${usage.invocations} invoked` : ""}
                     {usage.invocations > 0 && usage.mentions > 0 ? " · " : ""}
                     {usage.mentions > 0 ? `${usage.mentions} mentioned` : ""}
                   </span>
                 )}
                 {isDirty && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">Unsaved</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">Unsaved</span>
                 )}
                 {writeFile.isPending && (
-                  <span className="text-[10px] text-zinc-400 flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Saving...</span>
+                  <span className="text-xs text-zinc-400 flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Saving...</span>
                 )}
               </div>
               {summary && (
@@ -178,7 +178,7 @@ export function SkillModal({
             <div className="overflow-hidden">
               {/* View toggle bar */}
               <div className="px-5 py-2 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                <span className="text-xs font-medium uppercase tracking-wider text-zinc-400">
                   {viewMode === "edit" ? "Editing" : "Description"}
                 </span>
                 <div className="flex items-center gap-0.5">
@@ -259,7 +259,7 @@ export function SkillModal({
           {/* Subfolders */}
           {folders.length > 0 && (
             <section className="px-5 py-4 border-t border-zinc-100 dark:border-zinc-800">
-              <h2 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
                 Folders
               </h2>
               <div className="space-y-1">
@@ -273,7 +273,7 @@ export function SkillModal({
           {/* Root files (non-SKILL.md) */}
           {files.filter((f) => f.name !== "SKILL.md").length > 0 && (
             <section className="px-5 py-4 border-t border-zinc-100 dark:border-zinc-800">
-              <h2 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
                 Files
               </h2>
               <div className="space-y-1">
@@ -316,7 +316,7 @@ function SkillSubfolder({ path, name }: { path: string; name: string }) {
         </div>
       )}
       {expanded && files.length === 0 && entries.length > 0 && (
-        <p className="ml-6 mt-1 text-[11px] text-zinc-400">No files</p>
+        <p className="ml-6 mt-1 text-xs text-zinc-400">No files</p>
       )}
     </div>
   );
@@ -355,7 +355,7 @@ function SkillFileRow({ path, name }: { path: string; name: string }) {
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
         )}
         {name.endsWith(".md") && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400">MD</span>
+          <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400">MD</span>
         )}
         <ChevronRight size={12} className={cn("text-zinc-400 transition-transform", expanded && "rotate-90")} />
       </button>
@@ -373,7 +373,7 @@ function SkillFileRow({ path, name }: { path: string; name: string }) {
                   onClick={handleSave}
                   disabled={!isDirty || writeFile.isPending}
                   className={cn(
-                    "flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
+                    "flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors",
                     isDirty ? "bg-teal-500 text-white hover:bg-teal-600" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
                   )}
                 >
@@ -382,7 +382,7 @@ function SkillFileRow({ path, name }: { path: string; name: string }) {
                 </button>
                 <button
                   onClick={() => { setEditing(false); setIsDirty(false); }}
-                  className="px-2 py-0.5 rounded text-[11px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  className="px-2 py-0.5 rounded text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                 >
                   Cancel
                 </button>

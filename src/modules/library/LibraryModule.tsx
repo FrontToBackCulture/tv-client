@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Library, Search, X, File, Folder, FolderOpen, ChevronRight, ChevronDown, Loader2, Clock } from "lucide-react";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { invoke } from "@tauri-apps/api/core";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
@@ -26,7 +27,17 @@ interface FileInfo {
 export function LibraryModule() {
   const { activeRepository } = useRepository();
   const knowledgePath = activeRepository?.path ?? "";
-  const { tabs, activeTabId, splitOpen, splitFile, openTab, pinTab, closeTab, setActiveTab, closeAllTabs, setSplitFile, closeSplit } = useTabStore();
+  const tabs = useTabStore((s) => s.tabs);
+  const activeTabId = useTabStore((s) => s.activeTabId);
+  const splitOpen = useTabStore((s) => s.splitOpen);
+  const splitFile = useTabStore((s) => s.splitFile);
+  const openTab = useTabStore((s) => s.openTab);
+  const pinTab = useTabStore((s) => s.pinTab);
+  const closeTab = useTabStore((s) => s.closeTab);
+  const setActiveTab = useTabStore((s) => s.setActiveTab);
+  const closeAllTabs = useTabStore((s) => s.closeAllTabs);
+  const setSplitFile = useTabStore((s) => s.setSplitFile);
+  const closeSplit = useTabStore((s) => s.closeSplit);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [splitWidth, setSplitWidth] = useState(0.5); // fraction of content area
   const [isResizing, setIsResizing] = useState(false);
@@ -419,9 +430,7 @@ function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: stri
       <div className="flex-1 overflow-y-auto">
         {showResults ? (
           isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 size={16} className="text-zinc-400 animate-spin" />
-            </div>
+            <SectionLoading />
           ) : searchResults && searchResults.length > 0 ? (
             <div className="py-1">
               {searchResults.map((r) => (

@@ -1,6 +1,6 @@
 // Unified review grid: Toolbar component
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { AgGridReact } from "ag-grid-react";
 import type { ColumnState } from "ag-grid-community";
 import {
@@ -18,6 +18,8 @@ import {
   Save,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { Button } from "../../components/ui";
+import { useRegisterCommands } from "../../stores/commandStore";
 import type { ReviewRow } from "./reviewTypes";
 
 interface ReviewGridToolbarProps {
@@ -194,6 +196,21 @@ export function ReviewGridToolbar({
     }
   };
 
+  // Register contextual commands for Command Palette
+  const commands = useMemo(() => [
+    { id: "grid-flat", label: "Flat View", description: "Remove row grouping and show all rows flat", icon: <Columns size={15} />, action: applyFlatLayout },
+    { id: "grid-autofit", label: "Auto-fit Columns", description: "Resize all columns to fit their content", icon: <ChevronsLeftRight size={15} />, action: autoSizeAllColumns },
+    { id: "grid-reset", label: "Reset to Default Layout", description: "Clear filters, sorting, and column changes", icon: <RotateCcw size={15} />, action: resetLayout },
+    ...(!reviewMode ? [
+      { id: "grid-wrap", label: wrapSummary ? "Truncate Text" : "Wrap Text", description: "Toggle text wrapping in summary columns", icon: <WrapText size={15} />, action: () => setWrapSummary(!wrapSummary) },
+      { id: "grid-csv", label: "Export CSV", description: "Download grid data as a CSV file", icon: <Download size={15} />, action: exportToCsv },
+      { id: "grid-excel", label: "Export Excel", description: "Download grid data as an Excel spreadsheet", icon: <FileSpreadsheet size={15} />, action: exportToExcel },
+      { id: "grid-fullscreen", label: isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen", description: "Toggle fullscreen view for the data grid", icon: <Maximize2 size={15} />, action: () => setIsFullscreen(!isFullscreen) },
+    ] : []),
+  ], [reviewMode, wrapSummary, isFullscreen]);
+
+  useRegisterCommands(commands, [reviewMode, wrapSummary, isFullscreen]);
+
   return (
     <>
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
@@ -335,12 +352,12 @@ export function ReviewGridToolbar({
               >
                 <WrapText size={14} />
               </button>
-              <button onClick={exportToCsv} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors" title="Export to CSV">
-                <Download size={14} /> CSV
-              </button>
-              <button onClick={exportToExcel} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-500 transition-colors" title="Export to Excel">
-                <FileSpreadsheet size={14} /> Excel
-              </button>
+              <Button variant="secondary" size="md" icon={Download} onClick={exportToCsv} title="Export to CSV">
+                CSV
+              </Button>
+              <Button size="md" icon={FileSpreadsheet} onClick={exportToExcel} title="Export to Excel">
+                Excel
+              </Button>
               <button
                 onClick={() => setIsFullscreen(!isFullscreen)}
                 className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
@@ -375,12 +392,12 @@ export function ReviewGridToolbar({
               autoFocus
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => { setShowSaveDialog(false); setNewLayoutName(""); }} className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700">
+              <Button variant="secondary" size="md" onClick={() => { setShowSaveDialog(false); setNewLayoutName(""); }}>
                 Cancel
-              </button>
-              <button onClick={() => saveCurrentLayout(newLayoutName)} disabled={!newLayoutName.trim()} className="px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed">
+              </Button>
+              <Button size="md" onClick={() => saveCurrentLayout(newLayoutName)} disabled={!newLayoutName.trim()}>
                 Save
-              </button>
+              </Button>
             </div>
           </div>
         </div>

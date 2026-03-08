@@ -3,7 +3,8 @@
 
 import { useProductActivity } from "../../hooks/product";
 import type { ProductEntityType } from "../../lib/product/types";
-import { Loader2, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
+import { SectionLoading } from "../../components/ui/DetailStates";
 
 interface ProductActivityTimelineProps {
   entityType: ProductEntityType;
@@ -18,11 +19,7 @@ export function ProductActivityTimeline({ entityType, entityId }: ProductActivit
   });
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 size={20} className="text-zinc-400 animate-spin" />
-      </div>
-    );
+    return <SectionLoading />;
   }
 
   const all = activities ?? [];
@@ -71,7 +68,7 @@ export function ProductActivityTimeline({ entityType, entityId }: ProductActivit
                 )}
               </div>
             )}
-            <time className="text-[11px] text-zinc-400 mt-1 block">
+            <time className="text-xs text-zinc-400 mt-1 block">
               {new Date(activity.created_at).toLocaleString()}
             </time>
           </div>

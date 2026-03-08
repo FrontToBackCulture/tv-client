@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { FileText, FileCode, AlertCircle, RefreshCw } from "lucide-react";
+import { IconButton } from "../../components/ui";
 import { useReadFile } from "../../hooks/useFiles";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRecentFiles } from "../../hooks/useRecentFiles";
@@ -107,6 +108,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [intercomModalOpen, setIntercomModalOpen] = useState(false);
   const [portalModalOpen, setPortalModalOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Auto-save state for markdown files
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
@@ -121,6 +123,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["file", path] });
     queryClient.invalidateQueries({ queryKey: ["fileInfo", path] });
+    setRefreshKey((k) => k + 1);
   }, [queryClient, path]);
 
   // Domain URL for "Open in VAL" action
@@ -579,23 +582,34 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   };
 
   // Header with breadcrumbs and actions
-  const renderHeader = () => (
+  const renderHeader = (showSaveStatus = false) => (
     <div className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
       <div className="flex items-center justify-between px-4 py-2">
-        <Breadcrumbs
-          path={path}
-          basePath={basePath}
-          onNavigate={onNavigate}
-          isFile={true}
-        />
+        <div className="flex items-center gap-3">
+          <Breadcrumbs
+            path={path}
+            basePath={basePath}
+            onNavigate={onNavigate}
+            isFile={true}
+          />
+          {showSaveStatus && (
+            <span className={`text-xs ${
+              saveStatus === "saving" ? "text-zinc-500" :
+              saveStatus === "unsaved" ? "text-amber-500" :
+              "text-zinc-500 dark:text-zinc-600"
+            }`}>
+              {saveStatus === "saving" ? "Saving..." :
+               saveStatus === "unsaved" ? "Unsaved" :
+               "Saved"}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1">
-          <button
+          <IconButton
+            icon={RefreshCw}
+            label="Refresh file content"
             onClick={handleRefresh}
-            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-            title="Refresh file content"
-          >
-            <RefreshCw className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
-          </button>
+          />
           <FileActions
             path={path}
             isDirectory={false}
@@ -641,7 +655,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
       <div className="h-full flex flex-col">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
-          <ImageViewer path={path} filename={filename} />
+          <ImageViewer path={path} filename={filename} refreshKey={refreshKey} />
         </div>
         {renderToast()}
       </div>
@@ -677,7 +691,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
       <div className="h-full flex flex-col">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
-          <PDFViewer path={path} filename={filename} />
+          <PDFViewer path={path} filename={filename} refreshKey={refreshKey} />
         </div>
         {renderToast()}
       </div>
@@ -734,58 +748,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   if (fileType === "markdown") {
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
-        {/* Header with breadcrumbs and actions */}
-        <div className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
-          <div className="flex items-center justify-between px-4 py-2">
-            <div className="flex items-center gap-3">
-              <Breadcrumbs
-                path={path}
-                basePath={basePath}
-                onNavigate={onNavigate}
-                isFile={true}
-              />
-              {/* Auto-save status */}
-              <span className={`text-xs ${
-                saveStatus === "saving" ? "text-zinc-500" :
-                saveStatus === "unsaved" ? "text-amber-500" :
-                "text-zinc-500 dark:text-zinc-600"
-              }`}>
-                {saveStatus === "saving" ? "Saving..." :
-                 saveStatus === "unsaved" ? "Unsaved" :
-                 "Saved"}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={handleRefresh}
-                className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-                title="Refresh file content"
-              >
-                <RefreshCw className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
-              </button>
-              <FileActions
-                path={path}
-                isDirectory={false}
-                isFavorite={favorite}
-                onToggleFavorite={handleToggleFavorite}
-                onDelete={handleDelete}
-                onShowToast={showToast}
-                domainUrl={domainUrl}
-                domainLabel={domainLabel}
-                onGenerateImage={handleGenerateImage}
-                onGenerateImageWithLogo={handleGenerateImageWithLogo}
-                onGenerateDeck={handleGenerateDeck}
-                onGenerateVideo={handleGenerateVideo}
-                onExportPdf={handleExportPdf}
-                onPublishIntercom={() => setIntercomModalOpen(true)}
-                onPublishPortal={() => setPortalModalOpen(true)}
-                isGeneratingImage={isGenerating}
-                isGeneratingDeck={isGenerating}
-                isExportingPdf={isGenerating}
-              />
-            </div>
-          </div>
-        </div>
+        {renderHeader(true)}
 
         {/* TipTap Editor - always editable */}
         <div className="flex-1 overflow-hidden">
@@ -823,7 +786,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   if (fileType === "json") {
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
-        {renderHeader()}
+        {renderHeader(true)}
         <div className="flex-1 overflow-hidden">
           <JSONEditor
             key={path}
@@ -841,7 +804,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   if (fileType === "sql") {
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
-        {renderHeader()}
+        {renderHeader(true)}
         <div className="flex-1 overflow-hidden">
           <SQLEditor
             key={path}

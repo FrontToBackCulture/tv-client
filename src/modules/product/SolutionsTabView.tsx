@@ -3,7 +3,8 @@
 // Sources data from 2_Solutions/{ar,ap,analytics}/ folders
 
 import { useState, useMemo } from "react";
-import { Search, X, Package, Loader2, ChevronRight, ChevronDown, Folder, FileText } from "lucide-react";
+import { Search, X, Package, ChevronRight, ChevronDown, Folder, FileText } from "lucide-react";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { useReadFile, useListDirectory, FileEntry } from "../../hooks/useFiles";
 import { parseFrontmatter } from "../library/MarkdownViewer";
 import { SolutionCardView } from "./SolutionCardView";
@@ -168,15 +169,13 @@ export function SolutionsTabView({
 
         {/* Solution tree */}
         <div className="flex-1 overflow-y-auto px-2 py-1">
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-2.5 mb-1 flex items-center gap-1.5">
+          <p className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-2.5 mb-1 flex items-center gap-1.5">
             <Package size={10} />
             Solutions
             <span className="text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums">{filtered.length}</span>
           </p>
           {isLoading ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 size={14} className="text-zinc-400 animate-spin" />
-            </div>
+            <SectionLoading className="py-4" />
           ) : (
             filtered.map((solution) => {
               const expanded = expandedSlugs.has(solution.slug);
@@ -196,7 +195,7 @@ export function SolutionsTabView({
                     </button>
                     <button
                       onClick={() => handleSelectSolution(solution.slug)}
-                      className={`flex-1 text-left flex items-center gap-1.5 px-1.5 py-1 rounded-md text-xs transition-colors ${
+                      className={`flex-1 text-left flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
                         isSelectedSolution
                           ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
                           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
@@ -204,7 +203,7 @@ export function SolutionsTabView({
                     >
                       <span className="truncate font-medium">{solution.title}</span>
                       {solution.status === "draft" && (
-                        <span className="flex-shrink-0 ml-auto px-1 py-0.5 text-[9px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded">
+                        <span className="flex-shrink-0 ml-auto px-1 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded">
                           Draft
                         </span>
                       )}
@@ -233,7 +232,7 @@ export function SolutionsTabView({
                         />
                       )}
                       {!hasChildren && (
-                        <p className="text-[10px] text-zinc-400 px-2 py-1">No subfolders</p>
+                        <p className="text-xs text-zinc-400 px-2 py-1">No subfolders</p>
                       )}
                     </div>
                   )}
@@ -304,7 +303,7 @@ function SubfolderTree({
     <div className="mb-0.5">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+        className="w-full flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         {expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
         <Folder size={11} className="text-zinc-400" />
@@ -317,7 +316,7 @@ function SubfolderTree({
             <button
               key={file.path}
               onClick={() => onSelectFile(file.path)}
-              className={`w-full text-left flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] transition-colors ${
+              className={`w-full text-left flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors ${
                 selectedFile === file.path
                   ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
                   : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"

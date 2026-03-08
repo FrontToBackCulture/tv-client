@@ -4,7 +4,9 @@
 import { useProductReleases } from "../../hooks/product";
 import { RELEASE_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
-import { Loader2, Rocket } from "lucide-react";
+import { Rocket } from "lucide-react";
+import { DetailLoading } from "../../components/ui/DetailStates";
+import { EmptyState } from "../../components/EmptyState";
 import { cn } from "../../lib/cn";
 
 interface ReleaseListViewProps {
@@ -18,23 +20,12 @@ export function ReleaseListView({ search, selectedId, onSelect }: ReleaseListVie
     search ? { search } : undefined
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   const all = releases ?? [];
 
   if (all.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
-        <Rocket size={32} className="mb-2 opacity-50" />
-        <p className="text-sm">No releases found</p>
-      </div>
-    );
+    return <EmptyState icon={Rocket} message="No releases found" className="flex-1" />;
   }
 
   return (

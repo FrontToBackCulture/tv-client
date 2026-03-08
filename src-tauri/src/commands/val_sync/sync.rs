@@ -5,6 +5,7 @@ use super::api::val_api_fetch;
 use super::auth;
 use super::config::get_domain_config;
 use super::metadata;
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -60,17 +61,16 @@ pub(super) fn count_items(value: &serde_json::Value) -> usize {
 }
 
 /// Write JSON to file, creating parent directories
-pub(super) fn write_json(path: &str, value: &serde_json::Value) -> Result<(), String> {
+pub(super) fn write_json(path: &str, value: &serde_json::Value) -> CmdResult<()> {
     let p = Path::new(path);
     if let Some(dir) = p.parent() {
         if !dir.exists() {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("Failed to create directory: {}", e))?;
+            fs::create_dir_all(dir)?;
         }
     }
-    let content = serde_json::to_string_pretty(value)
-        .map_err(|e| format!("Failed to serialize JSON: {}", e))?;
-    fs::write(p, content).map_err(|e| format!("Failed to write file: {}", e))
+    let content = serde_json::to_string_pretty(value)?;
+    fs::write(p, content)?;
+    Ok(())
 }
 
 /// Generic sync operation with auth retry
@@ -78,7 +78,7 @@ async fn sync_artifact(
     domain: &str,
     artifact_type: &str,
     output_filename: &str,
-) -> Result<SyncResult, String> {
+) -> CmdResult<SyncResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(domain)?;
     let global_path = &domain_config.global_path;
@@ -96,10 +96,10 @@ async fn sync_artifact(
             let (new_token, _) = auth::reauth(domain).await?;
             val_api_fetch(&base_url, &new_token, artifact_type, None)
                 .await
-                .map_err(|e| format!("Sync {} failed after reauth: {}", artifact_type, e))?
+                .map_err(|e| CommandError::Network(format!("Sync {} failed after reauth: {}", artifact_type, e)))?
         }
         Err(e) => {
-            return Err(format!("Sync {} failed: {}", artifact_type, e));
+            return Err(CommandError::Network(format!("Sync {} failed: {}", artifact_type, e)));
         }
     };
 
@@ -126,38 +126,38 @@ async fn sync_artifact(
 // ============================================================================
 
 #[command]
-pub async fn val_sync_fields(domain: String) -> Result<SyncResult, String> {
+pub async fn val_sync_fields(domain: String) -> CmdResult<SyncResult> {
     sync_artifact(&domain, "fields", "all_fields.json").await
 }
 
 #[command]
-pub async fn val_sync_queries(domain: String) -> Result<SyncResult, String> {
+pub async fn val_sync_queries(domain: String) -> CmdResult<SyncResult> {
     sync_artifact(&domain, "all-queries", "all_queries.json").await
 }
 
 #[command]
-pub async fn val_sync_workflows(domain: String) -> Result<SyncResult, String> {
+pub async fn val_sync_workflows(domain: String) -> CmdResult<SyncResult> {
     sync_artifact(&domain, "all-workflows", "all_workflows.json").await
 }
 
 #[command]
-pub async fn val_sync_dashboards(domain: String) -> Result<SyncResult, String> {
+pub async fn val_sync_dashboards(domain: String) -> CmdResult<SyncResult> {
     sync_artifact(&domain, "all-dashboards", "all_dashboards.json").await
 }
 
 #[command]
-pub async fn val_sync_tables(domain: String) -> Result<SyncResult, String> {
+pub async fn val_sync_tables(domain: String) -> CmdResult<SyncResult> {
     sync_artifact(&domain, "all-tables", "all_tables.json").await
 }
 
 #[command]
-pub async fn val_sync_calc_fields(domain: String) -> Result<SyncResult, String> {
+pub async fn val_sync_calc_fields(domain: String) -> CmdResult<SyncResult> {
     sync_artifact(&domain, "calc-fields", "all_calculated_fields.json").await
 }
 
 /// Full sync: all 6 sync ops + all 6 extract ops
 #[command]
-pub async fn val_sync_all(domain: String) -> Result<SyncAllResult, String> {
+pub async fn val_sync_all(domain: String) -> CmdResult<SyncAllResult> {
     let start = Instant::now();
     let mut results = Vec::new();
     let mut extract_results = Vec::new();
@@ -185,7 +185,7 @@ pub async fn val_sync_all(domain: String) -> Result<SyncAllResult, String> {
                     file_path: String::new(),
                     duration_ms: 0,
                     status: "error".to_string(),
-                    message: e,
+                    message: e.to_string(),
                 });
             }
         }
@@ -212,7 +212,7 @@ pub async fn val_sync_all(domain: String) -> Result<SyncAllResult, String> {
                     count: 0,
                     duration_ms: 0,
                     status: "error".to_string(),
-                    message: e,
+                    message: e.to_string(),
                 });
             }
         }

@@ -41,7 +41,7 @@ export function DirectoryView({ selectedId, onSelect, onNewCompany }: DirectoryV
   const sorted = useMemo(() => {
     return [...companies].sort((a, b) => {
       if (sortBy === "name") return (a.display_name || a.name).localeCompare(b.display_name || b.name);
-      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
     });
   }, [companies, sortBy]);
 
@@ -63,7 +63,7 @@ export function DirectoryView({ selectedId, onSelect, onNewCompany }: DirectoryV
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Directory</h1>
-            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
               {companies.length} companies
               {search && contacts.length > 0 && ` · ${contacts.length} contacts matched`}
             </p>
@@ -78,11 +78,11 @@ export function DirectoryView({ selectedId, onSelect, onNewCompany }: DirectoryV
         </div>
         <SearchInput value={search} onChange={setSearch} placeholder="Search companies or people..." />
         <div className="flex items-center justify-between">
-          <p className="text-[11px] text-zinc-400">
+          <p className="text-xs text-zinc-400">
             {search ? "Searching companies & contacts" : "All companies & contacts"}
           </p>
           <button onClick={() => setSortBy(sortBy === "name" ? "updated" : "name")}
-            className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+            className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
             <ArrowUpDown size={11} />{sortBy === "name" ? "A-Z" : "Recent"}
           </button>
         </div>
@@ -93,7 +93,7 @@ export function DirectoryView({ selectedId, onSelect, onNewCompany }: DirectoryV
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-1">
             <p className="text-xs text-zinc-400">No results</p>
-            {search && <p className="text-[11px] text-zinc-400">Try a different search term</p>}
+            {search && <p className="text-xs text-zinc-400">Try a different search term</p>}
           </div>
         ) : grouped ? (
           // Alphabetical grouping
@@ -101,7 +101,7 @@ export function DirectoryView({ selectedId, onSelect, onNewCompany }: DirectoryV
             {Object.entries(grouped).map(([letter, comps]) => (
               <div key={letter}>
                 <div className="px-3 py-1.5 sticky top-0 bg-white dark:bg-zinc-950 z-10">
-                  <span className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500">{letter}</span>
+                  <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500">{letter}</span>
                 </div>
                 {comps.map((c) => (
                   <CompanyRow key={c.id} company={c} isSelected={c.id === selectedId}

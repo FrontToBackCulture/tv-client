@@ -1,6 +1,7 @@
 // src-tauri/src/commands/files.rs
 // File system operations for the Library module
 
+use crate::commands::error::{CmdResult, CommandError};
 use crate::models::{FileEntry, FileInfo, TreeNode};
 use crate::AppState;
 use std::fs;
@@ -8,32 +9,32 @@ use std::path::Path;
 use tauri::{command, State, Emitter};
 
 #[command]
-pub async fn read_file(path: String) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
+pub async fn read_file(path: String) -> CmdResult<String> {
+    fs::read_to_string(&path).map_err(|e| CommandError::Io(format!("Failed to read file: {}", e)))
 }
 
 #[command]
-pub async fn write_file(path: String, content: String) -> Result<(), String> {
+pub async fn write_file(path: String, content: String) -> CmdResult<()> {
     // Ensure parent directory exists
     if let Some(parent) = Path::new(&path).parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| CommandError::Io(format!("Failed to create directory: {}", e)))?;
     }
-    fs::write(&path, content).map_err(|e| format!("Failed to write file: {}", e))
+    fs::write(&path, content).map_err(|e| CommandError::Io(format!("Failed to write file: {}", e)))
 }
 
 #[command]
-pub async fn delete_file(path: String) -> Result<(), String> {
+pub async fn delete_file(path: String) -> CmdResult<()> {
     let p = Path::new(&path);
     if p.is_dir() {
-        fs::remove_dir_all(&path).map_err(|e| format!("Failed to delete directory: {}", e))
+        fs::remove_dir_all(&path).map_err(|e| CommandError::Io(format!("Failed to delete directory: {}", e)))
     } else {
-        fs::remove_file(&path).map_err(|e| format!("Failed to delete file: {}", e))
+        fs::remove_file(&path).map_err(|e| CommandError::Io(format!("Failed to delete file: {}", e)))
     }
 }
 
 #[command]
-pub async fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
-    let entries = fs::read_dir(&path).map_err(|e| format!("Failed to read directory: {}", e))?;
+pub async fn list_directory(path: String) -> CmdResult<Vec<FileEntry>> {
+    let entries = fs::read_dir(&path).map_err(|e| CommandError::Io(format!("Failed to read directory: {}", e)))?;
 
     let mut files: Vec<FileEntry> = Vec::new();
     for entry in entries.flatten() {
@@ -79,7 +80,7 @@ pub async fn get_file_tree(
     state: State<'_, AppState>,
     path: Option<String>,
     max_depth: Option<usize>,
-) -> Result<TreeNode, String> {
+) -> CmdResult<TreeNode> {
     let root_path = path.unwrap_or_else(|| state.knowledge_path.clone());
     let depth = max_depth.unwrap_or(3);
 
@@ -130,22 +131,22 @@ pub async fn get_file_tree(
     }
 
     build_tree(Path::new(&root_path), 0, depth)
-        .ok_or_else(|| "Failed to build file tree".to_string())
+        .ok_or_else(|| CommandError::NotFound("Failed to build file tree".to_string()))
 }
 
 #[command]
-pub async fn create_directory(path: String) -> Result<(), String> {
-    fs::create_dir_all(&path).map_err(|e| format!("Failed to create directory: {}", e))
+pub async fn create_directory(path: String) -> CmdResult<()> {
+    fs::create_dir_all(&path).map_err(|e| CommandError::Io(format!("Failed to create directory: {}", e)))
 }
 
 #[command]
-pub async fn rename_path(old_path: String, new_path: String) -> Result<(), String> {
-    fs::rename(&old_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))
+pub async fn rename_path(old_path: String, new_path: String) -> CmdResult<()> {
+    fs::rename(&old_path, &new_path).map_err(|e| CommandError::Io(format!("Failed to rename: {}", e)))
 }
 
 #[command]
-pub async fn get_file_info(path: String) -> Result<FileInfo, String> {
-    let metadata = fs::metadata(&path).map_err(|e| format!("Failed to get file info: {}", e))?;
+pub async fn get_file_info(path: String) -> CmdResult<FileInfo> {
+    let metadata = fs::metadata(&path).map_err(|e| CommandError::Io(format!("Failed to get file info: {}", e)))?;
     let p = Path::new(&path);
 
     Ok(FileInfo {
@@ -181,13 +182,13 @@ static WATCHERS: std::sync::LazyLock<Mutex<HashMap<String, RecommendedWatcher>>>
 pub async fn watch_directory(
     app: tauri::AppHandle,
     path: String,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     use notify::{Config, RecursiveMode, Watcher};
     use std::sync::mpsc::channel;
 
     // Check if already watching this path
     {
-        let watchers = WATCHERS.lock().map_err(|e| format!("Lock error: {}", e))?;
+        let watchers = WATCHERS.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         if watchers.contains_key(&path) {
             return Ok(()); // Already watching
         }
@@ -196,15 +197,15 @@ pub async fn watch_directory(
     let (tx, rx) = channel();
 
     let mut watcher = RecommendedWatcher::new(tx, Config::default())
-        .map_err(|e| format!("Failed to create watcher: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Failed to create watcher: {}", e)))?;
 
     watcher
         .watch(Path::new(&path), RecursiveMode::Recursive)
-        .map_err(|e| format!("Failed to watch directory: {}", e))?;
+        .map_err(|e| CommandError::Internal(format!("Failed to watch directory: {}", e)))?;
 
     // Store watcher in registry (keeps it alive)
     {
-        let mut watchers = WATCHERS.lock().map_err(|e| format!("Lock error: {}", e))?;
+        let mut watchers = WATCHERS.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         watchers.insert(path.clone(), watcher);
     }
 
@@ -232,8 +233,8 @@ pub async fn watch_directory(
 
 /// Stop watching a directory
 #[command]
-pub async fn unwatch_directory(path: String) -> Result<(), String> {
-    let mut watchers = WATCHERS.lock().map_err(|e| format!("Lock error: {}", e))?;
+pub async fn unwatch_directory(path: String) -> CmdResult<()> {
+    let mut watchers = WATCHERS.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
     if watchers.remove(&path).is_some() {
         Ok(()) // Watcher dropped, thread will exit when rx closes
     } else {
@@ -243,14 +244,14 @@ pub async fn unwatch_directory(path: String) -> Result<(), String> {
 
 /// Open a file or folder in Finder (macOS)
 #[command]
-pub async fn open_in_finder(path: String) -> Result<(), String> {
+pub async fn open_in_finder(path: String) -> CmdResult<()> {
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
             .arg("-R") // Reveal in Finder
             .arg(&path)
             .spawn()
-            .map_err(|e| format!("Failed to open in Finder: {}", e))?;
+            .map_err(|e| CommandError::Io(format!("Failed to open in Finder: {}", e)))?;
         Ok(())
     }
 
@@ -260,7 +261,7 @@ pub async fn open_in_finder(path: String) -> Result<(), String> {
             .arg("/select,")
             .arg(&path)
             .spawn()
-            .map_err(|e| format!("Failed to open in Explorer: {}", e))?;
+            .map_err(|e| CommandError::Io(format!("Failed to open in Explorer: {}", e)))?;
         Ok(())
     }
 
@@ -274,17 +275,17 @@ pub async fn open_in_finder(path: String) -> Result<(), String> {
         std::process::Command::new("xdg-open")
             .arg(&parent)
             .spawn()
-            .map_err(|e| format!("Failed to open file manager: {}", e))?;
+            .map_err(|e| CommandError::Io(format!("Failed to open file manager: {}", e)))?;
         Ok(())
     }
 }
 
 /// Read a file as base64 encoded string (for binary files like images, PDFs)
 #[command]
-pub async fn read_file_binary(path: String) -> Result<String, String> {
+pub async fn read_file_binary(path: String) -> CmdResult<String> {
     use base64::{engine::general_purpose::STANDARD, Engine};
 
-    let bytes = fs::read(&path).map_err(|e| format!("Failed to read file: {}", e))?;
+    let bytes = fs::read(&path).map_err(|e| CommandError::Io(format!("Failed to read file: {}", e)))?;
     Ok(STANDARD.encode(bytes))
 }
 
@@ -292,7 +293,7 @@ pub async fn read_file_binary(path: String) -> Result<String, String> {
 /// For markdown files, extracts title and summary from frontmatter
 /// Always searches recursively to find nested files (e.g., sessions/2026-01-01/notes.md)
 #[command]
-pub async fn get_folder_files(path: String, limit: Option<u32>) -> Result<Vec<FileEntry>, String> {
+pub async fn get_folder_files(path: String, limit: Option<u32>) -> CmdResult<Vec<FileEntry>> {
     let limit = limit.unwrap_or(20) as usize;
 
     // Always search recursively - depth 4 to handle nested structures like sessions/_archive/date/notes.md
@@ -316,8 +317,8 @@ pub async fn get_folder_files(path: String, limit: Option<u32>) -> Result<Vec<Fi
 
 /// Collect files from a single directory (non-recursive)
 #[allow(dead_code)]
-fn collect_files_in_dir(path: &str) -> Result<Vec<FileEntry>, String> {
-    let entries = fs::read_dir(path).map_err(|e| format!("Failed to read directory: {}", e))?;
+fn collect_files_in_dir(path: &str) -> CmdResult<Vec<FileEntry>> {
+    let entries = fs::read_dir(path).map_err(|e| CommandError::Io(format!("Failed to read directory: {}", e)))?;
     let mut files: Vec<FileEntry> = Vec::new();
 
     for entry in entries.flatten() {
@@ -367,7 +368,7 @@ fn collect_files_in_dir(path: &str) -> Result<Vec<FileEntry>, String> {
 }
 
 /// Collect files recursively from subdirectories
-fn collect_files_recursive(path: &str, max_depth: usize) -> Result<Vec<FileEntry>, String> {
+fn collect_files_recursive(path: &str, max_depth: usize) -> CmdResult<Vec<FileEntry>> {
     let mut files: Vec<FileEntry> = Vec::new();
     collect_files_recursive_impl(Path::new(path), 0, max_depth, &mut files);
     Ok(files)
@@ -473,13 +474,13 @@ fn extract_frontmatter(path: &Path) -> (Option<String>, Option<String>) {
 
 /// Open a file with its default application
 #[command]
-pub async fn open_with_default_app(path: String) -> Result<(), String> {
+pub async fn open_with_default_app(path: String) -> CmdResult<()> {
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
             .arg(&path)
             .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
+            .map_err(|e| CommandError::Io(format!("Failed to open file: {}", e)))?;
         Ok(())
     }
 
@@ -488,7 +489,7 @@ pub async fn open_with_default_app(path: String) -> Result<(), String> {
         std::process::Command::new("cmd")
             .args(["/C", "start", "", &path])
             .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
+            .map_err(|e| CommandError::Io(format!("Failed to open file: {}", e)))?;
         Ok(())
     }
 
@@ -497,7 +498,7 @@ pub async fn open_with_default_app(path: String) -> Result<(), String> {
         std::process::Command::new("xdg-open")
             .arg(&path)
             .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
+            .map_err(|e| CommandError::Io(format!("Failed to open file: {}", e)))?;
         Ok(())
     }
 }

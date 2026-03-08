@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
 import { useRepoSettings } from "../../hooks/repos";
+import { Button, IconButton } from "../../components/ui";
 
 interface RepoSettingsDialogProps {
   onClose: () => void;
@@ -33,12 +34,7 @@ export function RepoSettingsDialog({ onClose }: RepoSettingsDialogProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-sm font-semibold">Manage Tracked Repos</h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500"
-          >
-            <X size={16} />
-          </button>
+          <IconButton icon={X} label="Close" onClick={onClose} />
         </div>
 
         {/* Add form */}
@@ -51,13 +47,9 @@ export function RepoSettingsDialog({ onClose }: RepoSettingsDialogProps) {
               placeholder="owner/repo"
               className="flex-1 px-3 py-1.5 text-sm rounded border border-zinc-300 dark:border-zinc-700 bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
-            <button
-              onClick={handleAdd}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-teal-600 text-white hover:bg-teal-700"
-            >
-              <Plus size={14} />
+            <Button icon={Plus} onClick={handleAdd}>
               Add
-            </button>
+            </Button>
           </div>
           {error && (
             <p className="text-xs text-red-500 mt-1">{error}</p>
@@ -75,25 +67,22 @@ export function RepoSettingsDialog({ onClose }: RepoSettingsDialogProps) {
                 <span className="text-zinc-400">{r.owner}/</span>
                 {r.repo}
               </span>
-              <button
+              <IconButton
+                icon={Trash2}
+                size={14}
+                variant="danger"
+                label="Remove"
                 onClick={() => removeRepo(r.owner, r.repo)}
-                className="p-1 rounded text-zinc-400 hover:text-red-500 hover:bg-zinc-200 dark:hover:bg-zinc-800"
-                title="Remove"
-              >
-                <Trash2 size={14} />
-              </button>
+              />
             </div>
           ))}
         </div>
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 text-sm rounded border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
+          <Button variant="secondary" onClick={onClose}>
             Done
-          </button>
+          </Button>
         </div>
       </div>
     </div>

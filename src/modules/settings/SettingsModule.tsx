@@ -16,6 +16,7 @@ import {
 import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { cn } from "../../lib/cn";
+import { IconButton } from "../../components/ui";
 
 import { ApiKeysView } from "./ApiKeysView";
 import { BotsPathView } from "./BotsPathView";
@@ -44,7 +45,10 @@ const sidebarItems: SidebarItem[] = [
 ];
 
 export function SettingsModal() {
-  const { settingsOpen, settingsView, setSettingsView, closeSettings } = useAppStore();
+  const settingsOpen = useAppStore((s) => s.settingsOpen);
+  const settingsView = useAppStore((s) => s.settingsView);
+  const setSettingsView = useAppStore((s) => s.setSettingsView);
+  const closeSettings = useAppStore((s) => s.closeSettings);
   const [activeView, setActiveView] = useState<SettingsViewId>(
     (settingsView as SettingsViewId) || "keys"
   );
@@ -111,12 +115,7 @@ export function SettingsModal() {
               Settings
             </span>
           </div>
-          <button
-            onClick={closeSettings}
-            className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <X size={16} />
-          </button>
+          <IconButton icon={X} label="Close settings" onClick={closeSettings} />
         </div>
 
         {/* Body: sidebar + content */}
@@ -134,7 +133,7 @@ export function SettingsModal() {
                     onClick={() => setActiveView(item.id)}
                     data-help-id={`settings-nav-${item.id}`}
                     className={cn(
-                      "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
+                      "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors",
                       isActive
                         ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
                         : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"

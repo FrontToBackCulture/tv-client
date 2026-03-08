@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { Building2, Users, BarChart3, CheckCircle, Plus, Trophy } from "lucide-react";
+import { Button } from "../../components/ui";
 import { CompanyFilters, COMPANY_STAGES, PipelineStats } from "../../lib/crm/types";
 import { ClosedDealsPanel } from "./ClosedDealsPanel";
 
@@ -43,7 +44,7 @@ export function CRMSidebar({
 
       {/* Views */}
       <div className="px-2 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-2 px-2">
+        <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 px-2">
           Views
         </h3>
         <nav className="space-y-0.5">
@@ -54,9 +55,9 @@ export function CRMSidebar({
               <button
                 key={view.id}
                 onClick={() => onViewChange(view.id)}
-                className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded transition-colors ${
+                className={`flex items-center gap-2 w-full text-left px-3 py-1.5 rounded transition-colors ${
                   isActive
-                    ? "bg-teal-500/10 text-teal-600 dark:text-teal-400"
+                    ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
                     : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-300"
                 }`}
               >
@@ -79,7 +80,7 @@ export function CRMSidebar({
       {/* Filters - only show on companies view */}
       {activeView === "companies" && (
         <div className="px-2 py-3 flex-1 overflow-auto">
-          <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-2 px-2">
+          <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 px-2">
             Filters
           </h3>
 
@@ -98,7 +99,7 @@ export function CRMSidebar({
 
           {/* Stage filter */}
           <div className="mb-4 px-2">
-            <label className="text-[11px] font-medium text-zinc-500 block mb-2 uppercase tracking-wider">
+            <label className="text-xs font-medium text-zinc-500 block mb-2 uppercase tracking-wider">
               Stage
             </label>
             <div className="space-y-1">
@@ -157,24 +158,16 @@ export function CRMSidebar({
 
       {/* Closed Deals button */}
       <div className="px-2 py-1">
-        <button
-          onClick={() => setShowClosedDeals(true)}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-colors"
-        >
-          <Trophy size={16} />
+        <Button variant="primary" size="md" icon={Trophy} className="w-full bg-emerald-600 hover:bg-emerald-500" onClick={() => setShowClosedDeals(true)}>
           Closed Deals
-        </button>
+        </Button>
       </div>
 
       {/* New Company button */}
       <div className="px-2 py-2 border-t border-zinc-200 dark:border-zinc-800">
-        <button
-          onClick={onNewCompany}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-sm font-medium transition-colors"
-        >
-          <Plus size={16} />
+        <Button variant="primary" size="md" icon={Plus} className="w-full" onClick={onNewCompany}>
           New Company
-        </button>
+        </Button>
       </div>
 
       {/* Closed Deals Panel */}

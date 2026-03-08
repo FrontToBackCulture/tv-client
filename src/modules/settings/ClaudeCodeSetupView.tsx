@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  Loader2,
   RefreshCw,
   FileText,
   Trash2,
@@ -12,6 +11,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import { Button, IconButton, SectionLoading, ErrorBanner } from "../../components/ui";
 
 interface ClaudeMcpStatus {
   binary_installed: boolean;
@@ -85,13 +85,7 @@ export function ClaudeCodeSetupView() {
             Set up the tv-mcp server for Claude Code integration
           </p>
         </div>
-        <button
-          onClick={fetchStatus}
-          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
-          title="Refresh"
-        >
-          <RefreshCw size={18} />
-        </button>
+        <IconButton icon={RefreshCw} size={18} label="Refresh" onClick={fetchStatus} />
       </div>
 
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -102,16 +96,10 @@ export function ClaudeCodeSetupView() {
         </p>
       </div>
 
-      {error && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 size={32} className="animate-spin text-zinc-400" />
-        </div>
+        <SectionLoading className="py-12" />
       ) : status ? (
         <>
           {/* Status cards */}
@@ -184,44 +172,17 @@ export function ClaudeCodeSetupView() {
           {/* Actions */}
           <div className="flex items-center gap-3">
             {!isFullyInstalled ? (
-              <button
-                onClick={handleInstall}
-                disabled={installing}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors disabled:opacity-50"
-              >
-                {installing ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Download size={16} />
-                )}
+              <Button size="md" icon={Download} onClick={handleInstall} disabled={installing} loading={installing}>
                 {installing ? "Installing..." : "Install"}
-              </button>
+              </Button>
             ) : (
               <>
-                <button
-                  onClick={handleInstall}
-                  disabled={installing}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {installing ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <RefreshCw size={16} />
-                  )}
+                <Button variant="secondary" size="md" icon={RefreshCw} onClick={handleInstall} disabled={installing} loading={installing}>
                   {installing ? "Reinstalling..." : "Reinstall / Update"}
-                </button>
-                <button
-                  onClick={handleUninstall}
-                  disabled={uninstalling}
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {uninstalling ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={16} />
-                  )}
+                </Button>
+                <Button variant="danger" size="md" icon={Trash2} onClick={handleUninstall} disabled={uninstalling} loading={uninstalling} className="bg-transparent text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600">
                   {uninstalling ? "Removing..." : "Uninstall"}
-                </button>
+                </Button>
               </>
             )}
           </div>

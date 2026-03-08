@@ -25,7 +25,7 @@ function TrackerSection({ title, count, color, defaultOpen = true, children }: {
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
           <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{title}</span>
         </div>
-        <span className="text-[10px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
+        <span className="text-xs font-medium tabular-nums px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
           {count}
         </span>
       </button>
@@ -46,11 +46,11 @@ const TrackerRow = memo(function TrackerRow({ task, indicator, onSelect }: {
         className="w-2 h-2 rounded-sm flex-shrink-0"
         style={{ backgroundColor: task.project?.color || "#6B7280" }}
       />
-      <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0 w-16">{getTaskIdentifier(task)}</span>
+      <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-16">{getTaskIdentifier(task)}</span>
       <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
       {task.assignee?.name && (
         <div
-          className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
+          className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
           title={task.assignee.name}
         >
           {initials(task.assignee.name)}
@@ -147,7 +147,7 @@ export function TrackerView({
               task={t}
               onSelect={onSelectTask}
               indicator={
-                <span className="text-[10px] text-red-500 tabular-nums">
+                <span className="text-xs text-red-500 tabular-nums">
                   {daysSince(t.due_date!)}d overdue
                 </span>
               }
@@ -162,7 +162,7 @@ export function TrackerView({
               task={t}
               onSelect={onSelectTask}
               indicator={
-                <span className="text-[10px] text-amber-500 tabular-nums flex items-center gap-0.5">
+                <span className="text-xs text-amber-500 tabular-nums flex items-center gap-0.5">
                   <Calendar size={9} />
                   {formatDate(t.due_date!)}
                 </span>
@@ -194,7 +194,7 @@ export function TrackerView({
               task={t}
               onSelect={onSelectTask}
               indicator={
-                <span className="text-[10px] text-zinc-400 tabular-nums flex items-center gap-0.5">
+                <span className="text-xs text-zinc-400 tabular-nums flex items-center gap-0.5">
                   <Clock size={9} />
                   {daysSince(t.updated_at!)}d idle
                 </span>

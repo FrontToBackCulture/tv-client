@@ -4,7 +4,6 @@
 import { useState, useMemo, useCallback, useRef } from "react";
 import {
   Sparkles,
-  Loader2,
   Plus,
   FileText,
   FolderOpen,
@@ -19,6 +18,8 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
+import { IconButton } from "../../components/ui";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { useRepository } from "../../stores/repositoryStore";
 import {
   useListDomainAiStatus,
@@ -26,55 +27,12 @@ import {
   type SkillDomainDeployment,
 } from "../../hooks/val-sync";
 import { useListDirectory } from "../../hooks/useFiles";
-import { useAiSkills, useCreateAiSkill } from "../../hooks/useAiSkills";
+import { useCreateAiSkill } from "../../hooks/useAiSkills";
 import { useReadFile } from "../../hooks/useFiles";
 import { MarkdownViewer } from "../library/MarkdownViewer";
+import { useSkillRegistry, type SkillCategory } from "../skills/useSkillRegistry";
 
-const SKILL_GROUP_ORDER = ["insights", "recon-diagnostics", "analytics"] as const;
-const SKILL_GROUP_LABELS: Record<string, string> = {
-  insights: "Insights",
-  "recon-diagnostics": "Recon Diagnostics",
-  analytics: "Analytics",
-  other: "Other",
-};
-
-type SkillDef = { slug: string; name: string; description: string };
-interface SkillDefGroup {
-  key: string;
-  label: string;
-  subgroups?: { label: string; skills: SkillDef[] }[];
-  skills?: SkillDef[];
-}
-
-function groupSkillDefs(skills: SkillDef[]): SkillDefGroup[] {
-  const groups: Record<string, SkillDef[]> = {};
-  for (const skill of [...skills].sort((a, b) => a.slug.localeCompare(b.slug))) {
-    const prefix = SKILL_GROUP_ORDER.find((p) => skill.slug.startsWith(`${p}-`));
-    const key = prefix ?? "other";
-    (groups[key] ??= []).push(skill);
-  }
-  const order = [...SKILL_GROUP_ORDER, "other"];
-  return order
-    .filter((key) => groups[key]?.length)
-    .map((key) => {
-      const label = SKILL_GROUP_LABELS[key] ?? key;
-      const items = groups[key];
-      if (key === "analytics") {
-        const subs: Record<string, SkillDef[]> = {};
-        for (const s of items) {
-          const rest = s.slug.replace(/^analytics-/, "");
-          const domain = rest.split("-")[0];
-          (subs[domain] ??= []).push(s);
-        }
-        const subgroups = Object.keys(subs).sort().map((d) => ({
-          label: d.charAt(0).toUpperCase() + d.slice(1),
-          skills: subs[d],
-        }));
-        return { key, label, subgroups };
-      }
-      return { key, label, skills: items };
-    });
-}
+type SkillDef = { slug: string; name: string; description: string; category: string };
 
 export function AiSkillsTabView() {
   const { activeRepository } = useRepository();
@@ -91,16 +49,24 @@ export function AiSkillsTabView() {
     });
   }, []);
   const createInputRef = useRef<HTMLInputElement>(null);
-  const skillsQuery = useAiSkills();
-  const skills = skillsQuery.data ?? [];
+  const registryQuery = useSkillRegistry();
+  const registry = registryQuery.data;
+  const skills: SkillDef[] = useMemo(() => {
+    if (!registry) return [];
+    return Object.entries(registry.skills)
+      .filter(([, e]) => e.target === "platform" || e.target === "both")
+      .map(([slug, e]) => ({ slug, name: e.name || slug, description: e.description || "", category: e.category || "" }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [registry]);
+  const categories = registry?.categories ?? [];
   const skillSlugs = useMemo(() => skills.map((s) => s.slug), [skills]);
   const createSkillMutation = useCreateAiSkill();
 
   const entitiesPath = activeRepository
     ? `${activeRepository.path}/0_Platform/architecture/domain-model/entities`
     : null;
-  const platformSkillsPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/skills`
+  const skillsPath = activeRepository
+    ? `${activeRepository.path}/_skills`
     : null;
   const domainStatusQuery = useListDomainAiStatus(entitiesPath);
 
@@ -118,13 +84,13 @@ export function AiSkillsTabView() {
 
   // Skill folder path for listing files
   const skillFolderPath = activeRepository && effectiveSelected
-    ? `${activeRepository.path}/0_Platform/skills/${effectiveSelected}`
+    ? `${activeRepository.path}/_skills/${effectiveSelected}`
     : undefined;
   const skillFilesQuery = useListDirectory(skillFolderPath);
   const skillFiles = useMemo(
     () =>
       (skillFilesQuery.data ?? []).filter(
-        (f) => !f.is_directory && f.name !== "skill.json" && f.name !== "SKILL.md"
+        (f) => !f.is_directory && f.name !== "SKILL.md" && f.name !== "README.md" && !f.name.startsWith(".")
       ),
     [skillFilesQuery.data]
   );
@@ -205,7 +171,7 @@ export function AiSkillsTabView() {
   // Deployment status for selected skill
   const deploymentQuery = useSkillDeploymentStatus(
     contentTab === "deployment" ? effectiveSelected : null,
-    platformSkillsPath
+    skillsPath
   );
 
   return (
@@ -213,7 +179,7 @@ export function AiSkillsTabView() {
       {/* Sidebar — skill list */}
       <div className="w-64 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col bg-zinc-50 dark:bg-zinc-900/50">
         <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
             AI Skills
           </h3>
           <button
@@ -244,72 +210,34 @@ export function AiSkillsTabView() {
                 className="w-full px-2.5 py-1.5 text-sm rounded-md border border-violet-300 dark:border-violet-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-violet-500"
               />
               {createSkillMutation.isError && (
-                <p className="text-[11px] text-red-500 mt-1">
+                <p className="text-xs text-red-500 mt-1">
                   {String(createSkillMutation.error)}
                 </p>
               )}
             </div>
           )}
 
-          {skillsQuery.isLoading && (
+          {registryQuery.isLoading && (
             <div className="px-3 py-4 text-sm text-zinc-400 text-center">
               Loading...
             </div>
           )}
 
-          {!skillsQuery.isLoading && skills.length === 0 && !creating && (
+          {!registryQuery.isLoading && skills.length === 0 && !creating && (
             <div className="px-3 py-4 text-sm text-zinc-400 text-center">
               No skills yet
             </div>
           )}
 
-          {groupSkillDefs(skills).map((group) => {
-            const groupCount = group.subgroups
-              ? group.subgroups.reduce((n, sg) => n + sg.skills.length, 0)
-              : group.skills!.length;
-            const collapsed = collapsedGroups.has(group.key);
-            return (
-              <div key={group.key}>
-                <button
-                  onClick={() => toggleGroup(group.key)}
-                  className="w-full flex items-center gap-1 px-3 pt-3 pb-1 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
-                >
-                  <ChevronRight size={10} className={cn("text-zinc-400 transition-transform", !collapsed && "rotate-90")} />
-                  <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                    {group.label}
-                  </span>
-                  <span className="text-[10px] text-zinc-300 dark:text-zinc-600 ml-0.5">{groupCount}</span>
-                </button>
-                {!collapsed && (
-                  group.subgroups ? (
-                    group.subgroups.map((sub) => {
-                      const subKey = `${group.key}/${sub.label}`;
-                      const subCollapsed = collapsedGroups.has(subKey);
-                      return (
-                        <div key={sub.label}>
-                          <button
-                            onClick={() => toggleGroup(subKey)}
-                            className="w-full flex items-center gap-1 px-4 pt-2 pb-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
-                          >
-                            <ChevronRight size={9} className={cn("text-zinc-400 transition-transform", !subCollapsed && "rotate-90")} />
-                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{sub.label}</span>
-                            <span className="text-[10px] text-zinc-300 dark:text-zinc-600 ml-0.5">{sub.skills.length}</span>
-                          </button>
-                          {!subCollapsed && sub.skills.map((skill) => (
-                            <SkillSidebarItem key={skill.slug} skill={skill} active={effectiveSelected === skill.slug} stats={skillStats[skill.slug]} onSelect={setSelectedSkill} />
-                          ))}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    group.skills!.map((skill) => (
-                      <SkillSidebarItem key={skill.slug} skill={skill} active={effectiveSelected === skill.slug} stats={skillStats[skill.slug]} onSelect={setSelectedSkill} />
-                    ))
-                  )
-                )}
-              </div>
-            );
-          })}
+          <CategoryTree
+            skills={skills}
+            categories={categories}
+            selectedSlug={effectiveSelected}
+            skillStats={skillStats}
+            collapsedGroups={collapsedGroups}
+            onToggleGroup={toggleGroup}
+            onSelect={setSelectedSkill}
+          />
         </div>
 
         <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-400">
@@ -347,7 +275,7 @@ export function AiSkillsTabView() {
                       <button
                         key={f.name}
                         onClick={() => setPreviewFile({ path: f.path, name: f.name })}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
                       >
                         <FileText size={9} />
                         {f.name}
@@ -398,9 +326,7 @@ export function AiSkillsTabView() {
               {contentTab === "docs" && (
                 <>
                   {skillMdQuery.isLoading && (
-                    <div className="flex items-center justify-center py-16">
-                      <Loader2 size={20} className="animate-spin text-zinc-400" />
-                    </div>
+                    <SectionLoading className="py-16" />
                   )}
                   {skillMdContent && (
                     <div className="px-8 py-6">
@@ -443,7 +369,7 @@ function SkillSidebarItem({ skill, active, stats, onSelect }: { skill: SkillDef;
     <button
       onClick={() => onSelect(skill.slug)}
       className={cn(
-        "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors",
+        "w-full flex items-center gap-2 px-2.5 py-1.5 text-xs transition-colors",
         active
           ? "bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
           : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -458,6 +384,138 @@ function SkillSidebarItem({ skill, active, stats, onSelect }: { skill: SkillDef;
         <span className="text-xs text-zinc-400 flex-shrink-0 tabular-nums">{stats.domains}d</span>
       )}
     </button>
+  );
+}
+
+// ============================================================================
+// CategoryTree — groups skills by registry categories (same as Skills module)
+// ============================================================================
+
+function CategoryTree({
+  skills,
+  categories,
+  selectedSlug,
+  skillStats,
+  collapsedGroups,
+  onToggleGroup,
+  onSelect,
+}: {
+  skills: SkillDef[];
+  categories: SkillCategory[];
+  selectedSlug: string | null;
+  skillStats: Record<string, { domains: number }>;
+  collapsedGroups: Set<string>;
+  onToggleGroup: (key: string) => void;
+  onSelect: (slug: string) => void;
+}) {
+  const topLevel = useMemo(
+    () => [...categories].filter((c) => !c.parent).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.label.localeCompare(b.label)),
+    [categories]
+  );
+
+  const childrenOf = useCallback(
+    (parentId: string) =>
+      [...categories].filter((c) => c.parent === parentId).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.label.localeCompare(b.label)),
+    [categories]
+  );
+
+  const skillsByCategory = useMemo(() => {
+    const map = new Map<string, SkillDef[]>();
+    for (const s of skills) {
+      const cat = s.category || "";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(s);
+    }
+    return map;
+  }, [skills]);
+
+  const totalCount = useCallback(
+    (catId: string) => {
+      let count = skillsByCategory.get(catId)?.length ?? 0;
+      for (const child of childrenOf(catId)) {
+        count += skillsByCategory.get(child.id)?.length ?? 0;
+      }
+      return count;
+    },
+    [skillsByCategory, childrenOf]
+  );
+
+  // Uncategorized skills (no category or category not in registry)
+  const catIds = new Set(categories.map((c) => c.id));
+  const uncategorized = skills.filter((s) => !s.category || !catIds.has(s.category));
+
+  return (
+    <>
+      {topLevel.map((cat) => {
+        const children = childrenOf(cat.id);
+        const total = totalCount(cat.id);
+        if (total === 0 && children.length === 0) return null;
+
+        const collapsed = collapsedGroups.has(cat.id);
+        return (
+          <div key={cat.id}>
+            <button
+              onClick={() => onToggleGroup(cat.id)}
+              className="w-full flex items-center gap-1 px-3 pt-3 pb-1 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+            >
+              <ChevronRight size={10} className={cn("text-zinc-400 transition-transform", !collapsed && "rotate-90")} />
+              <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                {cat.label}
+              </span>
+              <span className="text-xs text-zinc-300 dark:text-zinc-600 ml-0.5">{total}</span>
+            </button>
+            {!collapsed && (
+              <>
+                {/* Direct skills in this category */}
+                {(skillsByCategory.get(cat.id) ?? []).map((skill) => (
+                  <SkillSidebarItem key={skill.slug} skill={skill} active={selectedSlug === skill.slug} stats={skillStats[skill.slug]} onSelect={onSelect} />
+                ))}
+                {/* Child categories */}
+                {children.map((child) => {
+                  const childSkills = skillsByCategory.get(child.id) ?? [];
+                  if (childSkills.length === 0) return null;
+                  const subKey = `${cat.id}/${child.id}`;
+                  const subCollapsed = collapsedGroups.has(subKey);
+                  return (
+                    <div key={child.id}>
+                      <button
+                        onClick={() => onToggleGroup(subKey)}
+                        className="w-full flex items-center gap-1 px-5 pt-2 pb-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+                      >
+                        <ChevronRight size={9} className={cn("text-zinc-400 transition-transform", !subCollapsed && "rotate-90")} />
+                        <span className="text-xs text-zinc-400 dark:text-zinc-500">{child.label}</span>
+                        <span className="text-xs text-zinc-300 dark:text-zinc-600 ml-0.5">{childSkills.length}</span>
+                      </button>
+                      {!subCollapsed && childSkills.map((skill) => (
+                        <SkillSidebarItem key={skill.slug} skill={skill} active={selectedSlug === skill.slug} stats={skillStats[skill.slug]} onSelect={onSelect} />
+                      ))}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        );
+      })}
+      {/* Uncategorized */}
+      {uncategorized.length > 0 && (
+        <div>
+          <button
+            onClick={() => onToggleGroup("_uncategorized")}
+            className="w-full flex items-center gap-1 px-3 pt-3 pb-1 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+          >
+            <ChevronRight size={10} className={cn("text-zinc-400 transition-transform", !collapsedGroups.has("_uncategorized") && "rotate-90")} />
+            <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+              Uncategorized
+            </span>
+            <span className="text-xs text-zinc-300 dark:text-zinc-600 ml-0.5">{uncategorized.length}</span>
+          </button>
+          {!collapsedGroups.has("_uncategorized") && uncategorized.map((skill) => (
+            <SkillSidebarItem key={skill.slug} skill={skill} active={selectedSlug === skill.slug} stats={skillStats[skill.slug]} onSelect={onSelect} />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -481,11 +539,7 @@ function SkillDeploymentPanel({
   masterFileCount?: number;
 }) {
   if (query.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 size={20} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="py-16" />;
   }
 
   if (query.isError) {
@@ -528,7 +582,7 @@ function SkillDeploymentPanel({
         <button
           onClick={() => query.refetch()}
           disabled={query.isFetching}
-          className="ml-auto flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+          className="ml-auto flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
         >
           <RefreshCw size={10} className={query.isFetching ? "animate-spin" : ""} />
           Refresh
@@ -566,7 +620,7 @@ function SkillDeploymentPanel({
                       {d.domain}
                     </td>
                     <td className="text-center px-2 py-2 text-zinc-400">
-                      <span className="text-[10px]">{d.domain_type === "production" ? "prod" : d.domain_type}</span>
+                      <span className="text-xs">{d.domain_type === "production" ? "prod" : d.domain_type}</span>
                     </td>
                     <td className="text-center px-2 py-2">
                       {d.configured ? (
@@ -596,7 +650,7 @@ function SkillDeploymentPanel({
                     <td className="text-center px-2 py-2">
                       <span className={cn("inline-flex items-center gap-1", drift.color)}>
                         <DriftIcon size={12} />
-                        <span className="text-[10px]">{drift.label}</span>
+                        <span className="text-xs">{drift.label}</span>
                       </span>
                     </td>
                     <td className="text-right px-3 py-2 text-zinc-400 tabular-nums">
@@ -639,21 +693,19 @@ function FilePreviewModal({
             <div className="flex items-center gap-2 min-w-0">
               <FileText size={14} className="text-violet-500 flex-shrink-0" />
               <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayName}</span>
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{fileName}</span>
+              <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{fileName}</span>
             </div>
-            <button
+            <IconButton
               onClick={onClose}
-              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
-            >
-              <X size={16} />
-            </button>
+              icon={X}
+              label="Close"
+              className="flex-shrink-0"
+            />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 size={20} className="animate-spin text-zinc-400" />
-            </div>
+            <SectionLoading className="py-16" />
           )}
           {content && isMarkdown && (
             <div className="px-6 py-5">

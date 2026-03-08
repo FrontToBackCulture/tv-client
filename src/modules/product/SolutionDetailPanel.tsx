@@ -5,7 +5,9 @@
 import { useMemo } from "react";
 import { useReadFile } from "../../hooks/useFiles";
 import { parseFrontmatter, MarkdownViewer } from "../library/MarkdownViewer";
-import { X, Loader2 } from "lucide-react";
+import { X } from "lucide-react";
+import { IconButton } from "../../components/ui";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 
 interface SolutionDetailPanelProps {
@@ -67,7 +69,7 @@ export function SolutionDetailPanel({ slug, solutionsBasePath, selectedFile, onC
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate">{title}</h2>
           <div className="flex items-center gap-2 mt-1">
             <span className={cn(
-              "px-1.5 py-0.5 text-[10px] font-medium rounded",
+              "px-1.5 py-0.5 text-xs font-medium rounded",
               status === "published"
                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                 : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
@@ -77,17 +79,13 @@ export function SolutionDetailPanel({ slug, solutionsBasePath, selectedFile, onC
             <span className="text-xs text-zinc-400 truncate">{subtitle}</span>
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 flex-shrink-0">
-          <X size={16} />
-        </button>
+        <IconButton onClick={onClose} icon={X} label="Close" className="flex-shrink-0" />
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {contentQuery.isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 size={18} className="text-zinc-400 animate-spin" />
-          </div>
+          <SectionLoading className="h-32" />
         ) : contentQuery.data ? (
           <div className="p-4">
             <MarkdownViewer

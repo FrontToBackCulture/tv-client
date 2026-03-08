@@ -97,7 +97,7 @@ export function BoardView({
                     <StatusIcon type={col.type} color={colColor} size={14} />
                     <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{col.label}</span>
                   </div>
-                  <span className="text-[10px] text-zinc-400 tabular-nums">{colTasks.length}</span>
+                  <span className="text-xs text-zinc-400 tabular-nums">{colTasks.length}</span>
                 </div>
               </div>
 
@@ -113,7 +113,7 @@ export function BoardView({
                         <PriorityBars priority={task.priority || 0} size={12} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-[10px] text-zinc-400 tabular-nums">{getTaskIdentifier(task)}</div>
+                        <div className="text-xs text-zinc-400 tabular-nums">{getTaskIdentifier(task)}</div>
                         <div className="text-xs text-zinc-800 dark:text-zinc-200 line-clamp-2 leading-relaxed mt-0.5">
                           {task.title}
                         </div>
@@ -122,7 +122,7 @@ export function BoardView({
                     <div className="flex items-center justify-between mt-2">
                       {task.assignee?.name ? (
                         <div
-                          className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-medium text-zinc-600 dark:text-zinc-400"
+                          className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400"
                           title={task.assignee.name}
                         >
                           {initials(task.assignee.name)}
@@ -131,7 +131,7 @@ export function BoardView({
                         <div />
                       )}
                       {task.due_date && (
-                        <span className={`text-[10px] flex items-center gap-0.5 ${
+                        <span className={`text-xs flex items-center gap-0.5 ${
                           isOverdue(task.due_date) ? "text-red-500" : "text-zinc-400"
                         }`}>
                           <Calendar size={9} />
@@ -142,7 +142,7 @@ export function BoardView({
                   </div>
                 ))}
                 {colTasks.length === 0 && (
-                  <div className="text-[10px] text-zinc-400 text-center py-4">No tasks</div>
+                  <div className="text-xs text-zinc-400 text-center py-4">No tasks</div>
                 )}
               </div>
             </div>

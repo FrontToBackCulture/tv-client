@@ -1,13 +1,13 @@
 // DomainDetailPanel: Files tab showing output status grouped by category
 
 import {
-  Loader2,
   CheckCircle2,
   Clock,
   Folder,
   FileText,
   AlertCircle,
 } from "lucide-react";
+import { DetailLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 import { timeAgoVerbose as timeAgo } from "../../lib/date";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
@@ -26,13 +26,7 @@ export function FilesTab({ outputs, isLoading }: { outputs: OutputFileStatus[]; 
     if (!output.exists || output.is_folder) return;
     openPanel(output.path, output.name);
   }
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   if (outputs.length === 0) {
     return (
@@ -65,7 +59,7 @@ export function FilesTab({ outputs, isLoading }: { outputs: OutputFileStatus[]; 
               <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
                 {category}
               </label>
-              <span className="text-[10px] text-zinc-400">
+              <span className="text-xs text-zinc-400">
                 {existsCount}/{items.length} exist
               </span>
             </div>
@@ -108,22 +102,22 @@ export function FilesTab({ outputs, isLoading }: { outputs: OutputFileStatus[]; 
                       {output.exists ? (
                         <CheckCircle2 size={12} className="text-green-500 flex-shrink-0" />
                       ) : (
-                        <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                        <span className="text-xs font-medium text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
                           <AlertCircle size={10} />
                           Missing
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-[10px] text-zinc-400 font-mono truncate" title={output.path}>
+                      <span className="text-xs text-zinc-400 font-mono truncate" title={output.path}>
                         {output.relative_path}
                       </span>
-                      <span className="text-[9px] px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 whitespace-nowrap">
+                      <span className="text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 whitespace-nowrap">
                         {output.created_by}
                       </span>
                     </div>
                     {output.exists && (
-                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-400">
+                      <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
                         {output.modified && (
                           <span className="flex items-center gap-0.5">
                             <Clock size={9} />

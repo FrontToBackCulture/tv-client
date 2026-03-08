@@ -5,9 +5,10 @@ import { useState } from "react";
 import { useProductReleaseWithRelations } from "../../hooks/product";
 import { RELEASE_STATUSES, RELEASE_ITEM_TYPES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
-import { X, Loader2, FileText } from "lucide-react";
+import { X, FileText } from "lucide-react";
+import { IconButton } from "../../components/ui";
+import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
-import { EmptyState } from "../../components/EmptyState";
 
 interface ReleaseDetailPanelProps {
   id: string;
@@ -20,21 +21,9 @@ export function ReleaseDetailPanel({ id, onClose }: ReleaseDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const { data, isLoading } = useProductReleaseWithRelations(id);
 
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
-  if (!data) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <EmptyState message="Release not found" />
-      </div>
-    );
-  }
+  if (!data) return <DetailNotFound message="Release not found" />;
 
   const statusDef = RELEASE_STATUSES.find((s) => s.value === data.status);
   const items = data.items ?? [];
@@ -56,7 +45,7 @@ export function ReleaseDetailPanel({ id, onClose }: ReleaseDetailPanelProps) {
       {/* Header */}
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+          <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">
             v{data.version}
             {data.name && <span className="font-normal text-zinc-500 ml-2">{data.name}</span>}
           </h2>
@@ -69,9 +58,7 @@ export function ReleaseDetailPanel({ id, onClose }: ReleaseDetailPanelProps) {
             )}
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
-          <X size={16} />
-        </button>
+        <IconButton onClick={onClose} icon={X} label="Close" />
       </div>
 
       {/* Tabs */}
@@ -98,36 +85,31 @@ export function ReleaseDetailPanel({ id, onClose }: ReleaseDetailPanelProps) {
       {/* Tab content */}
       <div className="flex-1 overflow-auto p-4">
         {activeTab === "overview" && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {data.description && (
               <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Description</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
+                <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">Description</h3>
+                <p className="text-sm text-zinc-700 dark:text-zinc-300">{data.description}</p>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Features</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.featureCount ?? 0}</p>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Bug Fixes</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.bugfixCount ?? 0}</p>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Connectors</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.connectorCount ?? 0}</p>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Improvements</label>
-                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{data.improvementCount ?? 0}</p>
-              </div>
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: "Features", value: data.featureCount ?? 0 },
+                { label: "Bug Fixes", value: data.bugfixCount ?? 0 },
+                { label: "Connectors", value: data.connectorCount ?? 0 },
+                { label: "Improvements", value: data.improvementCount ?? 0 },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 px-3 py-2 text-center">
+                  <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{stat.value}</div>
+                  <div className="text-xs text-zinc-400 dark:text-zinc-500">{stat.label}</div>
+                </div>
+              ))}
             </div>
             {data.notion_sync_path && (
               <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Notion Sync</label>
-                <p className="mt-1 text-sm text-zinc-500 flex items-center gap-1">
-                  <FileText size={14} />
+                <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">Notion Sync</h3>
+                <p className="text-sm text-zinc-500 flex items-center gap-1">
+                  <FileText size={12} />
                   {data.notion_sync_path}
                 </p>
               </div>

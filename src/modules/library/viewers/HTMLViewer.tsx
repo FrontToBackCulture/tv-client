@@ -1,7 +1,7 @@
 // src/modules/library/viewers/HTMLViewer.tsx
 
 import { useState, useMemo } from "react";
-import { Code, Eye, FileCode } from "lucide-react";
+import { Code, Eye } from "lucide-react";
 import { cn } from "../../../lib/cn";
 
 interface HTMLViewerProps {
@@ -20,14 +20,8 @@ export function HTMLViewer({ content, filename }: HTMLViewerProps) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header with toggle */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <div className="flex items-center gap-2">
-          <FileCode size={16} className="text-orange-500 dark:text-orange-400" />
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
-        </div>
-
-        {/* Mode toggle */}
+      {/* Mode toggle */}
+      <div className="flex items-center justify-center px-4 py-1.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
         <div className="flex items-center bg-zinc-200 dark:bg-zinc-800 rounded-lg p-0.5">
           <button
             onClick={() => setMode("preview")}

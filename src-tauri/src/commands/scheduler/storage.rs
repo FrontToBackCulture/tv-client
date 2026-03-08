@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use super::types::{JobRun, RunStatus, RunStep, RunTrigger, SchedulerJob, ToolDetail};
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase;
 
 // ============================================================================
@@ -21,10 +22,9 @@ fn jobs_path() -> PathBuf {
     scheduler_dir().join("jobs.json")
 }
 
-fn ensure_dir(dir: &PathBuf) -> Result<(), String> {
+fn ensure_dir(dir: &PathBuf) -> CmdResult<()> {
     if !dir.exists() {
-        fs::create_dir_all(dir)
-            .map_err(|e| format!("Failed to create directory {:?}: {}", dir, e))?;
+        fs::create_dir_all(dir)?;
     }
     Ok(())
 }
@@ -33,25 +33,23 @@ fn ensure_dir(dir: &PathBuf) -> Result<(), String> {
 // Jobs CRUD
 // ============================================================================
 
-pub fn load_jobs() -> Result<Vec<SchedulerJob>, String> {
+pub fn load_jobs() -> CmdResult<Vec<SchedulerJob>> {
     let path = jobs_path();
     if !path.exists() {
         return Ok(Vec::new());
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read jobs.json: {}", e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse jobs.json: {}", e))
+    let content = fs::read_to_string(&path)?;
+    let jobs = serde_json::from_str(&content)?;
+    Ok(jobs)
 }
 
-pub fn save_jobs(jobs: &[SchedulerJob]) -> Result<(), String> {
+pub fn save_jobs(jobs: &[SchedulerJob]) -> CmdResult<()> {
     let dir = scheduler_dir();
     ensure_dir(&dir)?;
     let path = jobs_path();
-    let content = serde_json::to_string_pretty(jobs)
-        .map_err(|e| format!("Failed to serialize jobs: {}", e))?;
-    fs::write(&path, content)
-        .map_err(|e| format!("Failed to write jobs.json: {}", e))
+    let content = serde_json::to_string_pretty(jobs)?;
+    fs::write(&path, content)?;
+    Ok(())
 }
 
 
@@ -191,7 +189,7 @@ impl From<RunRow> for JobRun {
 // Async Supabase functions (Supabase only, no local fallback)
 // ============================================================================
 
-pub async fn save_run_async(run: &JobRun) -> Result<(), String> {
+pub async fn save_run_async(run: &JobRun) -> CmdResult<()> {
     let client = supabase::get_client().await?;
     let db_run = RunRow::from(run);
     client
@@ -203,7 +201,7 @@ pub async fn save_run_async(run: &JobRun) -> Result<(), String> {
 pub async fn load_runs_async(
     job_id: Option<&str>,
     limit: usize,
-) -> Result<Vec<JobRun>, String> {
+) -> CmdResult<Vec<JobRun>> {
     let client = supabase::get_client().await?;
     let mut query = format!("order=started_at.desc&limit={}", limit);
     if let Some(jid) = job_id {
@@ -213,13 +211,13 @@ pub async fn load_runs_async(
     Ok(rows.into_iter().map(JobRun::from).collect())
 }
 
-pub async fn load_run_async(run_id: &str) -> Result<JobRun, String> {
+pub async fn load_run_async(run_id: &str) -> CmdResult<JobRun> {
     let client = supabase::get_client().await?;
     let query = format!("id=eq.{}", run_id);
     let row = client
         .select_single::<RunRow>("scheduler_runs", &query)
         .await?
-        .ok_or_else(|| format!("Run {} not found", run_id))?;
+        .ok_or_else(|| CommandError::NotFound(format!("Run {} not found", run_id)))?;
     Ok(JobRun::from(row))
 }
 
@@ -271,7 +269,7 @@ impl StepRow {
     }
 }
 
-pub async fn save_run_steps_async(run_id: &str, steps: &[RunStep]) -> Result<(), String> {
+pub async fn save_run_steps_async(run_id: &str, steps: &[RunStep]) -> CmdResult<()> {
     if steps.is_empty() {
         return Ok(());
     }
@@ -283,7 +281,7 @@ pub async fn save_run_steps_async(run_id: &str, steps: &[RunStep]) -> Result<(),
     Ok(())
 }
 
-pub async fn load_run_steps_async(run_id: &str) -> Result<Vec<RunStep>, String> {
+pub async fn load_run_steps_async(run_id: &str) -> CmdResult<Vec<RunStep>> {
     let client = supabase::get_client().await?;
     let query = format!("run_id=eq.{}&order=turn_number.asc", run_id);
     let rows: Vec<StepRow> = client.select("scheduler_run_steps", &query).await?;

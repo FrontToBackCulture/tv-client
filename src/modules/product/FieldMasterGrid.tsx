@@ -27,6 +27,7 @@ import {
 } from "../../hooks/val-sync";
 import type { FieldMasterFile, MasterField } from "../../hooks/val-sync";
 import { Loader2, Check, RefreshCw, Layers } from "lucide-react";
+import { InlineLoading } from "../../components/ui/DetailStates";
 
 // ============================================================================
 // Constants
@@ -72,7 +73,7 @@ const TagsCellRenderer = (params: ICellRendererParams) => {
       {tags.map((tag) => (
         <span
           key={tag}
-          className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          className="px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
         >
           {tag}
         </span>
@@ -150,7 +151,7 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
         {tags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
           >
             {tag}
             <button
@@ -206,7 +207,7 @@ const EntitiesCellRenderer = (params: ICellRendererParams) => {
       {entities.map((e) => (
         <span
           key={`${e.entity}/${e.model}`}
-          className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+          className="px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
         >
           {e.entity}
         </span>
@@ -483,9 +484,8 @@ export function FieldMasterGrid({ entitiesPath }: FieldMasterGridProps) {
 
   if (masterQuery.isLoading) {
     return (
-      <div className="p-6 flex items-center gap-2 text-zinc-400 text-sm">
-        <Loader2 size={14} className="animate-spin" />
-        Loading field master...
+      <div className="p-6">
+        <InlineLoading message="Loading field master..." />
       </div>
     );
   }

@@ -1,5 +1,6 @@
 // Tauri IPC command handlers
 
+pub mod error;
 pub mod analytics;
 pub mod auth;
 pub mod claude_setup;
@@ -20,4 +21,5 @@ pub mod val_sync;
 pub mod skill_registry;
 pub mod repos;
 pub mod work;
-
+pub mod workspace;
+pub mod email;

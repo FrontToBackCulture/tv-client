@@ -84,7 +84,7 @@ function TagsInput({
         {tags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300"
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300"
           >
             {tag}
             <button onClick={() => removeTag(tag)} className="hover:text-teal-900 dark:hover:text-teal-100">
@@ -247,7 +247,7 @@ export function ArtifactDetailPreview({
   onFieldChange,
   onNavigate,
 }: ArtifactDetailPreviewProps) {
-  const classificationStore = useClassificationStore();
+  const classificationValues = useClassificationStore((s) => s.values);
 
   const handleChange = (field: string) => (value: string) => {
     onFieldChange?.(field, value || null);
@@ -263,7 +263,7 @@ export function ArtifactDetailPreview({
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
               {row.name}
             </h3>
-            <p className="text-[11px] text-zinc-500 font-mono truncate">{row.folderName}</p>
+            <p className="text-xs text-zinc-500 font-mono truncate">{row.folderName}</p>
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -290,7 +290,7 @@ export function ArtifactDetailPreview({
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {/* Read-only info */}
         <section>
-          <h4 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Info</h4>
+          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Info</h4>
           <div className="space-y-1.5">
             <InfoRow icon={<Hash size={12} />} label="ID" value={row.id} />
             {row.createdDate && (
@@ -329,7 +329,7 @@ export function ArtifactDetailPreview({
         {/* GA4 Analytics (dashboards only) */}
         {artifactType === "dashboard" && (row.gaViews90d != null || row.gaHealthScore != null) && (
           <section>
-            <h4 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Analytics</h4>
+            <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Analytics</h4>
             <div className="space-y-1.5">
               {row.gaViews7d != null && <InfoRow icon={<Hash size={12} />} label="Views 7d" value={String(row.gaViews7d)} />}
               {row.gaViews30d != null && <InfoRow icon={<Hash size={12} />} label="Views 30d" value={String(row.gaViews30d)} />}
@@ -355,13 +355,13 @@ export function ArtifactDetailPreview({
 
         {/* Classification section */}
         <section>
-          <h4 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Classification</h4>
+          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Classification</h4>
           <div className="space-y-2.5">
             <FieldGroup label="Data Type">
               <ComboBox
                 value={row.dataType || ""}
                 onChange={handleChange("dataType")}
-                options={classificationStore.values.dataType}
+                options={classificationValues.dataType}
                 placeholder="Select data type..."
               />
             </FieldGroup>
@@ -370,7 +370,7 @@ export function ArtifactDetailPreview({
               <ComboBox
                 value={row.dataCategory || ""}
                 onChange={handleChange("dataCategory")}
-                options={classificationStore.values.dataCategory}
+                options={classificationValues.dataCategory}
                 placeholder="Select category..."
               />
             </FieldGroup>
@@ -379,7 +379,7 @@ export function ArtifactDetailPreview({
               <ComboBox
                 value={row.dataSubCategory || ""}
                 onChange={handleChange("dataSubCategory")}
-                options={classificationStore.values.dataSubCategory}
+                options={classificationValues.dataSubCategory}
                 placeholder="Select sub-category..."
               />
             </FieldGroup>
@@ -388,7 +388,7 @@ export function ArtifactDetailPreview({
               <ComboBox
                 value={row.usageStatus || ""}
                 onChange={handleChange("usageStatus")}
-                options={classificationStore.values.usageStatus}
+                options={classificationValues.usageStatus}
                 placeholder="Select usage status..."
               />
             </FieldGroup>
@@ -397,7 +397,7 @@ export function ArtifactDetailPreview({
               <ComboBox
                 value={row.action || ""}
                 onChange={handleChange("action")}
-                options={classificationStore.values.action}
+                options={classificationValues.action}
                 placeholder="Select action..."
               />
             </FieldGroup>
@@ -406,7 +406,7 @@ export function ArtifactDetailPreview({
               <ComboBox
                 value={row.dataSource || ""}
                 onChange={handleChange("dataSource")}
-                options={classificationStore.values.dataSource}
+                options={classificationValues.dataSource}
                 placeholder="Select data source..."
               />
             </FieldGroup>
@@ -415,7 +415,7 @@ export function ArtifactDetailPreview({
               <ComboBox
                 value={row.sourceSystem || ""}
                 onChange={handleChange("sourceSystem")}
-                options={classificationStore.values.sourceSystem}
+                options={classificationValues.sourceSystem}
                 placeholder="Select source system..."
               />
             </FieldGroup>
@@ -424,7 +424,7 @@ export function ArtifactDetailPreview({
               <TagsInput
                 value={row.tags || ""}
                 onChange={handleChange("tags")}
-                suggestions={classificationStore.values.tags}
+                suggestions={classificationValues.tags}
               />
             </FieldGroup>
           </div>
@@ -432,7 +432,7 @@ export function ArtifactDetailPreview({
 
         {/* Portal / Sitemap section */}
         <section>
-          <h4 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Portal</h4>
+          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Portal</h4>
           <div className="space-y-2.5">
             <FieldGroup label="Include in Sitemap">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -450,7 +450,7 @@ export function ArtifactDetailPreview({
               <ComboBox
                 value={row.sitemapGroup1 || ""}
                 onChange={handleChange("sitemapGroup1")}
-                options={classificationStore.values.sitemapGroup1 || []}
+                options={classificationValues.sitemapGroup1 || []}
                 placeholder="Select group..."
               />
             </FieldGroup>
@@ -459,7 +459,7 @@ export function ArtifactDetailPreview({
               <ComboBox
                 value={row.sitemapGroup2 || ""}
                 onChange={handleChange("sitemapGroup2")}
-                options={classificationStore.values.sitemapGroup2 || []}
+                options={classificationValues.sitemapGroup2 || []}
                 placeholder="Select sub-group..."
               />
             </FieldGroup>
@@ -468,7 +468,7 @@ export function ArtifactDetailPreview({
               <ComboBox
                 value={row.solution || ""}
                 onChange={handleChange("solution")}
-                options={classificationStore.values.solution || []}
+                options={classificationValues.solution || []}
                 placeholder="Select solution..."
               />
             </FieldGroup>
@@ -487,7 +487,7 @@ export function ArtifactDetailPreview({
 
         {/* Naming & Summary */}
         <section>
-          <h4 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Naming & Summary</h4>
+          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Naming & Summary</h4>
           <div className="space-y-2.5">
             <FieldGroup label="Suggested Name">
               <input
@@ -539,7 +539,7 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[11px] font-medium text-zinc-500 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-zinc-500 mb-1">{label}</label>
       {children}
     </div>
   );

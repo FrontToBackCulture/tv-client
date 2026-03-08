@@ -3,6 +3,7 @@
 
 use super::auth;
 use super::config::get_domain_config;
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -42,10 +43,7 @@ async fn execute_sql_internal(
     domain: &str,
     sql: &str,
 ) -> Result<SqlQueryResponse, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let client = crate::HTTP_CLIENT.clone();
 
     let url = format!("https://{}.thinkval.io/api/v1/sqls/execute", domain);
 
@@ -96,7 +94,7 @@ pub async fn val_execute_sql(
     domain: String,
     sql: String,
     limit: Option<usize>,
-) -> Result<SqlExecuteResult, String> {
+) -> CmdResult<SqlExecuteResult> {
     let domain_config = get_domain_config(&domain)?;
     let api_domain = domain_config.api_domain();
     let max_rows = limit.unwrap_or(500);
@@ -105,16 +103,14 @@ pub async fn val_execute_sql(
     let actual_sql = if sql.ends_with(".sql") {
         let path = Path::new(&sql);
         if path.exists() {
-            fs::read_to_string(path)
-                .map_err(|e| format!("Failed to read SQL file: {}", e))?
+            fs::read_to_string(path)?
         } else {
             // Try relative to global path
             let global_sql_path = Path::new(&domain_config.global_path).join(&sql);
             if global_sql_path.exists() {
-                fs::read_to_string(&global_sql_path)
-                    .map_err(|e| format!("Failed to read SQL file: {}", e))?
+                fs::read_to_string(&global_sql_path)?
             } else {
-                return Err(format!("SQL file not found: {}", sql));
+                return Err(CommandError::NotFound(format!("SQL file not found: {}", sql)));
             }
         }
     } else {
@@ -124,7 +120,7 @@ pub async fn val_execute_sql(
     // Validate SELECT only
     let trimmed = actual_sql.trim().to_uppercase();
     if !trimmed.starts_with("SELECT") && !trimmed.starts_with("WITH") {
-        return Err("Only SELECT queries are allowed (queries can start with SELECT or WITH)".to_string());
+        return Err(CommandError::Config("Only SELECT queries are allowed (queries can start with SELECT or WITH)".to_string()));
     }
 
     // Ensure auth

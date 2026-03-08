@@ -2,7 +2,8 @@
 // Reports tab — list and preview HTML reports from sod-reports/
 
 import { useState, useMemo } from "react";
-import { FileText, ExternalLink, Copy, Check, Loader2 } from "lucide-react";
+import { FileText, ExternalLink, Copy, Check } from "lucide-react";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { useRepository } from "../../stores/repositoryStore";
 import { useFolderEntries, type FolderEntry } from "../../hooks/useFolderFiles";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -71,9 +72,8 @@ export function ReportsTabView() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-zinc-400">
-        <Loader2 size={20} className="animate-spin mr-2" />
-        Loading reports...
+      <div className="flex-1 flex items-center justify-center">
+        <SectionLoading message="Loading reports..." />
       </div>
     );
   }
@@ -98,10 +98,10 @@ export function ReportsTabView() {
                 key={r.entry.path}
                 onClick={() => setSelectedFile(r.entry.path)}
                 className={cn(
-                  "w-full text-left px-3 py-2 flex items-start gap-2 transition-colors",
+                  "w-full text-left px-3 py-1.5 flex items-start gap-2 transition-colors",
                   selectedFile === r.entry.path
-                    ? "bg-teal-50 dark:bg-teal-900/20 border-l-2 border-teal-500"
-                    : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 border-l-2 border-transparent"
+                    ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
+                    : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 )}
               >
                 <FileText
@@ -116,15 +116,15 @@ export function ReportsTabView() {
                   )}
                 />
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">
+                  <div className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">
                     {r.label}
                   </div>
-                  <div className="text-xs text-zinc-400">{r.date}</div>
-                  {r.entry.size > 0 && (
-                    <div className="text-[10px] text-zinc-300 dark:text-zinc-600">
-                      {formatSize(r.entry.size)}
-                    </div>
-                  )}
+                  <div className="text-xs text-zinc-400">
+                    {r.date}
+                    {r.entry.size > 0 && (
+                      <span className="text-zinc-300 dark:text-zinc-600"> · {formatSize(r.entry.size)}</span>
+                    )}
+                  </div>
                 </div>
               </button>
             ))}

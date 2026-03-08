@@ -3,13 +3,15 @@
 
 import { useState, useCallback, useEffect } from "react";
 import {
-  LayoutDashboard, Columns3, AlertTriangle, Inbox, Plus,
+  LayoutDashboard, Columns3, AlertTriangle, Inbox, Plus, Target,
 } from "lucide-react";
+import { Button } from "../../components/ui";
 import {
   useProjects, useAllTasks, useInitiatives, useUsers,
 } from "../../hooks/work";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { TaskForm } from "./TaskForm";
+import { InitiativeForm } from "./InitiativeForm";
 import {
   type WorkView,
   ViewTab,
@@ -25,6 +27,8 @@ export function WorkModule() {
   const [view, setView] = useState<WorkView>("inbox");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [showInitiativeForm, setShowInitiativeForm] = useState(false);
+  const [editingInitiative, setEditingInitiative] = useState<any>(null);
   const [createTaskProjectId, setCreateTaskProjectId] = useState<string | undefined>();
 
   // Report view context for help bot
@@ -37,8 +41,8 @@ export function WorkModule() {
   // Data fetching
   const { data: projects = [], refetch: refetchProjects } = useProjects();
   const { data: allTasks = [], refetch: refetchTasks } = useAllTasks();
-  const { data: initiatives = [] } = useInitiatives();
-  const { data: initiativeLinks = [] } = useInitiativeProjects();
+  const { data: initiatives = [], refetch: refetchInitiatives } = useInitiatives();
+  const { data: initiativeLinks = [], refetch: refetchInitiativeLinks } = useInitiativeProjects();
   const { data: users = [] } = useUsers();
 
   const handleSelectTask = useCallback((id: string) => setSelectedTaskId(id), []);
@@ -75,6 +79,18 @@ export function WorkModule() {
     refetchProjects();
   }, [refetchTasks, refetchProjects]);
 
+  const handleInitiativeSaved = useCallback(() => {
+    setShowInitiativeForm(false);
+    setEditingInitiative(null);
+    refetchInitiatives();
+    refetchInitiativeLinks();
+  }, [refetchInitiatives, refetchInitiativeLinks]);
+
+  const handleEditInitiative = useCallback((initiative: any) => {
+    setEditingInitiative(initiative);
+    setShowInitiativeForm(true);
+  }, []);
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Tab bar with new task button */}
@@ -85,15 +101,24 @@ export function WorkModule() {
           <ViewTab label="Board" icon={Columns3} active={view === "board"} onClick={() => handleViewChange("board")} data-help-id="work-tab-board" />
           <ViewTab label="Tracker" icon={AlertTriangle} active={view === "tracker"} onClick={() => handleViewChange("tracker")} data-help-id="work-tab-tracker" />
         </div>
-        <button
-          onClick={handleCreateTask}
-          disabled={projects.length === 0}
-          data-help-id="work-new-task"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Plus size={14} />
-          New Task
-        </button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowInitiativeForm(true)}
+            data-help-id="work-new-initiative"
+            icon={Target}
+            variant="ghost"
+          >
+            New Initiative
+          </Button>
+          <Button
+            onClick={handleCreateTask}
+            disabled={projects.length === 0}
+            data-help-id="work-new-task"
+            icon={Plus}
+          >
+            New Task
+          </Button>
+        </div>
       </div>
 
       {/* Content: view + optional detail panel */}
@@ -119,6 +144,7 @@ export function WorkModule() {
               initiativeLinks={initiativeLinks}
               users={users}
               onSelectTask={handleSelectTask}
+              onEditInitiative={handleEditInitiative}
             />
           )}
           {view === "board" && (
@@ -163,6 +189,19 @@ export function WorkModule() {
             setCreateTaskProjectId(undefined);
           }}
           onSaved={handleTaskSaved}
+        />
+      )}
+
+      {/* Initiative form modal */}
+      {showInitiativeForm && (
+        <InitiativeForm
+          initiative={editingInitiative || undefined}
+          initiativeLinks={initiativeLinks}
+          onClose={() => {
+            setShowInitiativeForm(false);
+            setEditingInitiative(null);
+          }}
+          onSaved={handleInitiativeSaved}
         />
       )}
     </div>

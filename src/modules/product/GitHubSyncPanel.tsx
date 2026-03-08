@@ -10,7 +10,6 @@ import {
   Upload,
   Eye,
   Play,
-  Loader2,
   CheckCircle2,
   XCircle,
   FileCode,
@@ -18,6 +17,7 @@ import {
   Settings2,
   Download,
 } from "lucide-react";
+import { InlineLoading } from "../../components/ui/DetailStates";
 import { useAuth } from "../../stores/authStore";
 import {
   useGitHubSyncConfig,
@@ -31,6 +31,7 @@ import {
   type SyncResult,
 } from "../../hooks/github-sync";
 import { GitHubSyncConfigEditor } from "./GitHubSyncConfigEditor";
+import { Button } from "../../components/ui";
 
 export function GitHubSyncPanel() {
   const { accessToken } = useAuth();
@@ -102,26 +103,19 @@ export function GitHubSyncPanel() {
                 {editing ? "Close Editor" : "Edit Config"}
               </button>
             )}
-            <button
+            <Button
               onClick={handleImport}
-              disabled={importConfig.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50"
+              variant="secondary"
+              icon={Upload}
+              loading={importConfig.isPending}
             >
-              {importConfig.isPending ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Upload size={14} />
-              )}
               Import Config
-            </button>
+            </Button>
           </div>
         </div>
 
         {configLoading && (
-          <div className="flex items-center gap-2 text-sm text-zinc-500">
-            <Loader2 size={14} className="animate-spin" />
-            Loading config...
-          </div>
+          <InlineLoading message="Loading config..." />
         )}
 
         {importConfig.isSuccess && (
@@ -153,27 +147,22 @@ export function GitHubSyncPanel() {
               No repositories configured.
             </p>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 onClick={() => initDefault.mutate()}
-                disabled={initDefault.isPending}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-md bg-teal-600 hover:bg-teal-500 text-white transition-colors disabled:opacity-50"
+                icon={Download}
+                loading={initDefault.isPending}
               >
-                {initDefault.isPending ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Download size={14} />
-                )}
                 Load Default Config
-              </button>
+              </Button>
               <span className="text-xs text-zinc-400">or</span>
-              <button
+              <Button
                 onClick={handleImport}
-                disabled={importConfig.isPending}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50"
+                variant="secondary"
+                icon={Upload}
+                loading={importConfig.isPending}
               >
-                <Upload size={14} />
                 Import Config
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -267,30 +256,23 @@ function RepoCard({
           <span className="text-xs text-zinc-500">
             {mappingCount} mappings, {ruleCount} rules
           </span>
-          <button
+          <Button
             onClick={handlePreview}
             disabled={isRunning}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50"
+            variant="secondary"
+            icon={Eye}
+            loading={preview.isPending}
           >
-            {preview.isPending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Eye size={14} />
-            )}
             Preview
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSync}
             disabled={isRunning}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-teal-600 hover:bg-teal-500 text-white transition-colors disabled:opacity-50"
+            icon={Play}
+            loading={sync.isPending}
           >
-            {sync.isPending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Play size={14} />
-            )}
             Sync
-          </button>
+          </Button>
         </div>
       </div>
 

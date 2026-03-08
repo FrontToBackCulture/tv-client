@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, Clock, CheckCircle, XCircle, Loader2, Slack } from "lucide-react";
 import type { JobRun } from "../../hooks/scheduler";
 import { cn } from "../../lib/cn";
+import { IconButton, SectionLoading } from "../../components/ui";
 
 interface RunHistoryProps {
   runs: JobRun[];
@@ -14,11 +15,7 @@ export function RunHistory({ runs, isLoading, onBack, title }: RunHistoryProps) 
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={20} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="flex-1" />;
   }
 
   return (
@@ -27,9 +24,7 @@ export function RunHistory({ runs, isLoading, onBack, title }: RunHistoryProps) 
       {(onBack || title) && (
         <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
           {onBack && (
-            <button onClick={onBack} className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-              <ArrowLeft size={16} />
-            </button>
+            <IconButton icon={ArrowLeft} label="Back" onClick={onBack} />
           )}
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {title ?? "Run History"}
@@ -59,7 +54,7 @@ export function RunHistory({ runs, isLoading, onBack, title }: RunHistoryProps) 
                         {run.jobName}
                       </span>
                       <span className={cn(
-                        "px-1.5 py-0.5 text-[10px] font-medium rounded-full",
+                        "px-1.5 py-0.5 text-xs font-medium rounded-full",
                         run.trigger === "scheduled"
                           ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
                           : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"

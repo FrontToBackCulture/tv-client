@@ -30,8 +30,8 @@ import {
   Table as TableIcon,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Calendar, User, Tag, FileText } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, Calendar, User, Tag, FileText, ListTree } from "lucide-react";
 
 interface Frontmatter {
   title?: string;
@@ -127,7 +127,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
           )}
         </div>
         {frontmatter.status && (
-          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${
+          <span className={`text-xs font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${
             frontmatter.status === "published"
               ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
               : frontmatter.status === "draft"
@@ -173,7 +173,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
               {frontmatter.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                  className="text-xs px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
                 >
                   {tag}
                 </span>
@@ -182,6 +182,56 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Table of contents extracted from editor headings */
+interface TocItem {
+  level: number;
+  text: string;
+  pos: number;
+}
+
+function TableOfContents({ items, editor, onClose }: { items: TocItem[]; editor: ReturnType<typeof useEditor>; onClose: () => void }) {
+  if (items.length === 0) {
+    return (
+      <div className="p-4 text-xs text-zinc-400">No headings found</div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">
+        <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Contents</span>
+        <button
+          onClick={onClose}
+          className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 transition-colors"
+          title="Hide table of contents"
+        >
+          <ListTree size={14} />
+        </button>
+      </div>
+      <nav className="flex-1 overflow-y-auto py-2">
+        {items.map((item, idx) => (
+          <button
+            key={idx}
+            onClick={() => {
+              if (!editor) return;
+              editor.chain().focus().setTextSelection(item.pos).run();
+              // Scroll the heading into view
+              const { node } = editor.view.domAtPos(item.pos);
+              const el = node instanceof HTMLElement ? node : node.parentElement;
+              el?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="block w-full text-left px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors truncate"
+            style={{ paddingLeft: `${(item.level - 1) * 12 + 12}px` }}
+            title={item.text}
+          >
+            {item.text}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
@@ -222,6 +272,9 @@ turndownService.addRule("table", {
 });
 
 export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
+  const [tocOpen, setTocOpen] = useState(false);
+  const [tocItems, setTocItems] = useState<TocItem[]>([]);
+
   // Parse frontmatter and store it separately (preserved during edits)
   const { frontmatterRaw, frontmatter, body } = useMemo(() => parseFrontmatter(content), []);
   const frontmatterRef = useRef(frontmatterRaw);
@@ -271,6 +324,30 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
       onChange(fullMarkdown);
     },
   });
+
+  // Extract headings from editor for TOC
+  const extractHeadings = useCallback(() => {
+    if (!editor) return;
+    const items: TocItem[] = [];
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "heading") {
+        items.push({
+          level: node.attrs.level as number,
+          text: node.textContent,
+          pos: pos + 1,
+        });
+      }
+    });
+    setTocItems(items);
+  }, [editor]);
+
+  // Update TOC on editor changes
+  useEffect(() => {
+    if (!editor) return;
+    extractHeadings();
+    editor.on("update", extractHeadings);
+    return () => { editor.off("update", extractHeadings); };
+  }, [editor, extractHeadings]);
 
   // Toolbar button component
   const ToolbarButton = ({
@@ -503,13 +580,30 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
             <Redo size={16} />
           </ToolbarButton>
         </div>
+
+        <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
+
+        <ToolbarButton
+          onClick={() => setTocOpen(!tocOpen)}
+          isActive={tocOpen}
+          title="Table of Contents"
+        >
+          <ListTree size={16} />
+        </ToolbarButton>
       </div>
 
-      {/* Editor content */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Frontmatter metadata badge */}
-        {frontmatter && <MetadataBadge frontmatter={frontmatter} />}
-        <EditorContent editor={editor} className="h-full" />
+      {/* Editor content + TOC */}
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 overflow-y-auto">
+          {/* Frontmatter metadata badge */}
+          {frontmatter && <MetadataBadge frontmatter={frontmatter} />}
+          <EditorContent editor={editor} className="h-full" />
+        </div>
+        {tocOpen && (
+          <div className="w-52 flex-shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 overflow-hidden">
+            <TableOfContents items={tocItems} editor={editor} onClose={() => setTocOpen(false)} />
+          </div>
+        )}
       </div>
     </div>
   );

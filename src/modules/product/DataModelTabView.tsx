@@ -334,7 +334,7 @@ export function DataModelTabView() {
           <button
             onClick={() => setSelection({ kind: "field-master" })}
             className={cn(
-              "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors border-b border-zinc-200 dark:border-zinc-800",
+              "w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors border-b border-zinc-200 dark:border-zinc-800",
               isFieldMaster
                 ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
                 : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -910,7 +910,7 @@ function EntitySidebarItem({
               </div>
               {(model.table_name || model.display_name) && (
                 <span
-                  className="text-[10px] leading-tight opacity-50 font-normal truncate block max-w-full"
+                  className="text-xs leading-tight opacity-50 font-normal truncate block max-w-full"
                   title={[model.table_name, model.display_name].filter(Boolean).join(" · ")}
                 >
                   {model.table_name}
@@ -1080,7 +1080,7 @@ function ColumnDiffChip({ col, color }: { col: ColumnDiff; color: "red" | "amber
       {hasDisplayName ? (
         <>
           <span className="font-medium">{col.display_name}</span>
-          <span className={cn("font-mono text-[10px]", subStyles[color])}>
+          <span className={cn("font-mono text-xs", subStyles[color])}>
             {col.column}
           </span>
         </>

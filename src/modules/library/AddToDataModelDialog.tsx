@@ -2,7 +2,8 @@
 // Dialog for adding a domain table to the Data Model (generates schema.json)
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Database, X, Loader2, CheckCircle } from "lucide-react";
+import { Database, X, CheckCircle } from "lucide-react";
+import { Button, IconButton } from "../../components/ui";
 import type { ReviewRow as TableInfo } from "./reviewTypes";
 import {
   useCreateDomainModelSchema,
@@ -96,12 +97,7 @@ export function AddToDataModelDialog({
               Add to Data Model
             </h3>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            <X className="w-4 h-4 text-zinc-500" />
-          </button>
+          <IconButton icon={X} label="Close" onClick={onClose} />
         </div>
 
         {/* Body */}
@@ -208,30 +204,18 @@ export function AddToDataModelDialog({
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-xs rounded border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-          >
+          <Button variant="ghost" onClick={onClose}>
             {createSchema.isSuccess ? "Close" : "Cancel"}
-          </button>
+          </Button>
           {!createSchema.isSuccess && (
-            <button
+            <Button
               onClick={handleSubmit}
               disabled={!canSubmit}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              loading={createSchema.isPending}
+              icon={createSchema.isPending ? undefined : Database}
             >
-              {createSchema.isPending ? (
-                <>
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Database className="w-3 h-3" />
-                  Create Schema
-                </>
-              )}
-            </button>
+              {createSchema.isPending ? "Creating..." : "Create Schema"}
+            </Button>
           )}
         </div>
       </div>

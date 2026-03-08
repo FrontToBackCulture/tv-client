@@ -1,6 +1,7 @@
 // VAL Sync Metadata - Tracks sync history per domain
 // Stored at {globalPath}/.sync-metadata.json
 
+use crate::commands::error::CmdResult;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -70,18 +71,16 @@ pub fn load_metadata(global_path: &str) -> SyncMetadata {
     }
 }
 
-fn save_metadata(global_path: &str, metadata: &SyncMetadata) -> Result<(), String> {
+fn save_metadata(global_path: &str, metadata: &SyncMetadata) -> CmdResult<()> {
     let path = metadata_path(global_path);
     if let Some(dir) = path.parent() {
         if !dir.exists() {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("Failed to create metadata directory: {}", e))?;
+            fs::create_dir_all(dir)?;
         }
     }
-    let content = serde_json::to_string_pretty(metadata)
-        .map_err(|e| format!("Failed to serialize metadata: {}", e))?;
-    fs::write(&path, content)
-        .map_err(|e| format!("Failed to write metadata: {}", e))
+    let content = serde_json::to_string_pretty(metadata)?;
+    fs::write(&path, content)?;
+    Ok(())
 }
 
 fn add_history(metadata: &mut SyncMetadata, operation: &str, status: &str, details: Option<String>) {
@@ -164,7 +163,7 @@ pub fn update_extraction_sync(
 
 /// Get sync status/metadata for a domain
 #[command]
-pub fn val_sync_get_status(domain: String) -> Result<SyncMetadata, String> {
+pub fn val_sync_get_status(domain: String) -> CmdResult<SyncMetadata> {
     let domain_config = super::config::get_domain_config(&domain)?;
     Ok(load_metadata(&domain_config.global_path))
 }
@@ -277,7 +276,7 @@ fn check_file_status(
 
 /// Get status of all expected output files/folders for a domain
 #[command]
-pub fn val_get_output_status(domain: String) -> Result<OutputStatusResult, String> {
+pub fn val_get_output_status(domain: String) -> CmdResult<OutputStatusResult> {
     let domain_config = super::config::get_domain_config(&domain)?;
     let global_path = &domain_config.global_path;
 

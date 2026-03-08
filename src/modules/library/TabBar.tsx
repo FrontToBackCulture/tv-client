@@ -7,7 +7,16 @@ import { cn } from "../../lib/cn";
 import { Tab, useTabStore } from "../../stores/tabStore";
 
 export function TabBar() {
-  const { tabs, activeTabId, splitOpen, setActiveTab, closeTab, closeAllTabs, closeOtherTabs, pinTab, openSplit, closeSplit } = useTabStore();
+  const tabs = useTabStore((s) => s.tabs);
+  const activeTabId = useTabStore((s) => s.activeTabId);
+  const splitOpen = useTabStore((s) => s.splitOpen);
+  const setActiveTab = useTabStore((s) => s.setActiveTab);
+  const closeTab = useTabStore((s) => s.closeTab);
+  const closeAllTabs = useTabStore((s) => s.closeAllTabs);
+  const closeOtherTabs = useTabStore((s) => s.closeOtherTabs);
+  const pinTab = useTabStore((s) => s.pinTab);
+  const openSplit = useTabStore((s) => s.openSplit);
+  const closeSplit = useTabStore((s) => s.closeSplit);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null);
 

@@ -554,7 +554,7 @@ fn get_default_error_date_range() -> (String, String) {
 }
 
 /// Filter config to production domains (exclude documentation, lab, templates)
-fn get_production_domains() -> Result<Vec<config::DomainSummary>, String> {
+fn get_production_domains() -> Result<Vec<config::DomainSummary>, crate::commands::error::CommandError> {
     let domains = config::val_sync_list_domains()?;
     let excluded = ["documentation", "lab", "templates"];
     Ok(domains
@@ -589,7 +589,8 @@ async fn handle_sync_all_domain_workflows() -> ToolResult {
             }
             Err(e) => {
                 failed_count += 1;
-                let short_err = if e.len() > 100 { &e[..100] } else { &e };
+                let err_msg = e.to_string();
+                let short_err = if err_msg.len() > 100 { &err_msg[..100] } else { &err_msg };
                 results.push(format!("{}: FAILED - {}", d.domain, short_err));
             }
         }
@@ -656,7 +657,8 @@ async fn handle_sync_all_domain_monitoring() -> ToolResult {
             }
             Err(e) => {
                 failed_count += 1;
-                let short_err = if e.len() > 100 { &e[..100] } else { &e };
+                let err_msg = e.to_string();
+                let short_err = if err_msg.len() > 100 { &err_msg[..100] } else { &err_msg };
                 results.push(format!("{}: FAILED - {}", d.domain, short_err));
             }
         }
@@ -720,7 +722,8 @@ async fn handle_sync_all_domain_errors(error_type: &str) -> ToolResult {
             }
             Err(e) => {
                 failed_count += 1;
-                let short_err = if e.len() > 100 { &e[..100] } else { &e };
+                let err_msg = e.to_string();
+                let short_err = if err_msg.len() > 100 { &err_msg[..100] } else { &err_msg };
                 results.push(format!("{}: FAILED - {}", d.domain, short_err));
             }
         }
@@ -842,7 +845,8 @@ async fn handle_sync_all_domain_sod_tables(date: &str) -> ToolResult {
             }
             Err(e) => {
                 failed_count += 1;
-                let short_err = if e.len() > 100 { &e[..100] } else { &e };
+                let err_msg = e.to_string();
+                let short_err = if err_msg.len() > 100 { &err_msg[..100] } else { &err_msg };
                 results.push(format!("{}: FAILED - {}", d.domain, short_err));
             }
         }
@@ -976,7 +980,8 @@ async fn handle_check_all_domain_drive_files() -> ToolResult {
         {
             Ok(f) => f,
             Err(e) => {
-                let short = if e.len() > 80 { &e[..80] } else { &e };
+                let err_msg = e.to_string();
+                let short = if err_msg.len() > 80 { &err_msg[..80] } else { &err_msg };
                 domains_failed.push(format!("{}: {}", d.domain, short));
                 continue;
             }

@@ -17,6 +17,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { Button, IconButton } from "../../components/ui";
+import { SectionLoading, InlineLoading } from "../../components/ui/DetailStates";
 import { useListDirectory, useReadFile, type FileEntry } from "../../hooks/useFiles";
 import { MarkdownViewer } from "../library/MarkdownViewer";
 import { useRepository } from "../../stores/repositoryStore";
@@ -27,52 +29,8 @@ import {
   useS3AiStatus,
   type S3FileStatus,
 } from "../../hooks/val-sync";
-import { useAiSkillSlugs } from "../../hooks/useAiSkills";
-
-const SKILL_GROUP_ORDER = ["insights", "recon-diagnostics", "analytics"] as const;
-const SKILL_GROUP_LABELS: Record<string, string> = {
-  insights: "Insights",
-  "recon-diagnostics": "Recon Diagnostics",
-  analytics: "Analytics",
-  other: "Other",
-};
-
-interface SkillGroup {
-  label: string;
-  subgroups?: { label: string; skills: string[] }[];
-  skills?: string[];
-}
-
-function groupSkills(skills: string[]): SkillGroup[] {
-  const groups: Record<string, string[]> = {};
-  for (const skill of [...skills].sort()) {
-    const prefix = SKILL_GROUP_ORDER.find((p) => skill.startsWith(`${p}-`));
-    const key = prefix ?? "other";
-    (groups[key] ??= []).push(skill);
-  }
-  const order = [...SKILL_GROUP_ORDER, "other"];
-  return order
-    .filter((key) => groups[key]?.length)
-    .map((key) => {
-      const label = SKILL_GROUP_LABELS[key] ?? key;
-      const items = groups[key];
-      // Sub-group analytics by domain (analytics-{domain}-...)
-      if (key === "analytics") {
-        const subs: Record<string, string[]> = {};
-        for (const s of items) {
-          const rest = s.replace(/^analytics-/, "");
-          const domain = rest.split("-")[0];
-          (subs[domain] ??= []).push(s);
-        }
-        const subgroups = Object.keys(subs).sort().map((d) => ({
-          label: d.charAt(0).toUpperCase() + d.slice(1),
-          skills: subs[d],
-        }));
-        return { label, subgroups };
-      }
-      return { label, skills: items };
-    });
-}
+import { useSkillRegistry } from "../skills/useSkillRegistry";
+import { SkillAssignmentGrid } from "../../components/SkillAssignmentGrid";
 
 interface DomainAiTabProps {
   aiPath: string; // e.g. /path/to/domain/ai
@@ -81,12 +39,22 @@ interface DomainAiTabProps {
 }
 
 export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps) {
-  const AVAILABLE_AI_SKILLS = useAiSkillSlugs();
+  const registryQuery = useSkillRegistry();
+  const registry = registryQuery.data;
+  const AVAILABLE_AI_SKILLS = useMemo(() => {
+    if (!registry) return [] as string[];
+    return Object.entries(registry.skills)
+      .filter(([, e]) => e.target === "platform" || e.target === "both")
+      .map(([slug]) => slug)
+      .sort();
+  }, [registry]);
+  const categories = registry?.categories ?? [];
+  const skillEntries = registry?.skills ?? {};
   const { activeRepository } = useRepository();
   const [selectedDoc, setSelectedDoc] = useState<{ path: string; name: string; type: "skill" | "instructions" } | null>(null);
 
-  const entitiesPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/architecture/domain-model/entities`
+  const centralSkillsPath = activeRepository
+    ? `${activeRepository.path}/_skills`
     : null;
   const templatesPath = activeRepository
     ? `${activeRepository.path}/_team/melvin/bot-mel/skills/ai-project-generator/templates`
@@ -111,7 +79,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
     if (!configFile.data) return [] as string[];
     try {
       const parsed = JSON.parse(configFile.data);
-      // Filter out stale skills that no longer exist in 0_Platform/skills/
+      // Filter out stale skills that no longer exist in _skills/
       return ((parsed.skills ?? []) as string[]).filter(s => AVAILABLE_AI_SKILLS.includes(s));
     } catch {
       return [] as string[];
@@ -142,12 +110,12 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   );
 
   const handleGenerate = useCallback(() => {
-    if (!entitiesPath || !templatesPath) return;
+    if (!centralSkillsPath || !templatesPath) return;
     generateMutation.mutate(
-      { domain: domainName, entitiesPath, templatesPath, skills: selectedSkills },
+      { domain: domainName, skillsPath: centralSkillsPath, templatesPath, skills: selectedSkills },
       { onSuccess: () => { configFile.refetch(); skillsDir.refetch(); instructionsFile.refetch(); aiDir.refetch(); } }
     );
-  }, [domainName, entitiesPath, templatesPath, selectedSkills, generateMutation, configFile, skillsDir, instructionsFile, aiDir]);
+  }, [domainName, centralSkillsPath, templatesPath, selectedSkills, generateMutation, configFile, skillsDir, instructionsFile, aiDir]);
 
   const aiNotFound = aiDir.isError || (aiDir.isSuccess && aiDir.data.length === 0);
 
@@ -157,11 +125,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   const hasInstructions = !!instructionsFile.data;
 
   if (aiDir.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <SectionLoading className="py-12" />;
   }
 
   return (
@@ -179,7 +143,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
                 <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                   {domainName}
                 </h2>
-                <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                <span className="px-2 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
                   AI Context
                 </span>
               </div>
@@ -211,48 +175,20 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
             Assigned Skills
           </label>
         </div>
-        <div className="space-y-3">
-          {groupSkills(AVAILABLE_AI_SKILLS).map((group) => (
-            <div key={group.label}>
-              <p className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">{group.label}</p>
-              {group.subgroups ? (
-                <div className="space-y-2 pl-2 border-l-2 border-zinc-100 dark:border-zinc-800">
-                  {group.subgroups.map((sub) => (
-                    <div key={sub.label}>
-                      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mb-1">{sub.label}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {sub.skills.map((skill) => {
-                          const active = selectedSkills.includes(skill);
-                          const shortName = skill.replace(/^analytics-[^-]+-/, "");
-                          return (
-                            <SkillPill key={skill} skill={skill} shortName={shortName} active={active} onToggle={handleSkillToggle} />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {group.skills!.map((skill) => {
-                    const active = selectedSkills.includes(skill);
-                    const shortName = skill.replace(/^(insights|recon-diagnostics)-/, "");
-                    return (
-                      <SkillPill key={skill} skill={skill} shortName={shortName} active={active} onToggle={handleSkillToggle} />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+        <SkillAssignmentGrid
+          skills={AVAILABLE_AI_SKILLS}
+          skillEntries={skillEntries}
+          categories={categories}
+          selectedSkills={selectedSkills}
+          onToggle={handleSkillToggle}
+        />
         <div className="flex items-center gap-3 pt-1">
           <button
             onClick={handleGenerate}
-            disabled={generateMutation.isPending || !entitiesPath || selectedSkills.length === 0}
+            disabled={generateMutation.isPending || !centralSkillsPath || selectedSkills.length === 0}
             className={cn(
               "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
-              !generateMutation.isPending && entitiesPath && selectedSkills.length > 0
+              !generateMutation.isPending && centralSkillsPath && selectedSkills.length > 0
                 ? "bg-violet-600 text-white hover:bg-violet-700"
                 : "bg-zinc-200 dark:bg-zinc-700 text-zinc-400 cursor-not-allowed"
             )}
@@ -278,16 +214,16 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
           )}
         </div>
         {selectedSkills.length === 0 && (
-          <p className="text-[11px] text-zinc-400">
+          <p className="text-xs text-zinc-400">
             Select at least one skill before generating.
           </p>
         )}
         {generateMutation.isSuccess && generateMutation.data.errors.length > 0 && (
           <div className="p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
-            <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-1">
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">
               Warnings ({generateMutation.data.errors.length})
             </p>
-            <ul className="text-[11px] text-amber-600 dark:text-amber-400 space-y-0.5">
+            <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-0.5">
               {generateMutation.data.errors.map((err, i) => (
                 <li key={i}>{err}</li>
               ))}
@@ -309,24 +245,19 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
             <button
               onClick={() => s3Status.refetch()}
               disabled={s3Status.isFetching}
-              className="text-[10px] text-zinc-400 hover:text-zinc-600 flex items-center gap-1"
+              className="text-xs text-zinc-400 hover:text-zinc-600 flex items-center gap-1"
               title="Refresh S3 status"
             >
               <RefreshCw size={10} className={s3Status.isFetching ? "animate-spin" : ""} />
               Refresh
             </button>
-            <button
+            <Button
               onClick={() => s3SyncMutation.mutate({ domain: domainName, globalPath })}
-              disabled={s3SyncMutation.isPending}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50 rounded transition-colors"
+              icon={CloudUpload}
+              loading={s3SyncMutation.isPending}
             >
-              {s3SyncMutation.isPending ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <CloudUpload size={12} />
-              )}
               Push to S3
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -343,10 +274,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
 
         {/* S3 Status */}
         {s3Status.isLoading && (
-          <div className="flex items-center gap-2 py-3 text-xs text-zinc-400">
-            <Loader2 size={12} className="animate-spin" />
-            Checking S3 status...
-          </div>
+          <InlineLoading message="Checking S3 status..." />
         )}
         {s3Status.isError && (
           <p className="text-xs text-zinc-400 py-2">
@@ -356,7 +284,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
         {s3Status.data && (
           <div className="space-y-2">
             {/* Summary chips */}
-            <div className="flex items-center gap-3 text-[10px]">
+            <div className="flex items-center gap-3 text-xs">
               <span className="text-zinc-500">
                 Local: <span className="font-medium text-zinc-700 dark:text-zinc-300">{s3Status.data.local_count} files</span>
               </span>
@@ -381,7 +309,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
             {/* File list */}
             {s3Status.data.files.length > 0 && (
               <div className="border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
-                <table className="w-full text-[11px]">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500">
                       <th className="text-left px-2 py-1 font-medium">File</th>
@@ -449,7 +377,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
                 Skills
               </label>
               {skillFiles.length > 0 && (
-                <span className="text-[10px] font-normal text-zinc-400 tabular-nums">
+                <span className="text-xs font-normal text-zinc-400 tabular-nums">
                   {skillFiles.length}
                 </span>
               )}
@@ -505,24 +433,6 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   );
 }
 
-function SkillPill({ skill, shortName, active, onToggle }: { skill: string; shortName: string; active: boolean; onToggle: (s: string) => void }) {
-  return (
-    <button
-      onClick={() => onToggle(skill)}
-      title={skill}
-      className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors",
-        active
-          ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700"
-          : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700"
-      )}
-    >
-      {active ? <Check size={11} /> : <Sparkles size={11} />}
-      {shortName}
-    </button>
-  );
-}
-
 /** Grid card for a skill doc */
 function SkillDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => void }) {
   const displayName = file.name.replace(/\.md$/, "");
@@ -546,9 +456,9 @@ function SkillDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => v
         </span>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-[9px] text-zinc-400">{sizeLabel}</span>
+        <span className="text-xs text-zinc-400">{sizeLabel}</span>
         {file.modified && (
-          <span className="text-[9px] text-zinc-400">{formatRelative(file.modified)}</span>
+          <span className="text-xs text-zinc-400">{formatRelative(file.modified)}</span>
         )}
       </div>
     </button>
@@ -586,23 +496,21 @@ function DocModal({
               <div className="flex items-center gap-2">
                 {icon}
                 <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayName}</span>
-                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">&middot;</span>
-                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{fileName}</span>
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">&middot;</span>
+                <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{fileName}</span>
               </div>
             </div>
-            <button
+            <IconButton
               onClick={onClose}
-              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
-            >
-              <X size={16} />
-            </button>
+              icon={X}
+              label="Close"
+              className="flex-shrink-0"
+            />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 size={20} className="animate-spin text-zinc-400" />
-            </div>
+            <SectionLoading className="py-16" />
           )}
           {content && (
             <div className="px-6 py-5">
@@ -652,7 +560,7 @@ function InstructionsCard({
       </div>
       <button
         onClick={onShowMore}
-        className="w-full px-3 py-1.5 text-[11px] text-teal-600 dark:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 transition-colors"
+        className="w-full px-3 py-1.5 text-xs text-teal-600 dark:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 transition-colors"
       >
         Show more
       </button>

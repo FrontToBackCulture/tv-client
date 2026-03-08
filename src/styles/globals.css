@@ -78,8 +78,8 @@
   --border-strong: #BDBCBA;
 
   /* Typography */
-  --font-family-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-family-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --font-family-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-family-mono: 'JetBrains Mono Variable', 'JetBrains Mono', 'SF Mono', monospace;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);

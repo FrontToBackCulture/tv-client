@@ -3,6 +3,8 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Search, Loader2, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown } from "lucide-react";
+import { Button, IconButton } from "../../components/ui";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 import {
   type SkillEntry,
@@ -414,7 +416,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+          <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
             Move to category
           </div>
           <button
@@ -425,7 +427,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
             )}
           >
             <span className="flex-1 text-left">Uncategorized</span>
-            <span className="text-[10px] text-zinc-400">{categoryCounts[""] || 0}</span>
+            <span className="text-xs text-zinc-400">{categoryCounts[""] || 0}</span>
           </button>
           {/* Render categories hierarchically: top-level first, then children indented */}
           {registry.categories.filter(c => !c.parent).map(cat => {
@@ -441,7 +443,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
                     )}
                   >
                     <span className="flex-1 truncate">{cat.label}</span>
-                    <span className="text-[10px] text-zinc-400">{categoryCounts[cat.id] || 0}</span>
+                    <span className="text-xs text-zinc-400">{categoryCounts[cat.id] || 0}</span>
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat.id); setContextMenu(null); }}
@@ -461,7 +463,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
                       )}
                     >
                       <span className="flex-1 truncate">{child.label}</span>
-                      <span className="text-[10px] text-zinc-400">{categoryCounts[child.id] || 0}</span>
+                      <span className="text-xs text-zinc-400">{categoryCounts[child.id] || 0}</span>
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteCategory(child.id); setContextMenu(null); }}
@@ -491,14 +493,13 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
                 <>
                   <Download size={24} className="mb-2" />
                   <p className="text-xs mb-3">No skills in registry yet</p>
-                  <button
+                  <Button
                     onClick={onInit}
-                    disabled={isIniting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 transition-colors"
+                    loading={isIniting}
+                    icon={Download}
                   >
-                    {isIniting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                     Initialize Registry
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <p className="text-xs">No skills match your filters</p>
@@ -510,7 +511,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
               <div className="flex justify-end px-3 py-1">
                 <button
                   onClick={toggleCollapseAll}
-                  className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                  className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
                   title={allCollapsed ? "Expand all" : "Collapse all"}
                 >
                   <ChevronsUpDown size={12} />
@@ -735,7 +736,7 @@ function SkillGroup({
           className="flex-1 flex items-center gap-1.5 px-3 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <ChevronRight size={10} className={cn("text-zinc-400 transition-transform", !isCollapsed && "rotate-90")} />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
             {label}
           </span>
         </button>
@@ -802,17 +803,17 @@ function SkillGroup({
                         }}
                         onBlur={handleRenameSubmit}
                         onClick={(e) => e.stopPropagation()}
-                        className="flex-1 px-1 py-0 text-[10px] rounded border border-teal-400 dark:border-teal-600 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none"
+                        className="flex-1 px-1 py-0 text-xs rounded border border-teal-400 dark:border-teal-600 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none"
                       />
                     ) : (
                       <span
-                        className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 truncate"
+                        className="text-xs font-medium text-zinc-500 dark:text-zinc-400 truncate"
                         onDoubleClick={(e) => { e.stopPropagation(); setRenamingCatId(cat.id); setRenameLabel(cat.label); }}
                       >
                         {cat.label}
                       </span>
                     )}
-                    <span className="text-[10px] text-zinc-400 ml-auto">{total}</span>
+                    <span className="text-xs text-zinc-400 ml-auto">{total}</span>
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); startCreating(cat.id); }}
@@ -886,17 +887,17 @@ function SkillGroup({
                                   }}
                                   onBlur={handleRenameSubmit}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="flex-1 px-1 py-0 text-[10px] rounded border border-teal-400 dark:border-teal-600 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none"
+                                  className="flex-1 px-1 py-0 text-xs rounded border border-teal-400 dark:border-teal-600 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none"
                                 />
                               ) : (
                                 <span
-                                  className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 truncate"
+                                  className="text-xs font-medium text-zinc-500 dark:text-zinc-400 truncate"
                                   onDoubleClick={(e) => { e.stopPropagation(); setRenamingCatId(child.id); setRenameLabel(child.label); }}
                                 >
                                   {child.label}
                                 </span>
                               )}
-                              <span className="text-[10px] text-zinc-400 ml-auto">{childSkills.length}</span>
+                              <span className="text-xs text-zinc-400 ml-auto">{childSkills.length}</span>
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); onDeleteCategory(child.id); }}
@@ -945,8 +946,8 @@ function SkillGroup({
                   className="w-full flex items-center gap-1.5 pl-6 pr-3 py-1 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                 >
                   <ChevronRight size={9} className={cn("text-zinc-400 transition-transform", !isCatCollapsed && "rotate-90")} />
-                  <span className="text-[10px] font-medium text-zinc-400 italic truncate">Uncategorized</span>
-                  <span className="text-[10px] text-zinc-400 ml-auto">{allUncat.length}</span>
+                  <span className="text-xs font-medium text-zinc-400 italic truncate">Uncategorized</span>
+                  <span className="text-xs text-zinc-400 ml-auto">{allUncat.length}</span>
                 </button>
                 {!isCatCollapsed && allUncat.map(s => (
                   <SkillRow key={s.slug} skill={s} selectedSlug={selectedSlug} onSelect={onSelect} onContextMenu={onContextMenu} onDragBegin={onDragBegin} indent={2} />
@@ -1076,7 +1077,7 @@ function SkillDashboard({
       {/* Header */}
       <div>
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Skill Registry</h2>
-        <p className="text-[11px] text-zinc-400 mt-0.5">
+        <p className="text-xs text-zinc-400 mt-0.5">
           {totalSkills} skills &middot; Last updated {registry.updated ? formatDate(registry.updated) : "unknown"}
         </p>
       </div>
@@ -1099,7 +1100,7 @@ function SkillDashboard({
             className="flex items-center gap-1.5 mb-2 group"
           >
             <ChevronRight size={12} className={`text-amber-500 transition-transform ${!driftCollapsed ? "rotate-90" : ""}`} />
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-amber-500">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-500">
               Needs Attention ({driftIssues.length})
             </h3>
           </button>
@@ -1118,7 +1119,7 @@ function SkillDashboard({
                       ? (d.source_modified > d.target_modified ? d.source_modified : d.target_modified)
                       : d.source_modified || d.target_modified;
                     return (
-                      <p key={d.distribution_path} className="text-[10px] text-zinc-400 truncate mt-0.5">
+                      <p key={d.distribution_path} className="text-xs text-zinc-400 truncate mt-0.5">
                         <span className={d.status === "target_modified" ? "text-amber-500" : "text-teal-500"}>
                           {d.status === "target_modified" ? "modified" : "updated"}
                         </span>
@@ -1147,7 +1148,7 @@ function SkillDashboard({
             className="flex items-center gap-1.5 mb-2 group"
           >
             <ChevronRight size={12} className={`text-zinc-400 transition-transform ${!recentCollapsed ? "rotate-90" : ""}`} />
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
               Recently Modified
             </h3>
           </button>
@@ -1163,11 +1164,11 @@ function SkillDashboard({
                   <Clock size={13} className="text-zinc-400 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-zinc-700 dark:text-zinc-300">{m.slug}</p>
-                    {skill && <p className="text-[10px] text-zinc-400 truncate">{skill.name}</p>}
+                    {skill && <p className="text-xs text-zinc-400 truncate">{skill.name}</p>}
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-[10px] text-zinc-400">{formatRelative(m.last_modified)}</p>
-                    <p className="text-[10px] text-zinc-400">{m.file_count} file{m.file_count !== 1 ? "s" : ""}</p>
+                    <p className="text-xs text-zinc-400">{formatRelative(m.last_modified)}</p>
+                    <p className="text-xs text-zinc-400">{m.file_count} file{m.file_count !== 1 ? "s" : ""}</p>
                   </div>
                 </button>
               );
@@ -1178,7 +1179,7 @@ function SkillDashboard({
 
       {/* Category breakdown */}
       <div>
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
           By Category
         </h3>
         <div className="grid grid-cols-2 gap-2">
@@ -1217,28 +1218,25 @@ function ReportGallery() {
   }, [selectedHtml]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 size={16} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="py-12" />;
   }
 
   if (selectedPath && iframeSrcDoc) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex-shrink-0 px-4 pt-3 pb-2">
-          <button
+          <Button
+            variant="ghost"
+            icon={ChevronRight}
             onClick={() => setSelectedPath(null)}
-            className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-500 mb-2"
+            className="mb-2 [&_svg:first-child]:rotate-180"
           >
-            <ChevronRight size={12} className="rotate-180" />
             Back to gallery
-          </button>
+          </Button>
           {selectedExample && (
             <div>
               <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedExample.skill_name}</h2>
-              <p className="text-[11px] text-zinc-400">{selectedExample.file_name}</p>
+              <p className="text-xs text-zinc-400">{selectedExample.file_name}</p>
             </div>
           )}
         </div>
@@ -1272,9 +1270,7 @@ function ReportGallery() {
           className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
         />
         {gallerySearch && (
-          <button onClick={() => setGallerySearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
-            <X size={12} />
-          </button>
+          <IconButton icon={X} size={12} label="Clear search" onClick={() => setGallerySearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" />
         )}
       </div>
       {sorted.length === 0 ? (
@@ -1332,7 +1328,7 @@ function ReportThumbnail({ example, onClick }: { example: { slug: string; skill_
       {/* Label */}
       <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
         <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{example.skill_name}</p>
-        <p className="text-[10px] text-zinc-400 truncate">{example.file_name}</p>
+        <p className="text-xs text-zinc-400 truncate">{example.file_name}</p>
       </div>
     </button>
   );
@@ -1349,7 +1345,7 @@ function StatCard({ label, value, sub, icon: Icon, color }: {
     <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 px-3 py-2.5">
       <div className="flex items-center gap-1.5 mb-1">
         <Icon size={12} className={color || "text-zinc-400"} />
-        <span className="text-[10px] text-zinc-400 uppercase tracking-wider">{label}</span>
+        <span className="text-xs text-zinc-400 uppercase tracking-wider">{label}</span>
       </div>
       <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
         {value}

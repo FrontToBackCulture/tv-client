@@ -7,8 +7,9 @@
 pub mod ga4;
 
 use chrono::{NaiveDate, Utc};
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
+
+use crate::commands::error::{CmdResult, CommandError};
 
 // ============================================================================
 // Shared types
@@ -40,12 +41,12 @@ pub async fn upsert_page_views(
     rows: &[AnalyticsPageView],
     supabase_url: &str,
     supabase_key: &str,
-) -> Result<usize, String> {
+) -> CmdResult<usize> {
     if rows.is_empty() {
         return Ok(0);
     }
 
-    let client = Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let url = format!("{}/rest/v1/analytics_page_views", supabase_url);
 
     // Supabase has a payload size limit — batch in chunks of 500
@@ -75,12 +76,11 @@ pub async fn upsert_page_views(
             .header("Prefer", "resolution=merge-duplicates")
             .json(&payload)
             .send()
-            .await
-            .map_err(|e| format!("Supabase upsert failed: {}", e))?;
+            .await?;
 
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
-            return Err(format!("Supabase upsert error: {}", body));
+            return Err(CommandError::Network(format!("Supabase upsert error: {}", body)));
         }
 
         total += chunk.len();

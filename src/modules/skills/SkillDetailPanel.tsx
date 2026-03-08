@@ -8,6 +8,8 @@ import {
   Send, Bot, Boxes, ChevronDown, ChevronRight, BookOpen, Files, GitBranch,
   Tag, Terminal, Globe, LayoutTemplate, PenTool,
 } from "lucide-react";
+import { Button, IconButton } from "../../components/ui";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 import { useFileTree, useReadFile, type TreeNode } from "../../hooks/useFiles";
 import { useRepository } from "../../stores/repositoryStore";
@@ -128,7 +130,7 @@ export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose
               <button
                 onClick={() => setShowStatusMenu(!showStatusMenu)}
                 className={cn(
-                  "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium transition-colors",
+                  "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium transition-colors",
                   statusCfg.badge,
                   statusCfg.text,
                 )}
@@ -162,9 +164,7 @@ export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose
               )}
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
-            <X size={16} />
-          </button>
+          <IconButton icon={X} label="Close" onClick={onClose} />
         </div>
 
         {/* Metadata chips */}
@@ -174,7 +174,7 @@ export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose
           {skill.command && <MetaChip icon={Terminal} label={skill.command} mono />}
           {skill.domain && <MetaChip icon={Globe} label={skill.domain} />}
           {skill.verified && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
               <CheckCircle2 size={10} />
               verified{skill.rating != null && ` · ${skill.rating}/10`}
             </span>
@@ -239,7 +239,7 @@ export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose
 
 function MetaChip({ icon: Icon, label, mono }: { icon: typeof Tag; label: string; mono?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] text-zinc-600 dark:text-zinc-400">
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
       <Icon size={10} className="flex-shrink-0" />
       <span className={mono ? "font-mono" : ""}>{label}</span>
     </span>
@@ -266,7 +266,7 @@ function TabBtn({ active, onClick, icon: Icon, label, badge }: {
       <Icon size={13} />
       {label}
       {badge !== undefined && badge > 0 && (
-        <span className="text-[10px] text-zinc-400">{badge}</span>
+        <span className="text-xs text-zinc-400">{badge}</span>
       )}
     </button>
   );
@@ -285,7 +285,7 @@ function OverviewTab({ markdownContent, basePath, slug, description }: {
       <div className="px-4 py-6 text-center">
         <BookOpen size={24} className="mx-auto mb-2 text-zinc-300 dark:text-zinc-600" />
         <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">{description}</p>
-        <p className="text-[10px] text-zinc-400">
+        <p className="text-xs text-zinc-400">
           Add a README.md to <code className="font-mono">_skills/{slug}/</code> for a richer overview.
         </p>
       </div>
@@ -343,9 +343,7 @@ function DiagramTab({ diagramFiles, skillPath }: {
         {selectedFile && fileContent ? (
           <ExcalidrawViewer content={fileContent} filename={selectedFile.name} />
         ) : selectedFile ? (
-          <div className="px-4 py-6 text-center">
-            <Loader2 size={16} className="mx-auto animate-spin text-zinc-400" />
-          </div>
+          <SectionLoading className="py-6" />
         ) : (
           <div className="px-4 py-6 text-center text-xs text-zinc-400">
             No diagram selected
@@ -441,11 +439,11 @@ function TemplatesTab({ exampleFiles, skillPath, onOpenFile }: {
                 {cfg.label && (
                   <button
                     onClick={toggleCollapse}
-                    className={cn("flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wider mr-1 hover:opacity-70 transition-opacity", cfg.color)}
+                    className={cn("flex items-center gap-0.5 text-xs font-semibold uppercase tracking-wider mr-1 hover:opacity-70 transition-opacity", cfg.color)}
                   >
                     {isCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
                     {cfg.label}
-                    {isCollapsed && <span className="text-[9px] font-normal normal-case tracking-normal opacity-60 ml-0.5">({files.length})</span>}
+                    {isCollapsed && <span className="text-xs font-normal normal-case tracking-normal opacity-60 ml-0.5">({files.length})</span>}
                   </button>
                 )}
                 <div className={cn("flex items-center gap-1 overflow-hidden transition-all duration-150", isCollapsed ? "max-w-0 opacity-0" : "max-w-[2000px] opacity-100")}>
@@ -484,9 +482,7 @@ function TemplatesTab({ exampleFiles, skillPath, onOpenFile }: {
         )}
 
         {selectedFile && !fileContent && (
-          <div className="px-4 py-6 text-center">
-            <Loader2 size={16} className="mx-auto animate-spin text-zinc-400" />
-          </div>
+          <SectionLoading className="py-6" />
         )}
 
         {selectedFile && fileContent && (
@@ -514,13 +510,14 @@ function TemplatesTab({ exampleFiles, skillPath, onOpenFile }: {
             {/* Open file button */}
             {onOpenFile && (
               <div className="px-4 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
-                <button
+                <Button
+                  variant="ghost"
+                  icon={ExternalLink}
                   onClick={() => onOpenFile(selectedFile.path)}
-                  className="flex items-center gap-1.5 text-[11px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  className="text-xs"
                 >
-                  <ExternalLink size={11} />
                   Open in editor
-                </button>
+                </Button>
               </div>
             )}
           </>
@@ -600,9 +597,7 @@ function FilesTab({ tree, skillPath }: {
         )}
 
         {selectedFile && !fileContent && (
-          <div className="px-4 py-6 text-center">
-            <Loader2 size={16} className="mx-auto animate-spin text-zinc-400" />
-          </div>
+          <SectionLoading className="py-6" />
         )}
 
         {selectedFile && fileContent && (
@@ -727,11 +722,7 @@ function DistributionTab({ slug, skill, driftStatuses, skillPath, onOpenFile }: 
     try { await distributeTo.mutateAsync({ slug, targetPath: botSkillsPath, distType: "bot" }); } finally { setActionSlug(null); }
   };
 
-  const handleDistributeToPlatform = async () => {
-    setActionSlug("distribute-to");
-    setShowDistributeMenu(false);
-    try { await distributeTo.mutateAsync({ slug, targetPath: "0_Platform/skills", distType: "platform" }); } finally { setActionSlug(null); }
-  };
+  // Platform distribution removed — _skills/ is now the single source, no 0_Platform/skills/ copy needed
 
   const handlePull = async (targetPath: string) => {
     setActionSlug(`pull:${targetPath}`);
@@ -770,54 +761,51 @@ function DistributionTab({ slug, skill, driftStatuses, skillPath, onOpenFile }: 
       .filter(d => d.type === "bot")
       .map(d => { const p = d.path.split("/"); p.pop(); return p.join("/"); })
   );
-  const distributedToPlatform = allDistributions.some(d => d.type === "platform");
-
   return (
     <div>
       {/* Action bar */}
       <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
         {allDistributions.filter(d => d.isRegistered).length > 0 && (
-          <button
+          <Button
             onClick={handleDistributeAll}
             disabled={actionSlug !== null}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 transition-colors"
+            loading={actionSlug === "distribute"}
+            icon={ArrowDownToLine}
           >
-            {actionSlug === "distribute" ? <Loader2 size={12} className="animate-spin" /> : <ArrowDownToLine size={12} />}
             Distribute All
-          </button>
+          </Button>
         )}
 
         <div className="relative">
-          <button
+          <Button
+            variant="secondary"
             onClick={() => setShowDistributeMenu(!showDistributeMenu)}
             disabled={actionSlug !== null}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-50 transition-colors"
+            loading={actionSlug === "distribute-to"}
+            icon={Send}
+            iconRight={ChevronDown}
           >
-            {actionSlug === "distribute-to" ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
             Distribute to...
-            <ChevronDown size={10} />
-          </button>
+          </Button>
 
           {showDistributeMenu && (
             <DistributeMenu
               bots={bots}
               distributedBotPaths={distributedBotPaths}
-              distributedToPlatform={distributedToPlatform}
               onSelectBot={handleDistributeToBot}
-              onSelectPlatform={handleDistributeToPlatform}
               onClose={() => setShowDistributeMenu(false)}
             />
           )}
         </div>
 
         {onOpenFile && skillPath && (
-          <button
+          <Button
+            variant="secondary"
+            icon={ExternalLink}
             onClick={() => onOpenFile(`${skillPath}/SKILL.md`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors"
           >
-            <ExternalLink size={12} />
             Edit SKILL.md
-          </button>
+          </Button>
         )}
       </div>
 
@@ -840,16 +828,16 @@ function DistributionTab({ slug, skill, driftStatuses, skillPath, onOpenFile }: 
                 <div className="flex items-center gap-2 mb-0.5">
                   <StatusIcon size={14} className={cfg.color} />
                   <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{cfg.label}</span>
-                  <span className="text-[10px] px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+                  <span className="text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
                     {dist.type}
                   </span>
                   {!dist.isRegistered && (
-                    <span className="text-[10px] px-1 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                    <span className="text-xs px-1 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
                       discovered
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-zinc-400 font-mono ml-[22px]">{dist.path}</p>
+                <p className="text-xs text-zinc-400 font-mono ml-[22px]">{dist.path}</p>
 
                 {/* Action buttons: push + pull */}
                 <div className="mt-1.5 ml-[22px] flex items-center gap-3">
@@ -857,7 +845,7 @@ function DistributionTab({ slug, skill, driftStatuses, skillPath, onOpenFile }: 
                     onClick={() => handlePush(dist.path, distType)}
                     disabled={isBusy}
                     className={cn(
-                      "flex items-center gap-1 text-[11px] disabled:opacity-50",
+                      "flex items-center gap-1 text-xs disabled:opacity-50",
                       notInSync
                         ? "text-teal-600 hover:text-teal-500"
                         : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
@@ -870,7 +858,7 @@ function DistributionTab({ slug, skill, driftStatuses, skillPath, onOpenFile }: 
                     onClick={() => handlePull(dist.path)}
                     disabled={isBusy}
                     className={cn(
-                      "flex items-center gap-1 text-[11px] disabled:opacity-50",
+                      "flex items-center gap-1 text-xs disabled:opacity-50",
                       drift?.status === "target_modified"
                         ? "text-amber-600 hover:text-amber-500"
                         : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
@@ -898,36 +886,19 @@ function DistributionTab({ slug, skill, driftStatuses, skillPath, onOpenFile }: 
 function DistributeMenu({
   bots,
   distributedBotPaths,
-  distributedToPlatform,
   onSelectBot,
-  onSelectPlatform,
   onClose,
 }: {
   bots: { name: string; label: string; skills_path: string; has_skills_dir: boolean }[];
   distributedBotPaths: Set<string>;
-  distributedToPlatform: boolean;
   onSelectBot: (skillsPath: string) => void;
-  onSelectPlatform: () => void;
   onClose: () => void;
 }) {
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div className="absolute left-0 top-full mt-1 z-50 min-w-[220px] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl py-1">
-        <button
-          onClick={onSelectPlatform}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left"
-        >
-          <Boxes size={14} className="text-zinc-400 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <span className="text-zinc-700 dark:text-zinc-300">Platform Skills</span>
-            <p className="text-[10px] text-zinc-400 font-mono">0_Platform/skills/</p>
-          </div>
-          {distributedToPlatform && <CheckCircle2 size={12} className="text-emerald-500 flex-shrink-0" />}
-        </button>
-
-        <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
-        <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Bots</div>
+        <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Bots</div>
         {bots.map((bot) => {
           const alreadyDistributed = distributedBotPaths.has(bot.skills_path);
           return (
@@ -939,7 +910,7 @@ function DistributeMenu({
               <Bot size={14} className="text-zinc-400 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <span className="text-zinc-700 dark:text-zinc-300">{bot.label}</span>
-                {!bot.has_skills_dir && <span className="ml-1 text-[10px] text-zinc-400">(no skills/ yet)</span>}
+                {!bot.has_skills_dir && <span className="ml-1 text-xs text-zinc-400">(no skills/ yet)</span>}
               </div>
               {alreadyDistributed && <CheckCircle2 size={12} className="text-emerald-500 flex-shrink-0" />}
             </button>

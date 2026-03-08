@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::command;
 
+use crate::commands::error::CmdResult;
 use crate::mcp::protocol::{Tool, ToolResult};
 use crate::mcp::tools;
 
@@ -52,7 +53,7 @@ pub fn mcp_list_tools() -> Vec<McpToolInfo> {
 
 /// Call an MCP tool by name
 #[command]
-pub async fn mcp_call_tool(name: String, arguments: Value) -> Result<ToolResult, String> {
+pub async fn mcp_call_tool(name: String, arguments: Value) -> CmdResult<ToolResult> {
     Ok(tools::call_tool(&name, arguments).await)
 }
 

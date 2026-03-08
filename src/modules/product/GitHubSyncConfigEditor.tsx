@@ -9,6 +9,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { Button, IconButton } from "../../components/ui";
 import type {
   GitHubSyncConfig,
   RepoConfig,
@@ -83,20 +84,20 @@ export function GitHubSyncConfigEditor({
           Config Editor
         </h3>
         <div className="flex items-center gap-2">
-          <button
+          <Button
             onClick={onDiscard}
             disabled={isSaving}
-            className="px-3 py-1.5 text-xs font-medium rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50"
+            variant="secondary"
           >
             Discard
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => onSave(draft)}
-            disabled={!isDirty || isSaving}
-            className="px-3 py-1.5 text-xs font-medium rounded-md bg-teal-600 hover:bg-teal-500 text-white transition-colors disabled:opacity-50"
+            disabled={!isDirty}
+            loading={isSaving}
           >
-            {isSaving ? "Saving..." : "Save"}
-          </button>
+            Save
+          </Button>
         </div>
       </div>
 
@@ -110,13 +111,14 @@ export function GitHubSyncConfigEditor({
         />
       ))}
 
-      <button
+      <Button
         onClick={addRepo}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-600 dark:text-zinc-400 transition-colors"
+        variant="secondary"
+        icon={Plus}
+        className="border-dashed"
       >
-        <Plus size={14} />
         Add Repository
-      </button>
+      </Button>
     </div>
   );
 }
@@ -178,12 +180,13 @@ function RepoSection({
         <span className="text-xs text-zinc-500">
           {repo.mappings.length} mappings, {repo.rules.length} rules
         </span>
-        <button
+        <IconButton
           onClick={onRemove}
-          className="text-zinc-400 hover:text-red-500 transition-colors"
-        >
-          <Trash2 size={14} />
-        </button>
+          icon={Trash2}
+          variant="danger"
+          label="Remove repository"
+          size={14}
+        />
       </div>
 
       {expanded && (
@@ -482,13 +485,13 @@ function RulesSection({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <button
+        <Button
           onClick={addRule}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors"
+          variant="secondary"
+          icon={Plus}
         >
-          <Plus size={12} />
           Add Rule
-        </button>
+        </Button>
       </div>
 
       <div className="space-y-0.5 max-h-[600px] overflow-auto">

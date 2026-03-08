@@ -6,6 +6,7 @@
 use super::auth;
 use super::config::load_config_internal;
 use super::sync::write_json;
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -110,11 +111,8 @@ struct ColumnInfo {
 // ============================================================================
 
 /// Execute SQL against a domain's API
-async fn execute_sql(token: &str, api_domain: &str, sql: &str) -> Result<Vec<serde_json::Value>, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60))
-        .build()
-        .map_err(|e| format!("HTTP client error: {}", e))?;
+async fn execute_sql(token: &str, api_domain: &str, sql: &str) -> CmdResult<Vec<serde_json::Value>> {
+    let client = crate::HTTP_CLIENT.clone();
 
     let url = format!("https://{}.thinkval.io/api/v1/sqls/execute", api_domain);
 
@@ -124,19 +122,15 @@ async fn execute_sql(token: &str, api_domain: &str, sql: &str) -> Result<Vec<ser
         .query(&[("token", token)])
         .json(&SqlQueryRequest { sql: sql.to_string() })
         .send()
-        .await
-        .map_err(|e| format!("SQL query failed: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
-        let status = response.status();
+        let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("SQL error ({}): {}", status, body));
+        return Err(CommandError::Http { status, body });
     }
 
-    let resp: SqlQueryResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse SQL response: {}", e))?;
+    let resp: SqlQueryResponse = response.json().await?;
 
     Ok(resp.data.unwrap_or_default())
 }
@@ -173,7 +167,7 @@ fn read_domains_summary(domains_json_path: &Path) -> (Option<usize>, Option<usiz
 }
 
 /// Query the user-defined columns from a domain's table via information_schema
-async fn query_columns(token: &str, api_domain: &str, table_name: &str) -> Result<Vec<ColumnInfo>, String> {
+async fn query_columns(token: &str, api_domain: &str, table_name: &str) -> CmdResult<Vec<ColumnInfo>> {
     let sql = format!(
         "SELECT column_name, ordinal_position, data_type \
          FROM information_schema.columns \
@@ -367,16 +361,15 @@ fn read_field_master(entities_path: &Path) -> Option<FieldMasterJson> {
 
 /// List all documented domain model entities by reading the folder structure.
 #[command]
-pub fn val_list_domain_model_entities(entities_path: String) -> Result<Vec<EntityInfo>, String> {
+pub fn val_list_domain_model_entities(entities_path: String) -> CmdResult<Vec<EntityInfo>> {
     let base = Path::new(&entities_path);
     if !base.exists() {
-        return Err(format!("Entities path does not exist: {}", entities_path));
+        return Err(CommandError::NotFound(format!("Entities path does not exist: {}", entities_path)));
     }
 
     let mut entities = Vec::new();
 
-    let entries = fs::read_dir(base)
-        .map_err(|e| format!("Failed to read entities dir: {}", e))?;
+    let entries = fs::read_dir(base)?;
 
     let mut entity_dirs: Vec<_> = entries
         .flatten()
@@ -468,19 +461,17 @@ pub async fn val_scan_domain_model_table(
     schema_path: String,
     domain_types: Option<Vec<String>>,
     reference_domain: Option<String>,
-) -> Result<ScanResult, String> {
+) -> CmdResult<ScanResult> {
     let start = Instant::now();
     let ref_domain = reference_domain.unwrap_or_else(|| "lab".to_string());
 
     // Read schema.json
     let schema_file = Path::new(&schema_path);
     if !schema_file.exists() {
-        return Err(format!("schema.json not found: {}", schema_path));
+        return Err(CommandError::NotFound(format!("schema.json not found: {}", schema_path)));
     }
-    let schema_content = fs::read_to_string(schema_file)
-        .map_err(|e| format!("Failed to read schema.json: {}", e))?;
-    let schema: SchemaJson = serde_json::from_str(&schema_content)
-        .map_err(|e| format!("Failed to parse schema.json: {}", e))?;
+    let schema_content = fs::read_to_string(schema_file)?;
+    let schema: SchemaJson = serde_json::from_str(&schema_content)?;
 
     let table_name = &schema.table_name;
     let table_display = &schema.display_name;
@@ -493,7 +484,7 @@ pub async fn val_scan_domain_model_table(
         .collect();
 
     let output_dir = schema_file.parent()
-        .ok_or_else(|| "Cannot determine output directory from schema path".to_string())?;
+        .ok_or_else(|| CommandError::Internal("Cannot determine output directory from schema path".to_string()))?;
 
     // Load all domain configs
     let config = load_config_internal()?;
@@ -790,8 +781,7 @@ pub async fn val_scan_domain_model_table(
     });
 
     if !output_dir.exists() {
-        fs::create_dir_all(output_dir)
-            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+        fs::create_dir_all(output_dir)?;
     }
 
     let domains_file = output_dir.join("domains.json").to_string_lossy().to_string();
@@ -819,29 +809,25 @@ pub async fn val_scan_domain_model_table(
 
 /// Read a domain model JSON file (domains.json, categoricals.json, or schema.json)
 #[command]
-pub fn val_read_domain_model_file(file_path: String) -> Result<serde_json::Value, String> {
+pub fn val_read_domain_model_file(file_path: String) -> CmdResult<serde_json::Value> {
     let path = Path::new(&file_path);
     if !path.exists() {
-        return Err(format!("File not found: {}", file_path));
+        return Err(CommandError::NotFound(format!("File not found: {}", file_path)));
     }
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse JSON: {}", e))
+    let content = fs::read_to_string(path)?;
+    Ok(serde_json::from_str(&content)?)
 }
 
 /// Generate schema.md from schema.json
 #[command]
-pub fn val_generate_schema_md(schema_json_path: String) -> Result<String, String> {
+pub fn val_generate_schema_md(schema_json_path: String) -> CmdResult<String> {
     let path = Path::new(&schema_json_path);
     if !path.exists() {
-        return Err(format!("schema.json not found: {}", schema_json_path));
+        return Err(CommandError::NotFound(format!("schema.json not found: {}", schema_json_path)));
     }
 
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read schema.json: {}", e))?;
-    let schema: SchemaJson = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse schema.json: {}", e))?;
+    let content = fs::read_to_string(path)?;
+    let schema: SchemaJson = serde_json::from_str(&content)?;
 
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let model_upper = schema.model.as_deref().unwrap_or("UDT").to_uppercase();
@@ -909,8 +895,7 @@ pub fn val_generate_schema_md(schema_json_path: String) -> Result<String, String
     }
 
     let output_path = path.with_file_name("schema.md");
-    fs::write(&output_path, &md)
-        .map_err(|e| format!("Failed to write schema.md: {}", e))?;
+    fs::write(&output_path, &md)?;
     Ok(output_path.to_string_lossy().to_string())
 }
 
@@ -932,24 +917,22 @@ pub fn val_create_domain_model_schema(
     model_name: String,
     entities_base_path: String,
     table_display_name: String,
-) -> Result<CreateSchemaResult, String> {
+) -> CmdResult<CreateSchemaResult> {
     let def_path = Path::new(&definition_path);
     if !def_path.exists() {
-        return Err(format!("definition.json not found: {}", definition_path));
+        return Err(CommandError::NotFound(format!("definition.json not found: {}", definition_path)));
     }
 
     // Read definition.json (array of column objects)
-    let content = fs::read_to_string(def_path)
-        .map_err(|e| format!("Failed to read definition.json: {}", e))?;
-    let fields: Vec<serde_json::Value> = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse definition.json: {}", e))?;
+    let content = fs::read_to_string(def_path)?;
+    let fields: Vec<serde_json::Value> = serde_json::from_str(&content)?;
 
     // Extract table_name from first entry
     let table_name = fields
         .first()
         .and_then(|f| f.get("table_name"))
         .and_then(|v| v.as_str())
-        .ok_or_else(|| "No table_name found in definition.json".to_string())?
+        .ok_or_else(|| CommandError::Parse("No table_name found in definition.json".to_string()))?
         .to_string();
 
     // Filter to user columns: usr_* + general_record_id (skip system columns)
@@ -1028,7 +1011,7 @@ pub fn val_create_domain_model_schema(
     }
 
     // Auto-fill descriptions from definition_analysis.json (AI-generated) if available
-    let analysis_path = def_path.parent().unwrap().join("definition_analysis.json");
+    let analysis_path = def_path.parent().unwrap_or(def_path).join("definition_analysis.json");
     if analysis_path.exists() {
         if let Ok(analysis_content) = fs::read_to_string(&analysis_path) {
             if let Ok(analysis) = serde_json::from_str::<serde_json::Value>(&analysis_content) {
@@ -1072,8 +1055,7 @@ pub fn val_create_domain_model_schema(
     let output_dir = Path::new(&entities_base_path)
         .join(&entity_name)
         .join(&model_name);
-    fs::create_dir_all(&output_dir)
-        .map_err(|e| format!("Failed to create directory: {}", e))?;
+    fs::create_dir_all(&output_dir)?;
 
     // Write schema.json — build manually to match existing key order
     let schema_path = output_dir.join("schema.json");
@@ -1125,27 +1107,25 @@ pub fn val_create_domain_model_schema(
 pub fn val_enrich_schema_descriptions(
     schema_json_path: String,
     domains_base_path: String,
-) -> Result<serde_json::Value, String> {
+) -> CmdResult<serde_json::Value> {
     let schema_path = Path::new(&schema_json_path);
     if !schema_path.exists() {
-        return Err(format!("schema.json not found: {}", schema_json_path));
+        return Err(CommandError::NotFound(format!("schema.json not found: {}", schema_json_path)));
     }
 
     // Read and parse schema.json
-    let content = fs::read_to_string(schema_path)
-        .map_err(|e| format!("Failed to read schema.json: {}", e))?;
-    let mut schema_val: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse schema.json: {}", e))?;
+    let content = fs::read_to_string(schema_path)?;
+    let mut schema_val: serde_json::Value = serde_json::from_str(&content)?;
 
     let table_name = schema_val["table_name"]
         .as_str()
-        .ok_or_else(|| "No table_name in schema.json".to_string())?
+        .ok_or_else(|| CommandError::Parse("No table_name in schema.json".to_string()))?
         .to_string();
 
     // Scan all production domains for matching definition_analysis.json
     let domains_dir = Path::new(&domains_base_path);
     if !domains_dir.is_dir() {
-        return Err(format!("Domains path not found: {}", domains_base_path));
+        return Err(CommandError::NotFound(format!("Domains path not found: {}", domains_base_path)));
     }
 
     // Collect AI descriptions from all matching domains (last one wins, they should be consistent)
@@ -1214,10 +1194,8 @@ pub fn val_enrich_schema_descriptions(
     }
 
     if enriched > 0 {
-        let json_str = serde_json::to_string_pretty(&schema_val)
-            .map_err(|e| format!("Failed to serialize: {}", e))?;
-        fs::write(schema_path, json_str)
-            .map_err(|e| format!("Failed to write schema.json: {}", e))?;
+        let json_str = serde_json::to_string_pretty(&schema_val)?;
+        fs::write(schema_path, json_str)?;
     }
 
     Ok(serde_json::json!({
@@ -1230,10 +1208,10 @@ pub fn val_enrich_schema_descriptions(
 /// Build the cross-entity field master by scanning all entity schemas.
 /// Merges with existing _field_master.json to preserve manual edits.
 #[command]
-pub fn val_build_field_master(entities_path: String) -> Result<FieldMasterJson, String> {
+pub fn val_build_field_master(entities_path: String) -> CmdResult<FieldMasterJson> {
     let base = Path::new(&entities_path);
     if !base.exists() {
-        return Err(format!("Entities path does not exist: {}", entities_path));
+        return Err(CommandError::NotFound(format!("Entities path does not exist: {}", entities_path)));
     }
 
     // Load existing master for preserving manual edits
@@ -1249,8 +1227,7 @@ pub fn val_build_field_master(entities_path: String) -> Result<FieldMasterJson, 
     let mut field_map: HashMap<String, MasterField> = HashMap::new();
     let mut entity_names: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    let entity_dirs = fs::read_dir(base)
-        .map_err(|e| format!("Failed to read entities dir: {}", e))?;
+    let entity_dirs = fs::read_dir(base)?;
 
     let mut sorted_entity_dirs: Vec<_> = entity_dirs
         .flatten()
@@ -1350,8 +1327,7 @@ pub fn val_build_field_master(entities_path: String) -> Result<FieldMasterJson, 
 
     // Write _field_master.json
     let master_path = base.join("_field_master.json").to_string_lossy().to_string();
-    write_json(&master_path, &serde_json::to_value(&master)
-        .map_err(|e| format!("Failed to serialize field master: {}", e))?)?;
+    write_json(&master_path, &serde_json::to_value(&master)?)?;
 
     Ok(master)
 }
@@ -1362,16 +1338,15 @@ pub fn val_build_field_master(entities_path: String) -> Result<FieldMasterJson, 
 pub fn val_save_field_master(
     entities_path: String,
     master: FieldMasterJson,
-) -> Result<u32, String> {
+) -> CmdResult<u32> {
     let base = Path::new(&entities_path);
     if !base.exists() {
-        return Err(format!("Entities path does not exist: {}", entities_path));
+        return Err(CommandError::NotFound(format!("Entities path does not exist: {}", entities_path)));
     }
 
     // Write _field_master.json
     let master_path = base.join("_field_master.json").to_string_lossy().to_string();
-    write_json(&master_path, &serde_json::to_value(&master)
-        .map_err(|e| format!("Failed to serialize field master: {}", e))?)?;
+    write_json(&master_path, &serde_json::to_value(&master)?)?;
 
     // Propagate governed fields to each entity/model schema
     let mut updated_count: u32 = 0;

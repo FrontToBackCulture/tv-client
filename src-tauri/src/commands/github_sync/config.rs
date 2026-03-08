@@ -6,6 +6,8 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::command;
 
+use crate::commands::error::{CmdResult, CommandError};
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -112,30 +114,28 @@ fn get_config_path() -> PathBuf {
         .join("github-sync-config.json")
 }
 
-pub fn load_config_internal() -> Result<GitHubSyncConfig, String> {
+pub fn load_config_internal() -> CmdResult<GitHubSyncConfig> {
     let path = get_config_path();
     if !path.exists() {
         return Ok(GitHubSyncConfig {
             repositories: vec![],
         });
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read github-sync config: {}", e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse github-sync config: {}", e))
+    let content = fs::read_to_string(&path)?;
+    let config = serde_json::from_str(&content)?;
+    Ok(config)
 }
 
-fn save_config_internal(config: &GitHubSyncConfig) -> Result<(), String> {
+fn save_config_internal(config: &GitHubSyncConfig) -> CmdResult<()> {
     let path = get_config_path();
     if let Some(dir) = path.parent() {
         if !dir.exists() {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("Failed to create config directory: {}", e))?;
+            fs::create_dir_all(dir)?;
         }
     }
-    let content = serde_json::to_string_pretty(config)
-        .map_err(|e| format!("Failed to serialize config: {}", e))?;
-    fs::write(&path, content).map_err(|e| format!("Failed to write config: {}", e))
+    let content = serde_json::to_string_pretty(config)?;
+    fs::write(&path, content)?;
+    Ok(())
 }
 
 /// Resolve ${tv-knowledge} in paths
@@ -164,40 +164,38 @@ pub fn resolve_path_variable(path: &str) -> String {
 
 /// Load github-sync configuration
 #[command]
-pub fn github_sync_load_config() -> Result<GitHubSyncConfig, String> {
+pub fn github_sync_load_config() -> CmdResult<GitHubSyncConfig> {
     load_config_internal()
 }
 
 /// Save github-sync configuration
 #[command]
-pub fn github_sync_save_config(config: GitHubSyncConfig) -> Result<(), String> {
+pub fn github_sync_save_config(config: GitHubSyncConfig) -> CmdResult<()> {
     save_config_internal(&config)
 }
 
 /// Initialize config from bundled default, resolve path variables, save
 #[command]
-pub fn github_sync_init_default_config() -> Result<GitHubSyncConfig, String> {
+pub fn github_sync_init_default_config() -> CmdResult<GitHubSyncConfig> {
     let raw_json = include_str!("../../../resources/github-sync-default.json");
     import_and_resolve_config(raw_json)
 }
 
 /// Import config from tv-tools/github-sync/sync-config.json, resolve path variables, save
 #[command]
-pub fn github_sync_import_config(file_path: String) -> Result<GitHubSyncConfig, String> {
-    let content = fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read config file: {}", e))?;
+pub fn github_sync_import_config(file_path: String) -> CmdResult<GitHubSyncConfig> {
+    let content = fs::read_to_string(&file_path)?;
     import_and_resolve_config(&content)
 }
 
 /// Parse raw JSON config, resolve path variables, save to disk
-fn import_and_resolve_config(raw_json: &str) -> Result<GitHubSyncConfig, String> {
-    let raw: serde_json::Value = serde_json::from_str(raw_json)
-        .map_err(|e| format!("Failed to parse config JSON: {}", e))?;
+fn import_and_resolve_config(raw_json: &str) -> CmdResult<GitHubSyncConfig> {
+    let raw: serde_json::Value = serde_json::from_str(raw_json)?;
 
     let repos_array = raw
         .get("repositories")
         .and_then(|r| r.as_array())
-        .ok_or_else(|| "Config must have a 'repositories' array".to_string())?;
+        .ok_or_else(|| CommandError::Config("Config must have a 'repositories' array".into()))?;
 
     let mut repositories = Vec::new();
 
@@ -226,9 +224,9 @@ fn import_and_resolve_config(raw_json: &str) -> Result<GitHubSyncConfig, String>
                     let mut m = m.clone();
                     if let Some(kp) = m.get("knowledgePath").and_then(|v| v.as_str()) {
                         let resolved = resolve_path_variable(kp);
-                        m.as_object_mut()
-                            .unwrap()
-                            .insert("knowledgePath".to_string(), serde_json::json!(resolved));
+                        if let Some(obj) = m.as_object_mut() {
+                            obj.insert("knowledgePath".to_string(), serde_json::json!(resolved));
+                        }
                     }
                     serde_json::from_value::<Mapping>(m).ok()
                 })
@@ -245,9 +243,9 @@ fn import_and_resolve_config(raw_json: &str) -> Result<GitHubSyncConfig, String>
                     let mut r = r.clone();
                     if let Some(tp) = r.get("targetPath").and_then(|v| v.as_str()) {
                         let resolved = resolve_path_variable(tp);
-                        r.as_object_mut()
-                            .unwrap()
-                            .insert("targetPath".to_string(), serde_json::json!(resolved));
+                        if let Some(obj) = r.as_object_mut() {
+                            obj.insert("targetPath".to_string(), serde_json::json!(resolved));
+                        }
                     }
                     serde_json::from_value::<Rule>(r).ok()
                 })

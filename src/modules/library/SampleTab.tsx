@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
 import { useAppStore } from "../../stores/appStore";
-import { Loader2, Table, Tag } from "lucide-react";
-import { cn } from "../../lib/cn";
+import { Table, Tag } from "lucide-react";
+import { Button } from "../../components/ui";
 import type { TableSample } from "./tableDetailTypes";
 import { formatRelativeTimeShort } from "./tableDetailTypes";
 
@@ -55,7 +55,7 @@ function SampleDataGrid({ sample }: { sample: TableSample }) {
           Sample Data ({rowData.length} rows, {columnDefs.length} columns)
         </h4>
         {sample.meta?.orderBy && (
-          <p className="text-[10px] text-zinc-400 mt-0.5">
+          <p className="text-xs text-zinc-400 mt-0.5">
             Ordered by: <span className="font-mono">{sample.meta.orderBy}</span> DESC
           </p>
         )}
@@ -108,43 +108,26 @@ export function SampleTab({
           </div>
           <div className="flex items-center gap-2">
             {onGenerate && (
-              <button
+              <Button
                 onClick={onGenerate}
                 disabled={isGenerating || isFetchingCategorical}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-colors",
-                  isGenerating
-                    ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-                    : "bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50"
-                )}
+                loading={isGenerating}
+                icon={isGenerating ? undefined : Table}
+                className={isGenerating ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-100" : "bg-purple-600 hover:bg-purple-500"}
               >
-                {isGenerating ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Table size={12} />
-                )}
                 {isGenerating ? "Fetching..." : "Fetch Sample"}
-              </button>
+              </Button>
             )}
             {onFetchCategorical && (
-              <button
+              <Button
                 onClick={onFetchCategorical}
                 disabled={isGenerating || isFetchingCategorical}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-colors",
-                  isFetchingCategorical
-                    ? "bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
-                    : "bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-50"
-                )}
+                loading={isFetchingCategorical}
+                icon={isFetchingCategorical ? undefined : Tag}
                 title="Fetch distinct categorical values from full table data"
               >
-                {isFetchingCategorical ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Tag size={12} />
-                )}
                 {isFetchingCategorical ? "Fetching..." : "Fetch Categorical"}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -175,7 +158,7 @@ export function SampleTab({
               {sample.meta.totalRowCount.toLocaleString()}
             </span>
           </div>
-          <div className="text-[10px] text-zinc-400 mt-1">
+          <div className="text-xs text-zinc-400 mt-1">
             Showing {sample.meta.rowCount || 0} sample rows
           </div>
         </div>
@@ -195,7 +178,7 @@ export function SampleTab({
               <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
                 Categorical Columns ({categorical.length})
               </h4>
-              <p className="text-[10px] text-zinc-400 mt-0.5">
+              <p className="text-xs text-zinc-400 mt-0.5">
                 Columns with limited distinct values
               </p>
             </div>
@@ -210,13 +193,13 @@ export function SampleTab({
                     {stats.distinctValues?.slice(0, 10).map((val, i) => (
                       <span
                         key={i}
-                        className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded text-[10px]"
+                        className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded text-xs"
                       >
                         {val || "(empty)"}
                       </span>
                     ))}
                     {(stats.distinctValues?.length || 0) > 10 && (
-                      <span className="px-1.5 py-0.5 text-zinc-400 text-[10px]">
+                      <span className="px-1.5 py-0.5 text-zinc-400 text-xs">
                         +{(stats.distinctValues?.length || 0) - 10} more
                       </span>
                     )}

@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Mail,
 } from "lucide-react";
+import { Button, IconButton, Badge } from "../../components/ui";
 import { HtmlEmailViewer } from "./HtmlEmailViewer";
 
 interface EmailAddress {
@@ -94,31 +95,15 @@ export function EmailDetail({
     <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
-        <button
-          onClick={onReply}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
-        >
-          <Reply size={14} />
+        <Button icon={Reply} onClick={onReply} className="rounded-lg">
           Reply
-        </button>
-        <button className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-          <ReplyAll size={16} />
-        </button>
-        <button className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-          <Forward size={16} />
-        </button>
+        </Button>
+        <IconButton icon={ReplyAll} label="Reply all" className="p-2 rounded-lg" />
+        <IconButton icon={Forward} label="Forward" className="p-2 rounded-lg" />
         <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700 mx-1" />
-        <button
-          onClick={onArchive}
-          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-          title="Archive"
-        >
-          <Archive size={16} />
-        </button>
+        <IconButton icon={Archive} label="Archive" onClick={onArchive} className="p-2 rounded-lg" />
         <div className="flex-1" />
-        <button className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-          <MoreHorizontal size={16} />
-        </button>
+        <IconButton icon={MoreHorizontal} label="More options" className="p-2 rounded-lg" />
       </div>
 
       {/* Email Content */}
@@ -181,38 +166,26 @@ export function EmailDetail({
           {/* Classification badge */}
           {email.classification && (
             <div className="flex items-center gap-2 mb-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg">
-              <span
-                className={cn(
-                  "text-xs font-medium px-2 py-1 rounded",
-                  email.classification.category === "client" &&
-                    "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
-                  email.classification.category === "deal" &&
-                    "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400",
-                  email.classification.category === "lead" &&
-                    "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
-                  email.classification.category === "internal" &&
-                    "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400",
-                  email.classification.category === "vendor" &&
-                    "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400",
-                  email.classification.category === "noise" &&
-                    "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500"
-                )}
+              <Badge
+                color={
+                  email.classification.category === "client" ? "blue"
+                    : email.classification.category === "deal" ? "green"
+                    : email.classification.category === "lead" ? "purple"
+                    : email.classification.category === "vendor" ? "orange"
+                    : "zinc"
+                }
               >
                 {email.classification.category}
-              </span>
-              <span
-                className={cn(
-                  "text-xs px-2 py-1 rounded",
-                  email.classification.priority === "high" &&
-                    "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400",
-                  email.classification.priority === "medium" &&
-                    "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400",
-                  email.classification.priority === "low" &&
-                    "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-                )}
+              </Badge>
+              <Badge
+                color={
+                  email.classification.priority === "high" ? "red"
+                    : email.classification.priority === "medium" ? "yellow"
+                    : "zinc"
+                }
               >
                 {email.classification.priority} priority
-              </span>
+              </Badge>
               {email.classification.summary && (
                 <span className="text-sm text-zinc-600 dark:text-zinc-400 ml-2">
                   {email.classification.summary}

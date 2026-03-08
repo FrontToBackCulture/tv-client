@@ -1,6 +1,7 @@
 // Work Module - Task Commands
 
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
 
 /// List tasks with optional filters
@@ -11,7 +12,7 @@ pub async fn work_list_tasks(
     status_type: Option<String>,
     assignee_id: Option<String>,
     milestone_id: Option<String>,
-) -> Result<Vec<Task>, String> {
+) -> CmdResult<Vec<Task>> {
     let client = get_client().await?;
 
     let mut filters = vec!["select=*,project:projects(*),status:task_statuses(*),assignee:users!tasks_assignee_id_fkey(*)".to_string()];
@@ -40,7 +41,7 @@ pub async fn work_list_tasks(
 
 /// Get a single task by ID
 #[tauri::command]
-pub async fn work_get_task(task_id: String) -> Result<Task, String> {
+pub async fn work_get_task(task_id: String) -> CmdResult<Task> {
     let client = get_client().await?;
 
     let query = format!(
@@ -51,12 +52,12 @@ pub async fn work_get_task(task_id: String) -> Result<Task, String> {
     client
         .select_single("tasks", &query)
         .await?
-        .ok_or_else(|| format!("Task not found: {}", task_id))
+        .ok_or_else(|| CommandError::NotFound(format!("Task not found: {}", task_id)))
 }
 
 /// Create a new task
 #[tauri::command]
-pub async fn work_create_task(data: CreateTask) -> Result<Task, String> {
+pub async fn work_create_task(data: CreateTask) -> CmdResult<Task> {
     let client = get_client().await?;
 
     // Get next task number for the project
@@ -66,7 +67,7 @@ pub async fn work_create_task(data: CreateTask) -> Result<Task, String> {
             &format!("id=eq.{}", data.project_id),
         )
         .await?
-        .ok_or("Project not found")?;
+        .ok_or_else(|| CommandError::NotFound("Project not found".into()))?;
 
     let next_number = project.next_task_number.unwrap_or(1);
 
@@ -102,7 +103,7 @@ pub async fn work_create_task(data: CreateTask) -> Result<Task, String> {
 
 /// Update a task
 #[tauri::command]
-pub async fn work_update_task(task_id: String, data: UpdateTask) -> Result<Task, String> {
+pub async fn work_update_task(task_id: String, data: UpdateTask) -> CmdResult<Task> {
     let client = get_client().await?;
 
     // Check if status is changing to completed
@@ -115,7 +116,7 @@ pub async fn work_update_task(task_id: String, data: UpdateTask) -> Result<Task,
         if let Some(s) = status {
             if s.status_type == "completed" {
                 // Set completed_at timestamp
-                let mut update_data = serde_json::to_value(&data).map_err(|e| e.to_string())?;
+                let mut update_data = serde_json::to_value(&data)?;
                 if let Some(obj) = update_data.as_object_mut() {
                     obj.insert(
                         "completed_at".to_string(),
@@ -140,7 +141,7 @@ pub async fn work_update_task(task_id: String, data: UpdateTask) -> Result<Task,
 
 /// Delete a task
 #[tauri::command]
-pub async fn work_delete_task(task_id: String) -> Result<(), String> {
+pub async fn work_delete_task(task_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", task_id);
@@ -149,7 +150,7 @@ pub async fn work_delete_task(task_id: String) -> Result<(), String> {
 
 /// Add labels to a task
 #[tauri::command]
-pub async fn work_add_task_labels(task_id: String, label_ids: Vec<String>) -> Result<(), String> {
+pub async fn work_add_task_labels(task_id: String, label_ids: Vec<String>) -> CmdResult<()> {
     let client = get_client().await?;
 
     for label_id in label_ids {
@@ -161,7 +162,8 @@ pub async fn work_add_task_labels(task_id: String, label_ids: Vec<String>) -> Re
         let result: Result<serde_json::Value, _> = client.insert("task_labels", &data).await;
         if let Err(e) = result {
             // Ignore duplicate key errors
-            if !e.contains("duplicate") && !e.contains("23505") {
+            let msg = e.to_string();
+            if !msg.contains("duplicate") && !msg.contains("23505") {
                 return Err(e);
             }
         }
@@ -172,7 +174,7 @@ pub async fn work_add_task_labels(task_id: String, label_ids: Vec<String>) -> Re
 
 /// Remove labels from a task
 #[tauri::command]
-pub async fn work_remove_task_labels(task_id: String, label_ids: Vec<String>) -> Result<(), String> {
+pub async fn work_remove_task_labels(task_id: String, label_ids: Vec<String>) -> CmdResult<()> {
     let client = get_client().await?;
 
     for label_id in label_ids {

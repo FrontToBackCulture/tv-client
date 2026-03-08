@@ -6,6 +6,7 @@ import { CheckCircle, XCircle, ArrowUpDown } from "lucide-react";
 import { useDeals } from "../../hooks/crm";
 import type { Deal } from "../../lib/crm/types";
 import { SearchInput, timeAgo } from "./CrmComponents";
+import { SectionLoading } from "../../components/ui/DetailStates";
 
 interface ClosedDealsViewProps {
   selectedId: string | null;
@@ -37,11 +38,11 @@ function DealRow({ deal, isSelected, onSelect }: {
       <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isWon ? "bg-emerald-500" : "bg-red-400"}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 truncate">
+          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">
             {deal.company?.name || "Unknown"}
           </span>
         </div>
-        <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
           {deal.name}
           {deal.lost_reason && <span className="ml-1 text-red-400 dark:text-red-500">— {deal.lost_reason}</span>}
           {deal.won_notes && <span className="ml-1 text-emerald-500 dark:text-emerald-400">— {deal.won_notes}</span>}
@@ -53,8 +54,8 @@ function DealRow({ deal, isSelected, onSelect }: {
             {formatValue(deal.value)}
           </span>
         )}
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-600 tabular-nums">
-          {timeAgo(deal.actual_close_date || deal.updated_at)}
+        <span className="text-xs text-zinc-400 dark:text-zinc-600 tabular-nums">
+          {timeAgo(deal.actual_close_date || deal.updated_at || "")}
         </span>
       </div>
     </button>
@@ -90,7 +91,7 @@ export function ClosedDealsView({ selectedId, onSelect }: ClosedDealsViewProps) 
       if (sortBy === "value") return (b.value || 0) - (a.value || 0);
       if (sortBy === "name") return (a.company?.name || a.name).localeCompare(b.company?.name || b.name);
       // recent — by close date or updated_at
-      return new Date(b.actual_close_date || b.updated_at).getTime() - new Date(a.actual_close_date || a.updated_at).getTime();
+      return new Date(b.actual_close_date || b.updated_at || 0).getTime() - new Date(a.actual_close_date || a.updated_at || 0).getTime();
     });
   }, [filtered, sortBy]);
 
@@ -113,7 +114,7 @@ export function ClosedDealsView({ selectedId, onSelect }: ClosedDealsViewProps) 
             }`}>
             <CheckCircle size={12} />
             Won ({wonDeals.length})
-            {wonTotal > 0 && <span className="text-[10px] tabular-nums ml-0.5">{formatValue(wonTotal)}</span>}
+            {wonTotal > 0 && <span className="text-xs tabular-nums ml-0.5">{formatValue(wonTotal)}</span>}
           </button>
           <button onClick={() => setTab("lost")}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -123,15 +124,15 @@ export function ClosedDealsView({ selectedId, onSelect }: ClosedDealsViewProps) 
             }`}>
             <XCircle size={12} />
             Lost ({lostDeals.length})
-            {lostTotal > 0 && <span className="text-[10px] tabular-nums ml-0.5">{formatValue(lostTotal)}</span>}
+            {lostTotal > 0 && <span className="text-xs tabular-nums ml-0.5">{formatValue(lostTotal)}</span>}
           </button>
         </div>
 
         <SearchInput value={search} onChange={setSearch} placeholder={`Search ${tab} deals...`} />
         <div className="flex items-center justify-between">
-          <p className="text-[11px] text-zinc-400">{sorted.length} deal{sorted.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-zinc-400">{sorted.length} deal{sorted.length !== 1 ? "s" : ""}</p>
           <button onClick={() => setSortBy(nextSort)}
-            className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+            className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
             <ArrowUpDown size={11} />{sortLabel}
           </button>
         </div>
@@ -140,7 +141,7 @@ export function ClosedDealsView({ selectedId, onSelect }: ClosedDealsViewProps) 
       {/* Deal list */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <div className="flex items-center justify-center h-32"><p className="text-xs text-zinc-400">Loading...</p></div>
+          <SectionLoading message="Loading..." className="h-32" />
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-1">
             <p className="text-xs text-zinc-400">No {tab} deals{search ? " matching search" : ""}</p>

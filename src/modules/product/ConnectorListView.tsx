@@ -4,7 +4,9 @@
 import { useProductConnectors } from "../../hooks/product";
 import { CONNECTOR_TYPES, CONNECTOR_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
-import { Loader2, Plug } from "lucide-react";
+import { Plug } from "lucide-react";
+import { DetailLoading } from "../../components/ui/DetailStates";
+import { EmptyState } from "../../components/EmptyState";
 import { cn } from "../../lib/cn";
 
 interface ConnectorListViewProps {
@@ -18,23 +20,12 @@ export function ConnectorListView({ search, selectedId, onSelect }: ConnectorLis
     search ? { search } : undefined
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   const all = connectors ?? [];
 
   if (all.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
-        <Plug size={32} className="mb-2 opacity-50" />
-        <p className="text-sm">No connectors found</p>
-      </div>
-    );
+    return <EmptyState icon={Plug} message="No connectors found" className="flex-1" />;
   }
 
   return (

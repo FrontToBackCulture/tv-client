@@ -16,6 +16,7 @@ import {
 import { cn } from "../../lib/cn";
 import { useListDirectory, useReadFile, type FileEntry } from "../../hooks/useFiles";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
+import { SectionLoading, InlineLoading } from "../../components/ui/DetailStates";
 
 interface DomainReportsTabProps {
   reportsPath: string; // e.g. /path/to/domain/reports
@@ -30,11 +31,7 @@ export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabPr
   const [gallerySearch, setGallerySearch] = useState("");
 
   if (dirQuery.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <SectionLoading className="py-12" />;
   }
 
   if (dirQuery.isError || !dirQuery.data || dirQuery.data.length === 0) {
@@ -190,7 +187,7 @@ function ReportFolder({
           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate block">
             {folder.name}
           </span>
-          <span className="text-[11px] text-zinc-400">
+          <span className="text-xs text-zinc-400">
             {folder.modified ? formatRelative(folder.modified) : ""}
             {expanded && childQuery.isSuccess && ` \u00B7 ${childFiles.length} files`}
           </span>
@@ -200,10 +197,7 @@ function ReportFolder({
       {expanded && (
         <div className="pl-11 pr-4 pb-2">
           {childQuery.isLoading && (
-            <div className="flex items-center gap-2 py-2 text-xs text-zinc-400">
-              <Loader2 size={12} className="animate-spin" />
-              Loading...
-            </div>
+            <InlineLoading />
           )}
           {childQuery.isError && (
             <p className="text-xs text-zinc-400 py-2">Could not read folder</p>
@@ -220,7 +214,7 @@ function ReportFolder({
                   <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate flex-1">
                     {file.name}
                   </span>
-                  <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0">
+                  <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0">
                     {formatSize(file.size)}
                   </span>
                 </button>
@@ -255,7 +249,7 @@ function ReportFileRow({
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate block">
           {file.name}
         </span>
-        <span className="text-[11px] text-zinc-400">
+        <span className="text-xs text-zinc-400">
           {file.modified ? formatRelative(file.modified) : ""}
         </span>
       </div>
@@ -300,7 +294,7 @@ function ReportThumbnail({ file, onClick }: { file: FileEntry; onClick: () => vo
       </div>
       <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
         <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{file.name}</p>
-        <p className="text-[10px] text-zinc-400">{file.modified ? formatRelative(file.modified) : ""} · {formatSize(file.size)}</p>
+        <p className="text-xs text-zinc-400">{file.modified ? formatRelative(file.modified) : ""} · {formatSize(file.size)}</p>
       </div>
     </button>
   );
@@ -335,9 +329,7 @@ function ReportFullPreview({ filePath, onBack }: { filePath: string; onBack: () 
           style={{ height: "calc(100vh - 230px)" }}
         />
       ) : (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 size={16} className="animate-spin text-zinc-400" />
-        </div>
+        <SectionLoading className="py-8" />
       )}
     </div>
   );
@@ -369,7 +361,7 @@ function GalleryGrid({
       {filteredTopLevel.length > 0 && (
         <div>
           {folders.length > 0 && (
-            <h3 className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
+            <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
               Reports
               <span className="ml-1.5 text-zinc-300 dark:text-zinc-600 font-normal">{filteredTopLevel.length}</span>
             </h3>
@@ -390,7 +382,7 @@ function GalleryGrid({
       {/* Non-HTML files */}
       {otherFiles.length > 0 && (
         <div>
-          <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Other Files</p>
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Other Files</p>
           <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
             {otherFiles.map(file => (
               <ReportFileRow key={file.path} file={file} onOpen={onOpenFile} />
@@ -411,12 +403,10 @@ function FolderGalleryGroup({ folder, onPreview, search = "" }: { folder: FileEn
   if (childQuery.isLoading) {
     return (
       <div>
-        <h3 className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
+        <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
           {folder.name}
         </h3>
-        <div className="flex items-center gap-2 py-4 text-xs text-zinc-400">
-          <Loader2 size={12} className="animate-spin" /> Loading...
-        </div>
+        <InlineLoading />
       </div>
     );
   }
@@ -425,7 +415,7 @@ function FolderGalleryGroup({ folder, onPreview, search = "" }: { folder: FileEn
 
   return (
     <div>
-      <h3 className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
+      <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
         {folder.name}
         <span className="ml-1.5 text-zinc-300 dark:text-zinc-600 font-normal">{htmlFiles.length}</span>
       </h3>

@@ -43,7 +43,7 @@ export function Terminal({ id: _id, cwd, onClose: _onClose, isActive = true }: T
     const xterm = new XTerm({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: '"JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", monospace',
+      fontFamily: '"JetBrains Mono Variable", "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", monospace',
       lineHeight: 1.2,
       theme: {
         background: "#1a1918",

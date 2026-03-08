@@ -5,7 +5,9 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDealTasks, DealTaskFull } from "../../hooks/crm";
 import { supabase } from "../../lib/supabase";
-import { Circle, CheckCircle2, Loader2 } from "lucide-react";
+import { Circle, CheckCircle2 } from "lucide-react";
+import { Button, Badge } from "../../components/ui";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { formatDateShort as formatDate } from "../../lib/date";
 
 interface DealTasksProps {
@@ -25,11 +27,11 @@ const PriorityLabels: Record<number, string> = {
   4: "Low",
 };
 
-const PriorityColors: Record<number, string> = {
-  1: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400",
-  2: "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
-  3: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
-  4: "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+const PriorityBadgeColors: Record<number, "red" | "orange" | "blue" | "zinc"> = {
+  1: "red",
+  2: "orange",
+  3: "blue",
+  4: "zinc",
 };
 
 export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
@@ -110,11 +112,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
   });
 
   if (isLoading) {
-    return (
-      <div className="px-4 py-3 flex justify-center">
-        <Loader2 size={16} className="text-zinc-400 dark:text-zinc-400 animate-spin" />
-      </div>
-    );
+    return <SectionLoading className="px-4 py-3" />;
   }
 
   return (
@@ -189,13 +187,9 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-zinc-500 flex-shrink-0">
                   {task.priority > 0 && (
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-xs ${
-                        PriorityColors[task.priority] || ""
-                      }`}
-                    >
+                    <Badge color={PriorityBadgeColors[task.priority] || "zinc"}>
                       {PriorityLabels[task.priority]}
-                    </span>
+                    </Badge>
                   )}
                   {task.due_date && <span>{formatDate(task.due_date)}</span>}
                 </div>
@@ -284,24 +278,27 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               type="button"
               onClick={() => {
                 setShowForm(false);
                 setFormData({ title: "", description: "", dueDate: "", priority: 3 });
               }}
-              className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md transition-colors"
               disabled={createMutation.isPending}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               type="submit"
-              disabled={createMutation.isPending || !formData.title.trim()}
-              className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 transition-colors"
+              loading={createMutation.isPending}
+              disabled={!formData.title.trim()}
             >
-              {createMutation.isPending ? "Creating..." : "Create"}
-            </button>
+              Create
+            </Button>
           </div>
         </form>
       )}

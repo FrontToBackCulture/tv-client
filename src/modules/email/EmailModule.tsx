@@ -1,0 +1,136 @@
+// src/modules/email/EmailModule.tsx
+// Main Email module with 4-tab layout: Contacts, Groups, Campaigns, Analytics
+
+import { useState, useEffect } from "react";
+import { useEmailRealtime } from "../../hooks/email";
+import { ContactsView } from "./ContactsView";
+import { GroupsView } from "./GroupsView";
+import { CampaignsView } from "./CampaignsView";
+import { AnalyticsView } from "./AnalyticsView";
+import { ContactDetailPanel } from "./ContactDetailPanel";
+import { GroupDetailPanel } from "./GroupDetailPanel";
+import { CampaignDetailPanel } from "./CampaignDetailPanel";
+import { ContactForm } from "./ContactForm";
+import { GroupForm } from "./GroupForm";
+import { CampaignForm } from "./CampaignForm";
+import { ImportModal } from "./ImportModal";
+import { Users, FolderOpen, Send, BarChart3 } from "lucide-react";
+import { ViewTab } from "../../components/ViewTab";
+import { useViewContextStore } from "../../stores/viewContextStore";
+
+type EmailView = "contacts" | "groups" | "campaigns" | "analytics";
+
+export function EmailModule() {
+  const [activeView, setActiveView] = useState<EmailView>("contacts");
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [showCampaignForm, setShowCampaignForm] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  // Enable real-time updates
+  useEmailRealtime();
+
+  // Report view context for help bot
+  const setViewContext = useViewContextStore((s) => s.setView);
+  useEffect(() => {
+    const labels: Record<EmailView, string> = {
+      contacts: "Contacts",
+      groups: "Groups",
+      campaigns: "Campaigns",
+      analytics: "Analytics",
+    };
+    setViewContext(activeView, labels[activeView]);
+  }, [activeView, setViewContext]);
+
+  // Clear selections when switching tabs
+  useEffect(() => {
+    setSelectedContactId(null);
+    setSelectedGroupId(null);
+    setSelectedCampaignId(null);
+  }, [activeView]);
+
+  return (
+    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+      {/* Tab bar */}
+      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
+        <div className="flex">
+          <ViewTab label="Contacts" icon={Users} active={activeView === "contacts"} onClick={() => setActiveView("contacts")} />
+          <ViewTab label="Groups" icon={FolderOpen} active={activeView === "groups"} onClick={() => setActiveView("groups")} />
+          <ViewTab label="Campaigns" icon={Send} active={activeView === "campaigns"} onClick={() => setActiveView("campaigns")} />
+          <ViewTab label="Analytics" icon={BarChart3} active={activeView === "analytics"} onClick={() => setActiveView("analytics")} />
+        </div>
+      </div>
+
+      {/* Content + detail panel */}
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 overflow-auto">
+          {activeView === "contacts" && (
+            <ContactsView
+              selectedId={selectedContactId}
+              onSelect={setSelectedContactId}
+              onNewContact={() => setShowContactForm(true)}
+              onImport={() => setShowImportModal(true)}
+            />
+          )}
+          {activeView === "groups" && (
+            <GroupsView
+              selectedId={selectedGroupId}
+              onSelect={setSelectedGroupId}
+              onNewGroup={() => setShowGroupForm(true)}
+            />
+          )}
+          {activeView === "campaigns" && (
+            <CampaignsView
+              selectedId={selectedCampaignId}
+              onSelect={setSelectedCampaignId}
+              onNewCampaign={() => setShowCampaignForm(true)}
+            />
+          )}
+          {activeView === "analytics" && (
+            <AnalyticsView onSelectCampaign={(id) => {
+              setSelectedCampaignId(id);
+              setActiveView("campaigns");
+            }} />
+          )}
+        </div>
+
+        {/* Detail panels */}
+        {selectedContactId && activeView === "contacts" && (
+          <ContactDetailPanel
+            contactId={selectedContactId}
+            onClose={() => setSelectedContactId(null)}
+          />
+        )}
+        {selectedGroupId && activeView === "groups" && (
+          <GroupDetailPanel
+            groupId={selectedGroupId}
+            onClose={() => setSelectedGroupId(null)}
+          />
+        )}
+        {selectedCampaignId && activeView === "campaigns" && (
+          <CampaignDetailPanel
+            campaignId={selectedCampaignId}
+            onClose={() => setSelectedCampaignId(null)}
+          />
+        )}
+      </div>
+
+      {/* Modals */}
+      {showContactForm && (
+        <ContactForm onClose={() => setShowContactForm(false)} />
+      )}
+      {showGroupForm && (
+        <GroupForm onClose={() => setShowGroupForm(false)} />
+      )}
+      {showCampaignForm && (
+        <CampaignForm onClose={() => setShowCampaignForm(false)} />
+      )}
+      {showImportModal && (
+        <ImportModal onClose={() => setShowImportModal(false)} />
+      )}
+    </div>
+  );
+}

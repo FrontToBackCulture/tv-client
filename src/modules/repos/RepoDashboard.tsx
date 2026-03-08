@@ -4,10 +4,10 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Loader2,
 } from "lucide-react";
 import { useRepoSummaries, type RepoSummary } from "../../hooks/repos";
 import { cn } from "../../lib/cn";
+import { SectionLoading } from "../../components/ui/DetailStates";
 
 interface RepoDashboardProps {
   onSelect: (owner: string, repo: string) => void;
@@ -37,11 +37,7 @@ export function RepoDashboard({ onSelect }: RepoDashboardProps) {
   const { data: summaries, isLoading } = useRepoSummaries();
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 size={24} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="h-64" />;
   }
 
   if (!summaries?.length) {
@@ -76,7 +72,7 @@ export function RepoDashboard({ onSelect }: RepoDashboardProps) {
               <p className="text-xs truncate">
                 {s.latestCommit?.message || "No commits"}
               </p>
-              <p className="text-[10px] text-zinc-500">
+              <p className="text-xs text-zinc-500">
                 {s.latestCommit?.authorLogin}{" "}
                 {formatRelative(s.latestCommit?.date)}
               </p>
@@ -90,7 +86,7 @@ export function RepoDashboard({ onSelect }: RepoDashboardProps) {
               {s.latestRelease?.tagName || "No releases"}
             </span>
             {s.latestRelease && (
-              <span className="text-[10px] text-zinc-500">
+              <span className="text-xs text-zinc-500">
                 {formatRelative(s.latestRelease.publishedAt)}
               </span>
             )}

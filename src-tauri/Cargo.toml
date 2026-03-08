@@ -49,6 +49,9 @@ base64 = "0.22"
 # HTTP client (for GitHub OAuth)
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
+# Error handling
+thiserror = "2"
+
 # OAuth helpers
 urlencoding = "2"
 open = "5"
@@ -84,8 +87,9 @@ sha2 = "0.10"
 # JWT signing (for GA4 service account auth)
 jsonwebtoken = "9"
 
-# AWS S3 SDK (no external CLI dependency)
+# AWS SDKs (no external CLI dependency)
 aws-sdk-s3 = "1"
+aws-sdk-ses = "1"
 aws-types = "1"
 
 [profile.dev]

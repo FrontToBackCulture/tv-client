@@ -82,7 +82,7 @@ export function ClientsView({ selectedId, onSelect }: ClientsViewProps) {
     } else if (sortBy === "updated") {
       list.sort(
         (a, b) =>
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+          new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
       );
     } else {
       // Health sort: At Risk first → Active last
@@ -137,7 +137,7 @@ export function ClientsView({ selectedId, onSelect }: ClientsViewProps) {
             <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
               Clients
             </h1>
-            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
               {companies.length} active clients
             </p>
           </div>
@@ -153,7 +153,7 @@ export function ClientsView({ selectedId, onSelect }: ClientsViewProps) {
               <button
                 key={tier.level}
                 onClick={() => toggleHealthFilter(tier.level)}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium transition-all ${
+                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all ${
                   isActive
                     ? "ring-2 ring-offset-1 ring-zinc-400 dark:ring-zinc-500 dark:ring-offset-zinc-950"
                     : "hover:opacity-80"
@@ -177,7 +177,7 @@ export function ClientsView({ selectedId, onSelect }: ClientsViewProps) {
         <div className="flex items-center justify-end">
           <button
             onClick={cycleSortBy}
-            className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
           >
             <ArrowUpDown size={11} />
             {SORT_LABELS[sortBy]}
@@ -203,10 +203,10 @@ export function ClientsView({ selectedId, onSelect }: ClientsViewProps) {
                 <div className="sticky top-0 z-10 px-3 py-1.5 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800/50">
                   <div className="flex items-center gap-1.5">
                     <div className={`w-1.5 h-1.5 rounded-full ${group.dotColor}`} />
-                    <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                       {group.label}
                     </span>
-                    <span className="text-[10px] text-zinc-400 dark:text-zinc-600 tabular-nums">
+                    <span className="text-xs text-zinc-400 dark:text-zinc-600 tabular-nums">
                       {group.items.length}
                     </span>
                   </div>

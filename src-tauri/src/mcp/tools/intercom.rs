@@ -56,7 +56,7 @@ struct ArticleResponse {
 
 /// List all Help Center collections
 async fn list_collections(api_key: &str) -> Result<Vec<IntercomCollection>, String> {
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
 
     let response = client
         .get(format!("{}/help_center/collections", INTERCOM_BASE_URL))
@@ -99,7 +99,7 @@ async fn publish_article(
     description: Option<&str>,
     state: &str,
 ) -> Result<ArticleResponse, String> {
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
 
     let mut request_body = json!({
         "title": title,

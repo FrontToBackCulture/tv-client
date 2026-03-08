@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { List, History, Radio, LucideIcon, Upload, Download, Loader2 } from "lucide-react";
+import { List, History, Radio, LucideIcon, Upload, Download } from "lucide-react";
+import { Button } from "../../components/ui";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
@@ -157,24 +158,26 @@ export function SchedulerModule() {
           />
         </div>
         <div className="flex items-center gap-2 pr-1">
-          <button
+          <Button
+            variant="secondary"
+            icon={Upload}
             onClick={handleImport}
             disabled={ioBusy}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+            loading={ioBusy}
             title="Import jobs from JSON file"
           >
-            {ioBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
             Import
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            icon={Download}
             onClick={handleExport}
             disabled={ioBusy}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+            loading={ioBusy}
             title="Export all jobs to JSON file"
           >
-            {ioBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
             Export
-          </button>
+          </Button>
         </div>
       </div>
 

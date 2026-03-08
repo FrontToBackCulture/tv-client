@@ -2,6 +2,7 @@
 // Reads domain schema from synced files and generates SQL based on natural language
 
 use super::config::get_domain_config;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::settings;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -233,10 +234,10 @@ This query retrieves the Outlet Name from the Outlet Mapping table.
 pub async fn val_generate_sql(
     domain: String,
     prompt: String,
-) -> Result<SqlGenerateResult, String> {
+) -> CmdResult<SqlGenerateResult> {
     // Get API key
     let api_key = settings::settings_get_anthropic_key()?
-        .ok_or("Anthropic API key not configured. Add it in Settings.")?;
+        .ok_or_else(|| CommandError::Config("Anthropic API key not configured. Add it in Settings.".to_string()))?;
 
     // Get domain config
     let domain_config = get_domain_config(&domain)?;
@@ -245,22 +246,20 @@ pub async fn val_generate_sql(
     // Load all_tables.json
     let all_tables_path = Path::new(global_path).join("all_tables.json");
     if !all_tables_path.exists() {
-        return Err(format!(
+        return Err(CommandError::NotFound(format!(
             "all_tables.json not found for domain '{}'. Run sync first.",
             domain
-        ));
+        )));
     }
 
-    let tables_content = fs::read_to_string(&all_tables_path)
-        .map_err(|e| format!("Failed to read all_tables.json: {}", e))?;
+    let tables_content = fs::read_to_string(&all_tables_path)?;
 
-    let table_entries: Vec<TableEntry> = serde_json::from_str(&tables_content)
-        .map_err(|e| format!("Failed to parse all_tables.json: {}", e))?;
+    let table_entries: Vec<TableEntry> = serde_json::from_str(&tables_content)?;
 
     let tables = extract_tables(&table_entries);
 
     if tables.is_empty() {
-        return Err("No tables found in domain. Run sync first.".to_string());
+        return Err(CommandError::NotFound("No tables found in domain. Run sync first.".to_string()));
     }
 
     // Load table schemas (limit to 30 for context size)
@@ -270,7 +269,7 @@ pub async fn val_generate_sql(
     let system_prompt = build_system_prompt(&tables, &schemas);
 
     // Call Anthropic API
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .post("https://api.anthropic.com/v1/messages")
         .header("Content-Type", "application/json")
@@ -288,31 +287,27 @@ pub async fn val_generate_sql(
             ]
         }))
         .send()
-        .await
-        .map_err(|e| format!("API request failed: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
-        let status = response.status();
+        let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("Anthropic API error ({}): {}", status, body));
+        return Err(CommandError::Http { status, body });
     }
 
-    let api_response: AnthropicResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse API response: {}", e))?;
+    let api_response: AnthropicResponse = response.json().await?;
 
     // Extract text from response
     let text = api_response.content
         .first()
         .and_then(|c| c.text.clone())
-        .ok_or("No text in API response")?;
+        .ok_or_else(|| CommandError::Parse("No text in API response".to_string()))?;
 
     // Clean up the response - extract SQL and explanation
     let (sql, explanation) = extract_sql_and_explanation(&text);
 
     if sql.is_empty() {
-        return Err(format!("No valid SQL in response: {}", text));
+        return Err(CommandError::Parse(format!("No valid SQL in response: {}", text)));
     }
 
     Ok(SqlGenerateResult {

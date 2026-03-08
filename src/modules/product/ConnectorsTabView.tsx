@@ -8,6 +8,7 @@ import { ConnectorDetailPanel } from "./ConnectorDetailPanel";
 import { GitHubSyncPanel } from "./GitHubSyncPanel";
 import type { ProductEntityType } from "../../lib/product/types";
 import { cn } from "../../lib/cn";
+import { Button } from "../../components/ui";
 
 type SidebarSection = "list" | "sync";
 
@@ -136,12 +137,12 @@ export function ConnectorsTabView({
                 )}
               />
               <span className={cn(
-                "text-[9px] font-semibold uppercase tracking-wider",
+                "text-xs font-medium uppercase tracking-wider",
                 activeSection === "list" ? "text-teal-600 dark:text-teal-400" : "text-zinc-400 dark:text-zinc-500"
               )}>
                 Connectors
               </span>
-              <span className="text-[9px] text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums">
+              <span className="text-xs text-zinc-300 dark:text-zinc-600 ml-auto tabular-nums">
                 {connectors.length}
               </span>
             </button>
@@ -155,7 +156,7 @@ export function ConnectorsTabView({
                       key={conn.id}
                       onClick={() => handleSelectConnector(conn.id)}
                       className={cn(
-                        "w-full text-left flex items-center gap-2 px-2.5 pl-5 py-1 rounded-md text-xs transition-colors",
+                        "w-full text-left flex items-center gap-2 px-2.5 pl-5 py-1.5 rounded-md text-xs transition-colors",
                         isSelected
                           ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
                           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
@@ -173,13 +174,13 @@ export function ConnectorsTabView({
 
         {/* New connector button */}
         <div className="px-2 py-2 border-t border-zinc-200 dark:border-zinc-800">
-          <button
+          <Button
             onClick={() => onNew("connector")}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs font-medium transition-colors"
+            icon={Plus}
+            className="w-full justify-center"
           >
-            <Plus size={14} />
             New Connector
-          </button>
+          </Button>
         </div>
 
         {/* Sidebar resize handle */}

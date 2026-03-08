@@ -3,6 +3,7 @@
 
 use super::auth;
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 
 const GRAPH_BASE: &str = "https://graph.microsoft.com/v1.0";
 
@@ -13,11 +14,11 @@ pub struct GraphClient {
 impl GraphClient {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: crate::HTTP_CLIENT.clone(),
         }
     }
 
-    async fn get_token(&self) -> Result<String, String> {
+    async fn get_token(&self) -> CmdResult<String> {
         auth::get_valid_token().await
     }
 
@@ -25,7 +26,7 @@ impl GraphClient {
     // Folders
     // ========================================================================
 
-    pub async fn list_folders(&self) -> Result<Vec<GraphFolder>, String> {
+    pub async fn list_folders(&self) -> CmdResult<Vec<GraphFolder>> {
         let token = self.get_token().await?;
         let url = format!("{}/me/mailFolders?$top=100", GRAPH_BASE);
 
@@ -34,19 +35,18 @@ impl GraphClient {
             .get(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()
-            .await
-            .map_err(|e| format!("Failed to list folders: {}", e))?;
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(format!("Graph API error ({}): {}", status, body));
+            return Err(CommandError::Http { status: status.as_u16(), body });
         }
 
         let data: GraphFolderList = response
             .json()
             .await
-            .map_err(|e| format!("Failed to parse folders: {}", e))?;
+            .map_err(|e| CommandError::Parse(format!("Failed to parse folders: {}", e)))?;
 
         Ok(data.value)
     }
@@ -60,7 +60,7 @@ impl GraphClient {
         &self,
         max_count: usize,
         filter: Option<&str>,
-    ) -> Result<Vec<GraphMessage>, String> {
+    ) -> CmdResult<Vec<GraphMessage>> {
         let token = self.get_token().await?;
 
         let select = "id,conversationId,subject,from,toRecipients,ccRecipients,receivedDateTime,importance,isRead,hasAttachments,bodyPreview,parentFolderId,categories";
@@ -81,19 +81,18 @@ impl GraphClient {
                 .get(&url)
                 .header("Authorization", format!("Bearer {}", token))
                 .send()
-                .await
-                .map_err(|e| format!("Failed to fetch messages: {}", e))?;
+                .await?;
 
             if !response.status().is_success() {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(format!("Graph API error ({}): {}", status, body));
+                return Err(CommandError::Http { status: status.as_u16(), body });
             }
 
             let data: GraphMessageList = response
                 .json()
                 .await
-                .map_err(|e| format!("Failed to parse messages: {}", e))?;
+                .map_err(|e| CommandError::Parse(format!("Failed to parse messages: {}", e)))?;
 
             all_messages.extend(data.value);
 
@@ -116,7 +115,7 @@ impl GraphClient {
     pub async fn delta_messages(
         &self,
         delta_link: Option<&str>,
-    ) -> Result<(Vec<GraphMessage>, Option<String>), String> {
+    ) -> CmdResult<(Vec<GraphMessage>, Option<String>)> {
         let token = self.get_token().await?;
 
         let select = "id,conversationId,subject,from,toRecipients,ccRecipients,receivedDateTime,importance,isRead,hasAttachments,bodyPreview,parentFolderId,categories";
@@ -138,19 +137,18 @@ impl GraphClient {
                 .get(&url)
                 .header("Authorization", format!("Bearer {}", token))
                 .send()
-                .await
-                .map_err(|e| format!("Delta query failed: {}", e))?;
+                .await?;
 
             if !response.status().is_success() {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(format!("Graph API error ({}): {}", status, body));
+                return Err(CommandError::Http { status: status.as_u16(), body });
             }
 
             let data: GraphMessageList = response
                 .json()
                 .await
-                .map_err(|e| format!("Failed to parse delta: {}", e))?;
+                .map_err(|e| CommandError::Parse(format!("Failed to parse delta: {}", e)))?;
 
             all_messages.extend(data.value);
 
@@ -169,7 +167,7 @@ impl GraphClient {
     }
 
     /// Fetch a single message body (lazy load)
-    pub async fn fetch_message_body(&self, message_id: &str) -> Result<GraphBody, String> {
+    pub async fn fetch_message_body(&self, message_id: &str) -> CmdResult<GraphBody> {
         let token = self.get_token().await?;
         let url = format!(
             "{}/me/messages/{}?$select=body",
@@ -181,22 +179,21 @@ impl GraphClient {
             .get(&url)
             .header("Authorization", format!("Bearer {}", token))
             .send()
-            .await
-            .map_err(|e| format!("Failed to fetch body: {}", e))?;
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(format!("Graph API error ({}): {}", status, body));
+            return Err(CommandError::Http { status: status.as_u16(), body });
         }
 
         let msg: GraphMessage = response
             .json()
             .await
-            .map_err(|e| format!("Failed to parse body: {}", e))?;
+            .map_err(|e| CommandError::Parse(format!("Failed to parse body: {}", e)))?;
 
         msg.body
-            .ok_or_else(|| "No body in message".to_string())
+            .ok_or_else(|| CommandError::NotFound("No body in message".to_string()))
     }
 
     // ========================================================================
@@ -204,7 +201,7 @@ impl GraphClient {
     // ========================================================================
 
     /// Mark message as read
-    pub async fn mark_as_read(&self, message_id: &str) -> Result<(), String> {
+    pub async fn mark_as_read(&self, message_id: &str) -> CmdResult<()> {
         let token = self.get_token().await?;
         let url = format!("{}/me/messages/{}", GRAPH_BASE, message_id);
 
@@ -215,13 +212,12 @@ impl GraphClient {
             .header("Content-Type", "application/json")
             .body(r#"{"isRead": true}"#)
             .send()
-            .await
-            .map_err(|e| format!("Failed to mark as read: {}", e))?;
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(format!("Graph API error ({}): {}", status, body));
+            return Err(CommandError::Http { status: status.as_u16(), body });
         }
 
         Ok(())
@@ -234,7 +230,7 @@ impl GraphClient {
         cc: &[EmailAddress],
         subject: &str,
         body_html: &str,
-    ) -> Result<(), String> {
+    ) -> CmdResult<()> {
         let token = self.get_token().await?;
         let url = format!("{}/me/sendMail", GRAPH_BASE);
 
@@ -275,13 +271,12 @@ impl GraphClient {
             .header("Content-Type", "application/json")
             .json(&payload)
             .send()
-            .await
-            .map_err(|e| format!("Failed to send email: {}", e))?;
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(format!("Graph API error ({}): {}", status, body));
+            return Err(CommandError::Http { status: status.as_u16(), body });
         }
 
         Ok(())
@@ -292,7 +287,7 @@ impl GraphClient {
         &self,
         message_id: &str,
         comment_html: &str,
-    ) -> Result<(), String> {
+    ) -> CmdResult<()> {
         let token = self.get_token().await?;
         let url = format!("{}/me/messages/{}/reply", GRAPH_BASE, message_id);
 
@@ -307,13 +302,12 @@ impl GraphClient {
             .header("Content-Type", "application/json")
             .json(&payload)
             .send()
-            .await
-            .map_err(|e| format!("Failed to reply: {}", e))?;
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(format!("Graph API error ({}): {}", status, body));
+            return Err(CommandError::Http { status: status.as_u16(), body });
         }
 
         Ok(())

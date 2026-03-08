@@ -28,7 +28,7 @@ export function StatusChip({ label, color, size = "sm", className }: StatusChipP
     <span
       className={cn(
         "inline-flex items-center font-medium rounded-full whitespace-nowrap",
-        size === "sm" ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs",
+        size === "sm" ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-xs",
         colorClass,
         className,
       )}

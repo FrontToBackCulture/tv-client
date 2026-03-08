@@ -1,11 +1,12 @@
 // Work Module - Label Commands
 
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
 
 /// List all labels
 #[tauri::command]
-pub async fn work_list_labels() -> Result<Vec<Label>, String> {
+pub async fn work_list_labels() -> CmdResult<Vec<Label>> {
     let client = get_client().await?;
 
     client.select("labels", "order=name.asc").await
@@ -13,7 +14,7 @@ pub async fn work_list_labels() -> Result<Vec<Label>, String> {
 
 /// Get a single label by ID
 #[tauri::command]
-pub async fn work_get_label(label_id: String) -> Result<Label, String> {
+pub async fn work_get_label(label_id: String) -> CmdResult<Label> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", label_id);
@@ -21,12 +22,12 @@ pub async fn work_get_label(label_id: String) -> Result<Label, String> {
     client
         .select_single("labels", &query)
         .await?
-        .ok_or_else(|| format!("Label not found: {}", label_id))
+        .ok_or_else(|| CommandError::NotFound(format!("Label not found: {}", label_id)))
 }
 
 /// Create a new label
 #[tauri::command]
-pub async fn work_create_label(data: CreateLabel) -> Result<Label, String> {
+pub async fn work_create_label(data: CreateLabel) -> CmdResult<Label> {
     let client = get_client().await?;
 
     client.insert("labels", &data).await
@@ -34,7 +35,7 @@ pub async fn work_create_label(data: CreateLabel) -> Result<Label, String> {
 
 /// Update a label
 #[tauri::command]
-pub async fn work_update_label(label_id: String, name: Option<String>, color: Option<String>) -> Result<Label, String> {
+pub async fn work_update_label(label_id: String, name: Option<String>, color: Option<String>) -> CmdResult<Label> {
     let client = get_client().await?;
 
     let mut data = serde_json::Map::new();
@@ -51,7 +52,7 @@ pub async fn work_update_label(label_id: String, name: Option<String>, color: Op
 
 /// Delete a label
 #[tauri::command]
-pub async fn work_delete_label(label_id: String) -> Result<(), String> {
+pub async fn work_delete_label(label_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     // First remove all task_labels associations

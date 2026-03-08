@@ -2,9 +2,10 @@
 
 import { useState, useMemo } from "react";
 import {
-  X, Calendar, User, ChevronDown,
+  X, Calendar, User, ChevronDown, Pencil,
   Target, TrendingUp, CheckCircle2, AlertTriangle,
 } from "lucide-react";
+import { IconButton } from "../../components/ui";
 import type { TaskWithRelations, Project, Initiative, User as WorkUser } from "../../lib/work/types";
 import {
   ProjectHealthColors,
@@ -19,7 +20,7 @@ import {
 import type { InitiativeProjectLink } from "./workViewsShared";
 
 export function DashboardView({
-  projects, allTasks, initiatives, initiativeLinks, users, onSelectTask,
+  projects, allTasks, initiatives, initiativeLinks, users, onSelectTask, onEditInitiative,
 }: {
   projects: Project[];
   allTasks: TaskWithRelations[];
@@ -27,6 +28,7 @@ export function DashboardView({
   initiativeLinks: InitiativeProjectLink[];
   users: WorkUser[];
   onSelectTask: (id: string) => void;
+  onEditInitiative?: (initiative: Initiative) => void;
 }) {
   const [expandedInitiativeId, setExpandedInitiativeId] = useState<string | null>(null);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
@@ -100,7 +102,7 @@ export function DashboardView({
               const isExpanded = expandedInitiativeId === init.id;
 
               return (
-                <div key={init.id} className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                <div key={init.id} className="group rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
                   <div className="h-1" style={{ backgroundColor: init.color || "#0D7680" }} />
                   <div
                     className="p-4 space-y-3 cursor-pointer hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors"
@@ -119,6 +121,15 @@ export function DashboardView({
                       <div className="flex items-center gap-1.5">
                         <HealthBadge health={init.health} />
                         <StatusBadge status={init.status} />
+                        {onEditInitiative && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onEditInitiative(init); }}
+                            className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Edit initiative"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-4 text-xs text-zinc-500">
@@ -138,7 +149,7 @@ export function DashboardView({
                     {/* Linked projects summary */}
                     {!isExpanded && linkedProjects.length > 0 && (
                       <div className="space-y-1.5 pt-1 border-t border-zinc-100 dark:border-zinc-800">
-                        <div className="text-[10px] text-zinc-400 uppercase tracking-wide">Projects</div>
+                        <div className="text-xs text-zinc-400 uppercase tracking-wide">Projects</div>
                         {linkedProjects.map(p => {
                           const counts = projectTaskCounts.get(p.id) || { total: 0, completed: 0 };
                           return (
@@ -165,13 +176,13 @@ export function DashboardView({
                             <div className="flex items-center gap-2 px-4 py-2">
                               <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
                               <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{p.name}</span>
-                              <span className="text-[10px] text-zinc-400">{activeTasks.length} tasks</span>
+                              <span className="text-xs text-zinc-400">{activeTasks.length} tasks</span>
                             </div>
                             <div className="pb-1">
                               {activeTasks.length > 0 ? (
                                 activeTasks.map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} />)
                               ) : (
-                                <div className="text-[10px] text-zinc-400 text-center py-2">No tasks</div>
+                                <div className="text-xs text-zinc-400 text-center py-2">No tasks</div>
                               )}
                             </div>
                           </div>
@@ -218,7 +229,7 @@ export function DashboardView({
                     </div>
                   </div>
                   <ProgressBar completed={counts.completed} total={counts.total} color={p.color || "#0D7680"} />
-                  <div className="flex items-center gap-3 text-[11px] text-zinc-500">
+                  <div className="flex items-center gap-3 text-xs text-zinc-500">
                     {p.lead && (
                       <span className="flex items-center gap-1">
                         <User size={10} />
@@ -250,20 +261,15 @@ export function DashboardView({
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: p.color || "#6B7280" }} />
                   <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{p.name}</span>
-                  <span className="text-[10px] text-zinc-400">{activeTasks.length} tasks</span>
+                  <span className="text-xs text-zinc-400">{activeTasks.length} tasks</span>
                 </div>
-                <button
-                  onClick={() => setExpandedProjectId(null)}
-                  className="p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400"
-                >
-                  <X size={12} />
-                </button>
+                <IconButton icon={X} size={12} label="Close" onClick={() => setExpandedProjectId(null)} />
               </div>
               <div className="max-h-[320px] overflow-y-auto py-1">
                 {activeTasks.length > 0 ? (
                   activeTasks.map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} />)
                 ) : (
-                  <div className="text-[10px] text-zinc-400 text-center py-4">No tasks in this project</div>
+                  <div className="text-xs text-zinc-400 text-center py-4">No tasks in this project</div>
                 )}
               </div>
             </div>

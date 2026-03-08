@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
+use crate::commands::error::{CmdResult, CommandError};
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AccessTokenResponse {
     pub access_token: Option<String>,
@@ -31,14 +33,14 @@ pub struct OAuthResult {
 
 /// Start OAuth flow - opens browser and waits for callback
 #[tauri::command]
-pub async fn github_oauth_start(client_id: String, client_secret: String) -> Result<OAuthResult, String> {
+pub async fn github_oauth_start(client_id: String, client_secret: String) -> CmdResult<OAuthResult> {
     use std::io::{Read, Write};
     use std::net::TcpListener;
 
     // Use fixed port 4002 for OAuth callback (must match GitHub OAuth app settings)
     let port = 4002;
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
-        .map_err(|e| format!("Failed to bind local server on port {}: {}", port, e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to bind local server on port {}: {}", port, e)))?;
 
     let redirect_uri = format!("http://127.0.0.1:{}/callback", port);
     let auth_url = format!(
@@ -49,7 +51,7 @@ pub async fn github_oauth_start(client_id: String, client_secret: String) -> Res
 
     // Open browser
     log::info!("Opening browser for OAuth: {}", auth_url);
-    open::that(&auth_url).map_err(|e| format!("Failed to open browser: {}", e))?;
+    open::that(&auth_url).map_err(|e| CommandError::Io(format!("Failed to open browser: {}", e)))?;
 
     // Wait for callback (with timeout)
     listener.set_nonblocking(false).ok();
@@ -95,13 +97,13 @@ pub async fn github_oauth_start(client_id: String, client_secret: String) -> Res
         rx
     ).await {
         Ok(Ok(Ok(code))) => code,
-        Ok(Ok(Err(e))) => return Err(e),
-        Ok(Err(_)) => return Err("Callback cancelled".to_string()),
-        Err(_) => return Err("Authentication timed out".to_string()),
+        Ok(Ok(Err(e))) => return Err(CommandError::Internal(e)),
+        Ok(Err(_)) => return Err(CommandError::Internal("Callback cancelled".into())),
+        Err(_) => return Err(CommandError::Internal("Authentication timed out".into())),
     };
 
     // Exchange code for access token
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let token_response = client
         .post("https://github.com/login/oauth/access_token")
         .header("Accept", "application/json")
@@ -112,16 +114,14 @@ pub async fn github_oauth_start(client_id: String, client_secret: String) -> Res
             ("redirect_uri", redirect_uri.as_str()),
         ])
         .send()
-        .await
-        .map_err(|e| format!("Failed to exchange code: {}", e))?;
+        .await?;
 
     let token_data: AccessTokenResponse = token_response
         .json()
-        .await
-        .map_err(|e| format!("Failed to parse token response: {}", e))?;
+        .await?;
 
     let access_token = token_data.access_token
-        .ok_or_else(|| token_data.error_description.unwrap_or_else(|| "Failed to get access token".to_string()))?;
+        .ok_or_else(|| CommandError::NotFound(token_data.error_description.unwrap_or_else(|| "Failed to get access token".to_string())))?;
 
     // Get user info
     let user = github_get_user_internal(&client, &access_token).await?;
@@ -130,32 +130,30 @@ pub async fn github_oauth_start(client_id: String, client_secret: String) -> Res
 }
 
 /// Get GitHub user info (internal)
-async fn github_get_user_internal(client: &reqwest::Client, access_token: &str) -> Result<GitHubUser, String> {
+async fn github_get_user_internal(client: &reqwest::Client, access_token: &str) -> CmdResult<GitHubUser> {
     let response = client
         .get("https://api.github.com/user")
         .header("Accept", "application/vnd.github.v3+json")
         .header("Authorization", format!("Bearer {}", access_token))
         .header("User-Agent", "tv-desktop")
         .send()
-        .await
-        .map_err(|e| format!("Failed to get user info: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("GitHub returned {}: {}", status, body));
+        return Err(CommandError::Http { status: status.as_u16(), body });
     }
 
-    response
+    Ok(response
         .json::<GitHubUser>()
-        .await
-        .map_err(|e| format!("Failed to parse user response: {}", e))
+        .await?)
 }
 
 /// Get GitHub user info (public command)
 #[tauri::command]
-pub async fn github_get_user(access_token: String) -> Result<GitHubUser, String> {
-    let client = reqwest::Client::new();
+pub async fn github_get_user(access_token: String) -> CmdResult<GitHubUser> {
+    let client = crate::HTTP_CLIENT.clone();
     github_get_user_internal(&client, &access_token).await
 }
 

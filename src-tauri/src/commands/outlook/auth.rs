@@ -2,6 +2,7 @@
 // Uses local callback server on port 3847 (matching Azure AD app registration)
 
 use super::types::{GraphTokenResponse, GraphUserProfile, OutlookAuthStatus, OutlookTokens};
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::settings;
 use std::fs;
 use std::path::PathBuf;
@@ -30,23 +31,20 @@ pub fn load_tokens() -> Option<OutlookTokens> {
     serde_json::from_str(&content).ok()
 }
 
-fn save_tokens(tokens: &OutlookTokens) -> Result<(), String> {
+fn save_tokens(tokens: &OutlookTokens) -> CmdResult<()> {
     let dir = get_outlook_dir();
     if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| format!("Failed to create outlook directory: {}", e))?;
+        fs::create_dir_all(&dir)?;
     }
-    let content = serde_json::to_string_pretty(tokens)
-        .map_err(|e| format!("Failed to serialize tokens: {}", e))?;
-    fs::write(get_tokens_path(), content)
-        .map_err(|e| format!("Failed to write tokens: {}", e))
+    let content = serde_json::to_string_pretty(tokens)?;
+    fs::write(get_tokens_path(), content)?;
+    Ok(())
 }
 
-fn delete_tokens() -> Result<(), String> {
+fn delete_tokens() -> CmdResult<()> {
     let path = get_tokens_path();
     if path.exists() {
-        fs::remove_file(&path)
-            .map_err(|e| format!("Failed to delete tokens: {}", e))?;
+        fs::remove_file(&path)?;
     }
     Ok(())
 }
@@ -55,11 +53,11 @@ fn delete_tokens() -> Result<(), String> {
 // Token refresh
 // ============================================================================
 
-pub async fn get_valid_token() -> Result<String, String> {
+pub async fn get_valid_token() -> CmdResult<String> {
     let tokens = load_tokens()
         .ok_or_else(|| {
             eprintln!("[outlook:auth] No tokens found on disk");
-            "Not authenticated with Outlook. Please connect first.".to_string()
+            CommandError::NotFound("Not authenticated with Outlook. Please connect first.".to_string())
         })?;
 
     let now = chrono::Utc::now().timestamp();
@@ -67,7 +65,7 @@ pub async fn get_valid_token() -> Result<String, String> {
     // Refresh if within 5 minutes of expiry
     if now >= tokens.expires_at - 300 {
         let refresh_token = tokens.refresh_token
-            .ok_or_else(|| "No refresh token available. Please re-authenticate.".to_string())?;
+            .ok_or_else(|| CommandError::Internal("No refresh token available. Please re-authenticate.".to_string()))?;
 
         let new_tokens = refresh_access_token(&refresh_token).await?;
         save_tokens(&new_tokens)?;
@@ -77,16 +75,16 @@ pub async fn get_valid_token() -> Result<String, String> {
     Ok(tokens.access_token)
 }
 
-async fn refresh_access_token(refresh_token: &str) -> Result<OutlookTokens, String> {
+async fn refresh_access_token(refresh_token: &str) -> CmdResult<OutlookTokens> {
     let s = settings::load_settings()?;
     let tenant_id = s.keys.get(settings::KEY_MS_GRAPH_TENANT_ID)
-        .ok_or_else(|| "MS Graph Tenant ID not configured".to_string())?;
+        .ok_or_else(|| CommandError::Config("MS Graph Tenant ID not configured".to_string()))?;
     let client_id = s.keys.get(settings::KEY_MS_GRAPH_CLIENT_ID)
-        .ok_or_else(|| "MS Graph Client ID not configured".to_string())?;
+        .ok_or_else(|| CommandError::Config("MS Graph Client ID not configured".to_string()))?;
     let client_secret = s.keys.get(settings::KEY_MS_GRAPH_CLIENT_SECRET)
-        .ok_or_else(|| "MS Graph Client Secret not configured".to_string())?;
+        .ok_or_else(|| CommandError::Config("MS Graph Client Secret not configured".to_string()))?;
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .post(format!("https://login.microsoftonline.com/{}/oauth2/v2.0/token", tenant_id))
         .form(&[
@@ -97,17 +95,16 @@ async fn refresh_access_token(refresh_token: &str) -> Result<OutlookTokens, Stri
             ("scope", "offline_access Mail.Read Mail.ReadWrite Mail.Send User.Read"),
         ])
         .send()
-        .await
-        .map_err(|e| format!("Token refresh request failed: {}", e))?;
+        .await?;
 
     let token_data: GraphTokenResponse = response
         .json()
         .await
-        .map_err(|e| format!("Failed to parse token response: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to parse token response: {}", e)))?;
 
     if let Some(err) = token_data.error {
         let desc = token_data.error_description.unwrap_or_default();
-        return Err(format!("Token refresh failed: {} - {}", err, desc));
+        return Err(CommandError::Network(format!("Token refresh failed: {} - {}", err, desc)));
     }
 
     let now = chrono::Utc::now().timestamp();
@@ -129,7 +126,7 @@ pub async fn outlook_auth_start(
     client_id: String,
     tenant_id: String,
     client_secret: String,
-) -> Result<OutlookAuthStatus, String> {
+) -> CmdResult<OutlookAuthStatus> {
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::sync::Arc;
@@ -137,7 +134,7 @@ pub async fn outlook_auth_start(
 
     let port = 3847;
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
-        .map_err(|e| format!("Failed to bind on port {}: {}", port, e))?;
+        .map_err(|e| CommandError::Io(format!("Failed to bind on port {}: {}", port, e)))?;
 
     let redirect_uri = format!("http://localhost:{}/callback", port);
     let scopes = "offline_access Mail.Read Mail.ReadWrite Mail.Send User.Read";
@@ -150,7 +147,7 @@ pub async fn outlook_auth_start(
     );
 
     log::info!("Opening browser for Outlook OAuth: {}", auth_url);
-    open::that(&auth_url).map_err(|e| format!("Failed to open browser: {}", e))?;
+    open::that(&auth_url).map_err(|e| CommandError::Io(format!("Failed to open browser: {}", e)))?;
 
     // Wait for callback
     listener.set_nonblocking(false).ok();
@@ -194,13 +191,13 @@ pub async fn outlook_auth_start(
     .await
     {
         Ok(Ok(Ok(code))) => code,
-        Ok(Ok(Err(e))) => return Err(e),
-        Ok(Err(_)) => return Err("Callback cancelled".to_string()),
-        Err(_) => return Err("Authentication timed out".to_string()),
+        Ok(Ok(Err(e))) => return Err(CommandError::Internal(e)),
+        Ok(Err(_)) => return Err(CommandError::Internal("Callback cancelled".to_string())),
+        Err(_) => return Err(CommandError::Internal("Authentication timed out".to_string())),
     };
 
     // Exchange code for tokens
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .post(format!(
             "https://login.microsoftonline.com/{}/oauth2/v2.0/token",
@@ -215,17 +212,16 @@ pub async fn outlook_auth_start(
             ("scope", scopes),
         ])
         .send()
-        .await
-        .map_err(|e| format!("Token exchange failed: {}", e))?;
+        .await?;
 
     let token_data: GraphTokenResponse = response
         .json()
         .await
-        .map_err(|e| format!("Failed to parse token response: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to parse token response: {}", e)))?;
 
     if let Some(err) = token_data.error {
         let desc = token_data.error_description.unwrap_or_default();
-        return Err(format!("OAuth error: {} - {}", err, desc));
+        return Err(CommandError::Network(format!("OAuth error: {} - {}", err, desc)));
     }
 
     let now = chrono::Utc::now().timestamp();
@@ -250,7 +246,7 @@ pub async fn outlook_auth_start(
 
 /// Check current auth status
 #[tauri::command]
-pub async fn outlook_auth_check() -> Result<OutlookAuthStatus, String> {
+pub async fn outlook_auth_check() -> CmdResult<OutlookAuthStatus> {
     eprintln!("[outlook:auth] auth_check called");
     let tokens = match load_tokens() {
         Some(t) => t,
@@ -305,30 +301,28 @@ pub async fn outlook_auth_check() -> Result<OutlookAuthStatus, String> {
 
 /// Logout - delete stored tokens
 #[tauri::command]
-pub fn outlook_auth_logout() -> Result<(), String> {
+pub fn outlook_auth_logout() -> CmdResult<()> {
     delete_tokens()
 }
 
 /// Import tokens from msteams-sync token file (avoids re-authentication)
 #[tauri::command]
-pub async fn outlook_auth_import(token_file_path: String) -> Result<OutlookAuthStatus, String> {
-    let content = std::fs::read_to_string(&token_file_path)
-        .map_err(|e| format!("Failed to read token file: {}", e))?;
+pub async fn outlook_auth_import(token_file_path: String) -> CmdResult<OutlookAuthStatus> {
+    let content = std::fs::read_to_string(&token_file_path)?;
 
     // msteams-sync format: { "email@example.com": { accessToken, refreshToken, expiresAt (ms), ... } }
-    let data: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse token file: {}", e))?;
+    let data: serde_json::Value = serde_json::from_str(&content)?;
 
     let obj = data.as_object()
-        .ok_or_else(|| "Token file is not a JSON object".to_string())?;
+        .ok_or_else(|| CommandError::Parse("Token file is not a JSON object".to_string()))?;
 
     // Take the first user's tokens
     let (user_email, user_tokens) = obj.iter().next()
-        .ok_or_else(|| "No users found in token file".to_string())?;
+        .ok_or_else(|| CommandError::Parse("No users found in token file".to_string()))?;
 
     let access_token = user_tokens.get("accessToken")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| "No accessToken found".to_string())?;
+        .ok_or_else(|| CommandError::Parse("No accessToken found".to_string()))?;
     let refresh_token = user_tokens.get("refreshToken")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
@@ -380,30 +374,29 @@ pub async fn outlook_auth_import(token_file_path: String) -> Result<OutlookAuthS
 // Helpers
 // ============================================================================
 
-async fn get_user_email(access_token: &str) -> Result<String, String> {
-    let client = reqwest::Client::new();
+async fn get_user_email(access_token: &str) -> CmdResult<String> {
+    let client = crate::HTTP_CLIENT.clone();
     let response = client
         .get("https://graph.microsoft.com/v1.0/me")
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
-        .await
-        .map_err(|e| format!("Failed to get user profile: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("Graph API returned {}: {}", status, body));
+        return Err(CommandError::Http { status: status.as_u16(), body });
     }
 
     let profile: GraphUserProfile = response
         .json()
         .await
-        .map_err(|e| format!("Failed to parse profile: {}", e))?;
+        .map_err(|e| CommandError::Parse(format!("Failed to parse profile: {}", e)))?;
 
     profile
         .mail
         .or(profile.user_principal_name)
-        .ok_or_else(|| "No email found in profile".to_string())
+        .ok_or_else(|| CommandError::NotFound("No email found in profile".to_string()))
 }
 
 fn extract_code_from_request(request: &str) -> Option<String> {

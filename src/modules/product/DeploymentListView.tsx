@@ -4,7 +4,8 @@
 import { useProductDeployments } from "../../hooks/product";
 import { DEPLOYMENT_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
-import { Loader2, Globe } from "lucide-react";
+import { Globe } from "lucide-react";
+import { DetailLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 
 interface DeploymentListViewProps {
@@ -18,13 +19,7 @@ export function DeploymentListView({ search, selectedId, onSelect }: DeploymentL
     search ? { search } : undefined
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   const all = deployments ?? [];
 
@@ -63,7 +58,7 @@ export function DeploymentListView({ search, selectedId, onSelect }: DeploymentL
               )}
             >
               <div className="flex-1 min-w-0">
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 font-mono block truncate">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 block truncate">
                   {deployment.domain_id}
                 </span>
                 {deployment.description && (

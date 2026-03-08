@@ -1,11 +1,12 @@
 // Work Module - Initiative Commands
 
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
 
 /// List all initiatives
 #[tauri::command]
-pub async fn work_list_initiatives(include_projects: Option<bool>) -> Result<Vec<Initiative>, String> {
+pub async fn work_list_initiatives(include_projects: Option<bool>) -> CmdResult<Vec<Initiative>> {
     let client = get_client().await?;
 
     let query = if include_projects.unwrap_or(false) {
@@ -19,7 +20,7 @@ pub async fn work_list_initiatives(include_projects: Option<bool>) -> Result<Vec
 
 /// Get a single initiative by ID
 #[tauri::command]
-pub async fn work_get_initiative(initiative_id: String) -> Result<Initiative, String> {
+pub async fn work_get_initiative(initiative_id: String) -> CmdResult<Initiative> {
     let client = get_client().await?;
 
     let query = format!(
@@ -30,16 +31,16 @@ pub async fn work_get_initiative(initiative_id: String) -> Result<Initiative, St
     client
         .select_single("initiatives", &query)
         .await?
-        .ok_or_else(|| format!("Initiative not found: {}", initiative_id))
+        .ok_or_else(|| CommandError::NotFound(format!("Initiative not found: {}", initiative_id)))
 }
 
 /// Create a new initiative
 #[tauri::command]
-pub async fn work_create_initiative(data: CreateInitiative) -> Result<Initiative, String> {
+pub async fn work_create_initiative(data: CreateInitiative) -> CmdResult<Initiative> {
     let client = get_client().await?;
 
     // Generate slug if not provided
-    let mut insert_data = serde_json::to_value(&data).map_err(|e| e.to_string())?;
+    let mut insert_data = serde_json::to_value(&data)?;
     if let Some(obj) = insert_data.as_object_mut() {
         if obj.get("slug").map_or(true, |v| v.is_null()) {
             obj.insert("slug".to_string(), serde_json::Value::String(slugify(&data.name)));
@@ -54,7 +55,7 @@ pub async fn work_create_initiative(data: CreateInitiative) -> Result<Initiative
 pub async fn work_update_initiative(
     initiative_id: String,
     data: UpdateInitiative,
-) -> Result<Initiative, String> {
+) -> CmdResult<Initiative> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", initiative_id);
@@ -63,7 +64,7 @@ pub async fn work_update_initiative(
 
 /// Delete an initiative (soft delete or archive)
 #[tauri::command]
-pub async fn work_delete_initiative(initiative_id: String, archive: Option<bool>) -> Result<(), String> {
+pub async fn work_delete_initiative(initiative_id: String, archive: Option<bool>) -> CmdResult<()> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", initiative_id);
@@ -86,7 +87,7 @@ pub async fn work_delete_initiative(initiative_id: String, archive: Option<bool>
 pub async fn work_add_project_to_initiative(
     initiative_id: String,
     project_id: String,
-) -> Result<InitiativeProject, String> {
+) -> CmdResult<InitiativeProject> {
     let client = get_client().await?;
 
     let data = serde_json::json!({
@@ -102,7 +103,7 @@ pub async fn work_add_project_to_initiative(
 pub async fn work_remove_project_from_initiative(
     initiative_id: String,
     project_id: String,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     let client = get_client().await?;
 
     let query = format!(
@@ -114,7 +115,7 @@ pub async fn work_remove_project_from_initiative(
 
 /// List projects in an initiative
 #[tauri::command]
-pub async fn work_list_initiative_projects(initiative_id: String) -> Result<Vec<Project>, String> {
+pub async fn work_list_initiative_projects(initiative_id: String) -> CmdResult<Vec<Project>> {
     let client = get_client().await?;
 
     // Query the junction table with project join

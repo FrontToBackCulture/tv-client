@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Loader2,
 } from "lucide-react";
 import {
   useCommits,
@@ -18,6 +17,7 @@ import {
   type WorkflowRun,
 } from "../../hooks/repos";
 import { cn } from "../../lib/cn";
+import { SectionLoading } from "../../components/ui/DetailStates";
 
 type Tab = "commits" | "releases" | "ci";
 
@@ -60,11 +60,7 @@ function CommitsList({
   isLoading: boolean;
 }) {
   if (isLoading)
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 size={20} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading />;
 
   return (
     <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
@@ -86,7 +82,7 @@ function CommitsList({
             <p className="text-sm truncate">{c.message}</p>
             <p className="text-xs text-zinc-500">
               <span className="font-medium">{c.authorLogin}</span>{" "}
-              <code className="text-[10px] text-zinc-400">
+              <code className="text-xs text-zinc-400">
                 {c.sha.slice(0, 7)}
               </code>{" "}
               · {formatRelative(c.date)}
@@ -107,11 +103,7 @@ function ReleasesList({
   isLoading: boolean;
 }) {
   if (isLoading)
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 size={20} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading />;
 
   if (!releases.length)
     return (
@@ -130,7 +122,7 @@ function ReleasesList({
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold">{r.tagName}</span>
               {r.prerelease && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
                   pre-release
                 </span>
               )}
@@ -159,11 +151,7 @@ function CiList({
   isLoading: boolean;
 }) {
   if (isLoading)
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 size={20} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading />;
 
   if (!runs.length)
     return (
@@ -198,7 +186,7 @@ function CiList({
               <p className="text-xs text-zinc-500 truncate">
                 {r.headCommitMessage || r.headBranch}
               </p>
-              <p className="text-[10px] text-zinc-400">
+              <p className="text-xs text-zinc-400">
                 {r.headBranch} · {formatRelative(r.createdAt)}
               </p>
             </div>

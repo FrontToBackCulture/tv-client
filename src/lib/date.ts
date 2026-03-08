@@ -4,6 +4,14 @@
 const LOCALE = "en-SG";
 
 /**
+ * General-purpose date format — "5 Jan 2025"
+ * Used by email module and as a default when no specific format is needed.
+ */
+export function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString(LOCALE, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/**
  * Format a date as "5 Jan" (no year) — for compact displays like task lists
  */
 export function formatDateShort(dateStr: string): string {

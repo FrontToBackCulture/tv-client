@@ -4,6 +4,7 @@
 use super::config::{get_domain_config, load_config_internal};
 use super::metadata;
 use super::sync::{write_json, SyncResult};
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::val_sync::auth;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -106,11 +107,8 @@ fn build_errors_query(table: &str, domain: &str, from: &str, to: &str) -> String
 async fn execute_tv_sql(
     token: &str,
     sql: &str,
-) -> Result<SqlQueryResponse, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+) -> CmdResult<SqlQueryResponse> {
+    let client = crate::HTTP_CLIENT.clone();
 
     let url = "https://tv.thinkval.io/api/v1/sqls/execute";
 
@@ -122,32 +120,28 @@ async fn execute_tv_sql(
             sql: sql.to_string(),
         })
         .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
+        .await?;
 
     let status = response.status().as_u16();
     if is_auth_status(status) {
-        return Err(format!("auth error (HTTP {})", status));
+        return Err(CommandError::Network(format!("auth error (HTTP {})", status)));
     }
     if !response.status().is_success() {
         let body = response.text().await.unwrap_or_default();
         if is_auth_body(&body) {
-            return Err(format!("auth error: {}", body));
+            return Err(CommandError::Network(format!("auth error: {}", body)));
         }
-        return Err(format!("HTTP {}: {}", status, body));
+        return Err(CommandError::Http { status, body });
     }
 
-    response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse SQL response: {}", e))
+    Ok(response.json().await?)
 }
 
 /// Fetch SQL results from tv domain
 async fn fetch_all_errors(
     token: &str,
     sql: &str,
-) -> Result<Vec<serde_json::Value>, String> {
+) -> CmdResult<Vec<serde_json::Value>> {
     let response = execute_tv_sql(token, sql).await?;
     Ok(response.data.unwrap_or_default())
 }
@@ -177,7 +171,7 @@ async fn sync_errors_impl(
     table: &str,
     error_type: &str,
     file_prefix: &str,
-) -> Result<SyncResult, String> {
+) -> CmdResult<SyncResult> {
     let start = Instant::now();
 
     // Get target domain config for output path
@@ -190,7 +184,7 @@ async fn sync_errors_impl(
         .domains
         .iter()
         .find(|d| d.domain == "tv" || d.actual_domain.as_deref() == Some("tv"))
-        .ok_or("tv domain not found in config. Error data requires tv domain access.")?;
+        .ok_or_else(|| CommandError::Config("tv domain not found in config. Error data requires tv domain access.".to_string()))?;
 
     // Ensure auth to tv domain
     let (token, _) = auth::ensure_auth(&tv_domain.domain).await?;
@@ -200,13 +194,13 @@ async fn sync_errors_impl(
 
     let errors = match fetch_all_errors(&token, &sql).await {
         Ok(data) => data,
-        Err(e) if e.contains("auth") || e.contains("401") || e.contains("403") => {
+        Err(e) if e.to_string().contains("auth") || e.to_string().contains("401") || e.to_string().contains("403") => {
             let (new_token, _) = auth::reauth(&tv_domain.domain).await?;
             fetch_all_errors(&new_token, &sql)
                 .await
-                .map_err(|e| format!("{} sync failed after reauth: {}", error_type, e))?
+                .map_err(|e| CommandError::Internal(format!("{} sync failed after reauth: {}", error_type, e)))?
         }
-        Err(e) => return Err(format!("{} sync failed: {}", error_type, e)),
+        Err(e) => return Err(CommandError::Internal(format!("{} sync failed: {}", error_type, e))),
     };
 
     // Calculate daily breakdown
@@ -235,8 +229,7 @@ async fn sync_errors_impl(
         global_path, file_prefix, today
     );
 
-    let output_value = serde_json::to_value(&output)
-        .map_err(|e| format!("Failed to serialize output: {}", e))?;
+    let output_value = serde_json::to_value(&output)?;
 
     write_json(&file_path, &output_value)?;
 
@@ -274,7 +267,7 @@ pub async fn val_sync_importer_errors(
     domain: String,
     from: String,
     to: String,
-) -> Result<SyncResult, String> {
+) -> CmdResult<SyncResult> {
     sync_errors_impl(
         domain,
         from,
@@ -293,7 +286,7 @@ pub async fn val_sync_integration_errors(
     domain: String,
     from: String,
     to: String,
-) -> Result<SyncResult, String> {
+) -> CmdResult<SyncResult> {
     sync_errors_impl(
         domain,
         from,

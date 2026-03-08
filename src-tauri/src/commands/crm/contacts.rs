@@ -1,6 +1,7 @@
 // CRM Module - Contact Commands
 
 use super::types::*;
+use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
 
 /// List contacts with optional filters
@@ -8,7 +9,7 @@ use crate::commands::supabase::get_client;
 pub async fn crm_list_contacts(
     company_id: Option<String>,
     search: Option<String>,
-) -> Result<Vec<Contact>, String> {
+) -> CmdResult<Vec<Contact>> {
     let client = get_client().await?;
 
     let mut filters = vec!["order=is_primary.desc,name.asc".to_string()];
@@ -26,7 +27,7 @@ pub async fn crm_list_contacts(
 
 /// Find contact by email
 #[tauri::command]
-pub async fn crm_find_contact(email: String) -> Result<Option<Contact>, String> {
+pub async fn crm_find_contact(email: String) -> CmdResult<Option<Contact>> {
     let client = get_client().await?;
 
     // Email is stored lowercase
@@ -36,7 +37,7 @@ pub async fn crm_find_contact(email: String) -> Result<Option<Contact>, String> 
 
 /// Get a single contact by ID
 #[tauri::command]
-pub async fn crm_get_contact(contact_id: String) -> Result<Contact, String> {
+pub async fn crm_get_contact(contact_id: String) -> CmdResult<Contact> {
     let client = get_client().await?;
 
     let query = format!("select=*,company:crm_companies(*)&id=eq.{}", contact_id);
@@ -44,16 +45,16 @@ pub async fn crm_get_contact(contact_id: String) -> Result<Contact, String> {
     client
         .select_single("crm_contacts", &query)
         .await?
-        .ok_or_else(|| format!("Contact not found: {}", contact_id))
+        .ok_or_else(|| CommandError::NotFound(format!("Contact not found: {}", contact_id)))
 }
 
 /// Create a new contact
 #[tauri::command]
-pub async fn crm_create_contact(data: CreateContact) -> Result<Contact, String> {
+pub async fn crm_create_contact(data: CreateContact) -> CmdResult<Contact> {
     let client = get_client().await?;
 
     // Normalize email to lowercase
-    let mut insert_data = serde_json::to_value(&data).map_err(|e| e.to_string())?;
+    let mut insert_data = serde_json::to_value(&data)?;
     if let Some(obj) = insert_data.as_object_mut() {
         if let Some(email) = obj.get("email").and_then(|e| e.as_str()) {
             obj.insert("email".to_string(), serde_json::Value::String(email.to_lowercase()));
@@ -72,11 +73,11 @@ pub async fn crm_create_contact(data: CreateContact) -> Result<Contact, String> 
 
 /// Update a contact
 #[tauri::command]
-pub async fn crm_update_contact(contact_id: String, data: UpdateContact) -> Result<Contact, String> {
+pub async fn crm_update_contact(contact_id: String, data: UpdateContact) -> CmdResult<Contact> {
     let client = get_client().await?;
 
     // Normalize email if present
-    let mut update_data = serde_json::to_value(&data).map_err(|e| e.to_string())?;
+    let mut update_data = serde_json::to_value(&data)?;
     if let Some(obj) = update_data.as_object_mut() {
         if let Some(email) = obj.get("email").and_then(|e| e.as_str()) {
             obj.insert("email".to_string(), serde_json::Value::String(email.to_lowercase()));
@@ -89,7 +90,7 @@ pub async fn crm_update_contact(contact_id: String, data: UpdateContact) -> Resu
 
 /// Delete a contact
 #[tauri::command]
-pub async fn crm_delete_contact(contact_id: String) -> Result<(), String> {
+pub async fn crm_delete_contact(contact_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
     let query = format!("id=eq.{}", contact_id);

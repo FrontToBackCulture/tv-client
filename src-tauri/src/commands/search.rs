@@ -1,6 +1,7 @@
 // src-tauri/src/commands/search.rs
 // Search operations for the Library module
 
+use crate::commands::error::CmdResult;
 use crate::models::SearchResult;
 use ignore::WalkBuilder;
 use std::fs;
@@ -14,7 +15,7 @@ pub async fn search_files(
     query: String,
     extensions: Option<Vec<String>>,
     max_results: Option<usize>,
-) -> Result<Vec<SearchResult>, String> {
+) -> CmdResult<Vec<SearchResult>> {
     let query_lower = query.to_lowercase();
     let max = max_results.unwrap_or(100);
     let mut results = Vec::new();
@@ -77,7 +78,7 @@ pub async fn search_content(
     query: String,
     extensions: Option<Vec<String>>,
     max_results: Option<usize>,
-) -> Result<Vec<SearchResult>, String> {
+) -> CmdResult<Vec<SearchResult>> {
     let query_lower = query.to_lowercase();
     let max = max_results.unwrap_or(50);
     let mut results = Vec::new();

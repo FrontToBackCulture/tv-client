@@ -8,6 +8,7 @@ let windowCounter = 0;
 const moduleLabels: Record<ModuleId, string> = {
   library: "Library",
   work: "Work",
+  workspace: "Workspaces",
   inbox: "Inbox",
   crm: "CRM",
   product: "Product",
@@ -16,6 +17,7 @@ const moduleLabels: Record<ModuleId, string> = {
   portal: "Portal",
   scheduler: "Scheduler",
   repos: "Repos",
+  email: "Email",
 };
 
 export function openModuleInNewWindow(moduleId: ModuleId) {

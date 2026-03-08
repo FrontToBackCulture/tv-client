@@ -26,7 +26,7 @@ function BotSidebarItem({
     <button
       onClick={onSelect}
       className={cn(
-        "w-full text-left flex items-center gap-2 px-2.5 py-1 rounded-md transition-colors",
+        "w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-colors",
         isSelected
           ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
@@ -34,7 +34,7 @@ function BotSidebarItem({
     >
       <div
         className={cn(
-          "w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold flex-shrink-0",
+          "w-5 h-5 rounded flex items-center justify-center text-xs font-bold flex-shrink-0",
           colors.badge,
           colors.text
         )}
@@ -43,7 +43,7 @@ function BotSidebarItem({
       </div>
       <span className="text-xs font-medium truncate" title={formatBotName(bot.name)}>{formatBotName(bot.name)}</span>
       {bot.owner && (
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0">@{bot.owner}</span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">@{bot.owner}</span>
       )}
     </button>
   );
@@ -121,7 +121,7 @@ export function BotSidebar({
           <div className="space-y-2">
             {grouped.map(([group, groupBots]) => (
               <div key={group}>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-2.5 mb-0.5">
+                <p className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-2.5 mb-0.5">
                   {GROUP_LABELS[group] || group}
                 </p>
                 <div>

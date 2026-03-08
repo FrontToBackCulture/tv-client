@@ -1,6 +1,7 @@
 // Supabase REST API Client
 // Generic client for making authenticated requests to Supabase
 
+use crate::commands::error::{CmdResult, CommandError};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -17,24 +18,32 @@ impl SupabaseClient {
         Self {
             base_url: url.trim_end_matches('/').to_string(),
             anon_key: anon_key.to_string(),
-            client: reqwest::Client::new(),
+            client: crate::HTTP_CLIENT.clone(),
         }
     }
 
     /// Build headers for Supabase requests
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "apikey",
-            HeaderValue::from_str(&self.anon_key).unwrap(),
-        );
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", self.anon_key)).unwrap(),
-        );
+        if let Ok(val) = HeaderValue::from_str(&self.anon_key) {
+            headers.insert("apikey", val);
+        }
+        if let Ok(val) = HeaderValue::from_str(&format!("Bearer {}", self.anon_key)) {
+            headers.insert(AUTHORIZATION, val);
+        }
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers.insert("Prefer", HeaderValue::from_static("return=representation"));
         headers
+    }
+
+    /// Check response status and return typed error if not success
+    async fn check_response(&self, response: reqwest::Response) -> CmdResult<reqwest::Response> {
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(CommandError::Http { status, body });
+        }
+        Ok(response)
     }
 
     /// GET request - select from table
@@ -42,7 +51,7 @@ impl SupabaseClient {
         &self,
         table: &str,
         query: &str,
-    ) -> Result<Vec<T>, String> {
+    ) -> CmdResult<Vec<T>> {
         let url = if query.is_empty() {
             format!("{}/rest/v1/{}", self.base_url, table)
         } else {
@@ -54,19 +63,10 @@ impl SupabaseClient {
             .get(&url)
             .headers(self.headers())
             .send()
-            .await
-            .map_err(|e| format!("Request failed: {}", e))?;
+            .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(format!("Supabase error ({}): {}", status, error_text));
-        }
-
-        response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse response: {}", e))
+        let response = self.check_response(response).await?;
+        Ok(response.json().await?)
     }
 
     /// GET single row
@@ -74,7 +74,7 @@ impl SupabaseClient {
         &self,
         table: &str,
         query: &str,
-    ) -> Result<Option<T>, String> {
+    ) -> CmdResult<Option<T>> {
         let results: Vec<T> = self.select(table, query).await?;
         Ok(results.into_iter().next())
     }
@@ -84,7 +84,7 @@ impl SupabaseClient {
         &self,
         table: &str,
         data: &T,
-    ) -> Result<R, String> {
+    ) -> CmdResult<R> {
         let url = format!("{}/rest/v1/{}", self.base_url, table);
 
         let response = self
@@ -93,25 +93,16 @@ impl SupabaseClient {
             .headers(self.headers())
             .json(data)
             .send()
-            .await
-            .map_err(|e| format!("Request failed: {}", e))?;
+            .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(format!("Supabase error ({}): {}", status, error_text));
-        }
+        let response = self.check_response(response).await?;
 
-        // Response is an array with one item
-        let results: Vec<R> = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse response: {}", e))?;
+        let results: Vec<R> = response.json().await?;
 
         results
             .into_iter()
             .next()
-            .ok_or_else(|| "No data returned from insert".to_string())
+            .ok_or_else(|| CommandError::Internal("No data returned from insert".into()))
     }
 
     /// PATCH request - update rows
@@ -120,7 +111,7 @@ impl SupabaseClient {
         table: &str,
         query: &str,
         data: &T,
-    ) -> Result<R, String> {
+    ) -> CmdResult<R> {
         let url = format!("{}/rest/v1/{}?{}", self.base_url, table, query);
 
         let response = self
@@ -129,28 +120,50 @@ impl SupabaseClient {
             .headers(self.headers())
             .json(data)
             .send()
-            .await
-            .map_err(|e| format!("Request failed: {}", e))?;
+            .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(format!("Supabase error ({}): {}", status, error_text));
-        }
+        let response = self.check_response(response).await?;
 
-        let results: Vec<R> = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse response: {}", e))?;
+        let results: Vec<R> = response.json().await?;
 
         results
             .into_iter()
             .next()
-            .ok_or_else(|| "No data returned from update".to_string())
+            .ok_or_else(|| CommandError::Internal("No data returned from update".into()))
+    }
+
+    /// POST request with upsert - insert or update on conflict
+    pub async fn upsert<T: Serialize, R: DeserializeOwned>(
+        &self,
+        table: &str,
+        data: &T,
+    ) -> CmdResult<R> {
+        let url = format!("{}/rest/v1/{}", self.base_url, table);
+
+        let mut headers = self.headers();
+        // Override Prefer header for upsert
+        headers.insert("Prefer", reqwest::header::HeaderValue::from_static("return=representation,resolution=merge-duplicates"));
+
+        let response = self
+            .client
+            .post(&url)
+            .headers(headers)
+            .json(data)
+            .send()
+            .await?;
+
+        let response = self.check_response(response).await?;
+
+        let results: Vec<R> = response.json().await?;
+
+        results
+            .into_iter()
+            .next()
+            .ok_or_else(|| CommandError::Internal("No data returned from upsert".into()))
     }
 
     /// DELETE request - delete rows
-    pub async fn delete(&self, table: &str, query: &str) -> Result<(), String> {
+    pub async fn delete(&self, table: &str, query: &str) -> CmdResult<()> {
         let url = format!("{}/rest/v1/{}?{}", self.base_url, table, query);
 
         let response = self
@@ -158,15 +171,9 @@ impl SupabaseClient {
             .delete(&url)
             .headers(self.headers())
             .send()
-            .await
-            .map_err(|e| format!("Request failed: {}", e))?;
+            .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(format!("Supabase error ({}): {}", status, error_text));
-        }
-
+        self.check_response(response).await?;
         Ok(())
     }
 
@@ -176,7 +183,7 @@ impl SupabaseClient {
         &self,
         function: &str,
         params: &T,
-    ) -> Result<R, String> {
+    ) -> CmdResult<R> {
         let url = format!("{}/rest/v1/rpc/{}", self.base_url, function);
 
         let response = self
@@ -185,30 +192,21 @@ impl SupabaseClient {
             .headers(self.headers())
             .json(params)
             .send()
-            .await
-            .map_err(|e| format!("Request failed: {}", e))?;
+            .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(format!("Supabase error ({}): {}", status, error_text));
-        }
-
-        response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse response: {}", e))
+        let response = self.check_response(response).await?;
+        Ok(response.json().await?)
     }
 }
 
 /// Helper to get Supabase client from settings
-pub async fn get_client() -> Result<SupabaseClient, String> {
+pub async fn get_client() -> CmdResult<SupabaseClient> {
     use crate::commands::settings::{settings_get_key, KEY_SUPABASE_ANON_KEY, KEY_SUPABASE_URL};
 
     let url = settings_get_key(KEY_SUPABASE_URL.to_string())?
-        .ok_or("Supabase URL not configured. Go to Settings to add it.")?;
+        .ok_or_else(|| CommandError::Config("Supabase URL not configured. Go to Settings to add it.".into()))?;
     let anon_key = settings_get_key(KEY_SUPABASE_ANON_KEY.to_string())?
-        .ok_or("Supabase anon key not configured. Go to Settings to add it.")?;
+        .ok_or_else(|| CommandError::Config("Supabase anon key not configured. Go to Settings to add it.".into()))?;
 
     Ok(SupabaseClient::new(&url, &anon_key))
 }

@@ -5,7 +5,9 @@ import { useState } from "react";
 import { useProductFeatures, useProductModules } from "../../hooks/product";
 import { FEATURE_STATUSES } from "../../lib/product/types";
 import { StatusChip } from "./StatusChip";
-import { Loader2, Star, ChevronDown, ChevronRight } from "lucide-react";
+import { Star, ChevronDown, ChevronRight } from "lucide-react";
+import { DetailLoading } from "../../components/ui/DetailStates";
+import { EmptyState } from "../../components/EmptyState";
 import { cn } from "../../lib/cn";
 
 interface FeatureListViewProps {
@@ -23,24 +25,13 @@ export function FeatureListView({ search, selectedId, onSelect }: FeatureListVie
 
   const isLoading = featuresLoading || modulesLoading;
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   const allFeatures = features ?? [];
   const allModules = modules ?? [];
 
   if (allFeatures.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
-        <Star size={32} className="mb-2 opacity-50" />
-        <p className="text-sm">No features found</p>
-      </div>
-    );
+    return <EmptyState icon={Star} message="No features found" className="flex-1" />;
   }
 
   // Group features by module

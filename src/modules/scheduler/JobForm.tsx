@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { X, ChevronDown, Puzzle } from "lucide-react";
 import type { SchedulerJob, JobInput, SkillRef } from "../../hooks/scheduler";
 import { useBots, useBotSkills, type BotSkill } from "../../hooks/useBotSkills";
+import { Button, IconButton } from "../../components/ui";
+import { FormField, Input, Select, Textarea, CheckboxField } from "../../components/ui";
 
 // Common cron presets
 const CRON_PRESETS = [
@@ -169,25 +171,21 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {isEdit ? "Edit Job" : "New Scheduled Job"}
           </h2>
-          <button onClick={onClose} className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-            <X size={16} />
-          </button>
+          <IconButton icon={X} label="Close" onClick={onClose} />
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           {/* Name */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Job Name</label>
-            <input
+          <FormField label="Job Name">
+            <Input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
               placeholder="Morning SOD Check"
-              className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
-          </div>
+          </FormField>
 
           {/* Mode toggle */}
           <div className="flex items-center justify-between">
@@ -205,7 +203,7 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
                 }
                 setUseSkillPicker(!useSkillPicker);
               }}
-              className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline"
+              className="text-xs text-teal-600 dark:text-teal-400 hover:underline"
             >
               {useSkillPicker ? "Edit full prompt" : "Use skill picker"}
             </button>
@@ -215,26 +213,25 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
             <>
               {/* Bot dropdown */}
               {bots && bots.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Bot</label>
+                <FormField label="Bot">
                   <div className="relative">
-                    <select
+                    <Select
                       value={activeBotName ?? ""}
                       onChange={(e) => {
                         setSelectedBotName(e.target.value);
                         setSelectedSlugs(new Set());
                       }}
-                      className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500 appearance-none"
+                      className="appearance-none"
                     >
                       {bots.map((b) => (
                         <option key={b.name} value={b.name}>
                           {b.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
                   </div>
-                </div>
+                </FormField>
               )}
 
               {/* Selected skills chips */}
@@ -243,7 +240,7 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
                   {selectedSkills.map((s) => (
                     <span
                       key={s.slug}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-full border border-teal-200 dark:border-teal-800"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-full border border-teal-200 dark:border-teal-800"
                     >
                       <Puzzle size={10} />
                       {s.title}
@@ -279,13 +276,13 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
                             {skill.title}
                           </span>
                           {skill.category && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-medium rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+                            <span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
                               {skill.category}
                             </span>
                           )}
                         </div>
                         {skill.summary && (
-                          <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                          <p className="text-xs text-zinc-400 truncate mt-0.5">
                             {skill.summary}
                           </p>
                         )}
@@ -300,36 +297,32 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
               )}
 
               {/* Additional instructions */}
-              <div>
-                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                  Additional Instructions
-                </label>
-                <textarea
+              <FormField label="Additional Instructions">
+                <Textarea
                   value={additionalInstructions}
                   onChange={(e) => setAdditionalInstructions(e.target.value)}
                   rows={2}
                   placeholder="Focus on KOI domain only..."
-                  className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+                  className="font-mono"
                 />
-              </div>
+              </FormField>
             </>
           ) : (
             /* Raw prompt textarea (legacy / advanced) */
             <div>
-              <textarea
+              <Textarea
                 value={rawSkillPrompt}
                 onChange={(e) => setRawSkillPrompt(e.target.value)}
                 required
                 rows={4}
                 placeholder="Run the SOD check for all domains and report any failures..."
-                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+                className="font-mono"
               />
             </div>
           )}
 
           {/* Schedule */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Schedule</label>
+          <FormField label="Schedule" hint={describeCron(cronExpression)}>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {CRON_PRESETS.map((p) => (
                 <button
@@ -346,136 +339,111 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
                 </button>
               ))}
             </div>
-            <input
+            <Input
               type="text"
               value={cronExpression}
               onChange={(e) => setCronExpression(e.target.value)}
               required
               placeholder="0 9 * * 1-5"
-              className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+              className="font-mono"
             />
-            <p className="mt-1 text-xs text-zinc-400">{describeCron(cronExpression)}</p>
-          </div>
+          </FormField>
 
           {/* Model */}
           <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Model</label>
-              <select
+            <FormField label="Model" className="flex-1">
+              <Select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
                 <option value="haiku">Haiku (fast, cheap)</option>
                 <option value="sonnet">Sonnet (balanced)</option>
                 <option value="opus">Opus (powerful)</option>
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Max Budget ($)</label>
-              <input
+              </Select>
+            </FormField>
+            <FormField label="Max Budget ($)" className="flex-1">
+              <Input
                 type="number"
                 step="0.01"
                 min="0"
                 value={maxBudget}
                 onChange={(e) => setMaxBudget(e.target.value)}
                 placeholder="No limit"
-                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
-            </div>
+            </FormField>
           </div>
 
           {/* Allowed tools */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Allowed Tools (comma-separated)</label>
-            <input
+          <FormField label="Allowed Tools (comma-separated)">
+            <Input
               type="text"
               value={allowedTools}
               onChange={(e) => setAllowedTools(e.target.value)}
               placeholder="mcp__val__execute_sql, mcp__val__list_tables"
-              className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+              className="font-mono"
             />
-          </div>
+          </FormField>
 
           {/* Slack */}
           <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Slack Webhook URL</label>
-              <input
+            <FormField label="Slack Webhook URL" className="flex-1">
+              <Input
                 type="url"
                 value={slackWebhookUrl}
                 onChange={(e) => setSlackWebhookUrl(e.target.value)}
                 placeholder="https://hooks.slack.com/services/..."
-                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
-            </div>
-            <div className="w-40">
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Channel Name</label>
-              <input
+            </FormField>
+            <FormField label="Channel Name" className="w-40">
+              <Input
                 type="text"
                 value={slackChannelName}
                 onChange={(e) => setSlackChannelName(e.target.value)}
                 placeholder="#ops-alerts"
-                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
-            </div>
+            </FormField>
           </div>
 
           {/* Toggles */}
           <div className="flex items-center gap-6">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
-                className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500"
-              />
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">Enabled</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={generateReport}
-                onChange={(e) => setGenerateReport(e.target.checked)}
-                className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500"
-              />
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">HTML report</span>
-              <span className="text-[10px] text-zinc-400">Save to S3</span>
-            </label>
+            <CheckboxField
+              label="Enabled"
+              checked={enabled}
+              onChange={setEnabled}
+            />
+            <CheckboxField
+              label="HTML report (Save to S3)"
+              checked={generateReport}
+              onChange={setGenerateReport}
+            />
           </div>
 
           {/* Report Prefix (shown when generateReport is checked) */}
           {generateReport && (
-            <div>
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Report Prefix</label>
-              <input
+            <FormField label="Report Prefix" hint={`Report filename: ${reportPrefix.trim() || "sod"}-YYYY-MM-DD.html`}>
+              <Input
                 type="text"
                 value={reportPrefix}
                 onChange={(e) => setReportPrefix(e.target.value)}
                 placeholder="sod"
-                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+                className="font-mono"
               />
-              <p className="mt-1 text-xs text-zinc-400">Report filename: {reportPrefix.trim() || "sod"}-YYYY-MM-DD.html</p>
-            </div>
+            </FormField>
           )}
         </form>
 
         {/* Footer */}
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-zinc-200 dark:border-zinc-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
+          <Button variant="ghost" onClick={onClose} type="button">
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSubmit}
             disabled={!name.trim() || !promptValid || !cronExpression.trim() || isLoading}
-            className="px-4 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            loading={isLoading}
           >
-            {isLoading ? "Saving..." : isEdit ? "Update Job" : "Create Job"}
-          </button>
+            {isEdit ? "Update Job" : "Create Job"}
+          </Button>
         </div>
       </div>
     </div>

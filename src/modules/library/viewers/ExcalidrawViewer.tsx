@@ -1,7 +1,7 @@
 // src/modules/library/viewers/ExcalidrawViewer.tsx
 
 import { useEffect, useState, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { SectionLoading } from "../../../components/ui/DetailStates";
 
 interface ExcalidrawViewerProps {
   content: string;
@@ -62,10 +62,7 @@ export function ExcalidrawViewer({ content, filename }: ExcalidrawViewerProps) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
-        <div className="flex items-center gap-2 text-zinc-400">
-          <Loader2 size={16} className="animate-spin" />
-          <span className="text-sm">Rendering drawing...</span>
-        </div>
+        <SectionLoading message="Rendering drawing..." />
       </div>
     );
   }

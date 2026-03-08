@@ -1,6 +1,8 @@
 // src/modules/inbox/EmptyInbox.tsx
 
 import { Mail, RefreshCw, Settings, Loader2 } from "lucide-react";
+import { Button } from "../../components/ui";
+import { ErrorBanner } from "../../components/ui/DetailStates";
 
 interface EmptyInboxProps {
   onRefresh?: () => void;
@@ -32,39 +34,31 @@ export function EmptyInbox({ onRefresh, onSetup, message, isSyncing, syncError, 
         </p>
 
         {syncError && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-sm text-red-600 dark:text-red-400 text-left">
-            {syncError}
-          </div>
+          <ErrorBanner message={syncError} className="mb-4 text-left" />
         )}
 
         <div className="flex items-center justify-center gap-3">
           {onRefresh && (
-            <button
+            <Button
+              size="md"
+              icon={isSyncing ? Loader2 : RefreshCw}
               onClick={onRefresh}
-              disabled={isSyncing}
-              className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+              loading={isSyncing}
+              className="rounded-lg"
             >
-              {isSyncing ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw size={16} />
-                  Sync Emails
-                </>
-              )}
-            </button>
+              {isSyncing ? "Syncing..." : "Sync Emails"}
+            </Button>
           )}
           {onSetup && (
-            <button
+            <Button
+              variant="secondary"
+              size="md"
+              icon={Settings}
               onClick={onSetup}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition-colors"
+              className="rounded-lg"
             >
-              <Settings size={16} />
               Setup
-            </button>
+            </Button>
           )}
         </div>
         <p className="text-xs text-zinc-400 mt-6">

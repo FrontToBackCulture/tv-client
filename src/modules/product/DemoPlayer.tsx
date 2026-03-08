@@ -6,6 +6,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { useReadFile } from "../../hooks/useFiles";
 import { cn } from "../../lib/cn";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { Button } from "../../components/ui";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -128,13 +129,13 @@ export function DemoPlayer({ demoPath, basePath }: DemoPlayerProps) {
             {demo.steps.length} steps
           </p>
         </div>
-        <button
+        <Button
           onClick={() => setStarted(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors"
+          size="md"
+          icon={Play}
         >
-          <Play size={16} fill="currentColor" />
           Start Demo
-        </button>
+        </Button>
       </div>
     );
   }

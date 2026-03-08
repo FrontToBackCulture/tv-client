@@ -1,5 +1,6 @@
 // Claude Code MCP setup — download tv-mcp binary + configure ~/.claude/mcp.json
 
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::command;
@@ -26,13 +27,13 @@ struct McpConfig {
 
 // ── Helpers ──────────────────────────────────────────────
 
-fn bin_dir() -> Result<PathBuf, String> {
+fn bin_dir() -> CmdResult<PathBuf> {
     dirs::home_dir()
         .map(|h| h.join(".tv-desktop").join("bin"))
-        .ok_or_else(|| "Cannot determine home directory".to_string())
+        .ok_or_else(|| CommandError::Config("Cannot determine home directory".into()))
 }
 
-fn binary_path() -> Result<PathBuf, String> {
+fn binary_path() -> CmdResult<PathBuf> {
     let name = if cfg!(target_os = "windows") {
         "tv-mcp.exe"
     } else {
@@ -41,10 +42,10 @@ fn binary_path() -> Result<PathBuf, String> {
     Ok(bin_dir()?.join(name))
 }
 
-fn claude_config_path() -> Result<PathBuf, String> {
+fn claude_config_path() -> CmdResult<PathBuf> {
     dirs::home_dir()
         .map(|h| h.join(".claude.json"))
-        .ok_or_else(|| "Cannot determine home directory".to_string())
+        .ok_or_else(|| CommandError::Config("Cannot determine home directory".into()))
 }
 
 fn platform_suffix() -> &'static str {
@@ -65,21 +66,22 @@ fn platform_suffix() -> &'static str {
     { "unsupported" }
 }
 
-fn read_mcp_config() -> Result<McpConfig, String> {
+fn read_mcp_config() -> CmdResult<McpConfig> {
     let path = claude_config_path()?;
     if !path.exists() {
         return Ok(McpConfig {
             mcp_servers: serde_json::Map::new(),
         });
     }
-    let data = std::fs::read_to_string(&path).map_err(|e| format!("Read mcp.json: {e}"))?;
-    serde_json::from_str(&data).map_err(|e| format!("Parse mcp.json: {e}"))
+    let data = std::fs::read_to_string(&path)?;
+    Ok(serde_json::from_str(&data)?)
 }
 
-fn write_mcp_config(config: &McpConfig) -> Result<(), String> {
+fn write_mcp_config(config: &McpConfig) -> CmdResult<()> {
     let path = claude_config_path()?;
-    let json = serde_json::to_string_pretty(config).map_err(|e| format!("Serialize: {e}"))?;
-    std::fs::write(&path, json).map_err(|e| format!("Write ~/.claude.json: {e}"))
+    let json = serde_json::to_string_pretty(config)?;
+    std::fs::write(&path, json)?;
+    Ok(())
 }
 
 // ── Types (CLI check) ────────────────────────────────────
@@ -94,7 +96,7 @@ pub struct ClaudeCliStatus {
 // ── Commands ─────────────────────────────────────────────
 
 #[command]
-pub async fn check_claude_cli() -> Result<ClaudeCliStatus, String> {
+pub async fn check_claude_cli() -> CmdResult<ClaudeCliStatus> {
     let which_cmd = if cfg!(target_os = "windows") {
         "where"
     } else {
@@ -106,7 +108,7 @@ pub async fn check_claude_cli() -> Result<ClaudeCliStatus, String> {
         .arg("claude")
         .output()
         .await
-        .map_err(|e| format!("Failed to run {which_cmd}: {e}"))?;
+        .map_err(|e| CommandError::Io(format!("Failed to run {which_cmd}: {e}")))?;
 
     if !path_output.status.success() {
         return Ok(ClaudeCliStatus {
@@ -143,7 +145,7 @@ pub async fn check_claude_cli() -> Result<ClaudeCliStatus, String> {
 }
 
 #[command]
-pub fn claude_mcp_status() -> Result<ClaudeMcpStatus, String> {
+pub fn claude_mcp_status() -> CmdResult<ClaudeMcpStatus> {
     let bin = binary_path()?;
     let config = read_mcp_config()?;
 
@@ -157,45 +159,40 @@ pub fn claude_mcp_status() -> Result<ClaudeMcpStatus, String> {
 }
 
 #[command]
-pub async fn claude_mcp_install() -> Result<ClaudeMcpStatus, String> {
+pub async fn claude_mcp_install() -> CmdResult<ClaudeMcpStatus> {
     let suffix = platform_suffix();
     if suffix == "unsupported" {
-        return Err("Unsupported platform".to_string());
+        return Err(CommandError::Config("Unsupported platform".into()));
     }
 
     // 1. Download binary
     let url = format!("{GITHUB_RELEASE_BASE}/tv-mcp-{suffix}");
     eprintln!("[claude-setup] Downloading {url}");
 
-    let response = reqwest::get(&url)
-        .await
-        .map_err(|e| format!("Download failed: {e}"))?;
+    let response = reqwest::get(&url).await?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "Download failed: HTTP {}",
-            response.status()
-        ));
+        return Err(CommandError::Http {
+            status: response.status().as_u16(),
+            body: format!("Download failed for tv-mcp-{suffix}"),
+        });
     }
 
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Read response: {e}"))?;
+    let bytes = response.bytes().await?;
 
     // 2. Write binary
     let bin = binary_path()?;
     if let Some(parent) = bin.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("Create bin dir: {e}"))?;
+        std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&bin, &bytes).map_err(|e| format!("Write binary: {e}"))?;
+    std::fs::write(&bin, &bytes)?;
 
     // 3. chmod +x (unix)
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o755);
-        std::fs::set_permissions(&bin, perms).map_err(|e| format!("chmod: {e}"))?;
+        std::fs::set_permissions(&bin, perms)?;
     }
 
     eprintln!(
@@ -220,11 +217,11 @@ pub async fn claude_mcp_install() -> Result<ClaudeMcpStatus, String> {
 }
 
 #[command]
-pub async fn claude_mcp_uninstall() -> Result<ClaudeMcpStatus, String> {
+pub async fn claude_mcp_uninstall() -> CmdResult<ClaudeMcpStatus> {
     // 1. Remove binary
     let bin = binary_path()?;
     if bin.exists() {
-        std::fs::remove_file(&bin).map_err(|e| format!("Remove binary: {e}"))?;
+        std::fs::remove_file(&bin)?;
         eprintln!("[claude-setup] Binary removed");
     }
 

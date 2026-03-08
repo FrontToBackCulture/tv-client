@@ -4,7 +4,6 @@ import { useState, useCallback, useMemo } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Check,
-  Loader2,
   RefreshCw,
   FolderOpen,
   FileText,
@@ -12,6 +11,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import { Button, IconButton, SectionLoading } from "../../components/ui";
 import { useRepository } from "../../stores/repositoryStore";
 import {
   useDiscoverDomains,
@@ -139,7 +139,7 @@ function DomainSyncPathRow({
             <span className="text-sm font-mono font-medium text-zinc-800 dark:text-zinc-200">
               {domain.domain}
             </span>
-            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+            <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
               {domain.domain_type}
             </span>
           </div>
@@ -184,33 +184,15 @@ function DomainSyncPathRow({
                     className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-xs"
                     autoFocus
                   />
-                  <button
-                    onClick={handleBrowse}
-                    className="p-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
-                    title="Browse..."
-                  >
-                    <FolderOpen size={14} />
-                  </button>
+                  <IconButton icon={FolderOpen} size={14} label="Browse..." onClick={handleBrowse} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 p-2" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleSave}
-                    disabled={updatePath.isPending}
-                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded transition-colors disabled:opacity-50"
-                  >
-                    {updatePath.isPending ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Check size={12} />
-                    )}
+                  <Button icon={Check} onClick={handleSave} disabled={updatePath.isPending} loading={updatePath.isPending}>
                     Save
-                  </button>
-                  <button
-                    onClick={handleCancel}
-                    className="px-2.5 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-                  >
+                  </Button>
+                  <Button variant="ghost" onClick={handleCancel}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -225,16 +207,7 @@ function DomainSyncPathRow({
                 <div className="flex-1 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded font-mono text-xs text-zinc-700 dark:text-zinc-300 truncate hover:border-teal-400 dark:hover:border-teal-600 transition-colors">
                   {currentPath}
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleBrowse();
-                  }}
-                  className="p-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors"
-                  title="Browse..."
-                >
-                  <FolderOpen size={14} />
-                </button>
+                <IconButton icon={FolderOpen} size={14} label="Browse..." onClick={(e) => { e.stopPropagation(); handleBrowse(); }} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 p-2" />
               </div>
             )}
           </div>
@@ -246,7 +219,7 @@ function DomainSyncPathRow({
                 <label className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
                   {category.name}
                 </label>
-                <span className="text-[10px] text-zinc-400">
+                <span className="text-xs text-zinc-400">
                   — {category.description}
                 </span>
               </div>
@@ -268,7 +241,7 @@ function DomainSyncPathRow({
                       </span>
                     </div>
                     <span
-                      className="text-[10px] font-mono text-zinc-400 truncate max-w-[220px]"
+                      className="text-xs font-mono text-zinc-400 truncate max-w-[220px]"
                       title={output.path}
                     >
                       {output.path.replace(currentPath, ".")}
@@ -320,11 +293,7 @@ export function SyncPathsView() {
   const domains = domainsQuery.data ?? [];
 
   if (domainsQuery.isLoading || configQuery.isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center py-12">
-        <Loader2 size={32} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="flex-1 py-12" />;
   }
 
   // Group by type
@@ -349,16 +318,7 @@ export function SyncPathsView() {
             Configure where VAL sync operations write their output files
           </p>
         </div>
-        <button
-          onClick={() => {
-            domainsQuery.refetch();
-            configQuery.refetch();
-          }}
-          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
-          title="Refresh"
-        >
-          <RefreshCw size={18} />
-        </button>
+        <IconButton icon={RefreshCw} size={18} label="Refresh" onClick={() => { domainsQuery.refetch(); configQuery.refetch(); }} />
       </div>
 
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">

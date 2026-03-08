@@ -1,7 +1,9 @@
 // src/modules/product/SolutionCardView.tsx
 // Solution cards — file-based, receives parsed solution data as props
 
-import { Loader2, Package } from "lucide-react";
+import { Package } from "lucide-react";
+import { DetailLoading } from "../../components/ui/DetailStates";
+import { EmptyState } from "../../components/EmptyState";
 import { StatusChip } from "./StatusChip";
 import { cn } from "../../lib/cn";
 import type { SolutionInfo } from "./SolutionsTabView";
@@ -14,21 +16,10 @@ interface SolutionCardViewProps {
 }
 
 export function SolutionCardView({ solutions, isLoading, selectedSlug, onSelect }: SolutionCardViewProps) {
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 size={24} className="text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   if (solutions.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
-        <Package size={32} className="mb-2 opacity-50" />
-        <p className="text-sm">No solutions found</p>
-      </div>
-    );
+    return <EmptyState icon={Package} message="No solutions found" className="flex-1" />;
   }
 
   return (

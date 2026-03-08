@@ -17,9 +17,12 @@ import {
   Image,
   Video,
   Presentation,
+  Briefcase,
 } from "lucide-react";
 import { TreeNode, useFolderChildren } from "../../hooks/useFiles";
 import { useFavorites } from "../../hooks/useFavorites";
+import { useWorkspaces, useAddArtifact } from "../../hooks/workspace";
+import { useRepository } from "../../stores/repositoryStore";
 import { useFolderExpansion } from "../../stores/folderExpansionStore";
 import { cn } from "../../lib/cn";
 import { invoke } from "@tauri-apps/api/core";
@@ -103,6 +106,18 @@ function ContextMenu({
   onClose: () => void;
   onToggleFavorite: () => void;
 }) {
+  const [showWorkspaces, setShowWorkspaces] = useState(false);
+  const { data: workspaces } = useWorkspaces({ status: "open" });
+  const { data: inProgressWorkspaces } = useWorkspaces({ status: "in_progress" });
+  const addArtifact = useAddArtifact();
+  const { activeRepository } = useRepository();
+  const basePath = activeRepository?.path ?? "";
+
+  const allWorkspaces = [
+    ...(workspaces ?? []),
+    ...(inProgressWorkspaces ?? []),
+  ].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+
   const handleCopyPath = async () => {
     await navigator.clipboard.writeText(path);
     onClose();
@@ -126,6 +141,30 @@ function ContextMenu({
     onClose();
   };
 
+  const handleAddToWorkspace = (workspaceId: string) => {
+    const reference = path.startsWith(basePath)
+      ? path.slice(basePath.length).replace(/^\//, "")
+      : path;
+    const label = path.split("/").filter(Boolean).pop() || reference;
+
+    let type = "other";
+    if (isDirectory) {
+      if (reference.includes("_skills") || reference.includes("skills/")) type = "skill";
+      else if (reference.includes("src/") || reference.includes("src-tauri/")) type = "code";
+      else type = "doc";
+    } else {
+      const ext = path.split(".").pop()?.toLowerCase() || "";
+      if (["ts", "tsx", "js", "jsx", "rs", "py", "sql"].includes(ext)) type = "code";
+      else if (["html", "htm"].includes(ext)) type = "report";
+      else type = "doc";
+    }
+
+    addArtifact.mutate(
+      { workspace_id: workspaceId, label, reference, type },
+      { onSuccess: onClose }
+    );
+  };
+
   return (
     <>
       {/* Backdrop */}
@@ -145,6 +184,37 @@ function ContextMenu({
           <Star size={14} className={isFavorite ? "text-yellow-500 fill-yellow-500" : ""} />
           {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
         </button>
+
+        {/* Add to Workspace */}
+        <div className="relative">
+          <button
+            onClick={() => setShowWorkspaces(!showWorkspaces)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <Briefcase size={14} />
+            Add to Workspace
+            <ChevronRight size={12} className="ml-auto text-zinc-400" />
+          </button>
+          {showWorkspaces && (
+            <div className="absolute left-full top-0 ml-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[200px] max-h-[300px] overflow-y-auto z-50">
+              {allWorkspaces.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-zinc-400">No open workspaces</p>
+              ) : (
+                allWorkspaces.map((ws) => (
+                  <button
+                    key={ws.id}
+                    onClick={() => handleAddToWorkspace(ws.id)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                  >
+                    <Briefcase size={12} className="text-teal-500 flex-shrink-0" />
+                    <span className="truncate">{ws.title}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
         <button
           onClick={handleCopyPath}
@@ -239,7 +309,7 @@ export function FileTree({ node, selectedPath, onSelect, onPinSelect, level }: F
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         className={cn(
-          "group flex items-center gap-1 px-2 py-1 cursor-pointer transition-colors",
+          "group flex items-center gap-1.5 px-2 py-1.5 cursor-pointer transition-colors",
           "hover:bg-zinc-100 dark:hover:bg-zinc-800",
           isSelected && "bg-zinc-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
         )}

@@ -35,7 +35,10 @@ function useClaudeStatus(): ClaudeState {
 }
 
 export function StatusBar() {
-  const { syncStatus, theme, toggleTheme, openSettings } = useAppStore();
+  const syncStatus = useAppStore((s) => s.syncStatus);
+  const theme = useAppStore((s) => s.theme);
+  const toggleTheme = useAppStore((s) => s.toggleTheme);
+  const openSettings = useAppStore((s) => s.openSettings);
   const claudeState = useClaudeStatus();
   const runningJobs = useRunningJobs();
   const recentJobs = useRecentJobs(10);
@@ -63,11 +66,11 @@ export function StatusBar() {
   const hasRunning = runningJobs.length > 0;
 
   return (
-    <div className="h-6 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative">
+    <div className="h-6 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative select-none">
       <div className="flex items-center gap-4">
         <span>TV Desktop v{__APP_VERSION__}</span>
         {import.meta.env.DEV && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400">
+          <span className="px-1.5 py-0.5 rounded text-xs font-bold tracking-wider bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400">
             DEV
           </span>
         )}

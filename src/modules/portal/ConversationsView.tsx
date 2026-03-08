@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MessageSquare, Search } from "lucide-react";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { useConversations, usePortalSites } from "../../hooks/portal";
 import { ChatPanel } from "./ChatPanel";
 import { cn } from "../../lib/cn";
@@ -78,7 +79,7 @@ export function ConversationsView({
             </div>
           </div>
 
-          <div className="flex gap-1.5 text-[11px]">
+          <div className="flex gap-1.5 text-xs">
             {/* Status filters */}
             {["all", "waiting", "active", "resolved"].map((s) => (
               <button
@@ -110,7 +111,7 @@ export function ConversationsView({
                     site_id: e.target.value || undefined,
                   }))
                 }
-                className="px-2 py-0.5 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-500 bg-white dark:bg-zinc-900 text-[11px]"
+                className="px-2 py-0.5 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-500 bg-white dark:bg-zinc-900 text-xs"
               >
                 <option value="">All sites</option>
                 {sites.map((s) => (
@@ -126,9 +127,7 @@ export function ConversationsView({
         {/* Conversation list */}
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
-            <div className="flex items-center justify-center p-8">
-              <div className="w-5 h-5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
-            </div>
+            <SectionLoading className="p-8" />
           )}
 
           {!isLoading && filtered.length === 0 && (
@@ -209,17 +208,17 @@ function ConversationRow({
             <span className={cn("w-2 h-2 rounded-full flex-shrink-0", statusColor(conversation.status))} />
           </div>
           {conversation.customer_email && (
-            <div className="text-[11px] text-zinc-400 truncate mt-0.5">
+            <div className="text-xs text-zinc-400 truncate mt-0.5">
               {conversation.customer_email}
             </div>
           )}
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <span className="text-[10px] text-zinc-400">
+          <span className="text-xs text-zinc-400">
             {timeAgo(conversation.updated_at)}
           </span>
           {site && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 uppercase">
+            <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 uppercase">
               {site.slug}
             </span>
           )}

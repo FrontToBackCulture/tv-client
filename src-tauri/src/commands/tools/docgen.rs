@@ -1,6 +1,7 @@
 // Document Generator - PDF generation for order forms and proposals
 // Both use HTML template + Chrome headless for professional formatting
 
+use crate::commands::error::{CmdResult, CommandError};
 use pulldown_cmark::{html, Options, Parser};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -84,7 +85,7 @@ pub struct ImplementationPaymentRow {
 // ============================================================================
 
 /// Parse order form markdown file into structured data
-pub fn parse_order_form_markdown(markdown: &str) -> Result<OrderFormData, String> {
+pub fn parse_order_form_markdown(markdown: &str) -> CmdResult<OrderFormData> {
     let mut data = OrderFormData::default();
     let yaml_values = extract_yaml_values(markdown);
 
@@ -368,17 +369,15 @@ fn extract_implementation_payments(markdown: &str) -> Vec<ImplementationPaymentR
 // ============================================================================
 
 /// Generate order form PDF from data using HTML template + Chrome headless
-pub fn generate_order_form_pdf(data: &OrderFormData, output_path: &str) -> Result<String, String> {
+pub fn generate_order_form_pdf(data: &OrderFormData, output_path: &str) -> CmdResult<String> {
     // Generate HTML from data
     let full_html = wrap_in_order_form_template(data);
 
     // Write HTML to temp file
     let temp_dir = std::env::temp_dir();
     let html_path = temp_dir.join(format!("order_form_{}.html", std::process::id()));
-    let mut html_file = fs::File::create(&html_path)
-        .map_err(|e| format!("Failed to create temp HTML file: {}", e))?;
-    html_file.write_all(full_html.as_bytes())
-        .map_err(|e| format!("Failed to write HTML: {}", e))?;
+    let mut html_file = fs::File::create(&html_path)?;
+    html_file.write_all(full_html.as_bytes())?;
 
     // Convert HTML to PDF using Chrome headless
     let chrome_path = find_chrome_path()?;
@@ -390,16 +389,15 @@ pub fn generate_order_form_pdf(data: &OrderFormData, output_path: &str) -> Resul
             "--no-sandbox",
             "--no-pdf-header-footer",
             &format!("--print-to-pdf={}", output_path),
-            html_path.to_str().unwrap(),
+            &html_path.to_string_lossy(),
         ])
-        .status()
-        .map_err(|e| format!("Failed to run Chrome: {}", e))?;
+        .status()?;
 
     // Clean up temp file
     let _ = fs::remove_file(&html_path);
 
     if !status.success() {
-        return Err("Chrome PDF generation failed".to_string());
+        return Err(CommandError::Internal("Chrome PDF generation failed".to_string()));
     }
 
     Ok(output_path.to_string())
@@ -987,7 +985,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
 // ============================================================================
 
 /// Generate proposal PDF from markdown using HTML template + Chrome headless
-pub fn generate_proposal_pdf(markdown: &str, output_path: &str) -> Result<String, String> {
+pub fn generate_proposal_pdf(markdown: &str, output_path: &str) -> CmdResult<String> {
     // Step 1: Convert markdown to HTML
     let html_body = markdown_to_html(markdown);
 
@@ -1000,10 +998,8 @@ pub fn generate_proposal_pdf(markdown: &str, output_path: &str) -> Result<String
     // Step 4: Write HTML to temp file
     let temp_dir = std::env::temp_dir();
     let html_path = temp_dir.join(format!("proposal_{}.html", std::process::id()));
-    let mut html_file = fs::File::create(&html_path)
-        .map_err(|e| format!("Failed to create temp HTML file: {}", e))?;
-    html_file.write_all(full_html.as_bytes())
-        .map_err(|e| format!("Failed to write HTML: {}", e))?;
+    let mut html_file = fs::File::create(&html_path)?;
+    html_file.write_all(full_html.as_bytes())?;
 
     // Step 5: Convert HTML to PDF using Chrome headless
     let chrome_path = find_chrome_path()?;
@@ -1015,16 +1011,15 @@ pub fn generate_proposal_pdf(markdown: &str, output_path: &str) -> Result<String
             "--no-sandbox",
             "--no-pdf-header-footer",
             &format!("--print-to-pdf={}", output_path),
-            html_path.to_str().unwrap(),
+            &html_path.to_string_lossy(),
         ])
-        .status()
-        .map_err(|e| format!("Failed to run Chrome: {}", e))?;
+        .status()?;
 
     // Clean up temp file
     let _ = fs::remove_file(&html_path);
 
     if !status.success() {
-        return Err("Chrome PDF generation failed".to_string());
+        return Err(CommandError::Internal("Chrome PDF generation failed".to_string()));
     }
 
     Ok(output_path.to_string())
@@ -1365,7 +1360,7 @@ fn wrap_in_proposal_template(body: &str, title: &str) -> String {
 }
 
 /// Find Chrome executable path
-fn find_chrome_path() -> Result<String, String> {
+fn find_chrome_path() -> CmdResult<String> {
     // macOS paths
     let mac_paths = [
         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -1391,7 +1386,7 @@ fn find_chrome_path() -> Result<String, String> {
         }
     }
 
-    Err("Chrome not found. Please install Google Chrome.".to_string())
+    Err(CommandError::NotFound("Chrome not found. Please install Google Chrome.".to_string()))
 }
 
 
@@ -1399,10 +1394,9 @@ fn find_chrome_path() -> Result<String, String> {
 pub fn generate_proposal_from_file(
     file_path: &str,
     output_path: Option<&str>,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     // Read markdown file
-    let markdown = fs::read_to_string(file_path)
-        .map_err(|e| format!("Failed to read file {}: {}", file_path, e))?;
+    let markdown = fs::read_to_string(file_path)?;
 
     // Determine output path
     let output = output_path
@@ -1426,10 +1420,9 @@ pub fn generate_proposal_from_file(
 pub fn generate_order_form_from_file(
     file_path: &str,
     output_path: Option<&str>,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     // Read markdown file
-    let markdown = fs::read_to_string(file_path)
-        .map_err(|e| format!("Failed to read file {}: {}", file_path, e))?;
+    let markdown = fs::read_to_string(file_path)?;
 
     // Parse data
     let data = parse_order_form_markdown(&markdown)?;
@@ -1470,13 +1463,13 @@ pub fn is_proposal_file(file_path: &str) -> bool {
 
 /// Tauri command to generate order form PDF
 #[tauri::command]
-pub async fn generate_order_form_pdf_cmd(file_path: String) -> Result<String, String> {
+pub async fn generate_order_form_pdf_cmd(file_path: String) -> CmdResult<String> {
     generate_order_form_from_file(&file_path, None)
 }
 
 /// Tauri command to generate proposal PDF
 #[tauri::command]
-pub async fn generate_proposal_pdf_cmd(file_path: String) -> Result<String, String> {
+pub async fn generate_proposal_pdf_cmd(file_path: String) -> CmdResult<String> {
     generate_proposal_from_file(&file_path, None)
 }
 

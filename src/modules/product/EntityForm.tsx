@@ -23,7 +23,10 @@ import {
   PLATFORM_CATEGORIES,
 } from "../../lib/product/types";
 import type { ProductEntityType } from "../../lib/product/types";
-import { X, Loader2 } from "lucide-react";
+import { X } from "lucide-react";
+import { Button, IconButton } from "../../components/ui";
+import { toast } from "../../stores/toastStore";
+import { FormField, Input, Select, Textarea } from "../../components/ui";
 
 interface EntityFormProps {
   entityType: ProductEntityType;
@@ -114,8 +117,10 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
           });
           break;
       }
+      toast.success(`${TITLES[entityType].replace("New ", "")} created`);
       onSaved();
     } catch (err) {
+      toast.error(`Failed to create ${entityType}`);
       console.error("Failed to create entity:", err);
     } finally {
       setSaving(false);
@@ -128,134 +133,113 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{TITLES[entityType]}</h3>
-          <button onClick={onClose} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
-            <X size={16} />
-          </button>
+          <IconButton onClick={onClose} icon={X} label="Close" />
         </div>
 
         {/* Form */}
         <div className="p-4 space-y-3">
           {/* Name */}
-          <div>
-            <label className="text-xs font-medium text-zinc-500 block mb-1">
-              {entityType === "deployment" ? "Domain ID" : entityType === "release" ? "Name" : "Name"}
-            </label>
-            <input
+          <FormField label={entityType === "deployment" ? "Domain ID" : "Name"}>
+            <Input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={entityType === "deployment" ? "e.g. koi" : "Enter name..."}
-              className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
               autoFocus
             />
-          </div>
+          </FormField>
 
           {/* Description */}
-          <div>
-            <label className="text-xs font-medium text-zinc-500 block mb-1">Description</label>
-            <textarea
+          <FormField label="Description">
+            <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500 resize-none"
+              className="resize-none"
             />
-          </div>
+          </FormField>
 
           {/* Module-specific: Layer */}
           {entityType === "module" && (
-            <div>
-              <label className="text-xs font-medium text-zinc-500 block mb-1">Layer</label>
-              <select
+            <FormField label="Layer">
+              <Select
                 value={extra.layer || "application"}
                 onChange={(e) => setExtra({ ...extra, layer: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
               >
                 {MODULE_LAYERS.map((l) => (
                   <option key={l.value} value={l.value}>{l.label}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
           )}
 
           {/* Feature-specific: Module */}
           {entityType === "feature" && (
-            <div>
-              <label className="text-xs font-medium text-zinc-500 block mb-1">Module</label>
-              <select
+            <FormField label="Module">
+              <Select
                 value={extra.module_id || ""}
                 onChange={(e) => setExtra({ ...extra, module_id: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
               >
                 <option value="">Select module...</option>
                 {(modules ?? []).map((m) => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
           )}
 
           {/* Connector-specific: Type & Category */}
           {entityType === "connector" && (
             <>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 block mb-1">Type</label>
-                <select
+              <FormField label="Type">
+                <Select
                   value={extra.connector_type || "api"}
                   onChange={(e) => setExtra({ ...extra, connector_type: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
                 >
                   {CONNECTOR_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 block mb-1">Platform Category</label>
-                <select
+                </Select>
+              </FormField>
+              <FormField label="Platform Category">
+                <Select
                   value={extra.platform_category || "Other"}
                   onChange={(e) => setExtra({ ...extra, platform_category: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
                 >
                   {PLATFORM_CATEGORIES.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
-                </select>
-              </div>
+                </Select>
+              </FormField>
             </>
           )}
 
           {/* Release-specific: Version & Date */}
           {entityType === "release" && (
             <>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 block mb-1">Version</label>
-                <input
+              <FormField label="Version">
+                <Input
                   type="text"
                   value={extra.version || ""}
                   onChange={(e) => setExtra({ ...extra, version: e.target.value })}
                   placeholder="e.g. 4.2.0"
-                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
                 />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 block mb-1">Release Date</label>
-                <input
+              </FormField>
+              <FormField label="Release Date">
+                <Input
                   type="date"
                   value={extra.release_date || ""}
                   onChange={(e) => setExtra({ ...extra, release_date: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
                 />
-              </div>
+              </FormField>
             </>
           )}
 
           {/* Status selector — context-sensitive */}
-          <div>
-            <label className="text-xs font-medium text-zinc-500 block mb-1">Status</label>
-            <select
+          <FormField label="Status">
+            <Select
               value={extra.status || ""}
               onChange={(e) => setExtra({ ...extra, status: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500"
             >
               {entityType === "module" && MODULE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               {entityType === "feature" && FEATURE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -263,25 +247,25 @@ export function EntityForm({ entityType, onClose, onSaved }: EntityFormProps) {
               {entityType === "solution" && SOLUTION_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               {entityType === "release" && RELEASE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               {entityType === "deployment" && DEPLOYMENT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </div>
+            </Select>
+          </FormField>
         </div>
 
         {/* Footer */}
         <div className="flex justify-end gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800">
-          <button
+          <Button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+            variant="ghost"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSave}
-            disabled={!name.trim() || saving}
-            className="px-3 py-1.5 text-sm bg-teal-600 hover:bg-teal-500 text-white rounded font-medium transition-colors disabled:opacity-50"
+            disabled={!name.trim()}
+            loading={saving}
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : "Create"}
-          </button>
+            Create
+          </Button>
         </div>
       </div>
     </div>

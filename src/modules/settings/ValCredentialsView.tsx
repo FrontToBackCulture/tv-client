@@ -6,12 +6,12 @@ import {
   Eye,
   EyeOff,
   Check,
-  Loader2,
   Upload,
   Database,
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import { Button, IconButton, SectionLoading } from "../../components/ui";
 import { useRepository } from "../../stores/repositoryStore";
 import {
   useDiscoverDomains,
@@ -59,7 +59,7 @@ function DomainCredentialRow({ domain }: { domain: DiscoveredDomain }) {
           <span className="text-sm font-mono font-medium text-zinc-800 dark:text-zinc-200">
             {domain.domain}
           </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+          <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
             {domain.domain_type}
           </span>
         </div>
@@ -81,23 +81,17 @@ function DomainCredentialRow({ domain }: { domain: DiscoveredDomain }) {
       {!isEditing && creds?.has_credentials && (
         <div className="mt-2 flex items-center justify-between">
           <span className="text-xs text-zinc-500">{creds.email}</span>
-          <button
-            onClick={handleEdit}
-            className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-          >
+          <Button variant="ghost" onClick={handleEdit}>
             Edit
-          </button>
+          </Button>
         </div>
       )}
 
       {!isEditing && !creds?.has_credentials && !credQuery.isLoading && (
         <div className="mt-2">
-          <button
-            onClick={() => setIsEditing(true)}
-            className="text-xs text-teal-600 hover:text-teal-500 font-medium transition-colors"
-          >
+          <Button variant="ghost" onClick={() => setIsEditing(true)} className="text-teal-600 hover:text-teal-500">
             Set credentials
-          </button>
+          </Button>
         </div>
       )}
 
@@ -119,13 +113,13 @@ function DomainCredentialRow({ domain }: { domain: DiscoveredDomain }) {
               placeholder="Password"
               className="w-full px-3 py-1.5 pr-8 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 font-mono"
             />
-            <button
-              type="button"
+            <IconButton
+              icon={showPw ? EyeOff : Eye}
+              size={14}
+              label={showPw ? "Hide password" : "Show password"}
               onClick={() => setShowPw(!showPw)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
-            >
-              {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
+              className="absolute right-2 top-1/2 -translate-y-1/2"
+            />
           </div>
           {setCred.isError && (
             <p className="text-xs text-red-500">
@@ -133,20 +127,12 @@ function DomainCredentialRow({ domain }: { domain: DiscoveredDomain }) {
             </p>
           )}
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleSave}
-              disabled={setCred.isPending || !email.trim() || !password.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded transition-colors"
-            >
-              {setCred.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+            <Button icon={Check} onClick={handleSave} disabled={setCred.isPending || !email.trim() || !password.trim()} loading={setCred.isPending}>
               Save
-            </button>
-            <button
-              onClick={() => { setIsEditing(false); setEmail(""); setPassword(""); setShowPw(false); }}
-              className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded transition-colors"
-            >
+            </Button>
+            <Button variant="ghost" onClick={() => { setIsEditing(false); setEmail(""); setPassword(""); setShowPw(false); }}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -180,11 +166,7 @@ export function ValCredentialsView() {
   }, [importCreds]);
 
   if (domainsQuery.isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center py-12">
-        <Loader2 size={32} className="animate-spin text-zinc-400" />
-      </div>
-    );
+    return <SectionLoading className="flex-1 py-12" />;
   }
 
   // Group by type
@@ -209,19 +191,9 @@ export function ValCredentialsView() {
             Manage login credentials for each VAL domain
           </p>
         </div>
-        <button
-          onClick={handleImportEnv}
-          disabled={importCreds.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
-          title="Import from .env file"
-        >
-          {importCreds.isPending ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Upload size={14} />
-          )}
+        <Button variant="secondary" icon={Upload} onClick={handleImportEnv} disabled={importCreds.isPending} loading={importCreds.isPending} title="Import from .env file">
           Import .env
-        </button>
+        </Button>
       </div>
 
       {importCreds.isSuccess && (

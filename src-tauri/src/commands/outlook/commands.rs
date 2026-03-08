@@ -5,6 +5,7 @@ use super::contacts;
 use super::db::EmailDb;
 use super::sync;
 use super::types::*;
+use crate::commands::error::CmdResult;
 use crate::AppState;
 
 // ============================================================================
@@ -19,7 +20,7 @@ pub async fn outlook_list_emails(
     search: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
-) -> Result<Vec<EmailEntry>, String> {
+) -> CmdResult<Vec<EmailEntry>> {
     eprintln!("[outlook] list_emails called: folder={:?} category={:?} status={:?}", folder, category, status);
     let db = EmailDb::open().map_err(|e| {
         eprintln!("[outlook] list_emails: DB open failed: {}", e);
@@ -41,19 +42,19 @@ pub async fn outlook_list_emails(
 }
 
 #[tauri::command]
-pub async fn outlook_get_email(id: String) -> Result<Option<EmailEntry>, String> {
+pub async fn outlook_get_email(id: String) -> CmdResult<Option<EmailEntry>> {
     let db = EmailDb::open()?;
     db.get_email(&id)
 }
 
 #[tauri::command]
-pub async fn outlook_get_email_body(id: String) -> Result<String, String> {
+pub async fn outlook_get_email_body(id: String) -> CmdResult<String> {
     let db = EmailDb::open()?;
     sync::ensure_body_cached(&db, &id).await
 }
 
 #[tauri::command]
-pub async fn outlook_get_stats() -> Result<EmailStats, String> {
+pub async fn outlook_get_stats() -> CmdResult<EmailStats> {
     eprintln!("[outlook] get_stats called");
     let db = EmailDb::open().map_err(|e| {
         eprintln!("[outlook] get_stats: DB open failed: {}", e);
@@ -72,7 +73,7 @@ pub async fn outlook_get_stats() -> Result<EmailStats, String> {
 // ============================================================================
 
 #[tauri::command]
-pub async fn outlook_mark_read(id: String) -> Result<(), String> {
+pub async fn outlook_mark_read(id: String) -> CmdResult<()> {
     let db = EmailDb::open()?;
     db.mark_read(&id)?;
 
@@ -88,7 +89,7 @@ pub async fn outlook_mark_read(id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn outlook_archive_email(id: String) -> Result<(), String> {
+pub async fn outlook_archive_email(id: String) -> CmdResult<()> {
     let db = EmailDb::open()?;
     db.archive_email(&id)
 }
@@ -100,7 +101,7 @@ pub async fn outlook_send_email(
     subject: String,
     body: String,
     reply_to: Option<String>,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     let graph = super::graph::GraphClient::new();
 
     if let Some(reply_id) = reply_to {
@@ -117,7 +118,7 @@ pub async fn outlook_send_email(
 // ============================================================================
 
 #[tauri::command]
-pub async fn outlook_sync_start(app_handle: tauri::AppHandle) -> Result<i64, String> {
+pub async fn outlook_sync_start(app_handle: tauri::AppHandle) -> CmdResult<i64> {
     eprintln!("[outlook] sync_start called");
     let db = EmailDb::open().map_err(|e| {
         eprintln!("[outlook] Failed to open DB: {}", e);
@@ -146,7 +147,7 @@ pub async fn outlook_sync_start(app_handle: tauri::AppHandle) -> Result<i64, Str
 }
 
 #[tauri::command]
-pub async fn outlook_sync_status() -> Result<SyncStatus, String> {
+pub async fn outlook_sync_status() -> CmdResult<SyncStatus> {
     let db = EmailDb::open()?;
     let last_sync = db.get_sync_state("last_sync")?;
     let emails_synced = db.get_email_count()?;
@@ -160,7 +161,7 @@ pub async fn outlook_sync_status() -> Result<SyncStatus, String> {
 }
 
 #[tauri::command]
-pub async fn outlook_get_folders() -> Result<Vec<EmailFolder>, String> {
+pub async fn outlook_get_folders() -> CmdResult<Vec<EmailFolder>> {
     let graph = super::graph::GraphClient::new();
     let folders = graph.list_folders().await?;
 
@@ -178,7 +179,7 @@ pub async fn outlook_get_folders() -> Result<Vec<EmailFolder>, String> {
 #[tauri::command]
 pub async fn outlook_bootstrap_contacts(
     state: tauri::State<'_, AppState>,
-) -> Result<usize, String> {
+) -> CmdResult<usize> {
     let db = EmailDb::open()?;
     contacts::bootstrap_contacts(&db, &state.knowledge_path)
 }

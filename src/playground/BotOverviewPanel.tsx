@@ -1,6 +1,6 @@
 // BotPlayground: Bot overview two-column layout with profile, skills, sessions
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   X,
   Search,
@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
+import { SkillAssignmentGrid } from "../components/SkillAssignmentGrid";
+import { useSkillRegistry, useSkillDistributeTo } from "../modules/skills/useSkillRegistry";
+import { useRepository } from "../stores/repositoryStore";
+import { invoke } from "@tauri-apps/api/core";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   type BotEntry,
   type BotProfile,
@@ -116,11 +121,79 @@ export function BotOverview({
   const colors = DEPT_COLORS[bot.group] || DEPT_COLORS.personal;
   const initials = getBotInitials(bot.name);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+  const [showAssignSkills, setShowAssignSkills] = useState(false);
+  const [assigningSkill, setAssigningSkill] = useState<string | null>(null);
+  const [assignFeedback, setAssignFeedback] = useState<{ slug: string; action: "added" | "removed" } | null>(null);
   const [activeTab, setActiveTab] = useState<"skills" | "sessions">("skills");
   const [skillSort, setSkillSort] = useState<"name" | "usage">("name");
   const [skillFilter, setSkillFilter] = useState<"all" | SkillStatus>("active");
   const [skillTab, setSkillTab] = useState<string>("all");
   const [skillSearch, setSkillSearch] = useState("");
+
+  // Skill registry for assignment
+  const registryQuery = useSkillRegistry();
+  const registry = registryQuery.data;
+  const { activeRepository } = useRepository();
+  const distributeMutation = useSkillDistributeTo();
+  const queryClient = useQueryClient();
+
+  const availableBotSkills = useMemo(() => {
+    if (!registry) return [] as string[];
+    return Object.entries(registry.skills)
+      .filter(([, e]) => e.target === "bot" || e.target === "both")
+      .map(([slug]) => slug)
+      .sort();
+  }, [registry]);
+
+  const registryCategories = registry?.categories ?? [];
+  const registryEntries = registry?.skills ?? {};
+
+  // Current skills already in this bot's skills/ folder
+  const currentBotSkillSlugs = useMemo(
+    () => skillList.map((s) => s.name),
+    [skillList]
+  );
+
+  // Compute the relative skills path for skill_distribute_to
+  const botSkillsRelPath = useMemo(() => {
+    if (!activeRepository || !bot.dirPath) return null;
+    const repoPath = activeRepository.path;
+    if (bot.dirPath.startsWith(repoPath)) {
+      return bot.dirPath.slice(repoPath.length + 1) + "/skills";
+    }
+    return null;
+  }, [activeRepository, bot.dirPath]);
+
+  const handleAssignToggle = useCallback(
+    async (slug: string) => {
+      if (!botSkillsRelPath || assigningSkill) return;
+      setAssigningSkill(slug);
+      setAssignFeedback(null);
+      const isAssigned = currentBotSkillSlugs.includes(slug);
+      try {
+        if (isAssigned) {
+          const fullPath = `${bot.dirPath}/skills/${slug}`;
+          await invoke("delete_file", { path: fullPath });
+          setAssignFeedback({ slug, action: "removed" });
+        } else {
+          await distributeMutation.mutateAsync({
+            slug,
+            targetPath: botSkillsRelPath,
+            distType: "bot",
+          });
+          setAssignFeedback({ slug, action: "added" });
+        }
+      } catch (err) {
+        console.error("Failed to toggle skill:", err);
+      } finally {
+        setAssigningSkill(null);
+      }
+      queryClient.invalidateQueries({ queryKey: ["directory", `${bot.dirPath}/skills`] });
+      // Clear feedback after 2s
+      setTimeout(() => setAssignFeedback(null), 2000);
+    },
+    [botSkillsRelPath, currentBotSkillSlugs, bot.dirPath, distributeMutation, queryClient, assigningSkill]
+  );
 
   // Sort and filter skills
   const filteredSkills = useMemo(() => {
@@ -179,7 +252,7 @@ export function BotOverview({
                   <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                     {formatBotName(bot.name)}
                   </h1>
-                  <span className={cn("px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full", colors.badge, colors.text)}>
+                  <span className={cn("px-2 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-full", colors.badge, colors.text)}>
                     {profile.department || GROUP_LABELS[bot.group] || bot.group}
                   </span>
                 </div>
@@ -208,9 +281,65 @@ export function BotOverview({
               <button onClick={() => setActiveTab("sessions")} className="focus:outline-none">
                 <StatPill icon={Clock} label="Sessions" count={recentSessions.length} color="text-blue-500" clickable={true} />
               </button>
+              <button
+                onClick={() => setShowAssignSkills(!showAssignSkills)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ml-auto",
+                  showAssignSkills
+                    ? "bg-violet-50 dark:bg-violet-900/20 border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400"
+                    : "bg-zinc-50 dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-800 text-zinc-500 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-600"
+                )}
+              >
+                <Sparkles size={12} />
+                {showAssignSkills ? "Hide Registry" : "Assign Skills"}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Skill Assignment Panel */}
+        {showAssignSkills && availableBotSkills.length > 0 && (
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 space-y-3 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-violet-500" />
+                <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                  Assign Skills from Registry
+                </label>
+              </div>
+              <div className="flex items-center gap-3">
+                {assigningSkill && (
+                  <span className="flex items-center gap-1.5 text-xs text-violet-500">
+                    <Loader2 size={11} className="animate-spin" />
+                    Updating...
+                  </span>
+                )}
+                {assignFeedback && !assigningSkill && (
+                  <span className={cn(
+                    "text-xs font-medium",
+                    assignFeedback.action === "added" ? "text-emerald-500" : "text-zinc-400"
+                  )}>
+                    {assignFeedback.action === "added" ? "Added" : "Removed"}{" "}
+                    {registryEntries[assignFeedback.slug]?.name || assignFeedback.slug}
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowAssignSkills(false)}
+                  className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <SkillAssignmentGrid
+              skills={availableBotSkills}
+              skillEntries={registryEntries}
+              categories={registryCategories}
+              selectedSkills={currentBotSkillSlugs}
+              onToggle={handleAssignToggle}
+            />
+          </div>
+        )}
 
         {/* Two-column body */}
         <div className="flex gap-6">
@@ -229,7 +358,7 @@ export function BotOverview({
               >
                 <Sparkles size={12} />
                 Skills
-                <span className="text-[10px] tabular-nums opacity-60">{skillCount}</span>
+                <span className="text-xs tabular-nums opacity-60">{skillCount}</span>
               </button>
               <button
                 onClick={() => setActiveTab("sessions")}
@@ -243,7 +372,7 @@ export function BotOverview({
                 <Clock size={12} />
                 Sessions
                 {recentSessions.length > 0 && (
-                  <span className="text-[10px] tabular-nums opacity-60">{recentSessions.length}</span>
+                  <span className="text-xs tabular-nums opacity-60">{recentSessions.length}</span>
                 )}
               </button>
             </div>
@@ -268,7 +397,7 @@ export function BotOverview({
                           placeholder="Search..."
                           value={skillSearch}
                           onChange={(e) => setSkillSearch(e.target.value)}
-                          className="w-[100px] pl-5 pr-5 py-0.5 text-[10px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:border-teal-500 focus:w-[140px] transition-all"
+                          className="w-[100px] pl-5 pr-5 py-0.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:border-teal-500 focus:w-[140px] transition-all"
                         />
                         {skillSearch && (
                           <button onClick={() => setSkillSearch("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
@@ -285,7 +414,7 @@ export function BotOverview({
                             key={f}
                             onClick={() => setSkillFilter(f)}
                             className={cn(
-                              "px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors",
+                              "px-1.5 py-0.5 rounded text-xs font-medium transition-colors",
                               skillFilter === f
                                 ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200"
                                 : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
@@ -299,7 +428,7 @@ export function BotOverview({
                       <button
                         onClick={() => setSkillSort(skillSort === "name" ? "usage" : "name")}
                         className={cn(
-                          "flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ml-1",
+                          "flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ml-1",
                           "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                         )}
                         title={`Sort by ${skillSort === "name" ? "usage" : "name"}`}
@@ -328,7 +457,7 @@ export function BotOverview({
                           )}
                         >
                           {cat.label}
-                          <span className="ml-1 text-[10px] tabular-nums opacity-60">{count}</span>
+                          <span className="ml-1 text-xs tabular-nums opacity-60">{count}</span>
                         </button>
                       );
                     })}
@@ -356,12 +485,12 @@ export function BotOverview({
                               {skill.title}
                             </span>
                             {skill.command && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 font-mono flex-shrink-0">
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 font-mono flex-shrink-0">
                                 {skill.command}
                               </span>
                             )}
                             {totalUses > 0 && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 tabular-nums flex-shrink-0">
+                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 tabular-nums flex-shrink-0">
                                 {totalUses}x
                               </span>
                             )}
@@ -387,13 +516,13 @@ export function BotOverview({
                           {(skill.input || skill.output) && (
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1">
                               {skill.input && (
-                                <span className="inline-flex items-center gap-1 text-[9px] text-zinc-500 dark:text-zinc-400">
+                                <span className="inline-flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
                                   <ArrowDownToLine size={8} className="text-blue-400" />
                                   {skill.input}
                                 </span>
                               )}
                               {skill.output && (
-                                <span className="inline-flex items-center gap-1 text-[9px] text-zinc-500 dark:text-zinc-400">
+                                <span className="inline-flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
                                   <ArrowUpFromLine size={8} className="text-green-400" />
                                   {skill.output}
                                 </span>
@@ -403,13 +532,13 @@ export function BotOverview({
                           {(skill.sources || skill.writes) && (
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1">
                               {skill.sources && (
-                                <span className="inline-flex items-center gap-1 text-[9px] text-zinc-400 dark:text-zinc-500">
+                                <span className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
                                   <FolderInput size={8} className="text-amber-400/70" />
                                   {skill.sources}
                                 </span>
                               )}
                               {skill.writes && (
-                                <span className="inline-flex items-center gap-1 text-[9px] text-zinc-400 dark:text-zinc-500">
+                                <span className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
                                   <FolderOutput size={8} className="text-purple-400/70" />
                                   {skill.writes}
                                 </span>
@@ -418,14 +547,14 @@ export function BotOverview({
                           )}
                           <div className="flex flex-wrap items-center gap-1">
                             {usage && (usage.invocations > 0 || usage.mentions > 0) && (
-                              <span className="text-[9px] text-zinc-400 dark:text-zinc-500">
+                              <span className="text-xs text-zinc-400 dark:text-zinc-500">
                                 {usage.invocations > 0 ? `${usage.invocations} invoked` : ""}
                                 {usage.invocations > 0 && usage.mentions > 0 ? " · " : ""}
                                 {usage.mentions > 0 ? `${usage.mentions} mentioned` : ""}
                               </span>
                             )}
                             {(skill.updated || skill.lastRevised) && (
-                              <span className="text-[9px] text-zinc-400 dark:text-zinc-500 ml-auto">
+                              <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-auto">
                                 updated {relativeDate(skill.updated || skill.lastRevised!)}
                               </span>
                             )}
@@ -457,7 +586,7 @@ export function BotOverview({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
                             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{relativeDate(s.date)}</span>
-                            <span className="text-[10px] text-zinc-400 dark:text-zinc-600">{s.date}</span>
+                            <span className="text-xs text-zinc-400 dark:text-zinc-600">{s.date}</span>
                           </div>
                           {s.title && (
                             <p className="text-sm text-zinc-700 dark:text-zinc-300 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" title={s.title}>{s.title}</p>
@@ -482,7 +611,7 @@ export function BotOverview({
               <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                   <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Instructions</span>
-                  <span className="text-[10px] text-zinc-400">CLAUDE.md</span>
+                  <span className="text-xs text-zinc-400">CLAUDE.md</span>
                 </div>
                 <div className="px-4 py-3">
                   <pre className="text-xs text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap font-mono leading-relaxed line-clamp-[12]">
@@ -491,7 +620,7 @@ export function BotOverview({
                   {claudeContent.length > 300 && (
                     <button
                       onClick={() => setShowInstructionsModal(true)}
-                      className="text-[11px] text-teal-600 dark:text-teal-400 hover:underline mt-2"
+                      className="text-xs text-teal-600 dark:text-teal-400 hover:underline mt-2"
                     >
                       Show more
                     </button>
@@ -512,7 +641,7 @@ export function BotOverview({
               <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                   <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Commands</span>
-                  <span className="text-[10px] text-zinc-400 tabular-nums">{commandCount}</span>
+                  <span className="text-xs text-zinc-400 tabular-nums">{commandCount}</span>
                 </div>
                 <button
                   onClick={onCommandsClick}
@@ -535,25 +664,25 @@ export function BotOverview({
               <div className="px-4 py-3 space-y-2.5">
                 {profile.department && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-zinc-400">Department</span>
-                    <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">{profile.department}</span>
+                    <span className="text-xs text-zinc-400">Department</span>
+                    <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{profile.department}</span>
                   </div>
                 )}
                 {profile.role && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-zinc-400">Role</span>
-                    <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">{profile.role}</span>
+                    <span className="text-xs text-zinc-400">Role</span>
+                    <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{profile.role}</span>
                   </div>
                 )}
                 {profile.focus && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-zinc-400">Focus</span>
-                    <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">{profile.focus}</span>
+                    <span className="text-xs text-zinc-400">Focus</span>
+                    <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{profile.focus}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-zinc-400">Directory</span>
-                  <span className="text-[10px] font-mono text-zinc-400 truncate max-w-[180px]" title={bot.name}>{bot.name}</span>
+                  <span className="text-xs text-zinc-400">Directory</span>
+                  <span className="text-xs font-mono text-zinc-400 truncate max-w-[180px]" title={bot.name}>{bot.name}</span>
                 </div>
               </div>
             </div>

@@ -9,6 +9,7 @@ use super::classify::{calculate_priority, classify_email, is_action_required};
 use super::db::EmailDb;
 use super::graph::GraphClient;
 use super::types::*;
+use crate::commands::error::CmdResult;
 
 // ============================================================================
 // Body storage
@@ -34,15 +35,13 @@ pub fn read_body_file(message_id: &str) -> Option<String> {
     fs::read_to_string(&path).ok()
 }
 
-fn write_body_file(message_id: &str, html: &str) -> Result<String, String> {
+fn write_body_file(message_id: &str, html: &str) -> CmdResult<String> {
     let dir = get_bodies_dir();
     if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| format!("Failed to create bodies dir: {}", e))?;
+        fs::create_dir_all(&dir)?;
     }
     let path = body_file_path(message_id);
-    fs::write(&path, html)
-        .map_err(|e| format!("Failed to write body: {}", e))?;
+    fs::write(&path, html)?;
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -54,7 +53,7 @@ fn write_body_file(message_id: &str, html: &str) -> Result<String, String> {
 pub async fn run_initial_sync(
     db: &EmailDb,
     app_handle: &tauri::AppHandle,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     use tauri::Emitter;
 
     eprintln!("[outlook:sync] Starting initial sync...");
@@ -124,7 +123,7 @@ pub async fn run_initial_sync(
 pub async fn run_incremental_sync(
     db: &EmailDb,
     app_handle: &tauri::AppHandle,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     use tauri::Emitter;
 
     let last_sync = db.get_sync_state("last_sync")?;
@@ -182,7 +181,7 @@ pub async fn run_incremental_sync(
 pub async fn ensure_body_cached(
     db: &EmailDb,
     message_id: &str,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     // Check if already on disk
     if let Some(html) = read_body_file(message_id) {
         return Ok(html);
@@ -207,7 +206,7 @@ pub async fn ensure_body_cached(
 fn graph_message_to_entry(
     msg: &GraphMessage,
     db: &EmailDb,
-) -> Result<EmailEntry, String> {
+) -> CmdResult<EmailEntry> {
     let from_name = msg
         .from
         .as_ref()

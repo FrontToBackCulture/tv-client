@@ -3,6 +3,8 @@
 
 import { useState } from "react";
 import { X, CheckCircle, XCircle } from "lucide-react";
+import { IconButton } from "../../components/ui";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { useDeals } from "../../hooks/crm";
 import { DealCard } from "./DealCard";
 
@@ -36,12 +38,7 @@ export function ClosedDealsPanel({ isOpen, onClose }: ClosedDealsPanelProps) {
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">Closed Deals</h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <X size={18} className="text-zinc-500" />
-          </button>
+          <IconButton icon={X} size={18} label="Close" onClick={onClose} />
         </div>
 
         {/* Tabs */}
@@ -86,9 +83,7 @@ export function ClosedDealsPanel({ isOpen, onClose }: ClosedDealsPanelProps) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-3">
           {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-500" />
-            </div>
+            <SectionLoading className="h-32" />
           ) : (
             <div className="space-y-2">
               {(activeTab === "won" ? wonDeals : lostDeals).map((deal) => (

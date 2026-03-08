@@ -181,7 +181,7 @@ const TagsCellRenderer = (params: ICellRendererParams) => {
           localTags.map((tag) => (
             <span
               key={tag}
-              className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              className="px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
             >
               {tag}
             </span>
@@ -198,7 +198,7 @@ const TagsCellRenderer = (params: ICellRendererParams) => {
         {localTags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
           >
             {tag}
             <button

@@ -126,7 +126,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
 
             match gamma::gamma_generate(api_key, input_text, Some(options)).await {
                 Ok(result) => ToolResult::json(&result),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "gamma-list-themes" => {
@@ -141,7 +141,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
 
             match gamma::gamma_list_themes(api_key, query, limit, None).await {
                 Ok(result) => ToolResult::json(&result),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
@@ -186,7 +186,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                         "message": "Image generated successfully. Use nanobanana-generate-to-file to save to disk."
                     }))
                 }
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "nanobanana-generate-from-file" => {
@@ -209,7 +209,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                     "output_path": output_path,
                     "message": "Image generated and saved successfully"
                 })),
-                Err(e) => ToolResult::error(e),
+                Err(e) => ToolResult::error(e.to_string()),
             }
         }
         "nanobanana-list-models" => {

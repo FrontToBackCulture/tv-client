@@ -14,6 +14,7 @@ export const workKeys = {
   users: () => [...workKeys.all, "users"] as const,
   initiatives: () => [...workKeys.all, "initiatives"] as const,
   initiative: (id: string) => [...workKeys.initiatives(), id] as const,
+  initiativeProjects: () => [...workKeys.all, "initiative_projects"] as const,
   milestones: (projectId: string) =>
     [...workKeys.all, "milestones", projectId] as const,
   projectUpdates: (projectId: string) =>

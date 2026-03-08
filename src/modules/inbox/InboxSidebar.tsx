@@ -14,6 +14,7 @@ import {
   VolumeX,
   RefreshCw,
 } from "lucide-react";
+import { IconButton } from "../../components/ui";
 import type { EmailCategory, EmailStatus } from "../../hooks/useOutlook";
 
 interface InboxSidebarProps {
@@ -68,15 +69,15 @@ export function InboxSidebar({
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">Inbox</h2>
           {onRefresh && (
-            <button
+            <IconButton
+              icon={RefreshCw}
+              size={14}
+              label="Refresh emails"
               onClick={onRefresh}
               disabled={isRefreshing}
               data-help-id="inbox-refresh"
-              className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500"
-              title="Refresh emails"
-            >
-              <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-            </button>
+              className={isRefreshing ? "[&>svg]:animate-spin" : ""}
+            />
           )}
         </div>
         {stats.unread > 0 && (
@@ -120,7 +121,7 @@ export function InboxSidebar({
               onStatusChange(null);
             }}
             className={cn(
-              "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors",
+              "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
               selectedFolder === folder.id && !selectedCategory && !selectedStatus
                 ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
                 : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -149,7 +150,7 @@ export function InboxSidebar({
               onStatusChange(null);
             }}
             className={cn(
-              "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors",
+              "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
               selectedCategory === cat.id
                 ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
                 : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -174,7 +175,7 @@ export function InboxSidebar({
             onCategoryChange(null);
           }}
           className={cn(
-            "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors",
+            "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
             selectedStatus === "archived"
               ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
               : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"

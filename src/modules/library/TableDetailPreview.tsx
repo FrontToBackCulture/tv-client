@@ -10,7 +10,6 @@ import {
   FileText,
   Table,
   Database,
-  Loader2,
   AlertTriangle,
   Activity,
   Hash,
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import { MarkdownViewer } from "./MarkdownViewer";
 import { cn } from "../../lib/cn";
+import { Button, IconButton } from "../../components/ui";
 import {
   usePrepareTableOverview,
   useSampleTableData,
@@ -38,6 +38,7 @@ import type {
 import { extractDomainFromPath, getValUrl, formatRelativeTimeShort } from "./tableDetailTypes";
 import { DetailsTab } from "./DetailsTab";
 import { SampleTab } from "./SampleTab";
+import { DetailLoading } from "../../components/ui/DetailStates";
 
 export function TableDetailPreview({
   tablePath,
@@ -447,13 +448,7 @@ export function TableDetailPreview({
               {tableName}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 flex-shrink-0"
-            title="Close preview"
-          >
-            <X size={16} />
-          </button>
+          <IconButton icon={X} label="Close preview" onClick={onClose} className="flex-shrink-0" />
         </div>
 
         {/* Quick stats */}
@@ -509,13 +504,9 @@ export function TableDetailPreview({
             </a>
           )}
           {onNavigate && (
-            <button
-              onClick={() => onNavigate(tablePath)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-            >
-              <FolderOpen size={12} />
+            <Button variant="secondary" icon={FolderOpen} onClick={() => onNavigate(tablePath)}>
               View Files
-            </button>
+            </Button>
           )}
         </div>
 
@@ -550,9 +541,7 @@ export function TableDetailPreview({
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 size={24} className="text-zinc-400 animate-spin" />
-          </div>
+          <DetailLoading />
         ) : error ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -654,23 +643,15 @@ function OverviewTab({
               </span>
             )}
           </div>
-          <button
+          <Button
             onClick={onGenerate}
             disabled={isGenerating}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-colors",
-              isGenerating
-                ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-                : "bg-purple-600 hover:bg-purple-500 text-white"
-            )}
+            loading={isGenerating}
+            icon={isGenerating ? undefined : FileOutput}
+            className={isGenerating ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-100" : "bg-purple-600 hover:bg-purple-500"}
           >
-            {isGenerating ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <FileOutput size={12} />
-            )}
             {isGenerating ? "Generating..." : "Generate"}
-          </button>
+          </Button>
         </div>
       )}
 

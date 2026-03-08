@@ -3,6 +3,7 @@
 
 use super::auth;
 use super::config::{get_domain_config, val_sync_list_domains};
+use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -63,7 +64,7 @@ fn is_auth_body(body: &str) -> bool {
 pub async fn val_drive_list_folders(
     domain: String,
     folder_id: Option<String>,
-) -> Result<Vec<DriveFolder>, String> {
+) -> CmdResult<Vec<DriveFolder>> {
     let domain_config = get_domain_config(&domain)?;
     let api_domain = domain_config.api_domain().to_string();
     let base_url = format!("https://{}.thinkval.io", api_domain);
@@ -73,13 +74,13 @@ pub async fn val_drive_list_folders(
 
     match fetch_folders(&base_url, &api_domain, &token, &folder).await {
         Ok(folders) => Ok(folders),
-        Err(e) if e.contains("auth") || e.contains("401") || e.contains("403") => {
+        Err(e) if e.to_string().contains("auth") || e.to_string().contains("401") || e.to_string().contains("403") => {
             let (new_token, _) = auth::reauth(&domain).await?;
             fetch_folders(&base_url, &api_domain, &new_token, &folder)
                 .await
-                .map_err(|e| format!("Drive list folders failed after reauth: {}", e))
+                .map_err(|e| CommandError::Network(format!("Drive list folders failed after reauth: {}", e)))
         }
-        Err(e) => Err(format!("Drive list folders failed: {}", e)),
+        Err(e) => Err(CommandError::Network(format!("Drive list folders failed: {}", e))),
     }
 }
 
@@ -89,7 +90,7 @@ pub async fn val_drive_list_files(
     domain: String,
     folder_id: String,
     page_size: Option<u32>,
-) -> Result<DriveFilesResult, String> {
+) -> CmdResult<DriveFilesResult> {
     let domain_config = get_domain_config(&domain)?;
     let api_domain = domain_config.api_domain().to_string();
     let base_url = format!("https://{}.thinkval.io", api_domain);
@@ -99,13 +100,13 @@ pub async fn val_drive_list_files(
 
     match fetch_files(&base_url, &api_domain, &token, &folder_id, size).await {
         Ok(result) => Ok(result),
-        Err(e) if e.contains("auth") || e.contains("401") || e.contains("403") => {
+        Err(e) if e.to_string().contains("auth") || e.to_string().contains("401") || e.to_string().contains("403") => {
             let (new_token, _) = auth::reauth(&domain).await?;
             fetch_files(&base_url, &api_domain, &new_token, &folder_id, size)
                 .await
-                .map_err(|e| format!("Drive list files failed after reauth: {}", e))
+                .map_err(|e| CommandError::Network(format!("Drive list files failed after reauth: {}", e)))
         }
-        Err(e) => Err(format!("Drive list files failed: {}", e)),
+        Err(e) => Err(CommandError::Network(format!("Drive list files failed: {}", e))),
     }
 }
 
@@ -118,11 +119,8 @@ async fn fetch_folders(
     api_domain: &str,
     token: &str,
     folder_id: &str,
-) -> Result<Vec<DriveFolder>, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+) -> CmdResult<Vec<DriveFolder>> {
+    let client = crate::HTTP_CLIENT.clone();
 
     let url = format!("{}/api/v1/val_drive/folders", base_url);
 
@@ -131,25 +129,21 @@ async fn fetch_folders(
         .header("sub_domain", api_domain)
         .query(&[("folderId", folder_id), ("token", token)])
         .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
+        .await?;
 
     let status = response.status().as_u16();
     if is_auth_status(status) {
-        return Err(format!("auth error (HTTP {})", status));
+        return Err(CommandError::Network(format!("auth error (HTTP {})", status)));
     }
     if !response.status().is_success() {
         let body = response.text().await.unwrap_or_default();
         if is_auth_body(&body) {
-            return Err(format!("auth error: {}", body));
+            return Err(CommandError::Network(format!("auth error: {}", body)));
         }
-        return Err(format!("HTTP {}: {}", status, body));
+        return Err(CommandError::Http { status, body });
     }
 
-    let body: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse folders response: {}", e))?;
+    let body: serde_json::Value = response.json().await?;
 
     // API returns { data: [...] } or just [...]
     let items = if let Some(arr) = body.get("data").and_then(|d| d.as_array()) {
@@ -203,11 +197,8 @@ async fn fetch_files(
     token: &str,
     folder_id: &str,
     page_size: u32,
-) -> Result<DriveFilesResult, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+) -> CmdResult<DriveFilesResult> {
+    let client = crate::HTTP_CLIENT.clone();
 
     // URL-encode the folder_id for path usage
     let encoded_folder = urlencoding::encode(folder_id);
@@ -221,25 +212,21 @@ async fn fetch_files(
             ("pageSize", &page_size.to_string()),
         ])
         .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
+        .await?;
 
     let status = response.status().as_u16();
     if is_auth_status(status) {
-        return Err(format!("auth error (HTTP {})", status));
+        return Err(CommandError::Network(format!("auth error (HTTP {})", status)));
     }
     if !response.status().is_success() {
         let body = response.text().await.unwrap_or_default();
         if is_auth_body(&body) {
-            return Err(format!("auth error: {}", body));
+            return Err(CommandError::Network(format!("auth error: {}", body)));
         }
-        return Err(format!("HTTP {}: {}", status, body));
+        return Err(CommandError::Http { status, body });
     }
 
-    let body: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse files response: {}", e))?;
+    let body: serde_json::Value = response.json().await?;
 
     // Parse files from response
     let items = if let Some(arr) = body.get("data").and_then(|d| d.as_array()) {
@@ -419,7 +406,7 @@ pub fn parse_workflow_drive_folders(global_path: &str) -> Vec<DriveWorkflowFolde
 
 /// Tauri command: get Drive workflow folder configs for a domain
 #[command]
-pub async fn val_drive_workflow_folders(domain: String) -> Result<Vec<DriveWorkflowFolder>, String> {
+pub async fn val_drive_workflow_folders(domain: String) -> CmdResult<Vec<DriveWorkflowFolder>> {
     let domain_config = get_domain_config(&domain)?;
     Ok(parse_workflow_drive_folders(&domain_config.global_path))
 }
@@ -486,20 +473,18 @@ pub fn load_scan_config() -> DriveScanConfig {
     }
 }
 
-fn save_scan_config_to_disk(config: &DriveScanConfig) -> Result<(), String> {
+fn save_scan_config_to_disk(config: &DriveScanConfig) -> CmdResult<()> {
     let path = scan_config_path();
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create config dir: {}", e))?;
+        std::fs::create_dir_all(parent)?;
     }
-    let json = serde_json::to_string_pretty(config)
-        .map_err(|e| format!("Failed to serialize config: {}", e))?;
-    std::fs::write(&path, json).map_err(|e| format!("Failed to write config: {}", e))?;
+    let json = serde_json::to_string_pretty(config)?;
+    std::fs::write(&path, json)?;
     Ok(())
 }
 
 /// Seed scan config from workflow configs, merging with existing user edits
-pub fn seed_scan_config() -> Result<DriveScanConfig, String> {
+pub fn seed_scan_config() -> CmdResult<DriveScanConfig> {
     let mut config = load_scan_config();
     let all_wf = get_all_domain_workflow_folders();
 
@@ -548,17 +533,17 @@ pub fn seed_scan_config() -> Result<DriveScanConfig, String> {
 }
 
 #[command]
-pub async fn val_drive_scan_config_load() -> Result<DriveScanConfig, String> {
+pub async fn val_drive_scan_config_load() -> CmdResult<DriveScanConfig> {
     Ok(load_scan_config())
 }
 
 #[command]
-pub async fn val_drive_scan_config_save(config: DriveScanConfig) -> Result<(), String> {
+pub async fn val_drive_scan_config_save(config: DriveScanConfig) -> CmdResult<()> {
     save_scan_config_to_disk(&config)
 }
 
 #[command]
-pub async fn val_drive_scan_config_seed() -> Result<DriveScanConfig, String> {
+pub async fn val_drive_scan_config_seed() -> CmdResult<DriveScanConfig> {
     seed_scan_config()
 }
 
@@ -598,12 +583,11 @@ fn scan_results_path() -> PathBuf {
 }
 
 #[command]
-pub async fn val_drive_scan_results_load() -> Result<Option<PersistedScanResults>, String> {
+pub async fn val_drive_scan_results_load() -> CmdResult<Option<PersistedScanResults>> {
     let path = scan_results_path();
     match std::fs::read_to_string(&path) {
         Ok(content) => {
-            let results: PersistedScanResults = serde_json::from_str(&content)
-                .map_err(|e| format!("Failed to parse scan results: {}", e))?;
+            let results: PersistedScanResults = serde_json::from_str(&content)?;
             Ok(Some(results))
         }
         Err(_) => Ok(None),
@@ -611,14 +595,12 @@ pub async fn val_drive_scan_results_load() -> Result<Option<PersistedScanResults
 }
 
 #[command]
-pub async fn val_drive_scan_results_save(results: PersistedScanResults) -> Result<(), String> {
+pub async fn val_drive_scan_results_save(results: PersistedScanResults) -> CmdResult<()> {
     let path = scan_results_path();
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create dir: {}", e))?;
+        std::fs::create_dir_all(parent)?;
     }
-    let json = serde_json::to_string_pretty(&results)
-        .map_err(|e| format!("Failed to serialize scan results: {}", e))?;
-    std::fs::write(&path, json).map_err(|e| format!("Failed to write scan results: {}", e))?;
+    let json = serde_json::to_string_pretty(&results)?;
+    std::fs::write(&path, json)?;
     Ok(())
 }

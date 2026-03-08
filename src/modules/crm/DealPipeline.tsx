@@ -5,7 +5,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useDealsWithTasks, useUpdateDeal } from "../../hooks/crm";
 import { Deal, DealWithTaskInfo, DEAL_STAGES, DEAL_SOLUTIONS } from "../../lib/crm/types";
 import { DealCard } from "./DealCard";
-import { Loader2, ChevronRight, ArrowUpDown, GripVertical, RefreshCw } from "lucide-react";
+import { ChevronRight, ArrowUpDown, GripVertical, RefreshCw } from "lucide-react";
+import { DetailLoading } from "../../components/ui/DetailStates";
 
 // Storage key for swimlane order
 const SWIMLANE_ORDER_KEY = "tv-desktop-crm-swimlane-order";
@@ -292,23 +293,17 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
     return sorted;
   };
 
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <Loader2 size={24} className="text-zinc-400 dark:text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <DetailLoading />;
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-950">
       {/* Controls bar */}
       <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <span className="text-[11px] text-zinc-400">Sort</span>
+        <span className="text-xs text-zinc-400">Sort</span>
         <select
           value={sortField}
           onChange={(e) => setSortField(e.target.value as SortField)}
-          className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+          className="text-xs px-1.5 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
         >
           {SORT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
@@ -343,7 +338,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                 <div className="flex items-center gap-2">
                   <StageIndicator color={stage.color} />
                   <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{stage.label}</span>
-                  <span className="text-[10px] text-zinc-400">{weightPct}%</span>
+                  <span className="text-xs text-zinc-400">{weightPct}%</span>
                   <span className="text-xs text-zinc-500">{stageDeals.length}</span>
                 </div>
                 {stageValue > 0 && (
@@ -403,7 +398,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                       {solution.label}
                     </span>
                   </button>
-                  <span className="text-[11px] text-zinc-400 tabular-nums">
+                  <span className="text-xs text-zinc-400 tabular-nums">
                     {stats?.count || 0} · ${((stats?.value || 0) / 1000).toFixed(0)}K
                   </span>
 
@@ -414,7 +409,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                         const cellCount = solutionDeals.filter((d) => d.stage === stage.value).length;
                         if (cellCount === 0) return null;
                         return (
-                          <span key={stage.value} className="flex items-center gap-1 text-[10px] text-zinc-400">
+                          <span key={stage.value} className="flex items-center gap-1 text-xs text-zinc-400">
                             <StageIndicator color={stage.color} /> {cellCount}
                           </span>
                         );

@@ -250,7 +250,7 @@ export function DetailsTab({
             </h4>
             {analysis.classification?.confidence && (
               <span className={cn(
-                "px-1.5 py-0.5 text-[10px] rounded",
+                "px-1.5 py-0.5 text-xs rounded",
                 analysis.classification.confidence === "high"
                   ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
                   : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400"
@@ -276,8 +276,8 @@ export function DetailsTab({
             <div className="space-y-1">
               {analysis.useCases.operational && analysis.useCases.operational.length > 0 && (
                 <div>
-                  <span className="text-[10px] text-amber-500 dark:text-amber-400 uppercase">Operational:</span>
-                  <ul className="text-[10px] text-amber-700 dark:text-amber-300 ml-3 list-disc">
+                  <span className="text-xs text-amber-500 dark:text-amber-400 uppercase">Operational:</span>
+                  <ul className="text-xs text-amber-700 dark:text-amber-300 ml-3 list-disc">
                     {analysis.useCases.operational.slice(0, 2).map((uc, i) => (
                       <li key={i}>{uc}</li>
                     ))}
@@ -293,13 +293,13 @@ export function DetailsTab({
             const hasMore = entries.length > 7;
             return (
               <div className="mt-3 pt-3 border-t border-amber-200 dark:border-amber-800/50">
-                <span className="text-[10px] text-amber-500 dark:text-amber-400 uppercase flex items-center gap-1">
+                <span className="text-xs text-amber-500 dark:text-amber-400 uppercase flex items-center gap-1">
                   <Sparkles size={10} />
                   Field Descriptions ({entries.length})
                 </span>
                 <div className="mt-1.5 space-y-1">
                   {entries.slice(0, showCount).map(([field, desc]) => (
-                    <div key={field} className="text-[10px]">
+                    <div key={field} className="text-xs">
                       <span className="font-medium text-amber-700 dark:text-amber-300">{field}:</span>{" "}
                       <span className="text-amber-600 dark:text-amber-400">{desc}</span>
                     </div>
@@ -308,7 +308,7 @@ export function DetailsTab({
                 {hasMore && (
                   <button
                     onClick={() => setExpandedFieldDescriptions(!expandedFieldDescriptions)}
-                    className="mt-1.5 text-[10px] text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-0.5"
+                    className="mt-1.5 text-xs text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-0.5"
                   >
                     {expandedFieldDescriptions ? (
                       <>
@@ -327,7 +327,7 @@ export function DetailsTab({
             );
           })()}
           {analysis.meta?.analyzedAt && (
-            <p className="text-[10px] text-amber-400 dark:text-amber-500 mt-2">
+            <p className="text-xs text-amber-400 dark:text-amber-500 mt-2">
               Analyzed: {new Date(analysis.meta.analyzedAt).toLocaleDateString()}
             </p>
           )}
@@ -340,14 +340,14 @@ export function DetailsTab({
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
               Classification
-              <span className="text-[9px] text-zinc-400 ml-2">(editable)</span>
+              <span className="text-xs text-zinc-400 ml-2">(editable)</span>
             </h4>
             <div className="flex items-center gap-1">
               {/* Reload from file */}
               {onReloadFromFile && (
                 <button
                   onClick={onReloadFromFile}
-                  className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                   title="Reload from file & push to grid"
                 >
                   <RefreshCw size={10} />
@@ -358,7 +358,7 @@ export function DetailsTab({
               {onSyncToGrid && (
                 <button
                   onClick={onSyncToGrid}
-                  className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                   title="Save & sync to grid"
                 >
                   <Upload size={10} />
@@ -370,7 +370,7 @@ export function DetailsTab({
           <div className="space-y-3">
             {/* Suggested Name - editable */}
             <div>
-              <label className="text-[10px] text-zinc-500 block mb-1">Suggested Name</label>
+              <label className="text-xs text-zinc-500 block mb-1">Suggested Name</label>
               <input
                 type="text"
                 value={rowData?.suggestedName ?? analysis?.suggestedName ?? ""}
@@ -382,7 +382,7 @@ export function DetailsTab({
 
             {/* Short Summary - for frontmatter */}
             <div>
-              <label className="text-[10px] text-zinc-500 block mb-1">Short Summary <span className="text-zinc-400">(one-liner)</span></label>
+              <label className="text-xs text-zinc-500 block mb-1">Short Summary <span className="text-zinc-400">(one-liner)</span></label>
               <input
                 type="text"
                 value={rowData?.summaryShort ?? analysis?.summary?.short ?? ""}
@@ -394,7 +394,7 @@ export function DetailsTab({
 
             {/* Full Summary - for overview.md body */}
             <div>
-              <label className="text-[10px] text-zinc-500 block mb-1">Full Summary <span className="text-zinc-400">(shown in overview)</span></label>
+              <label className="text-xs text-zinc-500 block mb-1">Full Summary <span className="text-zinc-400">(shown in overview)</span></label>
               <textarea
                 value={rowData?.summaryFull ?? analysis?.summary?.full ?? ""}
                 onChange={(e) => onFieldChange("summaryFull", e.target.value || null)}
@@ -406,7 +406,7 @@ export function DetailsTab({
 
             {/* Tags - as pills */}
             <div>
-              <label className="text-[10px] text-zinc-500 block mb-1">Tags</label>
+              <label className="text-xs text-zinc-500 block mb-1">Tags</label>
               <TagsInput
                 value={rowData?.tags ?? analysis?.tags ?? ""}
                 onChange={(newTags) => onFieldChange("tags", newTags || null)}
@@ -416,7 +416,7 @@ export function DetailsTab({
 
             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-200 dark:border-zinc-700">
               <div>
-                <label className="text-[10px] text-zinc-500 block mb-1">Category</label>
+                <label className="text-xs text-zinc-500 block mb-1">Category</label>
                 <ComboBox
                   value={rowData?.dataCategory ?? analysis?.dataCategory ?? ""}
                   onChange={(val) => onFieldChange("dataCategory", val || null)}
@@ -425,7 +425,7 @@ export function DetailsTab({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-zinc-500 block mb-1">Sub Category</label>
+                <label className="text-xs text-zinc-500 block mb-1">Sub Category</label>
                 <ComboBox
                   value={rowData?.dataSubCategory ?? analysis?.dataSubCategory ?? ""}
                   onChange={(val) => onFieldChange("dataSubCategory", val || null)}
@@ -434,7 +434,7 @@ export function DetailsTab({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-zinc-500 block mb-1">Table Type</label>
+                <label className="text-xs text-zinc-500 block mb-1">Table Type</label>
                 <ComboBox
                   value={rowData?.dataType ?? analysis?.classification?.dataType ?? ""}
                   onChange={(val) => onFieldChange("dataType", val || null)}
@@ -443,7 +443,7 @@ export function DetailsTab({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-zinc-500 block mb-1">Data Source</label>
+                <label className="text-xs text-zinc-500 block mb-1">Data Source</label>
                 <ComboBox
                   value={rowData?.dataSource ?? analysis?.dataSource ?? ""}
                   onChange={(val) => onFieldChange("dataSource", val || null)}
@@ -452,7 +452,7 @@ export function DetailsTab({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-zinc-500 block mb-1">Source System</label>
+                <label className="text-xs text-zinc-500 block mb-1">Source System</label>
                 <ComboBox
                   value={rowData?.sourceSystem ?? analysis?.sourceSystem ?? ""}
                   onChange={(val) => onFieldChange("sourceSystem", val || null)}
@@ -461,7 +461,7 @@ export function DetailsTab({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-zinc-500 block mb-1">Status</label>
+                <label className="text-xs text-zinc-500 block mb-1">Status</label>
                 <ComboBox
                   value={rowData?.usageStatus ?? analysis?.usageStatus ?? ""}
                   onChange={(val) => onFieldChange("usageStatus", val || null)}
@@ -470,7 +470,7 @@ export function DetailsTab({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-zinc-500 block mb-1">Action</label>
+                <label className="text-xs text-zinc-500 block mb-1">Action</label>
                 <ComboBox
                   value={rowData?.action ?? analysis?.action ?? ""}
                   onChange={(val) => onFieldChange("action", val || null)}
@@ -529,7 +529,7 @@ export function DetailsTab({
             <div className="flex items-center justify-between py-1 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex flex-col">
                 <span className="text-zinc-500">Last Record Created</span>
-                <span className="text-[10px] text-zinc-400">via created_date</span>
+                <span className="text-xs text-zinc-400">via created_date</span>
               </div>
               {details?.coverage?.lastCreated ? (
                 <span className="text-zinc-800 dark:text-zinc-200 font-medium text-right">
@@ -559,13 +559,13 @@ export function DetailsTab({
                   <button
                     onClick={() => setShowFreshnessDropdown(!showFreshnessDropdown)}
                     disabled={isRefreshing}
-                    className="flex items-center gap-0.5 text-[10px] text-teal-600 dark:text-teal-400 hover:text-teal-500 disabled:opacity-50"
+                    className="flex items-center gap-0.5 text-xs text-teal-600 dark:text-teal-400 hover:text-teal-500 disabled:opacity-50"
                   >
                     via {details?.health?.freshnessColumnName || details?.health?.freshnessColumn || "auto"}
                     <ChevronDown size={10} />
                   </button>
                 ) : details?.health?.freshnessColumn ? (
-                  <span className="text-[10px] text-zinc-400">
+                  <span className="text-xs text-zinc-400">
                     via {details.health.freshnessColumnName || details.health.freshnessColumn}
                   </span>
                 ) : null}
@@ -588,7 +588,7 @@ export function DetailsTab({
                       >
                         <span className="truncate" title={col.name}>{col.name}</span>
                         {col.column === details?.health?.freshnessColumn && (
-                          <span className="text-[10px] text-teal-500">current</span>
+                          <span className="text-xs text-teal-500">current</span>
                         )}
                       </button>
                     ))}
@@ -627,7 +627,7 @@ export function DetailsTab({
             </h4>
             <div className="relative group">
               <Info size={12} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-help" />
-              <div className="absolute left-0 bottom-full mb-2 w-64 p-3 bg-zinc-800 dark:bg-zinc-700 text-white text-[11px] rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              <div className="absolute left-0 bottom-full mb-2 w-64 p-3 bg-zinc-800 dark:bg-zinc-700 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                 <div className="font-medium mb-1.5">Health Score (starts at 100)</div>
                 <div className="space-y-1 text-zinc-300">
                   <div><span className="text-red-400">-50</span> Table is empty</div>
@@ -700,7 +700,7 @@ export function DetailsTab({
                   Workflows ({details.relationships.workflows.length})
                 </h4>
               </div>
-              <div className="text-[10px] text-zinc-400 mt-0.5 ml-[18px]">
+              <div className="text-xs text-zinc-400 mt-0.5 ml-[18px]">
                 <span className="text-amber-500">{scheduledCount} scheduled</span>
                 {nonScheduledCount > 0 && (
                   <span> · {nonScheduledCount} on-demand</span>
@@ -735,7 +735,7 @@ export function DetailsTab({
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {wf.isChildWorkflow && (
                         <span
-                          className="text-[9px] px-1 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 rounded"
+                          className="text-xs px-1 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 rounded"
                           title={wf.parentWorkflowName ? `Child of: ${wf.parentWorkflowName}` : "Child workflow"}
                         >
                           Child
@@ -762,7 +762,7 @@ export function DetailsTab({
                     </div>
                   </div>
                   {wf.lastRunAt && (
-                    <div className="text-[10px] text-zinc-400 mt-0.5 pl-4">
+                    <div className="text-xs text-zinc-400 mt-0.5 pl-4">
                       Last run: {formatDate(wf.lastRunAt)}
                     </div>
                   )}
@@ -830,7 +830,7 @@ export function DetailsTab({
                   Queries ({details.relationships.queries.length})
                 </h4>
               </div>
-              <div className="text-[10px] text-zinc-400 mt-0.5 ml-[18px]">
+              <div className="text-xs text-zinc-400 mt-0.5 ml-[18px]">
                 <span className="text-teal-500">{queriesInDashboards} in dashboards</span>
                 {details.relationships.queries.length - queriesInDashboards > 0 && (
                   <span> · {details.relationships.queries.length - queriesInDashboards} standalone</span>
@@ -855,13 +855,13 @@ export function DetailsTab({
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-zinc-800 dark:text-zinc-200 truncate flex-1" title={query.name}>{query.name}</span>
                       {dashboardNames && dashboardNames.length > 0 && (
-                        <span className="text-[10px] text-teal-500 flex-shrink-0 flex items-center gap-0.5">
+                        <span className="text-xs text-teal-500 flex-shrink-0 flex items-center gap-0.5">
                           <LayoutDashboard size={10} />
                           {dashboardNames.length}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-400">
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
                       {query.updatedDate && (
                         <span>Modified: {formatDate(query.updatedDate)}</span>
                       )}
@@ -926,13 +926,13 @@ export function DetailsTab({
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-zinc-800 dark:text-zinc-200 truncate flex-1" title={dashboard.name}>{dashboard.name}</span>
                     {dashboard.queryIds && dashboard.queryIds.length > 0 && (
-                      <span className="text-[10px] text-blue-500 flex-shrink-0 flex items-center gap-0.5">
+                      <span className="text-xs text-blue-500 flex-shrink-0 flex items-center gap-0.5">
                         <Search size={10} />
                         {dashboard.queryIds.length}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-400">
+                  <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
                     {dashboard.updatedDate && (
                       <span>Modified: {formatDate(dashboard.updatedDate)}</span>
                     )}
@@ -1015,15 +1015,15 @@ export function DetailsTab({
                           )}
                           <span className="text-zinc-800 dark:text-zinc-200 truncate" title={rt.displayName}>{rt.displayName}</span>
                         </div>
-                        <span className="text-zinc-400 text-[10px] flex-shrink-0 ml-2">{rt.fieldCount} fields</span>
+                        <span className="text-zinc-400 text-xs flex-shrink-0 ml-2">{rt.fieldCount} fields</span>
                       </button>
                       {isFieldsExpanded && rt.fields && rt.fields.length > 0 && (
                         <div className="ml-5 mb-2 pl-2 border-l-2 border-orange-200 dark:border-orange-900/50 space-y-1.5">
                           {rt.fields.map((field, fi) => (
-                            <div key={fi} className="text-[10px] py-1 border-b border-zinc-100 dark:border-zinc-800/50 last:border-0">
+                            <div key={fi} className="text-xs py-1 border-b border-zinc-100 dark:border-zinc-800/50 last:border-0">
                               <div className="flex items-center justify-between">
                                 <span className="text-zinc-700 dark:text-zinc-300 font-medium">{field.fieldName}</span>
-                                <span className="text-orange-500 font-mono text-[9px]">{field.ruleType}</span>
+                                <span className="text-orange-500 font-mono text-xs">{field.ruleType}</span>
                               </div>
                               {field.ruleType === "vlookup" && field.returnColumn && (
                                 <div className="text-zinc-400 mt-0.5 font-mono">
@@ -1136,13 +1136,13 @@ export function DetailsTab({
                                 {col.name || col.column}
                               </span>
                               {col.category === 'system' && (
-                                <span className="text-[9px] px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-medium">
+                                <span className="text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-medium">
                                   sys
                                 </span>
                               )}
                             </div>
                             {isCalcExpanded && (
-                              <div className="mt-2 ml-4 p-2 bg-white dark:bg-zinc-800 rounded border border-orange-200 dark:border-orange-900/50 text-[10px]">
+                              <div className="mt-2 ml-4 p-2 bg-white dark:bg-zinc-800 rounded border border-orange-200 dark:border-orange-900/50 text-xs">
                                 {col.lookupTable && (
                                   <div className="text-zinc-500 mb-1">
                                     <span className="font-medium">{col.ruleType === 'rollup' || col.ruleType === 'rollupv2' ? 'Rollup From:' : 'Lookup Table:'}</span>{' '}
@@ -1174,11 +1174,11 @@ export function DetailsTab({
                           {!isCalcExpanded && (
                             <td className="px-3 py-1.5 text-right">
                               {col.category === 'calculated' ? (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-medium">
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-medium">
                                   {col.ruleType || 'rule'}
                                 </span>
                               ) : (
-                                <span className="text-zinc-500 font-mono text-[10px]">{col.type}</span>
+                                <span className="text-zinc-500 font-mono text-xs">{col.type}</span>
                               )}
                             </td>
                           )}

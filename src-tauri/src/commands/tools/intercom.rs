@@ -1,6 +1,7 @@
 // Intercom API Commands
 // Publish, update, and delete articles in Intercom Help Center
 
+use crate::commands::error::{CmdResult, CommandError};
 use pulldown_cmark::{html, Parser};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -116,8 +117,8 @@ fn extract_yaml_value(yaml: &str, key: &str) -> Option<String> {
 #[command]
 pub async fn intercom_list_collections(
     api_key: String,
-) -> Result<Vec<IntercomCollection>, String> {
-    let client = reqwest::Client::new();
+) -> CmdResult<Vec<IntercomCollection>> {
+    let client = crate::HTTP_CLIENT.clone();
 
     let response = client
         .get(format!("{}/help_center/collections", INTERCOM_BASE_URL))
@@ -125,19 +126,17 @@ pub async fn intercom_list_collections(
         .header("Content-Type", "application/json")
         .header("Intercom-Version", INTERCOM_API_VERSION)
         .send()
-        .await
-        .map_err(|e| format!("Failed to call Intercom API: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("Intercom API error {}: {}", status, text));
+        return Err(CommandError::Http { status: status.as_u16(), body: text });
     }
 
     let data: CollectionsResponse = response
         .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        .await?;
 
     Ok(data
         .data
@@ -159,12 +158,12 @@ pub async fn intercom_publish_article(
     filename: String,
     collection_id: String,
     state: Option<String>,
-) -> Result<IntercomArticle, String> {
+) -> CmdResult<IntercomArticle> {
     let fallback_title = filename.trim_end_matches(".md");
     let (title, description, body_html) = parse_markdown(&markdown, fallback_title);
     let state = state.unwrap_or_else(|| "published".to_string());
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
 
     let mut request_body = json!({
         "title": title,
@@ -185,19 +184,15 @@ pub async fn intercom_publish_article(
         .header("Intercom-Version", INTERCOM_API_VERSION)
         .json(&request_body)
         .send()
-        .await
-        .map_err(|e| format!("Failed to call Intercom API: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("Intercom API error {}: {}", status, text));
+        return Err(CommandError::Http { status: status.as_u16(), body: text });
     }
 
-    response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))
+    Ok(response.json().await?)
 }
 
 /// Update an existing Intercom article
@@ -209,11 +204,11 @@ pub async fn intercom_update_article(
     filename: String,
     collection_id: Option<String>,
     state: Option<String>,
-) -> Result<IntercomArticle, String> {
+) -> CmdResult<IntercomArticle> {
     let fallback_title = filename.trim_end_matches(".md");
     let (title, description, body_html) = parse_markdown(&markdown, fallback_title);
 
-    let client = reqwest::Client::new();
+    let client = crate::HTTP_CLIENT.clone();
 
     let mut request_body = json!({
         "title": title,
@@ -240,19 +235,15 @@ pub async fn intercom_update_article(
         .header("Intercom-Version", INTERCOM_API_VERSION)
         .json(&request_body)
         .send()
-        .await
-        .map_err(|e| format!("Failed to call Intercom API: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("Intercom API error {}: {}", status, text));
+        return Err(CommandError::Http { status: status.as_u16(), body: text });
     }
 
-    response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))
+    Ok(response.json().await?)
 }
 
 /// Delete an Intercom article
@@ -260,8 +251,8 @@ pub async fn intercom_update_article(
 pub async fn intercom_delete_article(
     api_key: String,
     article_id: String,
-) -> Result<(), String> {
-    let client = reqwest::Client::new();
+) -> CmdResult<()> {
+    let client = crate::HTTP_CLIENT.clone();
 
     let response = client
         .delete(format!("{}/articles/{}", INTERCOM_BASE_URL, article_id))
@@ -269,13 +260,12 @@ pub async fn intercom_delete_article(
         .header("Content-Type", "application/json")
         .header("Intercom-Version", INTERCOM_API_VERSION)
         .send()
-        .await
-        .map_err(|e| format!("Failed to call Intercom API: {}", e))?;
+        .await?;
 
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("Intercom API error {}: {}", status, text));
+        return Err(CommandError::Http { status: status.as_u16(), body: text });
     }
 
     Ok(())

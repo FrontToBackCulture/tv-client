@@ -100,7 +100,7 @@ export function DomainDataHealthTab({ domainName, globalPath, entitiesPath }: Do
         </div>
         <div className="flex items-center gap-2">
           {lastChecked && (
-            <span className="text-[10px] text-zinc-400">
+            <span className="text-xs text-zinc-400">
               {formatRelativeShort(lastChecked)}
             </span>
           )}
@@ -191,7 +191,7 @@ export function DomainDataHealthTab({ domainName, globalPath, entitiesPath }: Do
                           <span className={cn("text-zinc-700 dark:text-zinc-300", cell.freshness === "red" && "text-red-600 dark:text-red-400")}>
                             {formatDate(cell.latest)}
                           </span>
-                          <span className={cn("text-[10px] ml-1",
+                          <span className={cn("text-xs ml-1",
                             cell.cadence_status === "ok" ? "text-zinc-400" :
                             cell.cadence_status === "warning" ? "text-amber-500" : "text-red-500"
                           )}>
@@ -202,7 +202,7 @@ export function DomainDataHealthTab({ domainName, globalPath, entitiesPath }: Do
                         {/* Tooltip */}
                         {isHovered && (
                           <div className={cn(
-                            "absolute left-1/2 -translate-x-1/2 px-3 py-2 rounded-lg bg-zinc-800 dark:bg-zinc-700 text-white text-[10px] whitespace-nowrap z-20 shadow-lg pointer-events-none",
+                            "absolute left-1/2 -translate-x-1/2 px-3 py-2 rounded-lg bg-zinc-800 dark:bg-zinc-700 text-white text-xs whitespace-nowrap z-20 shadow-lg pointer-events-none",
                             tooltipBelow ? "top-full mt-2" : "bottom-full mb-2"
                           )}>
                             <div className="space-y-0.5">
@@ -261,7 +261,7 @@ export function DomainDataHealthTab({ domainName, globalPath, entitiesPath }: Do
 
       {/* Legend */}
       {outlets.length > 0 && (
-        <div className="flex items-center gap-4 text-[10px] text-zinc-400">
+        <div className="flex items-center gap-4 text-xs text-zinc-400">
           <div className="flex items-center gap-1">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
             {"≤"}{thresholds.green_days}d
