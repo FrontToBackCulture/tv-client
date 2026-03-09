@@ -2,7 +2,7 @@
 // CSV upload modal with preview and import summary
 
 import { useState, useRef } from "react";
-import { X, Upload, CheckCircle } from "lucide-react";
+import { X, Upload, CheckCircle, Download } from "lucide-react";
 import { useImportContacts } from "../../hooks/email";
 import type { ImportResult } from "../../lib/email/types";
 
@@ -16,6 +16,17 @@ export function ImportModal({ onClose }: ImportModalProps) {
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importContacts = useImportContacts();
+
+  const handleDownloadTemplate = () => {
+    const csv = "email,first_name,last_name,group\njohn@example.com,John,Doe,Newsletter\njane@example.com,Jane,Smith,Newsletter\n";
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "import-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,6 +109,14 @@ export function ImportModal({ onClose }: ImportModalProps) {
                   <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">last_name</code>,{" "}
                   <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">group</code>
                 </p>
+
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="inline-flex items-center gap-1.5 text-[11px] text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium"
+                >
+                  <Download size={12} />
+                  Download template CSV
+                </button>
 
                 <input
                   ref={fileInputRef}

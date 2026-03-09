@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import {
-  LayoutDashboard, Columns3, AlertTriangle, Inbox, Plus, Target,
+  LayoutDashboard, Columns3, AlertTriangle, Inbox, Plus, Target, Cloud,
 } from "lucide-react";
 import { Button } from "../../components/ui";
 import {
@@ -12,6 +12,7 @@ import {
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { TaskForm } from "./TaskForm";
 import { InitiativeForm } from "./InitiativeForm";
+import { ProjectForm } from "./ProjectForm";
 import {
   type WorkView,
   ViewTab,
@@ -22,6 +23,8 @@ import {
   useInitiativeProjects,
 } from "./WorkViews";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
+import { NotionSyncStatus } from "../notion/NotionSyncStatus";
 
 export function WorkModule() {
   const [view, setView] = useState<WorkView>("inbox");
@@ -29,12 +32,14 @@ export function WorkModule() {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showInitiativeForm, setShowInitiativeForm] = useState(false);
   const [editingInitiative, setEditingInitiative] = useState<any>(null);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [editingProject, setEditingProject] = useState<any>(null);
   const [createTaskProjectId, setCreateTaskProjectId] = useState<string | undefined>();
 
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
-    const labels: Record<WorkView, string> = { inbox: "My Tasks", dashboard: "Dashboard", board: "Board", tracker: "Tracker" };
+    const labels: Record<WorkView, string> = { inbox: "My Tasks", dashboard: "Dashboard", board: "Board", tracker: "Tracker", notion: "Notion Sync" };
     setViewContext(view, labels[view]);
   }, [view, setViewContext]);
 
@@ -91,6 +96,18 @@ export function WorkModule() {
     setShowInitiativeForm(true);
   }, []);
 
+  const handleEditProject = useCallback((project: any) => {
+    setEditingProject(project);
+    setShowProjectForm(true);
+  }, []);
+
+  const handleProjectSaved = useCallback(() => {
+    setShowProjectForm(false);
+    setEditingProject(null);
+    refetchProjects();
+    refetchTasks();
+  }, [refetchProjects, refetchTasks]);
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Tab bar with new task button */}
@@ -100,8 +117,10 @@ export function WorkModule() {
           <ViewTab label="Dashboard" icon={LayoutDashboard} active={view === "dashboard"} onClick={() => handleViewChange("dashboard")} data-help-id="work-tab-dashboard" />
           <ViewTab label="Board" icon={Columns3} active={view === "board"} onClick={() => handleViewChange("board")} data-help-id="work-tab-board" />
           <ViewTab label="Tracker" icon={AlertTriangle} active={view === "tracker"} onClick={() => handleViewChange("tracker")} data-help-id="work-tab-tracker" />
+          <ViewTab label="Notion" icon={Cloud} active={view === "notion"} onClick={() => handleViewChange("notion")} data-help-id="work-tab-notion" />
         </div>
         <div className="flex items-center gap-2">
+          <NotionSyncStatus />
           <Button
             onClick={() => setShowInitiativeForm(true)}
             data-help-id="work-new-initiative"
@@ -145,6 +164,7 @@ export function WorkModule() {
               users={users}
               onSelectTask={handleSelectTask}
               onEditInitiative={handleEditInitiative}
+              onEditProject={handleEditProject}
             />
           )}
           {view === "board" && (
@@ -163,6 +183,9 @@ export function WorkModule() {
               initiativeLinks={initiativeLinks}
               onSelectTask={handleSelectTask}
             />
+          )}
+          {view === "notion" && (
+            <NotionSyncConfigs />
           )}
         </div>
 
@@ -202,6 +225,18 @@ export function WorkModule() {
             setEditingInitiative(null);
           }}
           onSaved={handleInitiativeSaved}
+        />
+      )}
+
+      {/* Project form modal */}
+      {showProjectForm && (
+        <ProjectForm
+          project={editingProject || undefined}
+          onClose={() => {
+            setShowProjectForm(false);
+            setEditingProject(null);
+          }}
+          onSaved={handleProjectSaved}
         />
       )}
     </div>

@@ -14,13 +14,18 @@ import type {
 } from "../../lib/workspace/types";
 import { workspaceKeys } from "./keys";
 
+export type WorkspaceWithCounts = Workspace & {
+  session_count: number;
+  artifact_count: number;
+};
+
 export function useWorkspaces(filters?: { status?: string; owner?: string }) {
   return useQuery({
     queryKey: workspaceKeys.list(filters),
-    queryFn: async (): Promise<Workspace[]> => {
+    queryFn: async (): Promise<WorkspaceWithCounts[]> => {
       let query = supabase
         .from("workspaces")
-        .select("*")
+        .select("*, workspace_sessions(count), workspace_artifacts(count)")
         .order("updated_at", { ascending: false });
 
       if (filters?.status) {
@@ -32,7 +37,15 @@ export function useWorkspaces(filters?: { status?: string; owner?: string }) {
 
       const { data, error } = await query;
       if (error) throw new Error(`Failed to fetch workspaces: ${error.message}`);
-      return data ?? [];
+
+      // Flatten the count aggregates
+      return (data ?? []).map((row: any) => ({
+        ...row,
+        session_count: row.workspace_sessions?.[0]?.count ?? 0,
+        artifact_count: row.workspace_artifacts?.[0]?.count ?? 0,
+        workspace_sessions: undefined,
+        workspace_artifacts: undefined,
+      }));
     },
   });
 }

@@ -15,11 +15,12 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  BadgeCheck,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button, IconButton } from "../../components/ui";
 import { SectionLoading, InlineLoading } from "../../components/ui/DetailStates";
-import { useListDirectory, useReadFile, type FileEntry } from "../../hooks/useFiles";
+import { useListDirectory, useReadFile } from "../../hooks/useFiles";
 import { MarkdownViewer } from "../library/MarkdownViewer";
 import { useRepository } from "../../stores/repositoryStore";
 import {
@@ -29,8 +30,10 @@ import {
   useS3AiStatus,
   type S3FileStatus,
 } from "../../hooks/val-sync";
-import { useSkillRegistry } from "../skills/useSkillRegistry";
+import { useSkillRegistry, useSkillCheckAll } from "../skills/useSkillRegistry";
 import { SkillAssignmentGrid } from "../../components/SkillAssignmentGrid";
+import { DriftDiffModal, DriftBadge } from "../../components/DriftDiffModal";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface DomainAiTabProps {
   aiPath: string; // e.g. /path/to/domain/ai
@@ -51,7 +54,31 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   const categories = registry?.categories ?? [];
   const skillEntries = registry?.skills ?? {};
   const { activeRepository } = useRepository();
+  const queryClient = useQueryClient();
   const [selectedDoc, setSelectedDoc] = useState<{ path: string; name: string; type: "skill" | "instructions" } | null>(null);
+  const [driftModal, setDriftModal] = useState<{ slug: string; name: string; targetPath: string } | null>(null);
+
+  // Drift detection for domain skills
+  const { data: driftStatuses = [] } = useSkillCheckAll();
+  const domainSkillsRelPath = activeRepository
+    ? (() => {
+        const repoPath = activeRepository.path;
+        const fullSkillsPath = `${aiPath}/skills`;
+        return fullSkillsPath.startsWith(repoPath) ? fullSkillsPath.slice(repoPath.length + 1) : null;
+      })()
+    : null;
+
+  const driftBySlug = useMemo(() => {
+    const map = new Map<string, { status: string; source_modified: string; target_modified: string }>();
+    if (!domainSkillsRelPath) return map;
+    const prefix = domainSkillsRelPath + "/";
+    for (const d of driftStatuses) {
+      if (d.distribution_path.startsWith(prefix)) {
+        map.set(d.slug, { status: d.status, source_modified: d.source_modified, target_modified: d.target_modified });
+      }
+    }
+    return map;
+  }, [driftStatuses, domainSkillsRelPath]);
 
   const centralSkillsPath = activeRepository
     ? `${activeRepository.path}/_skills`
@@ -385,13 +412,49 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
 
             {skillFiles.length > 0 ? (
               <div className="grid grid-cols-2 gap-2">
-                {skillFiles.map((file) => (
-                  <SkillDocGridCard
-                    key={file.path}
-                    file={file}
-                    onClick={() => setSelectedDoc({ path: `${file.path}/SKILL.md`, name: file.name, type: "skill" })}
-                  />
-                ))}
+                {skillFiles.map((file) => {
+                  const slug = file.name;
+                  const entry = skillEntries[slug];
+                  const drift = driftBySlug.get(slug);
+                  const title = entry?.name || slug;
+                  const summary = entry?.description;
+
+                  return (
+                    <button
+                      key={file.path}
+                      onClick={() => setSelectedDoc({ path: `${file.path}/SKILL.md`, name: file.name, type: "skill" })}
+                      className={cn(
+                        "text-left px-4 py-3 rounded-lg border bg-white dark:bg-zinc-900 hover:shadow-sm transition-all cursor-pointer group",
+                        "border-zinc-200 dark:border-zinc-800 hover:border-violet-300 dark:hover:border-violet-700"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Sparkles size={13} className="text-violet-500 flex-shrink-0" />
+                        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors flex-1" title={title}>
+                          {title}
+                        </span>
+                        {entry?.verified && (
+                          <span title="Meets skill authoring standard">
+                            <BadgeCheck size={13} className="text-blue-500 flex-shrink-0" />
+                          </span>
+                        )}
+                      </div>
+                      {summary && (
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-1.5">{summary}</p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <DriftBadge
+                          status={drift?.status ?? "not_tracked"}
+                          targetModified={drift?.status === "in_sync" ? formatRelative(drift.target_modified) : undefined}
+                          onClick={drift?.status === "drifted" && domainSkillsRelPath ? (e) => {
+                            e.stopPropagation();
+                            setDriftModal({ slug, name: title, targetPath: domainSkillsRelPath + "/" + slug });
+                          } : undefined}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="py-4 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
@@ -429,39 +492,19 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
           onClose={() => setSelectedDoc(null)}
         />
       )}
-    </div>
-  );
-}
 
-/** Grid card for a skill doc */
-function SkillDocGridCard({ file, onClick }: { file: FileEntry; onClick: () => void }) {
-  const displayName = file.name.replace(/\.md$/, "");
-
-  const sizeLabel = file.size < 1024
-    ? `${file.size} B`
-    : `${(file.size / 1024).toFixed(1)} KB`;
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "text-left px-4 py-3 rounded-lg border bg-white dark:bg-zinc-900 hover:shadow-sm transition-all cursor-pointer group",
-        "border-zinc-200 dark:border-zinc-800 hover:border-violet-300 dark:hover:border-violet-700"
+      {/* Drift diff modal */}
+      {driftModal && (
+        <DriftDiffModal
+          slug={driftModal.slug}
+          skillName={driftModal.name}
+          targetPath={driftModal.targetPath}
+          leftLabel="Current (domain copy)"
+          onClose={() => setDriftModal(null)}
+          onSynced={() => queryClient.invalidateQueries({ queryKey: ["skill-drift"] })}
+        />
       )}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <Sparkles size={13} className="text-violet-500 flex-shrink-0" />
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors flex-1">
-          {displayName}
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-zinc-400">{sizeLabel}</span>
-        {file.modified && (
-          <span className="text-xs text-zinc-400">{formatRelative(file.modified)}</span>
-        )}
-      </div>
-    </button>
+    </div>
   );
 }
 

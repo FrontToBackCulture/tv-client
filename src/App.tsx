@@ -16,6 +16,7 @@ import { SchedulerModule } from "./modules/scheduler";
 import { ReposModule } from "./modules/repos";
 import { SkillsModule } from "./modules/skills/SkillsModule";
 import { EmailModule } from "./modules/email/EmailModule";
+import { GalleryModule } from "./modules/gallery";
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { useAppStore, ModuleId } from "./stores/appStore";
@@ -33,6 +34,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   inbox: InboxModule,
   crm: CrmModule,
   product: ProductModule,
+  gallery: GalleryModule,
   bot: BotModule,
   skills: SkillsModule,
   portal: PortalModule,
@@ -66,10 +68,10 @@ export default function App() {
           "work",
           "workspace",
           "product",
+          "gallery",
           "bot",
           "skills",
           "scheduler",
-          "repos",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
       }

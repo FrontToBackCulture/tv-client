@@ -29,9 +29,6 @@ export type DetailView =
 export type SkillStatus = "active" | "inactive" | "deprecated" | "test" | "review" | "draft";
 
 export interface SkillMeta {
-  status: SkillStatus;
-  verified: boolean;
-  lastRevised: string | null;
   updated: string | null;
   command: string | null;
   input: string | null;
@@ -132,20 +129,14 @@ export function parseBotProfile(content: string | undefined): BotProfile {
 }
 
 export function parseSkillFrontmatter(content: string | undefined): SkillMeta {
-  if (!content) return { status: "active", verified: false, lastRevised: null, updated: null, command: null, input: null, output: null, sources: null, writes: null, tools: null };
+  if (!content) return { updated: null, command: null, input: null, output: null, sources: null, writes: null, tools: null };
   const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
   const fm = fmMatch?.[1] || "";
   const get = (key: string) => {
     const m = fm.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?\\s*$`, "m"));
     return m?.[1]?.trim() || null;
   };
-  const raw = get("status")?.toLowerCase();
-  const status: SkillStatus = raw === "inactive" ? "inactive" : raw === "deprecated" ? "deprecated" : raw === "test" ? "test" : raw === "review" ? "review" : raw === "draft" ? "draft" : "active";
-  const verified = get("verified")?.toLowerCase() === "true";
   return {
-    status,
-    verified,
-    lastRevised: get("last_revised"),
     updated: get("updated"),
     command: get("command"),
     input: get("input"),
@@ -173,8 +164,11 @@ export function updateFrontmatterField(content: string, key: string, value: stri
 }
 
 export function relativeDate(dateStr: string): string {
+  if (!dateStr) return "";
   const now = new Date();
-  const d = new Date(dateStr + "T00:00:00");
+  // Handle both "2026-03-08" (date only) and "2026-03-08T12:34:56Z" (ISO 8601)
+  const d = dateStr.includes("T") ? new Date(dateStr) : new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return "";
   const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";

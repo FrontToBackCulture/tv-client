@@ -27,6 +27,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 
 # File operations
 walkdir = "2"
+similar = "2"
 ignore = "0.4"
 notify = "6"
 

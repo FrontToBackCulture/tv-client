@@ -11,6 +11,7 @@ import { useBotSettingsStore } from "../stores/botSettingsStore";
 import { useViewContextStore } from "../stores/viewContextStore";
 import { useFolderFiles, FolderFile } from "../hooks/useFolderFiles";
 import { ViewTab } from "../components/ViewTab";
+import { useSkillRegistry } from "../modules/skills/useSkillRegistry";
 
 import {
   type BotEntry,
@@ -137,10 +138,23 @@ export function BotPlayground() {
     })),
   });
 
-  // Read skill categories
+  // Central skill registry — single source of truth for status, category, verified
+  const registryQuery = useSkillRegistry();
+  const registry = registryQuery.data;
+
+  // Derive categories + skill→category map from registry (fallback to _categories.json)
   const categoriesPath = skillsDir ? `${skillsDir}/_categories.json` : undefined;
   const { data: categoriesRaw } = useReadFile(categoriesPath);
   const skillCategoriesData = useMemo(() => {
+    // Prefer registry categories if available
+    if (registry) {
+      const skillMap: Record<string, string> = {};
+      for (const [slug, entry] of Object.entries(registry.skills)) {
+        if (entry.category) skillMap[slug] = entry.category;
+      }
+      return { categories: registry.categories || [], skills: skillMap };
+    }
+    // Fallback to _categories.json
     if (!categoriesRaw) return { categories: [] as { id: string; label: string }[], skills: {} as Record<string, string> };
     try {
       const parsed = JSON.parse(categoriesRaw);
@@ -148,7 +162,7 @@ export function BotPlayground() {
     } catch {
       return { categories: [] as { id: string; label: string }[], skills: {} as Record<string, string> };
     }
-  }, [categoriesRaw]);
+  }, [registry, categoriesRaw]);
 
   const skillList = useMemo(() => {
     return skillFolders.map((f, i) => {
@@ -157,18 +171,20 @@ export function BotPlayground() {
       const titleMatch = content?.match(/^#\s+(.+)$/m);
       const summaryMatch = content?.match(/^summary:\s*"?([^"\n]+)"?/m) || content?.match(/^>\s*(.+)$/m);
       const meta = parseSkillFrontmatter(content);
+      // Registry is single source of truth for status, verified, category
+      const regEntry = registry?.skills[f.name];
       return {
         name: f.name,
         path: f.path,
-        title: titleMatch?.[1] || f.name,
-        summary: summaryMatch?.[1]?.trim() || "",
+        title: titleMatch?.[1] || regEntry?.name || f.name,
+        summary: summaryMatch?.[1]?.trim() || regEntry?.description || "",
         subfolders: subfolders.filter((s) => s.is_directory && !s.name.startsWith(".")).map((s) => s.name),
-        status: meta.status,
-        verified: meta.verified,
-        lastRevised: meta.lastRevised,
+        status: regEntry?.status ?? "active",
+        verified: regEntry?.verified ?? false,
+        lastRevised: regEntry?.last_audited ?? null,
         updated: meta.updated,
         category: skillCategoriesData.skills[f.name] || null,
-        command: meta.command,
+        command: regEntry?.command ?? meta.command,
         input: meta.input,
         output: meta.output,
         sources: meta.sources,
@@ -176,7 +192,7 @@ export function BotPlayground() {
         tools: meta.tools,
       };
     });
-  }, [skillFolders, skillContentQueries, skillSubfolderQueries, skillCategoriesData]);
+  }, [skillFolders, skillContentQueries, skillSubfolderQueries, skillCategoriesData, registry]);
 
   // Skill Usage Tracking
   const tvKnowledgeRoot = botsPath ? botsPath.replace(/\/_team\/?$/, "") : null;
@@ -358,7 +374,6 @@ export function BotPlayground() {
           recentSessions={botSessions.slice(0, 5)}
           skillList={skillList}
           skillCategories={skillCategoriesData.categories}
-          skillUsage={skillUsage}
           onSkillClick={(skill) => setSkillModal({ skillName: skill.name, skillPath: skill.path, title: skill.title })}
           onSkillDelete={handleSkillDelete}
           onSessionClick={(session) => setDetailView({ type: "session", sessionPath: session.path, date: session.date, title: session.title })}

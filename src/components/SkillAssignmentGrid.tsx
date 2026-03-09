@@ -25,13 +25,19 @@ export function SkillAssignmentGrid({
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
 
   const topLevel = useMemo(
-    () =>
-      [...categories]
-        .filter((c) => !c.parent)
+    () => {
+      const seen = new Set<string>();
+      return [...categories]
+        .filter((c) => {
+          if (c.parent || seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        })
         .sort(
           (a, b) =>
             (a.order ?? 999) - (b.order ?? 999) || a.label.localeCompare(b.label)
-        ),
+        );
+    },
     [categories]
   );
   const childrenOf = useCallback(

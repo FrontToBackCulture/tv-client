@@ -20,7 +20,7 @@ import {
 import type { InitiativeProjectLink } from "./workViewsShared";
 
 export function DashboardView({
-  projects, allTasks, initiatives, initiativeLinks, users, onSelectTask, onEditInitiative,
+  projects, allTasks, initiatives, initiativeLinks, users, onSelectTask, onEditInitiative, onEditProject,
 }: {
   projects: Project[];
   allTasks: TaskWithRelations[];
@@ -29,6 +29,7 @@ export function DashboardView({
   users: WorkUser[];
   onSelectTask: (id: string) => void;
   onEditInitiative?: (initiative: Initiative) => void;
+  onEditProject?: (project: Project) => void;
 }) {
   const [expandedInitiativeId, setExpandedInitiativeId] = useState<string | null>(null);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
@@ -207,7 +208,7 @@ export function DashboardView({
               <div
                 key={p.id}
                 onClick={() => setExpandedProjectId(expandedProjectId === p.id ? null : p.id)}
-                className={`rounded-lg border overflow-hidden hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors cursor-pointer ${
+                className={`group rounded-lg border overflow-hidden hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors cursor-pointer ${
                   expandedProjectId === p.id
                     ? "border-teal-300 dark:border-teal-700 ring-1 ring-teal-200 dark:ring-teal-800"
                     : "border-zinc-200 dark:border-zinc-800"
@@ -218,6 +219,15 @@ export function DashboardView({
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 line-clamp-1">{p.name}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      {onEditProject && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onEditProject(p); }}
+                          className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Edit project"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      )}
                       {p.health && (
                         <span
                           className="w-2 h-2 rounded-full flex-shrink-0"

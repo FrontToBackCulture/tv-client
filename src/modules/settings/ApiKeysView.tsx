@@ -221,7 +221,7 @@ export function ApiKeysView() {
       k.name === API_KEYS.SUPABASE_URL || k.name === API_KEYS.SUPABASE_ANON_KEY
   );
   const integrationKeys = keys.filter(
-    (k) => k.name === API_KEYS.INTERCOM
+    (k) => k.name === API_KEYS.INTERCOM || k.name === API_KEYS.NOTION
   );
   const awsKeys = keys.filter(
     (k) =>
@@ -232,6 +232,9 @@ export function ApiKeysView() {
     (k) =>
       k.name === API_KEYS.GA4_SERVICE_ACCOUNT_PATH ||
       k.name === API_KEYS.GA4_PROPERTY_ID
+  );
+  const emailSettingsKeys = keys.filter(
+    (k) => k.name === API_KEYS.EMAIL_API_BASE_URL
   );
 
   if (loading) {
@@ -352,6 +355,22 @@ export function ApiKeysView() {
         </h3>
         <div className="space-y-3">
           {awsKeys.map((keyInfo) => (
+            <KeyEditor
+              key={keyInfo.name}
+              keyInfo={keyInfo}
+              onSave={(value) => setKey(keyInfo.name as any, value)}
+              onDelete={() => deleteKey(keyInfo.name as any)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3 uppercase tracking-wide">
+          Email
+        </h3>
+        <div className="space-y-3">
+          {emailSettingsKeys.map((keyInfo) => (
             <KeyEditor
               key={keyInfo.name}
               keyInfo={keyInfo}

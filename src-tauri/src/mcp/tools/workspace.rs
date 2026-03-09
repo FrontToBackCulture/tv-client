@@ -19,7 +19,7 @@ pub fn tools() -> Vec<Tool> {
                 json!({
                     "status": {
                         "type": "string",
-                        "enum": ["open", "in_progress", "done", "paused"],
+                        "enum": ["open", "active", "in_progress", "done", "paused"],
                         "description": "Filter by status"
                     },
                     "owner": {
@@ -51,6 +51,7 @@ pub fn tools() -> Vec<Tool> {
                     "title": { "type": "string", "description": "Workspace title (required)" },
                     "description": { "type": "string", "description": "What this workspace is about" },
                     "owner": { "type": "string", "description": "Owner name (required)" },
+                    "intent": { "type": "string", "enum": ["skill_review", "skill_creation", "feature_build"], "description": "Workspace intent type — determines standard task templates" },
                     "initiative_id": { "type": "string", "description": "Initiative UUID to link to" }
                 }),
                 vec!["title".to_string(), "owner".to_string()],
@@ -64,7 +65,8 @@ pub fn tools() -> Vec<Tool> {
                     "workspace_id": { "type": "string", "description": "The workspace UUID (required)" },
                     "title": { "type": "string" },
                     "description": { "type": "string" },
-                    "status": { "type": "string", "enum": ["open", "in_progress", "done", "paused"] },
+                    "status": { "type": "string", "enum": ["open", "active", "in_progress", "done", "paused"] },
+                    "intent": { "type": "string", "enum": ["skill_review", "skill_creation", "feature_build"], "description": "Workspace intent type" },
                     "initiative_id": { "type": "string", "description": "Initiative UUID to link to" }
                 }),
                 vec!["workspace_id".to_string()],

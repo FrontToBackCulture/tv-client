@@ -87,8 +87,8 @@ fn read_skill_description(skills_path: &Path, slug: &str) -> Option<String> {
 }
 
 /// Files/dirs to skip when copying skill contents into a domain package
-const SKIP_FILES: &[&str] = &["SKILL.md", "skill.json", "README.md", "AUDIT.md", "evals.json", ".DS_Store", ".claude.local.md", ".skill-source.json"];
-const SKIP_DIRS: &[&str] = &["__pycache__", ".claude", "demo", "examples", "_catalog", "_archive"];
+const SKIP_FILES: &[&str] = &["SKILL.md", "README.md", "AUDIT.md", "evals.json", "guide.html", ".DS_Store", ".claude.local.md"];
+const SKIP_DIRS: &[&str] = &["__pycache__", ".claude", "demo", "examples", "evals", "_catalog", "_archive"];
 
 /// Strip full frontmatter from a SKILL.md and replace with only name + description.
 /// This keeps the distributed copy lean for AI consumption.

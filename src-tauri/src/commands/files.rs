@@ -23,6 +23,18 @@ pub async fn write_file(path: String, content: String) -> CmdResult<()> {
 }
 
 #[command]
+pub async fn write_file_base64(path: String, data: String) -> CmdResult<()> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&data)
+        .map_err(|e| CommandError::Config(format!("Invalid base64: {}", e)))?;
+    if let Some(parent) = Path::new(&path).parent() {
+        fs::create_dir_all(parent).map_err(|e| CommandError::Io(format!("Failed to create directory: {}", e)))?;
+    }
+    fs::write(&path, bytes).map_err(|e| CommandError::Io(format!("Failed to write file: {}", e)))
+}
+
+#[command]
 pub async fn delete_file(path: String) -> CmdResult<()> {
     let p = Path::new(&path);
     if p.is_dir() {

@@ -18,6 +18,7 @@ import {
   Puzzle,
   GitBranch,
   MailPlus,
+  GalleryHorizontalEnd,
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
@@ -55,15 +56,16 @@ const navSections: NavSection[] = [
       { id: "work", icon: CheckSquare, label: "Work", shortcut: "⌘3" },
       { id: "workspace", icon: FolderOpen, label: "Workspaces", shortcut: "⌘4" },
       { id: "product", icon: Boxes, label: "Product", shortcut: "⌘5" },
+      { id: "gallery", icon: GalleryHorizontalEnd, label: "Gallery", shortcut: "⌘6" },
     ],
   },
   {
     label: "Technical",
     items: [
-      { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘6" },
-      { id: "skills", icon: Puzzle, label: "Skills", shortcut: "⌘7" },
-      { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "⌘8" },
-      { id: "repos", icon: GitBranch, label: "Repos", shortcut: "⌘9" },
+      { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘7" },
+      { id: "skills", icon: Puzzle, label: "Skills", shortcut: "⌘8" },
+      { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "⌘9" },
+      { id: "repos", icon: GitBranch, label: "Repos", shortcut: "" },
     ],
   },
   {

@@ -21,6 +21,7 @@ const moduleLabels: Record<ModuleId, string> = {
   inbox: "Inbox",
   crm: "CRM",
   product: "Product",
+  gallery: "Gallery",
   bot: "Bots",
   skills: "Skills",
   portal: "Portal",

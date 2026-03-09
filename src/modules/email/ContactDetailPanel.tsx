@@ -2,12 +2,13 @@
 // Right panel showing contact details and group memberships
 
 import { useState } from "react";
-import { X, Mail, Tag, Plus, Trash2 } from "lucide-react";
+import { X, Mail, Tag, Plus, Trash2, ChevronDown } from "lucide-react";
 import {
   useEmailContact,
   useEmailGroups,
   useAddContactToGroup,
   useRemoveContactFromGroup,
+  useUpdateEmailContact,
 } from "../../hooks/email";
 import { CONTACT_STATUSES } from "../../lib/email/types";
 import { formatDate } from "../../lib/date";
@@ -22,7 +23,9 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
   const { data: allGroups } = useEmailGroups();
   const addToGroup = useAddContactToGroup();
   const removeFromGroup = useRemoveContactFromGroup();
+  const updateContact = useUpdateEmailContact();
   const [showGroupPicker, setShowGroupPicker] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
 
   if (isLoading) {
     return (
@@ -64,7 +67,66 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
           <DetailRow label="Email" value={contact.email} />
           <DetailRow label="First Name" value={contact.first_name || "—"} />
           <DetailRow label="Last Name" value={contact.last_name || "—"} />
-          <DetailRow label="Status" value={statusDef?.label || contact.status} />
+          {/* Status toggle */}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">Status</span>
+            <div className="relative">
+              <button
+                onClick={() => setShowStatusPicker(!showStatusPicker)}
+                className="flex items-center gap-1 text-xs rounded-md px-2 py-0.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    statusDef?.color === "green"
+                      ? "bg-green-500"
+                      : statusDef?.color === "red"
+                        ? "bg-red-500"
+                        : "bg-zinc-400"
+                  }`}
+                />
+                <span className="text-zinc-700 dark:text-zinc-300">
+                  {statusDef?.label || contact.status}
+                </span>
+                <ChevronDown size={10} className="text-zinc-400" />
+              </button>
+              {showStatusPicker && (
+                <div className="absolute right-0 top-full mt-1 z-10 w-36 border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
+                  {CONTACT_STATUSES.map((s) => (
+                    <button
+                      key={s.value}
+                      onClick={() => {
+                        if (s.value !== contact.status) {
+                          updateContact.mutate(
+                            { id: contactId, updates: { status: s.value } },
+                            { onSuccess: () => setShowStatusPicker(false) }
+                          );
+                        } else {
+                          setShowStatusPicker(false);
+                        }
+                      }}
+                      disabled={updateContact.isPending}
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 ${
+                        s.value === contact.status
+                          ? "text-zinc-900 dark:text-zinc-100 font-medium"
+                          : "text-zinc-600 dark:text-zinc-400"
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          s.color === "green"
+                            ? "bg-green-500"
+                            : s.color === "red"
+                              ? "bg-red-500"
+                              : "bg-zinc-400"
+                        }`}
+                      />
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
           <DetailRow label="Source" value={contact.source || "—"} />
           <DetailRow label="Added" value={formatDate(contact.created_at)} />
         </div>

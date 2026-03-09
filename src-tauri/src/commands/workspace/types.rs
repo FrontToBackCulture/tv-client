@@ -13,8 +13,10 @@ pub struct Workspace {
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub status: String, // open | in_progress | done | paused
+    pub status: String, // open | active | in_progress | done | paused
     pub owner: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>, // skill_review | skill_creation | feature_build
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiative_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -27,7 +29,7 @@ pub struct Workspace {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifacts: Option<Vec<WorkspaceArtifact>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<Vec<WorkspaceContext>>,
+    pub context: Option<WorkspaceContext>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +40,8 @@ pub struct CreateWorkspace {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
     pub owner: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiative_id: Option<String>,
 }
@@ -50,6 +54,8 @@ pub struct UpdateWorkspace {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiative_id: Option<String>,
 }

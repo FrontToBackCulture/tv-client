@@ -42,8 +42,7 @@ type DetailTab = "overview" | "diagram" | "templates" | "files" | "distribution"
 
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; color: string }> = {
   in_sync: { icon: CheckCircle2, label: "In sync", color: "text-emerald-500" },
-  source_updated: { icon: AlertTriangle, label: "Source updated", color: "text-amber-500" },
-  target_modified: { icon: AlertTriangle, label: "Target modified", color: "text-amber-500" },
+  drifted: { icon: AlertTriangle, label: "Drifted", color: "text-amber-500" },
   not_distributed: { icon: Circle, label: "Not distributed", color: "text-zinc-400" },
   missing: { icon: Circle, label: "Missing", color: "text-red-400" },
 };
@@ -859,7 +858,7 @@ function DistributionTab({ slug, skill, driftStatuses, skillPath, onOpenFile }: 
                     disabled={isBusy}
                     className={cn(
                       "flex items-center gap-1 text-xs disabled:opacity-50",
-                      drift?.status === "target_modified"
+                      drift?.status === "drifted"
                         ? "text-amber-600 hover:text-amber-500"
                         : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                     )}

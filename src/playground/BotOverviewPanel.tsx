@@ -9,7 +9,6 @@ import {
   Zap,
   Loader2,
   ChevronRight,
-  ArrowUpDown,
   Brain,
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -21,7 +20,8 @@ import {
 import { cn } from "../lib/cn";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
 import { SkillAssignmentGrid } from "../components/SkillAssignmentGrid";
-import { useSkillRegistry, useSkillDistributeTo } from "../modules/skills/useSkillRegistry";
+import { DriftDiffModal, DriftBadge } from "../components/DriftDiffModal";
+import { useSkillRegistry, useSkillDistributeTo, useSkillCheckAll } from "../modules/skills/useSkillRegistry";
 import { useRepository } from "../stores/repositoryStore";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
@@ -97,7 +97,6 @@ export function BotOverview({
   recentSessions,
   skillList,
   skillCategories,
-  skillUsage,
   onSkillClick,
   onSkillDelete,
   onSessionClick,
@@ -112,7 +111,6 @@ export function BotOverview({
   recentSessions: { date: string; title: string | null; summary: string | null; path: string }[];
   skillList: { name: string; path: string; title: string; summary: string; subfolders: string[]; status: SkillStatus; verified: boolean; lastRevised: string | null; updated: string | null; category: string | null; command: string | null; input: string | null; output: string | null; sources: string | null; writes: string | null; tools: string | null }[];
   skillCategories: { id: string; label: string }[];
-  skillUsage: Record<string, { invocations: number; mentions: number }>;
   onSkillClick: (skill: { name: string; path: string; title: string }) => void;
   onSkillDelete?: (skill: { name: string; path: string; title: string }) => void;
   onSessionClick: (session: { path: string; date: string; title: string | null }) => void;
@@ -125,10 +123,10 @@ export function BotOverview({
   const [assigningSkill, setAssigningSkill] = useState<string | null>(null);
   const [assignFeedback, setAssignFeedback] = useState<{ slug: string; action: "added" | "removed" } | null>(null);
   const [activeTab, setActiveTab] = useState<"skills" | "sessions">("skills");
-  const [skillSort, setSkillSort] = useState<"name" | "usage">("name");
   const [skillFilter, setSkillFilter] = useState<"all" | SkillStatus>("active");
   const [skillTab, setSkillTab] = useState<string>("all");
   const [skillSearch, setSkillSearch] = useState("");
+  const [driftModal, setDriftModal] = useState<{ slug: string; name: string; targetPath: string } | null>(null);
 
   // Skill registry for assignment
   const registryQuery = useSkillRegistry();
@@ -136,6 +134,7 @@ export function BotOverview({
   const { activeRepository } = useRepository();
   const distributeMutation = useSkillDistributeTo();
   const queryClient = useQueryClient();
+  const { data: driftStatuses = [] } = useSkillCheckAll();
 
   const availableBotSkills = useMemo(() => {
     if (!registry) return [] as string[];
@@ -163,6 +162,19 @@ export function BotOverview({
     }
     return null;
   }, [activeRepository, bot.dirPath]);
+
+  // Build drift map for this bot's skills
+  const driftBySlug = useMemo(() => {
+    const map = new Map<string, { status: string; source_modified: string; target_modified: string }>();
+    if (!botSkillsRelPath) return map;
+    const prefix = botSkillsRelPath + "/";
+    for (const d of driftStatuses) {
+      if (d.distribution_path.startsWith(prefix)) {
+        map.set(d.slug, { status: d.status, source_modified: d.source_modified, target_modified: d.target_modified });
+      }
+    }
+    return map;
+  }, [driftStatuses, botSkillsRelPath]);
 
   const handleAssignToggle = useCallback(
     async (slug: string) => {
@@ -205,17 +217,9 @@ export function BotOverview({
       const q = skillSearch.toLowerCase();
       list = list.filter((s) => s.title.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || s.summary.toLowerCase().includes(q));
     }
-    if (skillSort === "usage") {
-      list = [...list].sort((a, b) => {
-        const aUse = (skillUsage[a.name]?.invocations || 0) + (skillUsage[a.name]?.mentions || 0);
-        const bUse = (skillUsage[b.name]?.invocations || 0) + (skillUsage[b.name]?.mentions || 0);
-        return bUse - aUse || a.title.localeCompare(b.title);
-      });
-    } else {
-      list = [...list].sort((a, b) => a.title.localeCompare(b.title));
-    }
+    list = [...list].sort((a, b) => a.title.localeCompare(b.title));
     return list;
-  }, [skillList, skillUsage, skillSort, skillFilter, skillTab, skillSearch]);
+  }, [skillList, skillFilter, skillTab, skillSearch]);
 
   // Truncate CLAUDE.md for preview
   const instructionsPreview = useMemo(() => {
@@ -424,50 +428,56 @@ export function BotOverview({
                           </button>
                         );
                       })}
-                      {/* Sort toggle */}
-                      <button
-                        onClick={() => setSkillSort(skillSort === "name" ? "usage" : "name")}
-                        className={cn(
-                          "flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ml-1",
-                          "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                        )}
-                        title={`Sort by ${skillSort === "name" ? "usage" : "name"}`}
-                      >
-                        <ArrowUpDown size={9} />
-                        {skillSort === "name" ? "A-Z" : "Usage"}
-                      </button>
                     </div>
                 </div>
-                {skillCategories.length > 0 && (
-                  <div className="flex items-center gap-1 mb-3 border-b border-zinc-200 dark:border-zinc-800">
-                    {[{ id: "all", label: "All" }, ...skillCategories].map((cat) => {
-                      const count = cat.id === "all"
-                        ? (skillFilter === "all" ? skillList : skillList.filter((s) => s.status === skillFilter)).length
-                        : (skillFilter === "all" ? skillList : skillList.filter((s) => s.status === skillFilter)).filter((s) => s.category === cat.id).length;
-                      if (cat.id !== "all" && count === 0) return null;
-                      return (
+                {(() => {
+                  // Derive tabs from actual skills in this bot, not the full registry
+                  const baseList = skillFilter === "all" ? skillList : skillList.filter((s) => s.status === skillFilter);
+                  const catCounts = new Map<string, number>();
+                  for (const s of baseList) {
+                    if (s.category) catCounts.set(s.category, (catCounts.get(s.category) || 0) + 1);
+                  }
+                  if (catCounts.size <= 1) return null; // no tabs needed if all same category
+                  // Resolve labels from skillCategories prop
+                  const labelMap = new Map(skillCategories.map((c) => [c.id, c.label]));
+                  const tabs = [...catCounts.entries()]
+                    .map(([id, count]) => ({ id, label: labelMap.get(id) || id, count }))
+                    .sort((a, b) => a.label.localeCompare(b.label));
+                  return (
+                    <div className="flex items-center gap-1 mb-3 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto">
+                      <button
+                        onClick={() => setSkillTab("all")}
+                        className={cn(
+                          "px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap",
+                          skillTab === "all"
+                            ? "border-amber-500 text-amber-600 dark:text-amber-400"
+                            : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                        )}
+                      >
+                        All
+                        <span className="ml-1 text-xs tabular-nums opacity-60">{baseList.length}</span>
+                      </button>
+                      {tabs.map((tab) => (
                         <button
-                          key={cat.id}
-                          onClick={() => setSkillTab(cat.id)}
+                          key={tab.id}
+                          onClick={() => setSkillTab(tab.id)}
                           className={cn(
-                            "px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px",
-                            skillTab === cat.id
+                            "px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap",
+                            skillTab === tab.id
                               ? "border-amber-500 text-amber-600 dark:text-amber-400"
                               : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                           )}
                         >
-                          {cat.label}
-                          <span className="ml-1 text-xs tabular-nums opacity-60">{count}</span>
+                          {tab.label}
+                          <span className="ml-1 text-xs tabular-nums opacity-60">{tab.count}</span>
                         </button>
-                      );
-                    })}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-2">
                     {filteredSkills.map((skill) => {
                       const sc = SKILL_STATUS_CONFIG[skill.status];
-                      const usage = skillUsage[skill.name];
-                      const totalUses = (usage?.invocations || 0) + (usage?.mentions || 0);
                       return (
                         <button
                           key={skill.name}
@@ -484,16 +494,6 @@ export function BotOverview({
                             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors flex-1" title={skill.title}>
                               {skill.title}
                             </span>
-                            {skill.command && (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 font-mono flex-shrink-0">
-                                {skill.command}
-                              </span>
-                            )}
-                            {totalUses > 0 && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 tabular-nums flex-shrink-0">
-                                {totalUses}x
-                              </span>
-                            )}
                             {skill.verified && (
                               <span title="Meets skill authoring standard">
                                 <BadgeCheck size={13} className="text-blue-500 flex-shrink-0" />
@@ -545,19 +545,20 @@ export function BotOverview({
                               )}
                             </div>
                           )}
-                          <div className="flex flex-wrap items-center gap-1">
-                            {usage && (usage.invocations > 0 || usage.mentions > 0) && (
-                              <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                                {usage.invocations > 0 ? `${usage.invocations} invoked` : ""}
-                                {usage.invocations > 0 && usage.mentions > 0 ? " · " : ""}
-                                {usage.mentions > 0 ? `${usage.mentions} mentioned` : ""}
-                              </span>
-                            )}
-                            {(skill.updated || skill.lastRevised) && (
-                              <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-auto">
-                                updated {relativeDate(skill.updated || skill.lastRevised!)}
-                              </span>
-                            )}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {(() => {
+                              const drift = driftBySlug.get(skill.name);
+                              return (
+                                <DriftBadge
+                                  status={drift?.status ?? "not_tracked"}
+                                  targetModified={drift?.status === "in_sync" ? relativeDate(drift.target_modified) : undefined}
+                                  onClick={drift?.status === "drifted" && botSkillsRelPath ? (e) => {
+                                    e.stopPropagation();
+                                    setDriftModal({ slug: skill.name, name: skill.title, targetPath: botSkillsRelPath + "/" + skill.name });
+                                  } : undefined}
+                                />
+                              );
+                            })()}
                           </div>
                         </button>
                       );
@@ -633,6 +634,15 @@ export function BotOverview({
                 content={claudeContent}
                 title="CLAUDE.md"
                 onClose={() => setShowInstructionsModal(false)}
+              />
+            )}
+            {driftModal && (
+              <DriftDiffModal
+                slug={driftModal.slug}
+                skillName={driftModal.name}
+                targetPath={driftModal.targetPath}
+                onClose={() => setDriftModal(null)}
+                onSynced={() => queryClient.invalidateQueries({ queryKey: ["skill-drift"] })}
               />
             )}
 

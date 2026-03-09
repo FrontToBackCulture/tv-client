@@ -75,6 +75,7 @@ pub struct PaymentRow {
 pub struct ImplementationPaymentRow {
     pub sn: String,
     pub milestone: String,
+    pub percentage: String,
     pub date: String,
     pub amount: String,
 }
@@ -166,6 +167,22 @@ pub fn parse_order_form_markdown(markdown: &str) -> CmdResult<OrderFormData> {
         .unwrap_or_default()
         .trim_matches('"')
         .to_string();
+
+    // Auto-calculate percentages if not provided
+    let impl_fee: f64 = data.implementation_fee.replace(',', "").parse().unwrap_or(0.0);
+    if impl_fee > 0.0 {
+        for p in &mut data.implementation_payments {
+            if p.percentage.is_empty() {
+                let amount: f64 = p.amount.replace(',', "").parse().unwrap_or(0.0);
+                let pct = (amount / impl_fee) * 100.0;
+                if (pct - pct.round()).abs() < 0.01 {
+                    p.percentage = format!("{}%", pct.round() as i64);
+                } else {
+                    p.percentage = format!("{:.1}%", pct);
+                }
+            }
+        }
+    }
     data.total_contract_value = yaml_values
         .get("totalContractValue")
         .cloned()
@@ -252,10 +269,11 @@ fn extract_list_items(markdown: &str, heading: &str) -> Vec<String> {
             break;
         }
 
-        // Extract bold sub-headings like **AR Automation:**
-        if in_section && trimmed.starts_with("**") && trimmed.ends_with(":**") {
-            // Remove ** markers and trailing :
-            let sub_heading = trimmed.trim_start_matches("**").trim_end_matches(":**");
+        // Extract bold sub-headings like **AR Automation:** or **Phase 1: Title (Weeks 1-2)**
+        if in_section && trimmed.starts_with("**") && trimmed.ends_with("**") && !trimmed.starts_with("- ") {
+            // Remove ** markers and optional trailing colon
+            let sub_heading = trimmed.trim_start_matches("**").trim_end_matches("**");
+            let sub_heading = sub_heading.trim_end_matches(':');
             items.push(format!("__SUBHEADING__{}", sub_heading));
             continue;
         }
@@ -349,10 +367,22 @@ fn extract_implementation_payments(markdown: &str) -> Vec<ImplementationPaymentR
                     .map(|s| s.trim())
                     .collect();
 
-                if cells.len() >= 4 {
+                if cells.len() >= 5 {
+                    // 5-column format: S/N | Milestone | % | Date | Amount
                     payments.push(ImplementationPaymentRow {
                         sn: cells[0].to_string(),
                         milestone: cells[1].to_string(),
+                        percentage: cells[2].to_string(),
+                        date: cells[3].to_string(),
+                        amount: cells[4].replace(',', "").to_string(),
+                    });
+                } else if cells.len() >= 4 {
+                    // 4-column format: S/N | Milestone | Date | Amount
+                    // percentage will be calculated after parsing
+                    payments.push(ImplementationPaymentRow {
+                        sn: cells[0].to_string(),
+                        milestone: cells[1].to_string(),
+                        percentage: String::new(),
                         date: cells[2].to_string(),
                         amount: cells[3].replace(',', "").to_string(),
                     });
@@ -483,6 +513,13 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         String::new()
     };
 
+    // Conditionally render outlets line
+    let outlets_line = if data.number_of_outlets.is_empty() {
+        String::new()
+    } else {
+        format!("      <p>Number of Outlets: {}</p>", data.number_of_outlets)
+    };
+
     // Generate subscription payments rows
     let sub_payments_html: String = data.subscription_payments
         .iter()
@@ -500,9 +537,10 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         .map(|p| format!(r#"        <tr>
           <td>{}</td>
           <td>{}</td>
-          <td class="highlight">{}</td>
-          <td class="highlight">SGD${}</td>
-        </tr>"#, p.sn, p.milestone, p.date, p.amount))
+          <td>{}</td>
+          <td>{}</td>
+          <td>SGD${}</td>
+        </tr>"#, p.sn, p.milestone, p.percentage, p.date, p.amount))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -873,7 +911,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
     <div class="entitlement-section">
       <p class="section-title"><strong>Subscription Entitlement:</strong></p>
       <p>Solutions: <span class="highlight">{solutions}</span></p>
-      <p>Number of Outlets: {number_of_outlets}</p>
+{outlets_line}
       <p>Unlimited Users</p>
 
       <p class="scope-title"><strong>Scope:</strong></p>
@@ -937,7 +975,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
     <div class="terms-box">
       <p>This Agreement shall automatically renew annually, unless either party provides the other party written notice of termination at least sixty (60) days in advance of the next renewal date, in which case the Agreement shall terminate as of such next renewal date. The 60 days' notice period shall apply also if Customer wants to downgrade their subscription, including but not limited to reducing the number of users, accounts, or products.</p>
       <p>During the Term, ThinkVAL may include Customer's name and logo in ThinkVAL website, press releases, promotional and sales literature, and lists of customers.</p>
-      <p>By signing this Order Form, the Customer agrees to ThinkVAL Terms Of Service published at: <a href="https://thinkval.com/terms">https://thinkval.com/terms</a></p>
+      <p>By signing this Order Form, the Customer agrees to ThinkVAL Terms Of Service published at: <a href="https://www.thinkval.com/legal/terms-of-service">https://www.thinkval.com/legal/terms-of-service</a></p>
     </div>
 
     <div class="customer-signature">
@@ -968,7 +1006,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         subscription_fee = data.subscription_fee,
         service_term = data.service_term,
         solutions = data.solutions,
-        number_of_outlets = data.number_of_outlets,
+        outlets_line = outlets_line,
         scope_items = scope_items_html,
         complementary = complementary_html,
         implementation_plan = implementation_plan_html,

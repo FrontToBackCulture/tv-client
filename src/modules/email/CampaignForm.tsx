@@ -2,7 +2,7 @@
 // Campaign create/edit wizard — 3-step flow
 
 import { useState, useEffect } from "react";
-import { X, ChevronRight, ChevronLeft, FileText } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, FileText, FolderOpen } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   useCreateEmailCampaign,
@@ -15,6 +15,7 @@ import type { EmailCampaignWithStats } from "../../lib/email/types";
 interface TemplateFile {
   name: string;
   path: string;
+  relativePath: string; // relative to tv-knowledge root
 }
 
 interface CampaignFormProps {
@@ -33,8 +34,12 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
   const [fromEmail, setFromEmail] = useState(campaign?.from_email || "");
   const [groupId, setGroupId] = useState(campaign?.group_id || "");
   const [htmlBody, setHtmlBody] = useState(campaign?.html_body || "");
+  const [contentPath, setContentPath] = useState(campaign?.content_path || "");
 
   const [templates, setTemplates] = useState<TemplateFile[]>([]);
+  const [campaignFiles, setCampaignFiles] = useState<TemplateFile[]>([]);
+  const [activeSource, setActiveSource] = useState<"templates" | "campaigns">("templates");
+
   const knowledgePath = useRepositoryStore((s) => {
     const repo = s.repositories.find((r) => r.id === s.activeRepositoryId);
     return repo?.path || "";
@@ -49,16 +54,55 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
         setTemplates(
           entries
             .filter((e) => !e.is_directory && e.name.endsWith(".html"))
-            .map((e) => ({ name: e.name.replace(".html", "").replace(/-/g, " "), path: e.path }))
+            .map((e) => ({
+              name: e.name.replace(".html", "").replace(/-/g, " "),
+              path: e.path,
+              relativePath: `6_Marketing/email-templates/${e.name}`,
+            }))
         );
       })
       .catch(() => setTemplates([]));
   }, [knowledgePath]);
 
-  const loadTemplate = async (path: string) => {
+  // Load campaign files from tv-knowledge/6_Marketing/email-campaigns/
+  useEffect(() => {
+    if (!knowledgePath) return;
+    const campaignsDir = `${knowledgePath}/6_Marketing/email-campaigns`;
+    invoke<{ name: string; path: string; is_directory: boolean }[]>("list_directory", { path: campaignsDir })
+      .then((entries) => {
+        setCampaignFiles(
+          entries
+            .filter((e) => !e.is_directory && e.name.endsWith(".html"))
+            .map((e) => ({
+              name: e.name.replace(".html", "").replace(/-/g, " "),
+              path: e.path,
+              relativePath: `6_Marketing/email-campaigns/${e.name}`,
+            }))
+        );
+      })
+      .catch(() => setCampaignFiles([]));
+  }, [knowledgePath]);
+
+  // If editing a campaign with content_path, load the file content
+  useEffect(() => {
+    if (!isEditing || !campaign?.content_path || !knowledgePath) return;
+    const fullPath = `${knowledgePath}/${campaign.content_path}`;
+    invoke<string>("read_file", { path: fullPath })
+      .then((content) => setHtmlBody(content))
+      .catch(() => {});
+  }, [isEditing, campaign?.content_path, knowledgePath]);
+
+  const loadFile = async (file: TemplateFile, isTemplate: boolean) => {
     try {
-      const content = await invoke<string>("read_file", { path });
+      const content = await invoke<string>("read_file", { path: file.path });
       setHtmlBody(content);
+      // Only set content_path for campaign files, not templates
+      // Templates get their content copied into html_body
+      if (!isTemplate) {
+        setContentPath(file.relativePath);
+      } else {
+        setContentPath("");
+      }
     } catch {
       // silently fail
     }
@@ -82,6 +126,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
           from_email: fromEmail.trim(),
           group_id: groupId,
           html_body: htmlBody || null,
+          content_path: contentPath || null,
         },
       });
     } else {
@@ -92,6 +137,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
         from_email: fromEmail.trim(),
         group_id: groupId,
         html_body: htmlBody || null,
+        content_path: contentPath || null,
         status: "draft",
       });
     }
@@ -99,6 +145,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
   };
 
   const isPending = createCampaign.isPending || updateCampaign.isPending;
+  const activeFiles = activeSource === "templates" ? templates : campaignFiles;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -167,7 +214,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                     value={fromEmail}
                     onChange={(e) => setFromEmail(e.target.value)}
                     className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    placeholder="hello@thinkval.co"
+                    placeholder="hello@thinkval.com"
                   />
                 </div>
               </div>
@@ -193,21 +240,50 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
 
           {step === 2 && (
             <>
-              {/* Template picker */}
-              {templates.length > 0 && (
+              {/* Source tabs */}
+              {(templates.length > 0 || campaignFiles.length > 0) && (
                 <div>
-                  <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                    Start from a template
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {templates.map((t) => (
+                  <div className="flex items-center gap-1 mb-2">
+                    {templates.length > 0 && (
                       <button
-                        key={t.path}
-                        onClick={() => loadTemplate(t.path)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-600 dark:text-zinc-300 hover:border-teal-500 hover:text-teal-600 dark:hover:text-teal-400 transition-colors capitalize"
+                        onClick={() => setActiveSource("templates")}
+                        className={`flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded ${
+                          activeSource === "templates"
+                            ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                            : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        <FileText size={10} />
+                        Templates
+                      </button>
+                    )}
+                    {campaignFiles.length > 0 && (
+                      <button
+                        onClick={() => setActiveSource("campaigns")}
+                        className={`flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded ${
+                          activeSource === "campaigns"
+                            ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                            : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        <FolderOpen size={10} />
+                        Campaigns
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeFiles.map((f) => (
+                      <button
+                        key={f.path}
+                        onClick={() => loadFile(f, activeSource === "templates")}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] border rounded-md transition-colors capitalize ${
+                          contentPath === f.relativePath
+                            ? "bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400"
+                            : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-teal-500 hover:text-teal-600 dark:hover:text-teal-400"
+                        }`}
                       >
                         <FileText size={11} />
-                        {t.name}
+                        {f.name}
                       </button>
                     ))}
                   </div>
@@ -219,11 +295,17 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                   Email HTML Body
                 </label>
                 <p className="text-[10px] text-zinc-400 mb-2">
-                  Pick a template above or paste your HTML directly.
+                  {contentPath
+                    ? `Linked to file: ${contentPath}`
+                    : "Pick a template/campaign file above or paste your HTML directly."}
                 </p>
                 <textarea
                   value={htmlBody}
-                  onChange={(e) => setHtmlBody(e.target.value)}
+                  onChange={(e) => {
+                    setHtmlBody(e.target.value);
+                    // If manually editing, clear content_path since content diverges from file
+                    if (contentPath) setContentPath("");
+                  }}
                   rows={12}
                   className="w-full px-3 py-2 text-xs font-mono bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
                   placeholder="<html>..."
@@ -260,7 +342,10 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                   label="Group"
                   value={groups.find((g) => g.id === groupId)?.name || "—"}
                 />
-                <ReviewRow label="Has Template" value={htmlBody ? "Yes" : "No"} />
+                <ReviewRow
+                  label="Content"
+                  value={contentPath ? contentPath.split("/").pop() || "File" : htmlBody ? "Inline HTML" : "None"}
+                />
               </div>
               <p className="text-[10px] text-zinc-400">
                 {isEditing

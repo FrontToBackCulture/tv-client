@@ -17,6 +17,8 @@ export const API_KEYS = {
   AWS_SECRET_ACCESS_KEY: "aws_secret_access_key",
   GA4_SERVICE_ACCOUNT_PATH: "ga4_service_account_path",
   GA4_PROPERTY_ID: "ga4_property_id",
+  EMAIL_API_BASE_URL: "email_api_base_url",
+  NOTION: "notion_api_key",
 } as const;
 
 export type ApiKeyName = (typeof API_KEYS)[keyof typeof API_KEYS];

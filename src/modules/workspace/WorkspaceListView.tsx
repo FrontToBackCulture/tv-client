@@ -1,13 +1,13 @@
 // src/modules/workspace/WorkspaceListView.tsx
 // List of all workspaces as cards
 
-import { FolderOpen, Clock } from "lucide-react";
+import { FolderOpen, Clock, MessageSquare, Paperclip } from "lucide-react";
 import { cn } from "../../lib/cn";
-import type { Workspace } from "../../lib/workspace/types";
+import type { WorkspaceWithCounts } from "../../hooks/workspace/useWorkspaces";
 import { WORKSPACE_STATUS_COLORS } from "../../lib/workspace/types";
 
 interface Props {
-  workspaces: Workspace[];
+  workspaces: WorkspaceWithCounts[];
   onSelect: (id: string) => void;
 }
 
@@ -83,6 +83,20 @@ export function WorkspaceListView({ workspaces, onSelect }: Props) {
                 {formatDate(ws.updated_at)}
               </span>
               <span>{ws.owner}</span>
+              <span className="ml-auto flex items-center gap-2">
+                {ws.session_count > 0 && (
+                  <span className="flex items-center gap-0.5" title={`${ws.session_count} session${ws.session_count !== 1 ? "s" : ""}`}>
+                    <MessageSquare size={10} />
+                    {ws.session_count}
+                  </span>
+                )}
+                {ws.artifact_count > 0 && (
+                  <span className="flex items-center gap-0.5" title={`${ws.artifact_count} artifact${ws.artifact_count !== 1 ? "s" : ""}`}>
+                    <Paperclip size={10} />
+                    {ws.artifact_count}
+                  </span>
+                )}
+              </span>
             </div>
           </button>
         ))}

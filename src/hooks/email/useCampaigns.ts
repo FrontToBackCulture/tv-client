@@ -144,6 +144,79 @@ export function useCampaignStats(campaignId: string | null) {
   });
 }
 
+// Event priority for determining "latest" status per contact
+const EVENT_PRIORITY: Record<string, number> = {
+  complained: 7,
+  bounced: 6,
+  unsubscribed: 5,
+  clicked: 4,
+  opened: 3,
+  delivered: 2,
+  sent: 1,
+};
+
+export interface CampaignRecipient {
+  contactId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  latestEvent: string; // "sent" | "delivered" | "opened" | "clicked" | "bounced" | "complained" | "unsubscribed" | "pending"
+}
+
+export function useCampaignRecipients(campaignId: string | null, groupId: string | null) {
+  return useQuery({
+    queryKey: [...emailKeys.eventsByCampaign(campaignId || ""), "recipients"],
+    queryFn: async (): Promise<CampaignRecipient[]> => {
+      if (!campaignId || !groupId) return [];
+
+      // Fetch group contacts
+      const { data: memberships } = await supabase
+        .from("email_contact_groups")
+        .select("contact_id")
+        .eq("group_id", groupId);
+
+      const contactIds = (memberships ?? []).map((m) => m.contact_id);
+      if (contactIds.length === 0) return [];
+
+      // Fetch contacts
+      const { data: contacts } = await supabase
+        .from("email_contacts")
+        .select("id, email, first_name, last_name, status")
+        .in("id", contactIds);
+
+      // Fetch events for this campaign
+      const { data: events } = await supabase
+        .from("email_events")
+        .select("contact_id, event_type")
+        .eq("campaign_id", campaignId);
+
+      // Build latest event per contact (highest priority wins)
+      const eventMap = new Map<string, string>();
+      for (const ev of events ?? []) {
+        const current = eventMap.get(ev.contact_id);
+        const currentPri = current ? (EVENT_PRIORITY[current] || 0) : 0;
+        const newPri = EVENT_PRIORITY[ev.event_type] || 0;
+        if (newPri > currentPri) {
+          eventMap.set(ev.contact_id, ev.event_type);
+        }
+      }
+
+      return (contacts ?? []).map((c) => {
+        const contactStatus = c.status || "active";
+        const isActive = contactStatus === "active";
+        return {
+          contactId: c.id,
+          email: c.email,
+          firstName: c.first_name,
+          lastName: c.last_name,
+          latestEvent: eventMap.get(c.id) || (isActive ? "pending" : "skipped"),
+        };
+      });
+    },
+    enabled: !!campaignId && !!groupId,
+  });
+}
+
 export function useCreateEmailCampaign() {
   const queryClient = useQueryClient();
 
@@ -203,13 +276,16 @@ export function useSendCampaign() {
     mutationFn: async ({
       campaignId,
       apiBaseUrl,
+      knowledgePath,
     }: {
       campaignId: string;
       apiBaseUrl: string;
+      knowledgePath?: string;
     }): Promise<{ sent: number; failed: number; errors: string[] }> => {
       return await invoke("email_send_campaign", {
         campaignId,
         apiBaseUrl,
+        knowledgePath: knowledgePath || null,
       });
     },
     onSuccess: (_data, variables) => {
@@ -219,6 +295,29 @@ export function useSendCampaign() {
       });
       queryClient.invalidateQueries({
         queryKey: emailKeys.campaignStats(variables.campaignId),
+      });
+    },
+  });
+}
+
+export function useSendTestEmail() {
+  return useMutation({
+    mutationFn: async ({
+      campaignId,
+      testEmail,
+      apiBaseUrl,
+      knowledgePath,
+    }: {
+      campaignId: string;
+      testEmail: string;
+      apiBaseUrl: string;
+      knowledgePath?: string;
+    }): Promise<{ success: boolean; error: string | null }> => {
+      return await invoke("email_send_test", {
+        campaignId,
+        testEmail,
+        apiBaseUrl,
+        knowledgePath: knowledgePath || null,
       });
     },
   });

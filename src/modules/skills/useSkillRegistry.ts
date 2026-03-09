@@ -29,6 +29,13 @@ export interface SkillEntry {
   domain?: string;
   verified?: boolean;
   rating?: number;
+  last_audited?: string;
+  needs_work?: string;
+  work_notes?: string;
+  action?: string;
+  outcome?: string;
+  gallery_pinned?: boolean;
+  gallery_order?: number;
   distributions: SkillDistribution[];
 }
 
@@ -42,10 +49,9 @@ export interface SkillRegistry {
 export interface SkillDriftStatus {
   slug: string;
   distribution_path: string;
-  status: "in_sync" | "source_updated" | "target_modified" | "not_distributed" | "missing";
+  status: "in_sync" | "drifted" | "not_distributed" | "missing";
   source_hash: string;
   target_hash: string;
-  stored_hash: string;
   source_modified: string;
   target_modified: string;
 }
@@ -68,6 +74,33 @@ export interface SkillModInfo {
   slug: string;
   last_modified: string;
   file_count: number;
+}
+
+export interface DiffLine {
+  kind: "add" | "remove" | "context";
+  content: string;
+}
+
+export interface DiffHunk {
+  source_start: number;
+  target_start: number;
+  lines: DiffLine[];
+}
+
+export interface FileDiffEntry {
+  path: string;
+  status: "added" | "removed" | "modified" | "unchanged";
+  source_size: number;
+  target_size: number;
+  hunks?: DiffHunk[];
+}
+
+export interface SkillDiffResult {
+  slug: string;
+  distribution_path: string;
+  drift_status: string;
+  files: FileDiffEntry[];
+  summary: string;
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
@@ -133,6 +166,14 @@ export function useSkillCheckAll() {
       return invoke<SkillDriftStatus[]>("skill_check_all");
     },
     staleTime: 30_000,
+  });
+}
+
+export function useSkillDiff() {
+  return useMutation({
+    mutationFn: async ({ slug, targetPath }: { slug: string; targetPath: string }) => {
+      return invoke<SkillDiffResult>("skill_diff", { slug, targetPath });
+    },
   });
 }
 

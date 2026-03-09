@@ -84,6 +84,9 @@ fn main() {
             // Start Outlook background sync
             commands::outlook::background::start_background_sync(app.handle().clone());
 
+            // Start Notion background sync
+            commands::notion::background::start_background_sync(app.handle().clone());
+
             // Start Scheduler background loop
             commands::scheduler::background::start_scheduler(app.handle().clone());
 
@@ -222,6 +225,7 @@ fn main() {
             // File operations (Rust native)
             commands::files::read_file,
             commands::files::write_file,
+            commands::files::write_file_base64,
             commands::files::delete_file,
             commands::files::list_directory,
             commands::files::get_file_tree,
@@ -502,11 +506,15 @@ fn main() {
             commands::skill_registry::skill_distribute,
             commands::skill_registry::skill_check,
             commands::skill_registry::skill_pull,
+            commands::skill_registry::skill_diff,
             commands::skill_registry::skill_check_all,
             commands::skill_registry::skill_list_bots,
             commands::skill_registry::skill_distribute_to,
             commands::skill_registry::skill_summary,
             commands::skill_registry::skill_list_examples,
+            commands::skill_registry::ai_summarize_diff,
+            // Gallery
+            commands::gallery::gallery_scan,
             // Repos (GitHub)
             commands::repos::commands::repos_get_commits,
             commands::repos::commands::repos_get_releases,
@@ -518,6 +526,17 @@ fn main() {
             commands::outlook::commands::outlook_bootstrap_contacts,
             // Email (SES campaign sending)
             commands::email::email_send_campaign,
+            commands::email::email_send_test,
+            // Notion Sync
+            commands::notion::commands::notion_list_databases,
+            commands::notion::commands::notion_get_database_schema,
+            commands::notion::commands::notion_preview_cards,
+            commands::notion::commands::notion_list_sync_configs,
+            commands::notion::commands::notion_save_sync_config,
+            commands::notion::commands::notion_update_sync_config,
+            commands::notion::commands::notion_delete_sync_config,
+            commands::notion::commands::notion_sync_start,
+            commands::notion::commands::notion_sync_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

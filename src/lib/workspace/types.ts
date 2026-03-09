@@ -38,6 +38,7 @@ export const ARTIFACT_TYPE_LABELS: Record<string, string> = {
 
 export const WORKSPACE_STATUS_LABELS: Record<string, string> = {
   open: "Open",
+  active: "Active",
   in_progress: "In Progress",
   done: "Done",
   paused: "Paused",
@@ -45,6 +46,7 @@ export const WORKSPACE_STATUS_LABELS: Record<string, string> = {
 
 export const WORKSPACE_STATUS_COLORS: Record<string, string> = {
   open: "#3B82F6",
+  active: "#F97316",
   in_progress: "#F59E0B",
   done: "#10B981",
   paused: "#6B7280",

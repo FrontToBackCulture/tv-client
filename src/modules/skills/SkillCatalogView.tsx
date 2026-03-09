@@ -2,9 +2,8 @@
 // Browse, search, filter all skills in the central registry
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Loader2, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown } from "lucide-react";
-import { Button, IconButton } from "../../components/ui";
-import { SectionLoading } from "../../components/ui/DetailStates";
+import { Search, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import { Button } from "../../components/ui";
 import { cn } from "../../lib/cn";
 import {
   type SkillEntry,
@@ -13,10 +12,9 @@ import {
   type SkillCategory,
   useSkillSummary,
   useSkillRegistryUpdate,
-  useSkillExamples,
 } from "./useSkillRegistry";
 import { SkillDetailPanel } from "./SkillDetailPanel";
-import { useReadFile } from "../../hooks/useFiles";
+import { SkillReviewGrid } from "./SkillReviewGrid";
 
 interface SkillCatalogViewProps {
   registry: SkillRegistry;
@@ -46,13 +44,15 @@ import React from "react";
 
 export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }: SkillCatalogViewProps) {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [view, setView] = useState<"catalog" | "gallery">("catalog");
+  const [view, setView] = useState<"catalog" | "review">("catalog");
   const [search, setSearch] = useState("");
   const [activeCategory, _setActiveCategory] = useState("all");
   const [targetFilter, setTargetFilter] = useState<TargetFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [sortBy, setSortBy] = useState<SortOption>("modified");
+  const [auditFrom, setAuditFrom] = useState<string>("");
+  const [auditTo, setAuditTo] = useState<string>("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Pointer-based drag state (replaces HTML5 DnD which doesn't work in Tauri)
@@ -244,6 +244,11 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
       if (activeCategory !== "all" && s.category !== activeCategory) return false;
       if (targetFilter !== "all" && s.target !== targetFilter) return false;
       if (statusFilter !== "all" && s.status !== statusFilter) return false;
+      if (auditFrom || auditTo) {
+        if (!s.last_audited) return false;
+        if (auditFrom && s.last_audited < auditFrom) return false;
+        if (auditTo && s.last_audited > auditTo) return false;
+      }
       if (search) {
         const q = search.toLowerCase();
         return (
@@ -256,7 +261,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
       }
       return true;
     });
-  }, [allSkills, activeCategory, targetFilter, statusFilter, search]);
+  }, [allSkills, activeCategory, targetFilter, statusFilter, auditFrom, auditTo, search]);
 
   // Category counts
   const categoryCounts = useMemo(() => {
@@ -324,48 +329,70 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
     target.addEventListener("pointerup", onUp);
   }, [sidebarWidth]);
 
-  // Expand/collapse all groups in sidebar
-  const allGroupKeys = useMemo(() => {
-    const keys: string[] = [];
-    const addGroupKeys = (groupKey: string, skills: SkillWithSlug[]) => {
-      keys.push(groupKey);
+
+  // Build level-aware key sets for collapse controls
+  const groupKeysByLevel = useMemo(() => {
+    const level1: string[] = []; // root group headers: "bot", "platform"
+    const level2: string[] = []; // parent categories: "bot/{parentCatId}"
+    const level3: string[] = []; // subcategories: "bot/{childCatId}"
+
+    const addKeys = (groupKey: string, skills: SkillWithSlug[]) => {
+      level1.push(groupKey);
+      // Collect child category IDs per parent for indirect skill membership
+      const childCatsOf: Record<string, string[]> = {};
       for (const cat of registry.categories) {
-        if (skills.some(s => s.category === cat.id)) {
-          keys.push(`${groupKey}/${cat.id}`);
-          // Add sub-category keys for children of this category
-          if (!cat.parent) {
-            const children = registry.categories.filter(c => c.parent === cat.id);
-            for (const child of children) {
-              if (skills.some(s => s.category === child.id)) {
-                keys.push(`${groupKey}/${child.id}`);
-              }
-            }
+        if (cat.parent) {
+          if (!childCatsOf[cat.parent]) childCatsOf[cat.parent] = [];
+          childCatsOf[cat.parent].push(cat.id);
+        }
+      }
+      for (const cat of registry.categories) {
+        if (!cat.parent) {
+          // Parent category: include if it has direct skills OR skills in any child category
+          const childIds = childCatsOf[cat.id] ?? [];
+          const hasSkills = skills.some(s => s.category === cat.id || childIds.includes(s.category));
+          if (hasSkills) level2.push(`${groupKey}/${cat.id}`);
+        } else {
+          if (skills.some(s => s.category === cat.id)) {
+            level3.push(`${groupKey}/${cat.id}`);
           }
         }
       }
       if (skills.some(s => !s.category || !registry.categories.some(c => c.id === s.category))) {
-        keys.push(`${groupKey}/uncategorized`);
+        level2.push(`${groupKey}/uncategorized`);
       }
     };
-    if (botSkills.length > 0) addGroupKeys("bot", botSkills);
-    if (platformSkills.length > 0) addGroupKeys("platform", platformSkills);
-    return keys;
+    if (botSkills.length > 0) addKeys("bot", botSkills);
+    if (platformSkills.length > 0) addKeys("platform", platformSkills);
+    return { level1, level2, level3 };
   }, [registry.categories, botSkills, platformSkills]);
 
-  const allCollapsed = allGroupKeys.length > 0 && allGroupKeys.every(k => collapsedGroups.has(k));
+  const [showCollapseMenu, setShowCollapseMenu] = useState(false);
 
-  const toggleCollapseAll = useCallback(() => {
-    if (allCollapsed) {
-      setCollapsedGroups(new Set());
-    } else {
-      setCollapsedGroups(new Set(allGroupKeys));
+  const expandAll = useCallback(() => {
+    setCollapsedGroups(new Set());
+  }, []);
+
+  const collapseToLevel = useCallback((level: number) => {
+    const toCollapse = new Set<string>();
+    if (level <= 1) {
+      // Only root headers visible — collapse root groups so their contents hide
+      groupKeysByLevel.level1.forEach(k => toCollapse.add(k));
+    } else if (level === 2) {
+      // Show root + parent category names — collapse parent categories so their skills/sub-cats hide
+      groupKeysByLevel.level2.forEach(k => toCollapse.add(k));
+      groupKeysByLevel.level3.forEach(k => toCollapse.add(k));
+    } else if (level === 3) {
+      // Show root + parents expanded + sub-categories collapsed
+      groupKeysByLevel.level3.forEach(k => toCollapse.add(k));
     }
-  }, [allCollapsed, allGroupKeys]);
+    setCollapsedGroups(toCollapse);
+  }, [groupKeysByLevel]);
 
   return (
     <div className="h-full flex flex-col">
-      {/* Search + filters */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
+      {/* Search + filters (only in catalog/dashboard view) */}
+      {view === "catalog" && <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
@@ -397,6 +424,39 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
           <option value="inactive">Inactive</option>
           <option value="deprecated">Deprecated</option>
         </select>
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            value={auditFrom}
+            onChange={(e) => setAuditFrom(e.target.value)}
+            max={auditTo || undefined}
+            className={cn(
+              "text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300",
+              !auditFrom && "text-zinc-400"
+            )}
+            title="Audited from"
+          />
+          <span className="text-xs text-zinc-400">–</span>
+          <input
+            type="date"
+            value={auditTo}
+            onChange={(e) => setAuditTo(e.target.value)}
+            min={auditFrom || undefined}
+            className={cn(
+              "text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300",
+              !auditTo && "text-zinc-400"
+            )}
+            title="Audited to"
+          />
+          {(auditFrom || auditTo) && (
+            <button
+              onClick={() => { setAuditFrom(""); setAuditTo(""); }}
+              className="text-zinc-400 hover:text-zinc-600"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortOption)}
@@ -406,7 +466,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
           <option value="modified">Sort: Modified</option>
           <option value="status">Sort: Status</option>
         </select>
-      </div>
+      </div>}
 
       {/* Context menu for moving skill to category */}
       {contextMenu && (
@@ -482,8 +542,8 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
 
       {/* Content: list + detail */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: skill list */}
-        <div
+        {/* Left: skill list (only in catalog/dashboard view) */}
+        {view === "catalog" && <div
           className="overflow-y-auto flex-shrink-0"
           style={{ width: sidebarWidth }}
         >
@@ -507,16 +567,49 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
             </div>
           ) : (
             <div className="py-1">
-              {/* Expand/Collapse All */}
-              <div className="flex justify-end px-3 py-1">
+              {/* Expand/Collapse controls */}
+              <div className="flex justify-end items-center gap-1 px-3 py-1">
                 <button
-                  onClick={toggleCollapseAll}
-                  className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                  title={allCollapsed ? "Expand all" : "Collapse all"}
+                  onClick={expandAll}
+                  className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                  title="Expand All"
                 >
-                  <ChevronsUpDown size={12} />
-                  <span>{allCollapsed ? "Expand All" : "Collapse All"}</span>
+                  <ChevronsUpDown size={13} />
                 </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowCollapseMenu(!showCollapseMenu)}
+                    className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                    title="Collapse to level"
+                  >
+                    <ChevronsDownUp size={13} />
+                  </button>
+                  {showCollapseMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowCollapseMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1">
+                        <button
+                          onClick={() => { collapseToLevel(1); setShowCollapseMenu(false); }}
+                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        >
+                          Level 1 (Root)
+                        </button>
+                        <button
+                          onClick={() => { collapseToLevel(2); setShowCollapseMenu(false); }}
+                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        >
+                          Level 2
+                        </button>
+                        <button
+                          onClick={() => { collapseToLevel(3); setShowCollapseMenu(false); }}
+                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        >
+                          Level 3
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               {botSkills.length > 0 && (
                 <SkillGroup
@@ -556,17 +649,19 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
               )}
             </div>
           )}
-        </div>
+        </div>}
 
-        {/* Resize handle */}
-        <div
-          onPointerDown={handleResizePointerDown}
-          className="w-2 flex-shrink-0 cursor-col-resize group flex items-center justify-center border-r border-zinc-100 dark:border-zinc-800/50 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
-        >
-          <GripVertical size={10} className="text-zinc-300 dark:text-zinc-600 group-hover:text-teal-500 transition-colors" />
-        </div>
+        {/* Resize handle (only in catalog view) */}
+        {view === "catalog" && (
+          <div
+            onPointerDown={handleResizePointerDown}
+            className="w-2 flex-shrink-0 cursor-col-resize group flex items-center justify-center border-r border-zinc-100 dark:border-zinc-800/50 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
+          >
+            <GripVertical size={10} className="text-zinc-300 dark:text-zinc-600 group-hover:text-teal-500 transition-colors" />
+          </div>
+        )}
 
-        {/* Right: detail panel, dashboard, or gallery */}
+        {/* Right: detail panel, dashboard, gallery, or review */}
         {selectedSlug && selectedSkill ? (
           <div className="flex-1 min-w-0">
             <SkillDetailPanel
@@ -594,27 +689,31 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
                 Dashboard
               </button>
               <button
-                onClick={() => setView("gallery")}
+                onClick={() => setView("review")}
                 className={cn(
                   "px-3 py-1.5 rounded text-xs font-medium transition-colors",
-                  view === "gallery"
+                  view === "review"
                     ? "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400"
                     : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 )}
               >
-                Report Gallery
+                Review
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-hidden">
               {view === "catalog" ? (
-                <SkillDashboard
-                  registry={registry}
-                  allSkills={allSkills}
-                  driftStatuses={driftStatuses}
-                  onSelectSkill={setSelectedSlug}
-                />
+                <div className="h-full overflow-y-auto">
+                  <SkillDashboard
+                    registry={registry}
+                    allSkills={allSkills}
+                    driftStatuses={driftStatuses}
+                    onSelectSkill={setSelectedSlug}
+                  />
+                </div>
               ) : (
-                <ReportGallery />
+                <SkillReviewGrid
+                  registry={registry}
+                />
               )}
             </div>
           </div>
@@ -774,7 +873,7 @@ function SkillGroup({
             const catSkills = skillsByCategory.get(cat.id) ?? [];
             const children = childCategoriesOf(cat.id);
             const total = totalSkillCount(cat.id);
-            if (total === 0 && children.length === 0) return null;
+            if (total === 0) return null;
 
             const subKey = `${groupKey}/${cat.id}`;
             const isCatCollapsed = collapsedGroups.has(subKey);
@@ -1031,7 +1130,7 @@ function SkillDashboard({
   const botCount = allSkills.filter(s => s.target === "bot" || s.target === "both").length;
   const platformCount = allSkills.filter(s => s.target === "platform" || s.target === "both").length;
   const inSyncCount = driftStatuses.filter(d => d.status === "in_sync").length;
-  const driftedCount = driftStatuses.filter(d => d.status === "source_updated" || d.status === "target_modified").length;
+  const driftedCount = driftStatuses.filter(d => d.status === "drifted").length;
   const totalDistributions = driftStatuses.length;
 
   // Recently modified (top 10)
@@ -1045,7 +1144,7 @@ function SkillDashboard({
   // Skills with drift issues — group by skill, show which targets are drifted
   const driftIssues = useMemo(() => {
     const driftedEntries = driftStatuses.filter(
-      d => d.status === "source_updated" || d.status === "target_modified"
+      d => d.status === "drifted"
     );
     // Group by slug
     const bySlug = new Map<string, { skill: SkillWithSlug | undefined; drifts: SkillDriftStatus[] }>();
@@ -1060,17 +1159,6 @@ function SkillDashboard({
     }
     return Array.from(bySlug.entries());
   }, [allSkills, driftStatuses]);
-
-  // Category breakdown
-  const categoryBreakdown = useMemo(() => {
-    return registry.categories
-      .map(cat => ({
-        ...cat,
-        count: allSkills.filter(s => s.category === cat.id).length,
-      }))
-      .filter(c => c.count > 0)
-      .sort((a, b) => b.count - a.count);
-  }, [registry.categories, allSkills]);
 
   return (
     <div className="p-5 space-y-5">
@@ -1120,8 +1208,8 @@ function SkillDashboard({
                       : d.source_modified || d.target_modified;
                     return (
                       <p key={d.distribution_path} className="text-xs text-zinc-400 truncate mt-0.5">
-                        <span className={d.status === "target_modified" ? "text-amber-500" : "text-teal-500"}>
-                          {d.status === "target_modified" ? "modified" : "updated"}
+                        <span className="text-amber-500">
+                          drifted
                         </span>
                         {" "}
                         {formatDistPath(d.distribution_path)}
@@ -1177,162 +1265,11 @@ function SkillDashboard({
         </div>
       )}
 
-      {/* Category breakdown */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-          By Category
-        </h3>
-        <div className="grid grid-cols-2 gap-2">
-          {categoryBreakdown.map(cat => (
-            <div key={cat.id} className="flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800">
-              <span className="text-xs text-zinc-600 dark:text-zinc-300">{cat.label}</span>
-              <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">{cat.count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
     </div>
   );
 }
 
 
-
-// ─── Report Gallery ─────────────────────────────────────────────────────────
-
-function ReportGallery() {
-  const { data: examples = [], isLoading } = useSkillExamples();
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [gallerySearch, setGallerySearch] = useState("");
-  const { data: selectedHtml } = useReadFile(selectedPath ?? undefined);
-
-  const selectedExample = examples.find(e => e.file_path === selectedPath);
-
-  const iframeSrcDoc = useMemo(() => {
-    if (!selectedHtml) return undefined;
-    const overrideStyle = `<style>body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}body{margin:0!important;padding:1rem!important;overflow-x:hidden!important}img,table,pre{max-width:100%!important}</style>`;
-    if (selectedHtml.includes("</head>")) {
-      return selectedHtml.replace("</head>", `${overrideStyle}</head>`);
-    }
-    return overrideStyle + selectedHtml;
-  }, [selectedHtml]);
-
-  if (isLoading) {
-    return <SectionLoading className="py-12" />;
-  }
-
-  if (selectedPath && iframeSrcDoc) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex-shrink-0 px-4 pt-3 pb-2">
-          <Button
-            variant="ghost"
-            icon={ChevronRight}
-            onClick={() => setSelectedPath(null)}
-            className="mb-2 [&_svg:first-child]:rotate-180"
-          >
-            Back to gallery
-          </Button>
-          {selectedExample && (
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedExample.skill_name}</h2>
-              <p className="text-xs text-zinc-400">{selectedExample.file_name}</p>
-            </div>
-          )}
-        </div>
-        <div className="flex-1 min-h-0 px-4 pb-4">
-          <iframe
-            srcDoc={iframeSrcDoc}
-            className="w-full h-full border-0 rounded-lg border border-zinc-200 dark:border-zinc-800"
-            sandbox="allow-scripts"
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // Filter and sort examples
-  const sorted = useMemo(() => {
-    const q = gallerySearch.toLowerCase();
-    return [...examples]
-      .filter(ex => !q || ex.skill_name.toLowerCase().includes(q) || ex.file_name.toLowerCase().includes(q) || ex.slug.toLowerCase().includes(q))
-      .sort((a, b) => a.skill_name.localeCompare(b.skill_name));
-  }, [examples, gallerySearch]);
-
-  return (
-    <div className="p-4 space-y-3">
-      <div className="relative">
-        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-        <input
-          value={gallerySearch}
-          onChange={e => setGallerySearch(e.target.value)}
-          placeholder="Filter reports..."
-          className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
-        />
-        {gallerySearch && (
-          <IconButton icon={X} size={12} label="Clear search" onClick={() => setGallerySearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" />
-        )}
-      </div>
-      {sorted.length === 0 ? (
-        <div className="text-center py-8 text-xs text-zinc-400">No reports matching "{gallerySearch}"</div>
-      ) : (
-        <div className="grid grid-cols-4 gap-3">
-          {sorted.map(ex => (
-            <ReportThumbnail
-              key={ex.file_path}
-              example={ex}
-              onClick={() => setSelectedPath(ex.file_path)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReportThumbnail({ example, onClick }: { example: { slug: string; skill_name: string; file_name: string; file_path: string }; onClick: () => void }) {
-  const { data: htmlContent } = useReadFile(example.file_path);
-
-  const thumbSrcDoc = useMemo(() => {
-    if (!htmlContent) return undefined;
-    // Disable interactions and scrolling for thumbnail
-    const thumbStyle = `<style>body{margin:0!important;padding:0.5rem!important;overflow:hidden!important;pointer-events:none!important}body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}img,table,pre{max-width:100%!important}</style>`;
-    if (htmlContent.includes("</head>")) {
-      return htmlContent.replace("</head>", `${thumbStyle}</head>`);
-    }
-    return thumbStyle + htmlContent;
-  }, [htmlContent]);
-
-  return (
-    <button
-      onClick={onClick}
-      className="group rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-sm transition-all"
-    >
-      {/* Thumbnail preview */}
-      <div className="relative h-36 overflow-hidden bg-white">
-        {thumbSrcDoc ? (
-          <iframe
-            srcDoc={thumbSrcDoc}
-            className="w-[300%] h-[300%] border-0 origin-top-left pointer-events-none"
-            style={{ transform: "scale(0.333)" }}
-            tabIndex={-1}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 size={14} className="animate-spin text-zinc-300" />
-          </div>
-        )}
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-teal-600/0 group-hover:bg-teal-600/5 transition-colors" />
-      </div>
-      {/* Label */}
-      <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
-        <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{example.skill_name}</p>
-        <p className="text-xs text-zinc-400 truncate">{example.file_name}</p>
-      </div>
-    </button>
-  );
-}
 
 function StatCard({ label, value, sub, icon: Icon, color }: {
   label: string;

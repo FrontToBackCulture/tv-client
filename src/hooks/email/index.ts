@@ -23,8 +23,10 @@ export {
   useEmailCampaigns,
   useEmailCampaign,
   useCampaignStats,
+  useCampaignRecipients,
   useCreateEmailCampaign,
   useUpdateEmailCampaign,
   useDeleteEmailCampaign,
   useSendCampaign,
+  useSendTestEmail,
 } from "./useCampaigns";

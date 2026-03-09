@@ -26,6 +26,8 @@ pub const KEY_AWS_ACCESS_KEY_ID: &str = "aws_access_key_id";
 pub const KEY_AWS_SECRET_ACCESS_KEY: &str = "aws_secret_access_key";
 pub const KEY_GA4_SERVICE_ACCOUNT_PATH: &str = "ga4_service_account_path";
 pub const KEY_GA4_PROPERTY_ID: &str = "ga4_property_id";
+pub const KEY_EMAIL_API_BASE_URL: &str = "email_api_base_url";
+pub const KEY_NOTION_API: &str = "notion_api_key";
 
 // ============================================================================
 // Types
@@ -187,6 +189,8 @@ pub fn settings_list_keys() -> CmdResult<Vec<ApiKeyInfo>> {
         (KEY_AWS_SECRET_ACCESS_KEY, "AWS Secret Access Key", "For S3 AI publish"),
         (KEY_GA4_SERVICE_ACCOUNT_PATH, "GA4 Service Account Path", "Path to service account JSON (e.g. ~/.tv-desktop/ga4-service-account.json)"),
         (KEY_GA4_PROPERTY_ID, "GA4 Property ID", "GA4 numeric property ID for analytics"),
+        (KEY_EMAIL_API_BASE_URL, "Email API Base URL", "Tracking endpoint URL for email open/click/unsubscribe (e.g. https://your-domain.ngrok-free.dev)"),
+        (KEY_NOTION_API, "Notion API Key", "For syncing Notion databases to Work Module"),
     ];
 
     let mut result = Vec::new();

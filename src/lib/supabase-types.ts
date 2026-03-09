@@ -390,6 +390,7 @@ export type Database = {
       }
       email_campaigns: {
         Row: {
+          content_path: string | null
           created_at: string
           from_email: string
           from_name: string
@@ -404,6 +405,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          content_path?: string | null
           created_at?: string
           from_email: string
           from_name: string
@@ -418,6 +420,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          content_path?: string | null
           created_at?: string
           from_email?: string
           from_name?: string

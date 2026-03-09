@@ -15,6 +15,8 @@ import { MarkdownEditor } from "./MarkdownEditor";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileActions } from "./FileActions";
 import { JSONEditor, SQLEditor, ImageViewer, CSVViewer, HTMLViewer, PDFViewer, ExcalidrawViewer } from "./viewers";
+import { ImageEditor } from "../gallery/ImageEditor";
+import { ExcalidrawEditor } from "../gallery/ExcalidrawEditor";
 import { IntercomModal } from "./IntercomModal";
 import { PortalPublishModal } from "./PortalPublishModal";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
@@ -109,6 +111,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const [intercomModalOpen, setIntercomModalOpen] = useState(false);
   const [portalModalOpen, setPortalModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editMode, setEditMode] = useState(false);
 
   // Auto-save state for markdown files
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
@@ -278,6 +281,9 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
       }
     };
   }, []);
+
+  // Reset edit mode when file changes
+  useEffect(() => { setEditMode(false); }, [path]);
 
   // Add to recent files when opened
   useEffect(() => {
@@ -582,7 +588,10 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   };
 
   // Header with breadcrumbs and actions
-  const renderHeader = (showSaveStatus = false) => (
+  const renderHeader = (opts: boolean | { showSaveStatus?: boolean; editAction?: () => void } = false) => {
+    const showSaveStatus = typeof opts === "boolean" ? opts : opts.showSaveStatus ?? false;
+    const editAction = typeof opts === "boolean" ? undefined : opts.editAction;
+    return (
     <div className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
       <div className="flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-3">
@@ -605,6 +614,14 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           )}
         </div>
         <div className="flex items-center gap-1">
+          {editAction && (
+            <button
+              onClick={editAction}
+              className="px-2.5 py-1 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-teal-300 dark:hover:border-teal-700 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+            >
+              Edit
+            </button>
+          )}
           <IconButton
             icon={RefreshCw}
             label="Refresh file content"
@@ -633,7 +650,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
         </div>
       </div>
     </div>
-  );
+  ); };
 
   // Toast notification
   const renderToast = () => {
@@ -651,9 +668,22 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
 
   // Image files - handle separately (binary loading)
   if (fileType === "image") {
+    if (editMode) {
+      const galleryItem = {
+        file_path: path,
+        file_name: filename,
+        relative_path: path.replace(basePath + "/", ""),
+        folder: path.substring(0, path.lastIndexOf("/")).replace(basePath + "/", ""),
+        extension: filename.split(".").pop()?.toLowerCase() ?? "",
+        size_bytes: 0,
+        modified: "",
+        gallery_type: "image" as const,
+      };
+      return <ImageEditor item={galleryItem} onBack={() => { setEditMode(false); setRefreshKey(k => k + 1); }} />;
+    }
     return (
       <div className="h-full flex flex-col">
-        {renderHeader()}
+        {renderHeader({ editAction: () => setEditMode(true) })}
         <div className="flex-1 overflow-hidden">
           <ImageViewer path={path} filename={filename} refreshKey={refreshKey} />
         </div>
@@ -854,9 +884,22 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   }
 
   if (fileType === "excalidraw") {
+    if (editMode) {
+      const galleryItem = {
+        file_path: path,
+        file_name: filename,
+        relative_path: path.replace(basePath + "/", ""),
+        folder: path.substring(0, path.lastIndexOf("/")).replace(basePath + "/", ""),
+        extension: "excalidraw",
+        size_bytes: 0,
+        modified: "",
+        gallery_type: "excalidraw" as const,
+      };
+      return <ExcalidrawEditor item={galleryItem} onBack={() => { setEditMode(false); setRefreshKey(k => k + 1); }} />;
+    }
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
-        {renderHeader()}
+        {renderHeader({ editAction: () => setEditMode(true) })}
         <div className="flex-1 overflow-hidden">
           <ExcalidrawViewer content={content} filename={filename} />
         </div>
