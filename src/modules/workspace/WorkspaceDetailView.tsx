@@ -703,7 +703,7 @@ function FilePreview({ path }: { path: string }) {
 
   // PDF and Image viewers use Tauri's convertFileSrc — they don't need file content
   const skipContent = previewType === "pdf" || previewType === "image";
-  const { data: content, isLoading, isError } = useReadFile(skipContent ? "" : path);
+  const { data: content, isLoading, isError, refetch } = useReadFile(skipContent ? "" : path);
 
   const canEdit = previewType === "excalidraw" || previewType === "image";
 
@@ -720,12 +720,18 @@ function FilePreview({ path }: { path: string }) {
   } satisfies GalleryItem : null;
 
   // Edit mode — render full editor
+  const handleEditorBack = useCallback(() => {
+    setEditing(false);
+    // Invalidate cached file content so preview shows saved changes
+    refetch();
+  }, [refetch]);
+
   if (editing && galleryItem) {
     if (previewType === "excalidraw") {
-      return <ExcalidrawEditor item={galleryItem} onBack={() => setEditing(false)} />;
+      return <ExcalidrawEditor item={galleryItem} onBack={handleEditorBack} />;
     }
     if (previewType === "image") {
-      return <ImageEditor item={galleryItem} onBack={() => setEditing(false)} />;
+      return <ImageEditor item={galleryItem} onBack={handleEditorBack} />;
     }
   }
 

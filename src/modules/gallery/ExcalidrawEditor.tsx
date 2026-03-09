@@ -14,8 +14,11 @@ export function ExcalidrawEditor({ item, onBack }: { item: GalleryItem; onBack: 
   const [initialData, setInitialData] = useState<{ elements: unknown[]; appState: Record<string, unknown>; files: Record<string, unknown> } | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const excalidrawAPI = useRef<any>(null);
+
+  // Track latest scene state via onChange — getSceneElements() can be stale
+  const latestElements = useRef<unknown[]>([]);
+  const latestAppState = useRef<Record<string, unknown>>({});
+  const latestFiles = useRef<Record<string, unknown>>({});
 
   // Load excalidraw component + CSS dynamically
   useEffect(() => {
@@ -32,36 +35,38 @@ export function ExcalidrawEditor({ item, onBack }: { item: GalleryItem; onBack: 
     if (!content) return;
     try {
       const data = JSON.parse(content);
-      setInitialData({
-        elements: data.elements || [],
-        appState: data.appState || {},
-        files: data.files || {},
-      });
+      const elements = data.elements || [];
+      const appState = data.appState || {};
+      const files = data.files || {};
+      setInitialData({ elements, appState, files });
+      // Seed refs with initial data
+      latestElements.current = elements;
+      latestAppState.current = appState;
+      latestFiles.current = files;
     } catch {
       // Invalid JSON
     }
   }, [content]);
 
-  const handleSave = useCallback(async () => {
-    const api = excalidrawAPI.current;
-    if (!api) return;
+  // onChange fires on every scene mutation — capture latest state
+  const handleChange = useCallback((elements: unknown[], appState: Record<string, unknown>) => {
+    latestElements.current = elements;
+    latestAppState.current = appState;
+  }, []);
 
+  const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      const elements = api.getSceneElements();
-      const appState = api.getAppState();
-      const files = api.getFiles();
-
       const fileData = {
         type: "excalidraw",
         version: 2,
         source: "tv-desktop",
-        elements,
+        elements: latestElements.current,
         appState: {
-          viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
-          gridSize: appState.gridSize,
+          viewBackgroundColor: (latestAppState.current.viewBackgroundColor as string) || "#ffffff",
+          gridSize: latestAppState.current.gridSize,
         },
-        files,
+        files: latestFiles.current,
       };
 
       await invoke("write_file", {
@@ -130,12 +135,15 @@ export function ExcalidrawEditor({ item, onBack }: { item: GalleryItem; onBack: 
       <div className="flex-1 min-h-0">
         <ExcalidrawComp
           excalidrawAPI={(api: unknown) => {
-            excalidrawAPI.current = api;
+            // Capture files ref from API since onChange doesn't provide files
+            const typedApi = api as { getFiles: () => Record<string, unknown>; scrollToContent: () => void };
+            latestFiles.current = typedApi.getFiles?.() || {};
             setTimeout(() => {
-              try { (api as { scrollToContent: (opts?: unknown) => void }).scrollToContent(); } catch { /* ignore */ }
+              try { typedApi.scrollToContent(); } catch { /* ignore */ }
             }, 100);
           }}
           initialData={initialData}
+          onChange={handleChange}
           theme="light"
         />
       </div>
