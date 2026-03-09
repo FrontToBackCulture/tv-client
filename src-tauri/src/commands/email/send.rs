@@ -74,11 +74,11 @@ fn resolve_html_body(campaign: &Campaign, knowledge_path: Option<&str>) -> CmdRe
     // If content_path is set, read from file
     if let Some(content_path) = &campaign.content_path {
         if let Some(kp) = knowledge_path {
-            let full_path = format!("{}/{}", kp, content_path);
+            let full_path = std::path::Path::new(kp).join(content_path);
             match std::fs::read_to_string(&full_path) {
                 Ok(content) => return Ok(content),
                 Err(e) => {
-                    eprintln!("Failed to read content_path {}: {}", full_path, e);
+                    eprintln!("Failed to read content_path {}: {}", full_path.display(), e);
                     // Fall through to html_body
                 }
             }
