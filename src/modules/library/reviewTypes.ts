@@ -17,6 +17,9 @@ export interface ReviewRow {
   folderPath: string;
   isStale: boolean;
 
+  // Cross-domain (populated when aggregating across domains)
+  domain?: string;
+
   // Classification (shared — all editable)
   dataType: string | null;
   dataCategory: string | null;

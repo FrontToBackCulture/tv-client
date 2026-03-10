@@ -24,7 +24,7 @@ import { formatDateShort as formatDate, isOverdue } from "../../lib/date";
 // ============================
 // Types
 // ============================
-export type WorkView = "inbox" | "dashboard" | "board" | "tracker" | "notion";
+export type WorkView = "inbox" | "dashboard" | "board" | "tracker" | "notion" | "project";
 
 export interface InitiativeProjectLink {
   initiative_id: string;

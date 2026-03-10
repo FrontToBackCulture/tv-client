@@ -20,6 +20,7 @@ const moduleLabels: Record<ModuleId, string> = {
   workspace: "Workspaces",
   inbox: "Inbox",
   crm: "CRM",
+  domains: "Domains",
   product: "Product",
   gallery: "Gallery",
   bot: "Bots",

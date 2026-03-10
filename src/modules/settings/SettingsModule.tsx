@@ -12,6 +12,7 @@ import {
   Cpu,
   Megaphone,
   X,
+  Stethoscope,
 } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -25,8 +26,9 @@ import { SyncPathsView } from "./SyncPathsView";
 import { McpEndpointsView } from "./McpEndpointsView";
 import { ClaudeCodeSetupView } from "./ClaudeCodeSetupView";
 import { PortalSettingsView } from "./PortalSettingsView";
+import { DiagnosticsView } from "./DiagnosticsView";
 
-type SettingsViewId = "keys" | "val" | "sync" | "mcp" | "claude" | "bots" | "portal";
+type SettingsViewId = "keys" | "val" | "sync" | "mcp" | "claude" | "bots" | "portal" | "diagnostics";
 
 interface SidebarItem {
   id: SettingsViewId;
@@ -42,6 +44,7 @@ const sidebarItems: SidebarItem[] = [
   { id: "claude", label: "Claude Code", icon: Cpu },
   { id: "bots", label: "Bots", icon: Bot },
   { id: "portal", label: "Portal", icon: Megaphone },
+  { id: "diagnostics", label: "Diagnostics", icon: Stethoscope },
 ];
 
 export function SettingsModal() {
@@ -91,7 +94,7 @@ export function SettingsModal() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     if (!settingsOpen) return;
-    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", portal: "Portal" };
+    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", portal: "Portal", diagnostics: "Diagnostics" };
     setViewContext(activeView, labels[activeView]);
   }, [activeView, setViewContext, settingsOpen]);
 
@@ -157,6 +160,7 @@ export function SettingsModal() {
               {activeView === "claude" && <ClaudeCodeSetupView />}
               {activeView === "bots" && <BotsPathView />}
               {activeView === "portal" && <PortalSettingsView />}
+              {activeView === "diagnostics" && <DiagnosticsView onNavigate={(view) => setActiveView(view as SettingsViewId)} />}
             </div>
           </div>
         </div>

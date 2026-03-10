@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import {
-  LayoutDashboard, Columns3, AlertTriangle, Inbox, Plus, Target, Cloud,
+  LayoutDashboard, Columns3, AlertTriangle, Inbox, Plus, Target, Cloud, FolderPlus,
 } from "lucide-react";
 import { Button } from "../../components/ui";
 import {
@@ -22,6 +22,7 @@ import {
   TrackerView,
   useInitiativeProjects,
 } from "./WorkViews";
+import { ProjectView } from "./WorkProjectView";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
 import { NotionSyncStatus } from "../notion/NotionSyncStatus";
@@ -29,6 +30,7 @@ import { NotionSyncStatus } from "../notion/NotionSyncStatus";
 export function WorkModule() {
   const [view, setView] = useState<WorkView>("inbox");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showInitiativeForm, setShowInitiativeForm] = useState(false);
   const [editingInitiative, setEditingInitiative] = useState<any>(null);
@@ -39,7 +41,7 @@ export function WorkModule() {
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
-    const labels: Record<WorkView, string> = { inbox: "My Tasks", dashboard: "Dashboard", board: "Board", tracker: "Tracker", notion: "Notion Sync" };
+    const labels: Record<WorkView, string> = { inbox: "My Tasks", dashboard: "Dashboard", board: "Board", tracker: "Tracker", notion: "Notion Sync", project: "Project" };
     setViewContext(view, labels[view]);
   }, [view, setViewContext]);
 
@@ -50,11 +52,25 @@ export function WorkModule() {
   const { data: initiativeLinks = [], refetch: refetchInitiativeLinks } = useInitiativeProjects();
   const { data: users = [] } = useUsers();
 
+  const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) : undefined;
+
   const handleSelectTask = useCallback((id: string) => setSelectedTaskId(id), []);
 
   const handleViewChange = useCallback((v: WorkView) => {
     setView(v);
     setSelectedTaskId(null);
+    if (v !== "project") setSelectedProjectId(null);
+  }, []);
+
+  const handleSelectProject = useCallback((projectId: string) => {
+    setSelectedProjectId(projectId);
+    setView("project");
+    setSelectedTaskId(null);
+  }, []);
+
+  const handleBackFromProject = useCallback(() => {
+    setView("dashboard");
+    setSelectedProjectId(null);
   }, []);
 
   const handleCloseDetail = useCallback(() => {
@@ -71,11 +87,13 @@ export function WorkModule() {
   }, [refetchTasks]);
 
   const handleCreateTask = useCallback(() => {
-    // Default to first active project, or first project
-    const defaultProject = projects.find(p => p.status === "active") || projects[0];
+    // If on project view, default to that project
+    const defaultProject = selectedProjectId
+      ? projects.find(p => p.id === selectedProjectId)
+      : projects.find(p => p.status === "active") || projects[0];
     setCreateTaskProjectId(defaultProject?.id);
     setShowTaskForm(true);
-  }, [projects]);
+  }, [projects, selectedProjectId]);
 
   const handleTaskSaved = useCallback(() => {
     setShowTaskForm(false);
@@ -108,13 +126,16 @@ export function WorkModule() {
     refetchTasks();
   }, [refetchProjects, refetchTasks]);
 
+  // Don't show the "Project" tab in the tab bar — it's navigated to contextually
+  const showProjectView = view === "project" && selectedProject;
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Tab bar with new task button */}
       <div className="flex-shrink-0 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/50 px-4">
         <div className="flex items-center">
           <ViewTab label="Inbox" icon={Inbox} active={view === "inbox"} onClick={() => handleViewChange("inbox")} data-help-id="work-tab-inbox" />
-          <ViewTab label="Dashboard" icon={LayoutDashboard} active={view === "dashboard"} onClick={() => handleViewChange("dashboard")} data-help-id="work-tab-dashboard" />
+          <ViewTab label="Dashboard" icon={LayoutDashboard} active={view === "dashboard" || view === "project"} onClick={() => handleViewChange("dashboard")} data-help-id="work-tab-dashboard" />
           <ViewTab label="Board" icon={Columns3} active={view === "board"} onClick={() => handleViewChange("board")} data-help-id="work-tab-board" />
           <ViewTab label="Tracker" icon={AlertTriangle} active={view === "tracker"} onClick={() => handleViewChange("tracker")} data-help-id="work-tab-tracker" />
           <ViewTab label="Notion" icon={Cloud} active={view === "notion"} onClick={() => handleViewChange("notion")} data-help-id="work-tab-notion" />
@@ -128,6 +149,13 @@ export function WorkModule() {
             variant="ghost"
           >
             New Initiative
+          </Button>
+          <Button
+            onClick={() => setShowProjectForm(true)}
+            icon={FolderPlus}
+            variant="ghost"
+          >
+            New Project
           </Button>
           <Button
             onClick={handleCreateTask}
@@ -165,6 +193,16 @@ export function WorkModule() {
               onSelectTask={handleSelectTask}
               onEditInitiative={handleEditInitiative}
               onEditProject={handleEditProject}
+              onSelectProject={handleSelectProject}
+            />
+          )}
+          {showProjectView && (
+            <ProjectView
+              project={selectedProject}
+              allTasks={allTasks}
+              users={users}
+              onSelectTask={handleSelectTask}
+              onBack={handleBackFromProject}
             />
           )}
           {view === "board" && (

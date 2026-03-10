@@ -163,7 +163,15 @@ export function useSkillCheckAll() {
   return useQuery({
     queryKey: ["skill-drift"],
     queryFn: async () => {
-      return invoke<SkillDriftStatus[]>("skill_check_all");
+      console.log("[DEBUG] skill_check_all: invoking...");
+      try {
+        const result = await invoke<SkillDriftStatus[]>("skill_check_all");
+        console.log("[DEBUG] skill_check_all: got", result?.length, "results", result);
+        return result;
+      } catch (e) {
+        console.error("[DEBUG] skill_check_all: ERROR", e);
+        throw e;
+      }
     },
     staleTime: 30_000,
   });

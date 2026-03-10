@@ -1,5 +1,5 @@
-// src/modules/product/DomainTabView.tsx
-// Domains tab — sidebar + batch dashboard + detail panel (bot-style layout)
+// src/modules/domains/DomainsOverview.tsx
+// Level 1: All-domains overview — domain cards with status + batch operations
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
@@ -19,6 +19,7 @@ import {
 } from "../../hooks/val-sync";
 import { useRepository } from "../../stores/repositoryStore";
 import { useJobsStore } from "../../stores/jobsStore";
+import { useDomainArtifactsRebuild } from "../../hooks/useDomainArtifactsRebuild";
 import {
   Search,
   Loader2,
@@ -27,32 +28,22 @@ import {
   RefreshCw,
   Square,
   ChevronDown,
-  ChevronRight,
   Zap,
   BarChart3,
+  ChevronRight,
+  FolderOpen,
+  Check,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
+import { toast } from "../../stores/toastStore";
 import { Button } from "../../components/ui";
 import { useRegisterCommands } from "../../stores/commandStore";
-import { DomainDetailPanel } from "./DomainDetailPanel";
 import { DetailLoading } from "../../components/ui/DetailStates";
 
-// ============================
-// Props
-// ============================
-
-interface DomainTabViewProps {
-  initialDomain?: string | null;
-  onReviewDataModels: (domain: string) => void;
-  onReviewQueries: (domain: string) => void;
-  onReviewWorkflows: (domain: string) => void;
-  onReviewDashboards: (domain: string) => void;
+interface DomainsOverviewProps {
+  onSelectDomain: (domain: string) => void;
 }
-
-// ============================
-// Constants
-// ============================
 
 const TYPE_ORDER = ["production", "not-active", "demo", "template"] as const;
 const TYPE_LABELS: Record<string, string> = {
@@ -62,12 +53,12 @@ const TYPE_LABELS: Record<string, string> = {
   template: "Templates",
 };
 
-// Sections collapsed by default
-const DEFAULT_COLLAPSED = new Set(["not-active"]);
-
-// ============================
-// Helpers
-// ============================
+const TYPE_DOT_COLORS: Record<string, string> = {
+  production: "bg-green-500",
+  "not-active": "bg-zinc-400",
+  demo: "bg-blue-500",
+  template: "bg-purple-500",
+};
 
 function formatRelativeTime(isoString: string | null): string {
   if (!isoString) return "Never";
@@ -97,7 +88,7 @@ function groupByType(domains: DiscoveredDomain[]): Map<string, DiscoveredDomain[
 }
 
 // ============================
-// DropdownMenu (from DomainListView)
+// DropdownMenu
 // ============================
 
 function DropdownMenu({
@@ -165,13 +156,83 @@ function DropdownMenu({
 }
 
 // ============================
+// Domain Card
+// ============================
+
+function DomainCard({
+  domain,
+  onClick,
+}: {
+  domain: DiscoveredDomain;
+  onClick: () => void;
+}) {
+  const dotColor = TYPE_DOT_COLORS[domain.domain_type] ?? "bg-zinc-400";
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyReportsPath = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const reportsPath = `${domain.global_path}/reports`;
+    navigator.clipboard.writeText(reportsPath);
+    setCopied(true);
+    toast.success(`Copied ${domain.domain} reports path`);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "text-left p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 cursor-pointer",
+        "bg-white dark:bg-zinc-900",
+        "hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-sm",
+        "transition-all group"
+      )}
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-2">
+          <div className={cn("w-2 h-2 rounded-full", dotColor)} />
+          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+            {domain.domain}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleCopyReportsPath}
+            title="Copy reports folder path"
+            className={cn(
+              "p-1 rounded transition-colors",
+              copied
+                ? "text-green-500"
+                : "text-zinc-300 dark:text-zinc-600 hover:text-teal-500 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+            )}
+          >
+            {copied ? <Check size={13} /> : <FolderOpen size={13} />}
+          </button>
+          <ChevronRight
+            size={14}
+            className="text-zinc-300 dark:text-zinc-600 group-hover:text-teal-500 transition-colors"
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-3 text-xs text-zinc-400">
+        <span>{TYPE_LABELS[domain.domain_type] ?? domain.domain_type}</span>
+        {domain.last_sync && (
+          <>
+            <span>·</span>
+            <span>Synced {formatRelativeTime(domain.last_sync)}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================
 // Main component
 // ============================
 
-export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards }: DomainTabViewProps) {
-  const [selectedDomain, setSelectedDomain] = useState<string | null>(initialDomain ?? null);
+export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const [search, setSearch] = useState("");
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED));
 
   const { activeRepository } = useRepository();
   const domainsPath = activeRepository ? `${activeRepository.path}/0_Platform/domains` : null;
@@ -192,6 +253,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   const { trigger: runQueryHealth, progress: queryHealthProgress } = useRunAllDomainsQueryHealth();
   const { trigger: runArtifactAudit, progress: artifactAuditProgress } = useRunAllDomainsArtifactAudit();
   const { trigger: runOverview, progress: overviewProgress } = useRunAllDomainsOverview();
+  const { progress: rebuildProgress, rebuild: rebuildIndex } = useDomainArtifactsRebuild();
 
   const [fullAnalysisRunning, setFullAnalysisRunning] = useState(false);
 
@@ -207,6 +269,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   const isQueryHealthRunning = queryHealthProgress?.isRunning ?? false;
   const isArtifactAuditRunning = artifactAuditProgress?.isRunning ?? false;
   const isOverviewRunning = overviewProgress?.isRunning ?? false;
+  const isRebuildRunning = rebuildProgress.running;
   const [isGa4Syncing, setIsGa4Syncing] = useState(false);
 
   const handleSyncGa4 = useCallback(async () => {
@@ -222,7 +285,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
         { supabaseUrl, supabaseKey }
       );
       const warningText = result.warnings.length > 0 ? ` | Warnings: ${result.warnings.join("; ")}` : "";
-      updateJob(jobId, { status: result.warnings.length > 0 ? "completed" : "completed", progress: 100, message: `Synced ${result.rows_upserted} page views${warningText}` });
+      updateJob(jobId, { status: "completed", progress: 100, message: `Synced ${result.rows_upserted} page views${warningText}` });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       updateJob(jobId, { status: "failed", progress: 100, message: msg });
@@ -235,7 +298,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     isSyncing || isMonitoringSyncing || isSodSyncing || isImporterSyncing ||
     isIntegrationSyncing || isS3Syncing || isDataModelHealthRunning || isWorkflowHealthRunning ||
     isQueryHealthRunning || isArtifactAuditRunning ||
-    isOverviewRunning || fullAnalysisRunning || isGa4Syncing;
+    isOverviewRunning || fullAnalysisRunning || isGa4Syncing || isRebuildRunning;
 
   const getCurrentOperation = () => {
     if (isSyncing) return syncProgress?.currentDomain ? `Syncing ${syncProgress.currentDomain}` : "Syncing...";
@@ -249,11 +312,14 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     if (isQueryHealthRunning) return "Running query health...";
     if (isArtifactAuditRunning) return "Running artifact audit...";
     if (isOverviewRunning) return "Generating overview...";
+    if (isRebuildRunning) return rebuildProgress.domain ? `Rebuilding index: ${rebuildProgress.domain} (${rebuildProgress.resourceType})` : "Rebuilding index...";
     return null;
   };
 
-  // Get the active progress percentage
   const getProgressPct = (): number => {
+    if (isRebuildRunning && rebuildProgress.domainsTotal > 0) {
+      return Math.round((rebuildProgress.domainsCompleted / rebuildProgress.domainsTotal) * 100);
+    }
     const p =
       syncProgress ?? monitoringProgress ?? sodProgress ?? importerProgress ??
       integrationProgress ?? dataModelHealthProgress ?? workflowHealthProgress ??
@@ -265,7 +331,6 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   const all = domains ?? [];
   const domainNames = all.map((d) => d.domain);
 
-  // Stats
   const productionCount = all.filter((d) => d.domain_type === "production").length;
   const notActiveCount = all.filter((d) => d.domain_type === "not-active").length;
   const demoCount = all.filter((d) => d.domain_type === "demo").length;
@@ -321,20 +386,16 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     }
   }, [domainNames, anyRunning, syncAll, runQueryHealth, runArtifactAudit, runOverview, addJob, updateJob, syncProgress?.isRunning, queryHealthProgress?.isRunning, artifactAuditProgress?.isRunning, overviewProgress?.isRunning]);
 
-  // Abort any running batch operation
   const handleStop = useCallback(() => {
     abortSync();
   }, [abortSync]);
 
-  // Filter domains
+  // Filter
   const filtered = all.filter((d) =>
     search ? d.domain.toLowerCase().includes(search.toLowerCase()) : true
   );
   const grouped = groupByType(filtered);
   const currentOp = getCurrentOperation();
-
-  // Find the selected discoveredDomain object
-  const selectedDiscoveredDomain = all.find((d) => d.domain === selectedDomain) ?? null;
 
   // Dropdown menu items
   const syncItems = [
@@ -344,6 +405,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     { label: "Importer Errors", onClick: () => syncImporterErrors(domainNames), isRunning: isImporterSyncing, tooltip: "Fetch recent importer errors" },
     { label: "Integration Errors", onClick: () => syncIntegrationErrors(domainNames), isRunning: isIntegrationSyncing, tooltip: "Fetch recent integration errors" },
     { label: "Push AI to S3", onClick: () => syncAiToS3(all.map(d => ({ domain: d.domain, global_path: d.global_path }))), isRunning: isS3Syncing, tooltip: "Sync all domain AI folders to S3" },
+    { label: "Rebuild Index", onClick: () => rebuildIndex(all), isRunning: isRebuildRunning, tooltip: "Rebuild cross-domain artifacts index in Supabase from filesystem" },
   ];
 
   const healthItems = [
@@ -357,9 +419,8 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     { label: "Generate Overview HTML", onClick: () => runOverview(domainNames), isRunning: isOverviewRunning, tooltip: "Generate static HTML overview pages" },
   ];
 
-  // Register contextual commands for Command Palette (⌘K)
+  // Command palette commands
   const paletteCommands = useMemo(() => [
-    // Sync
     { id: "domain-sync-all", label: "Sync All (Schema)", description: "Fetch all schema data from VAL API for every domain", icon: <RefreshCw size={15} />, action: () => syncAll(domainNames) },
     { id: "domain-sync-monitoring", label: "Sync Workflow Executions", description: "Fetch recent workflow execution history", icon: <RefreshCw size={15} />, action: () => syncMonitoring(domainNames) },
     { id: "domain-sync-sod", label: "Sync SOD Tables", description: "Fetch Start-of-Day table sync status", icon: <RefreshCw size={15} />, action: () => syncSod(domainNames) },
@@ -367,21 +428,19 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
     { id: "domain-sync-integration", label: "Sync Integration Errors", description: "Fetch recent integration errors across domains", icon: <RefreshCw size={15} />, action: () => syncIntegrationErrors(domainNames) },
     { id: "domain-sync-s3", label: "Push AI to S3", description: "Upload all domain AI folders to S3 storage", icon: <RefreshCw size={15} />, action: () => syncAiToS3(all.map(d => ({ domain: d.domain, global_path: d.global_path }))) },
     { id: "domain-sync-ga4", label: "Sync GA4 Analytics", description: "Fetch dashboard page views from Google Analytics", icon: <BarChart3 size={15} />, action: handleSyncGa4 },
-    // Health
     { id: "domain-health-data", label: "Data Model Health", description: "Check table freshness and data staleness across domains", icon: <Zap size={15} />, action: () => runDataModelHealth(domainNames) },
     { id: "domain-health-workflow", label: "Workflow Health", description: "Analyze workflow execution success rates", icon: <Zap size={15} />, action: () => runWorkflowHealth(domainNames) },
     { id: "domain-health-query", label: "Query Health", description: "Analyze query health based on dashboard usage", icon: <Zap size={15} />, action: () => runQueryHealth(domainNames) },
-    // Analysis
     { id: "domain-artifact-audit", label: "Artifact Audit", description: "Compare local artifacts vs remote VAL state", icon: <Zap size={15} />, action: () => runArtifactAudit(domainNames) },
     { id: "domain-overview", label: "Generate Overview HTML", description: "Generate static HTML overview pages for each domain", icon: <Zap size={15} />, action: () => runOverview(domainNames) },
+    { id: "domain-rebuild-index", label: "Rebuild Cross-Domain Index", description: "Rebuild Supabase domain_artifacts from filesystem data", icon: <Database size={15} />, action: () => rebuildIndex(all) },
     { id: "domain-full-analysis", label: "Full Analysis Pipeline", description: "Sync All → Query Health → Artifact Audit → Generate Overview", icon: <Zap size={15} />, action: handleFullAnalysis },
-    // Stop
     ...(anyRunning ? [{ id: "domain-stop", label: "Stop Running Operation", description: "Abort the currently running batch operation", icon: <Square size={15} />, action: handleStop }] : []),
   ], [domainNames, anyRunning, all]);
 
   useRegisterCommands(paletteCommands, [domainNames, anyRunning, all]);
 
-  // ── Loading / Error / Empty states ──
+  // ── States ──
   if (isLoading) return <DetailLoading />;
 
   if (isError) {
@@ -394,12 +453,7 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
             ? "Restart the app to load the new val-sync commands (Rust rebuild required)"
             : String(error)}
         </p>
-        <Button
-          onClick={() => refetch()}
-          variant="secondary"
-          icon={RefreshCw}
-          className="mt-3"
-        >
+        <Button onClick={() => refetch()} variant="secondary" icon={RefreshCw} className="mt-3">
           Retry
         </Button>
       </div>
@@ -417,12 +471,23 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
   }
 
   return (
-    <div className="flex-1 flex overflow-hidden">
-      {/* ── Sidebar (220px) ── */}
-      <div className="w-[220px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 flex flex-col overflow-hidden">
-        {/* Search */}
-        <div className="p-2.5 pb-1.5">
-          <div className="relative">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Header: stats + search + batch controls */}
+      <div className="flex-shrink-0 px-6 pt-5 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800/50">
+        {/* Title row */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+              Domains
+            </h1>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              {all.length} domains — {productionCount} production
+              {notActiveCount > 0 ? ` · ${notActiveCount} inactive` : ""}
+              {demoCount > 0 ? ` · ${demoCount} demo` : ""}
+              {templateCount > 0 ? ` · ${templateCount} template` : ""}
+            </p>
+          </div>
+          <div className="relative w-56">
             <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
@@ -434,187 +499,110 @@ export function DomainTabView({ initialDomain, onReviewDataModels, onReviewQueri
           </div>
         </div>
 
-        {/* Domain list */}
-        <div className="flex-1 overflow-auto">
-          {filtered.length === 0 ? (
-            <div className="px-3 py-6 text-center">
-              <p className="text-xs text-zinc-400">
-                {all.length === 0 ? "No domains found" : "No match"}
-              </p>
-            </div>
-          ) : (
-            Array.from(grouped.entries()).map(([type, items]) => {
-              const isCollapsed = collapsedSections.has(type);
-              return (
-                <div key={type}>
-                  {/* Collapsible group header */}
-                  <button
-                    onClick={() => setCollapsedSections((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(type)) next.delete(type);
-                      else next.add(type);
-                      return next;
-                    })}
-                    className="w-full flex items-center gap-1 px-3 pt-3 pb-1 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
-                  >
-                    <ChevronRight
-                      size={10}
-                      className={cn(
-                        "text-zinc-400 transition-transform flex-shrink-0",
-                        !isCollapsed && "rotate-90"
-                      )}
-                    />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                      {TYPE_LABELS[type] ?? type}
-                    </span>
-                    <span className="text-xs text-zinc-400/60 ml-auto">{items.length}</span>
-                  </button>
-                  {/* Items */}
-                  {!isCollapsed && items.map((d) => (
-                    <button
-                      key={d.domain}
-                      onClick={() => setSelectedDomain(d.domain)}
-                      className={cn(
-                        "w-full text-left px-2.5 py-1.5 mx-1 rounded-md text-xs transition-colors",
-                        d.domain === selectedDomain
-                          ? "bg-teal-500/10 text-teal-700 dark:text-teal-300"
-                          : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
-                      )}
-                      style={{ width: "calc(100% - 8px)" }}
-                    >
-                      <span className="font-medium block truncate">{d.domain}</span>
-                      {d.last_sync && (
-                        <span className="text-xs text-zinc-400 block mt-0.5">
-                          {formatRelativeTime(d.last_sync)}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              );
-            })
+        {/* Batch controls row */}
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleFullAnalysis}
+            disabled={anyRunning}
+            title="Sync All → Query Health → Artifact Audit → Generate Overview"
+            size="sm"
+            icon={Zap}
+            loading={fullAnalysisRunning}
+          >
+            Full Analysis
+          </Button>
+
+          <DropdownMenu label="Sync" items={syncItems} disabled={anyRunning} color="teal" tooltip="Fetch data from VAL API" />
+          <DropdownMenu label="Health" items={healthItems} disabled={anyRunning} color="violet" tooltip="Run health checks" />
+          <DropdownMenu label="Analysis" items={analysisItems} disabled={anyRunning} tooltip="Audit and reporting" />
+
+          <button
+            onClick={handleSyncGa4}
+            disabled={anyRunning}
+            title="Fetch dashboard page views from Google Analytics"
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border transition-colors",
+              isGa4Syncing
+                ? "border-purple-400 text-purple-600 bg-purple-50 dark:bg-purple-900/20"
+                : "border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+              anyRunning && !isGa4Syncing && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            {isGa4Syncing ? <Loader2 size={12} className="animate-spin" /> : <BarChart3 size={12} />}
+            GA4
+          </button>
+
+          {anyRunning && (
+            <>
+              <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 ml-1" />
+              <Button onClick={handleStop} variant="danger" icon={Square} size="sm">
+                Stop
+              </Button>
+            </>
           )}
         </div>
+
+        {/* Progress bar */}
+        {currentOp && (
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Loader2 size={12} className="text-zinc-400 animate-spin" />
+              <span className="text-xs text-teal-700 dark:text-teal-400">{currentOp}</span>
+            </div>
+            <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-teal-500 rounded-full transition-all duration-300"
+                style={{ width: `${getProgressPct()}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Completion summary */}
+        {syncProgress && !syncProgress.isRunning && syncProgress.current > 0 && (
+          <div className={cn(
+            "px-3 py-2 rounded-lg text-xs",
+            syncProgress.failed.length > 0
+              ? "bg-amber-50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50"
+              : "bg-green-50 dark:bg-green-900/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50"
+          )}>
+            {syncProgress.completed.length}/{syncProgress.total} domains synced
+            {syncProgress.failed.length > 0 && (
+              <> — failed: <span className="font-mono">{syncProgress.failed.join(", ")}</span></>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* ── Content area ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {selectedDomain && selectedDiscoveredDomain ? (
-          /* Selected state: render DomainDetailPanel full-width */
-          <DomainDetailPanel
-            id={selectedDomain}
-            onClose={() => setSelectedDomain(null)}
-            onReviewDataModels={() => onReviewDataModels(selectedDomain)}
-            onReviewQueries={() => onReviewQueries(selectedDomain)}
-            onReviewWorkflows={() => onReviewWorkflows(selectedDomain)}
-            onReviewDashboards={() => onReviewDashboards(selectedDomain)}
-            discoveredDomain={selectedDiscoveredDomain}
-          />
+      {/* Domain cards grid */}
+      <div className="flex-1 overflow-auto p-6">
+        {filtered.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-sm text-zinc-400">
+              {all.length === 0 ? "No domains found" : "No matching domains"}
+            </p>
+          </div>
         ) : (
-          /* Empty state: batch dashboard */
-          <div className="flex-1 flex flex-col overflow-auto">
-            {/* Stats header */}
-            <div className="px-6 pt-6 pb-2">
-              <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {all.length} domains
-                <span className="text-zinc-400 font-normal ml-2 text-xs">
-                  {productionCount} production{notActiveCount > 0 ? ` · ${notActiveCount} inactive` : ""} · {demoCount} demo · {templateCount} template
-                </span>
-              </h2>
-            </div>
-
-            {/* Batch controls */}
-            <div className="px-6 py-3 space-y-3">
-              {/* Full Analysis button */}
-              <Button
-                onClick={handleFullAnalysis}
-                disabled={anyRunning}
-                title="Run complete analysis pipeline: Sync All → Query Health → Artifact Audit → Generate Overview"
-                size="md"
-                icon={Zap}
-                loading={fullAnalysisRunning}
-              >
-                Full Analysis
-              </Button>
-
-              {/* Dropdown menus row */}
-              <div className="flex items-center gap-2">
-                <DropdownMenu label="Sync" items={syncItems} disabled={anyRunning} color="teal" tooltip="Fetch data from VAL API" />
-                <DropdownMenu label="Health" items={healthItems} disabled={anyRunning} color="violet" tooltip="Run health checks" />
-                <DropdownMenu label="Analysis" items={analysisItems} disabled={anyRunning} tooltip="Audit and reporting" />
-
-                <button
-                  onClick={handleSyncGa4}
-                  disabled={anyRunning}
-                  title="Fetch dashboard page views from Google Analytics"
-                  className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border transition-colors",
-                    isGa4Syncing
-                      ? "border-purple-400 text-purple-600 bg-purple-50 dark:bg-purple-900/20"
-                      : "border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800",
-                    anyRunning && !isGa4Syncing && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  {isGa4Syncing ? <Loader2 size={12} className="animate-spin" /> : <BarChart3 size={12} />}
-                  GA4
-                </button>
-
-                {anyRunning && (
-                  <>
-                    <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 ml-1" />
-                    <Button
-                      onClick={handleStop}
-                      variant="danger"
-                      icon={Square}
-                    >
-                      Stop
-                    </Button>
-                  </>
-                )}
-              </div>
-
-              <p className="text-xs text-zinc-400">
-                Full Analysis: Sync → Query Health → Audit → Overview
-              </p>
-            </div>
-
-            {/* Progress bar */}
-            {currentOp && (
-              <div className="mx-6 mb-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Loader2 size={12} className="text-zinc-400 animate-spin"  />
-                  <span className="text-xs text-teal-700 dark:text-teal-400">{currentOp}</span>
+          <div className="space-y-6">
+            {Array.from(grouped.entries()).map(([type, items]) => (
+              <div key={type}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    {TYPE_LABELS[type] ?? type}
+                  </span>
+                  <span className="text-xs text-zinc-400/60">{items.length}</span>
                 </div>
-                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-teal-500 rounded-full transition-all duration-300"
-                    style={{ width: `${getProgressPct()}%` }}
-                  />
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                  {items.map((d) => (
+                    <DomainCard
+                      key={d.domain}
+                      domain={d}
+                      onClick={() => onSelectDomain(d.domain)}
+                    />
+                  ))}
                 </div>
               </div>
-            )}
-
-            {/* Completion summary */}
-            {syncProgress && !syncProgress.isRunning && syncProgress.current > 0 && (
-              <div className={cn(
-                "mx-6 mb-3 px-3 py-2 rounded-lg text-xs",
-                syncProgress.failed.length > 0
-                  ? "bg-amber-50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50"
-                  : "bg-green-50 dark:bg-green-900/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50"
-              )}>
-                {syncProgress.completed.length}/{syncProgress.total} domains synced
-                {syncProgress.failed.length > 0 && (
-                  <> — failed: <span className="font-mono">{syncProgress.failed.join(", ")}</span></>
-                )}
-              </div>
-            )}
-
-            {/* Hint */}
-            <div className="flex-1 flex items-center justify-center px-8">
-              <p className="text-sm text-zinc-400 text-center">
-                Select a domain from the sidebar to view details
-              </p>
-            </div>
+            ))}
           </div>
         )}
       </div>

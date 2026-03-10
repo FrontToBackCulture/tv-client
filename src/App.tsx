@@ -10,6 +10,7 @@ import { WorkspaceModule } from "./modules/workspace";
 import { InboxModule } from "./modules/inbox/InboxModule";
 import { CrmModule } from "./modules/crm/CrmModule";
 import { BotModule } from "./modules/bot/BotModule";
+import { DomainsModule } from "./modules/domains";
 import { ProductModule } from "./modules/product/ProductModule";
 import { PortalModule } from "./modules/portal";
 import { SchedulerModule } from "./modules/scheduler";
@@ -33,6 +34,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   workspace: WorkspaceModule,
   inbox: InboxModule,
   crm: CrmModule,
+  domains: DomainsModule,
   product: ProductModule,
   gallery: GalleryModule,
   bot: BotModule,
@@ -67,11 +69,11 @@ export default function App() {
           "crm",
           "work",
           "workspace",
+          "domains",
           "product",
           "gallery",
           "bot",
           "skills",
-          "scheduler",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
       }

@@ -16,6 +16,7 @@ import {
   XCircle,
   AlertCircle,
   BadgeCheck,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button, IconButton } from "../../components/ui";
@@ -57,6 +58,8 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   const queryClient = useQueryClient();
   const [selectedDoc, setSelectedDoc] = useState<{ path: string; name: string; type: "skill" | "instructions" } | null>(null);
   const [driftModal, setDriftModal] = useState<{ slug: string; name: string; targetPath: string } | null>(null);
+  const [showAssignSkills, setShowAssignSkills] = useState(false);
+  const [showS3Files, setShowS3Files] = useState(false);
 
   // Drift detection for domain skills
   const { data: driftStatuses = [] } = useSkillCheckAll();
@@ -196,19 +199,40 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
 
       {/* Skill Assignment + Generate */}
       <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Sparkles size={14} className="text-violet-500" />
-          <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-            Assigned Skills
-          </label>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles size={14} className="text-violet-500" />
+            <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+              Assigned Skills
+            </label>
+            {selectedSkills.length > 0 && (
+              <span className="text-xs font-normal text-zinc-400 tabular-nums">
+                {selectedSkills.length}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setShowAssignSkills(!showAssignSkills)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
+              showAssignSkills
+                ? "bg-violet-50 dark:bg-violet-900/20 border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400"
+                : "bg-zinc-50 dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-800 text-zinc-500 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-600"
+            )}
+          >
+            <Sparkles size={12} />
+            {showAssignSkills ? "Hide Registry" : "Assign Skills"}
+          </button>
         </div>
-        <SkillAssignmentGrid
-          skills={AVAILABLE_AI_SKILLS}
-          skillEntries={skillEntries}
-          categories={categories}
-          selectedSkills={selectedSkills}
-          onToggle={handleSkillToggle}
-        />
+        {showAssignSkills && (
+          <SkillAssignmentGrid
+            skills={AVAILABLE_AI_SKILLS}
+            skillEntries={skillEntries}
+            categories={categories}
+            selectedSkills={selectedSkills}
+            onToggle={handleSkillToggle}
+          />
+        )}
         <div className="flex items-center gap-3 pt-1">
           <button
             onClick={handleGenerate}
@@ -333,47 +357,58 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
               )}
             </div>
 
-            {/* File list */}
+            {/* File list — collapsible */}
             {s3Status.data.files.length > 0 && (
-              <div className="border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500">
-                      <th className="text-left px-2 py-1 font-medium">File</th>
-                      <th className="text-center px-2 py-1 font-medium w-16">Local</th>
-                      <th className="text-center px-2 py-1 font-medium w-16">S3</th>
-                      <th className="text-right px-2 py-1 font-medium w-32">S3 Last Modified</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {s3Status.data.files.map((f: S3FileStatus) => (
-                      <tr key={f.path} className="border-t border-zinc-100 dark:border-zinc-800/50">
-                        <td className="px-2 py-1 font-mono text-zinc-700 dark:text-zinc-300 truncate max-w-[200px]" title={f.path}>
-                          {f.path}
-                        </td>
-                        <td className="text-center px-2 py-1">
-                          {f.in_local ? (
-                            <CheckCircle2 size={12} className="inline text-green-500" />
-                          ) : (
-                            <XCircle size={12} className="inline text-red-400" />
-                          )}
-                        </td>
-                        <td className="text-center px-2 py-1">
-                          {f.in_s3 ? (
-                            <CheckCircle2 size={12} className="inline text-green-500" />
-                          ) : (
-                            <XCircle size={12} className="inline text-zinc-300 dark:text-zinc-600" />
-                          )}
-                        </td>
-                        <td className="text-right px-2 py-1 text-zinc-400">
-                          {f.s3_last_modified
-                            ? new Date(f.s3_last_modified).toLocaleString("en-SG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div>
+                <button
+                  onClick={() => setShowS3Files(!showS3Files)}
+                  className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                >
+                  <ChevronDown size={12} className={cn("transition-transform", !showS3Files && "-rotate-90")} />
+                  {showS3Files ? "Hide" : "Show"} {s3Status.data.files.length} files
+                </button>
+                {showS3Files && (
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden mt-2">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500">
+                          <th className="text-left px-2 py-1 font-medium">File</th>
+                          <th className="text-center px-2 py-1 font-medium w-16">Local</th>
+                          <th className="text-center px-2 py-1 font-medium w-16">S3</th>
+                          <th className="text-right px-2 py-1 font-medium w-32">S3 Last Modified</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {s3Status.data.files.map((f: S3FileStatus) => (
+                          <tr key={f.path} className="border-t border-zinc-100 dark:border-zinc-800/50">
+                            <td className="px-2 py-1 font-mono text-zinc-700 dark:text-zinc-300 truncate max-w-[200px]" title={f.path}>
+                              {f.path}
+                            </td>
+                            <td className="text-center px-2 py-1">
+                              {f.in_local ? (
+                                <CheckCircle2 size={12} className="inline text-green-500" />
+                              ) : (
+                                <XCircle size={12} className="inline text-red-400" />
+                              )}
+                            </td>
+                            <td className="text-center px-2 py-1">
+                              {f.in_s3 ? (
+                                <CheckCircle2 size={12} className="inline text-green-500" />
+                              ) : (
+                                <XCircle size={12} className="inline text-zinc-300 dark:text-zinc-600" />
+                              )}
+                            </td>
+                            <td className="text-right px-2 py-1 text-zinc-400">
+                              {f.s3_last_modified
+                                ? new Date(f.s3_last_modified).toLocaleString("en-SG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                                : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

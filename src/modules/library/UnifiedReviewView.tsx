@@ -13,6 +13,7 @@ import { cn } from "../../lib/cn";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClassificationStore } from "../../stores/classificationStore";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+import { upsertArtifactFields } from "../../lib/domainArtifacts";
 
 import type { ReviewResourceType, ReviewRow } from "./reviewTypes";
 import { EDITABLE_FIELDS, FIELD_TO_STORE, RESOURCE_LABEL } from "./reviewTypes";
@@ -370,6 +371,13 @@ export function UnifiedReviewView({
         }
       }
 
+      // Sync edits to Supabase domain_artifacts (fire-and-forget — disk is authoritative)
+      for (const [key, changes] of modifiedRows.entries()) {
+        upsertArtifactFields(domainName, resourceType, key, changes as Partial<ReviewRow>).catch((e) => {
+          console.warn(`Failed to sync ${key} to Supabase:`, e);
+        });
+      }
+
       setModifiedRows(new Map());
       setSaveSuccess(true);
       showToast(`Saved changes to ${savedKeys.length} item(s)`, "success");
@@ -381,7 +389,7 @@ export function UnifiedReviewView({
     } finally {
       setIsSaving(false);
     }
-  }, [modifiedRows, folderPath, domainName, isTable, showToast]);
+  }, [modifiedRows, folderPath, domainName, resourceType, isTable, showToast]);
 
   // Auto-save with debounce (2 seconds after last change)
   useEffect(() => {

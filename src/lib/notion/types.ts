@@ -40,7 +40,10 @@ export interface SyncConfig {
 }
 
 export interface FieldMappingEntry {
-  target: string;
+  // New format: work_field → { source: "NotionPropName", value_map: {...} }
+  source?: string;
+  // Legacy format: NotionPropName → { target: "work_field", value_map: {...} }
+  target?: string;
   value_map?: Record<string, string | number>;
 }
 

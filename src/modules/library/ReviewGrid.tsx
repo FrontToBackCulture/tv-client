@@ -54,6 +54,10 @@ export interface ReviewGridProps {
   onCellEdited?: (folderName: string, field: string, newValue: unknown) => void;
   modifiedRows?: Map<string, Partial<ReviewRow>>;
   onAddToDataModel?: (row: ReviewRow) => void;
+  /** Pre-loaded rows — when provided, skip internal loadReviewData and use these instead */
+  externalRows?: ReviewRow[];
+  /** Enable cross-domain mode (adds Domain column) */
+  crossDomain?: boolean;
 }
 
 export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function ReviewGrid({
@@ -67,6 +71,8 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
   onCellEdited,
   modifiedRows,
   onAddToDataModel,
+  externalRows,
+  crossDomain = false,
 }, ref) {
   const gridRef = useRef<AgGridReact>(null);
   const theme = useAppStore((s) => s.theme);
@@ -139,8 +145,13 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
     }
   }, [modifiedRowsJson, rows, isTable]);
 
-  // Load data
+  // Load data (skip if externalRows provided)
   useEffect(() => {
+    if (externalRows) {
+      setRows(externalRows);
+      setLoading(false);
+      return;
+    }
     if (!folderPath) return;
     setLoading(true);
     setError(null);
@@ -148,7 +159,7 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
       .then(setRows)
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load data"))
       .finally(() => setLoading(false));
-  }, [folderPath, resourceType, domainSlug, reloadKey]);
+  }, [folderPath, resourceType, domainSlug, reloadKey, externalRows]);
 
   // Handle ESC key to exit fullscreen
   useEffect(() => {
@@ -161,8 +172,8 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
 
   // Column definitions
   const columnDefs = useMemo<ColDef<ReviewRow>[]>(
-    () => buildReviewColumnDefs(resourceType, { wrapSummary, reviewMode, classificationValues }),
-    [resourceType, wrapSummary, reviewMode, classificationValues]
+    () => buildReviewColumnDefs(resourceType, { wrapSummary, reviewMode, classificationValues, crossDomain }),
+    [resourceType, wrapSummary, reviewMode, classificationValues, crossDomain]
   );
 
   const defaultColDef = useMemo<ColDef>(() => ({
@@ -195,10 +206,11 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
 
   const handleCellValueChanged = useCallback((event: CellValueChangedEvent<ReviewRow>) => {
     if (reviewMode && event.data && event.colDef.field && onCellEdited) {
-      const key = isTable ? event.data.name : event.data.folderName;
+      const base = isTable ? event.data.name : event.data.folderName;
+      const key = crossDomain && event.data.domain ? `${event.data.domain}::${base}` : base;
       onCellEdited(key, event.colDef.field, event.newValue);
     }
-  }, [reviewMode, onCellEdited, isTable]);
+  }, [reviewMode, onCellEdited, isTable, crossDomain]);
 
   const handlePasteEnd = useCallback((_event: PasteEndEvent<ReviewRow>) => {
     if (!reviewMode || !onCellEdited || !gridRef.current?.api) return;
@@ -215,36 +227,40 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
           const field = col.getColId();
           const value = rowNode.data?.[field as keyof ReviewRow];
           if (field && rowNode.data) {
-            const key = isTable ? rowNode.data.name : rowNode.data.folderName;
+            const base = isTable ? rowNode.data.name : rowNode.data.folderName;
+            const key = crossDomain && rowNode.data.domain ? `${rowNode.data.domain}::${base}` : base;
             onCellEdited(key, field, value);
           }
         });
       }
     });
-  }, [reviewMode, onCellEdited, isTable]);
+  }, [reviewMode, onCellEdited, isTable, crossDomain]);
 
   const mergedRows = useMemo(() => {
     if (!modifiedRows || modifiedRows.size === 0) return rows;
-    const rowKey = isTable ? "name" : "folderName";
     return rows.map(row => {
-      const mods = modifiedRows.get(row[rowKey] as string);
+      const base = isTable ? row.name : row.folderName;
+      const key = crossDomain && row.domain ? `${row.domain}::${base}` : base;
+      const mods = modifiedRows.get(key);
       return mods ? { ...row, ...mods } : row;
     });
-  }, [rows, modifiedRows, isTable]);
+  }, [rows, modifiedRows, isTable, crossDomain]);
 
   const getRowId = useCallback((params: GetRowIdParams<ReviewRow>) => {
-    return isTable ? params.data.name : params.data.folderName;
-  }, [isTable]);
+    const base = isTable ? params.data.name : params.data.folderName;
+    return crossDomain && params.data.domain ? `${params.data.domain}::${base}` : base;
+  }, [isTable, crossDomain]);
 
   const getRowClass = useCallback((params: { node: { group?: boolean }; data?: ReviewRow }) => {
     const classes: string[] = [];
     if (params.node.group) classes.push("ag-group-row-custom");
     if (reviewMode && params.data) {
-      const key = isTable ? params.data.name : params.data.folderName;
+      const base = isTable ? params.data.name : params.data.folderName;
+      const key = crossDomain && params.data.domain ? `${params.data.domain}::${base}` : base;
       if (modifiedRows?.has(key)) classes.push("ag-row-modified");
     }
     return classes.join(" ");
-  }, [reviewMode, modifiedRows, isTable]);
+  }, [reviewMode, modifiedRows, isTable, crossDomain]);
 
   const rowClassRules = useMemo(() => ({
     "opacity-50": (params: { data?: ReviewRow }) => !!params.data?.isStale,

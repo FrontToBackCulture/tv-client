@@ -73,7 +73,7 @@ async fn sync_config(
     if total == 0 {
         let now = chrono::Utc::now().to_rfc3339();
         // Update last_synced_at even if no changes
-        let _: SyncConfig = client
+        let _: Value = client
             .update(
                 "notion_sync_configs",
                 &format!("id=eq.{}", config.id),
@@ -95,8 +95,47 @@ async fn sync_config(
         .as_ref()
         .ok_or_else(|| CommandError::Config("No target project configured for sync".into()))?;
 
+    // Load project statuses for resolving status names → UUIDs
+    let project_statuses: Vec<crate::commands::work::types::TaskStatus> = client
+        .select(
+            "task_statuses",
+            &format!("project_id=eq.{}&order=sort_order.asc", target_project_id),
+        )
+        .await?;
+
+    // Build status name → id lookup (case-insensitive)
+    let status_name_map: std::collections::HashMap<String, String> = project_statuses
+        .iter()
+        .map(|s| (s.name.to_lowercase(), s.id.clone()))
+        .collect();
+
+    let default_status_id = project_statuses
+        .first()
+        .map(|s| s.id.clone())
+        .unwrap_or_default();
+
+    // Load users for resolving assignee names → UUIDs
+    let users: Vec<crate::commands::work::types::User> = client
+        .select("users", "select=id,name,type&type=eq.human")
+        .await
+        .unwrap_or_default();
+
+    // Build user name → id lookup (case-insensitive, also match initials)
+    let mut user_name_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for u in &users {
+        user_name_map.insert(u.name.to_lowercase(), u.id.clone());
+        // Also map initials (e.g., "YC" → user id)
+        let initials: String = u.name.split_whitespace()
+            .filter_map(|w| w.chars().next())
+            .collect::<String>()
+            .to_lowercase();
+        if !initials.is_empty() {
+            user_name_map.insert(initials, u.id.clone());
+        }
+    }
+
     // Get existing tasks with notion_page_id for this project
-    let existing_tasks: Vec<Task> = client
+    let existing_tasks: Vec<Value> = client
         .select(
             "tasks",
             &format!(
@@ -106,11 +145,11 @@ async fn sync_config(
         )
         .await?;
 
-    // Build lookup map: notion_page_id -> task
-    let mut existing_map: std::collections::HashMap<String, Task> = std::collections::HashMap::new();
+    // Build lookup map: notion_page_id -> task data
+    let mut existing_map: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
     for task in existing_tasks {
-        if let Some(ref npid) = task.notion_page_id {
-            existing_map.insert(npid.clone(), task);
+        if let Some(npid) = task["notion_page_id"].as_str() {
+            existing_map.insert(npid.to_string(), task);
         }
     }
 
@@ -126,19 +165,49 @@ async fn sync_config(
             .unwrap_or_else(|| api::extract_page_title(&page.properties).leak())
             .to_string();
 
+        // Resolve status_id: if it's not a UUID, try matching by name
+        let resolved_status = mapped
+            .get("status_id")
+            .and_then(|v| v.as_str())
+            .map(|s| {
+                // If it looks like a UUID, use as-is (from value_map)
+                if s.len() == 36 && s.contains('-') {
+                    s.to_string()
+                } else {
+                    // Try to match by name (case-insensitive)
+                    status_name_map
+                        .get(&s.to_lowercase())
+                        .cloned()
+                        .unwrap_or_else(|| default_status_id.clone())
+                }
+            });
+
+        // Resolve assignee_id: if it's not a UUID, try matching by name/initials
+        let resolved_assignee = mapped
+            .get("assignee_id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| {
+                if s.len() == 36 && s.contains('-') {
+                    Some(s.to_string())
+                } else {
+                    user_name_map.get(&s.to_lowercase()).cloned()
+                }
+            });
+
         if let Some(existing_task) = existing_map.get(&page.id) {
             // UPDATE existing task
             let mut update_data = serde_json::Map::new();
+            let existing_id = existing_task["id"].as_str().unwrap_or("");
 
             // Only update fields that changed
-            if mapped.get("title").and_then(|v| v.as_str()) != Some(&existing_task.title) {
+            if mapped.get("title").and_then(|v| v.as_str()) != existing_task["title"].as_str() {
                 if let Some(t) = mapped.get("title") {
                     update_data.insert("title".to_string(), t.clone());
                 }
             }
-            if let Some(sid) = mapped.get("status_id") {
-                if sid.as_str() != existing_task.status_id.as_str().into() {
-                    update_data.insert("status_id".to_string(), sid.clone());
+            if let Some(ref sid) = resolved_status {
+                if Some(sid.as_str()) != existing_task["status_id"].as_str() {
+                    update_data.insert("status_id".to_string(), Value::String(sid.clone()));
                 }
             }
             if let Some(p) = mapped.get("priority") {
@@ -147,15 +216,15 @@ async fn sync_config(
             if let Some(d) = mapped.get("due_date") {
                 update_data.insert("due_date".to_string(), d.clone());
             }
-            if let Some(a) = mapped.get("assignee_id") {
-                update_data.insert("assignee_id".to_string(), a.clone());
+            if let Some(ref aid) = resolved_assignee {
+                update_data.insert("assignee_id".to_string(), Value::String(aid.clone()));
             }
 
-            if !update_data.is_empty() {
+            if !update_data.is_empty() && !existing_id.is_empty() {
                 let _: Value = client
                     .update(
                         "tasks",
-                        &format!("id=eq.{}", existing_task.id),
+                        &format!("id=eq.{}", existing_id),
                         &Value::Object(update_data),
                     )
                     .await?;
@@ -170,28 +239,10 @@ async fn sync_config(
 
             let next_number = project.next_task_number.unwrap_or(1);
 
-            // Get default status_id (first status of the project, or from mapping)
-            let status_id = mapped
-                .get("status_id")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            let status_id = if let Some(sid) = status_id {
-                sid
-            } else {
-                // Get first unstarted/backlog status from project
-                let statuses: Vec<crate::commands::work::types::TaskStatus> = client
-                    .select(
-                        "task_statuses",
-                        &format!("project_id=eq.{}&order=sort_order.asc", target_project_id),
-                    )
-                    .await?;
-
-                statuses
-                    .first()
-                    .map(|s| s.id.clone())
-                    .ok_or_else(|| CommandError::Internal("No statuses found for project".into()))?
-            };
+            // Use resolved status or fall back to default
+            let status_id = resolved_status
+                .clone()
+                .unwrap_or_else(|| default_status_id.clone());
 
             let mut insert_data = json!({
                 "project_id": target_project_id,
@@ -209,14 +260,14 @@ async fn sync_config(
             if let Some(due) = mapped.get("due_date") {
                 insert_data["due_date"] = due.clone();
             }
-            if let Some(assignee) = mapped.get("assignee_id") {
-                insert_data["assignee_id"] = assignee.clone();
+            if let Some(ref aid) = resolved_assignee {
+                insert_data["assignee_id"] = Value::String(aid.clone());
             }
 
-            let _task: Task = client.insert("tasks", &insert_data).await?;
+            let _task: Value = client.insert("tasks", &insert_data).await?;
 
             // Increment project's next_task_number
-            let _: Project = client
+            let _: Value = client
                 .update(
                     "projects",
                     &format!("id=eq.{}", target_project_id),
@@ -246,7 +297,7 @@ async fn sync_config(
 
     // Update last_synced_at
     let now = chrono::Utc::now().to_rfc3339();
-    let _: SyncConfig = client
+    let _: Value = client
         .update(
             "notion_sync_configs",
             &format!("id=eq.{}", config.id),

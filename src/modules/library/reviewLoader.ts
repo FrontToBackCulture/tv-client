@@ -6,19 +6,22 @@ import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 import type { ReviewResourceType, ReviewRow } from "./reviewTypes";
 import { FOLDER_PREFIX } from "./reviewTypes";
 
-/** Load review rows from filesystem folders for any resource type */
+/** Load review rows from filesystem folders for any resource type.
+ *  `light` mode skips expensive per-file reads (stale checks, analysis) — useful for cross-domain aggregation. */
 export async function loadReviewData(
   folderPath: string,
   resourceType: ReviewResourceType,
   domainSlug?: string | null,
+  opts?: { light?: boolean },
 ): Promise<ReviewRow[]> {
+  const light = opts?.light ?? false;
   if (resourceType === "table") {
-    return loadTablesAsReviewRows(folderPath);
+    return loadTablesAsReviewRows(folderPath, light);
   }
-  const rows = await loadArtifactsAsReviewRows(folderPath, resourceType);
+  const rows = await loadArtifactsAsReviewRows(folderPath, resourceType, light);
 
-  // Enrich dashboards with GA4 analytics from Supabase
-  if (resourceType === "dashboard" && domainSlug && isSupabaseConfigured) {
+  // Enrich dashboards with GA4 analytics from Supabase (skip in light mode)
+  if (!light && resourceType === "dashboard" && domainSlug && isSupabaseConfigured) {
     return enrichDashboardsWithAnalytics(rows, domainSlug);
   }
 
@@ -27,8 +30,9 @@ export async function loadReviewData(
 
 // ─── Table loading ───────────────────────────────────────────────────────────
 
-/** Load tables from data-models-index.json, falling back to directory scan */
-async function loadTablesAsReviewRows(dataModelsPath: string): Promise<ReviewRow[]> {
+/** Load tables from data-models-index.json, falling back to directory scan.
+ *  `light` mode skips per-table file reads for timestamps — much faster for cross-domain. */
+async function loadTablesAsReviewRows(dataModelsPath: string, light = false): Promise<ReviewRow[]> {
   const indexPath = `${dataModelsPath}/data-models-index.json`;
 
   try {
@@ -40,12 +44,14 @@ async function loadTablesAsReviewRows(dataModelsPath: string): Promise<ReviewRow
         const tableName = t.name as string;
         return makeTableRow(tableName, `${dataModelsPath}/table_${tableName}`, t);
       });
-      return await supplementTableTimestamps(rows);
+      // In light mode, skip the expensive per-file timestamp supplement
+      return light ? rows : await supplementTableTimestamps(rows);
     }
   } catch {
     // Index file not found or invalid, fall back to scanning
   }
 
+  // Fall back to directory scan (always full — no light mode shortcut since it needs file reads anyway)
   return await scanTableDirectories(dataModelsPath);
 }
 
@@ -289,9 +295,29 @@ async function scanTableDirectories(dataModelsPath: string): Promise<ReviewRow[]
 
 // ─── Artifact loading (queries, dashboards, workflows) ──────────────────────
 
+/** Run async tasks with concurrency limit */
+async function runWithConcurrency<T>(
+  tasks: (() => Promise<T>)[],
+  concurrency: number,
+): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let nextIdx = 0;
+
+  async function worker() {
+    while (nextIdx < tasks.length) {
+      const idx = nextIdx++;
+      results[idx] = await tasks[idx]();
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker()));
+  return results;
+}
+
 async function loadArtifactsAsReviewRows(
   folderPath: string,
   resourceType: ReviewResourceType,
+  light = false,
 ): Promise<ReviewRow[]> {
   const entries = await invoke<Array<{ name: string; path: string; is_directory: boolean }>>(
     "list_directory",
@@ -301,103 +327,106 @@ async function loadArtifactsAsReviewRows(
   const prefix = FOLDER_PREFIX[resourceType];
   const dirs = entries.filter((e) => e.is_directory && e.name.startsWith(prefix));
 
-  const rows: ReviewRow[] = await Promise.all(
-    dirs.map(async (dir) => {
-      const row: ReviewRow = {
-        id: dir.name,
-        name: dir.name,
-        displayName: null,
-        folderName: dir.name,
-        folderPath: dir.path,
-        isStale: false,
-        // Classification
-        dataType: null, dataCategory: null, dataSubCategory: null,
-        usageStatus: null, action: null, dataSource: null, sourceSystem: null,
-        tags: null, suggestedName: null, summaryShort: null, summaryFull: null,
-        // Portal
-        includeSitemap: false, sitemapGroup1: null, sitemapGroup2: null,
-        solution: null, resourceUrl: null,
-        // Dates
-        createdDate: null, updatedDate: null,
-        // Table-specific (null)
-        hasOverview: null, columnCount: null, calculatedColumnCount: null,
-        rowCount: null, tableType: null, daysSinceCreated: null, daysSinceUpdate: null,
-        workflowCount: null, scheduledWorkflowCount: null, queryCount: null, dashboardCount: null,
-        lastSampleAt: null, lastDetailsAt: null, lastAnalyzeAt: null, lastOverviewAt: null, space: null,
-        // Artifact-specific (null)
-        category: null, tableName: null, fieldCount: null,
-        widgetCount: null, creatorName: null,
-        isScheduled: null, cronExpression: null, pluginCount: null, description: null,
-        // GA4 Analytics
-        gaViews7d: null, gaViews30d: null, gaViews90d: null,
-        gaUsers30d: null, gaLastViewed: null, gaHealthScore: null, gaHealthStatus: null,
-      };
+  const tasks = dirs.map((dir) => async (): Promise<ReviewRow> => {
+    const row: ReviewRow = {
+      id: dir.name,
+      name: dir.name,
+      displayName: null,
+      folderName: dir.name,
+      folderPath: dir.path,
+      isStale: false,
+      // Classification
+      dataType: null, dataCategory: null, dataSubCategory: null,
+      usageStatus: null, action: null, dataSource: null, sourceSystem: null,
+      tags: null, suggestedName: null, summaryShort: null, summaryFull: null,
+      // Portal
+      includeSitemap: false, sitemapGroup1: null, sitemapGroup2: null,
+      solution: null, resourceUrl: null,
+      // Dates
+      createdDate: null, updatedDate: null,
+      // Table-specific (null)
+      hasOverview: null, columnCount: null, calculatedColumnCount: null,
+      rowCount: null, tableType: null, daysSinceCreated: null, daysSinceUpdate: null,
+      workflowCount: null, scheduledWorkflowCount: null, queryCount: null, dashboardCount: null,
+      lastSampleAt: null, lastDetailsAt: null, lastAnalyzeAt: null, lastOverviewAt: null, space: null,
+      // Artifact-specific (null)
+      category: null, tableName: null, fieldCount: null,
+      widgetCount: null, creatorName: null,
+      isScheduled: null, cronExpression: null, pluginCount: null, description: null,
+      // GA4 Analytics
+      gaViews7d: null, gaViews30d: null, gaViews90d: null,
+      gaUsers30d: null, gaLastViewed: null, gaHealthScore: null, gaHealthStatus: null,
+    };
 
-      // Check for .stale marker
+    // Check for .stale marker (skip in light mode)
+    if (!light) {
       try {
         await invoke<string>("read_file", { path: `${dir.path}/.stale` });
         row.isStale = true;
       } catch { /* not stale */ }
+    }
 
-      // Read definition.json
-      try {
-        const defContent = await invoke<string>("read_file", { path: `${dir.path}/definition.json` });
-        const def = JSON.parse(defContent);
+    // Read definition.json
+    try {
+      const defContent = await invoke<string>("read_file", { path: `${dir.path}/definition.json` });
+      const def = JSON.parse(defContent);
 
-        row.name = def.name || def.displayName || dir.name;
-        row.displayName = def.name || def.displayName || dir.name;
-        row.id = String(def.id ?? dir.name);
-        row.createdDate = def.created_date || null;
-        row.updatedDate = def.updated_date || null;
+      row.name = def.name || def.displayName || dir.name;
+      row.displayName = def.name || def.displayName || dir.name;
+      row.id = String(def.id ?? dir.name);
+      row.createdDate = def.created_date || null;
+      row.updatedDate = def.updated_date || null;
 
-        // Type-specific fields
-        if (resourceType === "query") {
-          row.category = def.category || null;
-          row.tableName = def.datasource?.queryInfo?.tableInfo?.name || null;
-          row.fieldCount = def.datasource?.queryInfo?.tableInfo?.fields?.length ?? null;
-        } else if (resourceType === "dashboard") {
-          row.category = def.category || null;
-          row.widgetCount = Array.isArray(def.widgets) ? def.widgets.length : null;
-          row.creatorName = def.created_by || null;
-        } else if (resourceType === "workflow") {
-          row.isScheduled = !!def.cron_expression;
-          row.cronExpression = def.cron_expression || null;
-          row.pluginCount = def.data?.workflow?.plugins?.length ?? null;
-          row.description = def.description || null;
-        }
-      } catch { /* No definition.json */ }
-
-      // Read definition_analysis.json for classification
-      try {
-        const analysisContent = await invoke<string>("read_file", { path: `${dir.path}/definition_analysis.json` });
-        const analysis = JSON.parse(analysisContent);
-
-        row.dataType = analysis.classification?.dataType || analysis.dataType || null;
-        row.dataCategory = analysis.dataCategory || null;
-        row.dataSubCategory = analysis.dataSubCategory || null;
-        row.usageStatus = analysis.usageStatus || null;
-        row.action = analysis.action || null;
-        row.dataSource = analysis.dataSource || null;
-        row.sourceSystem = analysis.sourceSystem || null;
-        row.tags = analysis.tags || null;
-        row.suggestedName = analysis.suggestedName || null;
-        row.summaryShort = analysis.summary?.short || null;
-        row.summaryFull = analysis.summary?.full || null;
-        row.includeSitemap = analysis.includeSitemap === true;
-        row.sitemapGroup1 = analysis.sitemapGroup1 || null;
-        row.sitemapGroup2 = analysis.sitemapGroup2 || null;
-        row.solution = analysis.solution || null;
-        row.resourceUrl = analysis.resourceUrl || null;
-      } catch { /* No analysis file */ }
-
-      // Auto-populate resourceUrl from folder path if not set
-      if (!row.resourceUrl) {
-        row.resourceUrl = buildDomainUrl(dir.path) || null;
+      // Type-specific fields
+      if (resourceType === "query") {
+        row.category = def.category || null;
+        row.tableName = def.datasource?.queryInfo?.tableInfo?.name || null;
+        row.fieldCount = def.datasource?.queryInfo?.tableInfo?.fields?.length ?? null;
+      } else if (resourceType === "dashboard") {
+        row.category = def.category || null;
+        row.widgetCount = Array.isArray(def.widgets) ? def.widgets.length : null;
+        row.creatorName = def.created_by || null;
+      } else if (resourceType === "workflow") {
+        row.isScheduled = !!def.cron_expression;
+        row.cronExpression = def.cron_expression || null;
+        row.pluginCount = def.data?.workflow?.plugins?.length ?? null;
+        row.description = def.description || null;
       }
+    } catch { /* No definition.json */ }
 
-      return row;
-    })
-  );
+    // Read definition_analysis.json for classification
+    try {
+      const analysisContent = await invoke<string>("read_file", { path: `${dir.path}/definition_analysis.json` });
+      const analysis = JSON.parse(analysisContent);
+
+      row.dataType = analysis.classification?.dataType || analysis.dataType || null;
+      row.dataCategory = analysis.dataCategory || null;
+      row.dataSubCategory = analysis.dataSubCategory || null;
+      row.usageStatus = analysis.usageStatus || null;
+      row.action = analysis.action || null;
+      row.dataSource = analysis.dataSource || null;
+      row.sourceSystem = analysis.sourceSystem || null;
+      row.tags = analysis.tags || null;
+      row.suggestedName = analysis.suggestedName || null;
+      row.summaryShort = analysis.summary?.short || null;
+      row.summaryFull = analysis.summary?.full || null;
+      row.includeSitemap = analysis.includeSitemap === true;
+      row.sitemapGroup1 = analysis.sitemapGroup1 || null;
+      row.sitemapGroup2 = analysis.sitemapGroup2 || null;
+      row.solution = analysis.solution || null;
+      row.resourceUrl = analysis.resourceUrl || null;
+    } catch { /* No analysis file */ }
+
+    // Auto-populate resourceUrl from folder path if not set
+    if (!row.resourceUrl) {
+      row.resourceUrl = buildDomainUrl(dir.path) || null;
+    }
+
+    return row;
+  });
+
+  // Limit concurrency to avoid flooding Tauri IPC
+  const rows = await runWithConcurrency(tasks, light ? 10 : 20);
 
   rows.sort((a, b) => a.name.localeCompare(b.name));
   return rows;

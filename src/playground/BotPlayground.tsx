@@ -24,6 +24,7 @@ import {
   extractDateFromPath,
 } from "./botPlaygroundTypes";
 import { SkillModal } from "./BotSkillModal";
+import { BotSkillInlineView } from "./BotSkillInlineView";
 import { BotOverview } from "./BotOverviewPanel";
 import { SessionDetail, CommandListView, SessionsTimeline } from "./BotSessionViews";
 import { BotSidebar } from "./BotSidebar";
@@ -356,7 +357,17 @@ export function BotPlayground() {
   let content: React.ReactNode;
 
   if (detailView && selectedBot) {
-    if (detailView.type === "session") {
+    if (detailView.type === "skill") {
+      content = (
+        <BotSkillInlineView
+          skillPath={detailView.skillPath}
+          skillName={detailView.skillName}
+          title={detailView.title}
+          usage={skillUsage[detailView.skillName]}
+          onBack={handleBackToOverview}
+        />
+      );
+    } else if (detailView.type === "session") {
       content = <SessionDetail sessionPath={detailView.sessionPath} date={detailView.date} title={detailView.title} onBack={handleBackToOverview} />;
     } else if (detailView.type === "commands" && commandsDir) {
       content = <CommandListView commandsDir={commandsDir} onBack={handleBackToOverview} />;
@@ -374,7 +385,7 @@ export function BotPlayground() {
           recentSessions={botSessions.slice(0, 5)}
           skillList={skillList}
           skillCategories={skillCategoriesData.categories}
-          onSkillClick={(skill) => setSkillModal({ skillName: skill.name, skillPath: skill.path, title: skill.title })}
+          onSkillClick={(skill) => setDetailView({ type: "skill", skillName: skill.name, skillPath: skill.path, title: skill.title })}
           onSkillDelete={handleSkillDelete}
           onSessionClick={(session) => setDetailView({ type: "session", sessionPath: session.path, date: session.date, title: session.title })}
           onCommandsClick={() => setDetailView({ type: "commands" })}
@@ -410,8 +421,11 @@ export function BotPlayground() {
               grouped={grouped}
               selectedPath={selectedPath}
               search={search}
+              skills={skillList.map((s) => ({ name: s.name, path: s.path, title: s.title, status: s.status as import("./botPlaygroundTypes").SkillStatus }))}
+              selectedSkillName={detailView?.type === "skill" ? detailView.skillName : null}
               onSearch={setSearch}
               onSelect={handleSelectBot}
+              onSkillClick={(skill) => setDetailView({ type: "skill", skillName: skill.name, skillPath: skill.path, title: skill.title })}
             />
             <div className="flex-1 min-w-0">{content}</div>
           </>

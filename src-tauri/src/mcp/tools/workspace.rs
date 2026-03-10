@@ -14,7 +14,7 @@ pub fn tools() -> Vec<Tool> {
         // Workspaces
         Tool {
             name: "list-workspaces".to_string(),
-            description: "List all collaboration workspaces".to_string(),
+            description: "List workspaces (lightweight summary, no nested sessions/artifacts). Use get-workspace for full detail.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "status": {
@@ -25,6 +25,10 @@ pub fn tools() -> Vec<Tool> {
                     "owner": {
                         "type": "string",
                         "description": "Filter by owner name"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results to return (default 20, max 100)"
                     }
                 }),
                 vec![],
@@ -215,7 +219,8 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         "list-workspaces" => {
             let status = args.get("status").and_then(|v| v.as_str()).map(|s| s.to_string());
             let owner = args.get("owner").and_then(|v| v.as_str()).map(|s| s.to_string());
-            match workspace::workspace_list(status, owner).await {
+            let limit = args.get("limit").and_then(|v| v.as_u64()).map(|n| n as u32);
+            match workspace::workspace_list(status, owner, limit).await {
                 Ok(workspaces) => ToolResult::json(&workspaces),
                 Err(e) => ToolResult::error(e.to_string()),
             }

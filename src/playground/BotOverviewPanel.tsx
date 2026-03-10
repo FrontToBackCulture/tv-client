@@ -138,10 +138,7 @@ export function BotOverview({
 
   const availableBotSkills = useMemo(() => {
     if (!registry) return [] as string[];
-    return Object.entries(registry.skills)
-      .filter(([, e]) => e.target === "bot" || e.target === "both")
-      .map(([slug]) => slug)
-      .sort();
+    return Object.keys(registry.skills).sort();
   }, [registry]);
 
   const registryCategories = registry?.categories ?? [];
@@ -166,6 +163,7 @@ export function BotOverview({
   // Build drift map for this bot's skills
   const driftBySlug = useMemo(() => {
     const map = new Map<string, { status: string; source_modified: string; target_modified: string }>();
+    console.log("[DEBUG] driftBySlug: botSkillsRelPath=", botSkillsRelPath, "driftStatuses count=", driftStatuses.length);
     if (!botSkillsRelPath) return map;
     const prefix = botSkillsRelPath + "/";
     for (const d of driftStatuses) {
@@ -173,6 +171,7 @@ export function BotOverview({
         map.set(d.slug, { status: d.status, source_modified: d.source_modified, target_modified: d.target_modified });
       }
     }
+    console.log("[DEBUG] driftBySlug: matched", map.size, "of", driftStatuses.length);
     return map;
   }, [driftStatuses, botSkillsRelPath]);
 

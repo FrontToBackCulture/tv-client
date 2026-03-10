@@ -32,6 +32,25 @@ pub struct Workspace {
     pub context: Option<WorkspaceContext>,
 }
 
+/// Lightweight workspace summary for list views (no nested sessions/artifacts/context)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceSummary {
+    pub id: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub status: String,
+    pub owner: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initiative_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateWorkspace {
     pub title: String,

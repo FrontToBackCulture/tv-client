@@ -1,28 +1,21 @@
 // src/modules/product/ProductModule.tsx
-// Product module — 4-tab layout: Platform, Business, Domains, Categories
+// Product module — catalog/reference: Platform, Solutions, Connectors, Categories
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Boxes, Package, Database, Tags, Layers, ArrowLeft, Sparkles, Plug, HardDrive, FileText } from "lucide-react";
+import { Boxes, Package, Tags, Plug, Layers } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useProductStats } from "../../hooks/product";
-import { useDiscoverDomains } from "../../hooks/val-sync";
 import { useRepository } from "../../stores/repositoryStore";
 import type { ProductEntityType } from "../../lib/product/types";
 import { PlatformTabView } from "./PlatformTabView";
 import { SolutionsTabView } from "./SolutionsTabView";
-import { DomainTabView } from "./DomainTabView";
 import { CategoryLibraryPanel } from "./CategoryLibraryPanel";
-import { DataModelTabView } from "./DataModelTabView";
 import { EntityForm } from "./EntityForm";
-import { UnifiedReviewView } from "../library/UnifiedReviewView";
-import type { ReviewResourceType } from "../library/reviewTypes";
-import { AiSkillsTabView } from "./AiSkillsTabView";
 import { ConnectorsTabView } from "./ConnectorsTabView";
-import { DriveTabView } from "./DriveTabView";
-import { ReportsTabView } from "./ReportsTabView";
-type ProductTab = "platform" | "solutions" | "domains" | "drive" | "reports" | "data-models" | "category-library" | "skills" | "connectors";
-type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
+import { DataModelTabView } from "./DataModelTabView";
+
+type ProductTab = "platform" | "solutions" | "data-model" | "connectors" | "category-library";
 
 // ============================
 // Detail panel resize persistence
@@ -52,35 +45,18 @@ export function ProductModule() {
 
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);
-  const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const labels: Record<ProductTab, string> = { platform: "Platform", solutions: "Solutions", domains: "Domains", drive: "Drive", reports: "Reports", "data-models": "Data Models", "category-library": "Categories", skills: "AI Skills", connectors: "Connectors" };
+    const labels: Record<ProductTab, string> = {
+      platform: "Platform",
+      solutions: "Solutions",
+      "data-model": "Data Model",
+      connectors: "Connectors",
+      "category-library": "Categories",
+    };
     setViewContext(activeTab, labels[activeTab]);
   }, [activeTab, setViewContext]);
 
-  // Review escape hatch (full-screen review for domains)
-  const [reviewingDomain, setReviewingDomain] = useState<string | null>(null);
-  const lastReviewedDomainRef = useRef<string | null>(null);
-  const [reviewType, setReviewType] = useState<ReviewType>("data-models");
-
-  // Report review mode context for help bot
-  useEffect(() => {
-    if (reviewingDomain) {
-      const reviewLabels: Record<ReviewType, string> = { "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards" };
-      const reviewDescriptions: Record<ReviewType, string> = {
-        "data-models": "Review Mode with action buttons: Fetch All Samples, Fetch All Categorical, Fetch All Details, AI Describe All, AI Classify All, Generate All Overviews, Sync to Portal, Export. Grid shows all tables with editable classification fields.",
-        queries: "Review Mode showing all queries with category, table name, field count. Split panel with detail preview on the right.",
-        workflows: "Review Mode showing all workflows with schedule, cron expression, plugin count. Split panel with detail preview.",
-        dashboards: "Review Mode showing all dashboards with category, widget count, creator. Split panel with detail preview.",
-      };
-      setViewContext("domains", "Domains");
-      setViewDetail(`${reviewingDomain} → ${reviewLabels[reviewType]} ${reviewDescriptions[reviewType]}`);
-    } else {
-      setViewDetail(null);
-    }
-  }, [reviewingDomain, reviewType, setViewContext, setViewDetail]);
-
-  // Detail panel resize (percentage-based, CRM pattern) — used by Platform & Business tabs
+  // Detail panel resize (percentage-based, CRM pattern)
   const [detailPanelWidth, setDetailPanelWidthState] = useState(50);
   const [isResizingDetail, setIsResizingDetail] = useState(false);
   const detailStartXRef = useRef(0);
@@ -130,11 +106,9 @@ export function ProductModule() {
     };
   }, [isResizingDetail]);
 
-  // Data for stats & domain path (used for DataModelsReview escape hatch)
+  // Data for stats
   const statsQuery = useProductStats();
   const { activeRepository } = useRepository();
-  const domainsPath = activeRepository ? `${activeRepository.path}/0_Platform/domains` : null;
-  const domainsQuery = useDiscoverDomains(domainsPath);
 
   // Tab change resets selection
   const handleTabChange = useCallback((tab: ProductTab) => {
@@ -154,104 +128,16 @@ export function ProductModule() {
     statsQuery.refetch();
   }, [statsQuery]);
 
-  // Selection (Platform & Business tabs)
+  // Selection
   const handleSelect = useCallback((id: string | null) => setSelectedId(id), []);
 
-  // Review (full-screen escape hatch for domains)
-  const handleReviewDataModels = useCallback((domain: string) => {
-    setReviewType("data-models");
-    setReviewingDomain(domain);
-    lastReviewedDomainRef.current = domain;
-  }, []);
-  const handleReviewQueries = useCallback((domain: string) => {
-    setReviewType("queries");
-    setReviewingDomain(domain);
-    lastReviewedDomainRef.current = domain;
-  }, []);
-  const handleReviewWorkflows = useCallback((domain: string) => {
-    setReviewType("workflows");
-    setReviewingDomain(domain);
-    lastReviewedDomainRef.current = domain;
-  }, []);
-  const handleReviewDashboards = useCallback((domain: string) => {
-    setReviewType("dashboards");
-    setReviewingDomain(domain);
-    lastReviewedDomainRef.current = domain;
-  }, []);
-  const handleExitReview = useCallback(() => setReviewingDomain(null), []);
-
-  // ── Full-screen Review ──
-  if (reviewingDomain) {
-    const discoveredDomain = domainsQuery.data?.find((d) => d.domain === reviewingDomain);
-    const basePath = discoveredDomain
-      ? discoveredDomain.global_path
-      : activeRepository
-        ? `${activeRepository.path}/0_Platform/domains/production/${reviewingDomain}`
-        : null;
-
-    const REVIEW_FOLDER: Record<ReviewType, string> = {
-      "data-models": "data_models",
-      queries: "queries",
-      workflows: "workflows",
-      dashboards: "dashboards",
-    };
-
-    const REVIEW_LABEL: Record<ReviewType, string> = {
-      "data-models": "Data Models",
-      queries: "Queries",
-      workflows: "Workflows",
-      dashboards: "Dashboards",
-    };
-
-    const REVIEW_RESOURCE_TYPE: Record<ReviewType, ReviewResourceType> = {
-      "data-models": "table",
-      queries: "query",
-      workflows: "workflow",
-      dashboards: "dashboard",
-    };
-
-    const folderPath = basePath ? `${basePath}/${REVIEW_FOLDER[reviewType]}` : null;
-
-    return (
-      <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
-        <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
-          <button
-            onClick={handleExitReview}
-            className="flex items-center gap-1.5 px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
-          >
-            <ArrowLeft size={14} />
-            Back to Domains
-          </button>
-          <span className="text-zinc-300 dark:text-zinc-700">|</span>
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            {reviewingDomain} — {REVIEW_LABEL[reviewType]}
-          </span>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          {folderPath && (
-            <UnifiedReviewView
-              resourceType={REVIEW_RESOURCE_TYPE[reviewType]}
-              folderPath={folderPath}
-              domainName={reviewingDomain}
-            />
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Normal layout ──
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Tab bar */}
       <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
         <ViewTab label="Platform" icon={Boxes} active={activeTab === "platform"} onClick={() => handleTabChange("platform")} data-help-id="product-tab-platform" />
         <ViewTab label="Solutions" icon={Package} active={activeTab === "solutions"} onClick={() => handleTabChange("solutions")} data-help-id="product-tab-solutions" />
-        <ViewTab label="Domains" icon={Database} active={activeTab === "domains"} onClick={() => handleTabChange("domains")} data-help-id="product-tab-domains" />
-        <ViewTab label="Drive" icon={HardDrive} active={activeTab === "drive"} onClick={() => handleTabChange("drive")} data-help-id="product-tab-drive" />
-        <ViewTab label="Reports" icon={FileText} active={activeTab === "reports"} onClick={() => handleTabChange("reports")} data-help-id="product-tab-reports" />
-        <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-models"} onClick={() => handleTabChange("data-models")} data-help-id="product-tab-data-models" />
-        <ViewTab label="Skills" icon={Sparkles} active={activeTab === "skills"} onClick={() => handleTabChange("skills")} data-help-id="product-tab-skills" />
+        <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-model"} onClick={() => handleTabChange("data-model")} data-help-id="product-tab-data-model" />
         <ViewTab label="Connectors" icon={Plug} active={activeTab === "connectors"} onClick={() => handleTabChange("connectors")} data-help-id="product-tab-connectors" />
         <ViewTab label="Categories" icon={Tags} active={activeTab === "category-library"} onClick={() => handleTabChange("category-library")} data-help-id="product-tab-categories" />
       </div>
@@ -279,33 +165,7 @@ export function ProductModule() {
           />
         )}
 
-        {activeTab === "domains" && (
-          <DomainTabView
-            initialDomain={lastReviewedDomainRef.current}
-            onReviewDataModels={handleReviewDataModels}
-            onReviewQueries={handleReviewQueries}
-            onReviewWorkflows={handleReviewWorkflows}
-            onReviewDashboards={handleReviewDashboards}
-          />
-        )}
-
-        {activeTab === "drive" && (
-          <DriveTabView />
-        )}
-
-        {activeTab === "reports" && (
-          <ReportsTabView />
-        )}
-
-        {activeTab === "data-models" && (
-          <DataModelTabView />
-        )}
-
-        {activeTab === "category-library" && (
-          <div className="flex-1 overflow-hidden">
-            <CategoryLibraryPanel />
-          </div>
-        )}
+        {activeTab === "data-model" && <DataModelTabView />}
 
         {activeTab === "connectors" && (
           <ConnectorsTabView
@@ -318,10 +178,11 @@ export function ProductModule() {
           />
         )}
 
-        {activeTab === "skills" && (
-          <AiSkillsTabView />
+        {activeTab === "category-library" && (
+          <div className="flex-1 overflow-hidden">
+            <CategoryLibraryPanel />
+          </div>
         )}
-
       </div>
 
       {/* Entity form modal */}

@@ -114,7 +114,7 @@ type ReportSort = "name" | "date" | "category";
 
 function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; search: string; isLoading: boolean }) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<ReportSort>("category");
+  const [sortBy, setSortBy] = useState<ReportSort>("name");
   const [showSortMenu, setShowSortMenu] = useState(false);
   const { data: selectedHtml } = useReadFile(selectedPath ?? undefined);
   const { data: registry } = useSkillRegistry();
@@ -155,8 +155,7 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
 
   const togglePin = useCallback((slug: string) => {
     if (!registry) return;
-    const entry = registry.skills[slug];
-    if (!entry) return;
+    const entry = registry.skills[slug] ?? { name: slug, description: "", category: "uncategorized", target: "platform", status: "active", distributions: [] };
     const today = new Date().toISOString().slice(0, 10);
     const updatedRegistry = {
       ...registry,

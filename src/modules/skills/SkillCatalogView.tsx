@@ -2,7 +2,8 @@
 // Browse, search, filter all skills in the central registry
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import { Search, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown, ChevronsDownUp, ShieldCheck, LayoutDashboard, Table2, Zap } from "lucide-react";
+import { ViewTab } from "../../components/ViewTab";
 import { Button } from "../../components/ui";
 import { cn } from "../../lib/cn";
 import {
@@ -15,6 +16,7 @@ import {
 } from "./useSkillRegistry";
 import { SkillDetailPanel } from "./SkillDetailPanel";
 import { SkillReviewGrid } from "./SkillReviewGrid";
+import { PromptBuilder } from "./PromptBuilder";
 
 interface SkillCatalogViewProps {
   registry: SkillRegistry;
@@ -25,6 +27,7 @@ interface SkillCatalogViewProps {
 
 type TargetFilter = "all" | "bot" | "platform";
 type StatusFilter = "all" | "active" | "inactive" | "deprecated" | "test" | "review" | "draft";
+type VerifiedFilter = "all" | "verified" | "unverified";
 type SortOption = "name" | "modified" | "status";
 
 interface SkillWithSlug extends SkillEntry {
@@ -44,15 +47,17 @@ import React from "react";
 
 export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }: SkillCatalogViewProps) {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [view, setView] = useState<"catalog" | "review">("catalog");
+  const [reviewSelectedSlug, setReviewSelectedSlug] = useState<string | null>(null);
+  const [view, setView] = useState<"catalog" | "review" | "prompt-builder">("catalog");
   const [search, setSearch] = useState("");
   const [activeCategory, _setActiveCategory] = useState("all");
   const [targetFilter, setTargetFilter] = useState<TargetFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [verifiedFilter, setVerifiedFilter] = useState<VerifiedFilter>("all");
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [sortBy, setSortBy] = useState<SortOption>("modified");
-  const [auditFrom, setAuditFrom] = useState<string>("");
-  const [auditTo, setAuditTo] = useState<string>("");
+  const [modFrom, setModFrom] = useState<string>("");
+  const [modTo, setModTo] = useState<string>("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Pointer-based drag state (replaces HTML5 DnD which doesn't work in Tauri)
@@ -244,10 +249,14 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
       if (activeCategory !== "all" && s.category !== activeCategory) return false;
       if (targetFilter !== "all" && s.target !== targetFilter) return false;
       if (statusFilter !== "all" && s.status !== statusFilter) return false;
-      if (auditFrom || auditTo) {
-        if (!s.last_audited) return false;
-        if (auditFrom && s.last_audited < auditFrom) return false;
-        if (auditTo && s.last_audited > auditTo) return false;
+      if (verifiedFilter === "verified" && !s.verified) return false;
+      if (verifiedFilter === "unverified" && s.verified) return false;
+      if (modFrom || modTo) {
+        const modDate = modDateMap.get(s.slug) ?? "";
+        const dateOnly = modDate.slice(0, 10); // YYYY-MM-DD
+        if (!dateOnly) return false;
+        if (modFrom && dateOnly < modFrom) return false;
+        if (modTo && dateOnly > modTo) return false;
       }
       if (search) {
         const q = search.toLowerCase();
@@ -261,7 +270,7 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
       }
       return true;
     });
-  }, [allSkills, activeCategory, targetFilter, statusFilter, auditFrom, auditTo, search]);
+  }, [allSkills, activeCategory, targetFilter, statusFilter, verifiedFilter, modFrom, modTo, modDateMap, search]);
 
   // Category counts
   const categoryCounts = useMemo(() => {
@@ -275,6 +284,11 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
   const selectedSkill = selectedSlug ? registry.skills[selectedSlug] : null;
   const selectedDriftStatuses = selectedSlug
     ? driftStatuses.filter((d) => d.slug === selectedSlug)
+    : [];
+
+  const reviewSkill = reviewSelectedSlug ? registry.skills[reviewSelectedSlug] : null;
+  const reviewDriftStatuses = reviewSelectedSlug
+    ? driftStatuses.filter((d) => d.slug === reviewSelectedSlug)
     : [];
 
   // Sort function
@@ -369,6 +383,20 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
 
   const [showCollapseMenu, setShowCollapseMenu] = useState(false);
 
+  // Default to collapsed at level 2 (show root + parent categories, hide skills + subcategories)
+  const initialCollapseApplied = useRef(false);
+  useEffect(() => {
+    if (initialCollapseApplied.current) return;
+    const { level2, level3 } = groupKeysByLevel;
+    if (level2.length > 0 || level3.length > 0) {
+      const toCollapse = new Set<string>();
+      level2.forEach(k => toCollapse.add(k));
+      level3.forEach(k => toCollapse.add(k));
+      setCollapsedGroups(toCollapse);
+      initialCollapseApplied.current = true;
+    }
+  }, [groupKeysByLevel]);
+
   const expandAll = useCallback(() => {
     setCollapsedGroups(new Set());
   }, []);
@@ -391,82 +419,22 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
 
   return (
     <div className="h-full flex flex-col">
+      {/* Top tab bar — always visible */}
+      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
+        <ViewTab label="Dashboard" icon={LayoutDashboard} active={view === "catalog"} onClick={() => setView("catalog")} />
+        <ViewTab label="Review" icon={Table2} active={view === "review"} onClick={() => setView("review")} />
+        <ViewTab label="Prompt Builder" icon={Zap} active={view === "prompt-builder"} onClick={() => setView("prompt-builder")} />
+      </div>
+
       {/* Search + filters (only in catalog/dashboard view) */}
-      {view === "catalog" && <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search skills..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
-          />
-        </div>
-        <select
-          value={targetFilter}
-          onChange={(e) => setTargetFilter(e.target.value as TargetFilter)}
-          className="text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
-        >
-          <option value="all">All targets</option>
-          <option value="bot">Bot</option>
-          <option value="platform">Platform</option>
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className="text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
-        >
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="test">Test</option>
-          <option value="review">To Review</option>
-          <option value="draft">Draft</option>
-          <option value="inactive">Inactive</option>
-          <option value="deprecated">Deprecated</option>
-        </select>
-        <div className="flex items-center gap-1">
-          <input
-            type="date"
-            value={auditFrom}
-            onChange={(e) => setAuditFrom(e.target.value)}
-            max={auditTo || undefined}
-            className={cn(
-              "text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300",
-              !auditFrom && "text-zinc-400"
-            )}
-            title="Audited from"
-          />
-          <span className="text-xs text-zinc-400">–</span>
-          <input
-            type="date"
-            value={auditTo}
-            onChange={(e) => setAuditTo(e.target.value)}
-            min={auditFrom || undefined}
-            className={cn(
-              "text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300",
-              !auditTo && "text-zinc-400"
-            )}
-            title="Audited to"
-          />
-          {(auditFrom || auditTo) && (
-            <button
-              onClick={() => { setAuditFrom(""); setAuditTo(""); }}
-              className="text-zinc-400 hover:text-zinc-600"
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortOption)}
-          className="text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
-        >
-          <option value="name">Sort: Name</option>
-          <option value="modified">Sort: Modified</option>
-          <option value="status">Sort: Status</option>
-        </select>
-      </div>}
+      {view === "catalog" && <SkillFilterBar
+        search={search} onSearchChange={setSearch}
+        targetFilter={targetFilter} onTargetChange={setTargetFilter}
+        statusFilter={statusFilter} onStatusChange={setStatusFilter}
+        verifiedFilter={verifiedFilter} onVerifiedChange={setVerifiedFilter}
+        modFrom={modFrom} modTo={modTo} onModFromChange={setModFrom} onModToChange={setModTo}
+        sortBy={sortBy} onSortChange={setSortBy}
+      />}
 
       {/* Context menu for moving skill to category */}
       {contextMenu && (
@@ -661,61 +629,56 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
           </div>
         )}
 
-        {/* Right: detail panel, dashboard, gallery, or review */}
-        {selectedSlug && selectedSkill ? (
-          <div className="flex-1 min-w-0">
-            <SkillDetailPanel
-              key={selectedSlug}
-              slug={selectedSlug}
-              skill={selectedSkill}
-              registry={registry}
-              driftStatuses={selectedDriftStatuses}
-              onClose={() => setSelectedSlug(null)}
-            />
+        {/* Right: content area */}
+        {view === "catalog" ? (
+          /* Dashboard view: detail panel or dashboard */
+          selectedSlug && selectedSkill ? (
+            <div className="flex-1 min-w-0">
+              <SkillDetailPanel
+                key={selectedSlug}
+                slug={selectedSlug}
+                skill={selectedSkill}
+                registry={registry}
+                driftStatuses={selectedDriftStatuses}
+                onClose={() => setSelectedSlug(null)}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 min-w-0 overflow-y-auto">
+              <SkillDashboard
+                registry={registry}
+                allSkills={allSkills}
+                driftStatuses={driftStatuses}
+                onSelectSkill={setSelectedSlug}
+              />
+            </div>
+          )
+        ) : view === "review" ? (
+          /* Review view: grid + optional slide-out detail */
+          <div className="flex-1 min-w-0 flex overflow-hidden">
+            <div className="flex-1 min-w-0">
+              <SkillReviewGrid
+                registry={registry}
+                onSelectSkill={setReviewSelectedSlug}
+              />
+            </div>
+            {reviewSelectedSlug && reviewSkill && (
+              <div className="w-[55%] min-w-[500px] max-w-[800px] flex-shrink-0 border-l border-zinc-200 dark:border-zinc-700 animate-slide-in">
+                <SkillDetailPanel
+                  key={reviewSelectedSlug}
+                  slug={reviewSelectedSlug}
+                  skill={reviewSkill}
+                  registry={registry}
+                  driftStatuses={reviewDriftStatuses}
+                  onClose={() => setReviewSelectedSlug(null)}
+                />
+              </div>
+            )}
           </div>
         ) : (
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            {/* Tab bar */}
-            <div className="flex-shrink-0 flex items-center gap-1 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
-              <button
-                onClick={() => setView("catalog")}
-                className={cn(
-                  "px-3 py-1.5 rounded text-xs font-medium transition-colors",
-                  view === "catalog"
-                    ? "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400"
-                    : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                )}
-              >
-                Dashboard
-              </button>
-              <button
-                onClick={() => setView("review")}
-                className={cn(
-                  "px-3 py-1.5 rounded text-xs font-medium transition-colors",
-                  view === "review"
-                    ? "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400"
-                    : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                )}
-              >
-                Review
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              {view === "catalog" ? (
-                <div className="h-full overflow-y-auto">
-                  <SkillDashboard
-                    registry={registry}
-                    allSkills={allSkills}
-                    driftStatuses={driftStatuses}
-                    onSelectSkill={setSelectedSlug}
-                  />
-                </div>
-              ) : (
-                <SkillReviewGrid
-                  registry={registry}
-                />
-              )}
-            </div>
+          /* Prompt Builder view */
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <PromptBuilder registry={registry} />
           </div>
         )}
       </div>
@@ -1127,6 +1090,7 @@ function SkillDashboard({
   // Stats
   const totalSkills = allSkills.length;
   const activeCount = allSkills.filter(s => s.status === "active").length;
+  const verifiedCount = allSkills.filter(s => s.verified).length;
   const botCount = allSkills.filter(s => s.target === "bot" || s.target === "both").length;
   const platformCount = allSkills.filter(s => s.target === "platform" || s.target === "both").length;
   const inSyncCount = driftStatuses.filter(d => d.status === "in_sync").length;
@@ -1171,9 +1135,10 @@ function SkillDashboard({
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <StatCard label="Total" value={totalSkills} icon={Activity} />
         <StatCard label="Active" value={activeCount} icon={CheckCircle2} color="text-emerald-500" />
+        <StatCard label="Verified" value={verifiedCount} sub={`/ ${activeCount}`} icon={ShieldCheck} color="text-blue-500" />
         <StatCard label="Bot" value={botCount} icon={Bot} />
         <StatCard label="Platform" value={platformCount} icon={Boxes} />
         <StatCard label="In Sync" value={inSyncCount} sub={`/ ${totalDistributions}`} icon={CheckCircle2} color="text-emerald-500" />
@@ -1327,4 +1292,166 @@ function formatRelative(iso: string): string {
   } catch {
     return "";
   }
+}
+
+// ─── Filter Bar ─────────────────────────────────────────────────────────────
+
+type DatePreset = "all" | "today" | "7d" | "30d" | "90d" | "custom";
+const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: "all", label: "Any time" },
+  { value: "today", label: "Today" },
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+  { value: "90d", label: "90 days" },
+  { value: "custom", label: "Custom" },
+];
+
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+function SkillFilterBar({
+  search, onSearchChange,
+  targetFilter, onTargetChange,
+  statusFilter, onStatusChange,
+  verifiedFilter, onVerifiedChange,
+  modFrom, modTo, onModFromChange, onModToChange,
+  sortBy, onSortChange,
+}: {
+  search: string; onSearchChange: (v: string) => void;
+  targetFilter: TargetFilter; onTargetChange: (v: TargetFilter) => void;
+  statusFilter: StatusFilter; onStatusChange: (v: StatusFilter) => void;
+  verifiedFilter: VerifiedFilter; onVerifiedChange: (v: VerifiedFilter) => void;
+  modFrom: string; modTo: string; onModFromChange: (v: string) => void; onModToChange: (v: string) => void;
+  sortBy: SortOption; onSortChange: (v: SortOption) => void;
+}) {
+  // Derive which date preset is active
+  const datePreset: DatePreset = useMemo(() => {
+    if (!modFrom && !modTo) return "all";
+    const today = new Date().toISOString().slice(0, 10);
+    if (modFrom === today && !modTo) return "today";
+    if (modFrom === daysAgo(7) && !modTo) return "7d";
+    if (modFrom === daysAgo(30) && !modTo) return "30d";
+    if (modFrom === daysAgo(90) && !modTo) return "90d";
+    return "custom";
+  }, [modFrom, modTo]);
+
+  const handleDatePreset = (preset: DatePreset) => {
+    switch (preset) {
+      case "all": onModFromChange(""); onModToChange(""); break;
+      case "today": onModFromChange(new Date().toISOString().slice(0, 10)); onModToChange(""); break;
+      case "7d": onModFromChange(daysAgo(7)); onModToChange(""); break;
+      case "30d": onModFromChange(daysAgo(30)); onModToChange(""); break;
+      case "90d": onModFromChange(daysAgo(90)); onModToChange(""); break;
+      case "custom": break; // just show pickers
+    }
+  };
+
+  const hasFilters = targetFilter !== "all" || statusFilter !== "all" || verifiedFilter !== "all" || modFrom || modTo;
+
+  const clearAll = () => {
+    onTargetChange("all");
+    onStatusChange("all");
+    onVerifiedChange("all");
+    onModFromChange("");
+    onModToChange("");
+  };
+
+  const chip = "inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer select-none";
+  const chipIdle = "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700";
+  const chipActive = "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 ring-1 ring-teal-200 dark:ring-teal-800";
+
+  return (
+    <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50">
+      {/* Row 1: Search + Sort */}
+      <div className="flex items-center gap-2 px-4 py-2">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <input
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search skills..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          />
+        </div>
+        <select
+          value={sortBy}
+          onChange={(e) => onSortChange(e.target.value as SortOption)}
+          className="text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+        >
+          <option value="name">Sort: Name</option>
+          <option value="modified">Sort: Modified</option>
+          <option value="status">Sort: Status</option>
+        </select>
+      </div>
+
+      {/* Row 2: Filter chips */}
+      <div className="flex items-center gap-1.5 px-4 pb-2 flex-wrap">
+        {/* Target */}
+        {(["all", "bot", "platform"] as TargetFilter[]).map(v => (
+          <button key={v} onClick={() => onTargetChange(v)} className={cn(chip, targetFilter === v ? chipActive : chipIdle)}>
+            {v === "all" ? "All targets" : v === "bot" ? "Bot" : "Platform"}
+          </button>
+        ))}
+
+        <span className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
+
+        {/* Status */}
+        {(["all", "active", "test", "review", "draft", "inactive", "deprecated"] as StatusFilter[]).map(v => (
+          <button key={v} onClick={() => onStatusChange(v)} className={cn(chip, statusFilter === v ? chipActive : chipIdle)}>
+            {v === "all" ? "All statuses" : v === "review" ? "Review" : v.charAt(0).toUpperCase() + v.slice(1)}
+          </button>
+        ))}
+
+        <span className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
+
+        {/* Verified */}
+        {(["all", "verified", "unverified"] as VerifiedFilter[]).map(v => (
+          <button key={v} onClick={() => onVerifiedChange(v)} className={cn(
+            chip,
+            verifiedFilter === v
+              ? v === "verified" ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 ring-1 ring-blue-200 dark:ring-blue-800"
+              : v === "unverified" ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-800"
+              : chipActive
+              : chipIdle
+          )}>
+            {v === "all" ? "All" : v === "verified" ? "Verified" : "Unverified"}
+          </button>
+        ))}
+
+        <span className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
+
+        {/* Date presets */}
+        {DATE_PRESETS.filter(p => p.value !== "custom").map(p => (
+          <button key={p.value} onClick={() => handleDatePreset(p.value)} className={cn(chip, datePreset === p.value ? chipActive : chipIdle)}>
+            {p.label}
+          </button>
+        ))}
+        {/* Custom date range — show pickers when custom is active */}
+        {datePreset === "custom" && (
+          <div className="flex items-center gap-1">
+            <input type="date" value={modFrom} onChange={(e) => onModFromChange(e.target.value)} max={modTo || undefined}
+              className="text-[11px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+            />
+            <span className="text-[11px] text-zinc-400">–</span>
+            <input type="date" value={modTo} onChange={(e) => onModToChange(e.target.value)} min={modFrom || undefined}
+              className="text-[11px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+            />
+          </div>
+        )}
+
+        {/* Clear all */}
+        {hasFilters && (
+          <>
+            <span className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
+            <button onClick={clearAll} className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 px-1">
+              Clear all
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }

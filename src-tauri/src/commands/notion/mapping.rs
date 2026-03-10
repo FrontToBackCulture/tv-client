@@ -91,10 +91,16 @@ pub fn apply_value_map(raw_value: &str, value_map: Option<&Value>) -> String {
 
 /// Map a Notion page's properties to Work task insert data using field mapping config
 ///
-/// field_mapping shape:
+/// field_mapping shape (new — work field as key):
 /// {
-///   "NotionPropName": { "target": "work_field", "value_map": { "NotionVal": "WorkVal" } }
-///   "Title": "title"  // shorthand — just target, no value mapping
+///   "title": "Name",                    // shorthand — just source notion prop
+///   "status_id": { "source": "Status", "value_map": { "Upnext": "uuid-123" } }
+/// }
+///
+/// Also supports legacy format (notion prop as key):
+/// {
+///   "Name": "title",
+///   "Status": { "target": "status_id", "value_map": { ... } }
 /// }
 ///
 /// Returns a JSON object with Work task fields set
@@ -114,9 +120,56 @@ pub fn map_page_to_task(
         None => return Value::Object(task),
     };
 
-    for (notion_prop_name, mapping) in mapping_obj {
+    // Known work fields — used to detect new vs legacy format
+    let work_fields = [
+        "title", "description", "status_id", "priority",
+        "due_date", "assignee_id", "milestone_id",
+    ];
+
+    for (key, mapping) in mapping_obj {
+        // Detect format: if key is a known work field, it's the new format
+        // Otherwise it's the legacy format (notion prop name as key)
+        let is_new_format = work_fields.contains(&key.as_str())
+            || mapping.as_object().map_or(false, |o| o.contains_key("source"));
+
+        let (target_field, notion_prop_name, value_map) = if is_new_format {
+            // New format: key = work_field, value = notion_prop_name or { source, value_map }
+            if let Some(source) = mapping.as_str() {
+                (key.clone(), source.to_string(), None)
+            } else if let Some(obj) = mapping.as_object() {
+                let source = obj
+                    .get("source")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let vmap = obj.get("value_map");
+                (key.clone(), source, vmap)
+            } else {
+                continue;
+            }
+        } else {
+            // Legacy format: key = notion_prop_name, value = work_field or { target, value_map }
+            if let Some(target) = mapping.as_str() {
+                (target.to_string(), key.clone(), None)
+            } else if let Some(obj) = mapping.as_object() {
+                let target = obj
+                    .get("target")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let vmap = obj.get("value_map");
+                (target, key.clone(), vmap)
+            } else {
+                continue;
+            }
+        };
+
+        if target_field.is_empty() || notion_prop_name.is_empty() {
+            continue;
+        }
+
         // Get the Notion property value
-        let notion_prop = match props_obj.get(notion_prop_name) {
+        let notion_prop = match props_obj.get(&notion_prop_name) {
             Some(p) => p,
             None => continue,
         };
@@ -125,25 +178,6 @@ pub fn map_page_to_task(
             Some(v) => v,
             None => continue,
         };
-
-        // Parse mapping — either string shorthand or object with target + value_map
-        let (target_field, value_map) = if let Some(target) = mapping.as_str() {
-            (target.to_string(), None)
-        } else if let Some(obj) = mapping.as_object() {
-            let target = obj
-                .get("target")
-                .and_then(|t| t.as_str())
-                .unwrap_or("")
-                .to_string();
-            let vmap = obj.get("value_map");
-            (target, vmap)
-        } else {
-            continue;
-        };
-
-        if target_field.is_empty() {
-            continue;
-        }
 
         // Apply value mapping if present
         let mapped_value = apply_value_map(&raw_value, value_map);

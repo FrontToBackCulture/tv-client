@@ -28,10 +28,15 @@ pub struct SkillDistribution {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SkillEntry {
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub description: String,
+    #[serde(default)]
     pub category: String,
+    #[serde(default)]
     pub target: String,
+    #[serde(default)]
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
@@ -40,7 +45,22 @@ pub struct SkillEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verified: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub rating: Option<u8>,
+    pub rating: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_audited: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub needs_work: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub work_notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gallery_pinned: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gallery_order: Option<u32>,
+    #[serde(default)]
     pub distributions: Vec<SkillDistribution>,
 }
 
@@ -369,30 +389,43 @@ pub async fn skill_init(state: State<'_, AppState>) -> CmdResult<SkillInitResult
                     (slug.clone(), String::new(), None)
                 };
 
-                // Preserve existing registry values for operational metadata (status, category, verified)
+                // Preserve existing entry, only update content fields from SKILL.md
                 let existing = existing_registry.as_ref().and_then(|r| r.skills.get(&slug));
-                let category = existing.map(|e| e.category.clone())
-                    .or_else(|| bot_categories.get(&slug).cloned())
-                    .unwrap_or_else(|| "val".to_string());
-                let status = existing.map(|e| e.status.clone())
-                    .unwrap_or_else(|| "active".to_string());
-                let verified = existing.and_then(|e| e.verified);
-
-                registry.skills.insert(slug.clone(), SkillEntry {
-                    name: skill_name,
-                    description,
-                    category,
-                    target: "bot".to_string(),
-                    status,
-                    command: cmd,
-                    domain: None,
-                    verified,
-                    rating: None,
-                    distributions: vec![SkillDistribution {
-                        path: format!("_team/melvin/bot-mel/skills/{}", slug),
-                        dist_type: "bot".to_string(),
-                    }],
-                });
+                let entry = if let Some(e) = existing {
+                    // Existing skill: update content fields, preserve all metadata
+                    let mut updated = e.clone();
+                    updated.name = skill_name;
+                    updated.description = description;
+                    updated.command = cmd;
+                    updated
+                } else {
+                    // New skill: create with defaults
+                    let category = bot_categories.get(&slug).cloned()
+                        .unwrap_or_else(|| "val".to_string());
+                    SkillEntry {
+                        name: skill_name,
+                        description,
+                        category,
+                        target: "bot".to_string(),
+                        status: "active".to_string(),
+                        command: cmd,
+                        domain: None,
+                        verified: None,
+                        rating: None,
+                        last_audited: None,
+                        needs_work: None,
+                        work_notes: None,
+                        action: None,
+                        outcome: None,
+                        gallery_pinned: None,
+                        gallery_order: None,
+                        distributions: vec![SkillDistribution {
+                            path: format!("_team/melvin/bot-mel/skills/{}", slug),
+                            dist_type: "bot".to_string(),
+                        }],
+                    }
+                };
+                registry.skills.insert(slug.clone(), entry);
 
                 result.bot_skills += 1;
                 result.skills_created += 1;
@@ -769,6 +802,11 @@ pub async fn skill_check_all(
         .map_err(|e| CommandError::Parse(format!("Failed to parse registry.json: {}", e)))?;
 
     let mut all_results = Vec::new();
+    // DEBUG: write to temp file
+    let mut dbg_lines: Vec<String> = Vec::new();
+    dbg_lines.push(format!("kb={}", kb));
+    dbg_lines.push(format!("skills_dir={}", skills_dir.display()));
+    dbg_lines.push(format!("registry has {} skills", registry.skills.len()));
 
     // Build a set of all registered distribution paths for quick lookup
     let mut registered_paths: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -782,6 +820,7 @@ pub async fn skill_check_all(
     for slug in registry.skills.keys() {
         let source_dir = skills_dir.join(slug);
         if !source_dir.exists() {
+            dbg_lines.push(format!("SKIP {}: source not found at {}", slug, source_dir.display()));
             continue;
         }
         let source_hash = hash_skill_folder(&source_dir).unwrap_or_default();
@@ -790,6 +829,7 @@ pub async fn skill_check_all(
             for dist in &entry.distributions {
                 let target_path = PathBuf::from(kb).join(&dist.path);
                 let result = check_distribution(slug, &dist.path, &source_hash, &source_dir, &target_path);
+                dbg_lines.push(format!("{} -> {} = {}", slug, dist.path, result.status));
                 all_results.push(result);
             }
         }
@@ -863,6 +903,8 @@ pub async fn skill_check_all(
         }
     }
 
+    dbg_lines.push(format!("returning {} results", all_results.len()));
+    let _ = fs::write("/tmp/skill_check_all_debug.txt", dbg_lines.join("\n"));
     Ok(all_results)
 }
 

@@ -4,12 +4,16 @@ use super::types::*;
 use crate::commands::error::CmdResult;
 use crate::commands::supabase::get_client;
 
-/// List all workspaces
+/// List workspaces (lightweight — no nested sessions/artifacts/context)
 #[tauri::command]
-pub async fn workspace_list(status: Option<String>, owner: Option<String>) -> CmdResult<Vec<Workspace>> {
+pub async fn workspace_list(status: Option<String>, owner: Option<String>, limit: Option<u32>) -> CmdResult<Vec<WorkspaceSummary>> {
     let client = get_client().await?;
 
-    let mut query = "select=*,sessions:workspace_sessions(*),artifacts:workspace_artifacts(*),context:workspace_context(*)&order=updated_at.desc".to_string();
+    let limit = limit.unwrap_or(20).min(100);
+    let mut query = format!(
+        "select=id,title,description,status,owner,intent,initiative_id,created_at,updated_at&order=updated_at.desc&limit={}",
+        limit
+    );
 
     if let Some(s) = status {
         query.push_str(&format!("&status=eq.{}", s));

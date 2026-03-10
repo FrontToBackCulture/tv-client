@@ -23,6 +23,16 @@ function dateTimeFormatter(params: ValueFormatterParams): string {
   }
 }
 
+/** Domain column definition — used in cross-domain aggregation views */
+const DOMAIN_COLUMN: ColDef<ReviewRow> = {
+  field: "domain" as keyof ReviewRow,
+  headerName: "Domain",
+  width: 130,
+  pinned: "left",
+  filter: "agSetColumnFilter",
+  enableRowGroup: true,
+};
+
 /** Build AG Grid column definitions based on resource type */
 export function buildReviewColumnDefs(
   resourceType: ReviewResourceType,
@@ -30,21 +40,25 @@ export function buildReviewColumnDefs(
     wrapSummary?: boolean;
     reviewMode?: boolean;
     classificationValues?: ClassificationValues;
+    crossDomain?: boolean;
   } = {},
 ): ColDef<ReviewRow>[] {
   const {
     wrapSummary = false,
     reviewMode = true,
     classificationValues,
+    crossDomain = false,
   } = opts;
 
   // For artifact types, use the simpler column builder from the old artifact code
   if (resourceType !== "table") {
-    return buildArtifactColumns(resourceType, classificationValues);
+    const cols = buildArtifactColumns(resourceType, classificationValues);
+    return crossDomain ? [DOMAIN_COLUMN, ...cols] : cols;
   }
 
   // Table columns — full DataModels grid
-  return buildTableColumns({ wrapSummary, reviewMode, classificationValues });
+  const cols = buildTableColumns({ wrapSummary, reviewMode, classificationValues });
+  return crossDomain ? [DOMAIN_COLUMN, ...cols] : cols;
 }
 
 // ─── Table columns ───────────────────────────────────────────────────────────

@@ -72,6 +72,7 @@ const DEFAULT_LAYOUT_KEY = "tv-desktop-skill-review-default-layout";
 
 interface SkillReviewGridProps {
   registry: SkillRegistry;
+  onSelectSkill?: (slug: string) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -130,11 +131,29 @@ function buildColumns(wrapNotes: boolean): ColDef<SkillReviewRow>[] {
     {
       field: "slug",
       headerName: "Slug",
-      width: 160,
+      width: 260,
       filter: "agTextColumnFilter",
-      cellClass: "text-xs font-mono text-zinc-500",
+      cellClass: "text-xs font-mono text-zinc-500 cursor-pointer",
       enableRowGroup: false,
-      hide: true,
+      cellRenderer: (params: { value: string }) => {
+        if (!params.value) return null;
+        const path = `_skills/${params.value}/SKILL.md`;
+        const [copied, setCopied] = useState(false);
+        return (
+          <span
+            title="Click to copy path"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigator.clipboard.writeText(path);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+            className={`transition-colors ${copied ? "text-teal-500" : "hover:text-teal-500"}`}
+          >
+            {copied ? "Copied!" : params.value}
+          </span>
+        );
+      },
     },
     {
       field: "parentCategory",
@@ -313,7 +332,7 @@ function buildColumns(wrapNotes: boolean): ColDef<SkillReviewRow>[] {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function SkillReviewGrid({ registry }: SkillReviewGridProps) {
+export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProps) {
   const theme = useAppStore((s) => s.theme);
   const gridRef = useRef<AgGridReact<SkillReviewRow>>(null);
   const registryUpdate = useSkillRegistryUpdate();
@@ -880,6 +899,9 @@ export function SkillReviewGrid({ registry }: SkillReviewGridProps) {
           doesExternalFilterPass={doesExternalFilterPass}
           onCellValueChanged={handleCellValueChanged}
           onFirstDataRendered={handleFirstDataRendered}
+          onRowDoubleClicked={(e) => {
+            if (e.data?.slug && onSelectSkill) onSelectSkill(e.data.slug);
+          }}
           animateRows
           enableRangeSelection
           enableBrowserTooltips

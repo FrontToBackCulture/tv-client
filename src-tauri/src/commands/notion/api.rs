@@ -265,6 +265,11 @@ pub async fn query_database(
 }
 
 /// Build a combined filter for user-defined filter + incremental since timestamp
+///
+/// Notion only allows 2 levels of compound filter nesting (e.g. or > and > property).
+/// If the user filter is already a compound filter (or/and), we can't wrap it in another
+/// compound without exceeding the limit. In that case, just use the user filter as-is —
+/// the user is expected to include their own date constraints.
 fn build_query_filter(user_filter: Option<&Value>, since: Option<&str>) -> Option<Value> {
     let since_filter = since.map(|ts| {
         json!({
@@ -277,18 +282,12 @@ fn build_query_filter(user_filter: Option<&Value>, since: Option<&str>) -> Optio
 
     match (user_filter, since_filter) {
         (Some(uf), Some(sf)) => {
-            // Combine with AND
-            if uf.get("and").is_some() {
-                // User filter is already an AND — append since filter
-                let mut combined = uf.clone();
-                if let Some(arr) = combined["and"].as_array_mut() {
-                    arr.push(sf);
-                }
-                Some(combined)
+            // If user filter is a compound filter (or/and), don't wrap — would exceed nesting limit
+            if uf.get("or").is_some() || uf.get("and").is_some() {
+                Some(uf.clone())
             } else {
-                Some(json!({
-                    "and": [uf, sf]
-                }))
+                // Simple property filter — safe to combine with AND
+                Some(json!({ "and": [uf, sf] }))
             }
         }
         (Some(uf), None) => Some(uf.clone()),
