@@ -44,6 +44,11 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
       - name: Install dependencies
         run: npm ci
 
@@ -56,10 +61,17 @@ jobs:
           VITE_AG_GRID_LICENSE_KEY: ${{ secrets.VITE_AG_GRID_LICENSE_KEY }}
         run: npm run build
 
-      - name: Clean Rust build (force correct version)
+      - name: Verify version sync
         shell: bash
-        run: cargo clean --target ${{ matrix.target }}
-        working-directory: src-tauri
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          CARGO_VER=$(grep '^version' src-tauri/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          TAURI_VER=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "package.json: $PKG_VER | Cargo.toml: $CARGO_VER | tauri.conf.json: $TAURI_VER"
+          if [ "$PKG_VER" != "$CARGO_VER" ] || [ "$PKG_VER" != "$TAURI_VER" ]; then
+            echo "::error::Version mismatch! All three files must match."
+            exit 1
+          fi
 
       - name: Build Tauri
         env:
