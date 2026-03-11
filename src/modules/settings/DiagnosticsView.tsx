@@ -125,8 +125,8 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
             : r,
         ),
       );
-    } catch (e) {
-      toast.error(`Failed to save: ${e}`);
+    } catch (e: unknown) {
+      toast.error(`Failed to save: ${typeof e === "string" ? e : e instanceof Error ? e.message : JSON.stringify(e)}`);
     } finally {
       setSavingKey(false);
     }
@@ -152,8 +152,8 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
           return r;
         }),
       );
-    } catch (e) {
-      toast.error(`Install failed: ${e}`);
+    } catch (e: unknown) {
+      toast.error(`Install failed: ${typeof e === "string" ? e : e instanceof Error ? e.message : JSON.stringify(e)}`);
     } finally {
       setInstallingClaude(false);
     }

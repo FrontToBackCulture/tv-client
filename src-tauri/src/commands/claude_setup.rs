@@ -44,7 +44,7 @@ fn binary_path() -> CmdResult<PathBuf> {
 
 fn claude_config_path() -> CmdResult<PathBuf> {
     dirs::home_dir()
-        .map(|h| h.join(".claude.json"))
+        .map(|h| h.join(".claude").join("mcp.json"))
         .ok_or_else(|| CommandError::Config("Cannot determine home directory".into()))
 }
 
@@ -79,6 +79,9 @@ fn read_mcp_config() -> CmdResult<McpConfig> {
 
 fn write_mcp_config(config: &McpConfig) -> CmdResult<()> {
     let path = claude_config_path()?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let json = serde_json::to_string_pretty(config)?;
     std::fs::write(&path, json)?;
     Ok(())
@@ -203,7 +206,7 @@ pub async fn claude_mcp_install() -> CmdResult<ClaudeMcpStatus> {
     // 4. Merge tv-mcp entry into mcp.json
     let mut config = read_mcp_config()?;
     let entry = serde_json::json!({
-        "command": bin.to_string_lossy(),
+        "command": bin.to_string_lossy().to_string(),
     });
     config
         .mcp_servers
