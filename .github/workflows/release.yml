@@ -56,6 +56,11 @@ jobs:
           VITE_AG_GRID_LICENSE_KEY: ${{ secrets.VITE_AG_GRID_LICENSE_KEY }}
         run: npm run build
 
+      - name: Clean Rust build (force correct version)
+        shell: bash
+        run: cargo clean --target ${{ matrix.target }}
+        working-directory: src-tauri
+
       - name: Build Tauri
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
