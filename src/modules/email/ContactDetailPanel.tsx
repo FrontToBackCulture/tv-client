@@ -1,7 +1,7 @@
 // src/modules/email/ContactDetailPanel.tsx
-// Right panel showing contact details and group memberships
+// Right panel showing contact details (editable) and group memberships
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Mail, Tag, Plus, Trash2, ChevronDown } from "lucide-react";
 import {
   useEmailContact,
@@ -41,6 +41,15 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
   const memberGroupIds = new Set((contact.groups || []).map((g) => g.id));
   const availableGroups = (allGroups || []).filter((g) => !memberGroupIds.has(g.id));
 
+  const handleFieldSave = (field: string, value: string) => {
+    const current = (contact as any)[field] || "";
+    if (value.trim() === current) return;
+    updateContact.mutate({
+      id: contactId,
+      updates: { [field]: value.trim() || null },
+    });
+  };
+
   return (
     <div className="w-[420px] border-l border-zinc-100 dark:border-zinc-800/50 flex flex-col bg-white dark:bg-zinc-950 overflow-auto">
       {/* Header */}
@@ -64,9 +73,11 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
       {/* Details */}
       <div className="px-4 py-4 space-y-4">
         <div className="space-y-2">
-          <DetailRow label="Email" value={contact.email} />
-          <DetailRow label="First Name" value={contact.first_name || "—"} />
-          <DetailRow label="Last Name" value={contact.last_name || "—"} />
+          <EditableRow label="Email" value={contact.email} onSave={(v) => handleFieldSave("email", v)} />
+          <EditableRow label="First Name" value={contact.first_name || ""} onSave={(v) => handleFieldSave("first_name", v)} />
+          <EditableRow label="Last Name" value={contact.last_name || ""} onSave={(v) => handleFieldSave("last_name", v)} />
+          <EditableRow label="Company" value={contact.company || ""} onSave={(v) => handleFieldSave("company", v)} />
+          <EditableRow label="Domain" value={contact.domain || ""} onSave={(v) => handleFieldSave("domain", v)} />
           {/* Status toggle */}
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">Status</span>
@@ -196,6 +207,67 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function EditableRow({
+  label,
+  value,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  onSave: (value: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const handleCommit = () => {
+    setEditing(false);
+    if (draft.trim() !== value) {
+      onSave(draft);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleCommit();
+    if (e.key === "Escape") {
+      setDraft(value);
+      setEditing(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">{label}</span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={handleCommit}
+          onKeyDown={handleKeyDown}
+          className="text-xs text-right text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-0.5 w-48 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        />
+      ) : (
+        <button
+          onClick={() => setEditing(true)}
+          className="text-xs text-zinc-700 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 hover:underline decoration-dashed underline-offset-2 cursor-text text-right"
+        >
+          {value || "—"}
+        </button>
+      )}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 // src/modules/email/GroupDetailPanel.tsx
 // Right panel showing group details and member list
 
-import { X, FolderOpen } from "lucide-react";
-import { useEmailGroup, useEmailContacts } from "../../hooks/email";
+import { useState } from "react";
+import { X, FolderOpen, Trash2 } from "lucide-react";
+import { useEmailGroup, useEmailContacts, useDeleteEmailGroup } from "../../hooks/email";
 import { CONTACT_STATUSES } from "../../lib/email/types";
 import { formatDate } from "../../lib/date";
 
@@ -14,6 +15,8 @@ interface GroupDetailPanelProps {
 export function GroupDetailPanel({ groupId, onClose }: GroupDetailPanelProps) {
   const { data: group, isLoading: groupLoading } = useEmailGroup(groupId);
   const { data: members = [], isLoading: membersLoading } = useEmailContacts({ groupId });
+  const deleteGroup = useDeleteEmailGroup();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (groupLoading) {
     return (
@@ -35,13 +38,49 @@ export function GroupDetailPanel({ groupId, onClose }: GroupDetailPanelProps) {
             {group.name}
           </h2>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded"
-        >
-          <X size={14} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="p-1 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 rounded"
+            title="Delete group"
+          >
+            <Trash2 size={14} />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded"
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
+
+      {/* Delete confirmation */}
+      {showDeleteConfirm && (
+        <div className="px-4 py-3 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-900/50">
+          <p className="text-xs text-red-700 dark:text-red-400 mb-2">
+            Delete <strong>{group.name}</strong>? This will remove all member associations.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                await deleteGroup.mutateAsync(groupId);
+                onClose();
+              }}
+              disabled={deleteGroup.isPending}
+              className="px-2.5 py-1 text-[11px] font-medium bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              {deleteGroup.isPending ? "Deleting..." : "Delete"}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Details */}
       <div className="px-4 py-4 space-y-4">

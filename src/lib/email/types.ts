@@ -75,6 +75,8 @@ export interface ImportRow {
   email: string;
   first_name?: string;
   last_name?: string;
+  company?: string;
+  domain?: string;
   group?: string;
 }
 

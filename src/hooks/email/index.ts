@@ -27,6 +27,7 @@ export {
   useCreateEmailCampaign,
   useUpdateEmailCampaign,
   useDeleteEmailCampaign,
+  useCloneEmailCampaign,
   useSendCampaign,
   useSendTestEmail,
 } from "./useCampaigns";

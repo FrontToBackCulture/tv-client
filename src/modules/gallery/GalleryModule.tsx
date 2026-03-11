@@ -1,7 +1,7 @@
 // src/modules/gallery/GalleryModule.tsx
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Search, X, Loader2, ChevronRight, FileText, Image as ImageIcon, PenTool, Video, Pin, PinOff, ArrowUpDown, ChevronDown, Presentation } from "lucide-react";
+import { Search, X, Loader2, ChevronRight, FileText, Image as ImageIcon, PenTool, Video, Pin, PinOff, ArrowUpDown, ChevronDown, Presentation, MessageCircleQuestion, Globe } from "lucide-react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Button, IconButton } from "../../components/ui";
 import { SectionLoading } from "../../components/ui/DetailStates";
@@ -11,12 +11,17 @@ import { useReadFile } from "../../hooks/useFiles";
 import { ImageEditor } from "./ImageEditor";
 import { ExcalidrawEditor } from "./ExcalidrawEditor";
 import { useSkillRegistry, useSkillRegistryUpdate } from "../skills/useSkillRegistry";
+import { ReportDetailPanel } from "./ReportDetailPanel";
+import { QuestionsTab } from "./QuestionsTab";
+import { useReportSkillMap } from "../../hooks/gallery/useReportSkills";
+import { useQuestions } from "../../hooks/gallery/useQuestions";
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 
 const TABS: { id: GalleryTab; label: string; icon: typeof FileText }[] = [
   { id: "reports", label: "Reports", icon: FileText },
   { id: "decks", label: "Decks", icon: Presentation },
+  { id: "questions", label: "Questions", icon: MessageCircleQuestion },
   { id: "images", label: "Images", icon: ImageIcon },
   { id: "excalidraw", label: "Excalidraw", icon: PenTool },
   { id: "videos", label: "Videos", icon: Video },
@@ -30,6 +35,7 @@ export function GalleryModule() {
 
   const { data: galleryItems = [], isLoading: scanLoading } = useGalleryScan();
   const { data: demos = [], isLoading: demosLoading } = useSkillDemos();
+  const { data: questions = [] } = useQuestions();
 
   // Map tab IDs to gallery_type values from Rust
   const tabToType: Record<string, string> = { images: "image", excalidraw: "excalidraw", videos: "video" };
@@ -42,10 +48,11 @@ export function GalleryModule() {
   const counts = useMemo(() => ({
     reports: reportDemos.length,
     decks: deckDemos.length,
+    questions: questions.length,
     images: galleryItems.filter(i => i.gallery_type === "image").length,
     excalidraw: galleryItems.filter(i => i.gallery_type === "excalidraw").length,
     videos: galleryItems.filter(i => i.gallery_type === "video").length,
-  }), [galleryItems, reportDemos, deckDemos]);
+  }), [galleryItems, reportDemos, deckDemos, questions]);
 
   return (
     <div className="h-full flex flex-col">
@@ -95,6 +102,10 @@ export function GalleryModule() {
           <div className="flex-1 overflow-y-auto">
             <DecksTab demos={deckDemos} search={search} isLoading={demosLoading} />
           </div>
+        ) : tab === "questions" ? (
+          <div className="flex-1 overflow-y-auto">
+            <QuestionsTab search={search} />
+          </div>
         ) : (
           <FileGalleryTab
             items={galleryItems.filter(i => i.gallery_type === (tabToType[tab] ?? tab))}
@@ -121,6 +132,7 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
   const registryUpdate = useSkillRegistryUpdate();
 
   const selectedExample = demos.find(e => e.file_path === selectedPath);
+  const { data: reportSkillMap } = useReportSkillMap();
 
   const iframeSrcDoc = useMemo(() => {
     if (!selectedHtml) return undefined;
@@ -246,12 +258,22 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
             </div>
           )}
         </div>
-        <div className="flex-1 min-h-0 px-4 pb-4">
-          <iframe
-            srcDoc={iframeSrcDoc}
-            className="w-full h-full border-0 rounded-lg border border-zinc-200 dark:border-zinc-800"
-            sandbox="allow-scripts"
-          />
+        <div className="flex-1 min-h-0 flex gap-4 px-4 pb-4">
+          {/* Report preview */}
+          <div className="flex-1 min-w-0">
+            <iframe
+              srcDoc={iframeSrcDoc}
+              className="w-full h-full border-0 rounded-lg border border-zinc-200 dark:border-zinc-800"
+              sandbox="allow-scripts"
+            />
+          </div>
+          {/* Metadata panel */}
+          {selectedExample && (
+            <div className="w-80 shrink-0 overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+              <h3 className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider mb-3">Website Library</h3>
+              <ReportDetailPanel example={selectedExample} htmlContent={selectedHtml ?? undefined} />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -315,6 +337,7 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
                     key={ex.file_path}
                     example={ex}
                     pinned
+                    isPublished={reportSkillMap?.has(`${ex.slug}:${ex.file_name}`) && reportSkillMap.get(`${ex.slug}:${ex.file_name}`)!.published}
                     onTogglePin={() => togglePin(ex.slug)}
                     onClick={() => setSelectedPath(ex.file_path)}
                   />
@@ -337,6 +360,7 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
                     key={ex.file_path}
                     example={ex}
                     pinned={ex.pinned}
+                    isPublished={reportSkillMap?.has(`${ex.slug}:${ex.file_name}`) && reportSkillMap.get(`${ex.slug}:${ex.file_name}`)!.published}
                     onTogglePin={() => togglePin(ex.slug)}
                     onClick={() => setSelectedPath(ex.file_path)}
                   />
@@ -350,9 +374,10 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
   );
 }
 
-function ReportThumbnail({ example, pinned, onTogglePin, onClick }: {
+function ReportThumbnail({ example, pinned, isPublished, onTogglePin, onClick }: {
   example: SkillExample;
   pinned?: boolean;
+  isPublished?: boolean;
   onTogglePin?: () => void;
   onClick: () => void;
 }) {
@@ -383,6 +408,13 @@ function ReportThumbnail({ example, pinned, onTogglePin, onClick }: {
         >
           {pinned ? <PinOff size={10} /> : <Pin size={10} />}
         </button>
+      )}
+      {/* Published indicator - top left */}
+      {isPublished && (
+        <div className="absolute top-1.5 left-1.5 z-10 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-teal-500/90 text-white text-[9px] font-medium">
+          <Globe size={8} />
+          Live
+        </div>
       )}
       <button onClick={onClick} className="w-full text-left">
         <div className="relative h-36 overflow-hidden bg-white">

@@ -23,7 +23,7 @@ export interface SkillExample {
   demo_type: "report" | "deck";
 }
 
-export type GalleryTab = "reports" | "decks" | "images" | "excalidraw" | "videos";
+export type GalleryTab = "reports" | "decks" | "questions" | "images" | "excalidraw" | "videos";
 
 export function useGalleryScan() {
   return useQuery({

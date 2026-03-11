@@ -711,49 +711,17 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
       {/* Left: Configuration panel */}
       <div className="w-80 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto">
         <div className="p-4 space-y-4">
-          {/* Saved configs — quick load */}
+          {/* Saved configs — tree: Template → domain chips */}
           {(savedConfigs.length > 0 || scanningConfigs) && (
-            <div>
-              <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
-                Saved Configs
-              </label>
-              {scanningConfigs ? (
-                <div className="flex items-center gap-2 text-xs text-zinc-400 py-2">
-                  <Loader2 size={12} className="animate-spin" /> Scanning domains...
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {savedConfigs.map((cfg) => {
-                    const isActive = selectedSkill === cfg.skill && selectedTemplate === cfg.template && selectedDomain === cfg.domain;
-                    return (
-                      <button
-                        key={cfg.path}
-                        onClick={() => handleLoadConfig(cfg)}
-                        className={cn(
-                          "w-full text-left px-3 py-2 rounded-lg border transition-colors",
-                          isActive
-                            ? "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/30"
-                            : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700",
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <History size={12} className="text-zinc-400 flex-shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">
-                              {cfg.domain} / {cfg.template}
-                            </p>
-                            <p className="text-[10px] text-zinc-400 truncate">
-                              {registry.skills[cfg.skill]?.name ?? cfg.skill}
-                              {cfg.saved_at && ` · ${new Date(cfg.saved_at).toLocaleDateString()}`}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <SavedConfigsTree
+              configs={savedConfigs}
+              loading={scanningConfigs}
+              registry={registry}
+              activeSkill={selectedSkill}
+              activeTemplate={selectedTemplate}
+              activeDomain={selectedDomain}
+              onLoad={handleLoadConfig}
+            />
           )}
 
           {/* Skill selector */}
@@ -1119,6 +1087,144 @@ function SingleDateField({
       ) : (
         <p className="mt-1 text-[10px] font-mono text-teal-600 dark:text-teal-400">{value}</p>
       )}
+    </div>
+  );
+}
+
+// ─── SavedConfigsTree ─────────────────────────────────────────────────────────
+// Collapsible tree: Skill (if multiple) → Template → domain chips
+
+interface SavedConfigsTreeProps {
+  configs: Array<{ domain: string; skill: string; template: string; path: string; saved_at: string }>;
+  loading: boolean;
+  registry: SkillRegistry;
+  activeSkill: string | null;
+  activeTemplate: string | null;
+  activeDomain: string;
+  onLoad: (config: SavedConfigsTreeProps["configs"][0]) => void;
+}
+
+function SavedConfigsTree({ configs, loading, registry, activeSkill, activeTemplate, activeDomain, onLoad }: SavedConfigsTreeProps) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  // Group: skill → template → configs[]
+  const tree = useMemo(() => {
+    const map = new Map<string, Map<string, typeof configs>>();
+    for (const c of configs) {
+      if (!map.has(c.skill)) map.set(c.skill, new Map());
+      const tMap = map.get(c.skill)!;
+      if (!tMap.has(c.template)) tMap.set(c.template, []);
+      tMap.get(c.template)!.push(c);
+    }
+    return map;
+  }, [configs]);
+
+  const multiSkill = tree.size > 1;
+
+  const toggleCollapse = useCallback((key: string) => {
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-zinc-400 py-2">
+        <Loader2 size={12} className="animate-spin" /> Scanning saved configs...
+      </div>
+    );
+  }
+
+  if (configs.length === 0) return null;
+
+  return (
+    <div>
+      <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+        <History size={10} />
+        Saved Configs
+      </label>
+      <div className="space-y-0.5">
+        {Array.from(tree.entries()).map(([skill, templateMap]) => {
+          const skillKey = `skill:${skill}`;
+          const skillCollapsed = multiSkill && collapsed[skillKey];
+          const skillName = registry.skills[skill]?.name ?? skill;
+
+          return (
+            <div key={skill}>
+              {/* Skill header — only show if multiple skills */}
+              {multiSkill && (
+                <button
+                  onClick={() => toggleCollapse(skillKey)}
+                  className={cn(
+                    "w-full flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md transition-colors",
+                    activeSkill === skill
+                      ? "text-teal-600 dark:text-teal-400"
+                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
+                  )}
+                >
+                  <ChevronRight
+                    size={10}
+                    className={cn("transition-transform flex-shrink-0", !skillCollapsed && "rotate-90")}
+                  />
+                  <Zap size={10} className="flex-shrink-0" />
+                  <span className="truncate">{skillName}</span>
+                </button>
+              )}
+
+              {/* Templates under this skill */}
+              {!skillCollapsed && Array.from(templateMap.entries()).map(([template, items]) => {
+                const templateKey = `tpl:${skill}:${template}`;
+                const tplCollapsed = collapsed[templateKey];
+                const isActiveTemplate = activeSkill === skill && activeTemplate === template;
+
+                return (
+                  <div key={template} className={multiSkill ? "ml-3" : ""}>
+                    <button
+                      onClick={() => toggleCollapse(templateKey)}
+                      className={cn(
+                        "w-full flex items-center gap-1.5 px-2 py-1 text-[11px] rounded-md transition-colors",
+                        isActiveTemplate
+                          ? "text-teal-600 dark:text-teal-400 font-medium"
+                          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
+                      )}
+                    >
+                      <ChevronRight
+                        size={10}
+                        className={cn("transition-transform flex-shrink-0", !tplCollapsed && "rotate-90")}
+                      />
+                      <FileText size={10} className="flex-shrink-0" />
+                      <span className="truncate">{template}</span>
+                      <span className="ml-auto text-[9px] text-zinc-400 flex-shrink-0">{items.length}</span>
+                    </button>
+
+                    {/* Domain chips */}
+                    {!tplCollapsed && (
+                      <div className="flex flex-wrap gap-1 px-2 py-1 ml-4">
+                        {items.map((c) => {
+                          const isActive = isActiveTemplate && activeDomain === c.domain;
+                          return (
+                            <button
+                              key={c.domain}
+                              onClick={() => onLoad(c)}
+                              title={`Load ${c.domain} — saved ${c.saved_at}`}
+                              className={cn(
+                                "px-2 py-0.5 text-[10px] rounded-full border transition-colors",
+                                isActive
+                                  ? "bg-teal-100 dark:bg-teal-900/40 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 font-medium"
+                                  : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-teal-300 dark:hover:border-teal-600 hover:text-teal-600 dark:hover:text-teal-400",
+                              )}
+                            >
+                              {c.domain}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use tauri::command;
 
 const SES_REGION: &str = "ap-southeast-1";
+const S3_BUCKET: &str = "production.thinkval.static";
+const S3_REGION: &str = "ap-southeast-1";
 
 /// Build an SES client from stored credentials
 fn build_ses_client(access_key: &str, secret_key: &str) -> aws_sdk_ses::Client {
@@ -22,6 +24,17 @@ fn build_ses_client(access_key: &str, secret_key: &str) -> aws_sdk_ses::Client {
     aws_sdk_ses::Client::from_conf(config)
 }
 
+/// Build an S3 client from stored credentials
+fn build_s3_client(access_key: &str, secret_key: &str) -> aws_sdk_s3::Client {
+    let creds = aws_sdk_s3::config::Credentials::new(access_key, secret_key, None, None, "tv-client-settings");
+    let config = aws_sdk_s3::Config::builder()
+        .behavior_version(aws_sdk_s3::config::BehaviorVersion::latest())
+        .region(aws_sdk_s3::config::Region::new(S3_REGION))
+        .credentials_provider(creds)
+        .build();
+    aws_sdk_s3::Client::from_conf(config)
+}
+
 // ── Types ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -32,6 +45,8 @@ struct Campaign {
     from_email: String,
     html_body: Option<String>,
     content_path: Option<String>,
+    report_path: Option<String>,
+    report_url: Option<String>,
     group_id: Option<String>,
     status: String,
 }
@@ -65,6 +80,49 @@ pub struct SendCampaignResult {
 pub struct SendTestResult {
     pub success: bool,
     pub error: Option<String>,
+}
+
+// ── S3 report upload ─────────────────────────────────────────────
+
+/// Upload a report file to S3 with a UUID-based path and return the public URL
+async fn upload_report_to_s3(
+    s3: &aws_sdk_s3::Client,
+    report_path: &str,
+    knowledge_path: &str,
+    campaign_id: &str,
+) -> CmdResult<String> {
+    let full_path = std::path::Path::new(knowledge_path).join(report_path);
+    let content = std::fs::read_to_string(&full_path)
+        .map_err(|e| CommandError::Internal(format!(
+            "Failed to read report file {}: {}", full_path.display(), e
+        )))?;
+
+    // Generate unguessable S3 key: reports/{campaign_id}/{random}/report.html
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    chrono::Utc::now().timestamp_nanos_opt().hash(&mut hasher);
+    campaign_id.hash(&mut hasher);
+    report_path.hash(&mut hasher);
+    let uuid = format!("{:016x}", hasher.finish());
+    let file_name = std::path::Path::new(report_path)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("report.html");
+    let s3_key = format!("email-reports/{}/{}/{}", campaign_id, uuid, file_name);
+
+    s3.put_object()
+        .bucket(S3_BUCKET)
+        .key(&s3_key)
+        .body(aws_sdk_s3::primitives::ByteStream::from(content.into_bytes()))
+        .content_type("text/html; charset=utf-8")
+        .cache_control("public, max-age=86400")
+        .send()
+        .await
+        .map_err(|e| CommandError::Network(format!("S3 upload failed: {:?}", e)))?;
+
+    let url = format!("https://s3.{}.amazonaws.com/{}/{}", S3_REGION, S3_BUCKET, s3_key);
+    Ok(url)
 }
 
 // ── Resolve campaign HTML body ────────────────────────────────────
@@ -101,6 +159,7 @@ fn replace_tokens(
     campaign_id: &str,
     api_base_url: &str,
     subject: &str,
+    report_url: Option<&str>,
 ) -> String {
     let mut result = html.to_string();
 
@@ -110,6 +169,11 @@ fn replace_tokens(
 
     // Replace {{subject}} — templates use this in hero headings
     result = result.replace("{{subject}}", subject);
+
+    // Replace {{report_url}} — link to the uploaded report
+    if let Some(url) = report_url {
+        result = result.replace("{{report_url}}", url);
+    }
 
     // Replace {{unsubscribe_url}}
     let unsub_url = format!(
@@ -140,11 +204,17 @@ fn replace_tokens_preview(
     html: &str,
     first_name: &str,
     subject: &str,
+    report_url: Option<&str>,
 ) -> String {
     let mut result = html.to_string();
     result = result.replace("{{first_name}}", first_name);
     result = result.replace("{{subject}}", subject);
     result = result.replace("{{unsubscribe_url}}", "#unsubscribe");
+    if let Some(url) = report_url {
+        result = result.replace("{{report_url}}", url);
+    } else {
+        result = result.replace("{{report_url}}", "#report");
+    }
     result
 }
 
@@ -164,6 +234,59 @@ fn rewrite_links(html: &str, event_id: &str, api_base_url: &str) -> String {
         )
     })
     .to_string()
+}
+
+// ── Upload report command ─────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UploadReportResult {
+    pub url: String,
+}
+
+#[command]
+pub async fn email_upload_report(
+    campaign_id: String,
+    knowledge_path: String,
+) -> CmdResult<UploadReportResult> {
+    let settings = crate::commands::settings::load_settings()?;
+    let access_key = settings
+        .keys
+        .get("aws_access_key_id")
+        .ok_or_else(|| CommandError::Config("AWS Access Key ID not configured".into()))?;
+    let secret_key = settings
+        .keys
+        .get("aws_secret_access_key")
+        .ok_or_else(|| CommandError::Config("AWS Secret Access Key not configured".into()))?;
+
+    let db = get_client().await?;
+
+    // Fetch campaign to get report_path
+    let campaign: Campaign = db
+        .select_single::<Campaign>(
+            "email_campaigns",
+            &format!("id=eq.{}&select=*", campaign_id),
+        )
+        .await?
+        .ok_or_else(|| CommandError::NotFound("Campaign not found".into()))?;
+
+    let report_path = campaign
+        .report_path
+        .as_ref()
+        .ok_or_else(|| CommandError::Internal("Campaign has no report_path set".into()))?;
+
+    let s3 = build_s3_client(access_key, secret_key);
+    let url = upload_report_to_s3(&s3, report_path, &knowledge_path, &campaign_id).await?;
+
+    // Save report_url and upload timestamp to campaign
+    let now = chrono::Utc::now().to_rfc3339();
+    db.update::<serde_json::Value, serde_json::Value>(
+        "email_campaigns",
+        &format!("id=eq.{}", campaign_id),
+        &serde_json::json!({ "report_url": url, "report_uploaded_at": now }),
+    )
+    .await?;
+
+    Ok(UploadReportResult { url })
 }
 
 // ── Main send command ─────────────────────────────────────────────
@@ -205,6 +328,9 @@ pub async fn email_send_campaign(
     }
 
     let html_body = resolve_html_body(&campaign, knowledge_path.as_deref())?;
+
+    // Use pre-uploaded report_url (uploaded via email_upload_report command)
+    let report_url = campaign.report_url.clone();
 
     let group_id = campaign
         .group_id
@@ -253,6 +379,7 @@ pub async fn email_send_campaign(
             contact,
             &campaign_id,
             &api_base_url,
+            report_url.as_deref(),
         )
         .await
         {
@@ -318,11 +445,15 @@ pub async fn email_send_test(
 
     let html_body = resolve_html_body(&campaign, knowledge_path.as_deref())?;
 
+    // Use pre-uploaded report_url
+    let report_url = campaign.report_url.clone();
+
     // Replace tokens with test values (no tracking injection for test sends)
     let personalized = replace_tokens_preview(
         &html_body,
         "Test User",
         &campaign.subject,
+        report_url.as_deref(),
     );
 
     // Build raw MIME email
@@ -377,6 +508,7 @@ async fn send_to_contact(
     contact: &Contact,
     campaign_id: &str,
     api_base_url: &str,
+    report_url: Option<&str>,
 ) -> CmdResult<()> {
     // Create sent event (need the ID for tracking URLs)
     let event: EventRow = db
@@ -391,7 +523,7 @@ async fn send_to_contact(
         .await?;
 
     // Replace tokens in HTML
-    let personalized = replace_tokens(html_body, contact, &event.id, campaign_id, api_base_url, &campaign.subject);
+    let personalized = replace_tokens(html_body, contact, &event.id, campaign_id, api_base_url, &campaign.subject, report_url);
 
     // Build raw MIME email with X-Campaign-Id header
     let boundary = format!("----=_Part_{}", chrono::Utc::now().timestamp_millis());

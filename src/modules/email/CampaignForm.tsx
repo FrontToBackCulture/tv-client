@@ -1,13 +1,14 @@
 // src/modules/email/CampaignForm.tsx
 // Campaign create/edit wizard — 3-step flow
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { X, ChevronRight, ChevronLeft, FileText, FolderOpen } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   useCreateEmailCampaign,
   useUpdateEmailCampaign,
   useEmailGroups,
+  useEmailCampaigns,
 } from "../../hooks/email";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import type { EmailCampaignWithStats } from "../../lib/email/types";
@@ -33,6 +34,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
   const [fromName, setFromName] = useState(campaign?.from_name || "");
   const [fromEmail, setFromEmail] = useState(campaign?.from_email || "");
   const [groupId, setGroupId] = useState(campaign?.group_id || "");
+  const [category, setCategory] = useState(campaign?.category || "");
   const [htmlBody, setHtmlBody] = useState(campaign?.html_body || "");
   const [contentPath, setContentPath] = useState(campaign?.content_path || "");
 
@@ -109,8 +111,18 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
   };
 
   const { data: groups = [] } = useEmailGroups();
+  const { data: allCampaigns = [] } = useEmailCampaigns();
   const createCampaign = useCreateEmailCampaign();
   const updateCampaign = useUpdateEmailCampaign();
+
+  // Collect distinct categories from existing campaigns for autocomplete
+  const existingCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of allCampaigns) {
+      if (c.category) set.add(c.category);
+    }
+    return Array.from(set).sort();
+  }, [allCampaigns]);
 
   const canProceedStep1 =
     name.trim() && subject.trim() && fromName.trim() && fromEmail.trim() && groupId;
@@ -125,6 +137,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
           from_name: fromName.trim(),
           from_email: fromEmail.trim(),
           group_id: groupId,
+          category: category.trim() || null,
           html_body: htmlBody || null,
           content_path: contentPath || null,
         },
@@ -136,6 +149,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
         from_name: fromName.trim(),
         from_email: fromEmail.trim(),
         group_id: groupId,
+        category: category.trim() || null,
         html_body: htmlBody || null,
         content_path: contentPath || null,
         status: "draft",
@@ -234,6 +248,25 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                  Category
+                </label>
+                <input
+                  type="text"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  list="campaign-categories"
+                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  placeholder="e.g., Reports, Newsletter, Onboarding"
+                />
+                <datalist id="campaign-categories">
+                  {existingCategories.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+                <p className="text-[9px] text-zinc-400 mt-0.5">Used for grouping in the sidebar. Type a new one or pick existing.</p>
               </div>
             </>
           )}
@@ -342,6 +375,9 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                   label="Group"
                   value={groups.find((g) => g.id === groupId)?.name || "—"}
                 />
+                {category.trim() && (
+                  <ReviewRow label="Category" value={category.trim()} />
+                )}
                 <ReviewRow
                   label="Content"
                   value={contentPath ? contentPath.split("/").pop() || "File" : htmlBody ? "Inline HTML" : "None"}

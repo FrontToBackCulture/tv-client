@@ -388,8 +388,159 @@ export type Database = {
           },
         ]
       }
+      domain_artifacts: {
+        Row: {
+          action: string | null
+          calculated_column_count: number | null
+          category: string | null
+          column_count: number | null
+          created_date: string | null
+          creator_name: string | null
+          cron_expression: string | null
+          dashboard_count: number | null
+          data_category: string | null
+          data_source: string | null
+          data_sub_category: string | null
+          data_type: string | null
+          days_since_created: number | null
+          days_since_update: number | null
+          description: string | null
+          domain: string
+          field_count: number | null
+          folder_path: string | null
+          global_path: string | null
+          has_overview: boolean | null
+          id: string
+          include_sitemap: boolean | null
+          is_scheduled: boolean | null
+          is_stale: boolean | null
+          name: string | null
+          plugin_count: number | null
+          query_count: number | null
+          resource_id: string
+          resource_type: string
+          resource_url: string | null
+          row_count: number | null
+          scheduled_workflow_count: number | null
+          sitemap_group1: string | null
+          sitemap_group2: string | null
+          solution: string | null
+          source_system: string | null
+          space: string | null
+          suggested_name: string | null
+          summary_full: string | null
+          summary_short: string | null
+          synced_at: string | null
+          table_name: string | null
+          tags: string | null
+          updated_date: string | null
+          usage_status: string | null
+          widget_count: number | null
+          workflow_count: number | null
+        }
+        Insert: {
+          action?: string | null
+          calculated_column_count?: number | null
+          category?: string | null
+          column_count?: number | null
+          created_date?: string | null
+          creator_name?: string | null
+          cron_expression?: string | null
+          dashboard_count?: number | null
+          data_category?: string | null
+          data_source?: string | null
+          data_sub_category?: string | null
+          data_type?: string | null
+          days_since_created?: number | null
+          days_since_update?: number | null
+          description?: string | null
+          domain: string
+          field_count?: number | null
+          folder_path?: string | null
+          global_path?: string | null
+          has_overview?: boolean | null
+          id?: string
+          include_sitemap?: boolean | null
+          is_scheduled?: boolean | null
+          is_stale?: boolean | null
+          name?: string | null
+          plugin_count?: number | null
+          query_count?: number | null
+          resource_id: string
+          resource_type: string
+          resource_url?: string | null
+          row_count?: number | null
+          scheduled_workflow_count?: number | null
+          sitemap_group1?: string | null
+          sitemap_group2?: string | null
+          solution?: string | null
+          source_system?: string | null
+          space?: string | null
+          suggested_name?: string | null
+          summary_full?: string | null
+          summary_short?: string | null
+          synced_at?: string | null
+          table_name?: string | null
+          tags?: string | null
+          updated_date?: string | null
+          usage_status?: string | null
+          widget_count?: number | null
+          workflow_count?: number | null
+        }
+        Update: {
+          action?: string | null
+          calculated_column_count?: number | null
+          category?: string | null
+          column_count?: number | null
+          created_date?: string | null
+          creator_name?: string | null
+          cron_expression?: string | null
+          dashboard_count?: number | null
+          data_category?: string | null
+          data_source?: string | null
+          data_sub_category?: string | null
+          data_type?: string | null
+          days_since_created?: number | null
+          days_since_update?: number | null
+          description?: string | null
+          domain?: string
+          field_count?: number | null
+          folder_path?: string | null
+          global_path?: string | null
+          has_overview?: boolean | null
+          id?: string
+          include_sitemap?: boolean | null
+          is_scheduled?: boolean | null
+          is_stale?: boolean | null
+          name?: string | null
+          plugin_count?: number | null
+          query_count?: number | null
+          resource_id?: string
+          resource_type?: string
+          resource_url?: string | null
+          row_count?: number | null
+          scheduled_workflow_count?: number | null
+          sitemap_group1?: string | null
+          sitemap_group2?: string | null
+          solution?: string | null
+          source_system?: string | null
+          space?: string | null
+          suggested_name?: string | null
+          summary_full?: string | null
+          summary_short?: string | null
+          synced_at?: string | null
+          table_name?: string | null
+          tags?: string | null
+          updated_date?: string | null
+          usage_status?: string | null
+          widget_count?: number | null
+          workflow_count?: number | null
+        }
+        Relationships: []
+      }
       email_campaigns: {
         Row: {
+          category: string | null
           content_path: string | null
           created_at: string
           from_email: string
@@ -398,6 +549,9 @@ export type Database = {
           html_body: string | null
           id: string
           name: string
+          report_path: string | null
+          report_uploaded_at: string | null
+          report_url: string | null
           scheduled_at: string | null
           sent_at: string | null
           status: string
@@ -405,6 +559,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          category?: string | null
           content_path?: string | null
           created_at?: string
           from_email: string
@@ -413,6 +568,9 @@ export type Database = {
           html_body?: string | null
           id?: string
           name: string
+          report_path?: string | null
+          report_uploaded_at?: string | null
+          report_url?: string | null
           scheduled_at?: string | null
           sent_at?: string | null
           status?: string
@@ -420,6 +578,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category?: string | null
           content_path?: string | null
           created_at?: string
           from_email?: string
@@ -428,6 +587,9 @@ export type Database = {
           html_body?: string | null
           id?: string
           name?: string
+          report_path?: string | null
+          report_uploaded_at?: string | null
+          report_url?: string | null
           scheduled_at?: string | null
           sent_at?: string | null
           status?: string
@@ -479,7 +641,9 @@ export type Database = {
       }
       email_contacts: {
         Row: {
+          company: string | null
           created_at: string
+          domain: string | null
           email: string
           first_name: string | null
           id: string
@@ -489,7 +653,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          company?: string | null
           created_at?: string
+          domain?: string | null
           email: string
           first_name?: string | null
           id?: string
@@ -499,7 +665,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          company?: string | null
           created_at?: string
+          domain?: string | null
           email?: string
           first_name?: string | null
           id?: string
@@ -777,6 +945,56 @@ export type Database = {
           {
             foreignKeyName: "milestones_project_id_fkey"
             columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notion_sync_configs: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          field_mapping: Json
+          filter: Json | null
+          id: string
+          last_synced_at: string | null
+          name: string
+          notion_database_id: string
+          sync_interval_minutes: number | null
+          target_project_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          field_mapping?: Json
+          filter?: Json | null
+          id?: string
+          last_synced_at?: string | null
+          name: string
+          notion_database_id: string
+          sync_interval_minutes?: number | null
+          target_project_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
+          field_mapping?: Json
+          filter?: Json | null
+          id?: string
+          last_synced_at?: string | null
+          name?: string
+          notion_database_id?: string
+          sync_interval_minutes?: number | null
+          target_project_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notion_sync_configs_target_project_id_fkey"
+            columns: ["target_project_id"]
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
@@ -2077,6 +2295,108 @@ export type Database = {
           },
         ]
       }
+      question_library: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          featured: boolean
+          id: string
+          published: boolean
+          question: string
+          sort_order: number
+          subcategory: string | null
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          featured?: boolean
+          id?: string
+          published?: boolean
+          question: string
+          sort_order?: number
+          subcategory?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          featured?: boolean
+          id?: string
+          published?: boolean
+          question?: string
+          sort_order?: number
+          subcategory?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
+      report_skill_library: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          featured: boolean
+          file_name: string
+          id: string
+          metrics: string[] | null
+          published: boolean
+          report_url: string | null
+          skill_slug: string
+          sort_order: number
+          sources: string[] | null
+          subcategory: string | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          writeup: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          featured?: boolean
+          file_name: string
+          id?: string
+          metrics?: string[] | null
+          published?: boolean
+          report_url?: string | null
+          skill_slug: string
+          sort_order?: number
+          sources?: string[] | null
+          subcategory?: string | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          writeup?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          featured?: boolean
+          file_name?: string
+          id?: string
+          metrics?: string[] | null
+          published?: boolean
+          report_url?: string | null
+          skill_slug?: string
+          sort_order?: number
+          sources?: string[] | null
+          subcategory?: string | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          writeup?: string | null
+        }
+        Relationships: []
+      }
       scheduler_run_steps: {
         Row: {
           cache_creation_tokens: number | null
@@ -2646,6 +2966,7 @@ export type Database = {
           description: string | null
           id: string
           initiative_id: string | null
+          intent: string | null
           owner: string
           status: string
           title: string
@@ -2656,6 +2977,7 @@ export type Database = {
           description?: string | null
           id?: string
           initiative_id?: string | null
+          intent?: string | null
           owner: string
           status?: string
           title: string
@@ -2666,6 +2988,7 @@ export type Database = {
           description?: string | null
           id?: string
           initiative_id?: string | null
+          intent?: string | null
           owner?: string
           status?: string
           title?: string
@@ -2819,4 +3142,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

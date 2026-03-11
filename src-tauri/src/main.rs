@@ -527,6 +527,7 @@ fn main() {
             // Email (SES campaign sending)
             commands::email::email_send_campaign,
             commands::email::email_send_test,
+            commands::email::email_upload_report,
             // Notion Sync
             commands::notion::commands::notion_list_databases,
             commands::notion::commands::notion_get_database_schema,

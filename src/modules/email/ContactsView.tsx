@@ -1,11 +1,94 @@
 // src/modules/email/ContactsView.tsx
-// Contact list with search, filter by status, import button
+// Contact list with tree sidebar for grouping, search, inline edit/delete actions
 
 import { useState, useMemo } from "react";
-import { Plus, Upload, Search } from "lucide-react";
-import { useEmailContacts } from "../../hooks/email";
+import { useQuery } from "@tanstack/react-query";
+import { Plus, Upload, Pencil, Trash2 } from "lucide-react";
+import { useEmailContacts, useEmailGroups, useDeleteEmailContact } from "../../hooks/email";
+import { supabase } from "../../lib/supabase";
 import type { EmailContact } from "../../lib/email/types";
 import { CONTACT_STATUSES } from "../../lib/email/types";
+import { emailKeys } from "../../hooks/email/keys";
+import { EmailTreeSidebar, type GroupByOption, type TreeSelection } from "./EmailTreeSidebar";
+
+// ─── Grouping helpers ─────────────────────────────────────────────────────────
+
+interface ContactWithGroupNames extends EmailContact {
+  _groupNames: string[];
+}
+
+function useContactsWithGroupNames() {
+  const { data: contacts = [], isLoading: loadingContacts } = useEmailContacts();
+  const { data: groups = [], isLoading: loadingGroups } = useEmailGroups();
+
+  // Fetch all contact-group memberships
+  const { data: memberships = [] } = useQuery({
+    queryKey: [...emailKeys.contacts(), "all-memberships"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_contact_groups")
+        .select("contact_id, group_id");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const enriched = useMemo(() => {
+    // Build group id → name map
+    const groupNameMap = new Map<string, string>();
+    for (const g of groups) groupNameMap.set(g.id, g.name);
+
+    // Build contact id → group names
+    const contactGroupMap = new Map<string, string[]>();
+    for (const m of memberships) {
+      const name = groupNameMap.get(m.group_id);
+      if (!name) continue;
+      const existing = contactGroupMap.get(m.contact_id) || [];
+      existing.push(name);
+      contactGroupMap.set(m.contact_id, existing);
+    }
+
+    return contacts.map((c) => ({
+      ...c,
+      _groupNames: contactGroupMap.get(c.id) || [],
+    })) as ContactWithGroupNames[];
+  }, [contacts, groups, memberships]);
+
+  return { data: enriched, isLoading: loadingContacts || loadingGroups };
+}
+
+const STATUS_LABELS: Record<string, string> = {};
+for (const s of CONTACT_STATUSES) STATUS_LABELS[s.value] = s.label;
+
+const contactGroupByOptions: GroupByOption<ContactWithGroupNames>[] = [
+  {
+    key: "status",
+    label: "Status",
+    getGroup: (c) => c.status,
+    getLabel: (v) => STATUS_LABELS[v] ?? v,
+    sortGroups: (a, b) => {
+      const order = ["active", "unsubscribed", "bounced"];
+      return order.indexOf(a) - order.indexOf(b);
+    },
+  },
+  {
+    key: "company",
+    label: "Company",
+    getGroup: (c) => c.company || "(no company)",
+  },
+  {
+    key: "domain",
+    label: "Domain",
+    getGroup: (c) => c.domain || "(no domain)",
+  },
+  {
+    key: "group",
+    label: "Group",
+    getGroup: (c) => c._groupNames?.length ? c._groupNames : ["(no group)"],
+  },
+];
+
+// ─── View ─────────────────────────────────────────────────────────────────────
 
 interface ContactsViewProps {
   selectedId: string | null;
@@ -16,29 +99,72 @@ interface ContactsViewProps {
 
 export function ContactsView({ selectedId, onSelect, onNewContact, onImport }: ContactsViewProps) {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [groupBy, setGroupBy] = useState("company");
+  const [treeSelection, setTreeSelection] = useState<TreeSelection>({ groupValue: null });
+  const deleteContact = useDeleteEmailContact();
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const { data: contacts = [], isLoading } = useEmailContacts({
-    search: search || undefined,
-    status: statusFilter as EmailContact["status"],
-  });
+  const { data: allContacts, isLoading } = useContactsWithGroupNames();
 
-  const sorted = useMemo(() => {
-    return [...contacts].sort((a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  // Apply search filter
+  const searched = useMemo(() => {
+    if (!search) return allContacts;
+    const q = search.toLowerCase();
+    return allContacts.filter(
+      (c) =>
+        c.email.toLowerCase().includes(q) ||
+        (c.first_name && c.first_name.toLowerCase().includes(q)) ||
+        (c.last_name && c.last_name.toLowerCase().includes(q)) ||
+        (c.company && c.company.toLowerCase().includes(q)),
     );
-  }, [contacts]);
+  }, [allContacts, search]);
+
+  // Apply tree filter
+  const activeOption = contactGroupByOptions.find((o) => o.key === groupBy) ?? contactGroupByOptions[0];
+  const filtered = useMemo(() => {
+    if (!treeSelection.groupValue) return searched;
+    return searched.filter((c) => {
+      const val = activeOption.getGroup(c);
+      const keys = Array.isArray(val) ? val : [val];
+      return keys.includes(treeSelection.groupValue!);
+    });
+  }, [searched, treeSelection.groupValue, activeOption]);
+
+  // Sort by created_at desc
+  const sorted = useMemo(() => {
+    return [...filtered].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+  }, [filtered]);
+
+  const handleDelete = async (id: string) => {
+    await deleteContact.mutateAsync(id);
+    if (selectedId === id) onSelect(null);
+    setDeleteConfirmId(null);
+  };
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800/50">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Contacts</h1>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-              {contacts.length} contacts
-            </p>
-          </div>
+    <div className="h-full flex">
+      <EmailTreeSidebar
+        items={searched}
+        groupByOptions={contactGroupByOptions}
+        activeGroupBy={groupBy}
+        onGroupByChange={setGroupBy}
+        selection={treeSelection}
+        onSelectionChange={setTreeSelection}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search contacts..."
+        title="Contacts"
+        totalCount={allContacts.length}
+      />
+
+      {/* List */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            {sorted.length}{treeSelection.groupValue ? ` in ${activeOption.getLabel?.(treeSelection.groupValue) ?? treeSelection.groupValue}` : ""} contact{sorted.length !== 1 ? "s" : ""}
+          </p>
           <div className="flex items-center gap-1.5">
             <button
               onClick={onImport}
@@ -56,76 +182,59 @@ export function ContactsView({ selectedId, onSelect, onNewContact, onImport }: C
           </div>
         </div>
 
-        <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            placeholder="Search contacts..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
-          />
+        <div className="flex-1 overflow-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12 text-xs text-zinc-400">Loading...</div>
+          ) : sorted.length === 0 ? (
+            <div className="flex items-center justify-center py-12 text-xs text-zinc-400">
+              {search ? "No contacts found" : "No contacts yet. Import a CSV or add one manually."}
+            </div>
+          ) : (
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+              {sorted.map((contact) => (
+                <ContactRow
+                  key={contact.id}
+                  contact={contact}
+                  isSelected={contact.id === selectedId}
+                  isDeleteConfirm={contact.id === deleteConfirmId}
+                  onClick={() => onSelect(contact.id === selectedId ? null : contact.id)}
+                  onEdit={() => onSelect(contact.id)}
+                  onDeleteClick={() => setDeleteConfirmId(contact.id)}
+                  onDeleteConfirm={() => handleDelete(contact.id)}
+                  onDeleteCancel={() => setDeleteConfirmId(null)}
+                  isDeleting={deleteContact.isPending}
+                />
+              ))}
+            </div>
+          )}
         </div>
-
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => setStatusFilter(undefined)}
-            className={`px-2 py-1 text-[10px] font-medium rounded-md transition-colors ${
-              !statusFilter
-                ? "bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900"
-                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            }`}
-          >
-            All
-          </button>
-          {CONTACT_STATUSES.map((s) => (
-            <button
-              key={s.value}
-              onClick={() => setStatusFilter(statusFilter === s.value ? undefined : s.value)}
-              className={`px-2 py-1 text-[10px] font-medium rounded-md transition-colors ${
-                statusFilter === s.value
-                  ? "bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900"
-                  : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12 text-xs text-zinc-400">Loading...</div>
-        ) : sorted.length === 0 ? (
-          <div className="flex items-center justify-center py-12 text-xs text-zinc-400">
-            {search ? "No contacts found" : "No contacts yet. Import a CSV or add one manually."}
-          </div>
-        ) : (
-          <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
-            {sorted.map((contact) => (
-              <ContactRow
-                key={contact.id}
-                contact={contact}
-                isSelected={contact.id === selectedId}
-                onClick={() => onSelect(contact.id === selectedId ? null : contact.id)}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
+// ─── Row ──────────────────────────────────────────────────────────────────────
+
 function ContactRow({
   contact,
   isSelected,
+  isDeleteConfirm,
   onClick,
+  onEdit,
+  onDeleteClick,
+  onDeleteConfirm,
+  onDeleteCancel,
+  isDeleting,
 }: {
   contact: EmailContact;
   isSelected: boolean;
+  isDeleteConfirm: boolean;
   onClick: () => void;
+  onEdit: () => void;
+  onDeleteClick: () => void;
+  onDeleteConfirm: () => void;
+  onDeleteCancel: () => void;
+  isDeleting: boolean;
 }) {
   const statusDef = CONTACT_STATUSES.find((s) => s.value === contact.status);
   const statusColors: Record<string, string> = {
@@ -134,30 +243,74 @@ function ContactRow({
     red: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   };
 
+  if (isDeleteConfirm) {
+    return (
+      <div className="px-4 py-3 bg-red-50 dark:bg-red-950/30">
+        <p className="text-xs text-red-700 dark:text-red-400 mb-2">
+          Delete <strong>{contact.first_name || contact.email}</strong>?
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDeleteConfirm(); }}
+            disabled={isDeleting}
+            className="px-2.5 py-1 text-[11px] font-medium bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDeleteCancel(); }}
+            className="px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <button
+    <div
       onClick={onClick}
-      className={`w-full text-left px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors ${
+      className={`group/row w-full text-left px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer ${
         isSelected ? "bg-zinc-50 dark:bg-zinc-900/50" : ""
       }`}
     >
       <div className="flex items-center justify-between">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-zinc-800 dark:text-zinc-100 truncate">
             {contact.first_name || contact.last_name
               ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
               : contact.email}
           </p>
           <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
-            {contact.email}
+            {contact.company ? `${contact.company} · ` : ""}{contact.email}
           </p>
         </div>
-        {statusDef && (
-          <span className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded ${statusColors[statusDef.color] || statusColors.gray}`}>
-            {statusDef.label}
-          </span>
-        )}
+        <div className="flex-shrink-0 flex items-center gap-2">
+          {/* Action icons — visible on hover */}
+          <div className="hidden group-hover/row:flex items-center gap-0.5">
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded transition-colors"
+              title="Edit"
+            >
+              <Pencil size={12} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDeleteClick(); }}
+              className="p-1 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 rounded transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+          {statusDef && (
+            <span className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded ${statusColors[statusDef.color] || statusColors.gray}`}>
+              {statusDef.label}
+            </span>
+          )}
+        </div>
       </div>
-    </button>
+    </div>
   );
 }

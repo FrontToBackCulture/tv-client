@@ -17,6 +17,8 @@ function parseCSV(text: string): ImportRow[] {
 
   const firstNameIdx = headers.indexOf("first_name");
   const lastNameIdx = headers.indexOf("last_name");
+  const companyIdx = headers.indexOf("company");
+  const domainIdx = headers.indexOf("domain");
   const groupIdx = headers.indexOf("group");
 
   return lines.slice(1).map((line) => {
@@ -25,6 +27,8 @@ function parseCSV(text: string): ImportRow[] {
       email: cols[emailIdx] || "",
       first_name: firstNameIdx >= 0 ? cols[firstNameIdx] : undefined,
       last_name: lastNameIdx >= 0 ? cols[lastNameIdx] : undefined,
+      company: companyIdx >= 0 ? cols[companyIdx] : undefined,
+      domain: domainIdx >= 0 ? cols[domainIdx] : undefined,
       group: groupIdx >= 0 ? cols[groupIdx] : undefined,
     };
   });
@@ -119,6 +123,8 @@ export function useImportContacts() {
           email: row.email,
           first_name: row.first_name || null,
           last_name: row.last_name || null,
+          company: row.company || null,
+          domain: row.domain || null,
           source: "csv_import",
         }));
 

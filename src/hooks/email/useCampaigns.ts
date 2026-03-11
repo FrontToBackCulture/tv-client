@@ -341,3 +341,43 @@ export function useDeleteEmailCampaign() {
     },
   });
 }
+
+export function useCloneEmailCampaign() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<EmailCampaign> => {
+      const { data: original, error: fetchError } = await supabase
+        .from("email_campaigns")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (fetchError || !original)
+        throw new Error(`Failed to fetch campaign: ${fetchError?.message}`);
+
+      const { data, error } = await supabase
+        .from("email_campaigns")
+        .insert({
+          name: `${original.name} (copy)`,
+          subject: original.subject,
+          from_name: original.from_name,
+          from_email: original.from_email,
+          group_id: original.group_id,
+          content_path: original.content_path,
+          html_body: original.html_body,
+          report_path: original.report_path,
+          status: "draft",
+        })
+        .select()
+        .single();
+
+      if (error)
+        throw new Error(`Failed to clone campaign: ${error.message}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: emailKeys.campaigns() });
+    },
+  });
+}

@@ -2,7 +2,7 @@
 // Used by DomainAiTab (platform skills) and BotOverviewPanel (bot skills)
 
 import { useState, useMemo, useCallback } from "react";
-import { X, Check, Sparkles, ChevronDown } from "lucide-react";
+import { X, Sparkles, ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
 import type { SkillCategory } from "../modules/skills/useSkillRegistry";
 
