@@ -44,12 +44,6 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          key: ${{ github.ref_name }}
-
       - name: Install dependencies
         run: npm ci
 
@@ -61,13 +55,6 @@ jobs:
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.VITE_GITHUB_CLIENT_SECRET }}
           VITE_AG_GRID_LICENSE_KEY: ${{ secrets.VITE_AG_GRID_LICENSE_KEY }}
         run: npm run build
-
-      - name: Clean stale binaries (force version rebuild)
-        shell: bash
-        run: |
-          rm -f src-tauri/target/${{ matrix.target }}/release/tv-client*
-          rm -f src-tauri/target/${{ matrix.target }}/release/tv-mcp*
-          rm -rf src-tauri/target/${{ matrix.target }}/release/bundle
 
       - name: Build Tauri
         env:
