@@ -6,6 +6,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { AgGridReact } from "ag-grid-react";
 import {
   ColDef,
+  ColGroupDef,
   ColumnState,
   ModuleRegistry,
   AllCommunityModule,
@@ -28,6 +29,8 @@ import {
   Star,
   Save,
   WrapText,
+  Globe,
+  Loader2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button } from "../../components/ui";
@@ -35,6 +38,8 @@ import { useAppStore } from "../../stores/appStore";
 import { groupRowStyles, themeStyles } from "../library/reviewGridStyles";
 import type { SkillRegistry, SkillCategory } from "./useSkillRegistry";
 import { useSkillRegistryUpdate, useSkillSummary } from "./useSkillRegistry";
+import { useReportSkillMap, useUpsertReportSkill } from "../../hooks/gallery/useReportSkills";
+import type { ReportSkill } from "../../lib/gallery/types";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
@@ -63,6 +68,20 @@ interface SkillReviewRow {
   action: string;
   outcome: string;
   last_modified: string;
+  // Website library fields (from Supabase report_skill_library)
+  webTitle: string;
+  webDescription: string;
+  webWriteup: string;
+  webSolution: string;
+  webCategory: string;
+  webSubcategory: string;
+  webMetrics: string;
+  webSources: string;
+  webPublished: boolean;
+  webFeatured: boolean;
+  // Internal: Supabase entry ref
+  _webSkillSlug: string;
+  _webFileName: string;
 }
 
 type ReviewFilter = "all" | "needs-work" | "stale" | "modified";
@@ -108,7 +127,7 @@ function isStale(lastAudited: string | undefined): boolean {
 const STATUS_VALUES = ["active", "test", "review", "draft", "inactive", "deprecated"];
 const NEEDS_WORK_VALUES = ["", "audit", "schema update", "finish", "refactor", "rewrite"];
 
-function buildColumns(wrapNotes: boolean): ColDef<SkillReviewRow>[] {
+function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] {
   return [
     {
       field: "name",
@@ -327,6 +346,119 @@ function buildColumns(wrapNotes: boolean): ColDef<SkillReviewRow>[] {
       },
       sort: "desc",
     },
+    // ── Website Library columns ──
+    {
+      headerName: "📄 WEBSITE",
+      children: [
+        {
+          field: "webTitle",
+          headerName: "Web Title",
+          width: 180,
+          filter: "agTextColumnFilter",
+          editable: true,
+          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+          enableRowGroup: false,
+        },
+        {
+          field: "webDescription",
+          headerName: "Web Description",
+          minWidth: 200,
+          flex: 1,
+          filter: "agTextColumnFilter",
+          editable: true,
+          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+          enableRowGroup: false,
+          wrapText: wrapNotes,
+          autoHeight: wrapNotes,
+        },
+        {
+          field: "webWriteup",
+          headerName: "Web Writeup",
+          minWidth: 200,
+          flex: 1,
+          filter: "agTextColumnFilter",
+          editable: true,
+          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+          enableRowGroup: false,
+          wrapText: wrapNotes,
+          autoHeight: wrapNotes,
+        },
+        {
+          field: "webSolution",
+          headerName: "Solution",
+          width: 130,
+          filter: "agSetColumnFilter",
+          editable: true,
+          cellEditor: "agSelectCellEditor",
+          cellEditorParams: { values: ["analytics", "ar-automation", "ap-automation"] },
+          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+        },
+        {
+          field: "webCategory",
+          headerName: "Web Category",
+          width: 120,
+          filter: "agSetColumnFilter",
+          editable: true,
+          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+        },
+        {
+          field: "webSubcategory",
+          headerName: "Web Subcategory",
+          width: 120,
+          filter: "agSetColumnFilter",
+          editable: true,
+          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+        },
+        {
+          field: "webMetrics",
+          headerName: "Metrics",
+          width: 200,
+          filter: "agTextColumnFilter",
+          editable: true,
+          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+          enableRowGroup: false,
+        },
+        {
+          field: "webSources",
+          headerName: "Sources",
+          width: 200,
+          filter: "agTextColumnFilter",
+          editable: true,
+          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+          enableRowGroup: false,
+        },
+        {
+          field: "webPublished",
+          headerName: "Published",
+          width: 90,
+          filter: "agSetColumnFilter",
+          editable: true,
+          cellEditor: "agSelectCellEditor",
+          cellEditorParams: { values: [true, false] },
+          cellRenderer: (params: { value: boolean }) => {
+            if (params.value === undefined || params.value === null) return <span className="text-zinc-300 text-xs">—</span>;
+            return params.value
+              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">Live</span>
+              : <span className="text-zinc-400 text-xs">No</span>;
+          },
+        },
+        {
+          field: "webFeatured",
+          headerName: "Featured",
+          width: 90,
+          filter: "agSetColumnFilter",
+          editable: true,
+          cellEditor: "agSelectCellEditor",
+          cellEditorParams: { values: [true, false] },
+          cellRenderer: (params: { value: boolean }) => {
+            if (params.value === undefined || params.value === null) return <span className="text-zinc-300 text-xs">—</span>;
+            return params.value
+              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Yes</span>
+              : <span className="text-zinc-400 text-xs">No</span>;
+          },
+        },
+      ],
+    },
   ];
 }
 
@@ -337,11 +469,37 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
   const gridRef = useRef<AgGridReact<SkillReviewRow>>(null);
   const registryUpdate = useSkillRegistryUpdate();
   const { data: modInfos } = useSkillSummary();
+  const { data: reportSkillMap } = useReportSkillMap();
+  const upsertReportSkill = useUpsertReportSkill();
 
   const [quickFilter, setQuickFilter] = useState("");
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const [wrapNotes, setWrapNotes] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isRevalidating, setIsRevalidating] = useState(false);
+
+  const handleRevalidateWebsite = useCallback(async () => {
+    setIsRevalidating(true);
+    try {
+      await fetch("https://www.thinkval.com/api/revalidate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paths: [
+            "/solutions/analytics",
+            "/solutions/analytics/report-skills",
+            "/solutions/analytics/questions",
+            "/solutions/ar-automation",
+            "/solutions/ap-automation",
+          ],
+        }),
+      });
+    } catch {
+      // Best-effort
+    } finally {
+      setIsRevalidating(false);
+    }
+  }, []);
 
   // Layout management
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
@@ -384,7 +542,21 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
   const [rowData, setRowData] = useState<SkillReviewRow[]>([]);
 
   // Rebuild rows when registry changes externally (not from our own edits)
-  const registryVersion = `${Object.keys(registry.skills).length}-${registry.updated}-${modInfos?.length ?? 0}`;
+  // Build slug -> first ReportSkill lookup from Supabase map
+  const webLookup = useMemo(() => {
+    const map: Record<string, ReportSkill> = {};
+    if (reportSkillMap) {
+      for (const [, entry] of reportSkillMap) {
+        // Keep first entry per slug (if multiple demo files exist)
+        if (!map[entry.skill_slug]) {
+          map[entry.skill_slug] = entry;
+        }
+      }
+    }
+    return map;
+  }, [reportSkillMap]);
+
+  const registryVersion = `${Object.keys(registry.skills).length}-${registry.updated}-${modInfos?.length ?? 0}-${reportSkillMap?.size ?? 0}`;
   useEffect(() => {
     if (lastBuiltVersion.current === registryVersion) return;
     lastBuiltVersion.current = registryVersion;
@@ -392,6 +564,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     const rows: SkillReviewRow[] = [];
     for (const [slug, skill] of Object.entries(registry.skills)) {
       const { parentCategory, subcategory } = resolveCategory(skill.category, registry.categories);
+      const web = webLookup[slug];
       rows.push({
         slug,
         folder: slug,
@@ -410,10 +583,22 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
         action: skill.action ?? "",
         outcome: skill.outcome ?? "",
         last_modified: modLookup[slug] ?? "",
+        webTitle: web?.title ?? "",
+        webDescription: web?.description ?? "",
+        webWriteup: web?.writeup ?? "",
+        webSolution: web?.solution ?? "analytics",
+        webCategory: web?.category ?? "",
+        webSubcategory: web?.subcategory ?? "",
+        webMetrics: (web?.metrics ?? []).join(", "),
+        webSources: (web?.sources ?? []).join(", "),
+        webPublished: web?.published ?? false,
+        webFeatured: web?.featured ?? false,
+        _webSkillSlug: web?.skill_slug ?? slug,
+        _webFileName: web?.file_name ?? "",
       });
     }
     setRowData(rows);
-  }, [registryVersion, registry, modLookup]);
+  }, [registryVersion, registry, modLookup, webLookup]);
 
   // External filter via filter buttons
   const isExternalFilterPresent = useCallback(() => reviewFilter !== "all", [reviewFilter]);
@@ -506,7 +691,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     return { categoryId: childCat.id, categories };
   }, []);
 
-  // Persist edits to registry.json
+  // Persist edits — registry fields go to registry.json, web fields go to Supabase
   const handleCellValueChanged = useCallback(
     (event: CellValueChangedEvent<SkillReviewRow>) => {
       const { data, colDef } = event;
@@ -514,6 +699,32 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
 
       const field = colDef.field as keyof SkillReviewRow;
       const slug = data.slug;
+
+      // ── Website library fields → Supabase ──
+      const webFields = ["webTitle", "webDescription", "webWriteup", "webSolution", "webCategory", "webSubcategory", "webMetrics", "webSources", "webPublished", "webFeatured"] as const;
+      if ((webFields as readonly string[]).includes(field)) {
+        // Need a file_name to upsert — use existing or skip
+        const fileName = data._webFileName;
+        if (!fileName) return; // No demo file associated, can't create entry
+
+        upsertReportSkill.mutate({
+          skill_slug: data._webSkillSlug || slug,
+          file_name: fileName,
+          title: data.webTitle || data.name,
+          description: data.webDescription || null,
+          writeup: data.webWriteup || null,
+          solution: data.webSolution || "analytics",
+          category: data.webCategory || "uncategorized",
+          subcategory: data.webSubcategory || null,
+          metrics: data.webMetrics ? data.webMetrics.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+          sources: data.webSources ? data.webSources.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+          published: data.webPublished,
+          featured: data.webFeatured,
+        });
+        return;
+      }
+
+      // ── Registry fields → registry.json ──
       const skill = registry.skills[slug];
       if (!skill) return;
 
@@ -544,11 +755,11 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
       };
 
       // Pre-set the version so the rebuild effect skips this mutation's invalidation
-      lastBuiltVersion.current = `${Object.keys(updated.skills).length}-${newTimestamp}-${modInfos?.length ?? 0}`;
+      lastBuiltVersion.current = `${Object.keys(updated.skills).length}-${newTimestamp}-${modInfos?.length ?? 0}-${reportSkillMap?.size ?? 0}`;
 
       registryUpdate.mutate(updated);
     },
-    [registry, registryUpdate, resolveAndUpdateCategory, modInfos],
+    [registry, registryUpdate, resolveAndUpdateCategory, modInfos, reportSkillMap, upsertReportSkill],
   );
 
   // ─── Layout actions ─────────────────────────────────────────────────────────
@@ -856,6 +1067,16 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
             title={wrapNotes ? "Click to truncate text" : "Click to wrap text"}
           >
             <WrapText size={14} />
+          </button>
+
+          <button
+            onClick={handleRevalidateWebsite}
+            disabled={isRevalidating}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+            title="Revalidate website cache"
+          >
+            {isRevalidating ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+            Revalidate
           </button>
 
           <Button variant="secondary" size="md" icon={Download} onClick={exportToCsv} title="Export to CSV">

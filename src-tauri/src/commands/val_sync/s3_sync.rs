@@ -289,6 +289,63 @@ async fn list_s3_keys(client: &aws_sdk_s3::Client, prefix: &str) -> CmdResult<Ve
     Ok(keys)
 }
 
+// ============================================================================
+// Gallery - Upload demo HTML report to S3
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GalleryUploadResult {
+    pub url: String,
+    pub s3_key: String,
+    pub size_bytes: u64,
+}
+
+/// Upload a single demo HTML file to S3 for tv-website to serve.
+/// S3 key: `reports/{skill_slug}/{file_name}`
+/// Returns the public URL.
+#[command]
+pub async fn gallery_upload_demo_report(
+    file_path: String,
+    skill_slug: String,
+    file_name: String,
+) -> CmdResult<GalleryUploadResult> {
+    let settings = crate::commands::settings::load_settings()?;
+    let access_key = settings.keys.get("aws_access_key_id")
+        .ok_or_else(|| CommandError::Config("AWS Access Key ID not configured".to_string()))?;
+    let secret_key = settings.keys.get("aws_secret_access_key")
+        .ok_or_else(|| CommandError::Config("AWS Secret Access Key not configured".to_string()))?;
+
+    let path = std::path::Path::new(&file_path);
+    if !path.exists() {
+        return Err(CommandError::NotFound(format!("File not found: {}", file_path)));
+    }
+
+    let body = tokio::fs::read(&path)
+        .await
+        .map_err(|e| CommandError::Io(format!("Failed to read {}: {}", file_path, e)))?;
+    let size_bytes = body.len() as u64;
+
+    let s3_key = format!("demo-reports/{}/{}", skill_slug, file_name);
+    let client = build_s3_client(access_key, secret_key);
+
+    client
+        .put_object()
+        .bucket(S3_BUCKET)
+        .key(&s3_key)
+        .body(ByteStream::from(body))
+        .content_type("text/html")
+        .send()
+        .await
+        .map_err(|e| {
+            let msg = e.into_service_error().meta().message().unwrap_or("unknown error").to_string();
+            CommandError::Network(format!("S3: {}", msg))
+        })?;
+
+    let url = format!("https://s3.{}.amazonaws.com/{}/{}", S3_REGION, S3_BUCKET, s3_key);
+
+    Ok(GalleryUploadResult { url, s3_key, size_bytes })
+}
+
 /// List files in S3 under a prefix, returns (relative_path, last_modified, size)
 async fn list_s3_files(
     client: &aws_sdk_s3::Client,

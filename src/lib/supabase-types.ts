@@ -540,6 +540,7 @@ export type Database = {
       }
       email_campaigns: {
         Row: {
+          bcc_email: string | null
           category: string | null
           content_path: string | null
           created_at: string
@@ -559,6 +560,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bcc_email?: string | null
           category?: string | null
           content_path?: string | null
           created_at?: string
@@ -578,6 +580,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bcc_email?: string | null
           category?: string | null
           content_path?: string | null
           created_at?: string
@@ -2304,6 +2307,7 @@ export type Database = {
           id: string
           published: boolean
           question: string
+          solution: string
           sort_order: number
           subcategory: string | null
           updated_at: string
@@ -2317,6 +2321,7 @@ export type Database = {
           id?: string
           published?: boolean
           question: string
+          solution?: string
           sort_order?: number
           subcategory?: string | null
           updated_at?: string
@@ -2330,6 +2335,7 @@ export type Database = {
           id?: string
           published?: boolean
           question?: string
+          solution?: string
           sort_order?: number
           subcategory?: string | null
           updated_at?: string
@@ -2349,6 +2355,7 @@ export type Database = {
           published: boolean
           report_url: string | null
           skill_slug: string
+          solution: string
           sort_order: number
           sources: string[] | null
           subcategory: string | null
@@ -2368,6 +2375,7 @@ export type Database = {
           published?: boolean
           report_url?: string | null
           skill_slug: string
+          solution?: string
           sort_order?: number
           sources?: string[] | null
           subcategory?: string | null
@@ -2387,6 +2395,7 @@ export type Database = {
           published?: boolean
           report_url?: string | null
           skill_slug?: string
+          solution?: string
           sort_order?: number
           sources?: string[] | null
           subcategory?: string | null

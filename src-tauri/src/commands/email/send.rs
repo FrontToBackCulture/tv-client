@@ -47,6 +47,7 @@ struct Campaign {
     content_path: Option<String>,
     report_path: Option<String>,
     report_url: Option<String>,
+    bcc_email: Option<String>,
     group_id: Option<String>,
     status: String,
 }
@@ -564,6 +565,50 @@ async fn send_to_contact(
         .send()
         .await
         .map_err(|e| CommandError::Network(format!("SES error: {}", e)))?;
+
+    // Send untracked BCC copy (no open pixel, no click tracking, no event row)
+    if let Some(bcc) = &campaign.bcc_email {
+        if !bcc.is_empty() {
+            let bcc_html = replace_tokens_preview(html_body, contact.first_name.as_deref().unwrap_or("there"), &campaign.subject, report_url);
+            let bcc_boundary = format!("----=_Part_bcc_{}", chrono::Utc::now().timestamp_millis());
+            let bcc_raw = format!(
+                "From: {} <{}>\r\n\
+                 To: {}\r\n\
+                 Subject: {}\r\n\
+                 X-Campaign-Id: {}\r\n\
+                 X-BCC-Copy: true\r\n\
+                 MIME-Version: 1.0\r\n\
+                 Content-Type: multipart/alternative; boundary=\"{}\"\r\n\
+                 \r\n\
+                 --{}\r\n\
+                 Content-Type: text/html; charset=UTF-8\r\n\
+                 Content-Transfer-Encoding: 7bit\r\n\
+                 \r\n\
+                 {}\r\n\
+                 \r\n\
+                 --{}--",
+                campaign.from_name,
+                campaign.from_email,
+                bcc,
+                campaign.subject,
+                campaign_id,
+                bcc_boundary,
+                bcc_boundary,
+                bcc_html,
+                bcc_boundary,
+            );
+            // Best-effort: don't fail the main send if BCC fails
+            let _ = ses.send_raw_email()
+                .raw_message(
+                    RawMessage::builder()
+                        .data(Blob::new(bcc_raw.as_bytes()))
+                        .build()
+                        .unwrap(),
+                )
+                .send()
+                .await;
+        }
+    }
 
     Ok(())
 }

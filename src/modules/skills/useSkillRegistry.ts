@@ -203,12 +203,25 @@ export function useSkillRegistryUpdate() {
   const { activeRepository } = useRepository();
   const queryClient = useQueryClient();
 
+  const registryPath = activeRepository
+    ? `${activeRepository.path}/_skills/registry.json`
+    : null;
+
   return useMutation({
     mutationFn: async (registry: SkillRegistry) => {
       if (!activeRepository) throw new Error("No repository");
       const path = `${activeRepository.path}/_skills/registry.json`;
       const content = JSON.stringify(registry, null, 2);
       await invoke("write_file", { path, content });
+      return registry;
+    },
+    onMutate: async (newRegistry) => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["skill-registry"] });
+      // Optimistically update to the new value
+      if (registryPath) {
+        queryClient.setQueryData(["skill-registry", registryPath], newRegistry);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skill-registry"] });

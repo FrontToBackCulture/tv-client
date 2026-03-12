@@ -2,11 +2,11 @@
 
 import { create } from "zustand";
 
-export type ModuleId = "library" | "work" | "workspace" | "inbox" | "crm" | "domains" | "product" | "gallery" | "bot" | "skills" | "portal" | "scheduler" | "repos" | "email";
+export type ModuleId = "library" | "work" | "workspace" | "inbox" | "crm" | "domains" | "product" | "gallery" | "bot" | "skills" | "questions" | "portal" | "scheduler" | "repos" | "email";
 export type Theme = "light" | "dark";
 export type SettingsView = "keys" | "val" | "sync" | "mcp" | "claude" | "bots" | null;
 
-const VALID_MODULES: ModuleId[] = ["library", "work", "workspace", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email"];
+const VALID_MODULES: ModuleId[] = ["library", "work", "workspace", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "questions", "portal", "scheduler", "repos", "email"];
 const LAST_MODULE_KEY = "tv-client-last-module";
 
 // Get initial module: URL param (multi-window) > localStorage (resume) > default

@@ -2,7 +2,8 @@
 // Shows alongside the report preview iframe when a report is selected
 
 import { useState, useEffect, useCallback } from "react";
-import { Globe, Star, Sparkles, Save, Loader2, Check, Trash2, Tags } from "lucide-react";
+import { Globe, Star, Sparkles, Save, Loader2, Check, Trash2, Tags, Upload, ExternalLink, FileText } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { Button } from "../../components/ui";
 import { cn } from "../../lib/cn";
 import { useReportSkillByFile, useUpsertReportSkill, useDeleteReportSkill } from "../../hooks/gallery/useReportSkills";
@@ -26,12 +27,15 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
   const [writeup, setWriteup] = useState("");
   const [category, setCategory] = useState("");
   const [subcategory, setSubcategory] = useState("");
+  const [solution, setSolution] = useState("analytics");
   const [metrics, setMetrics] = useState("");
   const [sources, setSources] = useState("");
   const [published, setPublished] = useState(false);
   const [featured, setFeatured] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Sync from DB when loaded
   useEffect(() => {
@@ -41,6 +45,7 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
       setWriteup(existing.writeup ?? "");
       setCategory(existing.category);
       setSubcategory(existing.subcategory ?? "");
+      setSolution(existing.solution ?? "analytics");
       setMetrics((existing.metrics ?? []).join(", "));
       setSources((existing.sources ?? []).join(", "));
       setPublished(existing.published);
@@ -68,6 +73,7 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
       writeup: writeup.trim() || null,
       category: category.trim() || "uncategorized",
       subcategory: subcategory.trim() || null,
+      solution: solution.trim() || "analytics",
       metrics: metrics ? metrics.split(",").map(s => s.trim()).filter(Boolean) : [],
       sources: sources ? sources.split(",").map(s => s.trim()).filter(Boolean) : [],
       published,
@@ -76,7 +82,7 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
     setDirty(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-  }, [upsert, example, title, description, writeup, category, subcategory, metrics, sources, published, featured]);
+  }, [upsert, example, title, description, writeup, category, subcategory, solution, metrics, sources, published, featured]);
 
   const handleDelete = useCallback(async () => {
     if (!existing) return;
@@ -97,6 +103,40 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
       markDirty();
     }
   }, [htmlContent, example.skill_name, generate, markDirty]);
+
+  const handleUploadToS3 = useCallback(async () => {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const result = await invoke<{ url: string; s3_key: string; size_bytes: number }>("gallery_upload_demo_report", {
+        filePath: example.file_path,
+        skillSlug: example.slug,
+        fileName: example.file_name,
+      });
+      // Save the report_url to the DB record
+      await upsert.mutateAsync({
+        skill_slug: example.slug,
+        file_name: example.file_name,
+        title: title.trim() || example.skill_name,
+        description: description.trim() || null,
+        writeup: writeup.trim() || null,
+        category: category.trim() || "uncategorized",
+        subcategory: subcategory.trim() || null,
+        solution: solution.trim() || "analytics",
+        metrics: metrics ? metrics.split(",").map(s => s.trim()).filter(Boolean) : [],
+        sources: sources ? sources.split(",").map(s => s.trim()).filter(Boolean) : [],
+        published,
+        featured,
+        report_url: result.url,
+      });
+      setDirty(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null && "message" in err ? (err as { message: string }).message : String(err);
+      setUploadError(msg);
+    } finally {
+      setUploading(false);
+    }
+  }, [example, upsert, title, description, writeup, category, subcategory, solution, metrics, sources, published, featured]);
 
   if (isLoading) {
     return (
@@ -200,8 +240,20 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
         />
       </div>
 
-      {/* Category + Subcategory */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Solution + Category + Subcategory */}
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">Solution</label>
+          <select
+            value={solution}
+            onChange={e => { setSolution(e.target.value); markDirty(); }}
+            className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          >
+            <option value="analytics">Analytics</option>
+            <option value="ar-automation">AR Automation</option>
+            <option value="ap-automation">AP Automation</option>
+          </select>
+        </div>
         <div>
           <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
             <Tags size={10} className="inline mr-1" />
@@ -243,6 +295,40 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
           placeholder="POS, GrabFood, Deliveroo"
           className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
         />
+      </div>
+
+      {/* Demo File + S3 Upload */}
+      <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <FileText size={12} className="text-zinc-400" />
+          <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Demo File</span>
+        </div>
+        <p className="text-[11px] text-zinc-600 dark:text-zinc-300 font-mono truncate" title={example.file_name}>
+          {example.file_name}
+        </p>
+        {typeof existing?.report_url === "string" && existing.report_url && (
+          <a
+            href={existing.report_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[10px] text-teal-500 hover:text-teal-600 transition truncate"
+          >
+            <ExternalLink size={10} className="shrink-0" />
+            {existing.report_url.replace(/^https?:\/\/[^/]+\//, "")}
+          </a>
+        )}
+        {uploadError && (
+          <p className="text-[10px] text-red-500">{uploadError}</p>
+        )}
+        <Button
+          size="sm"
+          icon={uploading ? Loader2 : Upload}
+          onClick={handleUploadToS3}
+          disabled={uploading}
+          className={cn(uploading && "[&_svg]:animate-spin")}
+        >
+          {uploading ? "Uploading..." : (typeof existing?.report_url === "string" && existing.report_url) ? "Re-upload to S3" : "Upload to S3"}
+        </Button>
       </div>
 
       {/* Actions */}

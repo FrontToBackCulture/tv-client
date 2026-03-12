@@ -1,7 +1,7 @@
 // src/modules/gallery/GalleryModule.tsx
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Search, X, Loader2, ChevronRight, FileText, Image as ImageIcon, PenTool, Video, Pin, PinOff, ArrowUpDown, ChevronDown, Presentation, MessageCircleQuestion, Globe } from "lucide-react";
+import { Search, X, Loader2, ChevronRight, FileText, Image as ImageIcon, PenTool, Video, Pin, PinOff, ArrowUpDown, ChevronDown, Presentation, MessageCircleQuestion, Globe, BarChart3, Receipt, Clock, ShoppingBag, Star, Truck, Users, Utensils, Wallet, LayoutGrid } from "lucide-react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Button, IconButton } from "../../components/ui";
 import { SectionLoading } from "../../components/ui/DetailStates";
@@ -125,7 +125,7 @@ type ReportSort = "name" | "date" | "category";
 
 function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; search: string; isLoading: boolean }) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<ReportSort>("name");
+  const [sortBy, setSortBy] = useState<ReportSort>("category");
   const [showSortMenu, setShowSortMenu] = useState(false);
   const { data: selectedHtml } = useReadFile(selectedPath ?? undefined);
   const { data: registry } = useSkillRegistry();
@@ -167,7 +167,7 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
 
   const togglePin = useCallback((slug: string) => {
     if (!registry) return;
-    const entry = registry.skills[slug] ?? { name: slug, description: "", category: "uncategorized", target: "platform", status: "active", distributions: [] };
+    const entry = registry.skills[slug] ?? { name: slug, description: "", category: "uncategorized", target: "platform" as const, status: "active" as const, distributions: [] };
     const today = new Date().toISOString().slice(0, 10);
     const updatedRegistry = {
       ...registry,
@@ -282,15 +282,34 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
   const totalCount = pinnedItems.length + groups.reduce((n, [, items]) => n + items.length, 0);
   const sortLabels: Record<ReportSort, string> = { name: "Name A-Z", date: "Newest First", category: "Category" };
 
+  // Category visual config — icon + accent color for grouped headers
+  const categoryVisuals: Record<string, { icon: typeof BarChart3; color: string }> = {
+    analytics: { icon: BarChart3, color: "text-blue-500" },
+    recon: { icon: Wallet, color: "text-emerald-500" },
+    insights: { icon: Star, color: "text-amber-500" },
+    receipts: { icon: Receipt, color: "text-violet-500" },
+    "receipt-items": { icon: Utensils, color: "text-pink-500" },
+    loyalty: { icon: Users, color: "text-indigo-500" },
+    utilisation: { icon: Clock, color: "text-cyan-500" },
+    timesheet: { icon: Clock, color: "text-orange-500" },
+    delivery: { icon: Truck, color: "text-rose-500" },
+    review: { icon: Star, color: "text-yellow-500" },
+    inventory: { icon: ShoppingBag, color: "text-lime-600" },
+  };
+  const defaultVisual = { icon: LayoutGrid, color: "text-zinc-400" };
+
   return (
-    <div className="p-4">
+    <div className="px-6 py-5">
       {/* Sort controls */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-zinc-400">{totalCount} reports</span>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">Report Gallery</h2>
+          <p className="text-xs text-zinc-400 mt-0.5">{totalCount} reports across {groups.length} {groups.length === 1 && groups[0]?.[0] === "all" ? "view" : "categories"}</p>
+        </div>
         <div className="relative">
           <button
             onClick={() => setShowSortMenu(!showSortMenu)}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-600 shadow-sm transition-colors"
           >
             <ArrowUpDown size={12} />
             {sortLabels[sortBy]}
@@ -299,7 +318,7 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
           {showSortMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[140px]">
+              <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg py-1 min-w-[140px]">
                 {(["category", "name", "date"] as ReportSort[]).map(opt => (
                   <button
                     key={opt}
@@ -319,19 +338,20 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
       </div>
 
       {totalCount === 0 ? (
-        <div className="text-center py-8 text-xs text-zinc-400">
+        <div className="text-center py-16 text-sm text-zinc-400">
           {search ? `No reports matching "${search}"` : "No demo reports found in _skills/*/demo/"}
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* Pinned section */}
           {pinnedItems.length > 0 && (
             <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Pin size={11} className="text-teal-500" />
-                <h3 className="text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wider">Pinned</h3>
+              <div className="flex items-center gap-2 mb-3">
+                <Pin size={13} className="text-teal-500" />
+                <h3 className="text-sm font-semibold text-teal-600 dark:text-teal-400">Pinned</h3>
+                <span className="text-xs text-zinc-400">{pinnedItems.length}</span>
               </div>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 xl:grid-cols-5 gap-3">
                 {pinnedItems.map(ex => (
                   <ReportThumbnail
                     key={ex.file_path}
@@ -347,27 +367,72 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
           )}
 
           {/* Category groups (or flat list) */}
-          {groups.map(([catId, items]) => (
-            <div key={catId}>
-              {sortBy === "category" && (
-                <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2">
-                  {categoryLabels[catId] || catId}
-                </h3>
-              )}
-              <div className="grid grid-cols-4 gap-3">
-                {items.map(ex => (
-                  <ReportThumbnail
-                    key={ex.file_path}
-                    example={ex}
-                    pinned={ex.pinned}
-                    isPublished={reportSkillMap?.has(`${ex.slug}:${ex.file_name}`) && reportSkillMap.get(`${ex.slug}:${ex.file_name}`)!.published}
-                    onTogglePin={() => togglePin(ex.slug)}
-                    onClick={() => setSelectedPath(ex.file_path)}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+          {(() => {
+            // Separate large categories (3+) from small ones (1-2 items)
+            const largeGroups = sortBy === "category" ? groups.filter(([, items]) => items.length >= 3) : groups;
+            const smallGroups = sortBy === "category" ? groups.filter(([, items]) => items.length < 3) : [];
+
+            return (
+              <>
+                {largeGroups.map(([catId, items]) => {
+                  const visual = categoryVisuals[catId] ?? defaultVisual;
+                  const CatIcon = visual.icon;
+                  return (
+                    <div key={catId}>
+                      {sortBy === "category" && (
+                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                          <CatIcon size={14} className={visual.color} />
+                          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+                            {categoryLabels[catId] || catId}
+                          </h3>
+                          <span className="text-xs text-zinc-400">{items.length}</span>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-4 xl:grid-cols-5 gap-3">
+                        {items.map(ex => (
+                          <ReportThumbnail
+                            key={ex.file_path}
+                            example={ex}
+                            pinned={ex.pinned}
+                            isPublished={reportSkillMap?.has(`${ex.slug}:${ex.file_name}`) && reportSkillMap.get(`${ex.slug}:${ex.file_name}`)!.published}
+                            onTogglePin={() => togglePin(ex.slug)}
+                            onClick={() => setSelectedPath(ex.file_path)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Small categories — compact rows instead of large grid cards */}
+                {smallGroups.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                      <LayoutGrid size={14} className="text-zinc-400" />
+                      <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">More Reports</h3>
+                      <span className="text-xs text-zinc-400">{smallGroups.reduce((n, [, items]) => n + items.length, 0)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
+                      {smallGroups.flatMap(([catId, items]) =>
+                        items.map(ex => (
+                          <ReportCompactRow
+                            key={ex.file_path}
+                            example={ex}
+                            categoryLabel={categoryLabels[catId] || catId}
+                            categoryVisual={categoryVisuals[catId] ?? defaultVisual}
+                            pinned={ex.pinned}
+                            isPublished={reportSkillMap?.has(`${ex.slug}:${ex.file_name}`) && reportSkillMap.get(`${ex.slug}:${ex.file_name}`)!.published}
+                            onTogglePin={() => togglePin(ex.slug)}
+                            onClick={() => setSelectedPath(ex.file_path)}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -393,31 +458,31 @@ function ReportThumbnail({ example, pinned, isPublished, onTogglePin, onClick }:
   }, [htmlContent]);
 
   return (
-    <div className="group relative rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-sm transition-all">
+    <div className="group relative rounded-xl border border-zinc-200/80 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-400/60 dark:hover:border-teal-600 shadow-sm hover:shadow-md transition-all duration-200">
       {/* Pin button - top right corner */}
       {onTogglePin && (
         <button
           onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
           className={cn(
-            "absolute top-1.5 right-1.5 z-10 p-1 rounded-md transition-all",
+            "absolute top-2 right-2 z-10 p-1.5 rounded-lg transition-all",
             pinned
-              ? "bg-teal-500/90 text-white opacity-100"
-              : "bg-black/40 text-white opacity-0 group-hover:opacity-100"
+              ? "bg-teal-500 text-white shadow-sm opacity-100"
+              : "bg-black/50 backdrop-blur-sm text-white opacity-0 group-hover:opacity-100"
           )}
           title={pinned ? "Unpin" : "Pin to top"}
         >
-          {pinned ? <PinOff size={10} /> : <Pin size={10} />}
+          {pinned ? <PinOff size={11} /> : <Pin size={11} />}
         </button>
       )}
       {/* Published indicator - top left */}
       {isPublished && (
-        <div className="absolute top-1.5 left-1.5 z-10 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-teal-500/90 text-white text-[9px] font-medium">
-          <Globe size={8} />
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500 text-white text-[10px] font-semibold shadow-sm">
+          <Globe size={9} />
           Live
         </div>
       )}
       <button onClick={onClick} className="w-full text-left">
-        <div className="relative h-36 overflow-hidden bg-white">
+        <div className="relative h-32 overflow-hidden bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-950">
           {thumbSrcDoc ? (
             <iframe
               srcDoc={thumbSrcDoc}
@@ -427,16 +492,91 @@ function ReportThumbnail({ example, pinned, isPublished, onTogglePin, onClick }:
             />
           ) : (
             <div className="flex items-center justify-center h-full">
-              <Loader2 size={14} className="animate-spin text-zinc-300" />
+              <Loader2 size={16} className="animate-spin text-zinc-300" />
             </div>
           )}
-          <div className="absolute inset-0 bg-teal-600/0 group-hover:bg-teal-600/5 transition-colors pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
         </div>
-        <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
-          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{example.skill_name}</p>
-          <p className="text-xs text-zinc-400 truncate">{example.file_name}</p>
+        <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50 bg-white dark:bg-zinc-950">
+          <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">{example.skill_name}</p>
+          <p className="text-[10px] text-zinc-400 mt-0.5 truncate">{example.file_name}</p>
         </div>
       </button>
+    </div>
+  );
+}
+
+function ReportCompactRow({ example, categoryLabel, categoryVisual, pinned, isPublished, onTogglePin, onClick }: {
+  example: SkillExample;
+  categoryLabel: string;
+  categoryVisual: { icon: typeof BarChart3; color: string };
+  pinned?: boolean;
+  isPublished?: boolean;
+  onTogglePin?: () => void;
+  onClick: () => void;
+}) {
+  const { data: htmlContent } = useReadFile(example.file_path);
+  const CatIcon = categoryVisual.icon;
+
+  const thumbSrcDoc = useMemo(() => {
+    if (!htmlContent) return undefined;
+    const thumbStyle = `<style>body{margin:0!important;padding:0.5rem!important;overflow:hidden!important;pointer-events:none!important}body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}img,table,pre{max-width:100%!important}</style>`;
+    if (htmlContent.includes("</head>")) {
+      return htmlContent.replace("</head>", `${thumbStyle}</head>`);
+    }
+    return thumbStyle + htmlContent;
+  }, [htmlContent]);
+
+  return (
+    <div
+      className="group relative flex items-center gap-3 rounded-lg border border-zinc-200/80 dark:border-zinc-800 overflow-hidden hover:border-teal-400/60 dark:hover:border-teal-600 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer bg-white dark:bg-zinc-950"
+      onClick={onClick}
+    >
+      {/* Mini thumbnail */}
+      <div className="relative w-28 h-20 flex-shrink-0 overflow-hidden bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-950">
+        {thumbSrcDoc ? (
+          <iframe
+            srcDoc={thumbSrcDoc}
+            className="w-[300%] h-[300%] border-0 origin-top-left pointer-events-none"
+            style={{ transform: "scale(0.333)" }}
+            tabIndex={-1}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 size={12} className="animate-spin text-zinc-300" />
+          </div>
+        )}
+        {isPublished && (
+          <div className="absolute top-1 left-1 flex items-center gap-0.5 px-1 py-px rounded-full bg-teal-500 text-white text-[8px] font-semibold">
+            <Globe size={7} />
+            Live
+          </div>
+        )}
+      </div>
+      {/* Text */}
+      <div className="flex-1 min-w-0 py-2 pr-3">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <CatIcon size={10} className={categoryVisual.color} />
+          <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">{categoryLabel}</span>
+        </div>
+        <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">{example.skill_name}</p>
+        <p className="text-[10px] text-zinc-400 truncate">{example.file_name}</p>
+      </div>
+      {/* Pin button */}
+      {onTogglePin && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
+          className={cn(
+            "absolute top-1.5 right-1.5 p-1 rounded-md transition-all",
+            pinned
+              ? "bg-teal-500 text-white opacity-100"
+              : "bg-black/40 text-white opacity-0 group-hover:opacity-100"
+          )}
+          title={pinned ? "Unpin" : "Pin to top"}
+        >
+          {pinned ? <PinOff size={9} /> : <Pin size={9} />}
+        </button>
+      )}
     </div>
   );
 }

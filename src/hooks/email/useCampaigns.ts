@@ -367,6 +367,7 @@ export function useCloneEmailCampaign() {
           content_path: original.content_path,
           html_body: original.html_body,
           report_path: original.report_path,
+          bcc_email: original.bcc_email,
           status: "draft",
         })
         .select()

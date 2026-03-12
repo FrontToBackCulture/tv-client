@@ -17,6 +17,7 @@ import {
   Headset,
   Clock,
   Puzzle,
+  MessageCircleQuestion,
   GitBranch,
   MailPlus,
   GalleryHorizontalEnd,
@@ -66,6 +67,7 @@ const navSections: NavSection[] = [
     items: [
       { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘8" },
       { id: "skills", icon: Puzzle, label: "Skills", shortcut: "⌘9" },
+      { id: "questions", icon: MessageCircleQuestion, label: "Questions", shortcut: "" },
       { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "" },
       { id: "repos", icon: GitBranch, label: "Repos", shortcut: "" },
     ],

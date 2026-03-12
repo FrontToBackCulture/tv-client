@@ -14,6 +14,9 @@ import {
   Zap,
   FolderOpen,
   History,
+  Pencil,
+  RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
@@ -339,8 +342,17 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Editable prompt state
+  const [editedPrompt, setEditedPrompt] = useState<string | null>(null); // null = not edited, use resolvedPrompt
+  const [isEditing, setIsEditing] = useState(false);
+
+  // AI validation state
+  const [validating, setValidating] = useState(false);
+  const [validation, setValidation] = useState<{ score: number; feedback: string; suggestions: string[] } | null>(null);
+  const [applyingFix, setApplyingFix] = useState<number | null>(null); // index of suggestion being applied
+
   // Saved configs discovered across all domains
-  const [savedConfigs, setSavedConfigs] = useState<Array<{ domain: string; skill: string; template: string; path: string; saved_at: string }>>([]);
+  const [savedConfigs, setSavedConfigs] = useState<Array<{ domain: string; skill: string; template: string; path: string; saved_at: string; values?: Record<string, string> }>>([]);
   const [scanningConfigs, setScanningConfigs] = useState(false);
 
   // Skills that have prompts/ folder
@@ -410,6 +422,7 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
                 template: config.template,
                 path: file.path,
                 saved_at: config.saved_at ?? "",
+                values: config.values,
               });
             } catch { /* skip unreadable */ }
           }
@@ -431,18 +444,18 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
   }, [domainsQuery.data]);
 
   // Pending config to apply after templates load
-  const [pendingConfig, setPendingConfig] = useState<{ skill: string; template: string; domain: string } | null>(null);
+  const [pendingConfig, setPendingConfig] = useState<{ skill: string; template: string; domain: string; path?: string } | null>(null);
 
-  // Load a saved config: set skill, stash pending template + domain
+  // Load a saved config: set skill, stash pending template + domain + path
   const handleLoadConfig = useCallback((config: typeof savedConfigs[0]) => {
     // If same skill is already selected, templates are already loaded — apply directly
     if (selectedSkill === config.skill && templates.some((t) => t.name === config.template)) {
       setSelectedTemplate(config.template);
       setValues((prev) => ({ ...prev, domain: config.domain }));
-      setPendingConfig(null);
+      setPendingConfig({ skill: config.skill, template: config.template, domain: config.domain, path: config.path });
     } else {
       // Different skill — need to wait for templates to load
-      setPendingConfig({ skill: config.skill, template: config.template, domain: config.domain });
+      setPendingConfig({ skill: config.skill, template: config.template, domain: config.domain, path: config.path });
       setSelectedSkill(config.skill);
       setSelectedTemplate(null);
       setValues((prev) => ({ ...prev, domain: config.domain }));
@@ -455,7 +468,7 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
     if (templates.some((t) => t.name === pendingConfig.template)) {
       setSelectedTemplate(pendingConfig.template);
       setValues((prev) => ({ ...prev, domain: pendingConfig.domain }));
-      setPendingConfig(null);
+      // Don't clear pending yet — the auto-load effect will use pendingConfig.path
     }
   }, [templates, pendingConfig]);
 
@@ -554,8 +567,13 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
           newValues[field.variable.key] = "";
         }
       } else {
-        // Keep existing value if any
-        newValues[field.variable.key] = values[field.variable.key] ?? "";
+        // Path vars: compute from domain immediately rather than waiting for separate effect
+        if (field.variable.type === "path" && domainInfo) {
+          newValues[field.variable.key] = `${domainInfo.global_path}/reports`;
+        } else if (field.variable.type !== "path") {
+          // Keep existing value if any
+          newValues[field.variable.key] = values[field.variable.key] ?? "";
+        }
       }
     }
 
@@ -589,13 +607,179 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
     return result;
   }, [template, values]);
 
+  // The actual prompt to display and copy — edited version takes priority
+  const activePrompt = editedPrompt ?? resolvedPrompt;
+  const hasEdits = editedPrompt !== null;
+
+  // Reset edited prompt when template or variables change (user hasn't manually edited yet)
+  useEffect(() => {
+    setEditedPrompt(null);
+    setIsEditing(false);
+    setValidation(null);
+  }, [template?.name, resolvedPrompt]);
+
   // Handlers
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(resolvedPrompt);
+    navigator.clipboard.writeText(activePrompt);
     setCopied(true);
     toast.success("Prompt copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
-  }, [resolvedPrompt]);
+  }, [activePrompt]);
+
+  const handleResetPrompt = useCallback(() => {
+    setEditedPrompt(null);
+    setIsEditing(false);
+    setValidation(null);
+    toast.success("Prompt reset to template");
+  }, []);
+
+  const handleValidate = useCallback(async () => {
+    if (!template || !selectedSkill) return;
+
+    setValidating(true);
+    setValidation(null);
+    try {
+      // Load the skill definition for context
+      const skillPath = `${skillsBase}/${selectedSkill}/SKILL.md`;
+      let skillContent = "";
+      try {
+        skillContent = await invoke<string>("read_file", { path: skillPath });
+        // Truncate to keep the request reasonable
+        if (skillContent.length > 3000) {
+          skillContent = skillContent.substring(0, 3000) + "\n... [truncated]";
+        }
+      } catch {
+        // Skill file not found, continue without it
+      }
+
+      const prompt = activePrompt;
+      const validationPrompt = `You are a prompt quality assessor. Rate this prompt on a scale of 1-10 and provide feedback.
+
+SKILL CONTEXT (what this prompt template is designed for):
+${skillContent || "(No skill definition available)"}
+
+PROMPT TO VALIDATE:
+${prompt}
+
+Assess the prompt on:
+1. **Clarity** — Is the intent clear? Will the AI know exactly what to do?
+2. **Specificity** — Are dates, domains, filters specific enough?
+3. **Completeness** — Is anything missing that the skill needs?
+4. **Business relevance** — Does this prompt ask the right question for the business goal?
+5. **Effectiveness** — Will this produce a useful, actionable output?
+
+Respond in this exact JSON format (no markdown, no code blocks):
+{"score": <1-10>, "feedback": "<2-3 sentence overall assessment>", "suggestions": ["<suggestion 1>", "<suggestion 2>"]}
+
+If the prompt is good (8+), keep suggestions to 0-1 items. If poor (<5), give 2-3 concrete fixes.`;
+
+      const result = await invoke<string>("help_chat_ask", {
+        question: validationPrompt,
+        history: [],
+        systemPrompt: "You are a prompt quality assessor. Respond ONLY with valid JSON, no markdown or code blocks.",
+        knowledgeBasePath: null,
+      });
+
+      // Parse the JSON response — strip markdown code blocks if present
+      let jsonStr = result.trim();
+      const codeBlockMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
+      // Also handle case where response starts with { but has trailing text
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) jsonStr = jsonMatch[0];
+
+      const parsed = JSON.parse(jsonStr);
+      setValidation({
+        score: parsed.score ?? 5,
+        feedback: parsed.feedback ?? "Unable to assess.",
+        suggestions: parsed.suggestions ?? [],
+      });
+    } catch (e) {
+      console.error("[PromptBuilder] AI validation failed:", e);
+      // Fallback: run deterministic checks if AI validation fails
+      const issues: string[] = [];
+      const prompt = activePrompt;
+
+      // Check for unresolved placeholders
+      const unresolved = prompt.match(/\{[^}]+\}/g);
+      if (unresolved) {
+        issues.push(`Unresolved variables: ${unresolved.join(", ")}`);
+      }
+
+      // Check for empty/short prompt
+      if (prompt.trim().length < 50) {
+        issues.push("Prompt is very short — may lack sufficient context for a useful output");
+      }
+
+      // Check for missing domain
+      if (!values["domain"]) {
+        issues.push("No domain selected — the prompt won't target a specific client");
+      }
+
+      if (issues.length === 0) {
+        setValidation({
+          score: 7,
+          feedback: "Prompt looks structurally complete. AI validation unavailable — basic checks passed.",
+          suggestions: [],
+        });
+      } else {
+        setValidation({
+          score: Math.max(1, 7 - issues.length * 2),
+          feedback: `Found ${issues.length} issue${issues.length > 1 ? "s" : ""} with this prompt.`,
+          suggestions: issues,
+        });
+      }
+    } finally {
+      setValidating(false);
+    }
+  }, [activePrompt, template, selectedSkill, skillsBase, values]);
+
+  const handleApplyFix = useCallback(async (suggestionIndex: number) => {
+    if (!validation || !validation.suggestions[suggestionIndex]) return;
+
+    const suggestion = validation.suggestions[suggestionIndex];
+    setApplyingFix(suggestionIndex);
+
+    try {
+      const fixPrompt = `You are a prompt editor. Apply this specific improvement to the prompt below and return ONLY the revised prompt text. Do not explain what you changed. Do not add any preamble or commentary. Return the full revised prompt.
+
+IMPROVEMENT TO APPLY:
+${suggestion}
+
+CURRENT PROMPT:
+${activePrompt}`;
+
+      const result = await invoke<string>("help_chat_ask", {
+        question: fixPrompt,
+        history: [],
+        systemPrompt: "You are a prompt editor. Return ONLY the revised prompt text, nothing else. No markdown code blocks, no explanation.",
+        knowledgeBasePath: null,
+      });
+
+      // Strip any markdown code blocks the model might wrap it in
+      let revised = result.trim();
+      const codeBlockMatch = revised.match(/```(?:\w+)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (codeBlockMatch) revised = codeBlockMatch[1].trim();
+
+      setEditedPrompt(revised);
+      setIsEditing(false);
+
+      // Mark this suggestion as applied
+      setValidation((prev) => {
+        if (!prev) return prev;
+        const updated = [...prev.suggestions];
+        updated[suggestionIndex] = `✓ ${updated[suggestionIndex]}`;
+        return { ...prev, suggestions: updated };
+      });
+
+      toast.success("Fix applied — review the updated prompt");
+    } catch (e) {
+      console.error("[PromptBuilder] Apply fix failed:", e);
+      toast.error("Failed to apply fix — try editing manually");
+    } finally {
+      setApplyingFix(null);
+    }
+  }, [activePrompt, validation]);
 
   const handleSave = useCallback(async () => {
     if (!selectedSkill || !selectedTemplate || !selectedDomain || !domainInfo) {
@@ -621,7 +805,14 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
         saved_at: new Date().toISOString(),
       };
 
-      const configPath = `${configDir}/${selectedSkill}--${selectedTemplate}.json`;
+      // Build filename with non-domain, non-date variable values to distinguish configs
+      const extraParts = processedFields
+        .filter((f): f is Extract<ProcessedField, { kind: "simple" }> => f.kind === "simple" && f.variable.key !== "domain")
+        .map((f) => values[f.variable.key]?.trim())
+        .filter(Boolean)
+        .map((v) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+      const suffix = extraParts.length > 0 ? `--${extraParts.join("--")}` : "";
+      const configPath = `${configDir}/${selectedSkill}--${selectedTemplate}${suffix}.json`;
       await invoke("write_file", {
         path: configPath,
         content: JSON.stringify(config, null, 2),
@@ -633,52 +824,79 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
     } finally {
       setSaving(false);
     }
-  }, [selectedSkill, selectedTemplate, selectedDomain, domainInfo, values, dateSelections]);
+  }, [selectedSkill, selectedTemplate, selectedDomain, domainInfo, values, dateSelections, processedFields]);
 
-  // Load saved config
+  // Load saved config — find first matching config file for this skill/template/domain
+  const applyConfig = useCallback((config: SavedConfig) => {
+    const newValues: Record<string, string> = {};
+    const newSelections: Record<string, string> = {};
+
+    for (const field of processedFields) {
+      if (field.kind === "date-range") {
+        const savedPreset = config.dateSelections?.[field.id];
+        if (savedPreset && savedPreset !== "custom" && RANGE_PRESETS[savedPreset]) {
+          newSelections[field.id] = savedPreset;
+          newValues[field.startVar.key] = RANGE_PRESETS[savedPreset].resolveStart();
+          newValues[field.endVar.key] = RANGE_PRESETS[savedPreset].resolveEnd();
+        } else {
+          newSelections[field.id] = "custom";
+          newValues[field.startVar.key] = config.values[field.startVar.key] ?? "";
+          newValues[field.endVar.key] = config.values[field.endVar.key] ?? "";
+        }
+      } else if (field.kind === "date-single") {
+        const savedPreset = config.dateSelections?.[field.variable.key];
+        if (savedPreset && savedPreset !== "custom" && SINGLE_DATE_PRESETS[savedPreset]) {
+          newSelections[field.variable.key] = savedPreset;
+          newValues[field.variable.key] = SINGLE_DATE_PRESETS[savedPreset].resolve();
+        } else {
+          newSelections[field.variable.key] = "custom";
+          newValues[field.variable.key] = config.values[field.variable.key] ?? "";
+        }
+      } else {
+        newValues[field.variable.key] = config.values[field.variable.key] ?? "";
+      }
+    }
+
+    setValues(newValues);
+    setDateSelections(newSelections);
+  }, [processedFields]);
+
   useEffect(() => {
     if (!selectedSkill || !selectedTemplate || !domainInfo || processedFields.length === 0) return;
 
-    const configPath = `${domainInfo.global_path}/reports/prompt-configs/${selectedSkill}--${selectedTemplate}.json`;
-    invoke<string>("read_file", { path: configPath })
-      .then((content) => {
-        const config: SavedConfig = JSON.parse(content);
-        const newValues: Record<string, string> = {};
-        const newSelections: Record<string, string> = {};
+    // If user clicked a specific config from the tree, load that exact file
+    if (pendingConfig?.path && pendingConfig.skill === selectedSkill && pendingConfig.template === selectedTemplate) {
+      const configPath = pendingConfig.path;
+      setPendingConfig(null);
+      invoke<string>("read_file", { path: configPath })
+        .then((content) => {
+          const config: SavedConfig = JSON.parse(content);
+          applyConfig(config);
+          toast.info("Loaded saved config");
+        })
+        .catch(() => { /* file not found */ });
+      return;
+    }
 
-        for (const field of processedFields) {
-          if (field.kind === "date-range") {
-            const savedPreset = config.dateSelections?.[field.id];
-            if (savedPreset && savedPreset !== "custom" && RANGE_PRESETS[savedPreset]) {
-              newSelections[field.id] = savedPreset;
-              newValues[field.startVar.key] = RANGE_PRESETS[savedPreset].resolveStart();
-              newValues[field.endVar.key] = RANGE_PRESETS[savedPreset].resolveEnd();
-            } else {
-              newSelections[field.id] = "custom";
-              newValues[field.startVar.key] = config.values[field.startVar.key] ?? "";
-              newValues[field.endVar.key] = config.values[field.endVar.key] ?? "";
-            }
-          } else if (field.kind === "date-single") {
-            const savedPreset = config.dateSelections?.[field.variable.key];
-            if (savedPreset && savedPreset !== "custom" && SINGLE_DATE_PRESETS[savedPreset]) {
-              newSelections[field.variable.key] = savedPreset;
-              newValues[field.variable.key] = SINGLE_DATE_PRESETS[savedPreset].resolve();
-            } else {
-              newSelections[field.variable.key] = "custom";
-              newValues[field.variable.key] = config.values[field.variable.key] ?? "";
-            }
-          } else {
-            newValues[field.variable.key] = config.values[field.variable.key] ?? "";
-          }
+    // Otherwise, auto-discover: scan for matching config files
+    const configDir = `${domainInfo.global_path}/reports/prompt-configs`;
+    const prefix = `${selectedSkill}--${selectedTemplate}`;
+
+    invoke<Array<{ name: string; path: string; is_directory: boolean }>>("list_directory", { path: configDir })
+      .then(async (entries) => {
+        const matches = entries.filter((e) => !e.is_directory && e.name.startsWith(prefix) && e.name.endsWith(".json"));
+        if (matches.length === 0) return;
+        // If exactly one match, auto-load it. If multiple, user picks from tree.
+        if (matches.length === 1) {
+          const content = await invoke<string>("read_file", { path: matches[0].path });
+          const config: SavedConfig = JSON.parse(content);
+          applyConfig(config);
+          toast.info("Loaded saved config");
         }
-
-        setValues(newValues);
-        setDateSelections(newSelections);
-        toast.info("Loaded saved config");
       })
-      .catch(() => { /* no saved config */ });
+      .catch(() => { /* no config dir */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSkill, selectedTemplate, domainInfo?.domain, processedFields.length]);
+  }, [selectedSkill, selectedTemplate, domainInfo?.domain, processedFields.length, pendingConfig]);
 
   // ─── Callbacks for field changes ──────────────────────────────────────────
 
@@ -876,21 +1094,166 @@ export function PromptBuilder({ registry }: PromptBuilderProps) {
         </div>
       </div>
 
-      {/* Right: Prompt preview */}
+      {/* Right: Prompt preview / editor */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {template ? (
           <>
             <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
-                <span>{registry.skills[selectedSkill!]?.name}</span>
-                <ChevronRight size={10} />
-                <span className="text-zinc-700 dark:text-zinc-300">{template.title}</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                  <span>{registry.skills[selectedSkill!]?.name}</span>
+                  <ChevronRight size={10} />
+                  <span className="text-zinc-700 dark:text-zinc-300">{template.title}</span>
+                  {hasEdits && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">
+                      Edited
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {!isEditing ? (
+                    <button
+                      onClick={() => {
+                        setIsEditing(true);
+                        if (editedPrompt === null) setEditedPrompt(resolvedPrompt);
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      title="Edit prompt directly"
+                    >
+                      <Pencil size={10} />
+                      Edit
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md text-teal-600 bg-teal-50 dark:bg-teal-900/20 dark:text-teal-400 transition-colors"
+                    >
+                      <Check size={10} />
+                      Done
+                    </button>
+                  )}
+                  {hasEdits && (
+                    <button
+                      onClick={handleResetPrompt}
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      title="Reset to template"
+                    >
+                      <RotateCcw size={10} />
+                      Reset
+                    </button>
+                  )}
+                  <button
+                    onClick={handleValidate}
+                    disabled={validating || !activePrompt}
+                    className={cn(
+                      "flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md transition-colors",
+                      validating
+                        ? "text-zinc-400 cursor-wait"
+                        : "text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20",
+                    )}
+                    title="Validate prompt quality"
+                  >
+                    {validating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                    Validate
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="flex-1 overflow-auto p-4">
-              <pre className="text-sm font-mono whitespace-pre-wrap text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 leading-relaxed">
-                {resolvedPrompt || <span className="text-zinc-400 italic">Fill in variables to see the resolved prompt...</span>}
-              </pre>
+
+            <div className="flex-1 overflow-auto p-4 flex flex-col gap-3">
+              {/* Prompt area — textarea when editing, pre when viewing */}
+              {isEditing ? (
+                <textarea
+                  value={editedPrompt ?? resolvedPrompt}
+                  onChange={(e) => setEditedPrompt(e.target.value)}
+                  className="flex-1 min-h-[200px] text-sm font-mono whitespace-pre-wrap text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900 rounded-lg border-2 border-teal-300 dark:border-teal-700 p-4 leading-relaxed focus:outline-none focus:border-teal-500 resize-none"
+                  spellCheck={false}
+                />
+              ) : (
+                <pre
+                  className={cn(
+                    "text-sm font-mono whitespace-pre-wrap text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-900 rounded-lg border p-4 leading-relaxed cursor-text",
+                    hasEdits
+                      ? "border-amber-200 dark:border-amber-800"
+                      : "border-zinc-200 dark:border-zinc-800",
+                  )}
+                  onClick={() => {
+                    setIsEditing(true);
+                    if (editedPrompt === null) setEditedPrompt(resolvedPrompt);
+                  }}
+                >
+                  {activePrompt || <span className="text-zinc-400 italic">Fill in variables to see the resolved prompt...</span>}
+                </pre>
+              )}
+
+              {/* AI Validation result */}
+              {validation && (
+                <div className={cn(
+                  "rounded-lg border p-3 text-xs",
+                  validation.score >= 8
+                    ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
+                    : validation.score >= 5
+                    ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+                    : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800",
+                )}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={12} className={cn(
+                        validation.score >= 8 ? "text-emerald-600" : validation.score >= 5 ? "text-amber-600" : "text-red-600",
+                      )} />
+                      <span className="font-semibold text-zinc-700 dark:text-zinc-300">Prompt Quality</span>
+                    </div>
+                    <span className={cn(
+                      "text-sm font-bold",
+                      validation.score >= 8 ? "text-emerald-600" : validation.score >= 5 ? "text-amber-600" : "text-red-600",
+                    )}>
+                      {validation.score}/10
+                    </span>
+                  </div>
+                  <p className="text-zinc-600 dark:text-zinc-400 mb-1">{validation.feedback}</p>
+                  {validation.suggestions.length > 0 && (
+                    <ul className="mt-2 space-y-1.5">
+                      {validation.suggestions.map((s, i) => {
+                        const isApplied = s.startsWith("✓ ");
+                        const isApplying = applyingFix === i;
+                        return (
+                          <li key={i} className={cn(
+                            "flex items-start gap-2 rounded-md p-1.5 -mx-1.5 transition-colors",
+                            isApplied
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-zinc-600 dark:text-zinc-400",
+                          )}>
+                            <span className={cn("mt-0.5 flex-shrink-0", isApplied ? "text-emerald-500" : "text-amber-500")}>
+                              {isApplied ? "✓" : "•"}
+                            </span>
+                            <span className="flex-1 text-xs">{isApplied ? s.slice(2) : s}</span>
+                            {!isApplied && (
+                              <button
+                                onClick={() => handleApplyFix(i)}
+                                disabled={isApplying || applyingFix !== null}
+                                className={cn(
+                                  "flex-shrink-0 flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-md transition-colors",
+                                  isApplying
+                                    ? "text-zinc-400 cursor-wait"
+                                    : "text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 cursor-pointer",
+                                )}
+                                title="Apply this fix to the prompt"
+                              >
+                                {isApplying ? (
+                                  <Loader2 size={10} className="animate-spin" />
+                                ) : (
+                                  <Zap size={10} />
+                                )}
+                                {isApplying ? "Applying..." : "Fix"}
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -1095,7 +1458,7 @@ function SingleDateField({
 // Collapsible tree: Skill (if multiple) → Template → domain chips
 
 interface SavedConfigsTreeProps {
-  configs: Array<{ domain: string; skill: string; template: string; path: string; saved_at: string }>;
+  configs: Array<{ domain: string; skill: string; template: string; path: string; saved_at: string; values?: Record<string, string> }>;
   loading: boolean;
   registry: SkillRegistry;
   activeSkill: string | null;
@@ -1198,11 +1561,26 @@ function SavedConfigsTree({ configs, loading, registry, activeSkill, activeTempl
                     {/* Domain chips */}
                     {!tplCollapsed && (
                       <div className="flex flex-wrap gap-1 px-2 py-1 ml-4">
-                        {items.map((c) => {
+                        {items.map((c, idx) => {
                           const isActive = isActiveTemplate && activeDomain === c.domain;
+                          // When multiple configs share the same domain, show differentiating variable values
+                          const duplicateDomains = items.filter((i) => i.domain === c.domain).length > 1;
+                          let chipLabel = c.domain;
+                          if (duplicateDomains && c.values) {
+                            // Find variable values that differ between configs with the same domain
+                            const siblings = items.filter((i) => i.domain === c.domain);
+                            const diffKeys = Object.keys(c.values).filter((k) => {
+                              if (k === "domain") return false;
+                              return siblings.some((s) => s.values?.[k] !== c.values?.[k]);
+                            });
+                            if (diffKeys.length > 0) {
+                              const diffVals = diffKeys.map((k) => c.values![k]).filter(Boolean).join(", ");
+                              if (diffVals) chipLabel = `${c.domain} · ${diffVals}`;
+                            }
+                          }
                           return (
                             <button
-                              key={c.domain}
+                              key={`${c.domain}-${idx}`}
                               onClick={() => onLoad(c)}
                               title={`Load ${c.domain} — saved ${c.saved_at}`}
                               className={cn(
@@ -1212,7 +1590,7 @@ function SavedConfigsTree({ configs, loading, registry, activeSkill, activeTempl
                                   : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-teal-300 dark:hover:border-teal-600 hover:text-teal-600 dark:hover:text-teal-400",
                               )}
                             >
-                              {c.domain}
+                              {chipLabel}
                             </button>
                           );
                         })}

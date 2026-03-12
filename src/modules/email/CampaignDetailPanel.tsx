@@ -156,6 +156,10 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
         <div className="space-y-2">
           <DetailRow label="Subject" value={campaign.subject} />
           <DetailRow label="From" value={`${campaign.from_name} <${campaign.from_email}>`} />
+          <EditableBcc
+            value={campaign.bcc_email || ""}
+            onSave={(v) => updateCampaign.mutate({ id: campaignId, updates: { bcc_email: v || null } })}
+          />
           <DetailRow label="Status" value={statusDef?.label || campaign.status} />
           <DetailRow label="Group" value={campaign.group?.name || "—"} />
           <EditableCategory
@@ -305,6 +309,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                 html_body: campaign.html_body,
                 content_path: campaign.content_path,
                 report_path: campaign.report_path,
+                bcc_email: campaign.bcc_email,
                 group_id: campaign.group_id,
               });
             }}
@@ -789,6 +794,38 @@ function EditableCategory({
           {value || "—"}
         </button>
       )}
+    </div>
+  );
+}
+
+function EditableBcc({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (value: string) => void;
+}) {
+  const { data: allContacts = [] } = useEmailContacts();
+  const thinkvalContacts = useMemo(
+    () => allContacts.filter((c: EmailContact) => c.email.endsWith("@thinkval.com")),
+    [allContacts]
+  );
+
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 flex-shrink-0">BCC</span>
+      <select
+        value={value}
+        onChange={(e) => onSave(e.target.value)}
+        className="text-xs text-right text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border-none rounded px-1 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 max-w-[220px]"
+      >
+        <option value="">— none</option>
+        {thinkvalContacts.map((c: EmailContact) => (
+          <option key={c.id} value={c.email}>
+            {c.first_name ? `${c.first_name}` : c.email.split("@")[0]} ({c.email})
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

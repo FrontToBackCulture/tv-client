@@ -1,4 +1,4 @@
-// Claude Code MCP setup — download tv-mcp binary + configure ~/.claude/mcp.json
+// Claude Code MCP setup — download tv-mcp binary + register via `claude mcp add`
 
 use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
@@ -19,12 +19,6 @@ pub struct ClaudeMcpStatus {
     pub platform: String,
 }
 
-#[derive(Deserialize, Serialize)]
-struct McpConfig {
-    #[serde(rename = "mcpServers", default)]
-    mcp_servers: serde_json::Map<String, serde_json::Value>,
-}
-
 // ── Helpers ──────────────────────────────────────────────
 
 fn bin_dir() -> CmdResult<PathBuf> {
@@ -40,12 +34,6 @@ fn binary_path() -> CmdResult<PathBuf> {
         "tv-mcp"
     };
     Ok(bin_dir()?.join(name))
-}
-
-fn claude_config_path() -> CmdResult<PathBuf> {
-    dirs::home_dir()
-        .map(|h| h.join(".claude").join("mcp.json"))
-        .ok_or_else(|| CommandError::Config("Cannot determine home directory".into()))
 }
 
 fn platform_suffix() -> &'static str {
@@ -66,25 +54,23 @@ fn platform_suffix() -> &'static str {
     { "unsupported" }
 }
 
-fn read_mcp_config() -> CmdResult<McpConfig> {
-    let path = claude_config_path()?;
-    if !path.exists() {
-        return Ok(McpConfig {
-            mcp_servers: serde_json::Map::new(),
-        });
-    }
-    let data = std::fs::read_to_string(&path)?;
-    Ok(serde_json::from_str(&data)?)
+/// Run `claude mcp <args>` and return stdout. Returns error if claude CLI not found.
+async fn run_claude_mcp(args: &[&str]) -> CmdResult<String> {
+    let claude_cmd = if cfg!(target_os = "windows") { "claude.cmd" } else { "claude" };
+    let output = tokio::process::Command::new(claude_cmd)
+        .arg("mcp")
+        .args(args)
+        .output()
+        .await
+        .map_err(|e| CommandError::Io(format!("Failed to run claude mcp: {e}")))?;
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-fn write_mcp_config(config: &McpConfig) -> CmdResult<()> {
-    let path = claude_config_path()?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let json = serde_json::to_string_pretty(config)?;
-    std::fs::write(&path, json)?;
-    Ok(())
+/// Check if tv-mcp is registered via `claude mcp list` output.
+async fn mcp_list_has_tv_mcp() -> bool {
+    run_claude_mcp(&["list"]).await
+        .map(|out| out.contains("tv-mcp"))
+        .unwrap_or(false)
 }
 
 // ── Types (CLI check) ────────────────────────────────────
@@ -148,15 +134,15 @@ pub async fn check_claude_cli() -> CmdResult<ClaudeCliStatus> {
 }
 
 #[command]
-pub fn claude_mcp_status() -> CmdResult<ClaudeMcpStatus> {
+pub async fn claude_mcp_status() -> CmdResult<ClaudeMcpStatus> {
     let bin = binary_path()?;
-    let config = read_mcp_config()?;
+    let has_tv_mcp = mcp_list_has_tv_mcp().await;
 
     Ok(ClaudeMcpStatus {
         binary_installed: bin.exists(),
         binary_path: bin.to_string_lossy().to_string(),
-        config_exists: claude_config_path()?.exists(),
-        config_has_tv_mcp: config.mcp_servers.contains_key("tv-mcp"),
+        config_exists: has_tv_mcp,
+        config_has_tv_mcp: has_tv_mcp,
         platform: platform_suffix().to_string(),
     })
 }
@@ -203,20 +189,30 @@ pub async fn claude_mcp_install() -> CmdResult<ClaudeMcpStatus> {
         bin.to_string_lossy()
     );
 
-    // 4. Merge tv-mcp entry into mcp.json
-    let mut config = read_mcp_config()?;
-    let entry = serde_json::json!({
-        "command": bin.to_string_lossy().to_string(),
-    });
-    config
-        .mcp_servers
-        .insert("tv-mcp".to_string(), entry);
-    write_mcp_config(&config)?;
+    // 4. Register via `claude mcp add` (user-level, not project-level)
+    // Remove first in case it already exists with a stale path
+    let claude_cmd = if cfg!(target_os = "windows") { "claude.cmd" } else { "claude" };
+    let _ = tokio::process::Command::new(claude_cmd)
+        .args(["mcp", "remove", "tv-mcp", "-s", "user"])
+        .output()
+        .await;
 
-    eprintln!("[claude-setup] mcp.json updated");
+    let add_output = tokio::process::Command::new(claude_cmd)
+        .args(["mcp", "add", "--transport", "stdio", "-s", "user", "tv-mcp", "--", &bin.to_string_lossy()])
+        .output()
+        .await
+        .map_err(|e| CommandError::Io(format!("Failed to run claude mcp add: {e}")))?;
+
+    if !add_output.status.success() {
+        let stderr = String::from_utf8_lossy(&add_output.stderr);
+        eprintln!("[claude-setup] claude mcp add failed: {stderr}");
+        return Err(CommandError::Config(format!("claude mcp add failed: {stderr}")));
+    }
+
+    eprintln!("[claude-setup] tv-mcp registered via claude mcp add");
 
     // Return updated status
-    claude_mcp_status()
+    claude_mcp_status().await
 }
 
 #[command]
@@ -228,14 +224,13 @@ pub async fn claude_mcp_uninstall() -> CmdResult<ClaudeMcpStatus> {
         eprintln!("[claude-setup] Binary removed");
     }
 
-    // 2. Remove tv-mcp key from mcp.json (preserve other entries)
-    let config_path = claude_config_path()?;
-    if config_path.exists() {
-        let mut config = read_mcp_config()?;
-        config.mcp_servers.remove("tv-mcp");
-        write_mcp_config(&config)?;
-        eprintln!("[claude-setup] tv-mcp removed from mcp.json");
-    }
+    // 2. Deregister via `claude mcp remove` (user-level)
+    let claude_cmd = if cfg!(target_os = "windows") { "claude.cmd" } else { "claude" };
+    let _ = tokio::process::Command::new(claude_cmd)
+        .args(["mcp", "remove", "tv-mcp", "-s", "user"])
+        .output()
+        .await;
+    eprintln!("[claude-setup] tv-mcp deregistered");
 
-    claude_mcp_status()
+    claude_mcp_status().await
 }

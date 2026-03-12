@@ -9,6 +9,25 @@ import type {
 } from "../../lib/gallery/types";
 import { reportSkillKeys } from "./keys";
 
+/** Fire-and-forget website revalidation after Supabase writes */
+function revalidateWebsite() {
+  fetch("https://www.thinkval.com/api/revalidate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      paths: [
+        "/solutions/analytics",
+        "/solutions/analytics/report-skills",
+        "/solutions/analytics/questions",
+        "/solutions/ar-automation",
+        "/solutions/ap-automation",
+      ],
+    }),
+  }).catch(() => {
+    // Best-effort — don't block on failure
+  });
+}
+
 export function useReportSkills(filters?: {
   published?: boolean;
   featured?: boolean;
@@ -99,6 +118,7 @@ export function useCreateReportSkill() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: reportSkillKeys.all });
+      revalidateWebsite();
     },
   });
 }
@@ -127,6 +147,7 @@ export function useUpdateReportSkill() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: reportSkillKeys.all });
+      revalidateWebsite();
     },
   });
 }
@@ -148,6 +169,7 @@ export function useUpsertReportSkill() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: reportSkillKeys.all });
+      revalidateWebsite();
     },
   });
 }
@@ -167,6 +189,7 @@ export function useDeleteReportSkill() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: reportSkillKeys.all });
+      revalidateWebsite();
     },
   });
 }

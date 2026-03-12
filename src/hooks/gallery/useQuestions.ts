@@ -9,10 +9,26 @@ import type {
 } from "../../lib/gallery/types";
 import { questionKeys } from "./keys";
 
+function revalidateWebsite() {
+  fetch("https://www.thinkval.com/api/revalidate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      paths: [
+        "/solutions/analytics",
+        "/solutions/analytics/questions",
+        "/solutions/ar-automation",
+        "/solutions/ap-automation",
+      ],
+    }),
+  }).catch(() => {});
+}
+
 export function useQuestions(filters?: {
   published?: boolean;
   featured?: boolean;
   category?: string;
+  solution?: string;
 }) {
   return useQuery({
     queryKey: questionKeys.list(filters),
@@ -31,6 +47,9 @@ export function useQuestions(filters?: {
       }
       if (filters?.category) {
         query = query.eq("category", filters.category);
+      }
+      if (filters?.solution) {
+        query = query.eq("solution", filters.solution);
       }
 
       const { data, error } = await query;
@@ -58,6 +77,7 @@ export function useCreateQuestion() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
+      revalidateWebsite();
     },
   });
 }
@@ -86,6 +106,7 @@ export function useUpdateQuestion() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
+      revalidateWebsite();
     },
   });
 }
@@ -105,6 +126,7 @@ export function useDeleteQuestion() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
+      revalidateWebsite();
     },
   });
 }
