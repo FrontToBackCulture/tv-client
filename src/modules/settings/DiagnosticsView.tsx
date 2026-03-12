@@ -13,9 +13,11 @@ import {
   ChevronRight,
   ArrowRight,
   Download,
+  Upload,
   Info,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "../../lib/cn";
 import { toast } from "../../stores/toastStore";
 
@@ -261,8 +263,10 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
     }
 
     // 1c. Claude CLI
+    let claudeCliInstalled = false;
     try {
       const cli = await invoke<ClaudeCliStatus>("check_claude_cli");
+      claudeCliInstalled = cli.installed;
       add({
         id: "claude-cli",
         label: "Claude Code CLI",
@@ -277,9 +281,11 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
       add({ id: "claude-cli", label: "Claude Code CLI", group: "Infrastructure", status: "warn", detail: "Could not check — install from https://claude.ai/download" });
     }
 
-    // 1d. Claude MCP Binary + Config
+    // 1d. Claude MCP Binary + Config + Common Issues
     try {
       const claude = await invoke<ClaudeMcpStatus>("claude_mcp_status");
+      const appVersion = (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__ ?? "unknown";
+
       add({
         id: "claude-binary",
         label: "tv-mcp Binary",
@@ -290,19 +296,62 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
           : "Not installed — click Install to download and register with Claude Code",
         fix: claude.binary_installed ? undefined : { kind: "install-claude" },
       });
-      add({
-        id: "claude-config",
-        label: "Claude Code ↔ tv-mcp",
-        group: "Infrastructure",
-        status: claude.config_has_tv_mcp ? "pass" : "warn",
-        detail: claude.config_has_tv_mcp
-          ? "tv-mcp registered in Claude Code (user-level config)"
-          : "tv-mcp not registered — click Install to auto-configure, then restart Claude Code",
-        fix: claude.config_has_tv_mcp ? undefined : { kind: "install-claude" },
-      });
+
+      // If binary installed, check if Claude Code can see it
+      if (claude.binary_installed && claudeCliInstalled) {
+        add({
+          id: "claude-config",
+          label: "Claude Code ↔ tv-mcp",
+          group: "Infrastructure",
+          status: claude.config_has_tv_mcp ? "pass" : "fail",
+          detail: claude.config_has_tv_mcp
+            ? "tv-mcp registered in Claude Code (user-level config)"
+            : "tv-mcp not registered in Claude Code — click Reinstall to re-register, then restart Claude Code",
+          fix: claude.config_has_tv_mcp ? undefined : { kind: "install-claude" },
+        });
+
+        // Version check: binary should match app version
+        if (claude.config_has_tv_mcp) {
+          add({
+            id: "claude-version",
+            label: "tv-mcp Version",
+            group: "Infrastructure",
+            status: "pass",
+            detail: `App v${appVersion} — click Reinstall in Claude Code settings if MCP tools seem outdated`,
+          });
+        }
+      } else if (claude.binary_installed && !claudeCliInstalled) {
+        add({
+          id: "claude-config",
+          label: "Claude Code ↔ tv-mcp",
+          group: "Infrastructure",
+          status: "skip",
+          detail: "Cannot verify — Claude Code CLI not installed. Install CLI first, then Reinstall tv-mcp.",
+        });
+      } else {
+        add({
+          id: "claude-config",
+          label: "Claude Code ↔ tv-mcp",
+          group: "Infrastructure",
+          status: "warn",
+          detail: "tv-mcp not installed — click Install to set up Claude Code integration",
+          fix: { kind: "install-claude" },
+        });
+      }
     } catch (e) {
       add({ id: "claude-binary", label: "tv-mcp Binary", group: "Infrastructure", status: "warn", detail: `Could not check: ${errStr(e)}`, fix: { kind: "navigate", view: "claude", label: "Go to Claude Code" } });
     }
+
+    // 1e. MCP Troubleshooting — detect common problems
+    // Check if there's a stale project-level .mcp.json that could cause issues
+    // (This is what caused the bug where Gloria's Windows path overrode the correct path)
+    add({
+      id: "mcp-tip",
+      label: "MCP Troubleshooting",
+      group: "Infrastructure",
+      status: "pass",
+      detail: "If Claude Code shows tv-mcp as Failed: (1) Go to Settings → Claude Code → Reinstall (2) Restart Claude Code. If still broken, run `claude mcp list` in terminal to see the actual path.",
+    });
 
     // ─────────────────────────────────────────────────────────────────────
     // 2. CREDENTIALS
@@ -540,6 +589,33 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
     setRunning(false);
   }, []);
 
+  // ── Import settings file ─────────────────────────────────────────────
+
+  const [importing, setImporting] = useState(false);
+
+  const handleImportSettings = useCallback(async () => {
+    try {
+      const filePath = await open({
+        title: "Import settings (JSON or .env)",
+        filters: [
+          { name: "Settings", extensions: ["json", "env"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+        multiple: false,
+      });
+      if (!filePath) return;
+      setImporting(true);
+      const imported = await invoke<string[]>("settings_import_from_file", { filePath: filePath as string });
+      toast.success(`Imported ${imported.length} key${imported.length !== 1 ? "s" : ""}: ${imported.slice(0, 5).join(", ")}${imported.length > 5 ? "..." : ""}`);
+      // Re-run diagnostics after import
+      setTimeout(() => runDiagnostics(), 500);
+    } catch (e: unknown) {
+      toast.error(`Import failed: ${errStr(e)}`);
+    } finally {
+      setImporting(false);
+    }
+  }, [runDiagnostics]);
+
   // ── Group + render ────────────────────────────────────────────────────
 
   const groups = results.reduce<Record<string, CheckResult[]>>((acc, r) => {
@@ -558,7 +634,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
   // Group descriptions for context
   const groupDescriptions: Record<string, string> = {
     "Infrastructure": "Core system components that must be running",
-    "Credentials": "API keys and secrets needed for features — configure in Settings → API Keys",
+    "Credentials": "API keys and secrets — ask Melvin for the settings file, then click Import Settings",
     "Services": "Live connectivity to external systems",
     "VAL Configuration": "Domain-specific VAL platform setup",
     "Tools": "MCP tools registered for bot panel and Claude Code",
@@ -651,6 +727,16 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
                     )}
                   </div>
                   <span className="flex items-center gap-2">
+                    {groupName === "Credentials" && (groupFails > 0 || groupWarns > 0) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleImportSettings(); }}
+                        disabled={importing}
+                        className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded transition-colors disabled:opacity-50"
+                      >
+                        {importing ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
+                        Import Settings
+                      </button>
+                    )}
                     {items.some((r) => r.status === "running") && <Loader2 size={11} className="animate-spin text-zinc-400" />}
                     {allPass && !running && <span className="text-emerald-500"><CheckCircle2 size={12} /></span>}
                     {groupFails > 0 && <span className="text-red-500 text-[10px]">{groupFails} failed</span>}
