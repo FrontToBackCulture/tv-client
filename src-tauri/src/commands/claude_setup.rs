@@ -16,6 +16,8 @@ pub struct ClaudeMcpStatus {
     pub binary_path: String,
     pub config_exists: bool,
     pub config_has_tv_mcp: bool,
+    pub registered_path: Option<String>,
+    pub path_matches: bool,
     pub platform: String,
 }
 
@@ -66,11 +68,32 @@ async fn run_claude_mcp(args: &[&str]) -> CmdResult<String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-/// Check if tv-mcp is registered via `claude mcp list` output.
-async fn mcp_list_has_tv_mcp() -> bool {
-    run_claude_mcp(&["list"]).await
-        .map(|out| out.contains("tv-mcp"))
-        .unwrap_or(false)
+/// Check tv-mcp registration and extract the registered path from `claude mcp list` output.
+/// Returns (is_registered, Option<registered_path>)
+async fn mcp_list_check() -> (bool, Option<String>) {
+    match run_claude_mcp(&["list"]).await {
+        Ok(out) => {
+            if !out.contains("tv-mcp") {
+                return (false, None);
+            }
+            // `claude mcp list` output format includes the path after the server name
+            // Try to extract it — look for the line containing tv-mcp and parse the path
+            let registered_path = out.lines()
+                .find(|line| line.contains("tv-mcp"))
+                .and_then(|line| {
+                    // The path typically appears after a colon or as the command argument
+                    // Format varies: "tv-mcp: /path/to/binary" or with additional info
+                    // Look for a path-like string (starts with / on unix or drive letter on windows)
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    parts.iter().find(|p| {
+                        p.starts_with('/') || p.starts_with("C:\\") || p.starts_with("~")
+                            || p.contains(".tv-desktop") || p.contains("tv-mcp")
+                    }).map(|s| s.trim_matches(|c: char| c == '\'' || c == '"').to_string())
+                });
+            (true, registered_path)
+        }
+        Err(_) => (false, None),
+    }
 }
 
 // ── Types (CLI check) ────────────────────────────────────
@@ -136,13 +159,22 @@ pub async fn check_claude_cli() -> CmdResult<ClaudeCliStatus> {
 #[command]
 pub async fn claude_mcp_status() -> CmdResult<ClaudeMcpStatus> {
     let bin = binary_path()?;
-    let has_tv_mcp = mcp_list_has_tv_mcp().await;
+    let bin_str = bin.to_string_lossy().to_string();
+    let (has_tv_mcp, registered_path) = mcp_list_check().await;
+
+    // Check if the registered path matches the expected binary path
+    let path_matches = match &registered_path {
+        Some(reg) => reg == &bin_str || reg.contains(".tv-desktop"),
+        None => false,
+    };
 
     Ok(ClaudeMcpStatus {
         binary_installed: bin.exists(),
-        binary_path: bin.to_string_lossy().to_string(),
+        binary_path: bin_str,
         config_exists: has_tv_mcp,
         config_has_tv_mcp: has_tv_mcp,
+        registered_path,
+        path_matches,
         platform: platform_suffix().to_string(),
     })
 }

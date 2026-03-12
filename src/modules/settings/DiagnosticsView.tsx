@@ -56,6 +56,8 @@ interface ClaudeMcpStatus {
   binary_path: string;
   config_exists: boolean;
   config_has_tv_mcp: boolean;
+  registered_path: string | null;
+  path_matches: boolean;
   platform: string;
 }
 
@@ -200,7 +202,8 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
             return { ...r, status: status.binary_installed ? "pass" : "fail", detail: `Installed at ${status.binary_path}` };
           }
           if (r.id === "claude-config") {
-            return { ...r, status: status.config_has_tv_mcp ? "pass" : "warn", detail: status.config_has_tv_mcp ? "tv-mcp registered in Claude Code (user-level)" : "Config not updated — restart Claude Code and try again" };
+            const ok = status.config_has_tv_mcp && status.path_matches;
+            return { ...r, status: ok ? "pass" : "warn", detail: ok ? `Registered at ${status.binary_path}` : "Config not updated — restart Claude Code and try again" };
           }
           return r;
         }),
@@ -299,19 +302,34 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
 
       // If binary installed, check if Claude Code can see it
       if (claude.binary_installed && claudeCliInstalled) {
-        add({
-          id: "claude-config",
-          label: "Claude Code ↔ tv-mcp",
-          group: "Infrastructure",
-          status: claude.config_has_tv_mcp ? "pass" : "fail",
-          detail: claude.config_has_tv_mcp
-            ? "tv-mcp registered in Claude Code (user-level config)"
-            : "tv-mcp not registered in Claude Code — click Reinstall to re-register, then restart Claude Code",
-          fix: claude.config_has_tv_mcp ? undefined : { kind: "install-claude" },
-        });
+        // Check for path mismatch (e.g. Dropbox synced wrong OS path)
+        const hasPathMismatch = claude.config_has_tv_mcp && !claude.path_matches;
+        const wrongPath = claude.registered_path && claude.registered_path !== claude.binary_path;
+
+        if (hasPathMismatch || wrongPath) {
+          add({
+            id: "claude-config",
+            label: "Claude Code ↔ tv-mcp",
+            group: "Infrastructure",
+            status: "fail",
+            detail: `Wrong path registered: ${claude.registered_path ?? "unknown"} — expected: ${claude.binary_path}. Click Reinstall to fix.`,
+            fix: { kind: "install-claude" },
+          });
+        } else {
+          add({
+            id: "claude-config",
+            label: "Claude Code ↔ tv-mcp",
+            group: "Infrastructure",
+            status: claude.config_has_tv_mcp ? "pass" : "fail",
+            detail: claude.config_has_tv_mcp
+              ? `Registered at ${claude.binary_path}`
+              : "tv-mcp not registered in Claude Code — click Reinstall to re-register, then restart Claude Code",
+            fix: claude.config_has_tv_mcp ? undefined : { kind: "install-claude" },
+          });
+        }
 
         // Version check: binary should match app version
-        if (claude.config_has_tv_mcp) {
+        if (claude.config_has_tv_mcp && !hasPathMismatch) {
           add({
             id: "claude-version",
             label: "tv-mcp Version",
