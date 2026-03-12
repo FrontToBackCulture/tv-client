@@ -526,19 +526,45 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
       });
     }
 
-    // 3e. Email Campaigns (SES)
+    // 3e. Email Campaigns (SES) — check config + live connection
     {
       const hasEmailApi = keyPassed("email_api_base_url");
-      add({
-        id: "email-campaigns",
-        label: "Email Campaigns (SES)",
-        group: "Services",
-        status: hasEmailApi ? "pass" : "warn",
-        detail: hasEmailApi
-          ? "Email API configured — campaign sending available"
-          : "Not configured — set email_api_base_url to your tv-api URL for campaign sending",
-        fix: hasEmailApi ? undefined : { kind: "set-key", keyName: "email_api_base_url" },
-      });
+      if (!hasEmailApi) {
+        add({
+          id: "email-campaigns",
+          label: "Email API (tv-api)",
+          group: "Services",
+          status: "warn",
+          detail: "Not configured — set email_api_base_url to your tv-api URL for campaign sending",
+          fix: { kind: "set-key", keyName: "email_api_base_url" },
+        });
+      } else {
+        // Actually ping the health endpoint
+        try {
+          const emailApiUrl = await invoke<string | null>("settings_get_key", { keyName: "email_api_base_url" });
+          const baseUrl = (emailApiUrl ?? "").replace(/\/+$/, "");
+          const healthRes = await fetch(`${baseUrl}/api/v1/health`, { signal: AbortSignal.timeout(10000) });
+          if (healthRes.ok) {
+            const data = await healthRes.json().catch(() => null);
+            const version = data?.version ? ` v${data.version}` : "";
+            add({ id: "email-campaigns", label: "Email API (tv-api)", group: "Services", status: "pass", detail: `Connected${version} — ${baseUrl}` });
+
+            // Also check email tracking endpoints
+            const trackRes = await fetch(`${baseUrl}/email/track/open?eid=diag-test`, { signal: AbortSignal.timeout(5000) });
+            add({
+              id: "email-tracking",
+              label: "Email Tracking (open/click/unsubscribe)",
+              group: "Services",
+              status: trackRes.ok ? "pass" : "warn",
+              detail: trackRes.ok ? "Tracking pixel endpoint responding" : `Tracking endpoint returned ${trackRes.status}`,
+            });
+          } else {
+            add({ id: "email-campaigns", label: "Email API (tv-api)", group: "Services", status: "fail", detail: `Unreachable — ${baseUrl} returned HTTP ${healthRes.status}` });
+          }
+        } catch (e) {
+          add({ id: "email-campaigns", label: "Email API (tv-api)", group: "Services", status: "fail", detail: `Connection failed — ${errStr(e)}. Check if tv-api is running and the URL is correct.` });
+        }
+      }
     }
 
     // ─────────────────────────────────────────────────────────────────────
