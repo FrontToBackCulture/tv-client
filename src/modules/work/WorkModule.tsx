@@ -2,6 +2,7 @@
 // Main Work module — tabbed layout with Inbox, Dashboard, Board, Tracker views
 
 import { useState, useCallback, useEffect } from "react";
+import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import {
   LayoutDashboard, Columns3, AlertTriangle, Inbox, Plus, Target, Cloud, FolderPlus,
 } from "lucide-react";
@@ -28,7 +29,7 @@ import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
 import { NotionSyncStatus } from "../notion/NotionSyncStatus";
 
 export function WorkModule() {
-  const [view, setView] = useState<WorkView>("inbox");
+  const [view, setView] = usePersistedModuleView<WorkView>("work", "inbox");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);

@@ -2,6 +2,7 @@
 // Domains module — two-level navigation: All Domains (tabbed) → Single Domain detail
 
 import { useState, useCallback, useEffect } from "react";
+import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import {
   ArrowLeft,
   ChevronRight,
@@ -31,7 +32,7 @@ type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
 export function DomainsModule() {
   // Two-level navigation state
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Level1Tab>("overview");
+  const [activeTab, setActiveTab] = usePersistedModuleView<Level1Tab>("domains", "overview");
 
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);

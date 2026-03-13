@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { List, History, Radio, LucideIcon, Upload, Download } from "lucide-react";
+import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { Button } from "../../components/ui";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -29,7 +30,7 @@ import { ApiTasksBanner } from "./ApiTasksBanner";
 type SchedulerView = "jobs" | "history" | "api-logs";
 
 export function SchedulerModule() {
-  const [view, setView] = useState<SchedulerView>("jobs");
+  const [view, setView] = usePersistedModuleView<SchedulerView>("scheduler", "jobs");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingJob, setEditingJob] = useState<SchedulerJob | null>(null);

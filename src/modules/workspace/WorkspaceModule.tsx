@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { FolderOpen, LayoutGrid, Columns3 } from "lucide-react";
+import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { cn } from "../../lib/cn";
 import { useWorkspaces, useUpdateWorkspace } from "../../hooks/workspace";
 import { WorkspaceListView } from "./WorkspaceListView";
@@ -16,7 +17,7 @@ type ViewMode = "grid" | "board";
 export function WorkspaceModule() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [viewMode, setViewMode] = useState<ViewMode>("board");
+  const [viewMode, setViewMode] = usePersistedModuleView<ViewMode>("workspace", "board");
 
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {

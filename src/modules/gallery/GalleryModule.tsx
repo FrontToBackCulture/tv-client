@@ -1,6 +1,7 @@
 // src/modules/gallery/GalleryModule.tsx
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { Search, X, Loader2, ChevronRight, FileText, Image as ImageIcon, PenTool, Video, Pin, PinOff, ArrowUpDown, ChevronDown, Presentation, MessageCircleQuestion, Globe, BarChart3, Receipt, Clock, ShoppingBag, Star, Truck, Users, Utensils, Wallet, LayoutGrid } from "lucide-react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Button, IconButton } from "../../components/ui";
@@ -30,7 +31,7 @@ const TABS: { id: GalleryTab; label: string; icon: typeof FileText }[] = [
 // ─── Main Module ─────────────────────────────────────────────────────────────
 
 export function GalleryModule() {
-  const [tab, setTab] = useState<GalleryTab>("reports");
+  const [tab, setTab] = usePersistedModuleView<GalleryTab>("gallery", "reports");
   const [search, setSearch] = useState("");
 
   const { data: galleryItems = [], isLoading: scanLoading } = useGalleryScan();

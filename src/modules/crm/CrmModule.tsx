@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { usePipelineStats, useCRMRealtime } from "../../hooks/crm";
+import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { Company, DealWithTaskInfo } from "../../lib/crm/types";
 import { CompanyDetailPanel } from "./CompanyDetailPanel";
 import { CompanyForm } from "./CompanyForm";
@@ -35,7 +36,7 @@ function setDetailPanelWidth(width: number): void {
 // Main module
 // ============================
 export function CrmModule() {
-  const [activeView, setActiveView] = useState<CrmView>("pipeline");
+  const [activeView, setActiveView] = usePersistedModuleView<CrmView>("crm", "pipeline");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [showCompanyForm, setShowCompanyForm] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | undefined>(undefined);

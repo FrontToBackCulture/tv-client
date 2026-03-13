@@ -1,6 +1,7 @@
 // src/modules/portal/PortalModule.tsx
 
 import { useState, useRef, useEffect } from "react";
+import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { MessageSquare, AlertTriangle, Megaphone, BookOpen } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -18,7 +19,7 @@ function getStoredDetailWidth(): number {
 }
 
 export function PortalModule() {
-  const [activeView, setActiveView] = useState<PortalView>("conversations");
+  const [activeView, setActiveView] = usePersistedModuleView<PortalView>("portal", "conversations");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailWidth, setDetailWidth] = useState(getStoredDetailWidth);
   const [isResizing, setIsResizing] = useState(false);
