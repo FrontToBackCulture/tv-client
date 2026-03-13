@@ -38,7 +38,7 @@ import { useAppStore } from "../../stores/appStore";
 import { groupRowStyles, themeStyles } from "../library/reviewGridStyles";
 import type { SkillRegistry, SkillCategory } from "./useSkillRegistry";
 import { useSkillRegistryUpdate, useSkillSummary } from "./useSkillRegistry";
-import { useReportSkillMap, useUpsertReportSkill } from "../../hooks/gallery/useReportSkills";
+import { useReportSkillMap, useUpsertReportSkill, useUpdateSkillOwner } from "../../hooks/gallery/useReportSkills";
 import type { ReportSkill } from "../../lib/gallery/types";
 
 // Register AG Grid modules
@@ -65,6 +65,7 @@ interface SkillReviewRow {
   last_audited: string;
   needs_work: string;
   work_notes: string;
+  owner: string;
   action: string;
   outcome: string;
   last_modified: string;
@@ -317,6 +318,15 @@ function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef
       autoHeight: wrapNotes,
     },
     {
+      field: "owner",
+      headerName: "Owner",
+      width: 120,
+      filter: "agSetColumnFilter",
+      editable: true,
+      cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+      enableRowGroup: true,
+    },
+    {
       field: "action",
       headerName: "Action",
       width: 140,
@@ -471,6 +481,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
   const { data: modInfos } = useSkillSummary();
   const { data: reportSkillMap } = useReportSkillMap();
   const upsertReportSkill = useUpsertReportSkill();
+  const updateSkillOwner = useUpdateSkillOwner();
 
   const [quickFilter, setQuickFilter] = useState("");
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
@@ -580,6 +591,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
         last_audited: skill.last_audited ?? "",
         needs_work: skill.needs_work ?? "",
         work_notes: skill.work_notes ?? "",
+        owner: web?.owner ?? "",
         action: skill.action ?? "",
         outcome: skill.outcome ?? "",
         last_modified: modLookup[slug] ?? "",
@@ -724,6 +736,12 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
         return;
       }
 
+      // ── Owner → Supabase (standalone) ──
+      if (field === "owner") {
+        updateSkillOwner.mutate({ skillSlug: data._webSkillSlug || slug, owner: data.owner || null });
+        return;
+      }
+
       // ── Registry fields → registry.json ──
       const skill = registry.skills[slug];
       if (!skill) return;
@@ -759,7 +777,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
 
       registryUpdate.mutate(updated);
     },
-    [registry, registryUpdate, resolveAndUpdateCategory, modInfos, reportSkillMap, upsertReportSkill],
+    [registry, registryUpdate, resolveAndUpdateCategory, modInfos, reportSkillMap, upsertReportSkill, updateSkillOwner],
   );
 
   // ─── Layout actions ─────────────────────────────────────────────────────────

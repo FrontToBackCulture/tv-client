@@ -174,6 +174,51 @@ export function useUpsertReportSkill() {
   });
 }
 
+export function useUpdateSkillOwner() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      skillSlug,
+      owner,
+    }: {
+      skillSlug: string;
+      owner: string | null;
+    }): Promise<void> => {
+      // Update all existing rows for this skill
+      const { data: existing } = await supabase
+        .from("report_skill_library")
+        .select("id")
+        .eq("skill_slug", skillSlug);
+
+      if (existing && existing.length > 0) {
+        const { error } = await supabase
+          .from("report_skill_library")
+          .update({ owner })
+          .eq("skill_slug", skillSlug);
+        if (error)
+          throw new Error(`Failed to update skill owner: ${error.message}`);
+      } else {
+        // No gallery entry yet — create a minimal one
+        const { error } = await supabase
+          .from("report_skill_library")
+          .insert({
+            skill_slug: skillSlug,
+            file_name: "_meta",
+            title: skillSlug,
+            category: "uncategorized",
+            owner,
+          });
+        if (error)
+          throw new Error(`Failed to create skill owner entry: ${error.message}`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: reportSkillKeys.all });
+    },
+  });
+}
+
 export function useDeleteReportSkill() {
   const queryClient = useQueryClient();
 
