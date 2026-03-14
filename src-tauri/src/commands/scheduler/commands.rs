@@ -43,6 +43,7 @@ pub fn scheduler_create_job(input: JobInput) -> CmdResult<SchedulerJob> {
         report_prefix: input.report_prefix,
         skill_refs: input.skill_refs,
         bot_path: input.bot_path,
+        sod_reports_folder: input.sod_reports_folder,
         created_at: now,
         updated_at: now,
         last_run_at: None,
@@ -82,6 +83,7 @@ pub fn scheduler_update_job(id: String, input: JobInput) -> CmdResult<SchedulerJ
     job.report_prefix = input.report_prefix;
     job.skill_refs = input.skill_refs;
     job.bot_path = input.bot_path;
+    job.sod_reports_folder = input.sod_reports_folder;
     job.updated_at = Utc::now();
 
     let updated = job.clone();
@@ -120,7 +122,7 @@ pub fn scheduler_toggle_job(id: String, enabled: bool) -> CmdResult<SchedulerJob
 // ============================================================================
 
 #[command]
-pub async fn scheduler_run_job(id: String, app_handle: tauri::AppHandle) -> CmdResult<String> {
+pub async fn scheduler_run_job(id: String, default_reports_folder: String, app_handle: tauri::AppHandle) -> CmdResult<String> {
     let jobs = storage::load_jobs()?;
     let job = jobs.into_iter()
         .find(|j| j.id == id)
@@ -131,7 +133,7 @@ pub async fn scheduler_run_job(id: String, app_handle: tauri::AppHandle) -> CmdR
 
     // Spawn execution in background so the command returns immediately
     tauri::async_runtime::spawn(async move {
-        runner::execute_job(&job, &run_id_clone, RunTrigger::Manual, &app_handle).await;
+        runner::execute_job(&job, &run_id_clone, RunTrigger::Manual, &app_handle, &default_reports_folder).await;
     });
 
     Ok(run_id)

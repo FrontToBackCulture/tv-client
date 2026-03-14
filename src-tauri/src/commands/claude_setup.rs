@@ -1,7 +1,7 @@
 // Claude Code MCP setup — download tv-mcp binary + register via `claude mcp add`
 
 use crate::commands::error::{CmdResult, CommandError};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::path::PathBuf;
 use tauri::command;
 

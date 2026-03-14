@@ -88,7 +88,10 @@ fn main() {
             commands::notion::background::start_background_sync(app.handle().clone());
 
             // Start Scheduler background loop
-            commands::scheduler::background::start_scheduler(app.handle().clone());
+            commands::scheduler::background::start_scheduler(
+                app.handle().clone(),
+                "0_Platform/sod-reports".to_string(),
+            );
 
             // Start MCP HTTP server (for external tool access)
             tauri::async_runtime::spawn(async {

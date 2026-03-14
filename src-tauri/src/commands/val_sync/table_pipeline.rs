@@ -4119,10 +4119,10 @@ pub struct CategoryEntry {
 
 /// Scan all definition_analysis.json files across all domains to extract unique classification values
 #[command]
-pub async fn val_scan_category_library(state: State<'_, AppState>) -> CmdResult<CategoryLibrary> {
+pub async fn val_scan_category_library(state: State<'_, AppState>, platform_folder: String) -> CmdResult<CategoryLibrary> {
     let base_path = &state.knowledge_path;
 
-    let domains_path = Path::new(base_path).join("0_Platform/domains/production");
+    let domains_path = Path::new(base_path).join(&platform_folder).join("domains/production");
 
     let mut data_types: HashMap<String, (usize, HashSet<String>)> = HashMap::new();
     let mut data_categories: HashMap<String, (usize, HashSet<String>)> = HashMap::new();

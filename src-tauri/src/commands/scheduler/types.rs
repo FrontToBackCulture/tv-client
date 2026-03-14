@@ -37,6 +37,8 @@ pub struct SchedulerJob {
     pub skill_refs: Option<Vec<SkillRef>>,
     #[serde(default)]
     pub bot_path: Option<String>,
+    #[serde(default)]
+    pub sod_reports_folder: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_run_at: Option<DateTime<Utc>>,
@@ -117,6 +119,7 @@ pub struct JobInput {
     pub report_prefix: Option<String>,
     pub skill_refs: Option<Vec<SkillRef>>,
     pub bot_path: Option<String>,
+    pub sod_reports_folder: Option<String>,
 }
 
 fn default_true() -> bool { true }

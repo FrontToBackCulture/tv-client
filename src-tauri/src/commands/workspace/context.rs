@@ -6,6 +6,7 @@ use crate::commands::supabase::get_client;
 
 /// Get the rolling context for a workspace
 #[tauri::command]
+#[allow(dead_code)]
 pub async fn workspace_get_context(workspace_id: String) -> CmdResult<Option<WorkspaceContext>> {
     let client = get_client().await?;
     let query = format!("workspace_id=eq.{}", workspace_id);

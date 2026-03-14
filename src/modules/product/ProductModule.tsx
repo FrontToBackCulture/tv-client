@@ -6,7 +6,7 @@ import { Boxes, Package, Tags, Plug, Layers } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useProductStats } from "../../hooks/product";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import type { ProductEntityType } from "../../lib/product/types";
 import { PlatformTabView } from "./PlatformTabView";
 import { SolutionsTabView } from "./SolutionsTabView";
@@ -108,7 +108,7 @@ export function ProductModule() {
 
   // Data for stats
   const statsQuery = useProductStats();
-  const { activeRepository } = useRepository();
+  const paths = useKnowledgePaths();
 
   // Tab change resets selection
   const handleTabChange = useCallback((tab: ProductTab) => {
@@ -158,7 +158,7 @@ export function ProductModule() {
         {activeTab === "solutions" && (
           <SolutionsTabView
             onSelect={handleSelect}
-            solutionsPath={activeRepository ? `${activeRepository.path}/2_Solutions` : undefined}
+            solutionsPath={paths ? paths.solutions : undefined}
             detailPanelWidth={detailPanelWidth}
             isResizingDetail={isResizingDetail}
             onDetailMouseDown={handleDetailMouseDown}

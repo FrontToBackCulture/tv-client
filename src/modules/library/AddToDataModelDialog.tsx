@@ -10,7 +10,7 @@ import {
   useDomainModelEntities,
   EntityInfo,
 } from "../../hooks/val-sync";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 
 interface AddToDataModelDialogProps {
   table: TableInfo;
@@ -29,9 +29,9 @@ export function AddToDataModelDialog({
   const entityInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { activeRepository } = useRepository();
-  const entitiesBasePath = activeRepository
-    ? `${activeRepository.path}/0_Platform/architecture/domain-model/entities`
+  const paths = useKnowledgePaths();
+  const entitiesBasePath = paths
+    ? `${paths.platform}/architecture/domain-model/entities`
     : null;
 
   const entitiesQuery = useDomainModelEntities(entitiesBasePath);

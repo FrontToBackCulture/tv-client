@@ -17,6 +17,8 @@ import {
 import { SkillDetailPanel } from "./SkillDetailPanel";
 import { SkillReviewGrid } from "./SkillReviewGrid";
 import { PromptBuilder } from "./PromptBuilder";
+import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
+import { useAuth } from "../../stores/authStore";
 
 interface SkillCatalogViewProps {
   registry: SkillRegistry;
@@ -46,14 +48,18 @@ interface DragState {
 import React from "react";
 
 export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }: SkillCatalogViewProps) {
+  const authUser = useAuth((s) => s.user);
+  const defaultVerified: VerifiedFilter = (authUser?.login === "melvinFTBC" || authUser?.login === "melvinwang") ? "all" : "verified";
+
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [reviewSelectedSlug, setReviewSelectedSlug] = useState<string | null>(null);
-  const [view, setView] = useState<"catalog" | "review" | "prompt-builder">("catalog");
+  const [reviewPanelWidth, setReviewPanelWidth] = useState(600);
+  const [view, setView] = usePersistedModuleView<"catalog" | "review" | "prompt-builder">("skills", "catalog");
   const [search, setSearch] = useState("");
   const [activeCategory, _setActiveCategory] = useState("all");
   const [targetFilter, setTargetFilter] = useState<TargetFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [verifiedFilter, setVerifiedFilter] = useState<VerifiedFilter>("all");
+  const [verifiedFilter, setVerifiedFilter] = useState<VerifiedFilter>(defaultVerified);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [sortBy, setSortBy] = useState<SortOption>("modified");
   const [modFrom, setModFrom] = useState<string>("");
@@ -344,6 +350,28 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
   }, [sidebarWidth]);
 
 
+  // Review panel resize handle
+  const handleReviewPanelResizePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startWidth = reviewPanelWidth;
+
+    const onMove = (ev: PointerEvent) => {
+      const delta = startX - ev.clientX;
+      setReviewPanelWidth(Math.max(400, Math.min(1000, startWidth + delta)));
+    };
+    const onUp = () => {
+      target.releasePointerCapture(e.pointerId);
+      target.removeEventListener("pointermove", onMove);
+      target.removeEventListener("pointerup", onUp);
+    };
+    target.addEventListener("pointermove", onMove);
+    target.addEventListener("pointerup", onUp);
+  }, [reviewPanelWidth]);
+
   // Build level-aware key sets for collapse controls
   const groupKeysByLevel = useMemo(() => {
     const level1: string[] = []; // root group headers: "bot", "platform"
@@ -421,8 +449,8 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
     <div className="h-full flex flex-col">
       {/* Top tab bar — always visible */}
       <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <ViewTab label="Dashboard" icon={LayoutDashboard} active={view === "catalog"} onClick={() => setView("catalog")} />
-        <ViewTab label="Review" icon={Table2} active={view === "review"} onClick={() => setView("review")} />
+        <ViewTab label="Browse" icon={LayoutDashboard} active={view === "catalog"} onClick={() => setView("catalog")} />
+        <ViewTab label="Manage" icon={Table2} active={view === "review"} onClick={() => setView("review")} />
         <ViewTab label="Prompt Builder" icon={Zap} active={view === "prompt-builder"} onClick={() => setView("prompt-builder")} />
       </div>
 
@@ -663,15 +691,23 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
               />
             </div>
             {reviewSelectedSlug && reviewSkill && (
-              <div className="w-[55%] min-w-[500px] max-w-[800px] flex-shrink-0 border-l border-zinc-200 dark:border-zinc-700 animate-slide-in">
-                <SkillDetailPanel
-                  key={reviewSelectedSlug}
-                  slug={reviewSelectedSlug}
-                  skill={reviewSkill}
-                  registry={registry}
-                  driftStatuses={reviewDriftStatuses}
-                  onClose={() => setReviewSelectedSlug(null)}
-                />
+              <div className="flex flex-shrink-0 animate-slide-in" style={{ width: reviewPanelWidth }}>
+                <div
+                  onPointerDown={handleReviewPanelResizePointerDown}
+                  className="w-2 flex-shrink-0 cursor-col-resize group flex items-center justify-center border-l border-zinc-200 dark:border-zinc-700 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
+                >
+                  <GripVertical size={10} className="text-zinc-300 dark:text-zinc-600 group-hover:text-teal-500 transition-colors" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <SkillDetailPanel
+                    key={reviewSelectedSlug}
+                    slug={reviewSelectedSlug}
+                    skill={reviewSkill}
+                    registry={registry}
+                    driftStatuses={reviewDriftStatuses}
+                    onClose={() => setReviewSelectedSlug(null)}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -1262,12 +1298,13 @@ function StatCard({ label, value, sub, icon: Icon, color }: {
  *       "0_Platform/skills/insights-grab" → "Platform"
  */
 function formatDistPath(path: string): string {
-  if (path.startsWith("0_Platform/")) return "Platform";
   // _team/{person}/{bot}/skills/{skill} → {person}/{bot}
   const parts = path.split("/");
   if (parts[0] === "_team" && parts.length >= 4) {
     return `${parts[1]}/${parts[2]}`;
   }
+  // Anything not under _team is a platform distribution
+  if (!path.startsWith("_team/")) return "Platform";
   return path;
 }
 

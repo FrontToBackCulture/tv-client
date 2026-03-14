@@ -3,7 +3,7 @@
 
 use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
-use crate::commands::work::types::{Project, Task};
+use crate::commands::work::types::Project;
 use serde_json::{json, Value};
 use tauri::Emitter;
 
@@ -134,14 +134,11 @@ async fn sync_config(
         }
     }
 
-    // Get existing tasks with notion_page_id for this project
+    // Get existing tasks with notion_page_id (across all projects — unique constraint is table-wide)
     let existing_tasks: Vec<Value> = client
         .select(
             "tasks",
-            &format!(
-                "select=id,notion_page_id,title,status_id,priority,due_date,assignee_id&project_id=eq.{}&notion_page_id=not.is.null",
-                target_project_id
-            ),
+            "select=id,project_id,notion_page_id,title,status_id,priority,due_date,assignee_id&notion_page_id=not.is.null",
         )
         .await?;
 
@@ -264,18 +261,36 @@ async fn sync_config(
                 insert_data["assignee_id"] = Value::String(aid.clone());
             }
 
-            let _task: Value = client.insert("tasks", &insert_data).await?;
-
-            // Increment project's next_task_number
-            let _: Value = client
-                .update(
-                    "projects",
-                    &format!("id=eq.{}", target_project_id),
-                    &json!({ "next_task_number": next_number + 1 }),
-                )
-                .await?;
-
-            tasks_created += 1;
+            match client.insert::<_, Value>("tasks", &insert_data).await {
+                Ok(_) => {
+                    // Increment project's next_task_number
+                    let _: Value = client
+                        .update(
+                            "projects",
+                            &format!("id=eq.{}", target_project_id),
+                            &json!({ "next_task_number": next_number + 1 }),
+                        )
+                        .await?;
+                    tasks_created += 1;
+                }
+                Err(_) => {
+                    // Likely duplicate notion_page_id — fall back to update
+                    let existing: Option<Value> = client
+                        .select_single(
+                            "tasks",
+                            &format!("select=id&notion_page_id=eq.{}", page.id),
+                        )
+                        .await?;
+                    if let Some(existing) = existing {
+                        if let Some(eid) = existing["id"].as_str() {
+                            let _: Value = client
+                                .update("tasks", &format!("id=eq.{}", eid), &insert_data)
+                                .await?;
+                            tasks_updated += 1;
+                        }
+                    }
+                }
+            }
         }
 
         // Emit progress every 10 items

@@ -35,7 +35,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { timeAgoVerbose as timeAgo } from "../../lib/date";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useRegisterCommands } from "../../stores/commandStore";
 import { DomainAiTab } from "./DomainAiTab";
 import { DomainReportsTab } from "./DomainReportsTab";
@@ -82,9 +82,9 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   const isSyncing = syncAllMutation.isPending || syncArtifactMutation.isPending;
 
   // Derive entitiesPath for data health (same pattern as DomainAiTab)
-  const { activeRepository } = useRepository();
-  const entitiesPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/architecture/domain-model/entities`
+  const paths = useKnowledgePaths();
+  const entitiesPath = paths
+    ? `${paths.platform}/architecture/domain-model/entities`
     : null;
 
   const handleLogin = () => {

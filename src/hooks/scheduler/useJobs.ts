@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { schedulerKeys } from "./keys";
+import { useFolderConfig } from "../useKnowledgePaths";
 
 // ============================================================================
 // Types (match Rust structs)
@@ -146,9 +147,10 @@ export function useToggleJob() {
 
 export function useRunJob() {
   const qc = useQueryClient();
+  const folderConfig = useFolderConfig();
   return useMutation({
     mutationFn: (id: string) =>
-      invoke<string>("scheduler_run_job", { id }),
+      invoke<string>("scheduler_run_job", { id, defaultReportsFolder: `${folderConfig.platform}/sod-reports` }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: schedulerKeys.jobs() });
       qc.invalidateQueries({ queryKey: schedulerKeys.status() });

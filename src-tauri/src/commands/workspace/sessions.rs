@@ -138,6 +138,7 @@ pub async fn workspace_update_session(
 
 /// List sessions for a workspace
 #[tauri::command]
+#[allow(dead_code)]
 pub async fn workspace_list_sessions(workspace_id: String) -> CmdResult<Vec<WorkspaceSession>> {
     let client = get_client().await?;
     let query = format!("workspace_id=eq.{}&order=date.desc", workspace_id);

@@ -36,7 +36,7 @@ import {
   useValDriveScanResults,
   useValDriveScanResultsSave,
 } from "../../hooks/val-sync";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
 import { SectionLoading } from "../../components/ui/DetailStates";
@@ -133,8 +133,8 @@ function getFileExtension(name: string): string {
 // ============================
 
 export function DriveTabView() {
-  const { activeRepository } = useRepository();
-  const domainsPath = activeRepository ? `${activeRepository.path}/0_Platform/domains` : null;
+  const paths = useKnowledgePaths();
+  const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
 
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);

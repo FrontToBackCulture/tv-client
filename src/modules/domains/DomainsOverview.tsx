@@ -17,7 +17,7 @@ import {
   useRunAllDomainsOverview,
   type DiscoveredDomain,
 } from "../../hooks/val-sync";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useDomainArtifactsRebuild } from "../../hooks/useDomainArtifactsRebuild";
 import {
@@ -234,8 +234,8 @@ function DomainCard({
 export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const [search, setSearch] = useState("");
 
-  const { activeRepository } = useRepository();
-  const domainsPath = activeRepository ? `${activeRepository.path}/0_Platform/domains` : null;
+  const paths = useKnowledgePaths();
+  const domainsPath = paths ? `${paths.platform}/domains` : null;
   const { data: domains, isLoading, isError, error, refetch } = useDiscoverDomains(domainsPath);
 
   // ── Batch operation hooks ──

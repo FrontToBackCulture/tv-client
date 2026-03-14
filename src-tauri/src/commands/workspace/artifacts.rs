@@ -13,6 +13,7 @@ pub async fn workspace_add_artifact(data: CreateWorkspaceArtifact) -> CmdResult<
 
 /// List artifacts for a workspace
 #[tauri::command]
+#[allow(dead_code)]
 pub async fn workspace_list_artifacts(workspace_id: String, artifact_type: Option<String>) -> CmdResult<Vec<WorkspaceArtifact>> {
     let client = get_client().await?;
     let mut query = format!("workspace_id=eq.{}&order=created_at.desc", workspace_id);

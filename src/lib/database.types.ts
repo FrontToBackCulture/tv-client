@@ -2477,8 +2477,10 @@ export type Database = {
           id: string
           last_active_at: string | null
           name: string
+          role: string
           type: string
           updated_at: string | null
+          visible_modules: string[] | null
         }
         Insert: {
           avatar_url?: string | null
@@ -2491,8 +2493,10 @@ export type Database = {
           id?: string
           last_active_at?: string | null
           name: string
+          role?: string
           type?: string
           updated_at?: string | null
+          visible_modules?: string[] | null
         }
         Update: {
           avatar_url?: string | null
@@ -2505,8 +2509,10 @@ export type Database = {
           id?: string
           last_active_at?: string | null
           name?: string
+          role?: string
           type?: string
           updated_at?: string | null
+          visible_modules?: string[] | null
         }
         Relationships: []
       }

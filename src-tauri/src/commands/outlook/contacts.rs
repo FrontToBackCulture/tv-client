@@ -8,7 +8,14 @@ use std::fs;
 use std::path::Path;
 
 /// Bootstrap contacts from the knowledge base 3_Clients folder
-pub fn bootstrap_contacts(db: &EmailDb, knowledge_path: &str) -> CmdResult<usize> {
+pub fn bootstrap_contacts(
+    db: &EmailDb,
+    knowledge_path: &str,
+    clients_folder: &str,
+    company_folder: &str,
+) -> CmdResult<usize> {
+    let clients_rel = clients_folder;
+    let company_rel = company_folder;
     let mut count = 0;
 
     // 1. Default noise domains
@@ -44,7 +51,7 @@ pub fn bootstrap_contacts(db: &EmailDb, knowledge_path: &str) -> CmdResult<usize
         match_value: "thinkval.com".to_string(),
         entity_type: "internal".to_string(),
         entity_name: "ThinkVAL".to_string(),
-        entity_path: Some("1_Company".to_string()),
+        entity_path: Some(company_rel.to_string()),
     })?;
     count += 1;
 
@@ -76,7 +83,7 @@ pub fn bootstrap_contacts(db: &EmailDb, knowledge_path: &str) -> CmdResult<usize
     }
 
     // 4. Scan 3_Clients/by_industry for client domains
-    let clients_path = Path::new(knowledge_path).join("3_Clients").join("by_industry");
+    let clients_path = Path::new(knowledge_path).join(clients_rel).join("by_industry");
     if clients_path.exists() {
         if let Ok(industries) = fs::read_dir(&clients_path) {
             for industry_entry in industries.flatten() {
@@ -102,8 +109,8 @@ pub fn bootstrap_contacts(db: &EmailDb, knowledge_path: &str) -> CmdResult<usize
                         }
 
                         let entity_path = format!(
-                            "3_Clients/by_industry/{}/{}",
-                            industry, client_name
+                            "{}/by_industry/{}/{}",
+                            clients_rel, industry, client_name
                         );
 
                         // Common domain patterns

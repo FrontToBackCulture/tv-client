@@ -10,7 +10,7 @@ import {
   useEmailGroups,
   useEmailCampaigns,
 } from "../../hooks/email";
-import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useKnowledgePaths, useFolderConfig } from "../../hooks/useKnowledgePaths";
 import type { EmailCampaignWithStats } from "../../lib/email/types";
 
 interface TemplateFile {
@@ -42,15 +42,14 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
   const [campaignFiles, setCampaignFiles] = useState<TemplateFile[]>([]);
   const [activeSource, setActiveSource] = useState<"templates" | "campaigns">("templates");
 
-  const knowledgePath = useRepositoryStore((s) => {
-    const repo = s.repositories.find((r) => r.id === s.activeRepositoryId);
-    return repo?.path || "";
-  });
+  const paths = useKnowledgePaths();
+  const folderConfig = useFolderConfig();
+  const knowledgePath = paths?.base || "";
 
   // Load templates from tv-knowledge/6_Marketing/email-templates/
   useEffect(() => {
-    if (!knowledgePath) return;
-    const templatesDir = `${knowledgePath}/6_Marketing/email-templates`;
+    if (!paths) return;
+    const templatesDir = `${paths.marketing}/email-templates`;
     invoke<{ name: string; path: string; is_directory: boolean }[]>("list_directory", { path: templatesDir })
       .then((entries) => {
         setTemplates(
@@ -59,17 +58,17 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
             .map((e) => ({
               name: e.name.replace(".html", "").replace(/-/g, " "),
               path: e.path,
-              relativePath: `6_Marketing/email-templates/${e.name}`,
+              relativePath: `${folderConfig.marketing}/email-templates/${e.name}`,
             }))
         );
       })
       .catch(() => setTemplates([]));
-  }, [knowledgePath]);
+  }, [paths]);
 
   // Load campaign files from tv-knowledge/6_Marketing/email-campaigns/
   useEffect(() => {
-    if (!knowledgePath) return;
-    const campaignsDir = `${knowledgePath}/6_Marketing/email-campaigns`;
+    if (!paths) return;
+    const campaignsDir = `${paths.marketing}/email-campaigns`;
     invoke<{ name: string; path: string; is_directory: boolean }[]>("list_directory", { path: campaignsDir })
       .then((entries) => {
         setCampaignFiles(
@@ -78,12 +77,12 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
             .map((e) => ({
               name: e.name.replace(".html", "").replace(/-/g, " "),
               path: e.path,
-              relativePath: `6_Marketing/email-campaigns/${e.name}`,
+              relativePath: `${folderConfig.marketing}/email-campaigns/${e.name}`,
             }))
         );
       })
       .catch(() => setCampaignFiles([]));
-  }, [knowledgePath]);
+  }, [paths]);
 
   // If editing a campaign with content_path, load the file content
   useEffect(() => {

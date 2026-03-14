@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Eye, Code } from "lucide-react";
-import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 
 interface Template {
   name: string;
@@ -17,12 +17,9 @@ export function TemplatesView() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selected, setSelected] = useState<Template | null>(null);
   const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
-  const knowledgePath = useRepositoryStore((s) => {
-    const repo = s.repositories.find((r) => r.id === s.activeRepositoryId);
-    return repo?.path || "";
-  });
+  const paths = useKnowledgePaths();
 
-  const templatesDir = knowledgePath ? `${knowledgePath}/6_Marketing/email-templates` : "";
+  const templatesDir = paths ? `${paths.marketing}/email-templates` : "";
 
   // Load template list
   useEffect(() => {

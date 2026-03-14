@@ -1,6 +1,6 @@
 // src/shell/ActivityBar.tsx
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Library,
   CheckSquare,
@@ -30,6 +30,8 @@ import { useSidePanelStore } from "../stores/sidePanelStore";
 import { useActivityBarStore } from "../stores/activityBarStore";
 import { openModuleInNewWindow } from "../lib/windowManager";
 import { UserProfile } from "../components/UserProfile";
+import { useModuleVisibilityStore } from "../stores/moduleVisibilityStore";
+import { useTeamConfigStore } from "../stores/teamConfigStore";
 
 interface ActivityBarProps {
   activeModule: ModuleId;
@@ -209,7 +211,22 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
   const isExpanded = useActivityBarStore((s) => s.isExpanded);
   const toggleExpanded = useActivityBarStore((s) => s.toggleExpanded);
   const openSettings = useAppStore((s) => s.openSettings);
+  const isModuleVisible = useModuleVisibilityStore((s) => s.isModuleVisible);
+  const hiddenModules = useModuleVisibilityStore((s) => s.hiddenModules);
+  const teamConfig = useTeamConfigStore((s) => s.config);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  // Filter sections to exclude hidden modules (team config takes precedence over local storage)
+  // hiddenModules and teamConfig are deps to trigger re-render when either changes
+  const filteredSections = useMemo(() => {
+    return navSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => isModuleVisible(item.id)),
+      }))
+      .filter((section) => section.items.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isModuleVisible, hiddenModules, teamConfig]);
 
   const handleContextMenu = (e: React.MouseEvent, item: NavItem) => {
     e.preventDefault();
@@ -247,7 +264,7 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
       )}
 
       {/* Module sections */}
-      {navSections.map((section, i) => (
+      {filteredSections.map((section, i) => (
         <div key={section.label}>
           {isExpanded ? (
             <SectionHeader label={section.label} />

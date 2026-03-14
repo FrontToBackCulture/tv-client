@@ -22,9 +22,11 @@ import { GalleryModule } from "./modules/gallery";
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { useAppStore, ModuleId } from "./stores/appStore";
+import { useModuleVisibilityStore } from "./stores/moduleVisibilityStore";
 import { useSidePanelStore } from "./stores/sidePanelStore";
 import { useHelpStore } from "./stores/helpStore";
 import { useAuth } from "./stores/authStore";
+import { useTeamConfigStore } from "./stores/teamConfigStore";
 import { useRealtimeSync } from "./hooks/useRealtimeSync";
 import { openModuleInNewWindow } from "./lib/windowManager";
 import { Loader2 } from "lucide-react";
@@ -51,12 +53,35 @@ export default function App() {
   const activeModule = useAppStore((s) => s.activeModule);
   const setActiveModule = useAppStore((s) => s.setActiveModule);
   const { user, isLoading, isInitialized, initialize } = useAuth();
+  const loadTeamConfig = useTeamConfigStore((s) => s.loadConfig);
+  const registerCurrentUser = useTeamConfigStore((s) => s.registerCurrentUser);
   const [setupDone, setSetupDone] = useState(isSetupComplete);
 
   // Initialize auth on mount
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Initialize team config after auth
+  useEffect(() => {
+    if (user) {
+      loadTeamConfig().then(() => registerCurrentUser());
+    }
+  }, [user, loadTeamConfig, registerCurrentUser]);
+
+  // Redirect to first visible module if active module is hidden
+  const isModuleVisible = useModuleVisibilityStore((s) => s.isModuleVisible);
+  const teamConfigLoaded = useTeamConfigStore((s) => s.isLoaded);
+  useEffect(() => {
+    if (!teamConfigLoaded) return;
+    if (!isModuleVisible(activeModule)) {
+      const allModuleIds: ModuleId[] = ["library", "work", "workspace", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "questions", "portal", "scheduler", "repos", "email"];
+      const firstVisible = allModuleIds.find((id) => isModuleVisible(id));
+      if (firstVisible) {
+        setActiveModule(firstVisible);
+      }
+    }
+  }, [activeModule, isModuleVisible, teamConfigLoaded, setActiveModule]);
 
   // Subscribe to Supabase Realtime for automatic UI updates (only when authenticated)
   useRealtimeSync();

@@ -12,7 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Button, IconButton, SectionLoading } from "../../components/ui";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import {
   useDiscoverDomains,
   useValCredentials,
@@ -141,10 +141,8 @@ function DomainCredentialRow({ domain }: { domain: DiscoveredDomain }) {
 }
 
 export function ValCredentialsView() {
-  const { activeRepository } = useRepository();
-  const domainsPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/domains`
-    : null;
+  const paths = useKnowledgePaths();
+  const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
   const importCreds = useValImportCredentials();
 

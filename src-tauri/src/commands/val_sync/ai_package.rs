@@ -291,7 +291,7 @@ pub fn val_generate_ai_package(
         let skill_src_dir = skills_base.join(skill);
         let skill_src_md = skill_src_dir.join("SKILL.md");
         if !skill_src_md.exists() {
-            errors.push(format!("Skill not found: _skills/{}/SKILL.md", skill));
+            errors.push(format!("Skill not found: {}/SKILL.md", skill));
             continue;
         }
 

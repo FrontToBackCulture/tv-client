@@ -3,8 +3,10 @@
 // The main knowledge base lives in tv-knowledge/7_Knowledge/tv-desktop/help-bot-knowledge.md
 // and is read by Rust at runtime.
 
-/** Relative path from tv-knowledge root to the help bot knowledge file */
-export const HELP_KNOWLEDGE_PATH = "7_Knowledge/tv-desktop/help-bot-knowledge.md";
+/** Build help knowledge path using configurable knowledge folder name */
+export function getHelpKnowledgePath(knowledgeFolder: string): string {
+  return `${knowledgeFolder}/tv-desktop/help-bot-knowledge.md`;
+}
 
 const MODULE_CONTEXT: Record<string, string> = {
   library: `The user is in **Library**. They can browse files, open viewers, use folder AI chat, search, and manage favorites. The file tree is on the left, content on the right. Tabs at top track open files. ⌘. toggles a split view.`,

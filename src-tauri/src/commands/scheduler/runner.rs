@@ -51,6 +51,7 @@ pub async fn execute_job(
     run_id: &str,
     trigger: RunTrigger,
     app_handle: &tauri::AppHandle,
+    default_reports_folder: &str,
 ) {
     let started_at = Utc::now();
 
@@ -181,8 +182,9 @@ pub async fn execute_job(
             let prefix = job.report_prefix.as_deref().unwrap_or("sod");
             let report_filename = format!("{}-{}.html", prefix, date_str);
 
+            let reports_folder = job.sod_reports_folder.as_deref().unwrap_or(default_reports_folder);
             let skill_report_path = std::path::Path::new(&knowledge_path)
-                .join("0_Platform/sod-reports")
+                .join(reports_folder)
                 .join(&report_filename);
             if skill_report_path.exists() {
                 if let Ok(html) = std::fs::read_to_string(&skill_report_path) {

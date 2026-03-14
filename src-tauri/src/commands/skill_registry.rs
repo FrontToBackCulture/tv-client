@@ -11,6 +11,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{command, State};
 
+/// Resolve skills directory — folder name always provided by frontend
+fn resolve_skills_dir(kb: &str, skills_folder: &str) -> PathBuf {
+    PathBuf::from(kb).join(skills_folder)
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -294,11 +299,11 @@ fn now_sgt() -> String {
 
 /// One-time migration: copy existing skills into _skills/ and generate registry.json
 #[command]
-pub async fn skill_init(state: State<'_, AppState>) -> CmdResult<SkillInitResult> {
+pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> CmdResult<SkillInitResult> {
     let kb = &state.knowledge_path;
-    let skills_dir = PathBuf::from(kb).join("_skills");
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
     fs::create_dir_all(&skills_dir)
-        .map_err(|e| CommandError::Io(format!("Failed to create _skills/: {}", e)))?;
+        .map_err(|e| CommandError::Io(format!("Failed to create skills dir: {}", e)))?;
 
     // Load existing registry to preserve categories, status, and other metadata
     let default_categories = vec![
@@ -447,13 +452,14 @@ pub async fn skill_init(state: State<'_, AppState>) -> CmdResult<SkillInitResult
 pub async fn skill_distribute(
     state: State<'_, AppState>,
     slug: String,
+    skills_folder: String,
 ) -> CmdResult<Vec<SkillDriftStatus>> {
     let kb = &state.knowledge_path;
-    let skills_dir = PathBuf::from(kb).join("_skills");
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
     let source_dir = skills_dir.join(&slug);
 
     if !source_dir.exists() {
-        return Err(CommandError::NotFound(format!("Skill '{}' not found in _skills/", slug)));
+        return Err(CommandError::NotFound(format!("Skill '{}' not found in skills dir", slug)));
     }
 
     // Read registry
@@ -506,13 +512,14 @@ pub async fn skill_distribute(
 pub async fn skill_check(
     state: State<'_, AppState>,
     slug: String,
+    skills_folder: String,
 ) -> CmdResult<Vec<SkillDriftStatus>> {
     let kb = &state.knowledge_path;
-    let skills_dir = PathBuf::from(kb).join("_skills");
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
     let source_dir = skills_dir.join(&slug);
 
     if !source_dir.exists() {
-        return Err(CommandError::NotFound(format!("Skill '{}' not found in _skills/", slug)));
+        return Err(CommandError::NotFound(format!("Skill '{}' not found in skills dir", slug)));
     }
 
     // Read registry
@@ -572,9 +579,10 @@ pub async fn skill_pull(
     state: State<'_, AppState>,
     slug: String,
     target_path: String,
+    skills_folder: String,
 ) -> CmdResult<SkillDriftStatus> {
     let kb = &state.knowledge_path;
-    let skills_dir = PathBuf::from(kb).join("_skills");
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
     let source_dir = skills_dir.join(&slug);
     let target_dir = PathBuf::from(kb).join(&target_path);
 
@@ -606,14 +614,15 @@ pub async fn skill_diff(
     state: State<'_, AppState>,
     slug: String,
     target_path: String,
+    skills_folder: String,
 ) -> CmdResult<SkillDiffResult> {
     let kb = &state.knowledge_path;
-    let skills_dir = PathBuf::from(kb).join("_skills");
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
     let source_dir = skills_dir.join(&slug);
     let target_dir = PathBuf::from(kb).join(&target_path);
 
     if !source_dir.exists() {
-        return Err(CommandError::NotFound(format!("Skill '{}' not found in _skills/", slug)));
+        return Err(CommandError::NotFound(format!("Skill '{}' not found in skills dir", slug)));
     }
 
     // Collect files from both sides (using the same filter as hashing)
@@ -787,9 +796,10 @@ fn collect_distributed_files(folder: &Path) -> CmdResult<BTreeMap<String, PathBu
 #[command]
 pub async fn skill_check_all(
     state: State<'_, AppState>,
+    skills_folder: String,
 ) -> CmdResult<Vec<SkillDriftStatus>> {
     let kb = &state.knowledge_path;
-    let skills_dir = PathBuf::from(kb).join("_skills");
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
     let registry_path = skills_dir.join("registry.json");
 
     if !registry_path.exists() {
@@ -1039,13 +1049,14 @@ pub async fn skill_distribute_to(
     slug: String,
     target_path: String,
     dist_type: String,
+    skills_folder: String,
 ) -> CmdResult<SkillDriftStatus> {
     let kb = &state.knowledge_path;
-    let skills_dir = PathBuf::from(kb).join("_skills");
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
     let source_dir = skills_dir.join(&slug);
 
     if !source_dir.exists() {
-        return Err(CommandError::NotFound(format!("Skill '{}' not found in _skills/", slug)));
+        return Err(CommandError::NotFound(format!("Skill '{}' not found in skills dir", slug)));
     }
 
     // Build full target: for bot, target_path is like "_team/melvin/bot-mel/skills"
@@ -1104,9 +1115,10 @@ pub async fn skill_distribute_to(
 #[command]
 pub async fn skill_summary(
     state: State<'_, AppState>,
+    skills_folder: String,
 ) -> CmdResult<Vec<SkillModInfo>> {
     let kb = &state.knowledge_path;
-    let skills_dir = PathBuf::from(kb).join("_skills");
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
 
     if !skills_dir.exists() {
         return Ok(Vec::new());
@@ -1114,7 +1126,7 @@ pub async fn skill_summary(
 
     let mut results = Vec::new();
     let entries = fs::read_dir(&skills_dir)
-        .map_err(|e| CommandError::Io(format!("Failed to read _skills/: {}", e)))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read skills dir: {}", e)))?;
 
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
@@ -1177,9 +1189,10 @@ pub struct SkillExample {
 #[command]
 pub async fn skill_list_examples(
     state: State<'_, AppState>,
+    skills_folder: String,
 ) -> CmdResult<Vec<SkillExample>> {
     let kb = &state.knowledge_path;
-    let skills_dir = PathBuf::from(kb).join("_skills");
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
 
     if !skills_dir.exists() {
         return Ok(Vec::new());
@@ -1198,7 +1211,7 @@ pub async fn skill_list_examples(
     let mut results = Vec::new();
 
     let entries = fs::read_dir(&skills_dir)
-        .map_err(|e| CommandError::Io(format!("Failed to read _skills/: {}", e)))?;
+        .map_err(|e| CommandError::Io(format!("Failed to read skills dir: {}", e)))?;
 
     for entry in entries.flatten() {
         let slug = entry.file_name().to_string_lossy().to_string();

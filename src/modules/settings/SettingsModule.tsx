@@ -13,9 +13,13 @@ import {
   Megaphone,
   X,
   Stethoscope,
+  Users,
+  FolderOpen,
 } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { useAuth } from "../../stores/authStore";
+import { useTeamConfigStore } from "../../stores/teamConfigStore";
 import { cn } from "../../lib/cn";
 import { IconButton } from "../../components/ui";
 
@@ -27,8 +31,10 @@ import { McpEndpointsView } from "./McpEndpointsView";
 import { ClaudeCodeSetupView } from "./ClaudeCodeSetupView";
 import { PortalSettingsView } from "./PortalSettingsView";
 import { DiagnosticsView } from "./DiagnosticsView";
+import { TeamView } from "./TeamView";
+import { FolderPathsView } from "./FolderPathsView";
 
-type SettingsViewId = "keys" | "val" | "sync" | "mcp" | "claude" | "bots" | "portal" | "diagnostics";
+type SettingsViewId = "keys" | "val" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "diagnostics";
 
 interface SidebarItem {
   id: SettingsViewId;
@@ -36,14 +42,16 @@ interface SidebarItem {
   icon: LucideIcon;
 }
 
-const sidebarItems: SidebarItem[] = [
+const baseSidebarItems: SidebarItem[] = [
   { id: "keys", label: "API Keys", icon: Key },
   { id: "val", label: "VAL Credentials", icon: Database },
   { id: "sync", label: "Sync Paths", icon: RefreshCw },
+  { id: "folders", label: "Folder Paths", icon: FolderOpen },
   { id: "mcp", label: "MCP Endpoints", icon: Globe },
   { id: "claude", label: "Claude Code", icon: Cpu },
   { id: "bots", label: "Bots", icon: Bot },
   { id: "portal", label: "Portal", icon: Megaphone },
+  { id: "team", label: "Team", icon: Users },
   { id: "diagnostics", label: "Diagnostics", icon: Stethoscope },
 ];
 
@@ -52,6 +60,12 @@ export function SettingsModal() {
   const settingsView = useAppStore((s) => s.settingsView);
   const setSettingsView = useAppStore((s) => s.setSettingsView);
   const closeSettings = useAppStore((s) => s.closeSettings);
+  const user = useAuth((s) => s.user);
+  const isAdmin = useTeamConfigStore((s) => s.isAdmin);
+  const showTeam = user ? isAdmin(user.login) : false;
+  const sidebarItems = baseSidebarItems.filter(
+    (item) => item.id !== "team" || showTeam
+  );
   const [activeView, setActiveView] = useState<SettingsViewId>(
     (settingsView as SettingsViewId) || "keys"
   );
@@ -94,7 +108,7 @@ export function SettingsModal() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     if (!settingsOpen) return;
-    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", portal: "Portal", diagnostics: "Diagnostics" };
+    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", portal: "Portal", team: "Team", diagnostics: "Diagnostics" };
     setViewContext(activeView, labels[activeView]);
   }, [activeView, setViewContext, settingsOpen]);
 
@@ -156,10 +170,12 @@ export function SettingsModal() {
               {activeView === "keys" && <ApiKeysView />}
               {activeView === "val" && <ValCredentialsView />}
               {activeView === "sync" && <SyncPathsView />}
+              {activeView === "folders" && <FolderPathsView />}
               {activeView === "mcp" && <McpEndpointsView />}
               {activeView === "claude" && <ClaudeCodeSetupView />}
               {activeView === "bots" && <BotsPathView />}
               {activeView === "portal" && <PortalSettingsView />}
+              {activeView === "team" && <TeamView />}
               {activeView === "diagnostics" && <DiagnosticsView onNavigate={(view) => setActiveView(view as SettingsViewId)} />}
             </div>
           </div>

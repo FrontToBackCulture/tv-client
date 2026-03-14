@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { valSyncKeys } from "./types";
+import { useFolderConfig } from "../useKnowledgePaths";
 
 // ============================================================
 // Types
@@ -267,9 +268,11 @@ export function useListDomainTables(domain: string | undefined) {
 
 /** Scan all definition_analysis.json files to extract unique category values */
 export function useScanCategoryLibrary() {
+  const folderConfig = useFolderConfig();
+
   return useQuery({
     queryKey: ["val-category-library"],
-    queryFn: () => invoke<CategoryLibrary>("val_scan_category_library"),
+    queryFn: () => invoke<CategoryLibrary>("val_scan_category_library", { platformFolder: folderConfig.platform }),
     staleTime: 5 * 60_000, // Cache for 5 minutes
   });
 }

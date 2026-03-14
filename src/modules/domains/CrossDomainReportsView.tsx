@@ -19,7 +19,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useDiscoverDomains } from "../../hooks/val-sync";
 import { useFolderEntries, type FolderEntry } from "../../hooks/useFolderFiles";
 import { useReadFile, type FileEntry } from "../../hooks/useFiles";
@@ -45,16 +45,12 @@ interface ParsedSodReport {
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function CrossDomainReportsView() {
-  const { activeRepository } = useRepository();
-  const domainsPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/domains`
-    : null;
+  const paths = useKnowledgePaths();
+  const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
 
   // SOD reports (global)
-  const sodReportsPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/sod-reports`
-    : null;
+  const sodReportsPath = paths ? `${paths.platform}/sod-reports` : null;
   const { data: sodEntries } = useFolderEntries(sodReportsPath);
 
   // Domain folder index

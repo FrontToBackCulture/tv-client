@@ -3,17 +3,15 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { useRepository } from "../stores/repositoryStore";
+import { useKnowledgePaths } from "./useKnowledgePaths";
 
 /**
  * Create a new AI skill (folder + SKILL.md + registry entry).
  */
 export function useCreateAiSkill() {
-  const { activeRepository } = useRepository();
+  const paths = useKnowledgePaths();
   const queryClient = useQueryClient();
-  const skillsPath = activeRepository
-    ? `${activeRepository.path}/_skills`
-    : null;
+  const skillsPath = paths ? paths.skills : null;
 
   return useMutation({
     mutationFn: async ({ slug, name, description }: { slug: string; name: string; description: string }) => {

@@ -7,7 +7,8 @@ import { useHelpStore } from "../stores/helpStore";
 import { useAppStore } from "../stores/appStore";
 import { useViewContextStore } from "../stores/viewContextStore";
 import { useRepositoryStore } from "../stores/repositoryStore";
-import { buildSystemPrompt, HELP_KNOWLEDGE_PATH } from "../lib/help/helpContent";
+import { useFolderConfigStore } from "../stores/folderConfigStore";
+import { buildSystemPrompt, getHelpKnowledgePath } from "../lib/help/helpContent";
 
 const HIGHLIGHT_RE = /<highlight\s+id="([^"]+)"\s*\/>/g;
 
@@ -54,8 +55,9 @@ export function useHelpChat() {
 
     // Resolve knowledge base path from active repository
     const activeRepo = useRepositoryStore.getState().getActiveRepository();
+    const folderConfig = useFolderConfigStore.getState().config;
     const knowledgeBasePath = activeRepo
-      ? `${activeRepo.path}/${HELP_KNOWLEDGE_PATH}`
+      ? `${activeRepo.path}/${getHelpKnowledgePath(folderConfig.knowledge)}`
       : null;
 
     try {

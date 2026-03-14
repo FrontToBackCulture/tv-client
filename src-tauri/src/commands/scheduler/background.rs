@@ -9,21 +9,22 @@ use super::storage;
 use super::types::RunTrigger;
 
 /// Start the scheduler polling loop. Call from main.rs setup hook.
-pub fn start_scheduler(app_handle: tauri::AppHandle) {
+/// `default_reports_folder` is the fallback for jobs that don't have sod_reports_folder set.
+pub fn start_scheduler(app_handle: tauri::AppHandle, default_reports_folder: String) {
     tauri::async_runtime::spawn(async move {
         // Wait 15s before first check
         tokio::time::sleep(std::time::Duration::from_secs(15)).await;
         eprintln!("[scheduler] Background scheduler started");
 
         loop {
-            check_and_run_jobs(&app_handle).await;
+            check_and_run_jobs(&app_handle, &default_reports_folder).await;
             // Poll every 60s
             tokio::time::sleep(std::time::Duration::from_secs(60)).await;
         }
     });
 }
 
-async fn check_and_run_jobs(app_handle: &tauri::AppHandle) {
+async fn check_and_run_jobs(app_handle: &tauri::AppHandle, default_reports_folder: &str) {
     let jobs = match storage::load_jobs() {
         Ok(j) => j,
         Err(e) => {
@@ -65,8 +66,9 @@ async fn check_and_run_jobs(app_handle: &tauri::AppHandle) {
         );
 
         // Spawn in separate task so concurrent jobs are OK
+        let reports_folder = default_reports_folder.to_string();
         tauri::async_runtime::spawn(async move {
-            runner::execute_job(&job_clone, &run_id, RunTrigger::Scheduled, &handle).await;
+            runner::execute_job(&job_clone, &run_id, RunTrigger::Scheduled, &handle, &reports_folder).await;
         });
     }
 }

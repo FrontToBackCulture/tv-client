@@ -23,7 +23,7 @@ import { Button, IconButton } from "../../components/ui";
 import { SectionLoading, InlineLoading } from "../../components/ui/DetailStates";
 import { useListDirectory, useReadFile } from "../../hooks/useFiles";
 import { MarkdownViewer } from "../library/MarkdownViewer";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import {
   useGenerateAiPackage,
   useSaveDomainAiConfig,
@@ -54,7 +54,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   }, [registry]);
   const categories = registry?.categories ?? [];
   const skillEntries = registry?.skills ?? {};
-  const { activeRepository } = useRepository();
+  const paths = useKnowledgePaths();
   const queryClient = useQueryClient();
   const [selectedDoc, setSelectedDoc] = useState<{ path: string; name: string; type: "skill" | "instructions" } | null>(null);
   const [driftModal, setDriftModal] = useState<{ slug: string; name: string; targetPath: string } | null>(null);
@@ -63,9 +63,9 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
 
   // Drift detection for domain skills
   const { data: driftStatuses = [] } = useSkillCheckAll();
-  const domainSkillsRelPath = activeRepository
+  const domainSkillsRelPath = paths
     ? (() => {
-        const repoPath = activeRepository.path;
+        const repoPath = paths.base;
         const fullSkillsPath = `${aiPath}/skills`;
         return fullSkillsPath.startsWith(repoPath) ? fullSkillsPath.slice(repoPath.length + 1) : null;
       })()
@@ -83,11 +83,9 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
     return map;
   }, [driftStatuses, domainSkillsRelPath]);
 
-  const centralSkillsPath = activeRepository
-    ? `${activeRepository.path}/_skills`
-    : null;
-  const templatesPath = activeRepository
-    ? `${activeRepository.path}/_team/melvin/bot-mel/skills/ai-project-generator/templates`
+  const centralSkillsPath = paths ? paths.skills : null;
+  const templatesPath = paths
+    ? `${paths.base}/_team/melvin/bot-mel/skills/ai-project-generator/templates`
     : null;
 
   const skillsPath = `${aiPath}/skills`;

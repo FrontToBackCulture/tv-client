@@ -17,7 +17,7 @@ import {
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useDiscoverDomains } from "../../hooks/val-sync";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { UnifiedReviewView } from "../library/UnifiedReviewView";
 import type { ReviewResourceType } from "../library/reviewTypes";
 import { DomainsOverview } from "./DomainsOverview";
@@ -72,10 +72,8 @@ export function DomainsModule() {
   }, [reviewingDomain, reviewType, setViewContext, setViewDetail]);
 
   // Domain discovery (for review escape hatch path resolution + Level 2)
-  const { activeRepository } = useRepository();
-  const domainsPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/domains`
-    : null;
+  const paths = useKnowledgePaths();
+  const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
 
   // Find the discovered domain object for Level 2
@@ -119,8 +117,8 @@ export function DomainsModule() {
     );
     const basePath = reviewDomain
       ? reviewDomain.global_path
-      : activeRepository
-        ? `${activeRepository.path}/0_Platform/domains/production/${reviewingDomain}`
+      : paths
+        ? `${paths.platform}/domains/production/${reviewingDomain}`
         : null;
 
     const REVIEW_FOLDER: Record<ReviewType, string> = {

@@ -2352,7 +2352,6 @@ export type Database = {
           file_name: string
           id: string
           metrics: string[] | null
-          owner: string | null
           published: boolean
           report_url: string | null
           skill_slug: string
@@ -2373,7 +2372,6 @@ export type Database = {
           file_name: string
           id?: string
           metrics?: string[] | null
-          owner?: string | null
           published?: boolean
           report_url?: string | null
           skill_slug: string
@@ -2394,7 +2392,6 @@ export type Database = {
           file_name?: string
           id?: string
           metrics?: string[] | null
-          owner?: string | null
           published?: boolean
           report_url?: string | null
           skill_slug?: string

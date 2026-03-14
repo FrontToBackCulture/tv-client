@@ -2,6 +2,7 @@
 // AG Grid Enterprise review table for question library management
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { toast } from "../../stores/toastStore";
 import { AgGridReact } from "ag-grid-react";
 import {
   ColDef,
@@ -364,6 +365,7 @@ export function QuestionReviewGrid({ onSelectQuestion }: QuestionReviewGridProps
     api.resetColumnState();
     api.setRowGroupColumns(["category"]);
     setQuickFilter("");
+    toast.info("Layout reset to default");
   }, []);
 
   const autoSizeAllColumns = useCallback(() => {
@@ -401,6 +403,7 @@ export function QuestionReviewGrid({ onSelectQuestion }: QuestionReviewGridProps
     localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(newLayouts));
     setShowSaveDialog(false);
     setNewLayoutName("");
+    toast.success(`Layout "${name.trim()}" saved`);
   }, [savedLayouts]);
 
   const loadLayout = useCallback((name: string) => {
@@ -423,6 +426,7 @@ export function QuestionReviewGrid({ onSelectQuestion }: QuestionReviewGridProps
       api.setFilterModel(null);
     }
     setShowLayoutMenu(false);
+    toast.info(`Layout "${name}" applied`);
   }, [savedLayouts]);
 
   const deleteLayout = useCallback((name: string, e: React.MouseEvent) => {
@@ -435,6 +439,7 @@ export function QuestionReviewGrid({ onSelectQuestion }: QuestionReviewGridProps
       setDefaultLayoutName(null);
       localStorage.removeItem(DEFAULT_LAYOUT_KEY);
     }
+    toast.info(`Layout "${name}" deleted`);
   }, [savedLayouts, defaultLayoutName]);
 
   const toggleDefaultLayout = useCallback((name: string, e: React.MouseEvent) => {
@@ -442,9 +447,11 @@ export function QuestionReviewGrid({ onSelectQuestion }: QuestionReviewGridProps
     if (defaultLayoutName === name) {
       setDefaultLayoutName(null);
       localStorage.removeItem(DEFAULT_LAYOUT_KEY);
+      toast.info(`"${name}" removed as default`);
     } else {
       setDefaultLayoutName(name);
       localStorage.setItem(DEFAULT_LAYOUT_KEY, name);
+      toast.info(`"${name}" set as default layout`);
     }
   }, [defaultLayoutName]);
 

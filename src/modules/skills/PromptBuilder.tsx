@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useDiscoverDomains } from "../../hooks/val-sync";
 import { toast } from "../../stores/toastStore";
 import type { SkillRegistry } from "./useSkillRegistry";
@@ -327,9 +327,9 @@ interface PromptBuilderProps {
 }
 
 export function PromptBuilder({ registry }: PromptBuilderProps) {
-  const { activeRepository } = useRepository();
-  const skillsBase = activeRepository ? `${activeRepository.path}/_skills` : null;
-  const domainsPath = activeRepository ? `${activeRepository.path}/0_Platform/domains` : null;
+  const paths = useKnowledgePaths();
+  const skillsBase = paths ? paths.skills : null;
+  const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
 
   // State

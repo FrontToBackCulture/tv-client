@@ -1,5 +1,5 @@
 // Notion Background Sync
-// Starts 15s after app launch, runs incremental sync every 5 minutes
+// Starts 15s after app launch, runs incremental sync every hour
 
 use super::sync;
 
@@ -38,8 +38,8 @@ pub fn start_background_sync(app_handle: tauri::AppHandle) {
                 }
             }
 
-            // Wait 5 minutes before next sync
-            tokio::time::sleep(std::time::Duration::from_secs(300)).await;
+            // Wait 1 hour before next sync
+            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
         }
     });
 }

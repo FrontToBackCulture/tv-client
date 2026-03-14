@@ -3,7 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths, useFolderConfig } from "../../hooks/useKnowledgePaths";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,10 +30,7 @@ export interface SkillEntry {
   verified?: boolean;
   rating?: number;
   last_audited?: string;
-  needs_work?: string;
-  work_notes?: string;
-  action?: string;
-  outcome?: string;
+  owner?: string;
   gallery_pinned?: boolean;
   gallery_order?: number;
   distributions: SkillDistribution[];
@@ -106,9 +103,9 @@ export interface SkillDiffResult {
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useSkillRegistry() {
-  const { activeRepository } = useRepository();
-  const registryPath = activeRepository
-    ? `${activeRepository.path}/_skills/registry.json`
+  const paths = useKnowledgePaths();
+  const registryPath = paths
+    ? `${paths.skills}/registry.json`
     : null;
 
   return useQuery({
@@ -127,10 +124,11 @@ export function useSkillRegistry() {
 
 export function useSkillInit() {
   const queryClient = useQueryClient();
+  const folderConfig = useFolderConfig();
 
   return useMutation({
     mutationFn: async () => {
-      return invoke<SkillInitResult>("skill_init");
+      return invoke<SkillInitResult>("skill_init", { skillsFolder: folderConfig.skills });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skill-registry"] });
@@ -140,10 +138,11 @@ export function useSkillInit() {
 
 export function useSkillDistribute() {
   const queryClient = useQueryClient();
+  const folderConfig = useFolderConfig();
 
   return useMutation({
     mutationFn: async (slug: string) => {
-      return invoke<SkillDriftStatus[]>("skill_distribute", { slug });
+      return invoke<SkillDriftStatus[]>("skill_distribute", { slug, skillsFolder: folderConfig.skills });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skill-drift"] });
@@ -152,20 +151,24 @@ export function useSkillDistribute() {
 }
 
 export function useSkillCheck() {
+  const folderConfig = useFolderConfig();
+
   return useMutation({
     mutationFn: async (slug: string) => {
-      return invoke<SkillDriftStatus[]>("skill_check", { slug });
+      return invoke<SkillDriftStatus[]>("skill_check", { slug, skillsFolder: folderConfig.skills });
     },
   });
 }
 
 export function useSkillCheckAll() {
+  const folderConfig = useFolderConfig();
+
   return useQuery({
     queryKey: ["skill-drift"],
     queryFn: async () => {
       console.log("[DEBUG] skill_check_all: invoking...");
       try {
-        const result = await invoke<SkillDriftStatus[]>("skill_check_all");
+        const result = await invoke<SkillDriftStatus[]>("skill_check_all", { skillsFolder: folderConfig.skills });
         console.log("[DEBUG] skill_check_all: got", result?.length, "results", result);
         return result;
       } catch (e) {
@@ -178,19 +181,22 @@ export function useSkillCheckAll() {
 }
 
 export function useSkillDiff() {
+  const folderConfig = useFolderConfig();
+
   return useMutation({
     mutationFn: async ({ slug, targetPath }: { slug: string; targetPath: string }) => {
-      return invoke<SkillDiffResult>("skill_diff", { slug, targetPath });
+      return invoke<SkillDiffResult>("skill_diff", { slug, targetPath, skillsFolder: folderConfig.skills });
     },
   });
 }
 
 export function useSkillPull() {
   const queryClient = useQueryClient();
+  const folderConfig = useFolderConfig();
 
   return useMutation({
     mutationFn: async ({ slug, targetPath }: { slug: string; targetPath: string }) => {
-      return invoke<SkillDriftStatus>("skill_pull", { slug, targetPath });
+      return invoke<SkillDriftStatus>("skill_pull", { slug, targetPath, skillsFolder: folderConfig.skills });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skill-drift"] });
@@ -200,17 +206,17 @@ export function useSkillPull() {
 }
 
 export function useSkillRegistryUpdate() {
-  const { activeRepository } = useRepository();
+  const paths = useKnowledgePaths();
   const queryClient = useQueryClient();
 
-  const registryPath = activeRepository
-    ? `${activeRepository.path}/_skills/registry.json`
+  const registryPath = paths
+    ? `${paths.skills}/registry.json`
     : null;
 
   return useMutation({
     mutationFn: async (registry: SkillRegistry) => {
-      if (!activeRepository) throw new Error("No repository");
-      const path = `${activeRepository.path}/_skills/registry.json`;
+      if (!paths) throw new Error("No repository");
+      const path = `${paths.skills}/registry.json`;
       const content = JSON.stringify(registry, null, 2);
       await invoke("write_file", { path, content });
       return registry;
@@ -245,6 +251,7 @@ export function useSkillListBots() {
 
 export function useSkillDistributeTo() {
   const queryClient = useQueryClient();
+  const folderConfig = useFolderConfig();
 
   return useMutation({
     mutationFn: async ({
@@ -260,6 +267,7 @@ export function useSkillDistributeTo() {
         slug,
         targetPath,
         distType,
+        skillsFolder: folderConfig.skills,
       });
     },
     onSuccess: () => {
@@ -272,10 +280,12 @@ export function useSkillDistributeTo() {
 // ─── Skill summary (modification info) ──────────────────────────────────────
 
 export function useSkillSummary() {
+  const folderConfig = useFolderConfig();
+
   return useQuery({
     queryKey: ["skill-summary"],
     queryFn: async () => {
-      return invoke<SkillModInfo[]>("skill_summary");
+      return invoke<SkillModInfo[]>("skill_summary", { skillsFolder: folderConfig.skills });
     },
     staleTime: 30_000,
   });
@@ -292,10 +302,12 @@ export interface SkillExample {
 }
 
 export function useSkillExamples() {
+  const folderConfig = useFolderConfig();
+
   return useQuery({
     queryKey: ["skill-examples"],
     queryFn: async () => {
-      return invoke<SkillExample[]>("skill_list_examples");
+      return invoke<SkillExample[]>("skill_list_examples", { skillsFolder: folderConfig.skills });
     },
     staleTime: 60_000,
   });

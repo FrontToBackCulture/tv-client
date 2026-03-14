@@ -20,6 +20,7 @@ import type {
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../../stores/appStore";
 import { useEnrichSchemaDescriptions } from "../../hooks/val-sync";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { Loader2, Check, Sparkles } from "lucide-react";
 
 // ============================================================================
@@ -265,14 +266,9 @@ export function SchemaFieldsGrid({
   const aiPackageRef = useRef(schemaData.ai_package ?? false);
   const enrichMutation = useEnrichSchemaDescriptions();
 
-  // Derive domains base path from schema file path
-  // schemaFilePath: .../0_Platform/architecture/domain-model/entities/{entity}/{model}/schema.json
-  // domainsBasePath: .../0_Platform/domains/production/
-  const domainsBasePath = useMemo(() => {
-    const idx = schemaFilePath.indexOf("/0_Platform/");
-    if (idx === -1) return null;
-    return schemaFilePath.substring(0, idx) + "/0_Platform/domains/production";
-  }, [schemaFilePath]);
+  // Derive domains base path from knowledge paths config
+  const paths = useKnowledgePaths();
+  const domainsBasePath = paths ? `${paths.platform}/domains/production` : null;
 
   // Count how many fields have empty descriptions (to show enrich button)
   const emptyDescCount = useMemo(

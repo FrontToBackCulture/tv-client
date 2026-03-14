@@ -27,7 +27,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { cn } from "../../lib/cn";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import {
   useDomainModelEntities,
   useDomainModelFile,
@@ -122,9 +122,9 @@ type Selection =
 // ============================================================================
 
 export function DataModelTabView() {
-  const { activeRepository } = useRepository();
-  const entitiesPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/architecture/domain-model/entities`
+  const paths = useKnowledgePaths();
+  const entitiesPath = paths
+    ? `${paths.platform}/architecture/domain-model/entities`
     : null;
 
   const [search, setSearch] = useState("");

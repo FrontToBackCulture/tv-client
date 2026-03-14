@@ -138,7 +138,20 @@ impl SupabaseClient {
         table: &str,
         data: &T,
     ) -> CmdResult<R> {
-        let url = format!("{}/rest/v1/{}", self.base_url, table);
+        self.upsert_on(table, data, None).await
+    }
+
+    /// POST request with upsert on a specific conflict column
+    pub async fn upsert_on<T: Serialize, R: DeserializeOwned>(
+        &self,
+        table: &str,
+        data: &T,
+        on_conflict: Option<&str>,
+    ) -> CmdResult<R> {
+        let mut url = format!("{}/rest/v1/{}", self.base_url, table);
+        if let Some(col) = on_conflict {
+            url.push_str(&format!("?on_conflict={}", col));
+        }
 
         let mut headers = self.headers();
         // Override Prefer header for upsert

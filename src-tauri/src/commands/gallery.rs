@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use tauri::{command, State};
 use walkdir::WalkDir;
 
-use crate::commands::error::{CmdResult, CommandError};
+use crate::commands::error::CmdResult;
 use crate::AppState;
 
 #[derive(Debug, Serialize)]

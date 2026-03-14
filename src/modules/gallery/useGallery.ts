@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { useFolderConfig } from "../../hooks/useKnowledgePaths";
 
 export interface GalleryItem {
   file_name: string;
@@ -36,10 +37,12 @@ export function useGalleryScan() {
 }
 
 export function useSkillDemos() {
+  const folderConfig = useFolderConfig();
+
   return useQuery({
     queryKey: ["skill-examples"],
     queryFn: async () => {
-      return invoke<SkillExample[]>("skill_list_examples");
+      return invoke<SkillExample[]>("skill_list_examples", { skillsFolder: folderConfig.skills });
     },
     staleTime: 60_000,
   });

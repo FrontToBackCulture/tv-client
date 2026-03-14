@@ -38,6 +38,7 @@ fn build_s3_client(access_key: &str, secret_key: &str) -> aws_sdk_s3::Client {
 // ── Types ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Campaign {
     id: String,
     subject: String,
@@ -418,7 +419,7 @@ pub async fn email_send_campaign(
 pub async fn email_send_test(
     campaign_id: String,
     test_email: String,
-    api_base_url: String,
+    _api_base_url: String,
     knowledge_path: Option<String>,
 ) -> CmdResult<SendTestResult> {
     // Load AWS credentials from settings

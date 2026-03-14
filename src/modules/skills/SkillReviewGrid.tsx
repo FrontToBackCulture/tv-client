@@ -35,10 +35,11 @@ import {
 import { cn } from "../../lib/cn";
 import { Button } from "../../components/ui";
 import { useAppStore } from "../../stores/appStore";
+import { toast } from "../../stores/toastStore";
 import { groupRowStyles, themeStyles } from "../library/reviewGridStyles";
 import type { SkillRegistry, SkillCategory } from "./useSkillRegistry";
-import { useSkillRegistryUpdate, useSkillSummary } from "./useSkillRegistry";
-import { useReportSkillMap, useUpsertReportSkill, useUpdateSkillOwner } from "../../hooks/gallery/useReportSkills";
+import { useSkillRegistryUpdate } from "./useSkillRegistry";
+import { useReportSkillMap, useUpsertReportSkill } from "../../hooks/gallery/useReportSkills";
 import type { ReportSkill } from "../../lib/gallery/types";
 
 // Register AG Grid modules
@@ -52,7 +53,6 @@ if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
 
 interface SkillReviewRow {
   slug: string;
-  folder: string;
   name: string;
   category: string;
   parentCategory: string;
@@ -63,12 +63,7 @@ interface SkillReviewRow {
   command: string;
   verified: boolean;
   last_audited: string;
-  needs_work: string;
-  work_notes: string;
   owner: string;
-  action: string;
-  outcome: string;
-  last_modified: string;
   // Website library fields (from Supabase report_skill_library)
   webTitle: string;
   webDescription: string;
@@ -85,7 +80,6 @@ interface SkillReviewRow {
   _webFileName: string;
 }
 
-type ReviewFilter = "all" | "needs-work" | "stale" | "modified";
 
 const LAYOUT_STORAGE_KEY = "tv-desktop-skill-review-layouts";
 const DEFAULT_LAYOUT_KEY = "tv-desktop-skill-review-default-layout";
@@ -126,7 +120,6 @@ function isStale(lastAudited: string | undefined): boolean {
 // ─── Column Definitions ───────────────────────────────────────────────────────
 
 const STATUS_VALUES = ["active", "test", "review", "draft", "inactive", "deprecated"];
-const NEEDS_WORK_VALUES = ["", "audit", "schema update", "finish", "refactor", "rewrite"];
 
 function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] {
   return [
@@ -138,14 +131,6 @@ function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef
       filter: "agTextColumnFilter",
       pinned: "left",
       editable: true,
-      enableRowGroup: false,
-    },
-    {
-      field: "folder",
-      headerName: "Folder",
-      width: 180,
-      filter: "agTextColumnFilter",
-      cellClass: "text-xs font-mono text-zinc-500",
       enableRowGroup: false,
     },
     {
@@ -282,42 +267,6 @@ function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef
       },
     },
     {
-      field: "needs_work",
-      headerName: "Needs Work",
-      width: 130,
-      filter: "agSetColumnFilter",
-      editable: true,
-      cellEditor: "agSelectCellEditor",
-      cellEditorParams: { values: NEEDS_WORK_VALUES },
-      cellRenderer: (params: { value: string }) => {
-        if (!params.value) return <span className="text-zinc-300 dark:text-zinc-600 text-xs">—</span>;
-        const colors: Record<string, string> = {
-          audit: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-          "schema update": "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-          finish: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-          refactor: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-          rewrite: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-        };
-        return (
-          <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", colors[params.value] ?? "bg-zinc-100 text-zinc-600")}>
-            {params.value}
-          </span>
-        );
-      },
-    },
-    {
-      field: "work_notes",
-      headerName: "Notes",
-      minWidth: 150,
-      flex: 1,
-      filter: "agTextColumnFilter",
-      editable: true,
-      cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-      enableRowGroup: false,
-      wrapText: wrapNotes,
-      autoHeight: wrapNotes,
-    },
-    {
       field: "owner",
       headerName: "Owner",
       width: 120,
@@ -325,36 +274,6 @@ function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef
       editable: true,
       cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
       enableRowGroup: true,
-    },
-    {
-      field: "action",
-      headerName: "Action",
-      width: 140,
-      filter: "agTextColumnFilter",
-      editable: true,
-      cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-      enableRowGroup: false,
-    },
-    {
-      field: "outcome",
-      headerName: "Outcome",
-      width: 140,
-      filter: "agTextColumnFilter",
-      editable: true,
-      cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-      enableRowGroup: false,
-    },
-    {
-      field: "last_modified",
-      headerName: "Modified",
-      width: 100,
-      filter: "agTextColumnFilter",
-      cellClass: "text-xs text-zinc-500",
-      valueFormatter: (params) => {
-        if (!params.value) return "—";
-        return params.value.slice(0, 10);
-      },
-      sort: "desc",
     },
     // ── Website Library columns ──
     {
@@ -478,13 +397,10 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
   const theme = useAppStore((s) => s.theme);
   const gridRef = useRef<AgGridReact<SkillReviewRow>>(null);
   const registryUpdate = useSkillRegistryUpdate();
-  const { data: modInfos } = useSkillSummary();
   const { data: reportSkillMap } = useReportSkillMap();
   const upsertReportSkill = useUpsertReportSkill();
-  const updateSkillOwner = useUpdateSkillOwner();
 
   const [quickFilter, setQuickFilter] = useState("");
-  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const [wrapNotes, setWrapNotes] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRevalidating, setIsRevalidating] = useState(false);
@@ -536,18 +452,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isFullscreen]);
 
-  // Build modification info lookup
-  const modLookup = useMemo(() => {
-    const map: Record<string, string> = {};
-    if (modInfos) {
-      for (const m of modInfos) {
-        map[m.slug] = m.last_modified;
-      }
-    }
-    return map;
-  }, [modInfos]);
-
-  // Build row data from registry — only recalculate when skill count or modInfos change
+  // Build row data from registry — only recalculate when skill count changes
   // Use a ref to track the last registry version we built from
   const lastBuiltVersion = useRef<string>("");
   const [rowData, setRowData] = useState<SkillReviewRow[]>([]);
@@ -567,7 +472,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     return map;
   }, [reportSkillMap]);
 
-  const registryVersion = `${Object.keys(registry.skills).length}-${registry.updated}-${modInfos?.length ?? 0}-${reportSkillMap?.size ?? 0}`;
+  const registryVersion = `${Object.keys(registry.skills).length}-${registry.updated}-${reportSkillMap?.size ?? 0}`;
   useEffect(() => {
     if (lastBuiltVersion.current === registryVersion) return;
     lastBuiltVersion.current = registryVersion;
@@ -578,7 +483,6 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
       const web = webLookup[slug];
       rows.push({
         slug,
-        folder: slug,
         name: skill.name,
         category: skill.category,
         parentCategory,
@@ -589,12 +493,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
         command: skill.command ?? "",
         verified: skill.verified ?? false,
         last_audited: skill.last_audited ?? "",
-        needs_work: skill.needs_work ?? "",
-        work_notes: skill.work_notes ?? "",
-        owner: web?.owner ?? "",
-        action: skill.action ?? "",
-        outcome: skill.outcome ?? "",
-        last_modified: modLookup[slug] ?? "",
+        owner: skill.owner ?? "",
         webTitle: web?.title ?? "",
         webDescription: web?.description ?? "",
         webWriteup: web?.writeup ?? "",
@@ -610,31 +509,8 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
       });
     }
     setRowData(rows);
-  }, [registryVersion, registry, modLookup, webLookup]);
+  }, [registryVersion, registry, webLookup]);
 
-  // External filter via filter buttons
-  const isExternalFilterPresent = useCallback(() => reviewFilter !== "all", [reviewFilter]);
-
-  const doesExternalFilterPass = useCallback((node: { data?: SkillReviewRow }) => {
-    if (!node.data) return true;
-    switch (reviewFilter) {
-      case "needs-work":
-        return node.data.needs_work !== "";
-      case "stale":
-        return isStale(node.data.last_audited);
-      case "modified": {
-        const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        return !!node.data.last_modified && new Date(node.data.last_modified).getTime() > cutoff;
-      }
-      default:
-        return true;
-    }
-  }, [reviewFilter]);
-
-  // Re-run external filter when reviewFilter changes
-  useEffect(() => {
-    gridRef.current?.api?.onFilterChanged();
-  }, [reviewFilter]);
 
   const columnDefs = useMemo(() => buildColumns(wrapNotes), [wrapNotes]);
 
@@ -736,12 +612,6 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
         return;
       }
 
-      // ── Owner → Supabase (standalone) ──
-      if (field === "owner") {
-        updateSkillOwner.mutate({ skillSlug: data._webSkillSlug || slug, owner: data.owner || null });
-        return;
-      }
-
       // ── Registry fields → registry.json ──
       const skill = registry.skills[slug];
       if (!skill) return;
@@ -756,7 +626,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
         updatedSkill.category = result.categoryId;
         updatedCategories = result.categories;
       } else {
-        const editableFields = ["name", "target", "status", "domain", "command", "verified", "last_audited", "needs_work", "work_notes", "action", "outcome"] as const;
+        const editableFields = ["name", "target", "status", "domain", "command", "verified", "last_audited", "owner"] as const;
         if (!editableFields.includes(field as typeof editableFields[number])) return;
         updatedSkill = { ...skill, [field]: data[field] };
       }
@@ -773,11 +643,11 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
       };
 
       // Pre-set the version so the rebuild effect skips this mutation's invalidation
-      lastBuiltVersion.current = `${Object.keys(updated.skills).length}-${newTimestamp}-${modInfos?.length ?? 0}-${reportSkillMap?.size ?? 0}`;
+      lastBuiltVersion.current = `${Object.keys(updated.skills).length}-${newTimestamp}-${reportSkillMap?.size ?? 0}`;
 
       registryUpdate.mutate(updated);
     },
-    [registry, registryUpdate, resolveAndUpdateCategory, modInfos, reportSkillMap, upsertReportSkill, updateSkillOwner],
+    [registry, registryUpdate, resolveAndUpdateCategory, reportSkillMap, upsertReportSkill],
   );
 
   // ─── Layout actions ─────────────────────────────────────────────────────────
@@ -811,7 +681,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     api.resetColumnState();
     api.setRowGroupColumns(["parentCategory"]);
     setQuickFilter("");
-    setReviewFilter("all");
+    toast.info("Layout reset to default");
   }, []);
 
   const autoSizeAllColumns = useCallback(() => {
@@ -849,6 +719,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(newLayouts));
     setShowSaveDialog(false);
     setNewLayoutName("");
+    toast.success(`Layout "${name.trim()}" saved`);
   }, [savedLayouts]);
 
   const loadLayout = useCallback((name: string) => {
@@ -871,6 +742,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
       api.setFilterModel(null);
     }
     setShowLayoutMenu(false);
+    toast.info(`Layout "${name}" applied`);
   }, [savedLayouts]);
 
   const deleteLayout = useCallback((name: string, e: React.MouseEvent) => {
@@ -883,6 +755,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
       setDefaultLayoutName(null);
       localStorage.removeItem(DEFAULT_LAYOUT_KEY);
     }
+    toast.info(`Layout "${name}" deleted`);
   }, [savedLayouts, defaultLayoutName]);
 
   const toggleDefaultLayout = useCallback((name: string, e: React.MouseEvent) => {
@@ -890,9 +763,11 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     if (defaultLayoutName === name) {
       setDefaultLayoutName(null);
       localStorage.removeItem(DEFAULT_LAYOUT_KEY);
+      toast.info(`"${name}" removed as default`);
     } else {
       setDefaultLayoutName(name);
       localStorage.setItem(DEFAULT_LAYOUT_KEY, name);
+      toast.info(`"${name}" set as default layout`);
     }
   }, [defaultLayoutName]);
 
@@ -933,13 +808,6 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
 
   // ─── Filter counts ──────────────────────────────────────────────────────────
 
-  const filterCounts = useMemo(() => {
-    const needsWork = rowData.filter((r) => r.needs_work !== "").length;
-    const stale = rowData.filter((r) => isStale(r.last_audited)).length;
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const modified = rowData.filter((r) => r.last_modified && new Date(r.last_modified).getTime() > cutoff).length;
-    return { needsWork, stale, modified };
-  }, [rowData]);
 
   const themeClass = theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine";
 
@@ -969,27 +837,6 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
             />
           </div>
 
-          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1">
-            {([
-              ["all", `All (${rowData.length})`],
-              ["needs-work", `Needs Work (${filterCounts.needsWork})`],
-              ["stale", `Stale (${filterCounts.stale})`],
-              ["modified", `Modified (${filterCounts.modified})`],
-            ] as [ReviewFilter, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setReviewFilter(key)}
-                className={cn(
-                  "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
-                  reviewFilter === key
-                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
-                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Right: actions */}
@@ -1134,8 +981,6 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
           getRowClass={getRowClass}
           getRowHeight={getRowHeight}
           quickFilterText={quickFilter}
-          isExternalFilterPresent={isExternalFilterPresent}
-          doesExternalFilterPass={doesExternalFilterPass}
           onCellValueChanged={handleCellValueChanged}
           onFirstDataRendered={handleFirstDataRendered}
           onRowDoubleClicked={(e) => {

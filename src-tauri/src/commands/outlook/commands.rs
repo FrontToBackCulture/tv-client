@@ -179,7 +179,14 @@ pub async fn outlook_get_folders() -> CmdResult<Vec<EmailFolder>> {
 #[tauri::command]
 pub async fn outlook_bootstrap_contacts(
     state: tauri::State<'_, AppState>,
+    clients_folder: String,
+    company_folder: String,
 ) -> CmdResult<usize> {
     let db = EmailDb::open()?;
-    contacts::bootstrap_contacts(&db, &state.knowledge_path)
+    contacts::bootstrap_contacts(
+        &db,
+        &state.knowledge_path,
+        &clients_folder,
+        &company_folder,
+    )
 }

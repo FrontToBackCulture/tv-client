@@ -12,7 +12,7 @@ import { Button, IconButton } from "../../components/ui";
 import { SectionLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
 import { useFileTree, useReadFile, type TreeNode } from "../../hooks/useFiles";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths, useFolderConfig } from "../../hooks/useKnowledgePaths";
 import { MarkdownViewer } from "../library/MarkdownViewer";
 import { ExcalidrawViewer } from "../library/viewers/ExcalidrawViewer";
 import {
@@ -48,8 +48,9 @@ const driftStatusConfig: Record<string, { icon: typeof CheckCircle2; label: stri
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose, onOpenFile }: SkillDetailPanelProps) {
-  const { activeRepository } = useRepository();
-  const skillPath = activeRepository ? `${activeRepository.path}/_skills/${slug}` : undefined;
+  const paths = useKnowledgePaths();
+  const folderConfig = useFolderConfig();
+  const skillPath = paths ? `${paths.skills}/${slug}` : undefined;
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showDistPanel, setShowDistPanel] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState(false);
@@ -144,7 +145,7 @@ export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose
               className="text-xs text-zinc-400 font-mono flex-shrink-0 cursor-pointer hover:text-teal-500 transition-colors"
               title="Click to copy path"
               onClick={() => {
-                navigator.clipboard.writeText(`_skills/${slug}/SKILL.md`);
+                navigator.clipboard.writeText(`${folderConfig.skills}/${slug}/SKILL.md`);
                 setCopiedSlug(true);
                 setTimeout(() => setCopiedSlug(false), 1500);
               }}
@@ -512,7 +513,7 @@ function DistributionPanel({ slug, skill, driftStatuses }: {
     }));
     const discovered = discoveredDrifts.map(d => ({
       path: d.distribution_path,
-      type: d.distribution_path.startsWith("0_Platform/") ? "platform" : "bot",
+      type: d.distribution_path.startsWith("_team/") ? "bot" : "platform",
       isRegistered: false,
     }));
     return [...registered, ...discovered];

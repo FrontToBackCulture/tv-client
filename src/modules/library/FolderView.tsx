@@ -12,6 +12,7 @@ import { FolderChat } from "./FolderChat";
 import { FolderActions, FolderActionHandlers } from "./FolderActions";
 import { FileActions } from "./FileActions";
 import { detectFolderType, type FolderType } from "../../lib/folderTypes";
+import { useFolderConfig } from "../../hooks/useKnowledgePaths";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
 import { EmptyState } from "../../components/EmptyState";
 import { InlineLoading } from "../../components/ui/DetailStates";
@@ -272,7 +273,8 @@ export function FolderView({
   const favorite = isFavorite(path);
 
   // Detect folder type for context-specific actions
-  const folderType = useMemo(() => detectFolderType(path), [path]);
+  const folderConfig = useFolderConfig();
+  const folderType = useMemo(() => detectFolderType(path, folderConfig.clients), [path, folderConfig.clients]);
 
   // Reset to files view when navigating to a new folder
   useEffect(() => {

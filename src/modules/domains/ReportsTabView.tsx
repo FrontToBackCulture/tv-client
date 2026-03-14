@@ -4,7 +4,7 @@
 import { useState, useMemo } from "react";
 import { FileText, ExternalLink, Copy, Check } from "lucide-react";
 import { SectionLoading } from "../../components/ui/DetailStates";
-import { useRepository } from "../../stores/repositoryStore";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useFolderEntries, type FolderEntry } from "../../hooks/useFolderFiles";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
@@ -29,10 +29,8 @@ function parseReportFilename(entry: FolderEntry): ParsedReport | null {
 }
 
 export function ReportsTabView() {
-  const { activeRepository } = useRepository();
-  const reportsPath = activeRepository
-    ? `${activeRepository.path}/0_Platform/sod-reports`
-    : null;
+  const paths = useKnowledgePaths();
+  const reportsPath = paths ? `${paths.platform}/sod-reports` : null;
 
   const { data: entries, isLoading } = useFolderEntries(reportsPath);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
