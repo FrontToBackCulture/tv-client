@@ -80,6 +80,7 @@ interface SkillReviewRow {
   hasGuide: boolean;
   demoUploaded: boolean;
   demoUrl: string;
+  hasCards: boolean;
   // Website library fields (from Supabase report_skill_library)
   webTitle: string;
   webDescription: string;
@@ -381,6 +382,18 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
       cellClass: "text-xs font-mono text-zinc-500",
       hide: true,
     },
+    {
+      field: "hasCards",
+      headerName: "Cards",
+      width: 75,
+      filter: "agSetColumnFilter",
+      cellRenderer: (params: { value: boolean }) => {
+        if (params.value === undefined || params.value === null) return null;
+        return params.value
+          ? <span className="text-emerald-500 text-xs">Yes</span>
+          : <span className="text-zinc-400 text-xs">No</span>;
+      },
+    },
     // ── Website Library columns ──
     {
       headerName: "WEBSITE",
@@ -512,6 +525,24 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
       const { data, error } = await supabase.from("users").select("name").order("name");
       if (error) throw error;
       return (data ?? []).map(u => u.name);
+    },
+    staleTime: 60_000,
+  });
+  const { data: feedCardSlugs } = useQuery({
+    queryKey: ["feed-card-skill-slugs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("feed_cards")
+        .select("source_ref")
+        .like("source_ref", "skill:%");
+      if (error) throw error;
+      const slugs = new Set<string>();
+      for (const row of data ?? []) {
+        // source_ref is like "skill:generating-receipts-report" or "skill:slug:variant"
+        const parts = row.source_ref.split(":");
+        if (parts.length >= 2) slugs.add(parts[1]);
+      }
+      return slugs;
     },
     staleTime: 60_000,
   });
@@ -656,6 +687,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         hasGuide: skill.has_guide,
         demoUploaded: skill.demo_uploaded,
         demoUrl: skill.demo_url ?? "",
+        hasCards: feedCardSlugs?.has(skill.slug) ?? false,
         webTitle: web?.title ?? "",
         webDescription: web?.description ?? "",
         webWriteup: web?.writeup ?? "",
@@ -670,7 +702,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         _webFileName: web?.file_name ?? "",
       } satisfies SkillReviewRow;
     });
-  }, [skills, webLookup]);
+  }, [skills, webLookup, feedCardSlugs]);
 
   const columnDefs = useMemo(() => buildColumns(wrapNotes, users ?? []), [wrapNotes, users]);
 
