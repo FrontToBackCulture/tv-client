@@ -116,7 +116,7 @@ function ContextMenu({
   const allWorkspaces = [
     ...(workspaces ?? []),
     ...(inProgressWorkspaces ?? []),
-  ].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  ].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
 
   const handleCopyPath = async () => {
     await navigator.clipboard.writeText(path);
