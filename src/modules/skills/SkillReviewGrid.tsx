@@ -35,6 +35,7 @@ import {
   Loader2,
   ChevronDown,
   RefreshCw,
+  CloudUpload,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button } from "../../components/ui";
@@ -961,6 +962,49 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
     }
   }, [updateSkill]);
 
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+
+  const handleBulkUploadToS3 = useCallback(async () => {
+    if (!skillExamples?.length) {
+      toast.info("No demo files found to upload");
+      return;
+    }
+    setIsBulkUploading(true);
+    let success = 0;
+    let failed = 0;
+    // Group by slug — upload first demo per skill
+    const bySlug: Record<string, { file_path: string; file_name: string }> = {};
+    for (const ex of skillExamples) {
+      if (!bySlug[ex.slug]) bySlug[ex.slug] = { file_path: ex.file_path, file_name: ex.file_name };
+    }
+    const entries = Object.entries(bySlug);
+    toast.info(`Uploading ${entries.length} demos to S3...`);
+
+    for (const [slug, { file_path, file_name }] of entries) {
+      try {
+        const result = await invoke<{ url: string; s3_key: string; size_bytes: number }>("gallery_upload_demo_report", {
+          filePath: file_path,
+          skillSlug: slug,
+          fileName: file_name,
+        });
+        await supabase.from("skills").update({ demo_uploaded: true, demo_url: result.url }).eq("slug", slug);
+        await supabase.from("report_skill_library").upsert({
+          skill_slug: slug,
+          file_name: file_name,
+          title: slug,
+          report_url: result.url,
+        }, { onConflict: "skill_slug,file_name" });
+        success++;
+      } catch {
+        failed++;
+      }
+    }
+    setIsBulkUploading(false);
+    // Refresh grid
+    updateSkill.mutate({ slug: entries[0]?.[0] ?? "", updates: {} }, { onError: () => {} });
+    toast.success(`Bulk upload complete: ${success} uploaded, ${failed} failed`);
+  }, [skillExamples, updateSkill]);
+
   const getContextMenuItems = useCallback((params: GetContextMenuItemsParams<SkillReviewRow>) => {
     const items: ("copy" | "copyWithHeaders" | "paste" | "separator" | "export" | "autoSizeAll" | "resetColumns" | "expandAll" | "contractAll" | MenuItemDef<SkillReviewRow>)[] = [
       "copy",
@@ -1158,6 +1202,17 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
                   <div>
                     <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Sync Skills</div>
                     <div className="text-xs text-zinc-400 dark:text-zinc-500">Re-scan filesystem and update registry</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { handleBulkUploadToS3(); setActionsMenuOpen(false); }}
+                  disabled={isBulkUploading}
+                  className="w-full text-left px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 disabled:opacity-50 flex items-start gap-2.5"
+                >
+                  <CloudUpload size={15} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Upload All Demos to S3</div>
+                    <div className="text-xs text-zinc-400 dark:text-zinc-500">Upload all demo files to S3 storage</div>
                   </div>
                 </button>
                 <button

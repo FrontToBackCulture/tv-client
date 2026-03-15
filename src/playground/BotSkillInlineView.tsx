@@ -19,7 +19,8 @@ import { cn } from "../lib/cn";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
 import { ExcalidrawViewer } from "../modules/library/viewers/ExcalidrawViewer";
 import { IconButton } from "../components/ui";
-import { useSkillRegistry, useSkillRegistryUpdate } from "../modules/skills/useSkillRegistry";
+import { useSkillRegistry } from "../modules/skills/useSkillRegistry";
+import { useUpdateSkill } from "../hooks/skills/useSkills";
 import {
   type SkillStatus,
   SKILL_STATUS_CONFIG,
@@ -57,7 +58,7 @@ export function BotSkillInlineView({ skillPath, skillName, title, usage, onBack 
 
   // Status from registry
   const registryQuery = useSkillRegistry();
-  const registryUpdate = useSkillRegistryUpdate();
+  const updateSkill = useUpdateSkill();
   const registry = registryQuery.data;
   const regEntry = registry?.skills[skillName];
   const currentStatus: SkillStatus = regEntry?.status ?? "active";
@@ -65,21 +66,8 @@ export function BotSkillInlineView({ skillPath, skillName, title, usage, onBack 
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const handleStatusChange = (newStatus: SkillStatus) => {
-    if (!registry) return;
     const today = new Date().toISOString().slice(0, 10);
-    const updatedRegistry = {
-      ...registry,
-      updated: today,
-      skills: {
-        ...registry.skills,
-        [skillName]: {
-          ...registry.skills[skillName],
-          status: newStatus,
-          last_audited: today,
-        },
-      },
-    };
-    registryUpdate.mutate(updatedRegistry);
+    updateSkill.mutate({ slug: skillName, updates: { status: newStatus, last_audited: today } });
     setShowStatusMenu(false);
   };
 

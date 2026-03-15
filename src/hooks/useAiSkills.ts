@@ -1,12 +1,14 @@
 // src/hooks/useAiSkills.ts
-// Create AI skill — writes to _skills/ and registry.json
+// Create AI skill — writes to _skills/ folder and Supabase
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useKnowledgePaths } from "./useKnowledgePaths";
+import { supabase } from "../lib/supabase";
+import { skillKeys } from "./skills/keys";
 
 /**
- * Create a new AI skill (folder + SKILL.md + registry entry).
+ * Create a new AI skill (folder + SKILL.md + Supabase entry).
  */
 export function useCreateAiSkill() {
   const paths = useKnowledgePaths();
@@ -34,31 +36,23 @@ export function useCreateAiSkill() {
         path: `${dirPath}/SKILL.md`,
         content: skillMd,
       });
-      // Update registry.json
-      const raw = await invoke<string>("read_file", { path: `${skillsPath}/registry.json` });
-      const registry = JSON.parse(raw);
-      registry.skills[slug] = {
-        name,
-        description: description || "",
-        category: "platform",
-        target: "platform",
-        status: "draft",
-        distributions: [],
-      };
-      // Sort skills alphabetically
-      registry.skills = Object.fromEntries(
-        Object.entries(registry.skills).sort(([a], [b]) => a.localeCompare(b))
-      );
-      registry.updated = new Date().toISOString();
-      await invoke("write_file", {
-        path: `${skillsPath}/registry.json`,
-        content: JSON.stringify(registry, null, 2),
-      });
+      // Create entry in Supabase
+      const { error } = await supabase
+        .from("skills")
+        .upsert({
+          slug,
+          name,
+          description: description || "",
+          category: "platform",
+          target: "platform",
+          status: "draft",
+        }, { onConflict: "slug" });
+
+      if (error) throw new Error(`Failed to create skill in database: ${error.message}`);
       return { slug, name, description };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-skills"] });
-      queryClient.invalidateQueries({ queryKey: ["skill-registry"] });
+      queryClient.invalidateQueries({ queryKey: skillKeys.all });
     },
   });
 }

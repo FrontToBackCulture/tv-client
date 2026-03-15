@@ -11,7 +11,8 @@ import { useGalleryScan, useSkillDemos, type GalleryTab, type GalleryItem, type 
 import { useReadFile } from "../../hooks/useFiles";
 import { ImageEditor } from "./ImageEditor";
 import { ExcalidrawEditor } from "./ExcalidrawEditor";
-import { useSkillRegistry, useSkillRegistryUpdate } from "../skills/useSkillRegistry";
+import { useSkillRegistry } from "../skills/useSkillRegistry";
+import { useUpdateSkill } from "../../hooks/skills/useSkills";
 import { ReportDetailPanel } from "./ReportDetailPanel";
 import { QuestionsTab } from "./QuestionsTab";
 import { useReportSkillMap } from "../../hooks/gallery/useReportSkills";
@@ -130,7 +131,7 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
   const [showSortMenu, setShowSortMenu] = useState(false);
   const { data: selectedHtml } = useReadFile(selectedPath ?? undefined);
   const { data: registry } = useSkillRegistry();
-  const registryUpdate = useSkillRegistryUpdate();
+  const updateSkill = useUpdateSkill();
 
   const selectedExample = demos.find(e => e.file_path === selectedPath);
   const { data: reportSkillMap } = useReportSkillMap();
@@ -167,19 +168,10 @@ function ReportsTab({ demos, search, isLoading }: { demos: SkillExample[]; searc
   }, [registry]);
 
   const togglePin = useCallback((slug: string) => {
-    if (!registry) return;
-    const entry = registry.skills[slug] ?? { name: slug, description: "", category: "uncategorized", target: "platform" as const, status: "active" as const, distributions: [] };
-    const today = new Date().toISOString().slice(0, 10);
-    const updatedRegistry = {
-      ...registry,
-      updated: today,
-      skills: {
-        ...registry.skills,
-        [slug]: { ...entry, gallery_pinned: !entry.gallery_pinned },
-      },
-    };
-    registryUpdate.mutate(updatedRegistry);
-  }, [registry, registryUpdate]);
+    const entry = registry?.skills[slug];
+    const currentPinned = entry?.gallery_pinned ?? false;
+    updateSkill.mutate({ slug, updates: { gallery_pinned: !currentPinned } });
+  }, [registry, updateSkill]);
 
   // Filter, sort, and group
   const { pinnedItems, groups } = useMemo(() => {

@@ -23,8 +23,8 @@ import {
   useSkillPull,
   useSkillDistributeTo,
   useSkillListBots,
-  useSkillRegistryUpdate,
 } from "./useSkillRegistry";
+import { useUpdateSkill } from "../../hooks/skills/useSkills";
 import { SKILL_STATUS_CONFIG, type SkillStatus } from "../../playground/botPlaygroundTypes";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -47,14 +47,14 @@ const driftStatusConfig: Record<string, { icon: typeof CheckCircle2; label: stri
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose, onOpenFile }: SkillDetailPanelProps) {
+export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFile }: SkillDetailPanelProps) {
   const paths = useKnowledgePaths();
   const folderConfig = useFolderConfig();
   const skillPath = paths ? `${paths.skills}/${slug}` : undefined;
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showDistPanel, setShowDistPanel] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState(false);
-  const registryUpdate = useSkillRegistryUpdate();
+  const updateSkill = useUpdateSkill();
 
   // Read recursive file tree
   const { data: tree } = useFileTree(skillPath, 3);
@@ -89,15 +89,7 @@ export function SkillDetailPanel({ slug, skill, registry, driftStatuses, onClose
   const mentionedCount = skill.distributions.filter(d => d.type === "bot").length;
 
   const handleStatusChange = (newStatus: SkillStatus) => {
-    const updated: SkillRegistry = {
-      ...registry,
-      updated: new Date().toISOString(),
-      skills: {
-        ...registry.skills,
-        [slug]: { ...skill, status: newStatus },
-      },
-    };
-    registryUpdate.mutate(updated);
+    updateSkill.mutate({ slug, updates: { status: newStatus } });
     setShowStatusMenu(false);
   };
 
