@@ -3,6 +3,7 @@
 
 use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::settings;
+use crate::commands::supabase::get_client;
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -83,6 +84,90 @@ pub struct SkillRegistry {
     pub updated: String,
     pub categories: Vec<SkillCategory>,
     pub skills: BTreeMap<String, SkillEntry>,
+}
+
+/// Row shape from Supabase `skills` table
+#[derive(Debug, Deserialize)]
+struct SkillDbRow {
+    slug: String,
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    category: String,
+    #[serde(default)]
+    distributions: Vec<SkillDistribution>,
+}
+
+/// Load skills from Supabase and build a BTreeMap keyed by slug
+async fn load_skills_from_db() -> CmdResult<BTreeMap<String, SkillEntry>> {
+    let client = get_client().await?;
+    let rows: Vec<SkillDbRow> = client
+        .select("skills", "select=slug,name,description,category,distributions&order=slug.asc")
+        .await?;
+
+    let mut map = BTreeMap::new();
+    for row in rows {
+        map.insert(row.slug, SkillEntry {
+            name: row.name,
+            description: row.description,
+            category: row.category,
+            target: String::new(),
+            status: String::new(),
+            command: None,
+            domain: None,
+            verified: None,
+            rating: None,
+            last_audited: None,
+            needs_work: None,
+            work_notes: None,
+            action: None,
+            outcome: None,
+            gallery_pinned: None,
+            gallery_order: None,
+            has_demo: None,
+            has_examples: None,
+            has_deck: None,
+            has_guide: None,
+            distributions: row.distributions,
+        });
+    }
+    Ok(map)
+}
+
+/// Load a single skill's distributions from Supabase
+async fn load_skill_from_db(slug: &str) -> CmdResult<SkillEntry> {
+    let client = get_client().await?;
+    let rows: Vec<SkillDbRow> = client
+        .select("skills", &format!("slug=eq.{}&select=slug,name,description,category,distributions", slug))
+        .await?;
+
+    let row = rows.into_iter().next()
+        .ok_or_else(|| CommandError::NotFound(format!("Skill '{}' not found in database", slug)))?;
+
+    Ok(SkillEntry {
+        name: row.name,
+        description: row.description,
+        category: row.category,
+        target: String::new(),
+        status: String::new(),
+        command: None,
+        domain: None,
+        verified: None,
+        rating: None,
+        last_audited: None,
+        needs_work: None,
+        work_notes: None,
+        action: None,
+        outcome: None,
+        gallery_pinned: None,
+        gallery_order: None,
+        has_demo: None,
+        has_examples: None,
+        has_deck: None,
+        has_guide: None,
+        distributions: row.distributions,
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -306,7 +391,7 @@ fn now_sgt() -> String {
 
 // ─── Commands ────────────────────────────────────────────────────────────────
 
-/// One-time migration: copy existing skills into _skills/ and generate registry.json
+/// Scan filesystem skills and return results (Supabase is the source of truth)
 #[command]
 pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> CmdResult<SkillInitResult> {
     let kb = &state.knowledge_path;
@@ -328,19 +413,13 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
         SkillCategory { id: "insights".into(), label: "Insights".into() },
         SkillCategory { id: "recon".into(), label: "Recon".into() },
     ];
-    let registry_path = skills_dir.join("registry.json");
-    let existing_registry = if registry_path.exists() {
-        fs::read_to_string(&registry_path)
-            .ok()
-            .and_then(|content| serde_json::from_str::<SkillRegistry>(&content).ok())
-    } else {
-        None
-    };
+    // Start with empty registry — skill_init scans filesystem and returns results
+    // Metadata (category, status, owner, etc.) lives in Supabase, not here
     let mut registry = SkillRegistry {
         version: 1,
         updated: now_sgt(),
-        categories: existing_registry.as_ref().map(|r| r.categories.clone()).unwrap_or(default_categories),
-        skills: existing_registry.as_ref().map(|r| r.skills.clone()).unwrap_or_default(),
+        categories: default_categories,
+        skills: BTreeMap::new(),
     };
 
     let mut result = SkillInitResult {
@@ -404,52 +483,35 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
                     (slug.clone(), String::new(), None)
                 };
 
-                // Preserve existing entry, only update content fields from SKILL.md
-                let existing = existing_registry.as_ref().and_then(|r| r.skills.get(&slug));
-                let entry = if let Some(e) = existing {
-                    // Existing skill: update content fields, preserve all metadata
-                    let mut updated = e.clone();
-                    updated.name = skill_name;
-                    updated.description = description;
-                    updated.command = cmd;
-                    // Auto-detect artifacts
-                    let skill_dir = skills_dir.join(&slug);
-                    updated.has_demo = Some(skill_dir.join("demo").exists() || skill_dir.join("demo-data").exists());
-                    updated.has_examples = Some(skill_dir.join("examples").exists());
-                    updated.has_deck = Some(skill_dir.join("deck.html").exists());
-                    updated.has_guide = Some(skill_dir.join("guide.html").exists());
-                    updated
-                } else {
-                    // New skill: create with defaults
-                    let category = bot_categories.get(&slug).cloned()
-                        .unwrap_or_else(|| "val".to_string());
-                    let skill_dir = skills_dir.join(&slug);
-                    SkillEntry {
-                        name: skill_name,
-                        description,
-                        category,
-                        target: "bot".to_string(),
-                        status: "active".to_string(),
-                        command: cmd,
-                        domain: None,
-                        verified: None,
-                        rating: None,
-                        last_audited: None,
-                        needs_work: None,
-                        work_notes: None,
-                        action: None,
-                        outcome: None,
-                        gallery_pinned: None,
-                        gallery_order: None,
-                        has_demo: Some(skill_dir.join("demo").exists() || skill_dir.join("demo-data").exists()),
-                        has_examples: Some(skill_dir.join("examples").exists()),
-                        has_deck: Some(skill_dir.join("deck.html").exists()),
-                        has_guide: Some(skill_dir.join("guide.html").exists()),
-                        distributions: vec![SkillDistribution {
-                            path: format!("_team/melvin/bot-mel/skills/{}", slug),
-                            dist_type: "bot".to_string(),
-                        }],
-                    }
+                // Create entry from filesystem scan — metadata lives in Supabase
+                let category = bot_categories.get(&slug).cloned()
+                    .unwrap_or_else(|| "val".to_string());
+                let skill_dir = skills_dir.join(&slug);
+                let entry = SkillEntry {
+                    name: skill_name,
+                    description,
+                    category,
+                    target: "bot".to_string(),
+                    status: "active".to_string(),
+                    command: cmd,
+                    domain: None,
+                    verified: None,
+                    rating: None,
+                    last_audited: None,
+                    needs_work: None,
+                    work_notes: None,
+                    action: None,
+                    outcome: None,
+                    gallery_pinned: None,
+                    gallery_order: None,
+                    has_demo: Some(skill_dir.join("demo").exists() || skill_dir.join("demo-data").exists()),
+                    has_examples: Some(skill_dir.join("examples").exists()),
+                    has_deck: Some(skill_dir.join("deck.html").exists()),
+                    has_guide: Some(skill_dir.join("guide.html").exists()),
+                    distributions: vec![SkillDistribution {
+                        path: format!("_team/melvin/bot-mel/skills/{}", slug),
+                        dist_type: "bot".to_string(),
+                    }],
                 };
                 registry.skills.insert(slug.clone(), entry);
 
@@ -566,15 +628,8 @@ pub async fn skill_distribute(
         return Err(CommandError::NotFound(format!("Skill '{}' not found in skills dir", slug)));
     }
 
-    // Read registry
-    let registry_path = skills_dir.join("registry.json");
-    let registry_content = fs::read_to_string(&registry_path)
-        .map_err(|e| CommandError::Io(format!("Failed to read registry.json: {}", e)))?;
-    let registry: SkillRegistry = serde_json::from_str(&registry_content)
-        .map_err(|e| CommandError::Parse(format!("Failed to parse registry.json: {}", e)))?;
-
-    let entry = registry.skills.get(&slug)
-        .ok_or_else(|| CommandError::NotFound(format!("Skill '{}' not found in registry", slug)))?;
+    // Load skill from Supabase
+    let entry = load_skill_from_db(&slug).await?;
 
     let source_hash = hash_skill_folder(&source_dir)?;
     let mut results = Vec::new();
@@ -598,12 +653,20 @@ pub async fn skill_distribute(
     }
 
     // After distributing, regenerate _categories.json for each bot target
-    for dist in &entry.distributions {
-        if dist.dist_type == "bot" {
-            // dist.path is like "_team/melvin/bot-mel/skills/accounting"
-            // We need the parent: "_team/melvin/bot-mel/skills"
-            if let Some(parent) = Path::new(&dist.path).parent() {
-                let _ = regenerate_bot_categories_for(kb, &parent.to_string_lossy(), &registry);
+    let has_bot_dist = entry.distributions.iter().any(|d| d.dist_type == "bot");
+    if has_bot_dist {
+        let all_skills = load_skills_from_db().await?;
+        let registry = SkillRegistry {
+            version: 1,
+            updated: String::new(),
+            categories: Vec::new(),
+            skills: all_skills,
+        };
+        for dist in &entry.distributions {
+            if dist.dist_type == "bot" {
+                if let Some(parent) = Path::new(&dist.path).parent() {
+                    let _ = regenerate_bot_categories_for(kb, &parent.to_string_lossy(), &registry);
+                }
             }
         }
     }
@@ -626,15 +689,8 @@ pub async fn skill_check(
         return Err(CommandError::NotFound(format!("Skill '{}' not found in skills dir", slug)));
     }
 
-    // Read registry
-    let registry_path = skills_dir.join("registry.json");
-    let registry_content = fs::read_to_string(&registry_path)
-        .map_err(|e| CommandError::Io(format!("Failed to read registry.json: {}", e)))?;
-    let registry: SkillRegistry = serde_json::from_str(&registry_content)
-        .map_err(|e| CommandError::Parse(format!("Failed to parse registry.json: {}", e)))?;
-
-    let entry = registry.skills.get(&slug)
-        .ok_or_else(|| CommandError::NotFound(format!("Skill '{}' not found in registry", slug)))?;
+    // Load skill from Supabase
+    let entry = load_skill_from_db(&slug).await?;
 
     let source_hash = hash_skill_folder(&source_dir)?;
     let mut results = Vec::new();
@@ -904,19 +960,21 @@ pub async fn skill_check_all(
 ) -> CmdResult<Vec<SkillDriftStatus>> {
     let kb = &state.knowledge_path;
     let skills_dir = resolve_skills_dir(kb, &skills_folder);
-    let registry_path = skills_dir.join("registry.json");
 
-    if !registry_path.exists() {
+    // Load all skills from Supabase
+    let db_skills = load_skills_from_db().await.unwrap_or_default();
+    if db_skills.is_empty() {
         return Ok(Vec::new());
     }
 
-    let registry_content = fs::read_to_string(&registry_path)
-        .map_err(|e| CommandError::Io(format!("Failed to read registry.json: {}", e)))?;
-    let registry: SkillRegistry = serde_json::from_str(&registry_content)
-        .map_err(|e| CommandError::Parse(format!("Failed to parse registry.json: {}", e)))?;
+    let registry = SkillRegistry {
+        version: 1,
+        updated: String::new(),
+        categories: Vec::new(),
+        skills: db_skills,
+    };
 
     let mut all_results = Vec::new();
-    // DEBUG: write to temp file
     let mut dbg_lines: Vec<String> = Vec::new();
     dbg_lines.push(format!("kb={}", kb));
     dbg_lines.push(format!("skills_dir={}", skills_dir.display()));
@@ -1145,7 +1203,7 @@ pub async fn skill_list_bots(state: State<'_, AppState>) -> CmdResult<Vec<BotInf
 }
 
 /// Distribute a skill to a specific target path (ad-hoc push to a bot or platform).
-/// This copies the skill, writes the marker, adds the distribution to registry.json,
+/// This copies the skill, writes the marker, adds the distribution to Supabase,
 /// and regenerates _categories.json for bot targets.
 #[command]
 pub async fn skill_distribute_to(
@@ -1173,32 +1231,33 @@ pub async fn skill_distribute_to(
 
     let source_hash = hash_skill_folder(&source_dir)?;
 
-    // Update registry.json — add this distribution if not already present
-    let registry_path = skills_dir.join("registry.json");
-    let registry_content = fs::read_to_string(&registry_path)
-        .map_err(|e| CommandError::Io(format!("Failed to read registry.json: {}", e)))?;
-    let mut registry: SkillRegistry = serde_json::from_str(&registry_content)
-        .map_err(|e| CommandError::Parse(format!("Failed to parse registry.json: {}", e)))?;
-
-    if let Some(entry) = registry.skills.get_mut(&slug) {
-        let already_exists = entry.distributions.iter().any(|d| d.path == full_target);
-        if !already_exists {
-            entry.distributions.push(SkillDistribution {
-                path: full_target.clone(),
-                dist_type: dist_type.clone(),
-            });
-        }
+    // Update Supabase — add this distribution if not already present
+    let mut entry = load_skill_from_db(&slug).await?;
+    let already_exists = entry.distributions.iter().any(|d| d.path == full_target);
+    if !already_exists {
+        entry.distributions.push(SkillDistribution {
+            path: full_target.clone(),
+            dist_type: dist_type.clone(),
+        });
+        // Write updated distributions back to Supabase
+        let client = get_client().await?;
+        let update_data = serde_json::json!({
+            "distributions": entry.distributions,
+        });
+        let _: Vec<serde_json::Value> = client
+            .update("skills", &format!("slug=eq.{}", slug), &update_data)
+            .await?;
     }
-
-    // Write updated registry
-    registry.updated = now_sgt();
-    let updated_json = serde_json::to_string_pretty(&registry)
-        .map_err(|e| CommandError::Parse(format!("Failed to serialize registry: {}", e)))?;
-    fs::write(&registry_path, updated_json)
-        .map_err(|e| CommandError::Io(format!("Failed to write registry.json: {}", e)))?;
 
     // Regenerate _categories.json for bot targets
     if dist_type == "bot" {
+        let all_skills = load_skills_from_db().await?;
+        let registry = SkillRegistry {
+            version: 1,
+            updated: String::new(),
+            categories: Vec::new(),
+            skills: all_skills,
+        };
         let _ = regenerate_bot_categories_for(kb, &target_path, &registry);
     }
 
@@ -1302,15 +1361,8 @@ pub async fn skill_list_examples(
         return Ok(Vec::new());
     }
 
-    // Load registry for skill names
-    let registry_path = skills_dir.join("registry.json");
-    let registry: Option<SkillRegistry> = if registry_path.exists() {
-        fs::read_to_string(&registry_path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-    } else {
-        None
-    };
+    // Load skill names from Supabase
+    let db_skills = load_skills_from_db().await.unwrap_or_default();
 
     let mut results = Vec::new();
 
@@ -1328,7 +1380,7 @@ pub async fn skill_list_examples(
             continue;
         }
 
-        let skill_entry = registry.as_ref().and_then(|r| r.skills.get(&slug));
+        let skill_entry = db_skills.get(&slug);
         let skill_name = skill_entry
             .map(|s| s.name.clone())
             .unwrap_or_else(|| slug.clone());
