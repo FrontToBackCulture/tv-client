@@ -102,6 +102,7 @@ pub struct SkillInitResult {
     pub bot_skills: u32,
     pub platform_skills: u32,
     pub errors: Vec<String>,
+    pub skills: BTreeMap<String, SkillEntry>,
 }
 
 #[derive(Debug, Serialize)]
@@ -347,6 +348,7 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
         bot_skills: 0,
         platform_skills: 0,
         errors: Vec::new(),
+        skills: BTreeMap::new(),
     };
 
     // ── Read bot skill categories ──
@@ -543,11 +545,8 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
         result.errors.push(format!("Removed {} stale entries: {}", stale_slugs.len(), stale_slugs.join(", ")));
     }
 
-    // ── Write registry.json ──
-    let registry_json = serde_json::to_string_pretty(&registry)
-        .map_err(|e| CommandError::Parse(format!("Failed to serialize registry: {}", e)))?;
-    fs::write(skills_dir.join("registry.json"), registry_json)
-        .map_err(|e| CommandError::Io(format!("Failed to write registry.json: {}", e)))?;
+    // Return scanned skills (no file write — Supabase is the source of truth)
+    result.skills = registry.skills;
 
     Ok(result)
 }

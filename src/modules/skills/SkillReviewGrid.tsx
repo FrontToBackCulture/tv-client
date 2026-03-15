@@ -42,8 +42,7 @@ import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
 import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
 import { invoke } from "@tauri-apps/api/core";
-import { useSkillInit, useSkillRegistry, useSkillExamples } from "./useSkillRegistry";
-import type { SkillCategory as RegistryCategory } from "./useSkillRegistry";
+import { useSkillInit, useSkillExamples } from "./useSkillRegistry";
 import { useQuery } from "@tanstack/react-query";
 import { useSkills, useUpdateSkill, useBulkUpsertSkills } from "../../hooks/skills/useSkills";
 import { supabase } from "../../lib/supabase";
@@ -506,7 +505,6 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
   const updateSkill = useUpdateSkill();
   const bulkUpsert = useBulkUpsertSkills();
   const { data: skills = [], isLoading } = useSkills();
-  const { refetch: refetchRegistry } = useSkillRegistry();
   const { data: users } = useQuery({
     queryKey: ["users-for-skills"],
     queryFn: async () => {
@@ -528,51 +526,24 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
 
   const handleSkillInit = useCallback(async () => {
     try {
-      // Step 1: Scan filesystem → update registry.json
+      // Step 1: Scan filesystem — returns skills data directly (no file write)
       const result = await skillInit.mutateAsync(undefined);
       toast.info(`Filesystem scanned: ${result.skills_created} skills found. Pushing to database...`);
 
-      // Step 2: Re-read registry.json to get updated data
-      const { data: freshRegistry } = await refetchRegistry();
-      if (!freshRegistry?.skills) {
-        toast.error("Failed to read updated registry");
-        return;
-      }
-
-      // Step 3: Resolve categories and push to Supabase
-      const resolveCategory = (categoryId: string, categories: RegistryCategory[]) => {
-        if (!categoryId) return { category: "Uncategorized", subcategory: null as string | null };
-        const cat = categories.find(c => c.id === categoryId);
-        if (!cat) return { category: categoryId, subcategory: null as string | null };
-        if (cat.parent) {
-          const parent = categories.find(c => c.id === cat.parent);
-          return { category: parent?.label ?? cat.parent, subcategory: cat.label };
-        }
-        return { category: cat.label, subcategory: null as string | null };
-      };
-
-      const rows = Object.entries(freshRegistry.skills).map(([slug, skill]) => {
-        const { category, subcategory } = resolveCategory(skill.category, freshRegistry.categories);
-        return {
-          slug,
-          name: skill.name,
-          description: skill.description || "",
-          category,
-          subcategory,
-          target: skill.target || "platform",
-          status: skill.status || "active",
-          command: skill.command || null,
-          domain: skill.domain || null,
-          verified: skill.verified ?? false,
-          owner: skill.owner || null,
-          last_audited: skill.last_audited || null,
-          has_demo: skill.has_demo ?? false,
-          has_examples: skill.has_examples ?? false,
-          has_deck: skill.has_deck ?? false,
-          has_guide: skill.has_guide ?? false,
-          distributions: skill.distributions || [],
-        };
-      });
+      // Step 2: Push scanned skills to Supabase (only filesystem-derived fields)
+      const rows = Object.entries(result.skills as Record<string, {
+        name: string; description: string; target: string; status: string;
+        command?: string; domain?: string; has_demo?: boolean; has_examples?: boolean;
+        has_deck?: boolean; has_guide?: boolean; distributions?: unknown[];
+      }>).map(([slug, skill]) => ({
+        slug,
+        name: skill.name,
+        description: skill.description || "",
+        has_demo: skill.has_demo ?? false,
+        has_examples: skill.has_examples ?? false,
+        has_deck: skill.has_deck ?? false,
+        has_guide: skill.has_guide ?? false,
+      }));
 
       await bulkUpsert.mutateAsync(rows);
 
@@ -599,7 +570,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
     } catch (err) {
       toast.error(`Skill sync failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [skillInit, refetchRegistry, bulkUpsert]);
+  }, [skillInit, bulkUpsert]);
 
   const handleRevalidateWebsite = useCallback(async () => {
     setIsRevalidating(true);

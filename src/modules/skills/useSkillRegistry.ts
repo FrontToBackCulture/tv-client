@@ -62,6 +62,7 @@ export interface SkillInitResult {
   bot_skills: number;
   platform_skills: number;
   errors: string[];
+  skills: Record<string, SkillEntry>;
 }
 
 export interface BotInfo {
