@@ -2,9 +2,8 @@
 // Browse, search, filter all skills in the central registry
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Download, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown, ChevronsDownUp, ShieldCheck, LayoutDashboard, Table2, Zap } from "lucide-react";
+import { Search, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown, ChevronsDownUp, ShieldCheck, LayoutDashboard, Table2, Zap } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
-import { Button } from "../../components/ui";
 import { cn } from "../../lib/cn";
 import {
   type SkillEntry,
@@ -12,8 +11,9 @@ import {
   type SkillRegistry,
   type SkillCategory,
   useSkillSummary,
-  useSkillRegistryUpdate,
 } from "./useSkillRegistry";
+import { useUpdateSkill } from "../../hooks/skills/useSkills";
+import { supabase } from "../../lib/supabase";
 import { SkillDetailPanel } from "./SkillDetailPanel";
 import { SkillReviewGrid } from "./SkillReviewGrid";
 import { PromptBuilder } from "./PromptBuilder";
@@ -23,8 +23,6 @@ import { useAuth } from "../../stores/authStore";
 interface SkillCatalogViewProps {
   registry: SkillRegistry;
   driftStatuses: SkillDriftStatus[];
-  onInit: () => void;
-  isIniting: boolean;
 }
 
 type TargetFilter = "all" | "bot" | "platform";
@@ -47,7 +45,7 @@ interface DragState {
 }
 import React from "react";
 
-export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }: SkillCatalogViewProps) {
+export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewProps) {
   const authUser = useAuth((s) => s.user);
   const defaultVerified: VerifiedFilter = (authUser?.login === "melvinFTBC" || authUser?.login === "melvinwang") ? "all" : "verified";
 
@@ -80,7 +78,13 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
   }, []);
 
   const { data: modInfos } = useSkillSummary();
-  const registryUpdate = useSkillRegistryUpdate();
+  const updateSkill = useUpdateSkill();
+
+  // Helper: find the label for a category ID
+  const categoryLabel = useCallback((categoryId: string) => {
+    const cat = registry.categories.find(c => c.id === categoryId);
+    return cat?.label ?? categoryId;
+  }, [registry.categories]);
 
   // Context menu state for skill → category assignment
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slug: string } | null>(null);
@@ -110,80 +114,43 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
     return () => document.removeEventListener("click", handler);
   }, [contextMenu]);
 
-  // Category CRUD helpers
-  const handleCreateCategory = useCallback((label: string, parent?: string) => {
-    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    if (!id || registry.categories.some(c => c.id === id)) return;
-    const newCat: SkillCategory = { id, label, order: registry.categories.length };
-    if (parent) newCat.parent = parent;
-    const updated: SkillRegistry = {
-      ...registry,
-      updated: new Date().toISOString(),
-      categories: [...registry.categories, newCat],
-    };
-    registryUpdate.mutate(updated);
-  }, [registry, registryUpdate]);
+  // Category CRUD helpers — write to Supabase
+  const handleCreateCategory = useCallback((_label: string, _parent?: string) => {
+    // Categories are derived from skill data — creating a category is a no-op
+    // until a skill is assigned to it. No separate storage needed.
+  }, []);
 
-  const handleRenameCategory = useCallback((categoryId: string, newLabel: string) => {
+  const handleRenameCategory = useCallback(async (categoryId: string, newLabel: string) => {
     if (!newLabel.trim()) return;
-    const updated: SkillRegistry = {
-      ...registry,
-      updated: new Date().toISOString(),
-      categories: registry.categories.map(c => c.id === categoryId ? { ...c, label: newLabel.trim() } : c),
-    };
-    registryUpdate.mutate(updated);
-  }, [registry, registryUpdate]);
+    const oldLabel = categoryLabel(categoryId);
+    // Update all skills with this category
+    await supabase
+      .from("skills")
+      .update({ category: newLabel.trim() })
+      .eq("category", oldLabel);
+    // Invalidate to rebuild
+    updateSkill.mutate({ slug: "__noop__", updates: {} }, { onError: () => {} });
+  }, [categoryLabel, updateSkill]);
 
-  const handleDeleteCategory = useCallback((categoryId: string) => {
-    // Move all skills in this category to uncategorized
-    const updatedSkills = { ...registry.skills };
-    for (const [slug, skill] of Object.entries(updatedSkills)) {
-      if (skill.category === categoryId) {
-        updatedSkills[slug] = { ...skill, category: "" };
-      }
-    }
-    // Promote child categories to top-level (orphan protection)
-    const updatedCategories = registry.categories
-      .filter(c => c.id !== categoryId)
-      .map(c => c.parent === categoryId ? { ...c, parent: undefined } : c);
-    const updated: SkillRegistry = {
-      ...registry,
-      updated: new Date().toISOString(),
-      categories: updatedCategories,
-      skills: updatedSkills,
-    };
-    registryUpdate.mutate(updated);
-  }, [registry, registryUpdate]);
+  const handleDeleteCategory = useCallback(async (categoryId: string) => {
+    const oldLabel = categoryLabel(categoryId);
+    // Move all skills in this category to Uncategorized
+    await supabase
+      .from("skills")
+      .update({ category: "Uncategorized" })
+      .eq("category", oldLabel);
+    updateSkill.mutate({ slug: "__noop__", updates: {} }, { onError: () => {} });
+  }, [categoryLabel, updateSkill]);
 
   const handleMoveSkillToCategory = useCallback((slug: string, categoryId: string) => {
-    const updated: SkillRegistry = {
-      ...registry,
-      updated: new Date().toISOString(),
-      skills: { ...registry.skills, [slug]: { ...registry.skills[slug], category: categoryId } },
-    };
-    registryUpdate.mutate(updated);
+    const label = categoryLabel(categoryId);
+    updateSkill.mutate({ slug, updates: { category: label || "Uncategorized" } });
     setContextMenu(null);
-  }, [registry, registryUpdate]);
+  }, [categoryLabel, updateSkill]);
 
-  const handleReparentCategory = useCallback((categoryId: string, newParent: string | undefined) => {
-    // Don't parent to self
-    if (categoryId === newParent) return;
-    // Don't allow parenting under a sub-category (max depth 2)
-    if (newParent) {
-      const target = registry.categories.find(c => c.id === newParent);
-      if (target?.parent) return; // target is already a child
-    }
-    // Don't allow parenting if the category itself has children (would create depth 3)
-    if (newParent && registry.categories.some(c => c.parent === categoryId)) return;
-    const updated: SkillRegistry = {
-      ...registry,
-      updated: new Date().toISOString(),
-      categories: registry.categories.map(c =>
-        c.id === categoryId ? { ...c, parent: newParent } : c
-      ),
-    };
-    registryUpdate.mutate(updated);
-  }, [registry, registryUpdate]);
+  const handleReparentCategory = useCallback((_categoryId: string, _newParent: string | undefined) => {
+    // Category hierarchy is flat in Supabase — reparenting is a no-op
+  }, []);
 
   const handleDragBegin = useCallback((item: DragItem, e: React.PointerEvent) => {
     dragRef.current = { item, startY: e.clientY, active: false };
@@ -558,15 +525,8 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
             <div className="flex flex-col items-center justify-center py-12 text-zinc-400">
               {allSkills.length === 0 ? (
                 <>
-                  <Download size={24} className="mb-2" />
-                  <p className="text-xs mb-3">No skills in registry yet</p>
-                  <Button
-                    onClick={onInit}
-                    loading={isIniting}
-                    icon={Download}
-                  >
-                    Initialize Registry
-                  </Button>
+                  <AlertTriangle size={24} className="mb-2" />
+                  <p className="text-xs mb-3">No skills found</p>
                 </>
               ) : (
                 <p className="text-xs">No skills match your filters</p>

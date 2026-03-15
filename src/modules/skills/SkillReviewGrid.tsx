@@ -72,6 +72,7 @@ interface SkillReviewRow {
   command: string;
   verified: boolean;
   last_audited: string;
+  rating: number | null;
   owner: string;
   hasDemo: boolean;
   hasExamples: boolean;
@@ -270,6 +271,19 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
           return "text-xs text-amber-600 dark:text-amber-400";
         }
         return "text-xs text-zinc-600 dark:text-zinc-400";
+      },
+    },
+    {
+      field: "rating",
+      headerName: "Score",
+      width: 75,
+      filter: "agNumberColumnFilter",
+      editable: true,
+      cellRenderer: (params: { value: number | null }) => {
+        if (params.value === undefined || params.value === null) return null;
+        const score = params.value;
+        const color = score >= 9 ? "text-emerald-500" : score >= 7 ? "text-amber-500" : "text-red-500";
+        return <span className={`${color} text-xs font-medium`}>{score}/10</span>;
       },
     },
     {
@@ -662,6 +676,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         command: skill.command ?? "",
         verified: skill.verified,
         last_audited: skill.last_audited ?? "",
+        rating: skill.rating,
         owner: skill.owner ?? "",
         hasDemo: skill.has_demo,
         hasExamples: skill.has_examples,
@@ -760,7 +775,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
 
       const editableFields = [
         "name", "description", "category", "subcategory", "target", "status",
-        "domain", "command", "verified", "last_audited", "owner",
+        "domain", "command", "verified", "last_audited", "rating", "owner",
         "has_demo", "has_examples", "has_deck", "has_guide",
         "demo_uploaded", "demo_url",
       ];
