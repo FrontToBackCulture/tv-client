@@ -506,8 +506,8 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
                     gallery_order: None,
                     has_demo: Some(skill_dir.join("demo").exists() || skill_dir.join("demo-data").exists()),
                     has_examples: Some(skill_dir.join("examples").exists()),
-                    has_deck: Some(skill_dir.join("deck.html").exists()),
-                    has_guide: Some(skill_dir.join("guide.html").exists()),
+                    has_deck: Some(skill_dir.join("deck.html").exists() || skill_dir.join("assets/deck.html").exists()),
+                    has_guide: Some(skill_dir.join("guide.html").exists() || skill_dir.join("assets/guide.html").exists()),
                     distributions: vec![SkillDistribution {
                         path: format!("_team/melvin/bot-mel/skills/{}", slug),
                         dist_type: "bot".to_string(),
@@ -552,8 +552,8 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
             // Detect artifacts
             let has_demo = Some(skill_dir.join("demo").exists() || skill_dir.join("demo-data").exists());
             let has_examples = Some(skill_dir.join("examples").exists());
-            let has_deck = Some(skill_dir.join("deck.html").exists());
-            let has_guide = Some(skill_dir.join("guide.html").exists());
+            let has_deck = Some(skill_dir.join("deck.html").exists() || skill_dir.join("assets/deck.html").exists());
+            let has_guide = Some(skill_dir.join("guide.html").exists() || skill_dir.join("assets/guide.html").exists());
 
             if let Some(existing) = registry.skills.get_mut(&slug) {
                 // Update content fields and artifacts, preserve all metadata
