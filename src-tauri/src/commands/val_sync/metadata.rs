@@ -1,5 +1,5 @@
-// VAL Sync Metadata - Tracks sync history per domain
-// Stored at {globalPath}/.sync-metadata.json
+// VAL Sync Metadata - Tracks sync status per domain via Supabase
+// Replaces the previous .sync-metadata.json file-based approach
 
 use crate::commands::error::CmdResult;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use std::path::Path;
 use tauri::command;
 
 // ============================================================================
-// Types
+// Types (frontend-facing — shape unchanged)
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,14 +21,6 @@ pub struct ArtifactStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HistoryEntry {
-    pub timestamp: String,
-    pub operation: String,
-    pub status: String,
-    pub details: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncMetadata {
     pub domain: String,
     pub created: String,
@@ -37,139 +29,165 @@ pub struct SyncMetadata {
     #[serde(default)]
     pub extractions: HashMap<String, ArtifactStatus>,
     #[serde(default)]
-    pub history: Vec<HistoryEntry>,
+    pub history: Vec<serde_json::Value>, // kept empty, field preserved for backwards compat
+}
+
+// ============================================================================
+// Supabase row type
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncStatusRow {
+    pub domain: String,
+    pub artifact: String,
+    pub phase: String,
+    pub count: i64,
+    pub status: String,
+    pub duration_ms: Option<i64>,
+    pub last_sync: String,
 }
 
 // ============================================================================
 // Internal helpers
 // ============================================================================
 
-fn metadata_path(global_path: &str) -> std::path::PathBuf {
-    Path::new(global_path).join(".sync-metadata.json")
-}
-
 fn now_iso() -> String {
     chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
-pub fn load_metadata(global_path: &str) -> SyncMetadata {
-    let path = metadata_path(global_path);
-    if path.exists() {
-        if let Ok(content) = fs::read_to_string(&path) {
-            if let Ok(meta) = serde_json::from_str(&content) {
-                return meta;
-            }
-        }
-    }
-    // Default empty metadata
-    SyncMetadata {
-        domain: String::new(),
-        created: now_iso(),
-        artifacts: HashMap::new(),
-        extractions: HashMap::new(),
-        history: Vec::new(),
-    }
-}
-
-fn save_metadata(global_path: &str, metadata: &SyncMetadata) -> CmdResult<()> {
-    let path = metadata_path(global_path);
-    if let Some(dir) = path.parent() {
-        if !dir.exists() {
-            fs::create_dir_all(dir)?;
-        }
-    }
-    let content = serde_json::to_string_pretty(metadata)?;
-    fs::write(&path, content)?;
-    Ok(())
-}
-
-fn add_history(metadata: &mut SyncMetadata, operation: &str, status: &str, details: Option<String>) {
-    metadata.history.push(HistoryEntry {
-        timestamp: now_iso(),
-        operation: operation.to_string(),
-        status: status.to_string(),
-        details,
-    });
-    // Keep last 50 entries
-    if metadata.history.len() > 50 {
-        let excess = metadata.history.len() - 50;
-        metadata.history.drain(..excess);
-    }
-}
-
 // ============================================================================
-// Public API
+// Public API — write to Supabase
 // ============================================================================
 
-pub fn update_artifact_sync(
-    global_path: &str,
+pub async fn update_artifact_sync(
+    _global_path: &str,
     domain: &str,
     artifact_type: &str,
     count: usize,
     status: &str,
     duration_ms: u64,
 ) {
-    let mut meta = load_metadata(global_path);
-    meta.domain = domain.to_string();
-    meta.artifacts.insert(
-        artifact_type.to_string(),
-        ArtifactStatus {
-            last_sync: now_iso(),
-            count,
-            status: status.to_string(),
-            duration_ms: Some(duration_ms),
-        },
-    );
-    add_history(
-        &mut meta,
-        &format!("sync:{}", artifact_type),
-        status,
-        Some(format!("{} items in {}ms", count, duration_ms)),
-    );
-    let _ = save_metadata(global_path, &meta);
+    let row = SyncStatusRow {
+        domain: domain.to_string(),
+        artifact: artifact_type.to_string(),
+        phase: "sync".to_string(),
+        count: count as i64,
+        status: status.to_string(),
+        duration_ms: Some(duration_ms as i64),
+        last_sync: now_iso(),
+    };
+    // Fire-and-forget upsert — don't block sync on metadata write
+    if let Ok(client) = crate::commands::supabase::get_client().await {
+        let _: Result<SyncStatusRow, _> = client
+            .upsert_on("domain_sync_status", &row, Some("domain,artifact,phase"))
+            .await;
+    }
 }
 
-pub fn update_extraction_sync(
-    global_path: &str,
+pub async fn update_extraction_sync(
+    _global_path: &str,
     domain: &str,
     extraction_type: &str,
     count: usize,
     status: &str,
     duration_ms: u64,
 ) {
-    let mut meta = load_metadata(global_path);
-    meta.domain = domain.to_string();
-    meta.extractions.insert(
-        extraction_type.to_string(),
-        ArtifactStatus {
-            last_sync: now_iso(),
-            count,
-            status: status.to_string(),
-            duration_ms: Some(duration_ms),
-        },
-    );
-    add_history(
-        &mut meta,
-        &format!("extract:{}", extraction_type),
-        status,
-        Some(format!("{} items in {}ms", count, duration_ms)),
-    );
-    let _ = save_metadata(global_path, &meta);
+    let row = SyncStatusRow {
+        domain: domain.to_string(),
+        artifact: extraction_type.to_string(),
+        phase: "extract".to_string(),
+        count: count as i64,
+        status: status.to_string(),
+        duration_ms: Some(duration_ms as i64),
+        last_sync: now_iso(),
+    };
+    if let Ok(client) = crate::commands::supabase::get_client().await {
+        let _: Result<SyncStatusRow, _> = client
+            .upsert_on("domain_sync_status", &row, Some("domain,artifact,phase"))
+            .await;
+    }
 }
 
 // ============================================================================
-// Commands
+// Commands — read from Supabase
 // ============================================================================
 
-/// Get sync status/metadata for a domain
+/// Get sync status/metadata for a domain (reads from Supabase)
 #[command]
-pub fn val_sync_get_status(domain: String) -> CmdResult<SyncMetadata> {
-    let domain_config = super::config::get_domain_config(&domain)?;
-    Ok(load_metadata(&domain_config.global_path))
+pub async fn val_sync_get_status(domain: String) -> CmdResult<SyncMetadata> {
+    let client = crate::commands::supabase::get_client().await?;
+    let rows: Vec<SyncStatusRow> = client
+        .select(
+            "domain_sync_status",
+            &format!("domain=eq.{}", domain),
+        )
+        .await
+        .unwrap_or_default();
+
+    let mut artifacts = HashMap::new();
+    let mut extractions = HashMap::new();
+
+    for row in rows {
+        let status = ArtifactStatus {
+            last_sync: row.last_sync,
+            count: row.count as usize,
+            status: row.status,
+            duration_ms: row.duration_ms.map(|d| d as u64),
+        };
+        match row.phase.as_str() {
+            "sync" => { artifacts.insert(row.artifact, status); }
+            "extract" => { extractions.insert(row.artifact, status); }
+            _ => {}
+        }
+    }
+
+    Ok(SyncMetadata {
+        domain: domain.clone(),
+        created: now_iso(),
+        artifacts,
+        extractions,
+        history: Vec::new(),
+    })
+}
+
+/// Helper for domain discovery: get latest sync timestamp and total artifact count
+pub async fn read_sync_summary(domain: &str) -> (Option<String>, Option<u32>) {
+    let client = match crate::commands::supabase::get_client().await {
+        Ok(c) => c,
+        Err(_) => return (None, None),
+    };
+
+    let rows: Vec<SyncStatusRow> = client
+        .select(
+            "domain_sync_status",
+            &format!("domain=eq.{}&phase=eq.sync", domain),
+        )
+        .await
+        .unwrap_or_default();
+
+    if rows.is_empty() {
+        return (None, None);
+    }
+
+    let mut latest_sync: Option<String> = None;
+    let mut total_count: u32 = 0;
+
+    for row in &rows {
+        total_count += row.count as u32;
+        if let Some(ref current) = latest_sync {
+            if row.last_sync > *current {
+                latest_sync = Some(row.last_sync.clone());
+            }
+        } else {
+            latest_sync = Some(row.last_sync.clone());
+        }
+    }
+
+    (latest_sync, if total_count > 0 { Some(total_count) } else { None })
 }
 
 // ============================================================================
-// Output File Status
+// Output File Status (unchanged — filesystem checks by nature)
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize)]
@@ -197,12 +215,12 @@ fn get_expected_outputs(_global_path: &str) -> Vec<(String, String, String, bool
     // (name, relative_path, category, is_folder, created_by)
     vec![
         // Schema Sync - aggregate JSON files from VAL API (Sync All / individual sync buttons)
-        ("Fields".to_string(), "all_fields.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
-        ("Queries".to_string(), "all_queries.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
-        ("Workflows".to_string(), "all_workflows.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
-        ("Dashboards".to_string(), "all_dashboards.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
-        ("Tables".to_string(), "all_tables.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
-        ("Calc Fields".to_string(), "all_calculated_fields.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
+        ("Fields".to_string(), "schema/all_fields.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
+        ("Queries".to_string(), "schema/all_queries.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
+        ("Workflows".to_string(), "schema/all_workflows.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
+        ("Dashboards".to_string(), "schema/all_dashboards.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
+        ("Tables".to_string(), "schema/all_tables.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
+        ("Calc Fields".to_string(), "schema/all_calculated_fields.json".to_string(), "Schema Sync".to_string(), false, "Sync All".to_string()),
         // Extractions - individual definition files (Sync All auto-extracts)
         ("Queries".to_string(), "queries/".to_string(), "Extractions".to_string(), true, "Sync All".to_string()),
         ("Workflows".to_string(), "workflows/".to_string(), "Extractions".to_string(), true, "Sync All".to_string()),
@@ -212,16 +230,6 @@ fn get_expected_outputs(_global_path: &str) -> Vec<(String, String, String, bool
         ("Executions".to_string(), "monitoring/".to_string(), "Monitoring".to_string(), true, "Monitoring / SOD".to_string()),
         // Analytics - error tracking
         ("Errors".to_string(), "analytics/".to_string(), "Analytics".to_string(), true, "Importer Err / Integration Err".to_string()),
-        // Health Checks - config and results at root level
-        ("Config".to_string(), "health-config.json".to_string(), "Health Checks".to_string(), false, "/generate-health-config (AI curated)".to_string()),
-        ("Template".to_string(), "health-config.template.json".to_string(), "Health Checks".to_string(), false, "Data Health (template)".to_string()),
-        ("Data Model".to_string(), "data-model-health.json".to_string(), "Health Checks".to_string(), false, "Data Health".to_string()),
-        ("Workflow".to_string(), "workflow-health.json".to_string(), "Health Checks".to_string(), false, "Workflow Health".to_string()),
-        ("Dashboard".to_string(), "dashboard-health-results.json".to_string(), "Health Checks".to_string(), false, "Dashboard Health".to_string()),
-        ("Query".to_string(), "query-health-results.json".to_string(), "Health Checks".to_string(), false, "Query Health".to_string()),
-        // Analysis - audit and overview
-        ("Audit".to_string(), "audit-results.json".to_string(), "Analysis".to_string(), false, "Audit".to_string()),
-        ("Overview".to_string(), "overview.html".to_string(), "Analysis".to_string(), false, "Overview".to_string()),
     ]
 }
 

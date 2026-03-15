@@ -1,22 +1,54 @@
 // Workspace Module Types
-// Data structures for workspaces, sessions, artifacts, and context
+// Thin wrappers — actual data structs now live in work::types
+// These types exist for backward compatibility with MCP tool parameter parsing
 
 use serde::{Deserialize, Serialize};
 
+// Re-export from work types for convenience
+pub use crate::commands::work::types::{
+    WorkspaceSession, WorkspaceArtifact, WorkspaceContext,
+};
+
 // ============================================================================
-// Workspaces
+// Workspace (now a Project with project_type='workspace')
+// These structs are used for MCP parameter parsing only.
+// The actual storage is in the projects table.
 // ============================================================================
 
+/// Lightweight workspace summary for list views
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Workspace {
+pub struct WorkspaceSummary {
     pub id: String,
+    #[serde(alias = "name")]
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub status: String, // open | active | in_progress | done | paused
+    pub status: String,
+    #[serde(default)]
     pub owner: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub intent: Option<String>, // skill_review | skill_creation | feature_build
+    pub intent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initiative_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+/// Full workspace with nested data — now backed by Project
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Workspace {
+    pub id: String,
+    #[serde(alias = "name")]
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub status: String,
+    #[serde(default)]
+    pub owner: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiative_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -30,25 +62,6 @@ pub struct Workspace {
     pub artifacts: Option<Vec<WorkspaceArtifact>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkspaceContext>,
-}
-
-/// Lightweight workspace summary for list views (no nested sessions/artifacts/context)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceSummary {
-    pub id: String,
-    pub title: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    pub status: String,
-    pub owner: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub intent: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub initiative_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,32 +93,13 @@ pub struct UpdateWorkspace {
 }
 
 // ============================================================================
-// Workspace Sessions
+// Session/Artifact/Context create/update types for MCP param parsing
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceSession {
-    pub id: String,
-    pub workspace_id: String,
-    pub date: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub decisions: Option<serde_json::Value>, // jsonb array of {decision, rationale}
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub next_steps: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub open_questions: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub conversation_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateWorkspaceSession {
+    /// Accept either workspace_id or project_id
+    #[serde(alias = "project_id")]
     pub workspace_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub date: Option<String>,
@@ -139,28 +133,10 @@ pub struct UpdateWorkspaceSession {
     pub conversation_id: Option<String>,
 }
 
-// ============================================================================
-// Workspace Artifacts
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceArtifact {
-    pub id: String,
-    pub workspace_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub session_id: Option<String>,
-    #[serde(rename = "type")]
-    pub artifact_type: String, // skill | doc | crm_deal | crm_company | task | domain | code | report | proposal | order_form | other
-    pub reference: String,
-    pub label: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub preview_content: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateWorkspaceArtifact {
+    /// Accept either workspace_id or project_id
+    #[serde(alias = "project_id")]
     pub workspace_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
@@ -172,25 +148,10 @@ pub struct CreateWorkspaceArtifact {
     pub preview_content: Option<String>,
 }
 
-// ============================================================================
-// Workspace Context (rolling summary for cold-start)
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceContext {
-    pub workspace_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_summary: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub current_state: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub key_decisions: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpsertWorkspaceContext {
+    /// Accept either workspace_id or project_id
+    #[serde(alias = "project_id")]
     pub workspace_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_summary: Option<String>,

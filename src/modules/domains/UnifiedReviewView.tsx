@@ -2,7 +2,7 @@
 // Unified split-view review mode for all resource types: tables, queries, dashboards, workflows
 // Grid on left, detail preview on right. Tables get batch action buttons; artifacts don't.
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles, Globe, ChevronDown } from "lucide-react";
 import { ReviewGrid, ReviewGridHandle } from "./ReviewGrid";
@@ -13,10 +13,10 @@ import { cn } from "../../lib/cn";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClassificationStore } from "../../stores/classificationStore";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
-import { upsertArtifactFields } from "../../lib/domainArtifacts";
+import { fetchCrossDomainArtifacts, upsertArtifactFields } from "../../lib/domainArtifacts";
 
 import type { ReviewResourceType, ReviewRow } from "./reviewTypes";
-import { EDITABLE_FIELDS, FIELD_TO_STORE, RESOURCE_LABEL } from "./reviewTypes";
+import { EDITABLE_FIELDS, FIELD_TO_STORE, RESOURCE_LABEL, RESOURCE_DESCRIPTION } from "./reviewTypes";
 
 // Storage key for panel width
 const PANEL_WIDTH_KEY = "tv-desktop-review-panel-width";
@@ -35,15 +35,17 @@ function savePanelWidth(width: number): void {
 
 interface UnifiedReviewViewProps {
   resourceType: ReviewResourceType;
-  folderPath: string;
-  domainName: string;
+  folderPath?: string;
+  domainName?: string;
+  crossDomain?: boolean;
   onItemSelect?: (path: string) => void;
 }
 
 export function UnifiedReviewView({
   resourceType,
-  folderPath,
-  domainName,
+  folderPath = "",
+  domainName = "",
+  crossDomain = false,
   onItemSelect,
 }: UnifiedReviewViewProps) {
   const isTable = resourceType === "table";
@@ -91,6 +93,34 @@ export function UnifiedReviewView({
   const isBatchRunning = runningJobs.some((j) =>
     j.id.startsWith("fetch-samples-") || j.id.startsWith("fetch-categorical-") || j.id.startsWith("fetch-details-") || j.id.startsWith("analyze-all-") || j.id.startsWith("generate-overviews-")
   );
+
+  // ─── Cross-domain data loading ──────────────────────────────────────────────
+
+  const [crossDomainRows, setCrossDomainRows] = useState<ReviewRow[]>([]);
+  const [crossDomainLoading, setCrossDomainLoading] = useState(false);
+  const [crossDomainError, setCrossDomainError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!crossDomain) return;
+    setCrossDomainLoading(true);
+    setCrossDomainError(null);
+    fetchCrossDomainArtifacts(resourceType)
+      .then(setCrossDomainRows)
+      .catch((e) => setCrossDomainError(e instanceof Error ? e.message : "Failed to load data"))
+      .finally(() => setCrossDomainLoading(false));
+  }, [crossDomain, resourceType]);
+
+  // Row lookup for cross-domain saves (key: "domain::resourceId")
+  const crossDomainRowsByKey = useMemo(() => {
+    if (!crossDomain) return new Map<string, ReviewRow>();
+    const map = new Map<string, ReviewRow>();
+    for (const row of crossDomainRows) {
+      const base = isTable ? row.name : row.folderName;
+      const key = row.domain ? `${row.domain}::${base}` : base;
+      map.set(key, row);
+    }
+    return map;
+  }, [crossDomain, crossDomainRows, isTable]);
 
   // Get item names from grid's current filter state
   const getTargetNames = useCallback((): string[] => {
@@ -317,11 +347,19 @@ export function UnifiedReviewView({
 
     try {
       for (const [key, changes] of modifiedRows.entries()) {
-        // Build the item path
-        const itemPath = isTable
-          ? `${folderPath}/table_${key}`
-          : `${folderPath}/${key}`;
-        const analysisPath = `${itemPath}/definition_analysis.json`;
+        // Build the analysis path
+        let analysisPath: string;
+        if (crossDomain) {
+          const row = crossDomainRowsByKey.get(key);
+          if (!row?.folderPath) {
+            console.warn(`Cannot save ${key}: no folderPath`);
+            continue;
+          }
+          analysisPath = `${row.folderPath}/definition_analysis.json`;
+        } else {
+          const itemPath = isTable ? `${folderPath}/table_${key}` : `${folderPath}/${key}`;
+          analysisPath = `${itemPath}/definition_analysis.json`;
+        }
 
         // Read existing file or create new structure
         let analysis: Record<string, unknown> = {};
@@ -356,8 +394,8 @@ export function UnifiedReviewView({
         savedKeys.push(key);
       }
 
-      // Regenerate overview.md for modified tables
-      if (isTable) {
+      // Regenerate overview.md for modified tables (single-domain only)
+      if (isTable && !crossDomain) {
         for (const tableName of savedKeys) {
           try {
             await invoke("val_generate_table_overview_md", {
@@ -373,9 +411,19 @@ export function UnifiedReviewView({
 
       // Sync edits to Supabase domain_artifacts (fire-and-forget — disk is authoritative)
       for (const [key, changes] of modifiedRows.entries()) {
-        upsertArtifactFields(domainName, resourceType, key, changes as Partial<ReviewRow>).catch((e) => {
-          console.warn(`Failed to sync ${key} to Supabase:`, e);
-        });
+        if (crossDomain) {
+          const row = crossDomainRowsByKey.get(key);
+          if (row?.domain) {
+            const resourceId = isTable ? row.name : row.folderName;
+            upsertArtifactFields(row.domain, resourceType, resourceId, changes as Partial<ReviewRow>).catch((e) => {
+              console.warn(`Failed to sync ${key} to Supabase:`, e);
+            });
+          }
+        } else {
+          upsertArtifactFields(domainName, resourceType, key, changes as Partial<ReviewRow>).catch((e) => {
+            console.warn(`Failed to sync ${key} to Supabase:`, e);
+          });
+        }
       }
 
       setModifiedRows(new Map());
@@ -389,7 +437,7 @@ export function UnifiedReviewView({
     } finally {
       setIsSaving(false);
     }
-  }, [modifiedRows, folderPath, domainName, resourceType, isTable, showToast]);
+  }, [modifiedRows, folderPath, domainName, resourceType, isTable, showToast, crossDomain, crossDomainRowsByKey]);
 
   // Auto-save with debounce (2 seconds after last change)
   useEffect(() => {
@@ -523,16 +571,45 @@ export function UnifiedReviewView({
 
   const modifiedCount = modifiedRows.size;
 
+  // Cross-domain loading/error states
+  if (crossDomain && crossDomainLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 size={24} className="mx-auto mb-3 text-teal-500 animate-spin" />
+          <p className="text-sm text-zinc-500">Loading {RESOURCE_LABEL[resourceType]}...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (crossDomain && crossDomainError) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle size={32} className="mx-auto mb-3 text-red-500" />
+          <p className="text-sm text-red-400">{crossDomainError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const crossDomainCount = crossDomain ? new Set(crossDomainRows.map((r) => r.domain)).size : 0;
+
   return (
     <div className="h-full flex flex-col">
       {/* Header toolbar */}
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-shrink-0">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            {isTable ? "Review Mode" : `${RESOURCE_LABEL[resourceType]} Review`}
+            {crossDomain
+              ? `${RESOURCE_LABEL[resourceType]} — All Domains`
+              : isTable ? "Review Mode" : `${RESOURCE_LABEL[resourceType]} Review`}
           </h2>
-          <p className="text-sm text-zinc-500">
-            {domainName} • Click row to preview, edit fields inline
+          <p className="text-xs text-zinc-400 mt-0.5 max-w-2xl">
+            {crossDomain
+              ? `${crossDomainRows.length} ${RESOURCE_LABEL[resourceType].toLowerCase()} across ${crossDomainCount} domains`
+              : RESOURCE_DESCRIPTION[resourceType]}
           </p>
         </div>
 
@@ -568,8 +645,8 @@ export function UnifiedReviewView({
             </span>
           )}
 
-          {/* Table-only batch action dropdowns */}
-          {isTable && (
+          {/* Table-only batch action dropdowns (single-domain only) */}
+          {isTable && !crossDomain && (
             <>
               {/* Fetch dropdown */}
               <div className="relative group" data-help-id="review-fetch">
@@ -579,15 +656,18 @@ export function UnifiedReviewView({
                 >
                   <Database size={14} /> Fetch <ChevronDown size={12} />
                 </button>
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
-                  <button onClick={handleFetchAllSamples} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
-                    <Database size={13} /> Samples
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
+                  <button onClick={handleFetchAllSamples} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                    <div className="flex items-center gap-2"><Database size={13} /> Samples</div>
+                    <div className="text-xs text-zinc-400 mt-0.5">Pull sample rows from each table</div>
                   </button>
-                  <button onClick={handleFetchAllCategorical} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
-                    <Tags size={13} /> Categorical
+                  <button onClick={handleFetchAllCategorical} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                    <div className="flex items-center gap-2"><Tags size={13} /> Categorical</div>
+                    <div className="text-xs text-zinc-400 mt-0.5">Fetch distinct values for categorical columns</div>
                   </button>
-                  <button onClick={handleFetchAllDetails} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
-                    <RefreshCw size={13} /> Details
+                  <button onClick={handleFetchAllDetails} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                    <div className="flex items-center gap-2"><RefreshCw size={13} /> Details</div>
+                    <div className="text-xs text-zinc-400 mt-0.5">Load column metadata, calc fields, and dependencies</div>
                   </button>
                 </div>
               </div>
@@ -600,23 +680,26 @@ export function UnifiedReviewView({
                 >
                   <Sparkles size={14} /> AI <ChevronDown size={12} />
                 </button>
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
-                  <button onClick={handleDescribeAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
-                    <Sparkles size={13} /> Describe All
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
+                  <button onClick={handleDescribeAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                    <div className="flex items-center gap-2"><Sparkles size={13} /> Describe All</div>
+                    <div className="text-xs text-zinc-400 mt-0.5">AI-generate names and descriptions for each table</div>
                   </button>
-                  <button onClick={handleClassifyAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
-                    <Tags size={13} /> Classify All
+                  <button onClick={handleClassifyAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                    <div className="flex items-center gap-2"><Tags size={13} /> Classify All</div>
+                    <div className="text-xs text-zinc-400 mt-0.5">AI-classify data type, category, and usage status</div>
                   </button>
-                  <button onClick={handleGenerateAllOverviews} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2 disabled:opacity-50">
-                    <FileText size={13} /> Generate Overviews
+                  <button onClick={handleGenerateAllOverviews} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                    <div className="flex items-center gap-2"><FileText size={13} /> Generate Overviews</div>
+                    <div className="text-xs text-zinc-400 mt-0.5">Build markdown documentation for each table</div>
                   </button>
                 </div>
               </div>
             </>
           )}
 
-          {/* Sync to Portal */}
-          {domainSlug && (
+          {/* Sync to Portal (single-domain only) */}
+          {domainSlug && !crossDomain && (
             <button
               onClick={handleSyncToPortal}
               disabled={isSyncing || modifiedCount > 0}
@@ -652,7 +735,9 @@ export function UnifiedReviewView({
             onRowSelected={handleRowSelected}
             onCellEdited={handleCellEdited}
             modifiedRows={modifiedRows}
-            onAddToDataModel={isTable ? setAddToDataModelRow : undefined}
+            onAddToDataModel={isTable && !crossDomain ? setAddToDataModelRow : undefined}
+            externalRows={crossDomain ? crossDomainRows : undefined}
+            crossDomain={crossDomain}
           />
         </div>
 

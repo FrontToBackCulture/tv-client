@@ -85,7 +85,7 @@ pub async fn val_sync_workflow_executions(
         count,
         "ok",
         duration_ms,
-    );
+    ).await;
 
     Ok(SyncResult {
         domain,
@@ -233,7 +233,7 @@ pub async fn val_sync_sod_tables_status(
         count,
         "ok",
         duration_ms,
-    );
+    ).await;
 
     Ok(SyncResult {
         domain,

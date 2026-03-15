@@ -1,7 +1,7 @@
 // src/modules/product/DomainDetailPanel.tsx
 // Domain detail with auth status, sync controls, and artifact status
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   useValAuth,
   useValCredentials,
@@ -21,31 +21,34 @@ import {
   XCircle,
   Clock,
   Play,
-  History,
   Eye,
   EyeOff,
   Check,
   Pencil,
   Zap,
   Maximize2,
+  Folder,
+  FileText,
+  AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button, IconButton } from "../../components/ui";
 import { EmptyState } from "../../components/EmptyState";
-import { timeAgoVerbose as timeAgo } from "../../lib/date";
+
 import { useJobsStore } from "../../stores/jobsStore";
+import { useSidePanelStore } from "../../stores/sidePanelStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
-import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+
 import { useRegisterCommands } from "../../stores/commandStore";
 import { DomainAiTab } from "./DomainAiTab";
 import { DomainReportsTab } from "./DomainReportsTab";
-import { DomainDataHealthTab } from "./DomainDataHealthTab";
-import { FilesTab } from "./DomainDetailFilesTab";
-import { UnifiedReviewView } from "../library/UnifiedReviewView";
-import type { ReviewResourceType } from "../library/reviewTypes";
+
+import { UnifiedReviewView } from "./UnifiedReviewView";
+import type { ReviewResourceType } from "./reviewTypes";
 import {
-  ARTIFACT_LABELS, EXTRACT_LABELS, TYPE_COLORS,
-  formatRelativeShort,
+  ARTIFACT_LABELS, TYPE_COLORS, ARTIFACT_META, OUTPUT_FILE_DESCRIPTIONS,
+  formatRelativeShort, buildMergedRows,
   type DomainDetailPanelProps, type Tab,
 } from "./domainDetailShared";
 
@@ -55,7 +58,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   // Report domain + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-health": "Data Health", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", reports: "Reports", files: "Files", sync: "Sync", history: "History", ai: "AI" };
+    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", reports: "Reports", ai: "AI" };
     setViewDetail(`${domain} → ${tabLabels[activeTab]}`);
   }, [domain, activeTab, setViewDetail]);
 
@@ -78,14 +81,22 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
 
   const addJob = useJobsStore((s) => s.addJob);
   const updateJob = useJobsStore((s) => s.updateJob);
+  const { openPanel } = useSidePanelStore();
 
   const isSyncing = syncAllMutation.isPending || syncArtifactMutation.isPending;
 
-  // Derive entitiesPath for data health (same pattern as DomainAiTab)
-  const paths = useKnowledgePaths();
-  const entitiesPath = paths
-    ? `${paths.platform}/architecture/domain-model/entities`
-    : null;
+  // Sync dropdown menu
+  const [syncMenuOpen, setSyncMenuOpen] = useState(false);
+  const syncMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (syncMenuRef.current && !syncMenuRef.current.contains(e.target as Node)) setSyncMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+
 
   const handleLogin = () => {
     const jobId = `val-login-${domain}-${Date.now()}`;
@@ -202,16 +213,12 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
-    { id: "data-health", label: "Data Health" },
     { id: "ai", label: "AI" },
-    { id: "sync", label: "Sync" },
     { id: "data-models", label: "Data Models" },
     { id: "queries", label: "Queries" },
     { id: "workflows", label: "Workflows" },
     { id: "dashboards", label: "Dashboards" },
     { id: "reports", label: "Reports" },
-    { id: "files", label: "Files" },
-    { id: "history", label: "History" },
   ];
 
   const typeColors = discoveredDomain ? (TYPE_COLORS[discoveredDomain.domain_type] ?? TYPE_COLORS.production) : null;
@@ -264,13 +271,50 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                   </span>
                 </div>
               </div>
-              {/* Close button */}
-              <IconButton
-                onClick={onClose}
-                icon={X}
-                label="Close"
-                className="flex-shrink-0"
-              />
+              {/* Actions */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div ref={syncMenuRef} className="relative">
+                  <div className="flex items-center">
+                    <Button
+                      onClick={handleSyncAll}
+                      disabled={isSyncing}
+                      variant="ghost"
+                      icon={RefreshCw}
+                      loading={syncAllMutation.isPending}
+                      className="rounded-r-none"
+                    >
+                      Sync All
+                    </Button>
+                    <button
+                      onClick={() => setSyncMenuOpen(!syncMenuOpen)}
+                      disabled={isSyncing}
+                      className="px-1.5 py-1.5 border-l border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-r-md disabled:opacity-50 transition-colors"
+                    >
+                      <ChevronDown size={12} className={cn("transition-transform", syncMenuOpen && "rotate-180")} />
+                    </button>
+                  </div>
+                  {syncMenuOpen && (
+                    <div className="absolute top-full right-0 mt-1 z-20 min-w-[200px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1">
+                      <div className="px-3 py-1 text-xs text-zinc-400 uppercase tracking-wider">Sync Individual</div>
+                      {Object.entries(ARTIFACT_LABELS).map(([type, label]) => (
+                        <button
+                          key={type}
+                          onClick={() => { handleSyncArtifact(type); setSyncMenuOpen(false); }}
+                          disabled={isSyncing}
+                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <IconButton
+                  onClick={onClose}
+                  icon={X}
+                  label="Close"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -314,6 +358,20 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         ))}
       </div>
 
+      {/* AI tab — full-height tree+detail pane */}
+      {activeTab === "ai" && discoveredDomain && (
+        <div className="flex-1 overflow-hidden">
+          <DomainAiTab aiPath={`${discoveredDomain.global_path}/ai`} domainName={domain} globalPath={discoveredDomain.global_path} />
+        </div>
+      )}
+
+      {/* Reports tab — full-height tree+detail pane */}
+      {activeTab === "reports" && discoveredDomain && (
+        <div className="flex-1 overflow-hidden">
+          <DomainReportsTab reportsPath={`${discoveredDomain.global_path}/reports`} domainName={domain} />
+        </div>
+      )}
+
       {/* Review tab content — rendered outside the padded wrapper so the grid fills the space */}
       {REVIEW_TABS[activeTab] && discoveredDomain && (
         <div className="flex-1 overflow-hidden flex flex-col">
@@ -345,68 +403,149 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         {activeTab === "overview" && discoveredDomain && (
           /* Two-column overview when discoveredDomain is provided */
           <div className="flex gap-6">
-            {/* Left column — artifacts + extractions */}
-            <div className="flex-1 space-y-4 min-w-0">
-              {/* Artifact status summary */}
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                  Synced Artifacts
-                </label>
-                {metadata && Object.keys(metadata.artifacts).length > 0 ? (
-                  <div className="mt-1 space-y-1">
-                    {Object.entries(metadata.artifacts).map(([type, status]) => (
-                      <div
-                        key={type}
-                        className="p-2 rounded border border-zinc-200 dark:border-zinc-800 flex items-center justify-between"
-                      >
-                        <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                          {ARTIFACT_LABELS[type] ?? type}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-zinc-400">{status.count} items</span>
-                          <StatusChip
-                            label={status.status}
-                            color={status.status === "ok" ? "green" : "red"}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState message="No artifacts synced yet" className="py-4" />
-                )}
-              </div>
-
-              {/* Extractions summary */}
-              {metadata && Object.keys(metadata.extractions).length > 0 && (
-                <div>
-                  <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                    Extractions
-                  </label>
-                  <div className="mt-1 space-y-1">
-                    {Object.entries(metadata.extractions).map(([type, status]) => (
-                      <div
-                        key={type}
-                        className="p-2 rounded border border-zinc-200 dark:border-zinc-800 flex items-center justify-between"
-                      >
-                        <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                          {EXTRACT_LABELS[type] ?? type}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-zinc-400">{status.count} items</span>
-                          <StatusChip
-                            label={status.status}
-                            color={status.status === "ok" ? "green" : "red"}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            {/* Left column — merged artifacts table */}
+            <div className="flex-1 min-w-0">
+              <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                Domain Artifacts
+              </label>
+              <p className="text-xs text-zinc-400 mt-0.5 mb-2">
+                Data pulled from the VAL API. <strong className="text-zinc-500 dark:text-zinc-400">Fetched</strong> = raw items from API. <strong className="text-zinc-500 dark:text-zinc-400">Extracted</strong> = individual files written to disk.
+              </p>
+              {metadata && (Object.keys(metadata.artifacts).length > 0 || Object.keys(metadata.extractions).length > 0) ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-zinc-400 uppercase tracking-wider">
+                      <th className="text-left py-1.5 font-medium">Name</th>
+                      <th className="text-right py-1.5 font-medium pr-3">Fetched</th>
+                      <th className="text-right py-1.5 font-medium pr-3">Extracted</th>
+                      <th className="text-right py-1.5 font-medium">Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const rows = buildMergedRows(metadata.artifacts, metadata.extractions);
+                      let lastGroup = "";
+                      return rows.map((row) => {
+                        const latestSync = [row.sync?.last_sync, row.extract?.last_sync]
+                          .filter(Boolean)
+                          .sort()
+                          .pop() ?? null;
+                        const showGroupHeader = row.group !== lastGroup;
+                        lastGroup = row.group;
+                        const meta = ARTIFACT_META[row.label];
+                        return (
+                          <React.Fragment key={row.label}>
+                            {showGroupHeader && (
+                              <tr>
+                                <td colSpan={4} className="pt-4 pb-1">
+                                  <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">{row.group}</span>
+                                </td>
+                              </tr>
+                            )}
+                            <tr className="border-t border-zinc-100 dark:border-zinc-800/50">
+                              <td className="py-2">
+                                <div className="text-zinc-700 dark:text-zinc-300">{row.label}</div>
+                                {meta?.description && (
+                                  <div className="text-xs text-zinc-400 mt-0.5">{meta.description}</div>
+                                )}
+                              </td>
+                              <td className="py-2 text-right pr-3">
+                                {row.sync ? (
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="text-xs text-zinc-400">{row.sync.count}</span>
+                                    {row.sync.status !== "ok" && <StatusChip label={row.sync.status} color="red" />}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+                                )}
+                              </td>
+                              <td className="py-2 text-right pr-3">
+                                {row.extract ? (
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="text-xs text-zinc-400">{row.extract.count}</span>
+                                    {row.extract.status !== "ok" && <StatusChip label={row.extract.status} color="red" />}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+                                )}
+                              </td>
+                              <td className="py-2 text-right">
+                                <span className="text-xs text-zinc-400">{formatRelativeShort(latestSync)}</span>
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      });
+                    })()}
+                    {/* Output files: Health Checks, Analysis */}
+                    {(() => {
+                      const fileOutputs = (outputStatusQuery.data?.outputs ?? [])
+                        .filter((o) => !["Schema Sync", "Extractions", "Monitoring", "Analytics"].includes(o.category));
+                      let lastCategory = "";
+                      return fileOutputs.map((output) => {
+                        const showCategoryHeader = output.category !== lastCategory;
+                        lastCategory = output.category;
+                        const desc = OUTPUT_FILE_DESCRIPTIONS[output.name];
+                        return (
+                          <React.Fragment key={output.relative_path}>
+                            {showCategoryHeader && (
+                              <tr>
+                                <td colSpan={4} className="pt-4 pb-1">
+                                  <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">{output.category}</span>
+                                </td>
+                              </tr>
+                            )}
+                            <tr
+                              className={cn(
+                                "border-t",
+                                !output.exists
+                                  ? "border-amber-200 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-900/10"
+                                  : "border-zinc-100 dark:border-zinc-800/50",
+                                output.exists && !output.is_folder && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                              )}
+                              onClick={() => { if (output.exists && !output.is_folder) openPanel(output.path, output.name); }}
+                            >
+                              <td className="py-2">
+                                <div className={cn("flex items-center gap-1.5", output.exists ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-400")}>
+                                  {output.is_folder
+                                    ? <Folder size={12} className={output.exists ? "text-amber-500" : "text-zinc-300"} />
+                                    : <FileText size={12} className={output.exists ? "text-blue-500" : "text-zinc-300"} />
+                                  }
+                                  {output.name}
+                                </div>
+                                {desc && <div className="text-xs text-zinc-400 mt-0.5">{desc}</div>}
+                              </td>
+                              <td className="py-2 text-right pr-3">
+                                <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+                              </td>
+                              <td className="py-2 text-right pr-3">
+                                <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+                              </td>
+                              <td className="py-2 text-right">
+                                {output.exists && output.modified ? (
+                                  <span className="text-xs text-zinc-400">{formatRelativeShort(output.modified)}</span>
+                                ) : !output.exists ? (
+                                  <span className="text-xs text-amber-600 dark:text-amber-400 inline-flex items-center gap-0.5">
+                                    <AlertCircle size={10} />
+                                    Missing
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              ) : (
+                <EmptyState message="No artifacts synced yet" className="py-4" />
               )}
             </div>
 
-            {/* Right column (320px) — credentials + auth + history */}
+            {/* Right column (320px) — credentials + auth */}
             <div className="w-[320px] flex-shrink-0 space-y-4">
               {/* Credentials section */}
               <div>
@@ -542,39 +681,6 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                   )}
                 </div>
               </div>
-
-              {/* Recent history (last 5) */}
-              {metadata && metadata.history.length > 0 && (
-                <div>
-                  <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                    Recent History
-                  </label>
-                  <div className="mt-1 space-y-1">
-                    {[...metadata.history].reverse().slice(0, 5).map((entry, i) => (
-                      <div
-                        key={i}
-                        className="p-2 rounded border border-zinc-200 dark:border-zinc-800 flex items-start gap-2"
-                      >
-                        <History size={10} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">
-                              {entry.operation}
-                            </span>
-                            <StatusChip
-                              label={entry.status}
-                              color={entry.status === "ok" ? "green" : "red"}
-                            />
-                          </div>
-                          <span className="text-xs text-zinc-400">
-                            {timeAgo(entry.timestamp)}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -717,200 +823,95 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
               </div>
             </div>
 
-            {/* Artifact status summary */}
+            {/* Merged artifacts table */}
             <div>
               <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                Synced Artifacts
+                Domain Artifacts
               </label>
-              {metadata && Object.keys(metadata.artifacts).length > 0 ? (
-                <div className="mt-1 space-y-1">
-                  {Object.entries(metadata.artifacts).map(([type, status]) => (
-                    <div
-                      key={type}
-                      className="p-2 rounded border border-zinc-200 dark:border-zinc-800 flex items-center justify-between"
-                    >
-                      <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {ARTIFACT_LABELS[type] ?? type}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-400">{status.count} items</span>
-                        <StatusChip
-                          label={status.status}
-                          color={status.status === "ok" ? "green" : "red"}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <p className="text-xs text-zinc-400 mt-0.5 mb-2">
+                Data pulled from the VAL API. <strong className="text-zinc-500 dark:text-zinc-400">Fetched</strong> = raw items from API. <strong className="text-zinc-500 dark:text-zinc-400">Extracted</strong> = individual files written to disk.
+              </p>
+              {metadata && (Object.keys(metadata.artifacts).length > 0 || Object.keys(metadata.extractions).length > 0) ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-zinc-400 uppercase tracking-wider">
+                      <th className="text-left py-1.5 font-medium">Name</th>
+                      <th className="text-right py-1.5 font-medium pr-3">Fetched</th>
+                      <th className="text-right py-1.5 font-medium pr-3">Extracted</th>
+                      <th className="text-right py-1.5 font-medium">Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const rows = buildMergedRows(metadata.artifacts, metadata.extractions);
+                      let lastGroup = "";
+                      return rows.map((row) => {
+                        const latestSync = [row.sync?.last_sync, row.extract?.last_sync]
+                          .filter(Boolean)
+                          .sort()
+                          .pop() ?? null;
+                        const showGroupHeader = row.group !== lastGroup;
+                        lastGroup = row.group;
+                        const meta = ARTIFACT_META[row.label];
+                        return (
+                          <React.Fragment key={row.label}>
+                            {showGroupHeader && (
+                              <tr>
+                                <td colSpan={4} className="pt-4 pb-1">
+                                  <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">{row.group}</span>
+                                </td>
+                              </tr>
+                            )}
+                            <tr className="border-t border-zinc-100 dark:border-zinc-800/50">
+                              <td className="py-2">
+                                <div className="text-zinc-700 dark:text-zinc-300">{row.label}</div>
+                                {meta?.description && (
+                                  <div className="text-xs text-zinc-400 mt-0.5">{meta.description}</div>
+                                )}
+                              </td>
+                              <td className="py-2 text-right pr-3">
+                                {row.sync ? (
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="text-xs text-zinc-400">{row.sync.count}</span>
+                                    {row.sync.status !== "ok" && <StatusChip label={row.sync.status} color="red" />}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+                                )}
+                              </td>
+                              <td className="py-2 text-right pr-3">
+                                {row.extract ? (
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="text-xs text-zinc-400">{row.extract.count}</span>
+                                    {row.extract.status !== "ok" && <StatusChip label={row.extract.status} color="red" />}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+                                )}
+                              </td>
+                              <td className="py-2 text-right">
+                                <span className="text-xs text-zinc-400">{formatRelativeShort(latestSync)}</span>
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
               ) : (
                 <p className="mt-1 text-sm text-zinc-500">No artifacts synced yet</p>
               )}
             </div>
-
-            {/* Extractions summary */}
-            {metadata && Object.keys(metadata.extractions).length > 0 && (
-              <div>
-                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                  Extractions
-                </label>
-                <div className="mt-1 space-y-1">
-                  {Object.entries(metadata.extractions).map(([type, status]) => (
-                    <div
-                      key={type}
-                      className="p-2 rounded border border-zinc-200 dark:border-zinc-800 flex items-center justify-between"
-                    >
-                      <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {EXTRACT_LABELS[type] ?? type}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-400">{status.count} items</span>
-                        <StatusChip
-                          label={status.status}
-                          color={status.status === "ok" ? "green" : "red"}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {activeTab === "files" && (
-          <FilesTab outputs={outputStatusQuery.data?.outputs ?? []} isLoading={outputStatusQuery.isLoading} />
-        )}
 
-        {activeTab === "sync" && (
-          <div className="space-y-4">
-            {/* Sync All button */}
-            <div>
-              <Button
-                onClick={handleSyncAll}
-                disabled={isSyncing}
-                size="md"
-                icon={RefreshCw}
-                loading={syncAllMutation.isPending}
-                className="w-full justify-center"
-              >
-                Sync All + Extract
-              </Button>
-              {syncAllMutation.isSuccess && (
-                <div className="mt-2 p-2 rounded bg-green-500/10 text-green-600 dark:text-green-400 text-xs">
-                  Completed in {syncAllMutation.data.total_duration_ms}ms —{" "}
-                  {syncAllMutation.data.status}
-                </div>
-              )}
-              {syncAllMutation.isError && (
-                <p className="mt-2 text-xs text-red-500">
-                  {(syncAllMutation.error as Error).message}
-                </p>
-              )}
-            </div>
-
-            {/* Individual sync buttons */}
-            <div>
-              <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                Individual Sync
-              </label>
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                {Object.entries(ARTIFACT_LABELS).map(([type, label]) => {
-                  const artifactStatus = metadata?.artifacts[type];
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => handleSyncArtifact(type)}
-                      disabled={isSyncing}
-                      className="flex items-center gap-2 p-2 text-left rounded border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 disabled:opacity-50 transition-colors"
-                    >
-                      <Play size={12} className="text-teal-500 flex-shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <span className="text-sm text-zinc-700 dark:text-zinc-300 block">
-                          {label}
-                        </span>
-                        {artifactStatus && (
-                          <span className="text-xs text-zinc-400 block truncate">
-                            {artifactStatus.count} items ·{" "}
-                            {timeAgo(artifactStatus.last_sync)}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Sync result */}
-            {syncArtifactMutation.isSuccess && (
-              <div className="p-2 rounded bg-green-500/10 text-green-600 dark:text-green-400 text-xs">
-                {syncArtifactMutation.data.message} ({syncArtifactMutation.data.duration_ms}ms)
-              </div>
-            )}
-            {syncArtifactMutation.isError && (
-              <p className="text-xs text-red-500">
-                {(syncArtifactMutation.error as Error).message}
-              </p>
-            )}
-
-          </div>
-        )}
-
-        {activeTab === "history" && (
-          <div className="space-y-1">
-            {metadata && metadata.history.length > 0 ? (
-              [...metadata.history].reverse().map((entry, i) => (
-                <div
-                  key={i}
-                  className="p-2 rounded border border-zinc-200 dark:border-zinc-800 flex items-start gap-2"
-                >
-                  <History size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {entry.operation}
-                      </span>
-                      <StatusChip
-                        label={entry.status}
-                        color={entry.status === "ok" ? "green" : "red"}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-zinc-400">
-                        {timeAgo(entry.timestamp)}
-                      </span>
-                      {entry.details && (
-                        <span className="text-xs text-zinc-400">{entry.details}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState message="No sync history yet" className="py-4" />
-            )}
-          </div>
-        )}
-
-        {activeTab === "data-health" && discoveredDomain && (
-          <DomainDataHealthTab domainName={domain} globalPath={discoveredDomain.global_path} entitiesPath={entitiesPath} />
-        )}
-
-        {activeTab === "data-health" && !discoveredDomain && (
-          <EmptyState message="Domain path not available" className="py-4" />
-        )}
-
-        {activeTab === "ai" && discoveredDomain && (
-          <DomainAiTab aiPath={`${discoveredDomain.global_path}/ai`} domainName={domain} globalPath={discoveredDomain.global_path} />
-        )}
 
         {activeTab === "ai" && !discoveredDomain && (
           <EmptyState message="Domain path not available" className="py-4" />
         )}
 
-        {activeTab === "reports" && discoveredDomain && (
-          <DomainReportsTab reportsPath={`${discoveredDomain.global_path}/reports`} domainName={domain} />
-        )}
         {activeTab === "reports" && !discoveredDomain && (
           <EmptyState message="Domain path not available" className="py-4" />
         )}

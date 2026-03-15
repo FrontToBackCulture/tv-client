@@ -43,23 +43,36 @@ export function useAllTasks() {
   return useQuery({
     queryKey: workKeys.tasks(),
     queryFn: async (): Promise<TaskWithRelations[]> => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select(
-          `
-          *,
-          status:task_statuses(*),
-          labels:task_labels(label:labels(*)),
-          project:projects(identifier_prefix, name, color),
-          milestone:milestones(*),
-          assignee:users!tasks_assignee_id_fkey(*),
-          creator:users!tasks_created_by_fkey(*)
-        `
-        )
-        .order("updated_at", { ascending: false });
+      // Fetch all tasks in batches (Supabase default limit is 1000)
+      const allTasks: TaskWithRelations[] = [];
+      let offset = 0;
+      const batchSize = 1000;
 
-      if (error) throw new Error(`Failed to fetch tasks: ${error.message}`);
-      return (data ?? []) as TaskWithRelations[];
+      while (true) {
+        const { data, error } = await supabase
+          .from("tasks")
+          .select(
+            `
+            *,
+            status:task_statuses(*),
+            labels:task_labels(label:labels(*)),
+            project:projects(identifier_prefix, name, color),
+            milestone:milestones(*),
+            assignee:users!tasks_assignee_id_fkey(*),
+            creator:users!tasks_created_by_fkey(*)
+          `
+          )
+          .order("updated_at", { ascending: false })
+          .range(offset, offset + batchSize - 1);
+
+        if (error) throw new Error(`Failed to fetch tasks: ${error.message}`);
+        allTasks.push(...((data ?? []) as TaskWithRelations[]));
+
+        if (!data || data.length < batchSize) break;
+        offset += batchSize;
+      }
+
+      return allTasks;
     },
   });
 }

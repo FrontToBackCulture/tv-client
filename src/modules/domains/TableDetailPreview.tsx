@@ -16,7 +16,7 @@ import {
   Calendar,
   FileOutput,
 } from "lucide-react";
-import { MarkdownViewer } from "./MarkdownViewer";
+import { MarkdownViewer } from "../library/MarkdownViewer";
 import { cn } from "../../lib/cn";
 import { Button, IconButton } from "../../components/ui";
 import {
@@ -34,10 +34,10 @@ import type {
   TableSample,
   TableAnalysis,
   TabType,
-} from "./tableDetailTypes";
-import { extractDomainFromPath, getValUrl, formatRelativeTimeShort } from "./tableDetailTypes";
-import { DetailsTab } from "./DetailsTab";
-import { SampleTab } from "./SampleTab";
+} from "../library/tableDetailTypes";
+import { extractDomainFromPath, getValUrl, formatRelativeTimeShort } from "../library/tableDetailTypes";
+import { DetailsTab } from "../library/DetailsTab";
+import { SampleTab } from "../library/SampleTab";
 import { DetailLoading } from "../../components/ui/DetailStates";
 
 export function TableDetailPreview({

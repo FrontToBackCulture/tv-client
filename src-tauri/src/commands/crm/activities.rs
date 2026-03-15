@@ -20,7 +20,8 @@ pub async fn crm_list_activities(
         filters.push(format!("company_id=eq.{}", cid));
     }
     if let Some(did) = deal_id {
-        filters.push(format!("deal_id=eq.{}", did));
+        // Query by project_id (unified) with fallback to deal_id
+        filters.push(format!("or=(deal_id.eq.{0},project_id.eq.{0})", did));
     }
     if let Some(t) = activity_type {
         filters.push(format!("type=eq.{}", t));
@@ -47,6 +48,13 @@ pub async fn crm_log_activity(data: CreateActivity) -> CmdResult<Activity> {
                 "activity_date".to_string(),
                 serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
             );
+        }
+    }
+
+    // Dual-write: if deal_id is present, also set project_id
+    if let Some(obj) = insert_data.as_object_mut() {
+        if let Some(deal_id) = obj.get("deal_id").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+            obj.insert("project_id".to_string(), serde_json::Value::String(deal_id));
         }
     }
 

@@ -7,6 +7,8 @@ import { Shell } from "./shell/Shell";
 import { LibraryModule } from "./modules/library/LibraryModule";
 import { WorkModule } from "./modules/work/WorkModule";
 import { WorkspaceModule } from "./modules/workspace";
+import { ProjectsModule } from "./modules/projects";
+import { MetadataModule } from "./modules/metadata";
 import { InboxModule } from "./modules/inbox/InboxModule";
 import { CrmModule } from "./modules/crm/CrmModule";
 import { BotModule } from "./modules/bot/BotModule";
@@ -19,9 +21,12 @@ import { SkillsModule } from "./modules/skills/SkillsModule";
 import { QuestionsModule } from "./modules/questions";
 import { EmailModule } from "./modules/email/EmailModule";
 import { GalleryModule } from "./modules/gallery";
+import { HomeModule } from "./modules/home/HomeModule";
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
+import { invoke } from "@tauri-apps/api/core";
 import { useAppStore, ModuleId } from "./stores/appStore";
+import { useRepositoryStore } from "./stores/repositoryStore";
 import { useModuleVisibilityStore } from "./stores/moduleVisibilityStore";
 import { useSidePanelStore } from "./stores/sidePanelStore";
 import { useHelpStore } from "./stores/helpStore";
@@ -32,7 +37,10 @@ import { openModuleInNewWindow } from "./lib/windowManager";
 import { Loader2 } from "lucide-react";
 
 const modules: Record<ModuleId, React.ComponentType> = {
+  home: HomeModule,
   library: LibraryModule,
+  projects: ProjectsModule,
+  metadata: MetadataModule,
   work: WorkModule,
   workspace: WorkspaceModule,
   inbox: InboxModule,
@@ -75,13 +83,22 @@ export default function App() {
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeModule)) {
-      const allModuleIds: ModuleId[] = ["library", "work", "workspace", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "questions", "portal", "scheduler", "repos", "email"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "workspace", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "questions", "portal", "scheduler", "repos", "email"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id));
       if (firstVisible) {
         setActiveModule(firstVisible);
       }
     }
   }, [activeModule, isModuleVisible, teamConfigLoaded, setActiveModule]);
+
+  // Sync active repository path to backend settings.json (knowledge_path)
+  const activeRepoId = useRepositoryStore((s) => s.activeRepositoryId);
+  const repositories = useRepositoryStore((s) => s.repositories);
+  useEffect(() => {
+    const activeRepo = repositories.find((r) => r.id === activeRepoId);
+    const path = activeRepo?.path ?? "";
+    invoke("settings_set_key", { keyName: "knowledge_path", value: path }).catch(() => {});
+  }, [activeRepoId, repositories]);
 
   // Subscribe to Supabase Realtime for automatic UI updates (only when authenticated)
   useRealtimeSync();
@@ -93,14 +110,15 @@ export default function App() {
         e.preventDefault();
         const moduleKeys: ModuleId[] = [
           "library",
-          "crm",
-          "work",
-          "workspace",
+          "projects",
+          "metadata",
           "domains",
           "product",
           "gallery",
           "bot",
           "skills",
+          "scheduler",
+          "repos",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
       }

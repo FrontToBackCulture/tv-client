@@ -18,13 +18,12 @@ import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useDiscoverDomains } from "../../hooks/val-sync";
 import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
-import { UnifiedReviewView } from "../library/UnifiedReviewView";
-import type { ReviewResourceType } from "../library/reviewTypes";
+import { UnifiedReviewView } from "./UnifiedReviewView";
+import type { ReviewResourceType } from "./reviewTypes";
 import { DomainsOverview } from "./DomainsOverview";
 import { DomainDetailPanel } from "./DomainDetailPanel";
 import { DriveTabView } from "./DriveTabView";
 import { CrossDomainReportsView } from "./CrossDomainReportsView";
-import { CrossDomainReviewView } from "./CrossDomainReviewView";
 
 type Level1Tab = "overview" | "data-models" | "queries" | "workflows" | "dashboards" | "drive" | "reports";
 type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
@@ -118,7 +117,7 @@ export function DomainsModule() {
     const basePath = reviewDomain
       ? reviewDomain.global_path
       : paths
-        ? `${paths.platform}/domains/production/${reviewingDomain}`
+        ? `${paths.platform}/domains/${reviewingDomain}`
         : null;
 
     const REVIEW_FOLDER: Record<ReviewType, string> = {
@@ -211,6 +210,20 @@ export function DomainsModule() {
   // ── Level 1: All Domains (tabbed) ──
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+      {/* Description */}
+      <div className="flex-shrink-0 px-4 pt-3 pb-1">
+        <p className="text-xs text-zinc-400">
+          {activeTab === "overview" ? "All connected VAL domains — sync data, manage credentials, and monitor sync status."
+            : activeTab === "data-models" ? "Cross-domain view of all table schemas — compare, classify, and manage data models across domains."
+            : activeTab === "queries" ? "Cross-domain view of all saved queries — review SQL, check dashboard usage, and manage portal visibility."
+            : activeTab === "workflows" ? "Cross-domain view of all automation workflows — review triggers, actions, and execution status."
+            : activeTab === "dashboards" ? "Cross-domain view of all dashboards — review widgets, linked queries, and portal visibility."
+            : activeTab === "drive" ? "Browse VAL Drive folders across domains — view uploaded files and workflow file processing."
+            : activeTab === "reports" ? "Generated reports across all domains — HTML reports, analysis outputs, and documentation."
+            : ""}
+        </p>
+      </div>
+
       {/* Tab bar */}
       <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
         <ViewTab
@@ -272,25 +285,25 @@ export function DomainsModule() {
 
         {activeTab === "data-models" && (
           <div className="flex-1 overflow-hidden">
-            <CrossDomainReviewView resourceType="table" />
+            <UnifiedReviewView crossDomain resourceType="table" />
           </div>
         )}
 
         {activeTab === "queries" && (
           <div className="flex-1 overflow-hidden">
-            <CrossDomainReviewView resourceType="query" />
+            <UnifiedReviewView crossDomain resourceType="query" />
           </div>
         )}
 
         {activeTab === "workflows" && (
           <div className="flex-1 overflow-hidden">
-            <CrossDomainReviewView resourceType="workflow" />
+            <UnifiedReviewView crossDomain resourceType="workflow" />
           </div>
         )}
 
         {activeTab === "dashboards" && (
           <div className="flex-1 overflow-hidden">
-            <CrossDomainReviewView resourceType="dashboard" />
+            <UnifiedReviewView crossDomain resourceType="dashboard" />
           </div>
         )}
 

@@ -1,11 +1,9 @@
-// src/modules/product/DomainAiTab.tsx
-// AI tab for domain detail panel — shows instructions.md + skill management
+// DomainAiTab — Tree + detail pane for AI context management
+// Left: instructions.md + skill list. Right: content preview or management panel.
 
 import { useState, useMemo, useCallback } from "react";
 import {
-  FileText,
   Brain,
-  X,
   Loader2,
   Sparkles,
   Check,
@@ -13,14 +11,12 @@ import {
   CloudUpload,
   RefreshCw,
   CheckCircle2,
-  XCircle,
-  AlertCircle,
   BadgeCheck,
-  ChevronDown,
+  AlertCircle,
+  Settings,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
-import { Button, IconButton } from "../../components/ui";
-import { SectionLoading, InlineLoading } from "../../components/ui/DetailStates";
+import { SectionLoading } from "../../components/ui/DetailStates";
 import { useListDirectory, useReadFile } from "../../hooks/useFiles";
 import { MarkdownViewer } from "../library/MarkdownViewer";
 import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
@@ -31,16 +27,18 @@ import {
   useS3AiStatus,
   type S3FileStatus,
 } from "../../hooks/val-sync";
-import { useSkillRegistry, useSkillCheckAll } from "../skills/useSkillRegistry";
+import { useSkillRegistry, useSkillCheckAll, type SkillCategory } from "../skills/useSkillRegistry";
 import { SkillAssignmentGrid } from "../../components/SkillAssignmentGrid";
 import { DriftDiffModal, DriftBadge } from "../../components/DriftDiffModal";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface DomainAiTabProps {
-  aiPath: string; // e.g. /path/to/domain/ai
-  domainName: string; // e.g. "lag"
-  globalPath: string; // e.g. /path/to/domain (parent of ai/)
+  aiPath: string;
+  domainName: string;
+  globalPath: string;
 }
+
+type SelectedItem = { type: "instructions" } | { type: "skill"; slug: string; path: string } | { type: "manage" } | { type: "s3" } | null;
 
 export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps) {
   const registryQuery = useSkillRegistry();
@@ -53,15 +51,15 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
       .sort();
   }, [registry]);
   const categories = registry?.categories ?? [];
-  const skillEntries = registry?.skills ?? {};
+  const skillEntries = (registry?.skills ?? {}) as Record<string, { name: string; category: string; description?: string; target?: string; verified?: boolean }>;
   const paths = useKnowledgePaths();
   const queryClient = useQueryClient();
-  const [selectedDoc, setSelectedDoc] = useState<{ path: string; name: string; type: "skill" | "instructions" } | null>(null);
+  const [selected, setSelected] = useState<SelectedItem>({ type: "manage" });
   const [driftModal, setDriftModal] = useState<{ slug: string; name: string; targetPath: string } | null>(null);
   const [showAssignSkills, setShowAssignSkills] = useState(false);
-  const [showS3Files, setShowS3Files] = useState(false);
 
-  // Drift detection for domain skills
+
+  // Drift detection
   const { data: driftStatuses = [] } = useSkillCheckAll();
   const domainSkillsRelPath = paths
     ? (() => {
@@ -102,12 +100,11 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   const s3SyncMutation = useSyncAiToS3();
   const s3Status = useS3AiStatus(domainName, globalPath);
 
-  // Parse configured skills from ai_config.json
+  // Parse configured skills
   const configuredSkills = useMemo(() => {
     if (!configFile.data) return [] as string[];
     try {
       const parsed = JSON.parse(configFile.data);
-      // Filter out stale skills that no longer exist in _skills/
       return ((parsed.skills ?? []) as string[]).filter(s => AVAILABLE_AI_SKILLS.includes(s));
     } catch {
       return [] as string[];
@@ -117,7 +114,6 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   const [localSkills, setLocalSkills] = useState<string[] | null>(null);
   const selectedSkills = localSkills ?? configuredSkills;
 
-  // Sync local state when config loads/changes
   const configKey = configuredSkills.join(",");
   const [lastConfigKey, setLastConfigKey] = useState("");
   if (configKey !== lastConfigKey) {
@@ -145,386 +141,233 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
     );
   }, [domainName, centralSkillsPath, templatesPath, selectedSkills, generateMutation, configFile, skillsDir, instructionsFile, aiDir]);
 
-  const aiNotFound = aiDir.isError || (aiDir.isSuccess && aiDir.data.length === 0);
-
   const skillFiles = (skillsDir.data ?? []).filter(
     (f) => f.is_directory && !f.name.startsWith(".")
   );
   const hasInstructions = !!instructionsFile.data;
+
+  // Build S3 sync lookup per file (must be before early return — hooks can't be conditional)
+  const s3FileMap = useMemo(() => {
+    const map = new Map<string, { inLocal: boolean; inS3: boolean }>();
+    if (!s3Status.data?.files) return map;
+    for (const f of s3Status.data.files) {
+      map.set(f.path, { inLocal: f.in_local, inS3: f.in_s3 });
+    }
+    return map;
+  }, [s3Status.data]);
+
+  const s3InSync = s3Status.data
+    ? s3Status.data.local_count === s3Status.data.s3_count && s3Status.data.s3_count > 0
+    : false;
 
   if (aiDir.isLoading) {
     return <SectionLoading className="py-12" />;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Profile header card */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-        <div className="h-1.5 bg-gradient-to-r from-purple-400 to-purple-600" />
-        <div className="px-5 py-4">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
-              <Brain size={22} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                  {domainName}
-                </h2>
-                <span className="px-2 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-                  AI Context
+    <div className="flex h-full gap-0">
+      {/* Left: Tree */}
+      <div className="w-[260px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 overflow-auto flex flex-col">
+        <div className="flex-1 py-2 overflow-auto">
+          {/* Manage item */}
+          <button
+            onClick={() => setSelected({ type: "manage" })}
+            className={cn(
+              "w-full flex items-center gap-1.5 px-3 py-2 text-left transition-colors",
+              selected?.type === "manage"
+                ? "bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
+                : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+            )}
+          >
+            <Settings size={14} className={selected?.type === "manage" ? "text-teal-500" : "text-zinc-400"} />
+            <span className={cn("text-xs font-medium", selected?.type === "manage" && "text-teal-700 dark:text-teal-300")}>
+              Manage & Publish
+            </span>
+          </button>
+
+          {/* Instructions */}
+          <button
+            onClick={() => setSelected({ type: "instructions" })}
+            className={cn(
+              "w-full flex items-center gap-1.5 px-3 py-2 text-left transition-colors",
+              selected?.type === "instructions"
+                ? "bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
+                : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+            )}
+          >
+            <Brain size={14} className={cn(
+              selected?.type === "instructions" ? "text-teal-500" : hasInstructions ? "text-purple-500" : "text-zinc-300"
+            )} />
+            <span className={cn("text-xs truncate flex-1", selected?.type === "instructions" && "font-medium")}>
+              instructions.md
+            </span>
+            {!hasInstructions && <span className="text-xs text-zinc-400 ml-auto">missing</span>}
+            {hasInstructions && s3FileMap.has("instructions.md") && (
+              <S3Dot inS3={s3FileMap.get("instructions.md")!.inS3} />
+            )}
+          </button>
+
+          {/* Skills header */}
+          <div className="px-3 pt-3 pb-1">
+            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+              Skills ({skillFiles.length})
+            </span>
+          </div>
+
+          {/* Skill items */}
+          {skillFiles.map((file) => {
+            const slug = file.name;
+            const entry = skillEntries[slug];
+            const drift = driftBySlug.get(slug);
+            const title = entry?.name || slug;
+            const isSelected = selected?.type === "skill" && selected.slug === slug;
+            const s3Key = `skills/${slug}/SKILL.md`;
+            const s3Info = s3FileMap.get(s3Key);
+
+            return (
+              <button
+                key={file.path}
+                onClick={() => setSelected({ type: "skill", slug, path: `${file.path}/SKILL.md` })}
+                className={cn(
+                  "w-full flex items-center gap-1.5 px-3 py-1.5 text-left transition-colors",
+                  isSelected
+                    ? "bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
+                    : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                )}
+              >
+                <Sparkles size={13} className={isSelected ? "text-teal-500" : "text-violet-500"} />
+                <span className={cn("text-xs truncate flex-1", isSelected && "font-medium")} title={title}>
+                  {title}
+                </span>
+                {entry?.verified && (
+                  <BadgeCheck size={11} className="text-blue-500 flex-shrink-0" />
+                )}
+                {drift && (
+                  <DriftBadge
+                    status={drift.status}
+                    targetModified={drift.status === "in_sync" ? formatRelative(drift.target_modified) : undefined}
+                    onClick={drift.status === "drifted" && domainSkillsRelPath ? (e) => {
+                      e.stopPropagation();
+                      setDriftModal({ slug, name: title, targetPath: domainSkillsRelPath + "/" + slug });
+                    } : undefined}
+                  />
+                )}
+                {s3Info && <S3Dot inS3={s3Info.inS3} />}
+              </button>
+            );
+          })}
+
+          {skillFiles.length === 0 && (
+            <p className="px-3 py-2 text-xs text-zinc-400">No skills deployed yet</p>
+          )}
+
+          {/* S3 Files */}
+          {s3Status.data && s3Status.data.files.length > 0 && (
+            <>
+              <div className="px-3 pt-3 pb-1">
+                <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                  S3 Files ({s3Status.data.files.length})
                 </span>
               </div>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Instructions and skill documentation for this domain.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3 mt-4">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
-              <Sparkles size={13} className={skillFiles.length > 0 ? "text-violet-500" : "text-zinc-300"} />
-              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">{skillFiles.length}</span>
-              <span className="text-xs text-zinc-400">Skills</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
-              <FileText size={13} className={hasInstructions ? "text-green-500" : "text-zinc-300"} />
-              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{hasInstructions ? "1" : "0"}</span>
-              <span className="text-xs text-zinc-400">Instructions</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Skill Assignment + Generate */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles size={14} className="text-violet-500" />
-            <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-              Assigned Skills
-            </label>
-            {selectedSkills.length > 0 && (
-              <span className="text-xs font-normal text-zinc-400 tabular-nums">
-                {selectedSkills.length}
-              </span>
-            )}
-          </div>
-          <button
-            onClick={() => setShowAssignSkills(!showAssignSkills)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
-              showAssignSkills
-                ? "bg-violet-50 dark:bg-violet-900/20 border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400"
-                : "bg-zinc-50 dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-800 text-zinc-500 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-600"
-            )}
-          >
-            <Sparkles size={12} />
-            {showAssignSkills ? "Hide Registry" : "Assign Skills"}
-          </button>
-        </div>
-        {showAssignSkills && (
-          <SkillAssignmentGrid
-            skills={AVAILABLE_AI_SKILLS}
-            skillEntries={skillEntries}
-            categories={categories}
-            selectedSkills={selectedSkills}
-            onToggle={handleSkillToggle}
-          />
-        )}
-        <div className="flex items-center gap-3 pt-1">
-          <button
-            onClick={handleGenerate}
-            disabled={generateMutation.isPending || !centralSkillsPath || selectedSkills.length === 0}
-            className={cn(
-              "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
-              !generateMutation.isPending && centralSkillsPath && selectedSkills.length > 0
-                ? "bg-violet-600 text-white hover:bg-violet-700"
-                : "bg-zinc-200 dark:bg-zinc-700 text-zinc-400 cursor-not-allowed"
-            )}
-          >
-            {generateMutation.isPending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Package size={14} />
-            )}
-            {generateMutation.isPending ? "Generating..." : "Generate Package"}
-          </button>
-          {generateMutation.isSuccess && (
-            <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-              <Check size={12} />
-              {generateMutation.data.skills_copied.length} skills
-              {generateMutation.data.instructions_generated && ", instructions updated"}
-            </span>
-          )}
-          {generateMutation.isError && (
-            <span className="text-xs text-red-600 dark:text-red-400">
-              Failed: {String(generateMutation.error)}
-            </span>
+              <button
+                onClick={() => setSelected({ type: "s3" })}
+                className={cn(
+                  "w-full flex items-center gap-1.5 px-3 py-1.5 text-left transition-colors",
+                  selected?.type === "s3"
+                    ? "bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
+                    : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                )}
+              >
+                <CloudUpload size={13} className={selected?.type === "s3" ? "text-teal-500" : "text-zinc-400"} />
+                <span className={cn("text-xs truncate flex-1", selected?.type === "s3" && "font-medium")}>
+                  View all S3 files
+                </span>
+                {s3InSync ? (
+                  <CheckCircle2 size={11} className="text-green-500 flex-shrink-0" />
+                ) : (
+                  <AlertCircle size={11} className="text-amber-500 flex-shrink-0" />
+                )}
+              </button>
+            </>
           )}
         </div>
-        {selectedSkills.length === 0 && (
-          <p className="text-xs text-zinc-400">
-            Select at least one skill before generating.
-          </p>
-        )}
-        {generateMutation.isSuccess && generateMutation.data.errors.length > 0 && (
-          <div className="p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
-            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">
-              Warnings ({generateMutation.data.errors.length})
-            </p>
-            <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-0.5">
-              {generateMutation.data.errors.map((err, i) => (
-                <li key={i}>{err}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
 
-      {/* Publish AI to S3 */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CloudUpload size={14} className="text-teal-500" />
-            <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-              Publish AI to S3
-            </label>
-          </div>
-          <div className="flex items-center gap-2">
+        {/* Bottom bar: S3 status + Push */}
+        <div className="flex-shrink-0 px-3 py-2 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+              <CloudUpload size={11} />
+              {s3Status.data ? (
+                s3InSync ? (
+                  <span className="text-green-600 dark:text-green-400 flex items-center gap-0.5">
+                    <CheckCircle2 size={9} /> In sync
+                  </span>
+                ) : (
+                  <span>{s3Status.data.local_count} local, {s3Status.data.s3_count} S3</span>
+                )
+              ) : (
+                <span>S3</span>
+              )}
+            </div>
             <button
               onClick={() => s3Status.refetch()}
               disabled={s3Status.isFetching}
-              className="text-xs text-zinc-400 hover:text-zinc-600 flex items-center gap-1"
-              title="Refresh S3 status"
+              className="text-xs text-zinc-400 hover:text-zinc-600"
             >
               <RefreshCw size={10} className={s3Status.isFetching ? "animate-spin" : ""} />
-              Refresh
             </button>
-            <Button
-              onClick={() => s3SyncMutation.mutate({ domain: domainName, globalPath })}
-              icon={CloudUpload}
-              loading={s3SyncMutation.isPending}
-            >
-              Push to S3
-            </Button>
           </div>
+          <button
+            onClick={() => s3SyncMutation.mutate({ domain: domainName, globalPath })}
+            disabled={s3SyncMutation.isPending}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+          >
+            {s3SyncMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <CloudUpload size={11} />}
+            Push to S3
+          </button>
+          {s3SyncMutation.isSuccess && (
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1 text-center">
+              {s3SyncMutation.data.message}
+            </p>
+          )}
         </div>
+      </div>
 
-        {s3SyncMutation.isSuccess && (
-          <div className="p-2 rounded bg-green-500/10 text-green-600 dark:text-green-400 text-xs">
-            {s3SyncMutation.data.message} ({s3SyncMutation.data.duration_ms}ms)
-          </div>
-        )}
-        {s3SyncMutation.isError && (
-          <p className="text-xs text-red-500">
-            {(s3SyncMutation.error as Error).message}
-          </p>
+      {/* Right: Content */}
+      <div className="flex-1 overflow-auto">
+        {selected?.type === "instructions" && (
+          <InstructionsView content={instructionsFile.data} isLoading={instructionsFile.isLoading} />
         )}
 
-        {/* S3 Status */}
-        {s3Status.isLoading && (
-          <InlineLoading message="Checking S3 status..." />
+        {selected?.type === "skill" && (
+          <SkillView filePath={selected.path} />
         )}
-        {s3Status.isError && (
-          <p className="text-xs text-zinc-400 py-2">
-            Could not check S3 status: {(s3Status.error as Error).message}
-          </p>
-        )}
-        {s3Status.data && (
-          <div className="space-y-2">
-            {/* Summary chips */}
-            <div className="flex items-center gap-3 text-xs">
-              <span className="text-zinc-500">
-                Local: <span className="font-medium text-zinc-700 dark:text-zinc-300">{s3Status.data.local_count} files</span>
-              </span>
-              <span className="text-zinc-500">
-                S3: <span className="font-medium text-zinc-700 dark:text-zinc-300">{s3Status.data.s3_count} files</span>
-              </span>
-              {s3Status.data.local_count === s3Status.data.s3_count && s3Status.data.s3_count > 0 && (
-                <span className="text-green-600 dark:text-green-400 flex items-center gap-0.5">
-                  <CheckCircle2 size={10} /> In sync
-                </span>
-              )}
-              {s3Status.data.s3_count === 0 && s3Status.data.local_count > 0 && (
-                <span className="text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
-                  <AlertCircle size={10} /> Not published
-                </span>
-              )}
-              {!s3Status.data.has_ai_folder && (
-                <span className="text-zinc-400">No ai/ folder</span>
-              )}
-            </div>
 
-            {/* File list — collapsible */}
-            {s3Status.data.files.length > 0 && (
-              <div>
-                <button
-                  onClick={() => setShowS3Files(!showS3Files)}
-                  className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-                >
-                  <ChevronDown size={12} className={cn("transition-transform", !showS3Files && "-rotate-90")} />
-                  {showS3Files ? "Hide" : "Show"} {s3Status.data.files.length} files
-                </button>
-                {showS3Files && (
-                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden mt-2">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500">
-                          <th className="text-left px-2 py-1 font-medium">File</th>
-                          <th className="text-center px-2 py-1 font-medium w-16">Local</th>
-                          <th className="text-center px-2 py-1 font-medium w-16">S3</th>
-                          <th className="text-right px-2 py-1 font-medium w-32">S3 Last Modified</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {s3Status.data.files.map((f: S3FileStatus) => (
-                          <tr key={f.path} className="border-t border-zinc-100 dark:border-zinc-800/50">
-                            <td className="px-2 py-1 font-mono text-zinc-700 dark:text-zinc-300 truncate max-w-[200px]" title={f.path}>
-                              {f.path}
-                            </td>
-                            <td className="text-center px-2 py-1">
-                              {f.in_local ? (
-                                <CheckCircle2 size={12} className="inline text-green-500" />
-                              ) : (
-                                <XCircle size={12} className="inline text-red-400" />
-                              )}
-                            </td>
-                            <td className="text-center px-2 py-1">
-                              {f.in_s3 ? (
-                                <CheckCircle2 size={12} className="inline text-green-500" />
-                              ) : (
-                                <XCircle size={12} className="inline text-zinc-300 dark:text-zinc-600" />
-                              )}
-                            </td>
-                            <td className="text-right px-2 py-1 text-zinc-400">
-                              {f.s3_last_modified
-                                ? new Date(f.s3_last_modified).toLocaleString("en-SG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                                : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
+        {selected?.type === "s3" && s3Status.data && (
+          <S3FilesView files={s3Status.data.files} localCount={s3Status.data.local_count} s3Count={s3Status.data.s3_count} />
+        )}
+
+        {selected?.type === "manage" && (
+          <ManagePanel
+            selectedSkills={selectedSkills}
+            availableSkills={AVAILABLE_AI_SKILLS}
+            skillEntries={skillEntries}
+            categories={categories}
+            showAssignSkills={showAssignSkills}
+            setShowAssignSkills={setShowAssignSkills}
+            onSkillToggle={handleSkillToggle}
+            onGenerate={handleGenerate}
+            generateMutation={generateMutation}
+            centralSkillsPath={centralSkillsPath}
+          />
+        )}
+
+        {!selected && (
+          <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
+            Select an item to view
           </div>
         )}
       </div>
-
-      {aiNotFound && (
-        <div className="flex items-center justify-center py-8">
-          <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg p-8 max-w-md text-center">
-            <Brain size={32} className="mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
-            <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              No AI context found
-            </h3>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">
-              Assign skills above, then click "Generate Package".
-            </p>
-          </div>
-        </div>
-      )}
-
-      {!aiNotFound && (
-        <div className="flex items-start gap-6">
-          {/* Left column: Skills */}
-          <div className="flex-1 min-w-0 space-y-3">
-            <div className="flex items-center gap-2">
-              <Sparkles size={14} className="text-violet-500" />
-              <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                Skills
-              </label>
-              {skillFiles.length > 0 && (
-                <span className="text-xs font-normal text-zinc-400 tabular-nums">
-                  {skillFiles.length}
-                </span>
-              )}
-            </div>
-
-            {skillFiles.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
-                {skillFiles.map((file) => {
-                  const slug = file.name;
-                  const entry = skillEntries[slug];
-                  const drift = driftBySlug.get(slug);
-                  const title = entry?.name || slug;
-                  const summary = entry?.description;
-
-                  return (
-                    <button
-                      key={file.path}
-                      onClick={() => setSelectedDoc({ path: `${file.path}/SKILL.md`, name: file.name, type: "skill" })}
-                      className={cn(
-                        "text-left px-4 py-3 rounded-lg border bg-white dark:bg-zinc-900 hover:shadow-sm transition-all cursor-pointer group",
-                        "border-zinc-200 dark:border-zinc-800 hover:border-violet-300 dark:hover:border-violet-700"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Sparkles size={13} className="text-violet-500 flex-shrink-0" />
-                        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors flex-1" title={title}>
-                          {title}
-                        </span>
-                        {entry?.verified && (
-                          <span title="Meets skill authoring standard">
-                            <BadgeCheck size={13} className="text-blue-500 flex-shrink-0" />
-                          </span>
-                        )}
-                      </div>
-                      {summary && (
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-1.5">{summary}</p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <DriftBadge
-                          status={drift?.status ?? "not_tracked"}
-                          targetModified={drift?.status === "in_sync" ? formatRelative(drift.target_modified) : undefined}
-                          onClick={drift?.status === "drifted" && domainSkillsRelPath ? (e) => {
-                            e.stopPropagation();
-                            setDriftModal({ slug, name: title, targetPath: domainSkillsRelPath + "/" + slug });
-                          } : undefined}
-                        />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-4 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
-                <Sparkles size={16} className="mx-auto mb-1.5 text-zinc-300 dark:text-zinc-700" />
-                <p className="text-xs text-zinc-400">No skill docs yet</p>
-              </div>
-            )}
-          </div>
-
-          {/* Right column: Instructions */}
-          <div className="w-[320px] flex-shrink-0 space-y-3">
-            <div className="flex items-center gap-2">
-              <Brain size={14} className="text-purple-500" />
-              <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                Instructions
-              </label>
-            </div>
-
-            <InstructionsCard
-              content={instructionsFile.data}
-              isLoading={instructionsFile.isLoading}
-              isError={instructionsFile.isError}
-              onShowMore={() => setSelectedDoc({ path: instructionsPath, name: "instructions.md", type: "instructions" })}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Document modal — shared for skills and instructions */}
-      {selectedDoc && (
-        <DocModal
-          filePath={selectedDoc.path}
-          fileName={selectedDoc.name}
-          type={selectedDoc.type}
-          onClose={() => setSelectedDoc(null)}
-        />
-      )}
 
       {/* Drift diff modal */}
       {driftModal && (
@@ -541,110 +384,195 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   );
 }
 
-/** Unified modal for viewing skill docs or instructions */
-function DocModal({
-  filePath,
-  fileName,
-  type,
-  onClose,
-}: {
-  filePath: string;
-  fileName: string;
-  type: "skill" | "instructions";
-  onClose: () => void;
-}) {
+// ─── Instructions View ──────────────────────────────────────────────────────
+
+function InstructionsView({ content, isLoading }: { content: string | undefined; isLoading: boolean }) {
+  if (isLoading) return <SectionLoading className="py-12" />;
+  if (!content) {
+    return (
+      <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
+        No instructions.md found — generate a package to create one.
+      </div>
+    );
+  }
+  return (
+    <div className="p-6">
+      <MarkdownViewer content={content} filename="instructions.md" />
+    </div>
+  );
+}
+
+// ─── Skill View ─────────────────────────────────────────────────────────────
+
+function SkillView({ filePath }: { filePath: string }) {
   const { data: content, isLoading } = useReadFile(filePath);
-  const displayName = fileName.replace(/\.md$/, "");
-
-  const icon = type === "skill" ? (
-    <Sparkles size={14} className="text-violet-500 flex-shrink-0" />
-  ) : (
-    <Brain size={14} className="text-purple-500 flex-shrink-0" />
-  );
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8 animate-fade-in">
-      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden animate-modal-in">
-        <div className="flex-shrink-0 px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                {icon}
-                <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayName}</span>
-                <span className="text-xs text-zinc-400 dark:text-zinc-500">&middot;</span>
-                <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{fileName}</span>
-              </div>
-            </div>
-            <IconButton
-              onClick={onClose}
-              icon={X}
-              label="Close"
-              className="flex-shrink-0"
-            />
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {isLoading && (
-            <SectionLoading className="py-16" />
-          )}
-          {content && (
-            <div className="px-6 py-5">
-              <MarkdownViewer content={content} filename={fileName} />
-            </div>
-          )}
-        </div>
+  if (isLoading) return <SectionLoading className="py-12" />;
+  if (!content) {
+    return (
+      <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
+        Could not load skill file
       </div>
+    );
+  }
+  return (
+    <div className="p-6">
+      <MarkdownViewer content={content} filename="SKILL.md" />
     </div>
   );
 }
 
-/** Instructions card with truncated preview */
-function InstructionsCard({
-  content,
-  isLoading,
-  isError,
-  onShowMore,
+// ─── Manage Panel ───────────────────────────────────────────────────────────
+
+function ManagePanel({
+  selectedSkills,
+  availableSkills,
+  skillEntries,
+  categories,
+  showAssignSkills,
+  setShowAssignSkills,
+  onSkillToggle,
+  onGenerate,
+  generateMutation,
+  centralSkillsPath,
 }: {
-  content: string | undefined;
-  isLoading: boolean;
-  isError: boolean;
-  onShowMore: () => void;
+  selectedSkills: string[];
+  availableSkills: string[];
+  skillEntries: Record<string, { name: string; category: string }>;
+  categories: SkillCategory[];
+  showAssignSkills: boolean;
+  setShowAssignSkills: (v: boolean) => void;
+  onSkillToggle: (skill: string) => void;
+  onGenerate: () => void;
+  generateMutation: ReturnType<typeof useGenerateAiPackage>;
+  centralSkillsPath: string | null;
 }) {
-  if (isLoading) {
-    return (
-      <div className="p-3 rounded border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-400">
-        Loading instructions...
-      </div>
-    );
-  }
-
-  if (isError || !content) {
-    return (
-      <div className="p-3 rounded border border-dashed border-zinc-300 dark:border-zinc-700 text-xs text-zinc-400">
-        No instructions.md found — will be generated with the package.
-      </div>
-    );
-  }
-
   return (
-    <div className="rounded border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-      <div className="p-3">
-        <pre className="text-xs text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed line-clamp-[12]">
-          {content}
-        </pre>
+    <div className="p-6 space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Manage & Publish</h2>
+        <p className="text-xs text-zinc-400">
+          Assign skills to this domain, generate the AI package, and publish to S3 for the client portal.
+        </p>
       </div>
-      <button
-        onClick={onShowMore}
-        className="w-full px-3 py-1.5 text-xs text-teal-600 dark:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 transition-colors"
-      >
-        Show more
-      </button>
+
+      {/* Skill Assignment */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles size={14} className="text-violet-500" />
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              Assigned Skills
+            </label>
+            {selectedSkills.length > 0 && (
+              <span className="text-xs text-zinc-400 tabular-nums">{selectedSkills.length}</span>
+            )}
+          </div>
+          <button
+            onClick={() => setShowAssignSkills(!showAssignSkills)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
+              showAssignSkills
+                ? "bg-violet-50 dark:bg-violet-900/20 border-violet-300 dark:border-violet-700 text-violet-600"
+                : "bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-violet-300 hover:text-violet-600"
+            )}
+          >
+            <Sparkles size={12} />
+            {showAssignSkills ? "Hide Registry" : "Assign Skills"}
+          </button>
+        </div>
+        {showAssignSkills && (
+          <SkillAssignmentGrid
+            skills={availableSkills}
+            skillEntries={skillEntries}
+            categories={categories}
+            selectedSkills={selectedSkills}
+            onToggle={onSkillToggle}
+          />
+        )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onGenerate}
+            disabled={generateMutation.isPending || !centralSkillsPath || selectedSkills.length === 0}
+            className={cn(
+              "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+              !generateMutation.isPending && centralSkillsPath && selectedSkills.length > 0
+                ? "bg-violet-600 text-white hover:bg-violet-700"
+                : "bg-zinc-200 dark:bg-zinc-700 text-zinc-400 cursor-not-allowed"
+            )}
+          >
+            {generateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
+            {generateMutation.isPending ? "Generating..." : "Generate Package"}
+          </button>
+          {generateMutation.isSuccess && (
+            <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+              <Check size={12} />
+              {generateMutation.data.skills_copied.length} skills
+              {generateMutation.data.instructions_generated && ", instructions updated"}
+            </span>
+          )}
+          {generateMutation.isError && (
+            <span className="text-xs text-red-600">{String(generateMutation.error)}</span>
+          )}
+        </div>
+        {selectedSkills.length === 0 && (
+          <p className="text-xs text-zinc-400">Select at least one skill before generating.</p>
+        )}
+      </div>
+
     </div>
   );
 }
 
-/** Format a timestamp as relative time */
+function S3FilesView({ files, localCount, s3Count }: { files: S3FileStatus[]; localCount: number; s3Count: number }) {
+  return (
+    <div className="p-6 space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-1">S3 Published Files</h2>
+        <p className="text-xs text-zinc-400">
+          {localCount} local files, {s3Count} in S3.
+          {localCount === s3Count && s3Count > 0 && " All files in sync."}
+        </p>
+      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-xs text-zinc-400 uppercase tracking-wider">
+            <th className="text-left py-1.5 font-medium">File</th>
+            <th className="text-center py-1.5 font-medium w-16">Local</th>
+            <th className="text-center py-1.5 font-medium w-16">S3</th>
+            <th className="text-right py-1.5 font-medium w-36">S3 Last Modified</th>
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((f) => (
+            <tr key={f.path} className="border-t border-zinc-100 dark:border-zinc-800/50">
+              <td className="py-2 font-mono text-zinc-700 dark:text-zinc-300 text-xs">{f.path}</td>
+              <td className="py-2 text-center">
+                {f.in_local ? <CheckCircle2 size={13} className="inline text-green-500" /> : <AlertCircle size={13} className="inline text-red-400" />}
+              </td>
+              <td className="py-2 text-center">
+                {f.in_s3 ? <CheckCircle2 size={13} className="inline text-green-500" /> : <AlertCircle size={13} className="inline text-zinc-300 dark:text-zinc-600" />}
+              </td>
+              <td className="py-2 text-right text-xs text-zinc-400">
+                {f.s3_last_modified
+                  ? new Date(f.s3_last_modified).toLocaleString("en-SG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                  : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function S3Dot({ inS3 }: { inS3: boolean }) {
+  return (
+    <span title={inS3 ? "Published to S3" : "Not in S3"} className="flex-shrink-0">
+      <span className={cn("inline-block w-1.5 h-1.5 rounded-full", inS3 ? "bg-green-500" : "bg-zinc-300 dark:bg-zinc-600")} />
+    </span>
+  );
+}
+
 function formatRelative(iso: string): string {
   const date = new Date(iso);
   const now = new Date();

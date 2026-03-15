@@ -189,7 +189,7 @@ fn extract_sql_from_plugin(plugin: &Value) -> Vec<(String, String)> {
 // ============================================================================
 
 fn extract_queries_internal(global_path: &str) -> CmdResult<usize> {
-    let input = format!("{}/all_queries.json", global_path);
+    let input = format!("{}/schema/all_queries.json", global_path);
     let data = read_json(&input)?;
     let items = extract_array(&data, "queries");
 
@@ -215,7 +215,7 @@ fn extract_queries_internal(global_path: &str) -> CmdResult<usize> {
 }
 
 fn extract_workflows_internal(global_path: &str) -> CmdResult<usize> {
-    let input = format!("{}/all_workflows.json", global_path);
+    let input = format!("{}/schema/all_workflows.json", global_path);
     let data = read_json(&input)?;
     let items = extract_array(&data, "workflows");
 
@@ -241,7 +241,7 @@ fn extract_workflows_internal(global_path: &str) -> CmdResult<usize> {
 }
 
 fn extract_dashboards_internal(global_path: &str) -> CmdResult<usize> {
-    let input = format!("{}/all_dashboards.json", global_path);
+    let input = format!("{}/schema/all_dashboards.json", global_path);
     let data = read_json(&input)?;
     let items = extract_array(&data, "dashboards");
 
@@ -268,7 +268,7 @@ fn extract_dashboards_internal(global_path: &str) -> CmdResult<usize> {
 
 /// Tables: recursive tree traversal + per-table API fetch
 async fn extract_tables_internal(domain: &str, global_path: &str) -> CmdResult<usize> {
-    let input = format!("{}/all_tables.json", global_path);
+    let input = format!("{}/schema/all_tables.json", global_path);
     let data = read_json(&input)?;
 
     // Recursively extract table nodes
@@ -412,7 +412,7 @@ fn extract_sql_internal(global_path: &str) -> CmdResult<usize> {
 
 /// Calc fields: enrich data model definitions with ruleField
 fn extract_calc_fields_internal(global_path: &str) -> CmdResult<usize> {
-    let input = format!("{}/all_calculated_fields.json", global_path);
+    let input = format!("{}/schema/all_calculated_fields.json", global_path);
     let data = match read_json(&input) {
         Ok(d) => d,
         Err(_) => return Ok(0), // No calc fields file — skip
@@ -547,7 +547,7 @@ pub async fn run_extract(domain: &str, extract_type: &str) -> CmdResult<ExtractR
 
     let duration_ms = start.elapsed().as_millis() as u64;
 
-    metadata::update_extraction_sync(global_path, domain, extract_type, count, "ok", duration_ms);
+    metadata::update_extraction_sync(global_path, domain, extract_type, count, "ok", duration_ms).await;
 
     Ok(ExtractResult {
         domain: domain.to_string(),

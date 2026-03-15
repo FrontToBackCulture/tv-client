@@ -124,3 +124,11 @@ export const RESOURCE_LABEL: Record<ReviewResourceType, string> = {
   dashboard: "Dashboards",
   workflow: "Workflows",
 };
+
+// Description for each resource type — shown as subtitle in review view
+export const RESOURCE_DESCRIPTION: Record<ReviewResourceType, string> = {
+  table: "Tables synced from VAL. Fetch pulls live data. AI generates descriptions and classifications. Sync to Portal publishes to the client portal.",
+  query: "Saved queries from VAL. Review SQL definitions, check which dashboards use each query, and manage portal visibility.",
+  dashboard: "Dashboard configurations from VAL. Review widget layouts, linked queries, and manage portal visibility.",
+  workflow: "Automation workflows from VAL. Review triggers, actions, and execution status.",
+};

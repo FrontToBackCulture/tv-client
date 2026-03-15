@@ -1,13 +1,13 @@
 // src/modules/workspace/WorkspaceDetailView.tsx
 // Workspace detail: artifact tree (left) + file preview / sessions (right)
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   ArrowLeft, FileText, Puzzle, Building2, Code2,
   BarChart3, ListChecks, Globe, FileSpreadsheet, ChevronDown,
   ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
-  Circle, XCircle, PenTool,
+  Circle, XCircle, PenTool, Trash2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -22,10 +22,14 @@ import {
 } from "../library/viewers";
 import { useWorkspace, useUpdateWorkspace, useAddArtifact, useRemoveArtifact } from "../../hooks/workspace";
 import { useFileTree, useReadFile, useFolderChildren, type TreeNode } from "../../hooks/useFiles";
-import { useTask } from "../../hooks/work/useTasks";
+import { useTask, useAllTasks } from "../../hooks/work/useTasks";
+import { useProjects } from "../../hooks/work/useProjects";
 import { useDeal } from "../../hooks/crm/useDeals";
 import { useCompany } from "../../hooks/crm/useCompanies";
-import { DEAL_STAGES, COMPANY_STAGES } from "../../lib/crm/types";
+import { useContacts } from "../../hooks/crm/useContacts";
+import { useActivities } from "../../hooks/crm/useActivities";
+import { ACTIVITY_TYPES } from "../../lib/crm/types";
+import { DEAL_STAGES, DEAL_SOLUTIONS, COMPANY_STAGES } from "../../lib/crm/types";
 import { useRepository } from "../../stores/repositoryStore";
 import type { WorkspaceSession, WorkspaceArtifact } from "../../lib/workspace/types";
 
@@ -1285,14 +1289,204 @@ function ArtifactPickerModal({
 // Main Detail View
 // ============================================================================
 
+// Contact detail shown in right panel
+function ContactDetailPanel({ contact }: { contact: any | null }) {
+  if (!contact) return <div className="h-full flex items-center justify-center text-zinc-400 text-sm">Contact not found</div>;
+
+  return (
+    <div className="h-full overflow-y-auto p-6">
+      <div className="mb-4">
+        <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">{contact.name}</h2>
+        {contact.role && <p className="text-sm text-zinc-500 mt-0.5">{contact.role}</p>}
+        {contact.department && <p className="text-xs text-zinc-400">{contact.department}</p>}
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Email</h3>
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">{contact.email}</p>
+        </div>
+
+        {contact.phone && (
+          <div>
+            <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Phone</h3>
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">{contact.phone}</p>
+          </div>
+        )}
+
+        {contact.linkedin_url && (
+          <div>
+            <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">LinkedIn</h3>
+            <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all">{contact.linkedin_url}</p>
+          </div>
+        )}
+
+        {contact.notes && (
+          <div>
+            <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Notes</h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap">{contact.notes}</p>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 pt-2">
+          {contact.is_primary && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 font-medium">Primary Contact</span>
+          )}
+          {contact.is_active === false && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium">Inactive</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Activity detail shown in right panel
+function ActivityDetailPanel({ activity }: { activity: any | null }) {
+  if (!activity) return <div className="h-full flex items-center justify-center text-zinc-400 text-sm">Activity not found</div>;
+
+  const typeInfo = ACTIVITY_TYPES.find(t => t.value === activity.type);
+
+  return (
+    <div className="h-full overflow-y-auto p-6">
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-medium">
+            {typeInfo?.label || activity.type}
+          </span>
+          <span className="text-xs text-zinc-400">{formatDateTime(activity.activity_date)}</span>
+        </div>
+        {activity.subject && (
+          <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200 mt-2">{activity.subject}</h2>
+        )}
+      </div>
+
+      {activity.content && (
+        <div className="mb-4">
+          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Content</h3>
+          <div className="text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap leading-relaxed">{activity.content}</div>
+        </div>
+      )}
+
+      {activity.type === "stage_change" && (
+        <div className="mb-4">
+          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Stage Change</h3>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-zinc-500">{activity.old_value}</span>
+            <span className="text-zinc-400">→</span>
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">{activity.new_value}</span>
+          </div>
+        </div>
+      )}
+
+      {activity.created_by && (
+        <div className="text-xs text-zinc-400 mt-4">By: {activity.created_by}</div>
+      )}
+    </div>
+  );
+}
+
+// Inline editable field
+function EditableField({ value, onSave, type = "text", options, displayValue }: {
+  value: string | number | null | undefined;
+  onSave: (val: string) => void;
+  type?: "text" | "number" | "date" | "select" | "textarea";
+  options?: { value: string; label: string }[];
+  displayValue?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value ?? ""));
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      if (type === "select") {
+        // Auto-save on select change
+      }
+    }
+  }, [editing]);
+
+  const save = () => {
+    setEditing(false);
+    if (draft !== String(value ?? "")) onSave(draft);
+  };
+
+  if (!editing) {
+    const display = displayValue || (value != null && value !== "" ? String(value) : null);
+    return (
+      <button
+        onClick={() => { setDraft(String(value ?? "")); setEditing(true); }}
+        className="text-left w-full min-h-[20px] cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-950/20 rounded px-1.5 py-0.5 -mx-1 transition-colors border border-transparent hover:border-teal-200 dark:hover:border-teal-800"
+      >
+        {display ? (
+          <span className="text-zinc-700 dark:text-zinc-300">{display}</span>
+        ) : (
+          <span className="text-zinc-300 dark:text-zinc-600">—</span>
+        )}
+      </button>
+    );
+  }
+
+  if (type === "select" && options) {
+    return (
+      <select
+        ref={inputRef as any}
+        value={draft}
+        onChange={(e) => { setDraft(e.target.value); onSave(e.target.value); setEditing(false); }}
+        onBlur={() => setEditing(false)}
+        className="text-xs border border-teal-400 rounded px-1.5 py-1 bg-white dark:bg-zinc-900 outline-none w-full"
+      >
+        <option value="">—</option>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    );
+  }
+
+  if (type === "textarea") {
+    return (
+      <textarea
+        ref={inputRef as any}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Escape") { setEditing(false); } }}
+        rows={3}
+        className="text-xs border border-teal-400 rounded px-1.5 py-1 bg-white dark:bg-zinc-900 outline-none w-full resize-none"
+      />
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef as any}
+      type={type === "number" ? "number" : type === "date" ? "date" : "text"}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+      className="text-xs border border-teal-400 rounded px-1.5 py-1 bg-white dark:bg-zinc-900 outline-none w-full"
+    />
+  );
+}
+
 export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated }: Props) {
-  const { data: workspace, isLoading } = useWorkspace(workspaceId);
+  const { data: workspace, isLoading, refetch: refetchWorkspace } = useWorkspace(workspaceId);
   const updateWorkspace = useUpdateWorkspace();
   const { activeRepository } = useRepository();
   const basePath = activeRepository?.path ?? "";
-  const [selection, setSelection] = useState<{ type: "file"; path: string } | { type: "session"; id: string } | { type: "task"; id: string } | { type: "crm_deal"; id: string } | { type: "crm_company"; id: string } | null>(null);
+  const [selection, setSelection] = useState<{ type: "file"; path: string } | { type: "session"; id: string } | { type: "task"; id: string } | { type: "crm_deal"; id: string } | { type: "crm_company"; id: string } | { type: "activity"; id: string } | { type: "contact"; id: string } | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [taskContextMenu, setTaskContextMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
+  const [taskProjectSearch, setTaskProjectSearch] = useState("");
+
+  // Direct project update via Supabase
+  const updateProjectField = useCallback(async (field: string, value: any) => {
+    const { supabase } = await import("../../lib/supabase");
+    await supabase.from("projects").update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", workspaceId);
+    refetchWorkspace();
+  }, [workspaceId, refetchWorkspace]);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const dragging = useRef(false);
 
@@ -1315,12 +1509,81 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
     document.addEventListener("mouseup", onMouseUp);
   }, [sidebarWidth]);
 
+  // Fetch additional data based on project type
+  const ws = workspace as any;
+  const isDeal = ws?.project_type === "deal";
+  const companyId = isDeal ? ws?.company_id : null;
+
+  // Contacts for deal's company
+  const { data: contacts = [] } = useContacts(companyId ? { companyId } : undefined);
+
+  // Activities for this project/deal
+  const { data: activities = [] } = useActivities(
+    isDeal && companyId ? { companyId, limit: 20 } : undefined
+  );
+
+  // Tasks for this project
+  const { data: allTasks = [] } = useAllTasks();
+  // All projects for task reassignment
+  const { data: allProjectsList = [] } = useProjects("all");
+
+  const reassignTask = useCallback(async (taskId: string, newProjectId: string) => {
+    const { supabase } = await import("../../lib/supabase");
+    await supabase.from("tasks").update({ project_id: newProjectId }).eq("id", taskId);
+    refetchWorkspace();
+  }, [refetchWorkspace]);
+
+  const deleteProject = useCallback(async () => {
+    if (!confirm("Delete this project and all its tasks? This cannot be undone.")) return;
+    const { supabase } = await import("../../lib/supabase");
+
+    // Delete tasks one by one (they may have FK refs from task_labels etc)
+    const { data: tasks } = await supabase.from("tasks").select("id").eq("project_id", workspaceId);
+    if (tasks) {
+      for (const t of tasks) {
+        await supabase.from("task_labels").delete().eq("task_id", t.id);
+        await supabase.from("task_deal_links").delete().eq("task_id", t.id);
+        await supabase.from("task_activity").delete().eq("task_id", t.id);
+        await supabase.from("tasks").delete().eq("id", t.id);
+      }
+    }
+    // Delete task statuses
+    await supabase.from("task_statuses").delete().eq("project_id", workspaceId);
+    // Delete workspace children (both FKs)
+    await supabase.from("workspace_sessions").delete().eq("project_id", workspaceId);
+    await supabase.from("workspace_sessions").delete().eq("workspace_id", workspaceId);
+    await supabase.from("workspace_artifacts").delete().eq("project_id", workspaceId);
+    await supabase.from("workspace_artifacts").delete().eq("workspace_id", workspaceId);
+    await supabase.from("workspace_context").delete().eq("project_id", workspaceId);
+    await supabase.from("workspace_context").delete().eq("workspace_id", workspaceId);
+    // Delete activities
+    await supabase.from("crm_activities").delete().eq("project_id", workspaceId);
+    await supabase.from("crm_activities").delete().eq("deal_id", workspaceId);
+    // Delete initiative links
+    await supabase.from("initiative_projects").delete().eq("project_id", workspaceId);
+    // Delete task deal links
+    await supabase.from("task_deal_links").delete().eq("deal_id", workspaceId);
+    // Delete project updates
+    await supabase.from("project_updates").delete().eq("project_id", workspaceId);
+    // Delete the project
+    const { error } = await supabase.from("projects").delete().eq("id", workspaceId);
+    if (error) {
+      alert(`Failed to delete: ${error.message}`);
+      return;
+    }
+    _onUpdated();
+    onBack();
+  }, [workspaceId, onBack, _onUpdated]);
+
+  const projectTasks = allTasks.filter(t => t.project_id === workspaceId);
+  const completedTasks = projectTasks.filter(t => t.status?.type === "completed").length;
+
   if (isLoading) {
     return <div className="h-full flex items-center justify-center text-zinc-400">Loading...</div>;
   }
 
   if (!workspace) {
-    return <div className="h-full flex items-center justify-center text-zinc-400">Workspace not found</div>;
+    return <div className="h-full flex items-center justify-center text-zinc-400">Project not found</div>;
   }
 
   const statusColor = WORKSPACE_STATUS_COLORS[workspace.status] || "#6B7280";
@@ -1351,8 +1614,22 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate">
-                {workspace.title}
+                <EditableField value={workspace.title} onSave={(v) => updateProjectField("name", v)} />
               </h1>
+              {(() => {
+                const projectType = (workspace as any).project_type;
+                if (!projectType) return null;
+                return (
+                  <span className={cn(
+                    "text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider flex-shrink-0",
+                    projectType === "deal" ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                      : projectType === "workspace" ? "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  )}>
+                    {projectType}
+                  </span>
+                );
+              })()}
               <div className="relative">
                 <button
                   onClick={() => setShowStatusMenu((v) => !v)}
@@ -1396,12 +1673,12 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                 )}
               </div>
             </div>
-            {workspace.description && (
-              <p className="text-xs text-zinc-400 mt-0.5 truncate">{workspace.description}</p>
-            )}
+            <p className="text-xs text-zinc-400 mt-0.5">
+              <EditableField value={workspace.description} onSave={(v) => updateProjectField("description", v)} />
+            </p>
           </div>
           <div className="flex items-center gap-3 text-xs text-zinc-400 flex-shrink-0">
-            <span>{workspace.owner}</span>
+            {workspace.owner && <span>{workspace.owner}</span>}
             <span>{formatDateTime(workspace.updated_at)}</span>
           </div>
         </div>
@@ -1411,6 +1688,18 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
       <div className="flex-1 overflow-hidden flex">
         {/* LEFT: Artifacts tree */}
         <div className="flex-shrink-0 border-r border-zinc-100 dark:border-zinc-800/50 flex flex-col" style={{ width: sidebarWidth }}>
+          {/* Overview button */}
+          <button
+            onClick={() => setSelection(null)}
+            className={cn(
+              "flex-shrink-0 w-full text-left px-3 py-2 text-xs font-medium border-b transition-colors",
+              !selection
+                ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/50"
+                : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 border-zinc-100 dark:border-zinc-800/50"
+            )}
+          >
+            Project Details
+          </button>
           {/* Sticky header */}
           <div className="flex-shrink-0 flex items-center justify-between px-3 pt-3 pb-2">
             <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
@@ -1500,6 +1789,157 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                 </div>
               )}
             </div>
+
+            {/* Task progress + task list */}
+            {projectTasks.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+                <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
+                  Tasks ({projectTasks.length})
+                </h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-teal-500 rounded-full transition-all"
+                      style={{ width: `${projectTasks.length ? (completedTasks / projectTasks.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-zinc-400">{completedTasks}/{projectTasks.length}</span>
+                </div>
+                <div className="space-y-0.5">
+                  {projectTasks
+                    .sort((a, b) => {
+                      const order: Record<string, number> = { started: 0, unstarted: 1, backlog: 2, completed: 3, canceled: 4 };
+                      return (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
+                    })
+                    .map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => setSelection({ type: "task", id: task.id })}
+                        onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY }); setTaskProjectSearch(""); }}
+                        className={cn(
+                          "flex items-center gap-1.5 w-full text-left px-2 py-1 rounded text-xs transition-colors",
+                          selection?.type === "task" && selection.id === task.id
+                            ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
+                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400"
+                        )}
+                      >
+                        {task.status?.type === "completed" ? (
+                          <CheckCircle2 size={11} className="text-green-500 flex-shrink-0" />
+                        ) : task.status?.type === "canceled" ? (
+                          <XCircle size={11} className="text-zinc-400 flex-shrink-0" />
+                        ) : task.status?.type === "started" ? (
+                          <Circle size={11} className="text-blue-500 flex-shrink-0" />
+                        ) : (
+                          <Circle size={11} className="text-zinc-300 flex-shrink-0" />
+                        )}
+                        <span className="truncate">{task.title}</span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Deal metadata — editable */}
+            {isDeal && (
+              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+                <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
+                  Deal Info
+                </h3>
+                <div className="space-y-0.5 text-xs">
+                  {([
+                    { label: "Stage", field: "deal_stage", type: "select" as const, options: DEAL_STAGES.map(s => ({ value: s.value, label: s.label })), displayValue: DEAL_STAGES.find(s => s.value === ws.deal_stage)?.label },
+                    { label: "Value", field: "deal_value", type: "number" as const, displayValue: ws.deal_value ? `${ws.deal_currency || "SGD"} ${Number(ws.deal_value).toLocaleString()}` : undefined },
+                    { label: "Currency", field: "deal_currency", type: "text" as const },
+                    { label: "Solution", field: "deal_solution", type: "select" as const, options: DEAL_SOLUTIONS.map(s => ({ value: s.value, label: s.label })), displayValue: DEAL_SOLUTIONS.find(s => s.value === ws.deal_solution)?.label },
+                    { label: "Expected Close", field: "deal_expected_close", type: "date" as const },
+                    { label: "Actual Close", field: "deal_actual_close", type: "date" as const },
+                    { label: "Proposal", field: "deal_proposal_path", type: "text" as const },
+                    { label: "Order Form", field: "deal_order_form_path", type: "text" as const },
+                    { label: "Lost Reason", field: "deal_lost_reason", type: "text" as const },
+                    { label: "Won Notes", field: "deal_won_notes", type: "text" as const },
+                    { label: "Notes", field: "deal_notes", type: "textarea" as const },
+                  ] as any[]).map(({ label, field, type, options: opts, displayValue: dv }: any) => (
+                    <div key={field} className="grid grid-cols-[90px,1fr] gap-1 items-start">
+                      <span className="text-zinc-400 py-0.5">{label}</span>
+                      <EditableField
+                        value={ws[field]}
+                        type={type}
+                        options={opts}
+                        displayValue={dv}
+                        onSave={(v) => updateProjectField(field, type === "number" ? (parseFloat(v) || null) : (v || null))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Contacts (for deals) */}
+            {isDeal && contacts.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+                <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
+                  Contacts ({contacts.length})
+                </h3>
+                <div className="space-y-0.5">
+                  {contacts.map((contact) => (
+                    <button
+                      key={contact.id}
+                      onClick={() => setSelection({ type: "contact", id: contact.id })}
+                      className={cn(
+                        "block w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
+                        selection?.type === "contact" && selection.id === contact.id
+                          ? "bg-teal-50 dark:bg-teal-950/30"
+                          : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-zinc-600 dark:text-zinc-300">{contact.name}</span>
+                        {contact.is_primary && (
+                          <span className="text-[9px] px-1 py-0 rounded bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">Primary</span>
+                        )}
+                      </div>
+                      {contact.role && <div className="text-zinc-400 text-[11px]">{contact.role}</div>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Activities (for deals) */}
+            {isDeal && activities.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+                <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
+                  Activities ({activities.length})
+                </h3>
+                <div className="space-y-0.5">
+                  {activities.slice(0, 15).map((activity) => {
+                    const typeInfo = ACTIVITY_TYPES.find(t => t.value === activity.type);
+                    return (
+                      <button
+                        key={activity.id}
+                        onClick={() => setSelection({ type: "activity", id: activity.id })}
+                        className={cn(
+                          "block w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
+                          selection?.type === "activity" && selection.id === activity.id
+                            ? "bg-teal-50 dark:bg-teal-950/30"
+                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] px-1 py-0 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+                            {typeInfo?.label || activity.type}
+                          </span>
+                          {activity.subject && (
+                            <span className="text-zinc-600 dark:text-zinc-300 truncate">{activity.subject}</span>
+                          )}
+                          <span className="text-zinc-400 text-[10px] ml-auto flex-shrink-0">{formatDate(activity.activity_date)}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         {/* Resize handle */}
@@ -1520,6 +1960,10 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
             <DealDetail dealId={selection.id} />
           ) : selection?.type === "crm_company" ? (
             <CompanyDetail companyId={selection.id} />
+          ) : selection?.type === "contact" ? (
+            <ContactDetailPanel contact={contacts.find(c => c.id === selection.id) || null} />
+          ) : selection?.type === "activity" ? (
+            <ActivityDetailPanel activity={activities.find(a => a.id === selection.id) || null} />
           ) : (
             <div className="h-full overflow-y-auto p-6">
               {/* Context */}
@@ -1539,8 +1983,79 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                 </div>
               )}
 
-              {!context?.current_state && !context?.context_summary && (
-                <div className="h-full flex items-center justify-center">
+              {/* Project Details — editable fields */}
+              <div className="mb-6">
+                <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">Project Details</h3>
+                <div className="space-y-1 text-xs max-w-lg">
+                  <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                    <span className="text-zinc-400 py-1">Name</span>
+                    <EditableField value={workspace.title} onSave={(v) => updateProjectField("name", v)} />
+                  </div>
+                  <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                    <span className="text-zinc-400 py-1">Description</span>
+                    <EditableField value={workspace.description} type="textarea" onSave={(v) => updateProjectField("description", v || null)} />
+                  </div>
+                  <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                    <span className="text-zinc-400 py-1">Owner</span>
+                    <EditableField value={ws.owner} onSave={(v) => updateProjectField("owner", v || null)} />
+                  </div>
+
+                  {/* Company (for deals) */}
+                  {isDeal && (
+                    <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                      <span className="text-zinc-400 py-1">Company</span>
+                      <span className="text-xs text-zinc-700 dark:text-zinc-300 py-1">
+                        {ws.company?.display_name || ws.company?.name || "—"}
+                        {ws.company?.stage && <span className="text-zinc-400 ml-1">({ws.company.stage})</span>}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Work project fields */}
+                  {ws.project_type === "work" && (
+                    <>
+                      <div className="border-t border-zinc-100 dark:border-zinc-800 my-2" />
+                      <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                        <span className="text-zinc-400 py-1">Health</span>
+                        <EditableField value={ws.health} type="select" options={[{ value: "on_track", label: "On Track" }, { value: "at_risk", label: "At Risk" }, { value: "off_track", label: "Off Track" }]} onSave={(v) => updateProjectField("health", v || null)} />
+                      </div>
+                      <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                        <span className="text-zinc-400 py-1">Lead</span>
+                        <EditableField value={ws.lead} onSave={(v) => updateProjectField("lead", v || null)} />
+                      </div>
+                      <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                        <span className="text-zinc-400 py-1">Target Date</span>
+                        <EditableField value={ws.target_date} type="date" onSave={(v) => updateProjectField("target_date", v || null)} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Workspace fields */}
+                  {ws.project_type === "workspace" && (
+                    <>
+                      <div className="border-t border-zinc-100 dark:border-zinc-800 my-2" />
+                      <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                        <span className="text-zinc-400 py-1">Intent</span>
+                        <EditableField value={ws.intent} type="select" options={[{ value: "skill_review", label: "Skill Review" }, { value: "skill_creation", label: "Skill Creation" }, { value: "feature_build", label: "Feature Build" }]} onSave={(v) => updateProjectField("intent", v || null)} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Delete project */}
+              <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                <button
+                  onClick={deleteProject}
+                  className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded px-2 py-1.5 transition-colors"
+                >
+                  <Trash2 size={12} />
+                  Delete Project
+                </button>
+              </div>
+
+              {!context?.current_state && !context?.context_summary && !isDeal && ws.project_type !== "work" && ws.project_type !== "workspace" && (
+                <div className="flex items-center justify-center mt-8">
                   <div className="text-center">
                     <FileText size={32} className="mx-auto mb-3 text-zinc-300 dark:text-zinc-700" />
                     <p className="text-sm text-zinc-400">Select a file to preview</p>
@@ -1554,6 +2069,53 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
       </div>
 
       {/* File picker modal */}
+      {/* Task right-click context menu — reassign to project */}
+      {taskContextMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setTaskContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu(null); }} />
+          <div
+            className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[220px] max-h-[300px] flex flex-col"
+            style={{ left: taskContextMenu.x, top: Math.min(taskContextMenu.y, window.innerHeight - 320) }}
+          >
+            <div className="px-3 py-1.5 text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Move to Project</div>
+            <div className="px-2 pb-1">
+              <input
+                type="text"
+                value={taskProjectSearch}
+                onChange={(e) => setTaskProjectSearch(e.target.value)}
+                placeholder="Search projects..."
+                className="text-xs w-full border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 bg-zinc-50 dark:bg-zinc-800 outline-none"
+                autoFocus
+              />
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {allProjectsList
+                .filter(p => !taskProjectSearch || p.name.toLowerCase().includes(taskProjectSearch.toLowerCase()))
+                .slice(0, 20)
+                .map(p => {
+                  const isCurrent = p.id === workspaceId;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={async () => {
+                        await reassignTask(taskContextMenu.taskId, p.id);
+                        setTaskContextMenu(null);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${isCurrent ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
+                      <span className={`truncate ${isCurrent ? "font-medium text-teal-600" : ""}`}>{p.name}</span>
+                      <span className={`text-[8px] px-1 rounded-full uppercase ml-auto flex-shrink-0 ${
+                        p.project_type === "deal" ? "bg-blue-50 text-blue-500" : p.project_type === "workspace" ? "bg-purple-50 text-purple-500" : "bg-zinc-100 text-zinc-400"
+                      }`}>{p.project_type || "work"}</span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        </>
+      )}
+
       {showPicker && (
         <ArtifactPickerModal
           basePath={basePath}

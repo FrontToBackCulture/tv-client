@@ -3,9 +3,9 @@
 // Iterates all discovered domains, loads review data (light mode), upserts to Supabase.
 
 import { useState, useCallback } from "react";
-import { loadReviewData } from "../modules/library/reviewLoader";
+import { loadReviewData } from "../modules/domains/reviewLoader";
 import { rebuildDomainArtifacts } from "../lib/domainArtifacts";
-import type { ReviewResourceType } from "../modules/library/reviewTypes";
+import type { ReviewResourceType } from "../modules/domains/reviewTypes";
 import type { DiscoveredDomain } from "./val-sync/types";
 
 const RESOURCE_TYPES: ReviewResourceType[] = ["table", "query", "dashboard", "workflow"];

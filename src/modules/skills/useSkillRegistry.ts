@@ -33,6 +33,10 @@ export interface SkillEntry {
   owner?: string;
   gallery_pinned?: boolean;
   gallery_order?: number;
+  has_demo?: boolean;
+  has_examples?: boolean;
+  has_deck?: boolean;
+  has_guide?: boolean;
   distributions: SkillDistribution[];
 }
 

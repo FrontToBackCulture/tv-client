@@ -65,6 +65,14 @@ pub struct SkillEntry {
     pub gallery_pinned: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gallery_order: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_demo: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_examples: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_deck: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_guide: Option<bool>,
     #[serde(default)]
     pub distributions: Vec<SkillDistribution>,
 }
@@ -331,7 +339,7 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
         version: 1,
         updated: now_sgt(),
         categories: existing_registry.as_ref().map(|r| r.categories.clone()).unwrap_or(default_categories),
-        skills: BTreeMap::new(),
+        skills: existing_registry.as_ref().map(|r| r.skills.clone()).unwrap_or_default(),
     };
 
     let mut result = SkillInitResult {
@@ -402,11 +410,18 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
                     updated.name = skill_name;
                     updated.description = description;
                     updated.command = cmd;
+                    // Auto-detect artifacts
+                    let skill_dir = skills_dir.join(&slug);
+                    updated.has_demo = Some(skill_dir.join("demo").exists() || skill_dir.join("demo-data").exists());
+                    updated.has_examples = Some(skill_dir.join("examples").exists());
+                    updated.has_deck = Some(skill_dir.join("deck.html").exists());
+                    updated.has_guide = Some(skill_dir.join("guide.html").exists());
                     updated
                 } else {
                     // New skill: create with defaults
                     let category = bot_categories.get(&slug).cloned()
                         .unwrap_or_else(|| "val".to_string());
+                    let skill_dir = skills_dir.join(&slug);
                     SkillEntry {
                         name: skill_name,
                         description,
@@ -424,6 +439,10 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
                         outcome: None,
                         gallery_pinned: None,
                         gallery_order: None,
+                        has_demo: Some(skill_dir.join("demo").exists() || skill_dir.join("demo-data").exists()),
+                        has_examples: Some(skill_dir.join("examples").exists()),
+                        has_deck: Some(skill_dir.join("deck.html").exists()),
+                        has_guide: Some(skill_dir.join("guide.html").exists()),
                         distributions: vec![SkillDistribution {
                             path: format!("_team/melvin/bot-mel/skills/{}", slug),
                             dist_type: "bot".to_string(),
@@ -436,6 +455,92 @@ pub async fn skill_init(state: State<'_, AppState>, skills_folder: String) -> Cm
                 result.skills_created += 1;
             }
         }
+    }
+
+    // ── Scan _skills/ to sync all skill directories with the registry ──
+    // Update existing entries and add new ones
+    if let Ok(entries) = fs::read_dir(&skills_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !entry.path().is_dir() || name.starts_with('_') || name.starts_with('.') {
+                continue;
+            }
+
+            let slug = name.clone();
+            let skill_dir = entry.path();
+
+            // Parse SKILL.md for name/description/command
+            let skill_md_path = skill_dir.join("SKILL.md");
+            let (skill_name, description, cmd) = if skill_md_path.exists() {
+                let content = fs::read_to_string(&skill_md_path).unwrap_or_default();
+                let sname = parse_frontmatter_field(&content, "title")
+                    .or_else(|| parse_frontmatter_field(&content, "name"))
+                    .unwrap_or_else(|| slug.clone());
+                let desc = parse_frontmatter_field(&content, "description")
+                    .or_else(|| parse_frontmatter_field(&content, "summary"))
+                    .unwrap_or_default();
+                let cmd = parse_frontmatter_field(&content, "command");
+                (sname, desc, cmd)
+            } else {
+                (slug.clone(), String::new(), None)
+            };
+
+            // Detect artifacts
+            let has_demo = Some(skill_dir.join("demo").exists() || skill_dir.join("demo-data").exists());
+            let has_examples = Some(skill_dir.join("examples").exists());
+            let has_deck = Some(skill_dir.join("deck.html").exists());
+            let has_guide = Some(skill_dir.join("guide.html").exists());
+
+            if let Some(existing) = registry.skills.get_mut(&slug) {
+                // Update content fields and artifacts, preserve all metadata
+                existing.name = skill_name;
+                existing.description = description;
+                existing.command = cmd;
+                existing.has_demo = has_demo;
+                existing.has_examples = has_examples;
+                existing.has_deck = has_deck;
+                existing.has_guide = has_guide;
+            } else {
+                // New skill not in registry
+                registry.skills.insert(slug, SkillEntry {
+                    name: skill_name,
+                    description,
+                    category: "val".to_string(),
+                    target: "platform".to_string(),
+                    status: "active".to_string(),
+                    command: cmd,
+                    domain: None,
+                    verified: None,
+                    rating: None,
+                    last_audited: None,
+                    needs_work: None,
+                    work_notes: None,
+                    action: None,
+                    outcome: None,
+                    gallery_pinned: None,
+                    gallery_order: None,
+                    has_demo,
+                    has_examples,
+                    has_deck,
+                    has_guide,
+                    distributions: Vec::new(),
+                });
+                result.platform_skills += 1;
+                result.skills_created += 1;
+            }
+        }
+    }
+
+    // ── Remove registry entries whose _skills/ folder no longer exists ──
+    let stale_slugs: Vec<String> = registry.skills.keys()
+        .filter(|slug| !skills_dir.join(slug).exists())
+        .cloned()
+        .collect();
+    for slug in &stale_slugs {
+        registry.skills.remove(slug);
+    }
+    if !stale_slugs.is_empty() {
+        result.errors.push(format!("Removed {} stale entries: {}", stale_slugs.len(), stale_slugs.join(", ")));
     }
 
     // ── Write registry.json ──

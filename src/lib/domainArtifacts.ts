@@ -3,7 +3,7 @@
 // Provides: query (cross-domain read), upsert (write), rebuild (bulk re-index from filesystem).
 
 import { supabase, isSupabaseConfigured } from "./supabase";
-import type { ReviewResourceType, ReviewRow } from "../modules/library/reviewTypes";
+import type { ReviewResourceType, ReviewRow } from "../modules/domains/reviewTypes";
 
 // ─── Supabase row shape ──────────────────────────────────────────────────────
 

@@ -43,6 +43,51 @@ pub struct Project {
     pub updated_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub archived_at: Option<String>,
+
+    // Unified project type
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_type: Option<String>, // work | deal | workspace
+
+    // Workspace fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>, // skill_review | skill_creation | feature_build
+
+    // Deal fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_stage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_value: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_solution: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_expected_close: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_actual_close: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_proposal_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_order_form_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_lost_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_won_notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_stage_changed_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_stale_snoozed_until: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_contact_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_tags: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_notes: Option<String>,
+
     // Nested data (from joins)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub statuses: Option<Vec<TaskStatus>>,
@@ -50,6 +95,20 @@ pub struct Project {
     pub task_count: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_count: Option<i32>,
+
+    // Workspace nested data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sessions: Option<Vec<WorkspaceSession>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifacts: Option<Vec<WorkspaceArtifact>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<WorkspaceContext>,
+
+    // Deal nested data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company: Option<Box<Company>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contacts: Option<Vec<Contact>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -75,6 +134,27 @@ pub struct CreateProject {
     pub target_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lead: Option<String>,
+    // Unified fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_stage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_value: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_solution: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_expected_close: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -101,6 +181,42 @@ pub struct UpdateProject {
     pub lead: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
+    // Workspace fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>,
+    // Deal fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_stage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_value: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_solution: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_expected_close: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_actual_close: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_proposal_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_order_form_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_lost_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_won_notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_notes: Option<String>,
+    /// Manually set deal_stage_changed_at (use with preserve_stage_date to override automatic update)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_stage_changed_at: Option<String>,
+    /// If true, don't update deal_stage_changed_at when stage changes
+    #[serde(skip_serializing)]
+    pub preserve_stage_date: Option<bool>,
 }
 
 // ============================================================================
@@ -447,4 +563,114 @@ pub struct InitiativeProject {
     pub sort_order: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
+}
+
+// ============================================================================
+// Workspace Session/Artifact/Context (previously in workspace module)
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceSession {
+    pub id: String,
+    pub workspace_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    pub date: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decisions: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_steps: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_questions: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceArtifact {
+    pub id: String,
+    pub workspace_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(rename = "type")]
+    pub artifact_type: String,
+    pub reference: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceContext {
+    pub workspace_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_state: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_decisions: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+// ============================================================================
+// CRM Types (re-exported from work module for unified access)
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Company {
+    pub id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub industry: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub website: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub referred_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Contact {
+    pub id: String,
+    pub company_id: String,
+    pub name: String,
+    pub email: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+}
+
+// ============================================================================
+// Pipeline Stats
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineStage {
+    pub stage: String,
+    pub count: i32,
+    pub value: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineStats {
+    pub by_stage: Vec<PipelineStage>,
+    pub total_value: f64,
+    pub total_deals: i32,
 }

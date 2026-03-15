@@ -32,6 +32,8 @@ pub struct Company {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub referred_by: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
@@ -344,20 +346,8 @@ pub struct LinkEmailRequest {
     pub match_type: String,
 }
 
-// ============================================================================
-// Pipeline Stats
-// ============================================================================
+// Pipeline Stats — defined in work/types.rs, re-exported via work module
+// CRM deals.rs imports PipelineStats from work types
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PipelineStage {
-    pub stage: String,
-    pub count: i32,
-    pub value: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PipelineStats {
-    pub by_stage: Vec<PipelineStage>,
-    pub total_value: f64,
-    pub total_deals: i32,
-}
+// ============================================================================
+// (PipelineStage and PipelineStats live in work/types.rs to avoid duplication)

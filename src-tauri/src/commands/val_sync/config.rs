@@ -113,7 +113,7 @@ pub fn get_domain_config(domain: &str) -> CmdResult<DomainConfig> {
 }
 
 /// Resolve ${tv-knowledge} in paths.
-/// The tv-knowledge path is inferred from global_path patterns or defaults to home.
+/// Uses the explicitly passed path, or falls back to settings.json knowledge_path.
 fn resolve_path_variable(path: &str, tv_knowledge_path: Option<&str>) -> String {
     if !path.contains("${tv-knowledge}") {
         return path.to_string();
@@ -122,18 +122,12 @@ fn resolve_path_variable(path: &str, tv_knowledge_path: Option<&str>) -> String 
     let resolved = if let Some(tk_path) = tv_knowledge_path {
         tk_path.to_string()
     } else {
-        // Default: try common locations
-        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        // Try Dropbox path first (macOS)
-        let gdrive = home.join("Thinkval Dropbox/ThinkVAL team folder/SkyNet/tv-knowledge");
-        if gdrive.exists() {
-            gdrive.to_string_lossy().to_string()
-        } else {
-            // Fallback to Code path
-            home.join("Code/SkyNet/tv-knowledge")
-                .to_string_lossy()
-                .to_string()
-        }
+        // Read from settings.json
+        crate::commands::settings::load_settings()
+            .ok()
+            .and_then(|s| s.keys.get(crate::commands::settings::KEY_KNOWLEDGE_PATH).cloned())
+            .filter(|p| !p.is_empty())
+            .unwrap_or_default()
     };
 
     path.replace("${tv-knowledge}", &resolved)
@@ -163,16 +157,12 @@ pub fn val_sync_list_domains() -> CmdResult<Vec<DomainSummary>> {
         .domains
         .iter()
         .map(|d| {
-            let has_metadata = {
-                let p = std::path::Path::new(&d.global_path).join(".sync-metadata.json");
-                p.exists()
-            };
             DomainSummary {
                 domain: d.domain.clone(),
                 global_path: d.global_path.clone(),
                 has_actual_domain: d.actual_domain.is_some(),
                 domain_type: d.domain_type.clone().unwrap_or_default(),
-                has_metadata,
+                has_metadata: true, // sync metadata now lives in Supabase
             }
         })
         .collect())
@@ -280,9 +270,9 @@ pub fn val_sync_import_config(
 }
 
 /// Discover domains from the file system at {repo}/0_Platform/domains/
-/// Scans production/, demo/, templates/ subdirectories and auto-writes val-sync-config.json
+/// Scans all subdirectories and fetches domain_type from Supabase domain_metadata table.
 #[command]
-pub fn val_sync_discover_domains(domains_path: String) -> CmdResult<Vec<DiscoveredDomain>> {
+pub async fn val_sync_discover_domains(domains_path: String) -> CmdResult<Vec<DiscoveredDomain>> {
     let base = std::path::Path::new(&domains_path);
     if !base.exists() {
         return Err(CommandError::NotFound(format!("Domains path does not exist: {}", domains_path)));
@@ -296,71 +286,60 @@ pub fn val_sync_discover_domains(domains_path: String) -> CmdResult<Vec<Discover
         .map(|d| (d.domain.clone(), d))
         .collect();
 
-    // Type folder mapping: folder name -> domain_type label
-    let type_folders = [
-        ("production", "production"),
-        ("not-active", "not-active"),
-        ("demo", "demo"),
-        ("templates", "template"),
-    ];
+    // Fetch domain_type tags from Supabase
+    let type_map = fetch_domain_types().await;
+
+    // Scan all subdirectories directly under domains_path
+    let entries = fs::read_dir(base)?;
+    let mut folder_domains: Vec<(String, String)> = Vec::new();
+    for entry in entries.flatten() {
+        if entry.path().is_dir() {
+            let domain_name = entry.file_name().to_string_lossy().to_string();
+            if domain_name.starts_with('.') {
+                continue;
+            }
+            let global_path = entry.path().to_string_lossy().to_string();
+            folder_domains.push((domain_name, global_path));
+        }
+    }
+    folder_domains.sort_by(|a, b| a.0.cmp(&b.0));
 
     let mut discovered: Vec<DiscoveredDomain> = Vec::new();
     let mut new_domain_configs: Vec<DomainConfig> = Vec::new();
 
-    for (folder_name, domain_type) in &type_folders {
-        let type_dir = base.join(folder_name);
-        if !type_dir.is_dir() {
-            continue;
-        }
+    for (domain_name, global_path) in folder_domains {
+        let domain_type = type_map
+            .get(&domain_name)
+            .cloned()
+            .unwrap_or_else(|| "production".to_string());
+        let existing = existing_map.get(&domain_name);
+        let has_actual_domain = existing.map_or(false, |d| d.actual_domain.is_some());
+        let (last_sync, artifact_count) = super::metadata::read_sync_summary(&domain_name).await;
 
-        let entries = fs::read_dir(&type_dir)?;
+        discovered.push(DiscoveredDomain {
+            domain: domain_name.clone(),
+            domain_type: domain_type.clone(),
+            global_path: global_path.clone(),
+            has_metadata: last_sync.is_some(),
+            has_actual_domain,
+            last_sync,
+            artifact_count,
+        });
 
-        let mut folder_domains: Vec<(String, String)> = Vec::new();
-        for entry in entries.flatten() {
-            if entry.path().is_dir() {
-                let domain_name = entry.file_name().to_string_lossy().to_string();
-                // Skip hidden folders
-                if domain_name.starts_with('.') {
-                    continue;
-                }
-                let global_path = entry.path().to_string_lossy().to_string();
-                folder_domains.push((domain_name, global_path));
-            }
-        }
-        folder_domains.sort_by(|a, b| a.0.cmp(&b.0));
-
-        for (domain_name, global_path) in folder_domains {
-            let has_metadata = entry_path_has_metadata(&global_path);
-            let existing = existing_map.get(&domain_name);
-            let has_actual_domain = existing.map_or(false, |d| d.actual_domain.is_some());
-            let (last_sync, artifact_count) = read_sync_metadata(&global_path);
-
-            discovered.push(DiscoveredDomain {
-                domain: domain_name.clone(),
-                domain_type: domain_type.to_string(),
-                global_path: global_path.clone(),
-                has_metadata,
-                has_actual_domain,
-                last_sync,
-                artifact_count,
+        if let Some(ex) = existing {
+            let mut config = ex.clone();
+            config.global_path = global_path;
+            config.domain_type = Some(domain_type);
+            new_domain_configs.push(config);
+        } else {
+            new_domain_configs.push(DomainConfig {
+                domain: domain_name,
+                actual_domain: None,
+                global_path,
+                projects: vec![],
+                monitoring_path: None,
+                domain_type: Some(domain_type),
             });
-
-            // Build DomainConfig, preserving existing data if available
-            if let Some(ex) = existing {
-                let mut config = ex.clone();
-                config.global_path = global_path;
-                config.domain_type = Some(domain_type.to_string());
-                new_domain_configs.push(config);
-            } else {
-                new_domain_configs.push(DomainConfig {
-                    domain: domain_name,
-                    actual_domain: None,
-                    global_path,
-                    projects: vec![],
-                    monitoring_path: None,
-                    domain_type: Some(domain_type.to_string()),
-                });
-            }
         }
     }
 
@@ -373,58 +352,32 @@ pub fn val_sync_discover_domains(domains_path: String) -> CmdResult<Vec<Discover
     Ok(discovered)
 }
 
-fn entry_path_has_metadata(global_path: &str) -> bool {
-    std::path::Path::new(global_path)
-        .join(".sync-metadata.json")
-        .exists()
-}
+/// Fetch domain_type mapping from Supabase domain_metadata table.
+/// Returns empty map if Supabase is not configured (graceful degradation).
+async fn fetch_domain_types() -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
 
-/// Read .sync-metadata.json and extract the most recent sync timestamp and total artifact count
-fn read_sync_metadata(global_path: &str) -> (Option<String>, Option<u32>) {
-    let meta_path = std::path::Path::new(global_path).join(".sync-metadata.json");
-    if !meta_path.exists() {
-        return (None, None);
+    let client = match crate::commands::supabase::get_client().await {
+        Ok(c) => c,
+        Err(_) => return map, // Supabase not configured — all domains default to "production"
+    };
+
+    #[derive(serde::Deserialize)]
+    struct DomainMeta {
+        domain: String,
+        domain_type: String,
     }
 
-    let content = match fs::read_to_string(&meta_path) {
-        Ok(c) => c,
-        Err(_) => return (None, None),
-    };
-
-    let json: serde_json::Value = match serde_json::from_str(&content) {
-        Ok(v) => v,
-        Err(_) => return (None, None),
-    };
-
-    let artifacts = match json.get("artifacts") {
-        Some(a) => a,
-        None => return (None, None),
-    };
-
-    let mut latest_sync: Option<String> = None;
-    let mut total_count: u32 = 0;
-
-    // Iterate through artifact types to find the most recent lastSync
-    if let Some(obj) = artifacts.as_object() {
-        for (_key, value) in obj {
-            // Sum up counts
-            if let Some(count) = value.get("count").and_then(|c| c.as_u64()) {
-                total_count += count as u32;
-            }
-
-            // Find the most recent lastSync
-            if let Some(last_sync_str) = value.get("lastSync").and_then(|s| s.as_str()) {
-                if let Some(ref current) = latest_sync {
-                    // Compare ISO timestamps lexicographically (works for ISO format)
-                    if last_sync_str > current.as_str() {
-                        latest_sync = Some(last_sync_str.to_string());
-                    }
-                } else {
-                    latest_sync = Some(last_sync_str.to_string());
-                }
+    match client.select::<DomainMeta>("domain_metadata", "").await {
+        Ok(rows) => {
+            for row in rows {
+                map.insert(row.domain, row.domain_type);
             }
         }
+        Err(_) => {} // Table may not exist yet — graceful fallback
     }
 
-    (latest_sync, if total_count > 0 { Some(total_count) } else { None })
+    map
 }
+
+// sync metadata functions removed — now uses Supabase via metadata::read_sync_summary()

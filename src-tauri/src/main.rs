@@ -61,13 +61,16 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             eprintln!("[tv-desktop] Setup starting...");
-            // Default knowledge path (can be configured in settings)
+            // Knowledge path: env var > settings.json > empty (user must configure in Settings)
             let knowledge_path = std::env::var("TV_KNOWLEDGE_PATH")
-                .unwrap_or_else(|_| {
-                    dirs::home_dir()
-                        .map(|h| h.join("Thinkval Dropbox/ThinkVAL team folder/SkyNet/tv-knowledge").to_string_lossy().to_string())
-                        .unwrap_or_default()
-                });
+                .ok()
+                .or_else(|| {
+                    commands::settings::load_settings()
+                        .ok()
+                        .and_then(|s| s.keys.get(commands::settings::KEY_KNOWLEDGE_PATH).cloned())
+                        .filter(|p| !p.is_empty())
+                })
+                .unwrap_or_default();
 
             // Eagerly initialize the shared HTTP client
             let _ = &*crate::HTTP_CLIENT;
@@ -407,14 +410,6 @@ fn main() {
             // VAL Sync - Metadata
             commands::val_sync::metadata::val_sync_get_status,
             commands::val_sync::metadata::val_get_output_status,
-            // VAL Sync - Health checks
-            commands::val_sync::health::val_generate_health_config,
-            commands::val_sync::health::val_run_data_model_health,
-            commands::val_sync::health::val_run_workflow_health,
-            // VAL Sync - Additional health and audit
-            commands::val_sync::audit::val_run_artifact_audit,
-            commands::val_sync::query_health::val_run_query_health,
-            commands::val_sync::overview::val_generate_overview,
             // VAL Sync - Domain Model (entity scan across domains)
             commands::val_sync::domain_model::val_list_domain_model_entities,
             commands::val_sync::domain_model::val_scan_domain_model_table,

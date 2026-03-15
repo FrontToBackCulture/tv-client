@@ -138,22 +138,17 @@ fn save_config_internal(config: &GitHubSyncConfig) -> CmdResult<()> {
     Ok(())
 }
 
-/// Resolve ${tv-knowledge} in paths
+/// Resolve ${tv-knowledge} in paths using knowledge_path from settings.json
 pub fn resolve_path_variable(path: &str) -> String {
     if !path.contains("${tv-knowledge}") {
         return path.to_string();
     }
 
-    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    // Try Dropbox path first (macOS)
-    let dropbox = home.join("Thinkval Dropbox/ThinkVAL team folder/SkyNet/tv-knowledge");
-    let resolved = if dropbox.exists() {
-        dropbox.to_string_lossy().to_string()
-    } else {
-        home.join("Code/SkyNet/tv-knowledge")
-            .to_string_lossy()
-            .to_string()
-    };
+    let resolved = crate::commands::settings::load_settings()
+        .ok()
+        .and_then(|s| s.keys.get(crate::commands::settings::KEY_KNOWLEDGE_PATH).cloned())
+        .filter(|p| !p.is_empty())
+        .unwrap_or_default();
 
     path.replace("${tv-knowledge}", &resolved)
 }

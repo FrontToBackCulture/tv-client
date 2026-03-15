@@ -15,7 +15,10 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ToastContainer } from "../components/ui/ToastContainer";
 
 const moduleLabels: Record<ModuleId, string> = {
+  home: "Home",
   library: "Library",
+  projects: "Projects",
+  metadata: "Metadata",
   work: "Work",
   workspace: "Workspaces",
   inbox: "Inbox",

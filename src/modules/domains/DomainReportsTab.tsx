@@ -1,5 +1,5 @@
-// src/modules/product/DomainReportsTab.tsx
-// Reports tab for domain detail panel — lists report folders and files from {domain}/reports/
+// DomainReportsTab — Tree + detail pane for browsing domain reports
+// Left: folder/file tree. Right: HTML preview of selected report.
 
 import { useState, useMemo } from "react";
 import {
@@ -7,28 +7,19 @@ import {
   FileText,
   ChevronRight,
   FileBarChart,
-  Loader2,
-  List,
-  LayoutGrid,
-  Search,
-  X,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useListDirectory, useReadFile, type FileEntry } from "../../hooks/useFiles";
-import { useSidePanelStore } from "../../stores/sidePanelStore";
 import { SectionLoading, InlineLoading } from "../../components/ui/DetailStates";
 
 interface DomainReportsTabProps {
-  reportsPath: string; // e.g. /path/to/domain/reports
+  reportsPath: string;
   domainName: string;
 }
 
 export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabProps) {
   const dirQuery = useListDirectory(reportsPath);
-  const openPanel = useSidePanelStore((s) => s.openPanel);
-  const [viewMode, setViewMode] = useState<"list" | "gallery">("gallery");
-  const [galleryPreview, setGalleryPreview] = useState<string | null>(null);
-  const [gallerySearch, setGallerySearch] = useState("");
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   if (dirQuery.isLoading) {
     return <SectionLoading className="py-12" />;
@@ -53,114 +44,59 @@ export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabPr
   const entries = dirQuery.data;
   const folders = entries
     .filter((e) => e.is_directory && !e.name.startsWith("."))
-    .sort((a, b) => b.name.localeCompare(a.name)); // newest first by name
+    .sort((a, b) => b.name.localeCompare(a.name));
   const files = entries
     .filter((e) => !e.is_directory && !e.name.startsWith("."))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const totalCount = folders.length + files.length;
-
-  // Collect all HTML files (top-level + inside folders) for gallery
-  const htmlFiles = files.filter(f => f.name.endsWith(".html"));
-
-  // When showing full preview, render full-height iframe
-  if (viewMode === "gallery" && galleryPreview) {
-    return (
-      <div>
-        <ReportFullPreview filePath={galleryPreview} onBack={() => setGalleryPreview(null)} />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FileBarChart size={14} className="text-teal-500" />
-          <label className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-            Reports
-          </label>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-400 tabular-nums">
-            {totalCount} {totalCount === 1 ? "item" : "items"}
-          </span>
-          <div className="flex items-center rounded border border-zinc-200 dark:border-zinc-700">
-            <button
-              onClick={() => { setViewMode("list"); setGalleryPreview(null); }}
-              className={cn(
-                "p-1.5 transition-colors",
-                viewMode === "list" ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
-              )}
-              title="List view"
-            >
-              <List size={13} />
-            </button>
-            <button
-              onClick={() => { setViewMode("gallery"); setGalleryPreview(null); }}
-              className={cn(
-                "p-1.5 transition-colors",
-                viewMode === "gallery" ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
-              )}
-              title="Gallery view"
-            >
-              <LayoutGrid size={13} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {viewMode === "list" ? (
-        /* List view */
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+    <div className="flex h-full gap-0">
+      {/* Left: Tree */}
+      <div className="w-[260px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 overflow-auto">
+        <div className="py-2">
           {folders.map((folder) => (
-            <ReportFolder key={folder.path} folder={folder} onOpenFile={openPanel} />
+            <TreeFolder
+              key={folder.path}
+              folder={folder}
+              selectedFile={selectedFile}
+              onSelect={setSelectedFile}
+            />
           ))}
           {files.map((file) => (
-            <ReportFileRow key={file.path} file={file} onOpen={openPanel} />
+            <TreeFile
+              key={file.path}
+              file={file}
+              isSelected={selectedFile === file.path}
+              onSelect={() => setSelectedFile(file.path)}
+            />
           ))}
         </div>
-      ) : galleryPreview ? (
-        /* Gallery full preview */
-        <ReportFullPreview filePath={galleryPreview} onBack={() => setGalleryPreview(null)} />
-      ) : (
-        /* Gallery grid — grouped by folder */
-        <div className="space-y-3">
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input
-              value={gallerySearch}
-              onChange={e => setGallerySearch(e.target.value)}
-              placeholder="Filter reports..."
-              className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
-            />
-            {gallerySearch && (
-              <button onClick={() => setGallerySearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
-                <X size={12} />
-              </button>
-            )}
+      </div>
+
+      {/* Right: Preview */}
+      <div className="flex-1 overflow-hidden">
+        {selectedFile ? (
+          <ReportPreview filePath={selectedFile} />
+        ) : (
+          <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
+            Select a report to preview
           </div>
-          <GalleryGrid
-            folders={folders}
-            topLevelHtmlFiles={htmlFiles}
-            otherFiles={files.filter(f => !f.name.endsWith(".html"))}
-            onPreview={setGalleryPreview}
-            onOpenFile={openPanel}
-            search={gallerySearch}
-          />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
-function ReportFolder({
+// ─── Tree components ────────────────────────────────────────────────────────
+
+function TreeFolder({
   folder,
-  onOpenFile,
+  selectedFile,
+  onSelect,
 }: {
   folder: FileEntry;
-  onOpenFile: (path: string, name: string) => void;
+  selectedFile: string | null;
+  onSelect: (path: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const childQuery = useListDirectory(expanded ? folder.path : undefined);
@@ -173,56 +109,39 @@ function ReportFolder({
     <div>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
+        className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
       >
         <ChevronRight
-          size={14}
+          size={12}
           className={cn(
             "text-zinc-400 transition-transform flex-shrink-0",
             expanded && "rotate-90"
           )}
         />
-        <Folder size={16} className="text-amber-500 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate block">
-            {folder.name}
-          </span>
-          <span className="text-xs text-zinc-400">
-            {folder.modified ? formatRelative(folder.modified) : ""}
-            {expanded && childQuery.isSuccess && ` \u00B7 ${childFiles.length} files`}
-          </span>
-        </div>
+        <Folder size={14} className="text-amber-500 flex-shrink-0" />
+        <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate flex-1">
+          {folder.name}
+        </span>
+        <span className="text-xs text-zinc-400 tabular-nums">
+          {folder.modified ? formatRelative(folder.modified) : ""}
+        </span>
       </button>
 
       {expanded && (
-        <div className="pl-11 pr-4 pb-2">
+        <div className="ml-4">
           {childQuery.isLoading && (
-            <InlineLoading />
+            <div className="px-3 py-1"><InlineLoading /></div>
           )}
-          {childQuery.isError && (
-            <p className="text-xs text-zinc-400 py-2">Could not read folder</p>
-          )}
-          {childFiles.length > 0 && (
-            <div className="space-y-0.5">
-              {childFiles.map((file) => (
-                <button
-                  key={file.path}
-                  onClick={() => onOpenFile(file.path, file.name)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left group"
-                >
-                  <FileText size={13} className="text-zinc-400 group-hover:text-teal-500 flex-shrink-0" />
-                  <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate flex-1">
-                    {file.name}
-                  </span>
-                  <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0">
-                    {formatSize(file.size)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          {childFiles.map((file) => (
+            <TreeFile
+              key={file.path}
+              file={file}
+              isSelected={selectedFile === file.path}
+              onSelect={() => onSelect(file.path)}
+            />
+          ))}
           {childQuery.isSuccess && childFiles.length === 0 && (
-            <p className="text-xs text-zinc-400 py-2">Empty folder</p>
+            <p className="text-xs text-zinc-400 px-3 py-1">Empty folder</p>
           )}
         </div>
       )}
@@ -230,29 +149,41 @@ function ReportFolder({
   );
 }
 
-function ReportFileRow({
+function TreeFile({
   file,
-  onOpen,
+  isSelected,
+  onSelect,
 }: {
   file: FileEntry;
-  onOpen: (path: string, name: string) => void;
+  isSelected: boolean;
+  onSelect: () => void;
 }) {
+  const isHtml = file.name.endsWith(".html");
+
   return (
     <button
-      onClick={() => onOpen(file.path, file.name)}
-      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left group"
+      onClick={onSelect}
+      className={cn(
+        "w-full flex items-center gap-1.5 px-3 py-1.5 text-left transition-colors",
+        isSelected
+          ? "bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
+          : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+      )}
     >
-      {/* Spacer to align with folder content (chevron width) */}
-      <span className="w-[14px] flex-shrink-0" />
-      <FileText size={16} className="text-zinc-400 group-hover:text-teal-500 flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate block">
-          {file.name}
-        </span>
-        <span className="text-xs text-zinc-400">
-          {file.modified ? formatRelative(file.modified) : ""}
-        </span>
-      </div>
+      <span className="w-3 flex-shrink-0" /> {/* indent spacer */}
+      <FileText
+        size={14}
+        className={cn(
+          "flex-shrink-0",
+          isSelected ? "text-teal-500" : isHtml ? "text-blue-400" : "text-zinc-400"
+        )}
+      />
+      <span className={cn(
+        "text-xs truncate flex-1",
+        isSelected ? "font-medium" : "text-zinc-700 dark:text-zinc-300"
+      )}>
+        {file.name}
+      </span>
       <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0">
         {formatSize(file.size)}
       </span>
@@ -260,173 +191,52 @@ function ReportFileRow({
   );
 }
 
-function ReportThumbnail({ file, onClick }: { file: FileEntry; onClick: () => void }) {
-  const { data: htmlContent } = useReadFile(file.path);
+// ─── Preview ────────────────────────────────────────────────────────────────
 
-  const thumbSrcDoc = useMemo(() => {
-    if (!htmlContent) return undefined;
-    const thumbStyle = `<style>body{margin:0!important;padding:0.5rem!important;overflow:hidden!important;pointer-events:none!important}body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}img,table,pre{max-width:100%!important}</style>`;
-    if (htmlContent.includes("</head>")) {
-      return htmlContent.replace("</head>", `${thumbStyle}</head>`);
-    }
-    return thumbStyle + htmlContent;
-  }, [htmlContent]);
-
-  return (
-    <button
-      onClick={onClick}
-      className="group rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-sm transition-all"
-    >
-      <div className="relative h-36 overflow-hidden bg-white">
-        {thumbSrcDoc ? (
-          <iframe
-            srcDoc={thumbSrcDoc}
-            className="w-[300%] h-[300%] border-0 origin-top-left pointer-events-none"
-            style={{ transform: "scale(0.333)" }}
-            tabIndex={-1}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 size={14} className="animate-spin text-zinc-300" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-teal-600/0 group-hover:bg-teal-600/5 transition-colors" />
-      </div>
-      <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
-        <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{file.name}</p>
-        <p className="text-xs text-zinc-400">{file.modified ? formatRelative(file.modified) : ""} · {formatSize(file.size)}</p>
-      </div>
-    </button>
-  );
-}
-
-function ReportFullPreview({ filePath, onBack }: { filePath: string; onBack: () => void }) {
-  const { data: htmlContent } = useReadFile(filePath);
+function ReportPreview({ filePath }: { filePath: string }) {
+  const { data: content, isLoading } = useReadFile(filePath);
+  const isHtml = filePath.endsWith(".html");
 
   const iframeSrcDoc = useMemo(() => {
-    if (!htmlContent) return undefined;
+    if (!content || !isHtml) return undefined;
     const overrideStyle = `<style>body,body>*{max-width:100%!important;width:100%!important;box-sizing:border-box!important}body{margin:0!important;padding:1rem!important;overflow-x:hidden!important}img,table,pre{max-width:100%!important}</style>`;
-    if (htmlContent.includes("</head>")) {
-      return htmlContent.replace("</head>", `${overrideStyle}</head>`);
+    if (content.includes("</head>")) {
+      return content.replace("</head>", `${overrideStyle}</head>`);
     }
-    return overrideStyle + htmlContent;
-  }, [htmlContent]);
+    return overrideStyle + content;
+  }, [content, isHtml]);
 
-  return (
-    <div>
-      <button
-        onClick={onBack}
-        className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-500 mb-3"
-      >
-        <ChevronRight size={12} className="rotate-180" />
-        Back to gallery
-      </button>
-      {iframeSrcDoc ? (
-        <iframe
-          srcDoc={iframeSrcDoc}
-          className="w-full border-0 rounded-lg border border-zinc-200 dark:border-zinc-800"
-          sandbox="allow-scripts"
-          style={{ height: "calc(100vh - 230px)" }}
-        />
-      ) : (
-        <SectionLoading className="py-8" />
-      )}
-    </div>
-  );
-}
+  if (isLoading) {
+    return <SectionLoading className="py-12" />;
+  }
 
-// ─── Gallery grid grouped by folder ──────────────────────────────────────────
-
-function GalleryGrid({
-  folders,
-  topLevelHtmlFiles,
-  otherFiles,
-  onPreview,
-  onOpenFile,
-  search = "",
-}: {
-  folders: FileEntry[];
-  topLevelHtmlFiles: FileEntry[];
-  otherFiles: FileEntry[];
-  onPreview: (path: string) => void;
-  onOpenFile: (path: string, name: string) => void;
-  search?: string;
-}) {
-  const q = search.toLowerCase();
-  const filteredTopLevel = topLevelHtmlFiles.filter(f => !q || f.name.toLowerCase().includes(q));
-
-  return (
-    <div className="space-y-6">
-      {/* Top-level HTML files (ungrouped) */}
-      {filteredTopLevel.length > 0 && (
-        <div>
-          {folders.length > 0 && (
-            <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
-              Reports
-              <span className="ml-1.5 text-zinc-300 dark:text-zinc-600 font-normal">{filteredTopLevel.length}</span>
-            </h3>
-          )}
-          <div className="grid grid-cols-4 gap-3">
-            {filteredTopLevel.map(f => (
-              <ReportThumbnail key={f.path} file={f} onClick={() => onPreview(f.path)} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Folder groups */}
-      {folders.map(folder => (
-        <FolderGalleryGroup key={folder.path} folder={folder} onPreview={onPreview} search={q} />
-      ))}
-
-      {/* Non-HTML files */}
-      {otherFiles.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Other Files</p>
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
-            {otherFiles.map(file => (
-              <ReportFileRow key={file.path} file={file} onOpen={onOpenFile} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FolderGalleryGroup({ folder, onPreview, search = "" }: { folder: FileEntry; onPreview: (path: string) => void; search?: string }) {
-  const childQuery = useListDirectory(folder.path);
-  const htmlFiles = (childQuery.data ?? [])
-    .filter(f => !f.is_directory && f.name.endsWith(".html") && (!search || f.name.toLowerCase().includes(search) || folder.name.toLowerCase().includes(search)))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  if (childQuery.isLoading) {
+  if (!content) {
     return (
-      <div>
-        <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
-          {folder.name}
-        </h3>
-        <InlineLoading />
+      <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
+        Could not load file
       </div>
     );
   }
 
-  if (htmlFiles.length === 0) return null;
+  if (isHtml && iframeSrcDoc) {
+    return (
+      <iframe
+        srcDoc={iframeSrcDoc}
+        className="w-full h-full border-0"
+        sandbox="allow-scripts"
+      />
+    );
+  }
 
+  // Non-HTML: show raw text
   return (
-    <div>
-      <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">
-        {folder.name}
-        <span className="ml-1.5 text-zinc-300 dark:text-zinc-600 font-normal">{htmlFiles.length}</span>
-      </h3>
-      <div className="grid grid-cols-4 gap-3">
-        {htmlFiles.map(f => (
-          <ReportThumbnail key={f.path} file={f} onClick={() => onPreview(f.path)} />
-        ))}
-      </div>
-    </div>
+    <pre className="p-4 text-xs text-zinc-700 dark:text-zinc-300 overflow-auto h-full font-mono whitespace-pre-wrap">
+      {content}
+    </pre>
   );
 }
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

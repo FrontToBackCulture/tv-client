@@ -63,11 +63,6 @@ export function WorkModule() {
     if (v !== "project") setSelectedProjectId(null);
   }, []);
 
-  const handleSelectProject = useCallback((projectId: string) => {
-    setSelectedProjectId(projectId);
-    setView("project");
-    setSelectedTaskId(null);
-  }, []);
 
   const handleBackFromProject = useCallback(() => {
     setView("dashboard");
@@ -113,11 +108,6 @@ export function WorkModule() {
   const handleEditInitiative = useCallback((initiative: any) => {
     setEditingInitiative(initiative);
     setShowInitiativeForm(true);
-  }, []);
-
-  const handleEditProject = useCallback((project: any) => {
-    setEditingProject(project);
-    setShowProjectForm(true);
   }, []);
 
   const handleProjectSaved = useCallback(() => {
@@ -190,11 +180,7 @@ export function WorkModule() {
               allTasks={allTasks}
               initiatives={initiatives}
               initiativeLinks={initiativeLinks}
-              users={users}
-              onSelectTask={handleSelectTask}
               onEditInitiative={handleEditInitiative}
-              onEditProject={handleEditProject}
-              onSelectProject={handleSelectProject}
             />
           )}
           {showProjectView && (

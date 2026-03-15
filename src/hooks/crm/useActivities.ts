@@ -22,7 +22,8 @@ export function useActivities(filters?: ActivityFilters) {
       }
 
       if (filters?.dealId) {
-        query = query.eq("deal_id", filters.dealId);
+        // Query by project_id (unified) with fallback to deal_id
+        query = query.or(`deal_id.eq.${filters.dealId},project_id.eq.${filters.dealId}`);
       }
 
       if (filters?.contactId) {

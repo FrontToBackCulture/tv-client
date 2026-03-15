@@ -268,7 +268,7 @@ export function SchemaFieldsGrid({
 
   // Derive domains base path from knowledge paths config
   const paths = useKnowledgePaths();
-  const domainsBasePath = paths ? `${paths.platform}/domains/production` : null;
+  const domainsBasePath = paths ? `${paths.platform}/domains` : null;
 
   // Count how many fields have empty descriptions (to show enrich button)
   const emptyDescCount = useMemo(

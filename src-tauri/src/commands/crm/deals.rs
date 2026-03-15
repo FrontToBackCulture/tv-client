@@ -1,10 +1,62 @@
 // CRM Module - Deal Commands
+// Now thin wrappers around the unified projects table (project_type='deal')
 
 use super::types::*;
 use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase::get_client;
+use crate::commands::work::types::{
+    CreateProject, Project, UpdateProject, PipelineStats,
+};
 
-/// List deals with optional filters
+/// Convert a Project to a Deal for backward compatibility
+fn project_to_deal(p: &Project) -> Deal {
+    Deal {
+        id: p.id.clone(),
+        company_id: p.company_id.clone().unwrap_or_default(),
+        name: p.name.clone(),
+        description: p.description.clone(),
+        stage: p.deal_stage.clone(),
+        solution: p.deal_solution.clone(),
+        value: p.deal_value,
+        currency: p.deal_currency.clone(),
+        expected_close_date: p.deal_expected_close.clone(),
+        actual_close_date: p.deal_actual_close.clone(),
+        lost_reason: p.deal_lost_reason.clone(),
+        won_notes: p.deal_won_notes.clone(),
+        proposal_path: p.deal_proposal_path.clone(),
+        order_form_path: p.deal_order_form_path.clone(),
+        contact_ids: p.deal_contact_ids.clone(),
+        notes: p.deal_notes.clone(),
+        tags: p.deal_tags.clone(),
+        stage_changed_at: p.deal_stage_changed_at.clone(),
+        stale_snoozed_until: p.deal_stale_snoozed_until.clone(),
+        created_at: p.created_at.clone(),
+        updated_at: p.updated_at.clone(),
+        company: p.company.as_ref().map(|c| Box::new(super::types::Company {
+            id: c.id.clone(),
+            name: c.name.clone(),
+            display_name: c.display_name.clone(),
+            industry: c.industry.clone(),
+            website: c.website.clone(),
+            stage: c.stage.clone(),
+            source: None,
+            source_id: None,
+            client_folder_path: None,
+            domain_id: None,
+            notes: None,
+            tags: None,
+            created_at: None,
+            updated_at: None,
+            referred_by: c.referred_by.clone(),
+            contacts: None,
+            deals: None,
+            activities: None,
+        })),
+        contacts: None,
+    }
+}
+
+/// List deals with optional filters (queries projects table)
 #[tauri::command]
 pub async fn crm_list_deals(
     company_id: Option<String>,
@@ -12,19 +64,24 @@ pub async fn crm_list_deals(
 ) -> CmdResult<Vec<Deal>> {
     let client = get_client().await?;
 
-    let mut filters = vec!["select=*,company:crm_companies(id,name,display_name)".to_string()];
+    let mut filters = vec![
+        "select=*,company:crm_companies(id,name,display_name,referred_by)".to_string(),
+        "project_type=eq.deal".to_string(),
+        "archived_at=is.null".to_string(),
+    ];
 
     if let Some(cid) = company_id {
         filters.push(format!("company_id=eq.{}", cid));
     }
     if let Some(st) = stage {
-        filters.push(format!("stage=eq.{}", st));
+        filters.push(format!("deal_stage=eq.{}", st));
     }
 
     filters.push("order=updated_at.desc".to_string());
 
     let query = filters.join("&");
-    client.select("crm_deals", &query).await
+    let projects: Vec<Project> = client.select("projects", &query).await?;
+    Ok(projects.iter().map(project_to_deal).collect())
 }
 
 /// Get a single deal by ID
@@ -38,194 +95,77 @@ pub async fn crm_get_deal(deal_id: String, include_relations: Option<bool>) -> C
             deal_id
         )
     } else {
-        format!("select=*,company:crm_companies(id,name,display_name)&id=eq.{}", deal_id)
+        format!("select=*,company:crm_companies(id,name,display_name,referred_by)&id=eq.{}", deal_id)
     };
 
-    client
-        .select_single("crm_deals", &query)
+    let project: Project = client
+        .select_single("projects", &query)
         .await?
-        .ok_or_else(|| CommandError::NotFound(format!("Deal not found: {}", deal_id)))
+        .ok_or_else(|| CommandError::NotFound(format!("Deal not found: {}", deal_id)))?;
+
+    Ok(project_to_deal(&project))
 }
 
-/// Create a new deal
+/// Create a new deal (creates a project with project_type='deal')
 #[tauri::command]
 pub async fn crm_create_deal(data: CreateDeal) -> CmdResult<Deal> {
-    let client = get_client().await?;
+    let create_data = CreateProject {
+        name: data.name,
+        description: data.description,
+        project_type: Some("deal".to_string()),
+        company_id: Some(data.company_id),
+        deal_stage: data.stage,
+        deal_solution: data.solution,
+        deal_value: data.value,
+        deal_currency: data.currency,
+        deal_expected_close: data.expected_close_date,
+        deal_notes: data.notes,
+        ..Default::default()
+    };
 
-    // Set defaults
-    let mut insert_data = serde_json::to_value(&data)?;
-    let now = chrono::Utc::now().to_rfc3339();
-
-    if let Some(obj) = insert_data.as_object_mut() {
-        if obj.get("stage").map_or(true, |v| v.is_null()) {
-            obj.insert("stage".to_string(), serde_json::Value::String("prospect".to_string()));
-        }
-        if obj.get("currency").map_or(true, |v| v.is_null()) {
-            obj.insert("currency".to_string(), serde_json::Value::String("SGD".to_string()));
-        }
-        obj.insert("stage_changed_at".to_string(), serde_json::Value::String(now));
-    }
-
-    // Create the deal
-    let deal: Deal = client.insert("crm_deals", &insert_data).await?;
-
-    // Check if company stage should be updated (prospect -> opportunity)
-    let company: Company = client
-        .select_single("crm_companies", &format!("id=eq.{}", data.company_id))
-        .await?
-        .ok_or_else(|| CommandError::NotFound("Company not found".into()))?;
-
-    if company.stage.as_deref() == Some("prospect") {
-        let update_data = serde_json::json!({ "stage": "opportunity" });
-        let _: Company = client
-            .update("crm_companies", &format!("id=eq.{}", data.company_id), &update_data)
-            .await?;
-
-        // Log the stage change activity
-        let activity = serde_json::json!({
-            "company_id": data.company_id,
-            "type": "stage_change",
-            "old_value": "prospect",
-            "new_value": "opportunity",
-            "activity_date": chrono::Utc::now().to_rfc3339()
-        });
-        let _: Activity = client.insert("crm_activities", &activity).await?;
-    }
-
-    Ok(deal)
+    let project = crate::commands::work::work_create_project(create_data).await?;
+    Ok(project_to_deal(&project))
 }
 
 /// Update a deal
 #[tauri::command]
 pub async fn crm_update_deal(deal_id: String, data: UpdateDeal) -> CmdResult<Deal> {
-    let client = get_client().await?;
+    let update_data = UpdateProject {
+        name: data.name,
+        description: data.description,
+        deal_stage: data.stage,
+        deal_solution: data.solution,
+        deal_value: data.value,
+        deal_expected_close: data.expected_close_date,
+        deal_actual_close: data.actual_close_date,
+        deal_lost_reason: data.lost_reason,
+        deal_won_notes: data.won_notes,
+        deal_proposal_path: data.proposal_path,
+        deal_order_form_path: data.order_form_path,
+        deal_notes: data.notes,
+        deal_stage_changed_at: data.stage_changed_at,
+        preserve_stage_date: data.preserve_stage_date,
+        ..Default::default()
+    };
 
-    // Get current deal for stage change detection
-    let current: Deal = crm_get_deal(deal_id.clone(), None).await?;
-    let now = chrono::Utc::now().to_rfc3339();
-
-    // Build update data
-    let mut update_data = serde_json::to_value(&data)?;
-
-    // Check if stage is changing
-    if let Some(new_stage) = &data.stage {
-        if let Some(old_stage) = &current.stage {
-            if old_stage != new_stage {
-                // Update stage_changed_at and clear stale_snoozed_until (unless preserve_stage_date is set)
-                if let Some(obj) = update_data.as_object_mut() {
-                    if !data.preserve_stage_date.unwrap_or(false) {
-                        obj.insert("stage_changed_at".to_string(), serde_json::Value::String(now.clone()));
-                    }
-                    obj.insert("stale_snoozed_until".to_string(), serde_json::Value::Null);
-                }
-
-                // Log stage change activity
-                let activity = serde_json::json!({
-                    "company_id": current.company_id,
-                    "deal_id": deal_id,
-                    "type": "stage_change",
-                    "old_value": old_stage,
-                    "new_value": new_stage,
-                    "activity_date": now
-                });
-                let _: Activity = client.insert("crm_activities", &activity).await?;
-
-                // If deal is won, update company stage to client
-                if new_stage == "won" {
-                    let company_update = serde_json::json!({ "stage": "client" });
-                    let _: Company = client
-                        .update("crm_companies", &format!("id=eq.{}", current.company_id), &company_update)
-                        .await?;
-
-                    // Log company stage change
-                    let company_activity = serde_json::json!({
-                        "company_id": current.company_id,
-                        "type": "stage_change",
-                        "old_value": "opportunity",
-                        "new_value": "client",
-                        "activity_date": chrono::Utc::now().to_rfc3339()
-                    });
-                    let _: Activity = client.insert("crm_activities", &company_activity).await?;
-                }
-            }
-        }
-    }
-
-    let query = format!("id=eq.{}", deal_id);
-    client.update("crm_deals", &query, &update_data).await
+    let project = crate::commands::work::work_update_project(deal_id, update_data).await?;
+    Ok(project_to_deal(&project))
 }
 
 /// Delete a deal
 #[tauri::command]
 pub async fn crm_delete_deal(deal_id: String) -> CmdResult<()> {
-    let client = get_client().await?;
-
-    // Delete related activities first
-    client.delete("crm_activities", &format!("deal_id=eq.{}", deal_id)).await?;
-
-    // Delete the deal
-    client.delete("crm_deals", &format!("id=eq.{}", deal_id)).await
+    crate::commands::work::work_delete_project(deal_id).await
 }
 
-/// Get pipeline statistics
+/// Get pipeline statistics (delegates to work module)
 #[tauri::command]
 pub async fn crm_get_pipeline() -> CmdResult<PipelineStats> {
-    let client = get_client().await?;
-
-    // Get all active deals (not won/lost)
-    let deals: Vec<Deal> = client
-        .select(
-            "crm_deals",
-            "stage=in.(lead,qualified,pilot,proposal,negotiation)&select=stage,value",
-        )
-        .await?;
-
-    // Calculate stats by stage
-    let stages = ["lead", "qualified", "pilot", "proposal", "negotiation"];
-    let mut by_stage = Vec::new();
-    let mut total_value = 0.0;
-    let mut total_deals = 0;
-
-    for stage in stages {
-        let stage_deals: Vec<&Deal> = deals.iter().filter(|d| d.stage.as_deref() == Some(stage)).collect();
-        let count = stage_deals.len() as i32;
-        let value: f64 = stage_deals.iter().filter_map(|d| d.value).sum();
-
-        by_stage.push(PipelineStage {
-            stage: stage.to_string(),
-            count,
-            value,
-        });
-
-        total_deals += count;
-        total_value += value;
-    }
-
-    Ok(PipelineStats {
-        by_stage,
-        total_value,
-        total_deals,
-    })
+    crate::commands::work::work_get_pipeline().await
 }
 
-/// Link a task to a deal via the junction table
+/// Link a task to a deal via the junction table (delegates to work module)
 #[tauri::command]
 pub async fn crm_link_task_to_deal(task_id: String, deal_id: String) -> CmdResult<serde_json::Value> {
-    let client = get_client().await?;
-
-    // Insert into junction table
-    let link_data = serde_json::json!({
-        "task_id": task_id,
-        "deal_id": deal_id
-    });
-
-    // Use upsert to avoid duplicates (task_id, deal_id is the primary key)
-    let result: serde_json::Value = client.insert("task_deal_links", &link_data).await?;
-
-    Ok(serde_json::json!({
-        "success": true,
-        "task_id": task_id,
-        "deal_id": deal_id,
-        "result": result
-    }))
+    crate::commands::work::work_link_task_to_deal(task_id, deal_id).await
 }

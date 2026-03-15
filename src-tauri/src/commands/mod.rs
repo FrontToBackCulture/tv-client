@@ -25,3 +25,4 @@ pub mod workspace;
 pub mod email;
 pub mod gallery;
 pub mod notion;
+pub mod feed;

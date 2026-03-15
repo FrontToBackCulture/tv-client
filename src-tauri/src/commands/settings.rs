@@ -28,6 +28,7 @@ pub const KEY_GA4_SERVICE_ACCOUNT_PATH: &str = "ga4_service_account_path";
 pub const KEY_GA4_PROPERTY_ID: &str = "ga4_property_id";
 pub const KEY_EMAIL_API_BASE_URL: &str = "email_api_base_url";
 pub const KEY_NOTION_API: &str = "notion_api_key";
+pub const KEY_KNOWLEDGE_PATH: &str = "knowledge_path";
 
 // ============================================================================
 // Types

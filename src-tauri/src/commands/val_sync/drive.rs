@@ -335,7 +335,7 @@ pub struct DriveWorkflowFolder {
 /// Parse all_workflows.json for a domain and extract VALDriveToVALInsertPlugin folder configs.
 /// Returns which Drive folders have workflows and whether they move files to processed/.
 pub fn parse_workflow_drive_folders(global_path: &str) -> Vec<DriveWorkflowFolder> {
-    let wf_path = std::path::Path::new(global_path).join("all_workflows.json");
+    let wf_path = std::path::Path::new(global_path).join("schema/all_workflows.json");
     let content = match std::fs::read_to_string(&wf_path) {
         Ok(c) => c,
         Err(_) => return vec![],

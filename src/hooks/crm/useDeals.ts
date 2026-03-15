@@ -1,26 +1,84 @@
 // CRM Deals CRUD + Deal Tasks hooks
+// Now queries from unified projects table (project_type='deal')
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import type {
-  Deal,
-  DealInsert,
-  DealUpdate,
   DealFilters,
   DealTask,
   DealWithTaskInfo,
 } from "../../lib/crm/types";
 import { crmKeys } from "./keys";
 
+// Deal projected from unified projects table
+export interface DealFromProject {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string | null;
+  project_type: string;
+  company_id: string | null;
+  deal_stage: string | null;
+  deal_value: number | null;
+  deal_currency: string | null;
+  deal_solution: string | null;
+  deal_expected_close: string | null;
+  deal_actual_close: string | null;
+  deal_proposal_path: string | null;
+  deal_order_form_path: string | null;
+  deal_lost_reason: string | null;
+  deal_won_notes: string | null;
+  deal_stage_changed_at: string | null;
+  deal_stale_snoozed_until: string | null;
+  deal_contact_ids: string[] | null;
+  deal_tags: string[] | null;
+  deal_notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  archived_at: string | null;
+  // Joined
+  company?: { name: string; referred_by?: string | null } | null;
+}
+
+// Map DealFromProject to legacy Deal shape for backward compatibility
+function mapProjectToDeal(p: DealFromProject): DealWithTaskInfo {
+  return {
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    company_id: p.company_id ?? "",
+    stage: p.deal_stage,
+    solution: p.deal_solution,
+    value: p.deal_value,
+    currency: p.deal_currency,
+    expected_close_date: p.deal_expected_close,
+    actual_close_date: p.deal_actual_close,
+    lost_reason: p.deal_lost_reason,
+    won_notes: p.deal_won_notes,
+    proposal_path: p.deal_proposal_path,
+    order_form_path: p.deal_order_form_path,
+    contact_ids: p.deal_contact_ids,
+    notes: p.deal_notes,
+    tags: p.deal_tags,
+    stage_changed_at: p.deal_stage_changed_at,
+    stale_snoozed_until: p.deal_stale_snoozed_until,
+    created_at: p.created_at,
+    updated_at: p.updated_at,
+    company: p.company ? { name: p.company.name, referred_by: p.company.referred_by } : undefined,
+  } as DealWithTaskInfo;
+}
+
 export function useDeals(filters?: DealFilters) {
   return useQuery({
     queryKey: filters?.companyId
       ? crmKeys.dealsByCompany(filters.companyId)
       : [...crmKeys.deals(), filters],
-    queryFn: async (): Promise<(Deal & { company?: { name: string; referred_by?: string | null } })[]> => {
+    queryFn: async () => {
       let query = supabase
-        .from("crm_deals")
-        .select("*, company:crm_companies(name, referred_by)");
+        .from("projects")
+        .select("*, company:crm_companies(name, referred_by)")
+        .eq("project_type", "deal")
+        .is("archived_at", null);
 
       if (filters?.companyId) {
         query = query.eq("company_id", filters.companyId);
@@ -30,31 +88,31 @@ export function useDeals(filters?: DealFilters) {
         const stages = Array.isArray(filters.stage)
           ? filters.stage
           : [filters.stage];
-        query = query.in("stage", stages);
+        query = query.in("deal_stage", stages);
       }
 
       if (filters?.minValue !== undefined) {
-        query = query.gte("value", filters.minValue);
+        query = query.gte("deal_value", filters.minValue);
       }
 
       if (filters?.maxValue !== undefined) {
-        query = query.lte("value", filters.maxValue);
+        query = query.lte("deal_value", filters.maxValue);
       }
 
       if (filters?.expectedCloseBefore) {
-        query = query.lte("expected_close_date", filters.expectedCloseBefore);
+        query = query.lte("deal_expected_close", filters.expectedCloseBefore);
       }
 
       if (filters?.expectedCloseAfter) {
-        query = query.gte("expected_close_date", filters.expectedCloseAfter);
+        query = query.gte("deal_expected_close", filters.expectedCloseAfter);
       }
 
-      const { data, error } = await query.order("expected_close_date", {
+      const { data, error } = await query.order("deal_expected_close", {
         ascending: true,
       });
 
       if (error) throw new Error(`Failed to fetch deals: ${error.message}`);
-      return data ?? [];
+      return (data ?? []).map((d: any) => mapProjectToDeal(d));
     },
   });
 }
@@ -62,18 +120,18 @@ export function useDeals(filters?: DealFilters) {
 export function useDeal(id: string | null) {
   return useQuery({
     queryKey: crmKeys.deal(id || ""),
-    queryFn: async (): Promise<Deal | null> => {
+    queryFn: async () => {
       if (!id) return null;
 
       const { data, error } = await supabase
-        .from("crm_deals")
+        .from("projects")
         .select("*")
         .eq("id", id)
         .single();
 
       if (error?.code === "PGRST116") return null;
       if (error) throw new Error(`Failed to fetch deal: ${error.message}`);
-      return data;
+      return data ? mapProjectToDeal(data as any) : null;
     },
     enabled: !!id,
   });
@@ -83,13 +141,34 @@ export function useCreateDeal() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (deal: DealInsert): Promise<Deal> => {
+    mutationFn: async (deal: {
+      company_id: string;
+      name: string;
+      description?: string | null;
+      stage?: string | null;
+      solution?: string | null;
+      value?: number | null;
+      currency?: string | null;
+      expected_close_date?: string | null;
+      notes?: string | null;
+    }) => {
       const { data, error } = await supabase
-        .from("crm_deals")
+        .from("projects")
         .insert({
-          ...deal,
-          stage_changed_at: new Date().toISOString(),
-        })
+          name: deal.name,
+          description: deal.description,
+          project_type: "deal",
+          company_id: deal.company_id,
+          deal_stage: deal.stage ?? "prospect",
+          deal_solution: deal.solution,
+          deal_value: deal.value,
+          deal_currency: deal.currency ?? "SGD",
+          deal_expected_close: deal.expected_close_date,
+          deal_notes: deal.notes,
+          deal_stage_changed_at: new Date().toISOString(),
+          status: "active",
+          identifier_prefix: "DEAL",
+        } as any)
         .select()
         .single();
 
@@ -109,7 +188,7 @@ export function useCreateDeal() {
           .eq("id", deal.company_id);
       }
 
-      return data;
+      return mapProjectToDeal(data as any);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: crmKeys.deals() });
@@ -133,29 +212,63 @@ export function useUpdateDeal() {
       updates,
     }: {
       id: string;
-      updates: DealUpdate;
-    }): Promise<Deal> => {
+      updates: {
+        name?: string;
+        description?: string | null;
+        stage?: string | null;
+        solution?: string | null;
+        value?: number | null;
+        currency?: string | null;
+        expected_close_date?: string | null;
+        actual_close_date?: string | null;
+        lost_reason?: string | null;
+        won_notes?: string | null;
+        proposal_path?: string | null;
+        order_form_path?: string | null;
+        notes?: string | null;
+        contact_ids?: string[] | null;
+        tags?: string[] | null;
+        stale_snoozed_until?: string | null;
+        stage_changed_at?: string | null;
+      };
+    }) => {
       // Get old deal for stage change tracking
-      const { data: oldDeal } = await supabase
-        .from("crm_deals")
-        .select("stage, company_id")
+      const { data: oldProject } = await supabase
+        .from("projects")
+        .select("deal_stage, company_id")
         .eq("id", id)
         .single();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updateData: any = {
-        ...updates,
         updated_at: new Date().toISOString(),
       };
 
-      // Reset stage_changed_at if stage is changing
-      if (oldDeal && updates.stage && oldDeal.stage !== updates.stage) {
-        updateData.stage_changed_at = new Date().toISOString();
-        updateData.stale_snoozed_until = null;
+      if (updates.name !== undefined) updateData.name = updates.name;
+      if (updates.description !== undefined) updateData.description = updates.description;
+      if (updates.stage !== undefined) updateData.deal_stage = updates.stage;
+      if (updates.solution !== undefined) updateData.deal_solution = updates.solution;
+      if (updates.value !== undefined) updateData.deal_value = updates.value;
+      if (updates.expected_close_date !== undefined) updateData.deal_expected_close = updates.expected_close_date;
+      if (updates.actual_close_date !== undefined) updateData.deal_actual_close = updates.actual_close_date;
+      if (updates.lost_reason !== undefined) updateData.deal_lost_reason = updates.lost_reason;
+      if (updates.won_notes !== undefined) updateData.deal_won_notes = updates.won_notes;
+      if (updates.proposal_path !== undefined) updateData.deal_proposal_path = updates.proposal_path;
+      if (updates.order_form_path !== undefined) updateData.deal_order_form_path = updates.order_form_path;
+      if (updates.notes !== undefined) updateData.deal_notes = updates.notes;
+      if (updates.currency !== undefined) updateData.deal_currency = updates.currency;
+      if (updates.contact_ids !== undefined) updateData.deal_contact_ids = updates.contact_ids;
+      if (updates.tags !== undefined) updateData.deal_tags = updates.tags;
+      if (updates.stale_snoozed_until !== undefined) updateData.deal_stale_snoozed_until = updates.stale_snoozed_until;
+      if (updates.stage_changed_at !== undefined) updateData.deal_stage_changed_at = updates.stage_changed_at;
+
+      // Reset deal_stage_changed_at if stage is changing
+      if (oldProject && updates.stage && oldProject.deal_stage !== updates.stage) {
+        updateData.deal_stage_changed_at = new Date().toISOString();
+        updateData.deal_stale_snoozed_until = null;
       }
 
       const { data, error } = await supabase
-        .from("crm_deals")
+        .from("projects")
         .update(updateData)
         .eq("id", id)
         .select()
@@ -164,14 +277,14 @@ export function useUpdateDeal() {
       if (error) throw new Error(`Failed to update deal: ${error.message}`);
 
       // Update company stage on won
-      if (oldDeal && updates.stage === "won") {
+      if (oldProject && updates.stage === "won") {
         await supabase
           .from("crm_companies")
           .update({ stage: "client" })
-          .eq("id", oldDeal.company_id);
+          .eq("id", oldProject.company_id);
       }
 
-      return data;
+      return mapProjectToDeal(data as any);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: crmKeys.deals() });
@@ -192,7 +305,11 @@ export function useDeleteDeal() {
 
   return useMutation({
     mutationFn: async (id: string): Promise<void> => {
-      const { error } = await supabase.from("crm_deals").delete().eq("id", id);
+      // Soft delete via archived_at
+      const { error } = await supabase
+        .from("projects")
+        .update({ archived_at: new Date().toISOString() })
+        .eq("id", id);
 
       if (error) throw new Error(`Failed to delete deal: ${error.message}`);
     },
@@ -224,7 +341,7 @@ export function useDealsWithTasks(filters?: DealFilters) {
 
       const linkedTaskIds = (links ?? []).map((l) => l.task_id);
 
-      // Step 2: Fetch tasks linked via junction table (simple query - no embedded relations)
+      // Step 2: Fetch tasks linked via junction table
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let junctionTasks: any[] = [];
       if (linkedTaskIds.length > 0) {
@@ -236,7 +353,7 @@ export function useDealsWithTasks(filters?: DealFilters) {
         if (!error) junctionTasks = data ?? [];
       }
 
-      // Step 3: Fetch tasks linked via crm_deal_id (simple query - no embedded relations)
+      // Step 3: Fetch tasks linked via crm_deal_id
       const { data: directTasks } = await supabase
         .from("tasks")
         .select("id, title, priority, due_date, crm_deal_id, status_id, assignee_id")
@@ -250,7 +367,7 @@ export function useDealsWithTasks(filters?: DealFilters) {
       });
       const tasks = Array.from(allTasksMap.values());
 
-      // Step 4: Fetch statuses for all tasks (separate query to avoid embedded relation issues)
+      // Step 4: Fetch statuses for all tasks
       const statusIds = [...new Set(tasks.map(t => t.status_id).filter(Boolean))];
       let statusMap = new Map<string, string>();
       if (statusIds.length > 0) {
@@ -262,7 +379,7 @@ export function useDealsWithTasks(filters?: DealFilters) {
         statusMap = new Map((statuses ?? []).map(s => [s.id, s.type]));
       }
 
-      // Step 5: Fetch assignee names (separate query)
+      // Step 5: Fetch assignee names
       const assigneeIds = [...new Set(tasks.map(t => t.assignee_id).filter(Boolean))];
       let assigneeMap = new Map<string, string>();
       if (assigneeIds.length > 0) {
@@ -284,7 +401,6 @@ export function useDealsWithTasks(filters?: DealFilters) {
       // Step 6: Build deal-to-tasks mapping
       const tasksByDeal = new Map<string, DealTask[]>();
 
-      // Create a map of task_id -> deal_id from junction table
       const junctionMap = new Map<string, string[]>();
       (links ?? []).forEach((link) => {
         const deals = junctionMap.get(link.task_id) || [];
@@ -292,7 +408,6 @@ export function useDealsWithTasks(filters?: DealFilters) {
         junctionMap.set(link.task_id, deals);
       });
 
-      // Process each enriched task
       enrichedTasks.forEach((task) => {
         const dealTask: DealTask = {
           id: task.id,
@@ -335,7 +450,6 @@ export function useDealsWithTasks(filters?: DealFilters) {
       (t) => !["completed", "canceled"].includes(t.status_type)
     );
 
-    // Find next task (by due date, or soonest open task)
     const sortedOpenTasks = [...openTasks].sort((a, b) => {
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
@@ -425,17 +539,14 @@ export function useDealTasks(dealId: string | null) {
         return [];
       }
 
-      // Check if embedded relations worked (task_statuses should have data)
       const hasEmbeddedStatuses = (data ?? []).some(
         (t) => t.task_statuses && (Array.isArray(t.task_statuses) ? t.task_statuses.length > 0 : true)
       );
 
-      // Fallback: if embedded relations didn't work, fetch separately
       let statusMap = new Map<string, string>();
       let projectMap = new Map<string, string>();
 
       if (!hasEmbeddedStatuses && data && data.length > 0) {
-        // Fetch statuses
         const statusIds = [...new Set(data.map(t => t.status_id).filter(Boolean))];
         const { data: statuses } = await supabase
           .from("task_statuses")
@@ -444,7 +555,6 @@ export function useDealTasks(dealId: string | null) {
 
         statusMap = new Map((statuses ?? []).map(s => [s.id, s.type]));
 
-        // Fetch projects
         const projectIds = [...new Set(data.map(t => t.project_id).filter(Boolean))];
         const { data: projects } = await supabase
           .from("projects")
@@ -454,13 +564,11 @@ export function useDealTasks(dealId: string | null) {
         projectMap = new Map((projects ?? []).map(p => [p.id, p.identifier_prefix]));
       }
 
-      // Transform to flat structure
       return (data ?? []).map((task) => {
         let statusType: string;
         let projectPrefix: string;
 
         if (hasEmbeddedStatuses) {
-          // Use embedded relations
           const taskStatuses = task.task_statuses as { type: string } | { type: string }[] | null;
           statusType = Array.isArray(taskStatuses)
             ? taskStatuses[0]?.type || "unstarted"
@@ -471,7 +579,6 @@ export function useDealTasks(dealId: string | null) {
             ? projectRel[0]?.identifier_prefix || "TASK"
             : projectRel?.identifier_prefix || "TASK";
         } else {
-          // Use fallback maps
           statusType = statusMap.get(task.status_id) || "unstarted";
           projectPrefix = projectMap.get(task.project_id) || "TASK";
         }

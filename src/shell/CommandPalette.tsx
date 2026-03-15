@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Search,
   X,
+  Home,
   Library,
   CheckSquare,
   Mail,
@@ -40,7 +41,10 @@ import { openModuleInNewWindow } from "../lib/windowManager";
 import { HelpMessage } from "../components/help/HelpMessage";
 
 const moduleIcons: Record<ModuleId, typeof Library> = {
+  home: Home,
   library: Library,
+  projects: FolderOpen,
+  metadata: Library,
   crm: Building2,
   work: CheckSquare,
   workspace: FolderOpen,
@@ -58,7 +62,10 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
 };
 
 const moduleLabels: Record<ModuleId, string> = {
+  home: "Home",
   library: "Library",
+  projects: "Projects",
+  metadata: "Metadata",
   crm: "CRM",
   work: "Work",
   workspace: "Workspaces",

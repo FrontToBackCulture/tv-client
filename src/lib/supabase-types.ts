@@ -99,6 +99,7 @@ export type Database = {
           id: string
           new_value: string | null
           old_value: string | null
+          project_id: string | null
           subject: string | null
           type: string
         }
@@ -114,6 +115,7 @@ export type Database = {
           id?: string
           new_value?: string | null
           old_value?: string | null
+          project_id?: string | null
           subject?: string | null
           type: string
         }
@@ -129,6 +131,7 @@ export type Database = {
           id?: string
           new_value?: string | null
           old_value?: string | null
+          project_id?: string | null
           subject?: string | null
           type?: string
         }
@@ -152,6 +155,13 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_activities_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -538,6 +548,27 @@ export type Database = {
         }
         Relationships: []
       }
+      domain_metadata: {
+        Row: {
+          created_at: string
+          domain: string
+          domain_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          domain_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          domain_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_campaigns: {
         Row: {
           bcc_email: string | null
@@ -753,6 +784,134 @@ export type Database = {
         }
         Relationships: []
       }
+      feed_cards: {
+        Row: {
+          archived: boolean
+          author: Json | null
+          badge: string
+          body: string
+          card_type: string
+          category: string
+          chips: string[] | null
+          created_at: string
+          created_by: string | null
+          cta_action: string | null
+          cta_label: string | null
+          features: string[] | null
+          id: string
+          pinned: boolean
+          scheduled_date: string | null
+          series_id: string | null
+          series_order: number
+          source: string
+          source_detail: string | null
+          source_ref: string | null
+          stats: Json | null
+          title: string
+          triggers: string[] | null
+          updated_at: string
+          visual: string | null
+        }
+        Insert: {
+          archived?: boolean
+          author?: Json | null
+          badge: string
+          body: string
+          card_type: string
+          category: string
+          chips?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          cta_action?: string | null
+          cta_label?: string | null
+          features?: string[] | null
+          id?: string
+          pinned?: boolean
+          scheduled_date?: string | null
+          series_id?: string | null
+          series_order?: number
+          source: string
+          source_detail?: string | null
+          source_ref?: string | null
+          stats?: Json | null
+          title: string
+          triggers?: string[] | null
+          updated_at?: string
+          visual?: string | null
+        }
+        Update: {
+          archived?: boolean
+          author?: Json | null
+          badge?: string
+          body?: string
+          card_type?: string
+          category?: string
+          chips?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          cta_action?: string | null
+          cta_label?: string | null
+          features?: string[] | null
+          id?: string
+          pinned?: boolean
+          scheduled_date?: string | null
+          series_id?: string | null
+          series_order?: number
+          source?: string
+          source_detail?: string | null
+          source_ref?: string | null
+          stats?: Json | null
+          title?: string
+          triggers?: string[] | null
+          updated_at?: string
+          visual?: string | null
+        }
+        Relationships: []
+      }
+      feed_interactions: {
+        Row: {
+          card_id: string
+          id: string
+          liked: boolean
+          liked_at: string | null
+          saved: boolean
+          saved_at: string | null
+          seen: boolean
+          seen_at: string | null
+          user_id: string
+        }
+        Insert: {
+          card_id: string
+          id?: string
+          liked?: boolean
+          liked_at?: string | null
+          saved?: boolean
+          saved_at?: string | null
+          seen?: boolean
+          seen_at?: string | null
+          user_id: string
+        }
+        Update: {
+          card_id?: string
+          id?: string
+          liked?: boolean
+          liked_at?: string | null
+          saved?: boolean
+          saved_at?: string | null
+          seen?: boolean
+          seen_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_interactions_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "feed_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       initiative_activity: {
         Row: {
           action: string
@@ -910,6 +1069,48 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      lookup_values: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          icon: string | null
+          id: string
+          label: string
+          metadata: Json | null
+          sort_order: number
+          type: string
+          updated_at: string | null
+          value: string
+          weight: number | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          label: string
+          metadata?: Json | null
+          sort_order?: number
+          type: string
+          updated_at?: string | null
+          value: string
+          weight?: number | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          label?: string
+          metadata?: Json | null
+          sort_order?: number
+          type?: string
+          updated_at?: string | null
+          value?: string
+          weight?: number | null
         }
         Relationships: []
       }
@@ -2228,17 +2429,36 @@ export type Database = {
         Row: {
           archived_at: string | null
           color: string | null
+          company_id: string | null
           created_at: string | null
+          deal_actual_close: string | null
+          deal_contact_ids: string[] | null
+          deal_currency: string | null
+          deal_expected_close: string | null
+          deal_lost_reason: string | null
+          deal_notes: string | null
+          deal_order_form_path: string | null
+          deal_proposal_path: string | null
+          deal_solution: string | null
+          deal_stage: string | null
+          deal_stage_changed_at: string | null
+          deal_stale_snoozed_until: string | null
+          deal_tags: string[] | null
+          deal_value: number | null
+          deal_won_notes: string | null
           description: string | null
           health: string | null
           icon: string | null
           id: string
           identifier_prefix: string | null
+          intent: string | null
           lead: string | null
           lead_id: string | null
           name: string
           next_task_number: number | null
+          owner: string | null
           priority: number | null
+          project_type: string
           slug: string
           sort_order: number | null
           status: string | null
@@ -2249,17 +2469,36 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           color?: string | null
+          company_id?: string | null
           created_at?: string | null
+          deal_actual_close?: string | null
+          deal_contact_ids?: string[] | null
+          deal_currency?: string | null
+          deal_expected_close?: string | null
+          deal_lost_reason?: string | null
+          deal_notes?: string | null
+          deal_order_form_path?: string | null
+          deal_proposal_path?: string | null
+          deal_solution?: string | null
+          deal_stage?: string | null
+          deal_stage_changed_at?: string | null
+          deal_stale_snoozed_until?: string | null
+          deal_tags?: string[] | null
+          deal_value?: number | null
+          deal_won_notes?: string | null
           description?: string | null
           health?: string | null
           icon?: string | null
           id?: string
           identifier_prefix?: string | null
+          intent?: string | null
           lead?: string | null
           lead_id?: string | null
           name: string
           next_task_number?: number | null
+          owner?: string | null
           priority?: number | null
+          project_type?: string
           slug: string
           sort_order?: number | null
           status?: string | null
@@ -2270,17 +2509,36 @@ export type Database = {
         Update: {
           archived_at?: string | null
           color?: string | null
+          company_id?: string | null
           created_at?: string | null
+          deal_actual_close?: string | null
+          deal_contact_ids?: string[] | null
+          deal_currency?: string | null
+          deal_expected_close?: string | null
+          deal_lost_reason?: string | null
+          deal_notes?: string | null
+          deal_order_form_path?: string | null
+          deal_proposal_path?: string | null
+          deal_solution?: string | null
+          deal_stage?: string | null
+          deal_stage_changed_at?: string | null
+          deal_stale_snoozed_until?: string | null
+          deal_tags?: string[] | null
+          deal_value?: number | null
+          deal_won_notes?: string | null
           description?: string | null
           health?: string | null
           icon?: string | null
           id?: string
           identifier_prefix?: string | null
+          intent?: string | null
           lead?: string | null
           lead_id?: string | null
           name?: string
           next_task_number?: number | null
+          owner?: string | null
           priority?: number | null
+          project_type?: string
           slug?: string
           sort_order?: number | null
           status?: string | null
@@ -2289,6 +2547,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "projects_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "projects_lead_id_fkey"
             columns: ["lead_id"]
@@ -2455,6 +2720,99 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      skills: {
+        Row: {
+          slug: string
+          name: string
+          description: string
+          category: string
+          subcategory: string | null
+          target: string
+          status: string
+          command: string | null
+          domain: string | null
+          verified: boolean
+          owner: string | null
+          last_audited: string | null
+          rating: number | null
+          has_demo: boolean
+          has_examples: boolean
+          has_deck: boolean
+          has_guide: boolean
+          demo_uploaded: boolean
+          demo_url: string | null
+          needs_work: string | null
+          work_notes: string | null
+          action: string | null
+          outcome: string | null
+          gallery_pinned: boolean
+          gallery_order: number | null
+          distributions: unknown
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          slug: string
+          name: string
+          description?: string
+          category?: string
+          subcategory?: string | null
+          target?: string
+          status?: string
+          command?: string | null
+          domain?: string | null
+          verified?: boolean
+          owner?: string | null
+          last_audited?: string | null
+          rating?: number | null
+          has_demo?: boolean
+          has_examples?: boolean
+          has_deck?: boolean
+          has_guide?: boolean
+          demo_uploaded?: boolean
+          demo_url?: string | null
+          needs_work?: string | null
+          work_notes?: string | null
+          action?: string | null
+          outcome?: string | null
+          gallery_pinned?: boolean
+          gallery_order?: number | null
+          distributions?: unknown
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          slug?: string
+          name?: string
+          description?: string
+          category?: string
+          subcategory?: string | null
+          target?: string
+          status?: string
+          command?: string | null
+          domain?: string | null
+          verified?: boolean
+          owner?: string | null
+          last_audited?: string | null
+          rating?: number | null
+          has_demo?: boolean
+          has_examples?: boolean
+          has_deck?: boolean
+          has_guide?: boolean
+          demo_uploaded?: boolean
+          demo_url?: string | null
+          needs_work?: string | null
+          work_notes?: string | null
+          action?: string | null
+          outcome?: string | null
+          gallery_pinned?: boolean
+          gallery_order?: number | null
+          distributions?: unknown
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       scheduler_runs: {
         Row: {
@@ -2809,8 +3167,10 @@ export type Database = {
           id: string
           last_active_at: string | null
           name: string
+          role: string
           type: string
           updated_at: string | null
+          visible_modules: string[] | null
         }
         Insert: {
           avatar_url?: string | null
@@ -2823,8 +3183,10 @@ export type Database = {
           id?: string
           last_active_at?: string | null
           name: string
+          role?: string
           type?: string
           updated_at?: string | null
+          visible_modules?: string[] | null
         }
         Update: {
           avatar_url?: string | null
@@ -2837,8 +3199,10 @@ export type Database = {
           id?: string
           last_active_at?: string | null
           name?: string
+          role?: string
           type?: string
           updated_at?: string | null
+          visible_modules?: string[] | null
         }
         Relationships: []
       }
@@ -2848,6 +3212,7 @@ export type Database = {
           id: string
           label: string
           preview_content: string | null
+          project_id: string | null
           reference: string
           session_id: string | null
           type: string
@@ -2858,6 +3223,7 @@ export type Database = {
           id?: string
           label: string
           preview_content?: string | null
+          project_id?: string | null
           reference: string
           session_id?: string | null
           type: string
@@ -2868,12 +3234,20 @@ export type Database = {
           id?: string
           label?: string
           preview_content?: string | null
+          project_id?: string | null
           reference?: string
           session_id?: string | null
           type?: string
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "workspace_artifacts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workspace_artifacts_session_id_fkey"
             columns: ["session_id"]
@@ -2895,6 +3269,7 @@ export type Database = {
           context_summary: string | null
           current_state: string | null
           key_decisions: Json | null
+          project_id: string | null
           updated_at: string
           workspace_id: string
         }
@@ -2902,6 +3277,7 @@ export type Database = {
           context_summary?: string | null
           current_state?: string | null
           key_decisions?: Json | null
+          project_id?: string | null
           updated_at?: string
           workspace_id: string
         }
@@ -2909,10 +3285,18 @@ export type Database = {
           context_summary?: string | null
           current_state?: string | null
           key_decisions?: Json | null
+          project_id?: string | null
           updated_at?: string
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "workspace_context_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workspace_context_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -2932,6 +3316,7 @@ export type Database = {
           next_steps: string[] | null
           notes: string | null
           open_questions: string[] | null
+          project_id: string | null
           summary: string | null
           workspace_id: string
         }
@@ -2944,6 +3329,7 @@ export type Database = {
           next_steps?: string[] | null
           notes?: string | null
           open_questions?: string[] | null
+          project_id?: string | null
           summary?: string | null
           workspace_id: string
         }
@@ -2956,10 +3342,18 @@ export type Database = {
           next_steps?: string[] | null
           notes?: string | null
           open_questions?: string[] | null
+          project_id?: string | null
           summary?: string | null
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "workspace_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workspace_sessions_workspace_id_fkey"
             columns: ["workspace_id"]

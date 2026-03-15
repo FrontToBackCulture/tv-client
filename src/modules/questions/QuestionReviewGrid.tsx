@@ -34,7 +34,7 @@ import {
 import { cn } from "../../lib/cn";
 import { Button } from "../../components/ui";
 import { useAppStore } from "../../stores/appStore";
-import { groupRowStyles, themeStyles } from "../library/reviewGridStyles";
+import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
 import {
   useQuestions,
   useUpdateQuestion,

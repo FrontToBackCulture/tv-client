@@ -27,6 +27,8 @@ export const useModuleVisibilityStore = create<ModuleVisibilityState>()(
         }
       },
       isModuleVisible: (moduleId: string) => {
+        // Home is always visible
+        if (moduleId === "home") return true;
         // Check team config first
         const user = useAuth.getState().user;
         const teamConfig = useTeamConfigStore.getState();

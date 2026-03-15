@@ -244,7 +244,7 @@ pub async fn val_generate_sql(
     let global_path = &domain_config.global_path;
 
     // Load all_tables.json
-    let all_tables_path = Path::new(global_path).join("all_tables.json");
+    let all_tables_path = Path::new(global_path).join("schema/all_tables.json");
     if !all_tables_path.exists() {
         return Err(CommandError::NotFound(format!(
             "all_tables.json not found for domain '{}'. Run sync first.",

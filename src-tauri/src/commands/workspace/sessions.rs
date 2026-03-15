@@ -1,8 +1,10 @@
 // Workspace Module - Session Commands
+// Now writes project_id alongside workspace_id for forward compatibility
 
 use super::types::*;
 use crate::commands::error::CmdResult;
 use crate::commands::supabase::get_client;
+use crate::commands::work::types::WorkspaceContext;
 
 /// Build a current_state string from session data for auto-updating workspace context.
 fn build_current_state(summary: Option<&str>, next_steps: Option<&[String]>) -> String {
@@ -32,21 +34,27 @@ async fn sync_context_current_state(
         return;
     }
 
-    let mut context = UpsertWorkspaceContext {
+    let context = UpsertWorkspaceContext {
         workspace_id: workspace_id.to_string(),
         context_summary: None, // don't overwrite — only update current_state
         current_state: Some(current_state),
         key_decisions: None,
     };
 
-    // If session has decisions, merge them into context too
-    if let Some(d) = decisions {
-        if d.is_array() && !d.as_array().unwrap().is_empty() {
-            context.key_decisions = Some(d.clone());
+    // Dual-write: set both workspace_id and project_id
+    let mut context_data = serde_json::to_value(&context).unwrap_or_default();
+    if let Some(obj) = context_data.as_object_mut() {
+        obj.insert("project_id".to_string(), serde_json::Value::String(workspace_id.to_string()));
+
+        // If session has decisions, merge them into context too
+        if let Some(d) = decisions {
+            if d.is_array() && !d.as_array().unwrap().is_empty() {
+                obj.insert("key_decisions".to_string(), d.clone());
+            }
         }
     }
 
-    let _: Result<WorkspaceContext, _> = client.upsert("workspace_context", &context).await;
+    let _: Result<WorkspaceContext, _> = client.upsert("workspace_context", &context_data).await;
 }
 
 /// Add a session entry to a workspace.
@@ -54,7 +62,7 @@ async fn sync_context_current_state(
 /// updates the existing session instead of creating a duplicate.
 /// Also auto-updates the workspace context current_state from the session.
 #[tauri::command]
-pub async fn workspace_add_session(data: CreateWorkspaceSession) -> CmdResult<WorkspaceSession> {
+pub async fn workspace_add_session(data: CreateWorkspaceSession) -> CmdResult<crate::commands::work::types::WorkspaceSession> {
     let client = get_client().await?;
 
     // Upsert by conversation_id: if a session with this conversation already exists, update it
@@ -63,7 +71,7 @@ pub async fn workspace_add_session(data: CreateWorkspaceSession) -> CmdResult<Wo
             "workspace_id=eq.{}&conversation_id=eq.{}",
             data.workspace_id, conv_id
         );
-        let existing: Vec<WorkspaceSession> =
+        let existing: Vec<crate::commands::work::types::WorkspaceSession> =
             client.select("workspace_sessions", &query).await?;
 
         if let Some(existing_session) = existing.into_iter().next() {
@@ -75,7 +83,7 @@ pub async fn workspace_add_session(data: CreateWorkspaceSession) -> CmdResult<Wo
                 notes: data.notes,
                 conversation_id: data.conversation_id,
             };
-            let result: WorkspaceSession = client
+            let result: crate::commands::work::types::WorkspaceSession = client
                 .update(
                     "workspace_sessions",
                     &format!("id=eq.{}", existing_session.id),
@@ -97,7 +105,13 @@ pub async fn workspace_add_session(data: CreateWorkspaceSession) -> CmdResult<Wo
         }
     }
 
-    let result: WorkspaceSession = client.insert("workspace_sessions", &data).await?;
+    // Build insert data with dual-write (workspace_id + project_id)
+    let mut insert_data = serde_json::to_value(&data).unwrap_or_default();
+    if let Some(obj) = insert_data.as_object_mut() {
+        obj.insert("project_id".to_string(), serde_json::Value::String(data.workspace_id.clone()));
+    }
+
+    let result: crate::commands::work::types::WorkspaceSession = client.insert("workspace_sessions", &insert_data).await?;
 
     // Auto-sync context
     sync_context_current_state(
@@ -117,9 +131,9 @@ pub async fn workspace_add_session(data: CreateWorkspaceSession) -> CmdResult<Wo
 pub async fn workspace_update_session(
     id: String,
     data: UpdateWorkspaceSession,
-) -> CmdResult<WorkspaceSession> {
+) -> CmdResult<crate::commands::work::types::WorkspaceSession> {
     let client = get_client().await?;
-    let result: WorkspaceSession = client
+    let result: crate::commands::work::types::WorkspaceSession = client
         .update("workspace_sessions", &format!("id=eq.{}", id), &data)
         .await?;
 
@@ -139,8 +153,9 @@ pub async fn workspace_update_session(
 /// List sessions for a workspace
 #[tauri::command]
 #[allow(dead_code)]
-pub async fn workspace_list_sessions(workspace_id: String) -> CmdResult<Vec<WorkspaceSession>> {
+pub async fn workspace_list_sessions(workspace_id: String) -> CmdResult<Vec<crate::commands::work::types::WorkspaceSession>> {
     let client = get_client().await?;
-    let query = format!("workspace_id=eq.{}&order=date.desc", workspace_id);
+    // Query by project_id (forward-compatible) with fallback to workspace_id
+    let query = format!("project_id=eq.{}&order=date.desc", workspace_id);
     client.select("workspace_sessions", &query).await
 }

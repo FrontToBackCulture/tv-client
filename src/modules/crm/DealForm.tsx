@@ -5,8 +5,6 @@ import { useState } from "react";
 import { useCreateDeal, useUpdateDeal } from "../../hooks/crm";
 import {
   Deal,
-  DealInsert,
-  DealUpdate,
   DEAL_STAGES,
   DEAL_SOLUTIONS,
 } from "../../lib/crm/types";
@@ -22,7 +20,7 @@ interface DealFormProps {
 }
 
 export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
-  const [formData, setFormData] = useState<DealInsert | DealUpdate>({
+  const [formData, setFormData] = useState<Record<string, any>>({
     company_id: companyId,
     name: deal?.name || "",
     description: deal?.description || "",
@@ -54,10 +52,10 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
       if (isEditing) {
         await updateMutation.mutateAsync({
           id: deal.id,
-          updates: formData as DealUpdate,
+          updates: formData,
         });
       } else {
-        await createMutation.mutateAsync(formData as DealInsert);
+        await createMutation.mutateAsync(formData as any);
       }
       toast.success(isEditing ? "Deal updated" : "Deal created");
       onSaved();

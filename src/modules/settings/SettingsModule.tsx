@@ -15,6 +15,7 @@ import {
   Stethoscope,
   Users,
   FolderOpen,
+  Cloud,
 } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -33,8 +34,9 @@ import { PortalSettingsView } from "./PortalSettingsView";
 import { DiagnosticsView } from "./DiagnosticsView";
 import { TeamView } from "./TeamView";
 import { FolderPathsView } from "./FolderPathsView";
+import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
 
-type SettingsViewId = "keys" | "val" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "diagnostics";
+type SettingsViewId = "keys" | "val" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics";
 
 interface SidebarItem {
   id: SettingsViewId;
@@ -51,6 +53,7 @@ const baseSidebarItems: SidebarItem[] = [
   { id: "claude", label: "Claude Code", icon: Cpu },
   { id: "bots", label: "Bots", icon: Bot },
   { id: "portal", label: "Portal", icon: Megaphone },
+  { id: "notion", label: "Notion Sync", icon: Cloud },
   { id: "team", label: "Team", icon: Users },
   { id: "diagnostics", label: "Diagnostics", icon: Stethoscope },
 ];
@@ -108,7 +111,7 @@ export function SettingsModal() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     if (!settingsOpen) return;
-    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", portal: "Portal", team: "Team", diagnostics: "Diagnostics" };
+    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", portal: "Portal", notion: "Notion Sync", team: "Team", diagnostics: "Diagnostics" };
     setViewContext(activeView, labels[activeView]);
   }, [activeView, setViewContext, settingsOpen]);
 
@@ -175,6 +178,7 @@ export function SettingsModal() {
               {activeView === "claude" && <ClaudeCodeSetupView />}
               {activeView === "bots" && <BotsPathView />}
               {activeView === "portal" && <PortalSettingsView />}
+              {activeView === "notion" && <NotionSyncConfigs />}
               {activeView === "team" && <TeamView />}
               {activeView === "diagnostics" && <DiagnosticsView onNavigate={(view) => setActiveView(view as SettingsViewId)} />}
             </div>

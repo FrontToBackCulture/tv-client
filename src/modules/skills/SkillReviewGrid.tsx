@@ -1,6 +1,6 @@
 // src/modules/skills/SkillReviewGrid.tsx
 // AG Grid Enterprise review table for skill audit tracking
-// Follows the same pattern as library/ReviewGrid.tsx
+// Data source: Supabase `skills` table + `report_skill_library` table
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { AgGridReact } from "ag-grid-react";
@@ -12,6 +12,8 @@ import {
   AllCommunityModule,
   CellValueChangedEvent,
   GetRowIdParams,
+  GetContextMenuItemsParams,
+  MenuItemDef,
 } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
@@ -31,16 +33,23 @@ import {
   WrapText,
   Globe,
   Loader2,
+  ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button } from "../../components/ui";
 import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
-import { groupRowStyles, themeStyles } from "../library/reviewGridStyles";
-import type { SkillRegistry, SkillCategory } from "./useSkillRegistry";
-import { useSkillRegistryUpdate } from "./useSkillRegistry";
+import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
+import { invoke } from "@tauri-apps/api/core";
+import { useSkillInit, useSkillRegistry, useSkillExamples } from "./useSkillRegistry";
+import type { SkillCategory as RegistryCategory } from "./useSkillRegistry";
+import { useQuery } from "@tanstack/react-query";
+import { useSkills, useUpdateSkill, useBulkUpsertSkills } from "../../hooks/skills/useSkills";
+import { supabase } from "../../lib/supabase";
 import { useReportSkillMap, useUpsertReportSkill } from "../../hooks/gallery/useReportSkills";
 import type { ReportSkill } from "../../lib/gallery/types";
+import type { Skill } from "../../hooks/skills/types";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
@@ -54,8 +63,8 @@ if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
 interface SkillReviewRow {
   slug: string;
   name: string;
+  description: string;
   category: string;
-  parentCategory: string;
   subcategory: string;
   target: string;
   status: string;
@@ -64,6 +73,12 @@ interface SkillReviewRow {
   verified: boolean;
   last_audited: string;
   owner: string;
+  hasDemo: boolean;
+  hasExamples: boolean;
+  hasDeck: boolean;
+  hasGuide: boolean;
+  demoUploaded: boolean;
+  demoUrl: string;
   // Website library fields (from Supabase report_skill_library)
   webTitle: string;
   webDescription: string;
@@ -85,31 +100,10 @@ const LAYOUT_STORAGE_KEY = "tv-desktop-skill-review-layouts";
 const DEFAULT_LAYOUT_KEY = "tv-desktop-skill-review-default-layout";
 
 interface SkillReviewGridProps {
-  registry: SkillRegistry;
   onSelectSkill?: (slug: string) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function resolveCategory(
-  categoryId: string,
-  categories: SkillCategory[],
-): { parentCategory: string; subcategory: string } {
-  if (!categoryId) return { parentCategory: "Uncategorized", subcategory: "" };
-
-  const cat = categories.find((c) => c.id === categoryId);
-  if (!cat) return { parentCategory: "Uncategorized", subcategory: "" };
-
-  if (cat.parent) {
-    const parent = categories.find((c) => c.id === cat.parent);
-    return {
-      parentCategory: parent?.label ?? cat.parent,
-      subcategory: cat.label,
-    };
-  }
-
-  return { parentCategory: cat.label, subcategory: "" };
-}
 
 function isStale(lastAudited: string | undefined): boolean {
   if (!lastAudited) return true;
@@ -121,7 +115,7 @@ function isStale(lastAudited: string | undefined): boolean {
 
 const STATUS_VALUES = ["active", "test", "review", "draft", "inactive", "deprecated"];
 
-function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] {
+function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] {
   return [
     {
       field: "name",
@@ -161,7 +155,19 @@ function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef
       },
     },
     {
-      field: "parentCategory",
+      field: "description",
+      headerName: "Description",
+      minWidth: 200,
+      flex: 1,
+      filter: "agTextColumnFilter",
+      editable: true,
+      cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+      enableRowGroup: false,
+      wrapText: wrapNotes,
+      autoHeight: wrapNotes,
+    },
+    {
+      field: "category",
       headerName: "Category",
       width: 130,
       filter: "agSetColumnFilter",
@@ -272,12 +278,98 @@ function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef
       width: 120,
       filter: "agSetColumnFilter",
       editable: true,
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: ["", ...userNames] },
       cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
       enableRowGroup: true,
     },
+    {
+      field: "hasDemo",
+      headerName: "Demo",
+      width: 75,
+      filter: "agSetColumnFilter",
+      editable: true,
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: [true, false] },
+      cellRenderer: (params: { value: boolean }) => {
+        if (params.value === undefined || params.value === null) return null;
+        return params.value
+          ? <span className="text-emerald-500 text-xs">Yes</span>
+          : <span className="text-zinc-400 text-xs">No</span>;
+      },
+    },
+    {
+      field: "hasExamples",
+      headerName: "Examples",
+      width: 85,
+      filter: "agSetColumnFilter",
+      editable: true,
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: [true, false] },
+      cellRenderer: (params: { value: boolean }) => {
+        if (params.value === undefined || params.value === null) return null;
+        return params.value
+          ? <span className="text-emerald-500 text-xs">Yes</span>
+          : <span className="text-zinc-400 text-xs">No</span>;
+      },
+    },
+    {
+      field: "hasDeck",
+      headerName: "Deck",
+      width: 75,
+      filter: "agSetColumnFilter",
+      editable: true,
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: [true, false] },
+      cellRenderer: (params: { value: boolean }) => {
+        if (params.value === undefined || params.value === null) return null;
+        return params.value
+          ? <span className="text-emerald-500 text-xs">Yes</span>
+          : <span className="text-zinc-400 text-xs">No</span>;
+      },
+    },
+    {
+      field: "hasGuide",
+      headerName: "Guide",
+      width: 75,
+      filter: "agSetColumnFilter",
+      editable: true,
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: [true, false] },
+      cellRenderer: (params: { value: boolean }) => {
+        if (params.value === undefined || params.value === null) return null;
+        return params.value
+          ? <span className="text-emerald-500 text-xs">Yes</span>
+          : <span className="text-zinc-400 text-xs">No</span>;
+      },
+    },
+    {
+      field: "demoUploaded",
+      headerName: "S3",
+      width: 65,
+      filter: "agSetColumnFilter",
+      editable: true,
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: [true, false] },
+      cellRenderer: (params: { value: boolean }) => {
+        if (params.value === undefined || params.value === null) return null;
+        return params.value
+          ? <span className="text-emerald-500 text-xs">Yes</span>
+          : <span className="text-zinc-400 text-xs">No</span>;
+      },
+    },
+    {
+      field: "demoUrl",
+      headerName: "Demo URL",
+      width: 200,
+      filter: "agTextColumnFilter",
+      editable: true,
+      cellClass: "text-xs font-mono text-zinc-500",
+      hide: true,
+    },
     // ── Website Library columns ──
     {
-      headerName: "📄 WEBSITE",
+      headerName: "WEBSITE",
       children: [
         {
           field: "webTitle",
@@ -393,17 +485,107 @@ function buildColumns(wrapNotes: boolean): (ColDef<SkillReviewRow> | ColGroupDef
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProps) {
+export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
   const theme = useAppStore((s) => s.theme);
   const gridRef = useRef<AgGridReact<SkillReviewRow>>(null);
-  const registryUpdate = useSkillRegistryUpdate();
+  const skillInit = useSkillInit();
+  const updateSkill = useUpdateSkill();
+  const bulkUpsert = useBulkUpsertSkills();
+  const { data: skills = [], isLoading } = useSkills();
+  const { refetch: refetchRegistry } = useSkillRegistry();
+  const { data: users } = useQuery({
+    queryKey: ["users-for-skills"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("users").select("name").order("name");
+      if (error) throw error;
+      return (data ?? []).map(u => u.name);
+    },
+    staleTime: 60_000,
+  });
   const { data: reportSkillMap } = useReportSkillMap();
   const upsertReportSkill = useUpsertReportSkill();
+  const { data: skillExamples } = useSkillExamples();
 
   const [quickFilter, setQuickFilter] = useState("");
   const [wrapNotes, setWrapNotes] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRevalidating, setIsRevalidating] = useState(false);
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+
+  const handleSkillInit = useCallback(async () => {
+    try {
+      // Step 1: Scan filesystem → update registry.json
+      const result = await skillInit.mutateAsync(undefined);
+      toast.info(`Filesystem scanned: ${result.skills_created} skills found. Pushing to database...`);
+
+      // Step 2: Re-read registry.json to get updated data
+      const { data: freshRegistry } = await refetchRegistry();
+      if (!freshRegistry?.skills) {
+        toast.error("Failed to read updated registry");
+        return;
+      }
+
+      // Step 3: Resolve categories and push to Supabase
+      const resolveCategory = (categoryId: string, categories: RegistryCategory[]) => {
+        if (!categoryId) return { category: "Uncategorized", subcategory: null as string | null };
+        const cat = categories.find(c => c.id === categoryId);
+        if (!cat) return { category: categoryId, subcategory: null as string | null };
+        if (cat.parent) {
+          const parent = categories.find(c => c.id === cat.parent);
+          return { category: parent?.label ?? cat.parent, subcategory: cat.label };
+        }
+        return { category: cat.label, subcategory: null as string | null };
+      };
+
+      const rows = Object.entries(freshRegistry.skills).map(([slug, skill]) => {
+        const { category, subcategory } = resolveCategory(skill.category, freshRegistry.categories);
+        return {
+          slug,
+          name: skill.name,
+          description: skill.description || "",
+          category,
+          subcategory,
+          target: skill.target || "platform",
+          status: skill.status || "active",
+          command: skill.command || null,
+          domain: skill.domain || null,
+          verified: skill.verified ?? false,
+          owner: skill.owner || null,
+          last_audited: skill.last_audited || null,
+          has_demo: skill.has_demo ?? false,
+          has_examples: skill.has_examples ?? false,
+          has_deck: skill.has_deck ?? false,
+          has_guide: skill.has_guide ?? false,
+          distributions: skill.distributions || [],
+        };
+      });
+
+      await bulkUpsert.mutateAsync(rows);
+
+      // Step 4: Cross-reference report_skill_library for S3 demo URLs
+      const { data: reports } = await supabase
+        .from("report_skill_library")
+        .select("skill_slug, report_url")
+        .not("report_url", "is", null);
+
+      if (reports?.length) {
+        const urlBySlug: Record<string, string> = {};
+        for (const r of reports) {
+          if (!urlBySlug[r.skill_slug]) urlBySlug[r.skill_slug] = r.report_url!;
+        }
+        for (const [slug, url] of Object.entries(urlBySlug)) {
+          await supabase
+            .from("skills")
+            .update({ demo_uploaded: true, demo_url: url })
+            .eq("slug", slug);
+        }
+      }
+
+      toast.success(`${rows.length} skills synced to database`);
+    } catch (err) {
+      toast.error(`Skill sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [skillInit, refetchRegistry, bulkUpsert]);
 
   const handleRevalidateWebsite = useCallback(async () => {
     setIsRevalidating(true);
@@ -452,18 +634,11 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isFullscreen]);
 
-  // Build row data from registry — only recalculate when skill count changes
-  // Use a ref to track the last registry version we built from
-  const lastBuiltVersion = useRef<string>("");
-  const [rowData, setRowData] = useState<SkillReviewRow[]>([]);
-
-  // Rebuild rows when registry changes externally (not from our own edits)
-  // Build slug -> first ReportSkill lookup from Supabase map
+  // Build row data from Supabase skills + report_skill_library
   const webLookup = useMemo(() => {
     const map: Record<string, ReportSkill> = {};
     if (reportSkillMap) {
       for (const [, entry] of reportSkillMap) {
-        // Keep first entry per slug (if multiple demo files exist)
         if (!map[entry.skill_slug]) {
           map[entry.skill_slug] = entry;
         }
@@ -472,28 +647,28 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     return map;
   }, [reportSkillMap]);
 
-  const registryVersion = `${Object.keys(registry.skills).length}-${registry.updated}-${reportSkillMap?.size ?? 0}`;
-  useEffect(() => {
-    if (lastBuiltVersion.current === registryVersion) return;
-    lastBuiltVersion.current = registryVersion;
-
-    const rows: SkillReviewRow[] = [];
-    for (const [slug, skill] of Object.entries(registry.skills)) {
-      const { parentCategory, subcategory } = resolveCategory(skill.category, registry.categories);
-      const web = webLookup[slug];
-      rows.push({
-        slug,
+  const rowData = useMemo(() => {
+    return skills.map((skill: Skill) => {
+      const web = webLookup[skill.slug];
+      return {
+        slug: skill.slug,
         name: skill.name,
-        category: skill.category,
-        parentCategory,
-        subcategory,
+        description: skill.description ?? "",
+        category: skill.category ?? "",
+        subcategory: skill.subcategory ?? "",
         target: skill.target,
         status: skill.status,
         domain: skill.domain ?? "",
         command: skill.command ?? "",
-        verified: skill.verified ?? false,
+        verified: skill.verified,
         last_audited: skill.last_audited ?? "",
         owner: skill.owner ?? "",
+        hasDemo: skill.has_demo,
+        hasExamples: skill.has_examples,
+        hasDeck: skill.has_deck,
+        hasGuide: skill.has_guide,
+        demoUploaded: skill.demo_uploaded,
+        demoUrl: skill.demo_url ?? "",
         webTitle: web?.title ?? "",
         webDescription: web?.description ?? "",
         webWriteup: web?.writeup ?? "",
@@ -504,15 +679,13 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
         webSources: (web?.sources ?? []).join(", "),
         webPublished: web?.published ?? false,
         webFeatured: web?.featured ?? false,
-        _webSkillSlug: web?.skill_slug ?? slug,
+        _webSkillSlug: web?.skill_slug ?? skill.slug,
         _webFileName: web?.file_name ?? "",
-      });
-    }
-    setRowData(rows);
-  }, [registryVersion, registry, webLookup]);
+      } satisfies SkillReviewRow;
+    });
+  }, [skills, webLookup]);
 
-
-  const columnDefs = useMemo(() => buildColumns(wrapNotes), [wrapNotes]);
+  const columnDefs = useMemo(() => buildColumns(wrapNotes, users ?? []), [wrapNotes, users]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
     sortable: true,
@@ -541,45 +714,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     return params.node.group ? 44 : 36;
   }, []);
 
-  // Resolve category labels to ID, auto-creating new categories as needed
-  const resolveAndUpdateCategory = useCallback((
-    parentLabel: string,
-    subLabel: string,
-    currentCategories: SkillCategory[],
-  ): { categoryId: string; categories: SkillCategory[] } => {
-    let categories = [...currentCategories];
-
-    if (parentLabel === "Uncategorized" || !parentLabel) {
-      return { categoryId: "", categories };
-    }
-
-    // Find or create parent (case-insensitive match)
-    let parentCat = categories.find(c => !c.parent && c.label.toLowerCase() === parentLabel.toLowerCase());
-    if (!parentCat) {
-      const id = parentLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      // Check for ID collision
-      const existingWithId = categories.find(c => c.id === id);
-      const finalId = existingWithId ? `${id}-${Date.now()}` : id;
-      parentCat = { id: finalId, label: parentLabel, order: categories.length };
-      categories = [...categories, parentCat];
-    }
-
-    if (!subLabel) {
-      return { categoryId: parentCat.id, categories };
-    }
-
-    // Find or create child (case-insensitive match)
-    let childCat = categories.find(c => c.parent === parentCat!.id && c.label.toLowerCase() === subLabel.toLowerCase());
-    if (!childCat) {
-      const id = `${parentCat.id}-${subLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
-      childCat = { id, label: subLabel, order: categories.length, parent: parentCat.id };
-      categories = [...categories, childCat];
-    }
-
-    return { categoryId: childCat.id, categories };
-  }, []);
-
-  // Persist edits — registry fields go to registry.json, web fields go to Supabase
+  // Persist edits — skill fields go to Supabase `skills`, web fields go to Supabase `report_skill_library`
   const handleCellValueChanged = useCallback(
     (event: CellValueChangedEvent<SkillReviewRow>) => {
       const { data, colDef } = event;
@@ -588,12 +723,11 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
       const field = colDef.field as keyof SkillReviewRow;
       const slug = data.slug;
 
-      // ── Website library fields → Supabase ──
+      // ── Website library fields → Supabase report_skill_library ──
       const webFields = ["webTitle", "webDescription", "webWriteup", "webSolution", "webCategory", "webSubcategory", "webMetrics", "webSources", "webPublished", "webFeatured"] as const;
       if ((webFields as readonly string[]).includes(field)) {
-        // Need a file_name to upsert — use existing or skip
         const fileName = data._webFileName;
-        if (!fileName) return; // No demo file associated, can't create entry
+        if (!fileName) return;
 
         upsertReportSkill.mutate({
           skill_slug: data._webSkillSlug || slug,
@@ -612,42 +746,32 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
         return;
       }
 
-      // ── Registry fields → registry.json ──
-      const skill = registry.skills[slug];
-      if (!skill) return;
-
-      let updatedSkill = { ...skill };
-      let updatedCategories = registry.categories;
-
-      if (field === "parentCategory" || field === "subcategory") {
-        const newParent = data.parentCategory;
-        const newSub = field === "parentCategory" ? "" : data.subcategory;
-        const result = resolveAndUpdateCategory(newParent, newSub, registry.categories);
-        updatedSkill.category = result.categoryId;
-        updatedCategories = result.categories;
-      } else {
-        const editableFields = ["name", "target", "status", "domain", "command", "verified", "last_audited", "owner"] as const;
-        if (!editableFields.includes(field as typeof editableFields[number])) return;
-        updatedSkill = { ...skill, [field]: data[field] };
-      }
-
-      const newTimestamp = new Date().toISOString();
-      const updated: SkillRegistry = {
-        ...registry,
-        updated: newTimestamp,
-        categories: updatedCategories,
-        skills: {
-          ...registry.skills,
-          [slug]: updatedSkill,
-        },
+      // ── Skill fields → Supabase skills table ──
+      // Map camelCase row fields to snake_case DB columns
+      const fieldMap: Record<string, string> = {
+        hasDemo: "has_demo",
+        hasExamples: "has_examples",
+        hasDeck: "has_deck",
+        hasGuide: "has_guide",
+        demoUploaded: "demo_uploaded",
+        demoUrl: "demo_url",
       };
+      const dbField = fieldMap[field] ?? field;
 
-      // Pre-set the version so the rebuild effect skips this mutation's invalidation
-      lastBuiltVersion.current = `${Object.keys(updated.skills).length}-${newTimestamp}-${reportSkillMap?.size ?? 0}`;
+      const editableFields = [
+        "name", "description", "category", "subcategory", "target", "status",
+        "domain", "command", "verified", "last_audited", "owner",
+        "has_demo", "has_examples", "has_deck", "has_guide",
+        "demo_uploaded", "demo_url",
+      ];
+      if (!editableFields.includes(dbField)) return;
 
-      registryUpdate.mutate(updated);
+      updateSkill.mutate({
+        slug,
+        updates: { [dbField]: data[field] },
+      });
     },
-    [registry, registryUpdate, resolveAndUpdateCategory, reportSkillMap, upsertReportSkill],
+    [updateSkill, upsertReportSkill],
   );
 
   // ─── Layout actions ─────────────────────────────────────────────────────────
@@ -658,7 +782,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     api.setRowGroupColumns([]);
     api.applyColumnState({
       state: [
-        { colId: "parentCategory", hide: false, pinned: "left" as const, width: 140 },
+        { colId: "category", hide: false, pinned: "left" as const, width: 140 },
         { colId: "subcategory", hide: false, pinned: "left" as const, width: 110 },
         { colId: "name", hide: false, pinned: "left" as const, width: 220 },
         { colId: "ag-Grid-AutoColumn", hide: true },
@@ -667,7 +791,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     });
     api.applyColumnState({
       state: [
-        { colId: "parentCategory", sort: "asc", sortIndex: 0 },
+        { colId: "category", sort: "asc", sortIndex: 0 },
         { colId: "subcategory", sort: "asc", sortIndex: 1 },
       ],
       defaultState: { sort: null },
@@ -679,7 +803,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     if (!api) return;
     api.setFilterModel(null);
     api.resetColumnState();
-    api.setRowGroupColumns(["parentCategory"]);
+    api.setRowGroupColumns(["category"]);
     setQuickFilter("");
     toast.info("Layout reset to default");
   }, []);
@@ -780,7 +904,6 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
     const api = gridRef.current?.api;
     if (!api) return;
 
-    // Apply saved default layout if one exists
     const defaultName = localStorage.getItem(DEFAULT_LAYOUT_KEY);
     if (defaultName) {
       try {
@@ -802,14 +925,108 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
       } catch { /* ignore */ }
     }
 
-    // No saved default — apply initial grouping by parentCategory programmatically
-    api.setRowGroupColumns(["parentCategory"]);
+    api.setRowGroupColumns(["category"]);
   }, []);
 
-  // ─── Filter counts ──────────────────────────────────────────────────────────
+  // Build lookup: slug → demo files (for S3 upload)
+  // Note: useSkillExamples scans the `demo/` folder of each skill, not `examples/`
+  const demosBySlug = useMemo(() => {
+    const map: Record<string, { file_path: string; file_name: string }[]> = {};
+    if (skillExamples) {
+      for (const ex of skillExamples) {
+        if (!map[ex.slug]) map[ex.slug] = [];
+        map[ex.slug].push({ file_path: ex.file_path, file_name: ex.file_name });
+      }
+    }
+    return map;
+  }, [skillExamples]);
 
+  const handleUploadToS3 = useCallback(async (slug: string, filePath: string, fileName: string) => {
+    try {
+      toast.info(`Uploading ${fileName} to S3...`);
+      const result = await invoke<{ url: string; s3_key: string; size_bytes: number }>("gallery_upload_demo_report", {
+        filePath,
+        skillSlug: slug,
+        fileName,
+      });
+
+      // Update skills table
+      await supabase
+        .from("skills")
+        .update({ demo_uploaded: true, demo_url: result.url })
+        .eq("slug", slug);
+
+      // Update report_skill_library
+      await supabase
+        .from("report_skill_library")
+        .upsert({
+          skill_slug: slug,
+          file_name: fileName,
+          title: slug,
+          report_url: result.url,
+        }, { onConflict: "skill_slug,file_name" });
+
+      // Refresh grid data
+      updateSkill.mutate({ slug, updates: { demo_uploaded: true, demo_url: result.url } });
+
+      toast.success(`Uploaded to S3 (${(result.size_bytes / 1024).toFixed(0)} KB)`);
+    } catch (err) {
+      toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [updateSkill]);
+
+  const getContextMenuItems = useCallback((params: GetContextMenuItemsParams<SkillReviewRow>) => {
+    const items: ("copy" | "copyWithHeaders" | "paste" | "separator" | "export" | "autoSizeAll" | "resetColumns" | "expandAll" | "contractAll" | MenuItemDef<SkillReviewRow>)[] = [
+      "copy",
+      "copyWithHeaders",
+      "paste",
+      "separator",
+    ];
+
+    // Add S3 upload option if this skill has demo files
+    const slug = params.node?.data?.slug;
+    if (slug) {
+      const demos = demosBySlug[slug];
+      if (demos?.length === 1) {
+        items.push({
+          name: "Upload Demo to S3",
+          action: () => handleUploadToS3(slug, demos[0].file_path, demos[0].file_name),
+        });
+      } else if (demos && demos.length > 1) {
+        items.push({
+          name: "Upload Demo to S3",
+          subMenu: demos.map(d => ({
+            name: d.file_name,
+            action: () => handleUploadToS3(slug, d.file_path, d.file_name),
+          })),
+        });
+      }
+      items.push("separator");
+    }
+
+    items.push(
+      "export",
+      "separator",
+      "autoSizeAll",
+      "resetColumns",
+      "separator",
+      "expandAll",
+      "contractAll",
+    );
+
+    return items;
+  }, [demosBySlug, handleUploadToS3]);
 
   const themeClass = theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine";
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full text-zinc-500">
+        <Loader2 size={20} className="animate-spin mr-2" />
+        Loading skills...
+      </div>
+    );
+  }
 
   return (
     <div className={isFullscreen ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex flex-col" : "h-full flex flex-col"}>
@@ -934,15 +1151,43 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
             <WrapText size={14} />
           </button>
 
-          <button
-            onClick={handleRevalidateWebsite}
-            disabled={isRevalidating}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
-            title="Revalidate website cache"
-          >
-            {isRevalidating ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
-            Revalidate
-          </button>
+          {/* Actions dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setActionsMenuOpen(!actionsMenuOpen)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <RefreshCw size={14} />
+              Actions
+              <ChevronDown size={12} className={cn("transition-transform", actionsMenuOpen && "rotate-180")} />
+            </button>
+            {actionsMenuOpen && (
+              <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1.5">
+                <button
+                  onClick={() => { handleSkillInit(); setActionsMenuOpen(false); }}
+                  disabled={skillInit.isPending}
+                  className="w-full text-left px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 disabled:opacity-50 flex items-start gap-2.5"
+                >
+                  <RefreshCw size={15} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Sync Skills</div>
+                    <div className="text-xs text-zinc-400 dark:text-zinc-500">Re-scan filesystem and update registry</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { handleRevalidateWebsite(); setActionsMenuOpen(false); }}
+                  disabled={isRevalidating}
+                  className="w-full text-left px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 disabled:opacity-50 flex items-start gap-2.5"
+                >
+                  <Globe size={15} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Revalidate Website</div>
+                    <div className="text-xs text-zinc-400 dark:text-zinc-500">Purge thinkval.com cache</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
 
           <Button variant="secondary" size="md" icon={Download} onClick={exportToCsv} title="Export to CSV">
             CSV
@@ -996,19 +1241,7 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
           rowGroupPanelShow="never"
           rowSelection="single"
           suppressRowClickSelection
-          getContextMenuItems={() => [
-            "copy" as const,
-            "copyWithHeaders" as const,
-            "paste" as const,
-            "separator" as const,
-            "export" as const,
-            "separator" as const,
-            "autoSizeAll" as const,
-            "resetColumns" as const,
-            "separator" as const,
-            "expandAll" as const,
-            "contractAll" as const,
-          ]}
+          getContextMenuItems={getContextMenuItems}
           sideBar={{
             toolPanels: [
               { id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" },
@@ -1058,9 +1291,12 @@ export function SkillReviewGrid({ registry, onSelectSkill }: SkillReviewGridProp
         </div>
       )}
 
-      {/* Click outside to close layout menu */}
+      {/* Click outside to close menus */}
       {showLayoutMenu && (
         <div className="fixed inset-0 z-40" onClick={() => setShowLayoutMenu(false)} />
+      )}
+      {actionsMenuOpen && (
+        <div className="fixed inset-0 z-40" onClick={() => setActionsMenuOpen(false)} />
       )}
     </div>
   );

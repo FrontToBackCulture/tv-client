@@ -10,11 +10,6 @@ import {
   useSyncAllDomainsImporterErrors,
   useSyncAllDomainsIntegrationErrors,
   useSyncAllDomainsAiToS3,
-  useRunAllDomainsDataModelHealth,
-  useRunAllDomainsWorkflowHealth,
-  useRunAllDomainsQueryHealth,
-  useRunAllDomainsArtifactAudit,
-  useRunAllDomainsOverview,
   type DiscoveredDomain,
 } from "../../hooks/val-sync";
 import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
@@ -248,11 +243,6 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const { trigger: syncImporterErrors, progress: importerProgress } = useSyncAllDomainsImporterErrors();
   const { trigger: syncIntegrationErrors, progress: integrationProgress } = useSyncAllDomainsIntegrationErrors();
   const { trigger: syncAiToS3, progress: s3Progress } = useSyncAllDomainsAiToS3();
-  const { trigger: runDataModelHealth, progress: dataModelHealthProgress } = useRunAllDomainsDataModelHealth();
-  const { trigger: runWorkflowHealth, progress: workflowHealthProgress } = useRunAllDomainsWorkflowHealth();
-  const { trigger: runQueryHealth, progress: queryHealthProgress } = useRunAllDomainsQueryHealth();
-  const { trigger: runArtifactAudit, progress: artifactAuditProgress } = useRunAllDomainsArtifactAudit();
-  const { trigger: runOverview, progress: overviewProgress } = useRunAllDomainsOverview();
   const { progress: rebuildProgress, rebuild: rebuildIndex } = useDomainArtifactsRebuild();
 
   const [fullAnalysisRunning, setFullAnalysisRunning] = useState(false);
@@ -264,11 +254,6 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const isImporterSyncing = importerProgress?.isRunning ?? false;
   const isIntegrationSyncing = integrationProgress?.isRunning ?? false;
   const isS3Syncing = s3Progress?.isRunning ?? false;
-  const isDataModelHealthRunning = dataModelHealthProgress?.isRunning ?? false;
-  const isWorkflowHealthRunning = workflowHealthProgress?.isRunning ?? false;
-  const isQueryHealthRunning = queryHealthProgress?.isRunning ?? false;
-  const isArtifactAuditRunning = artifactAuditProgress?.isRunning ?? false;
-  const isOverviewRunning = overviewProgress?.isRunning ?? false;
   const isRebuildRunning = rebuildProgress.running;
   const [isGa4Syncing, setIsGa4Syncing] = useState(false);
 
@@ -296,9 +281,8 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
 
   const anyRunning =
     isSyncing || isMonitoringSyncing || isSodSyncing || isImporterSyncing ||
-    isIntegrationSyncing || isS3Syncing || isDataModelHealthRunning || isWorkflowHealthRunning ||
-    isQueryHealthRunning || isArtifactAuditRunning ||
-    isOverviewRunning || fullAnalysisRunning || isGa4Syncing || isRebuildRunning;
+    isIntegrationSyncing || isS3Syncing ||
+    fullAnalysisRunning || isGa4Syncing || isRebuildRunning;
 
   const getCurrentOperation = () => {
     if (isSyncing) return syncProgress?.currentDomain ? `Syncing ${syncProgress.currentDomain}` : "Syncing...";
@@ -307,11 +291,6 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
     if (isImporterSyncing) return "Syncing importer errors...";
     if (isIntegrationSyncing) return "Syncing integration errors...";
     if (isS3Syncing) return s3Progress?.currentDomain ? `Syncing ${s3Progress.currentDomain} AI to S3` : "Syncing AI to S3...";
-    if (isDataModelHealthRunning) return "Running data model health...";
-    if (isWorkflowHealthRunning) return "Running workflow health...";
-    if (isQueryHealthRunning) return "Running query health...";
-    if (isArtifactAuditRunning) return "Running artifact audit...";
-    if (isOverviewRunning) return "Generating overview...";
     if (isRebuildRunning) return rebuildProgress.domain ? `Rebuilding index: ${rebuildProgress.domain} (${rebuildProgress.resourceType})` : "Rebuilding index...";
     return null;
   };
@@ -322,8 +301,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
     }
     const p =
       syncProgress ?? monitoringProgress ?? sodProgress ?? importerProgress ??
-      integrationProgress ?? dataModelHealthProgress ?? workflowHealthProgress ??
-      queryHealthProgress ?? artifactAuditProgress ?? overviewProgress;
+      integrationProgress;
     if (!p || !p.isRunning || p.total === 0) return 0;
     return Math.round((p.current / p.total) * 100);
   };
@@ -341,50 +319,30 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
     if (anyRunning || domainNames.length === 0) return;
     setFullAnalysisRunning(true);
     const jobId = `full-analysis-${Date.now()}`;
-    const steps = [
-      { name: "Sync All", fn: () => syncAll(domainNames) },
-      { name: "Query Health", fn: () => runQueryHealth(domainNames) },
-      { name: "Artifact Audit", fn: () => runArtifactAudit(domainNames) },
-      { name: "Generate Overview", fn: () => runOverview(domainNames) },
-    ];
-
     addJob({
       id: jobId,
-      name: `Full Analysis (${domainNames.length} domains)`,
+      name: `Full Sync (${domainNames.length} domains)`,
       status: "running",
       progress: 0,
-      message: "Starting full analysis pipeline...",
+      message: "Starting full sync pipeline...",
     });
 
     try {
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        const pct = Math.round((i / steps.length) * 100);
-        updateJob(jobId, { progress: pct, message: `[${i + 1}/${steps.length}] ${step.name}...` });
-
-        await new Promise<void>((resolve) => {
-          step.fn();
-          let elapsed = 0;
-          const check = setInterval(() => {
-            elapsed += 500;
-            const stillRunning =
-              (step.name === "Sync All" && syncProgress?.isRunning) ||
-              (step.name === "Query Health" && queryHealthProgress?.isRunning) ||
-              (step.name === "Artifact Audit" && artifactAuditProgress?.isRunning) ||
-              (step.name === "Generate Overview" && overviewProgress?.isRunning);
-            if (!stillRunning || elapsed > 5 * 60 * 1000) { clearInterval(check); resolve(); }
-          }, 500);
-        });
-
-        await new Promise((r) => setTimeout(r, 300));
-      }
-      updateJob(jobId, { status: "completed", progress: 100, message: `Full analysis complete for ${domainNames.length} domains` });
+      syncAll(domainNames);
+      await new Promise<void>((resolve) => {
+        let elapsed = 0;
+        const check = setInterval(() => {
+          elapsed += 500;
+          if (!syncProgress?.isRunning || elapsed > 10 * 60 * 1000) { clearInterval(check); resolve(); }
+        }, 500);
+      });
+      updateJob(jobId, { status: "completed", progress: 100, message: `Full sync complete for ${domainNames.length} domains` });
     } catch (err) {
-      updateJob(jobId, { status: "failed", message: `Full analysis failed: ${err}` });
+      updateJob(jobId, { status: "failed", message: `Full sync failed: ${err}` });
     } finally {
       setFullAnalysisRunning(false);
     }
-  }, [domainNames, anyRunning, syncAll, runQueryHealth, runArtifactAudit, runOverview, addJob, updateJob, syncProgress?.isRunning, queryHealthProgress?.isRunning, artifactAuditProgress?.isRunning, overviewProgress?.isRunning]);
+  }, [domainNames, anyRunning, syncAll, addJob, updateJob, syncProgress?.isRunning]);
 
   const handleStop = useCallback(() => {
     abortSync();
@@ -408,17 +366,6 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
     { label: "Rebuild Index", onClick: () => rebuildIndex(all), isRunning: isRebuildRunning, tooltip: "Rebuild cross-domain artifacts index in Supabase from filesystem" },
   ];
 
-  const healthItems = [
-    { label: "Data Model Health", onClick: () => runDataModelHealth(domainNames), isRunning: isDataModelHealthRunning, tooltip: "Check table freshness" },
-    { label: "Workflow Health", onClick: () => runWorkflowHealth(domainNames), isRunning: isWorkflowHealthRunning, tooltip: "Analyze workflow execution success rates" },
-    { label: "Query Health", onClick: () => runQueryHealth(domainNames), isRunning: isQueryHealthRunning, tooltip: "Analyze query health based on dashboard usage" },
-  ];
-
-  const analysisItems = [
-    { label: "Artifact Audit", onClick: () => runArtifactAudit(domainNames), isRunning: isArtifactAuditRunning, tooltip: "Compare local vs remote artifacts" },
-    { label: "Generate Overview HTML", onClick: () => runOverview(domainNames), isRunning: isOverviewRunning, tooltip: "Generate static HTML overview pages" },
-  ];
-
   // Command palette commands
   const paletteCommands = useMemo(() => [
     { id: "domain-sync-all", label: "Sync All (Schema)", description: "Fetch all schema data from VAL API for every domain", icon: <RefreshCw size={15} />, action: () => syncAll(domainNames) },
@@ -428,13 +375,8 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
     { id: "domain-sync-integration", label: "Sync Integration Errors", description: "Fetch recent integration errors across domains", icon: <RefreshCw size={15} />, action: () => syncIntegrationErrors(domainNames) },
     { id: "domain-sync-s3", label: "Push AI to S3", description: "Upload all domain AI folders to S3 storage", icon: <RefreshCw size={15} />, action: () => syncAiToS3(all.map(d => ({ domain: d.domain, global_path: d.global_path }))) },
     { id: "domain-sync-ga4", label: "Sync GA4 Analytics", description: "Fetch dashboard page views from Google Analytics", icon: <BarChart3 size={15} />, action: handleSyncGa4 },
-    { id: "domain-health-data", label: "Data Model Health", description: "Check table freshness and data staleness across domains", icon: <Zap size={15} />, action: () => runDataModelHealth(domainNames) },
-    { id: "domain-health-workflow", label: "Workflow Health", description: "Analyze workflow execution success rates", icon: <Zap size={15} />, action: () => runWorkflowHealth(domainNames) },
-    { id: "domain-health-query", label: "Query Health", description: "Analyze query health based on dashboard usage", icon: <Zap size={15} />, action: () => runQueryHealth(domainNames) },
-    { id: "domain-artifact-audit", label: "Artifact Audit", description: "Compare local artifacts vs remote VAL state", icon: <Zap size={15} />, action: () => runArtifactAudit(domainNames) },
-    { id: "domain-overview", label: "Generate Overview HTML", description: "Generate static HTML overview pages for each domain", icon: <Zap size={15} />, action: () => runOverview(domainNames) },
     { id: "domain-rebuild-index", label: "Rebuild Cross-Domain Index", description: "Rebuild Supabase domain_artifacts from filesystem data", icon: <Database size={15} />, action: () => rebuildIndex(all) },
-    { id: "domain-full-analysis", label: "Full Analysis Pipeline", description: "Sync All → Query Health → Artifact Audit → Generate Overview", icon: <Zap size={15} />, action: handleFullAnalysis },
+    { id: "domain-full-sync", label: "Full Sync Pipeline", description: "Sync All domains sequentially", icon: <Zap size={15} />, action: handleFullAnalysis },
     ...(anyRunning ? [{ id: "domain-stop", label: "Stop Running Operation", description: "Abort the currently running batch operation", icon: <Square size={15} />, action: handleStop }] : []),
   ], [domainNames, anyRunning, all]);
 
@@ -504,17 +446,15 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
           <Button
             onClick={handleFullAnalysis}
             disabled={anyRunning}
-            title="Sync All → Query Health → Artifact Audit → Generate Overview"
+            title="Sync all domains sequentially"
             size="sm"
             icon={Zap}
             loading={fullAnalysisRunning}
           >
-            Full Analysis
+            Full Sync
           </Button>
 
           <DropdownMenu label="Sync" items={syncItems} disabled={anyRunning} color="teal" tooltip="Fetch data from VAL API" />
-          <DropdownMenu label="Health" items={healthItems} disabled={anyRunning} color="violet" tooltip="Run health checks" />
-          <DropdownMenu label="Analysis" items={analysisItems} disabled={anyRunning} tooltip="Audit and reporting" />
 
           <button
             onClick={handleSyncGa4}

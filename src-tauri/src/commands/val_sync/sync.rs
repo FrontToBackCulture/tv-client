@@ -83,7 +83,9 @@ async fn sync_artifact(
     let domain_config = get_domain_config(domain)?;
     let global_path = &domain_config.global_path;
     let base_url = format!("https://{}.thinkval.io", domain_config.api_domain());
-    let file_path = format!("{}/{}", global_path, output_filename);
+    let schema_dir = format!("{}/schema", global_path);
+    let _ = fs::create_dir_all(&schema_dir);
+    let file_path = format!("{}/{}", schema_dir, output_filename);
 
     // Ensure auth
     let (token, _) = auth::ensure_auth(domain).await?;
@@ -108,7 +110,7 @@ async fn sync_artifact(
 
     let duration_ms = start.elapsed().as_millis() as u64;
 
-    metadata::update_artifact_sync(global_path, domain, artifact_type, count, "ok", duration_ms);
+    metadata::update_artifact_sync(global_path, domain, artifact_type, count, "ok", duration_ms).await;
 
     Ok(SyncResult {
         domain: domain.to_string(),

@@ -40,7 +40,7 @@ interface TeamConfigState {
   isAdmin: (login: string) => boolean;
 }
 
-const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["library", "domains", "skills"];
+const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "domains", "skills"];
 
 function mapRowToMember(row: {
   name: string;

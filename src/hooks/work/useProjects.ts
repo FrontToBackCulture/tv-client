@@ -10,18 +10,38 @@ import type {
 } from "../../lib/work/types";
 import { workKeys } from "./keys";
 
-export function useProjects() {
+export function useProjects(projectType?: string) {
   return useQuery({
-    queryKey: workKeys.projects(),
+    queryKey: [...workKeys.projects(), projectType],
     queryFn: async (): Promise<Project[]> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("projects")
-        .select("*")
+        .select("*, company:crm_companies(name)")
         .is("archived_at", null)
         .order("sort_order");
 
+      // Default to 'work' to not show deals/workspaces in the project list
+      // "all" = no filter (show everything)
+      if (projectType === "all") {
+        // no filter
+      } else if (projectType) {
+        query = query.eq("project_type", projectType);
+      } else {
+        query = query.eq("project_type", "work");
+      }
+
+      const { data, error } = await query;
+
       if (error) throw new Error(`Failed to fetch projects: ${error.message}`);
-      return data ?? [];
+
+      // For deal-type projects, prepend company name to the display name
+      return (data ?? []).map((p: any) => ({
+        ...p,
+        name: p.project_type === "deal" && p.company?.name
+          ? `${p.company.name} — ${p.name}`
+          : p.name,
+        company: undefined, // clean up joined data
+      }));
     },
   });
 }
@@ -53,7 +73,10 @@ export function useCreateProject() {
     mutationFn: async (project: ProjectInsert): Promise<Project> => {
       const { data, error } = await supabase
         .from("projects")
-        .insert(project)
+        .insert({
+          ...project,
+          project_type: (project as any).project_type || "work",
+        })
         .select()
         .single();
 

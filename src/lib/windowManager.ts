@@ -6,7 +6,10 @@ import type { ModuleId } from "../stores/appStore";
 let windowCounter = 0;
 
 const moduleLabels: Record<ModuleId, string> = {
+  home: "Home",
   library: "Library",
+  projects: "Projects",
+  metadata: "Metadata",
   work: "Work",
   workspace: "Workspaces",
   inbox: "Inbox",

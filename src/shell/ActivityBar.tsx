@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
+  Home,
   Library,
-  CheckSquare,
   FolderOpen,
   Mail,
-  Building2,
   Globe,
   Boxes,
   Bot,
@@ -55,13 +54,13 @@ const navSections: NavSection[] = [
   {
     label: "Business",
     items: [
+      { id: "home", icon: Home, label: "Home", shortcut: "" },
       { id: "library", icon: Library, label: "Library", shortcut: "⌘1" },
-      { id: "crm", icon: Building2, label: "CRM", shortcut: "⌘2" },
-      { id: "work", icon: CheckSquare, label: "Work", shortcut: "⌘3" },
-      { id: "workspace", icon: FolderOpen, label: "Workspaces", shortcut: "⌘4" },
-      { id: "domains", icon: Globe, label: "Domains", shortcut: "⌘5" },
-      { id: "product", icon: Boxes, label: "Product", shortcut: "⌘6" },
-      { id: "gallery", icon: GalleryHorizontalEnd, label: "Gallery", shortcut: "⌘7" },
+      { id: "projects", icon: FolderOpen, label: "Projects", shortcut: "⌘2" },
+      { id: "metadata", icon: Library, label: "Metadata", shortcut: "⌘3" },
+      { id: "domains", icon: Globe, label: "Domains", shortcut: "⌘4" },
+      { id: "product", icon: Boxes, label: "Product", shortcut: "⌘5" },
+      { id: "gallery", icon: GalleryHorizontalEnd, label: "Gallery", shortcut: "⌘6" },
     ],
   },
   {

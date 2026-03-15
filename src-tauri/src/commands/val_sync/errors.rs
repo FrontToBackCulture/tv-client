@@ -243,7 +243,7 @@ async fn sync_errors_impl(
         count,
         "ok",
         duration_ms,
-    );
+    ).await;
 
     Ok(SyncResult {
         domain,

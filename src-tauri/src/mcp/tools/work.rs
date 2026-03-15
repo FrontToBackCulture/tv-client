@@ -14,12 +14,17 @@ pub fn tools() -> Vec<Tool> {
         // Projects
         Tool {
             name: "list-work-projects".to_string(),
-            description: "List all projects in the Work module".to_string(),
+            description: "List projects. Use project_type filter to show only work/deal/workspace projects.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "include_statuses": {
                         "type": "boolean",
                         "description": "Include task statuses for each project"
+                    },
+                    "project_type": {
+                        "type": "string",
+                        "enum": ["work", "deal", "workspace"],
+                        "description": "Filter by project type (default: all types)"
                     }
                 }),
                 vec![],
@@ -40,7 +45,7 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "create-work-project".to_string(),
-            description: "Create a new project with default statuses".to_string(),
+            description: "Create a new project with default statuses. Set project_type to 'deal' or 'workspace' for those types.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "name": { "type": "string", "description": "Project name (required)" },
@@ -48,14 +53,24 @@ pub fn tools() -> Vec<Tool> {
                     "slug": { "type": "string", "description": "URL-friendly identifier" },
                     "icon": { "type": "string", "description": "Icon identifier" },
                     "color": { "type": "string", "description": "Hex color" },
-                    "identifier_prefix": { "type": "string", "description": "Task ID prefix (e.g., 'PRD')" }
+                    "identifier_prefix": { "type": "string", "description": "Task ID prefix (e.g., 'PRD')" },
+                    "project_type": { "type": "string", "enum": ["work", "deal", "workspace"], "description": "Project type (default: work)" },
+                    "owner": { "type": "string", "description": "Owner name (for workspace type)" },
+                    "intent": { "type": "string", "enum": ["skill_review", "skill_creation", "feature_build"], "description": "Intent (for workspace type)" },
+                    "company_id": { "type": "string", "description": "Company UUID (for deal type)" },
+                    "deal_stage": { "type": "string", "enum": ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"], "description": "Deal stage (for deal type)" },
+                    "deal_solution": { "type": "string", "description": "Solution category (for deal type)" },
+                    "deal_value": { "type": "number", "description": "Deal value (for deal type)" },
+                    "deal_currency": { "type": "string", "description": "Currency code (default: SGD)" },
+                    "deal_expected_close": { "type": "string", "description": "Expected close date YYYY-MM-DD (for deal type)" },
+                    "deal_notes": { "type": "string", "description": "Deal notes (for deal type)" }
                 }),
                 vec!["name".to_string()],
             ),
         },
         Tool {
             name: "update-work-project".to_string(),
-            description: "Update an existing project".to_string(),
+            description: "Update an existing project (works for all project types: work, deal, workspace)".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "project_id": { "type": "string", "description": "The project UUID (required)" },
@@ -64,7 +79,21 @@ pub fn tools() -> Vec<Tool> {
                     "health": { "type": "string", "enum": ["on_track", "at_risk", "off_track"] },
                     "priority": { "type": "integer", "enum": [0, 1, 2, 3, 4] },
                     "status": { "type": "string", "enum": ["planned", "active", "completed", "paused"] },
-                    "target_date": { "type": "string", "description": "Target date (YYYY-MM-DD)" }
+                    "target_date": { "type": "string", "description": "Target date (YYYY-MM-DD)" },
+                    "owner": { "type": "string", "description": "Owner name (workspace)" },
+                    "intent": { "type": "string", "enum": ["skill_review", "skill_creation", "feature_build"] },
+                    "deal_stage": { "type": "string", "enum": ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"] },
+                    "deal_value": { "type": "number" },
+                    "deal_solution": { "type": "string" },
+                    "deal_expected_close": { "type": "string" },
+                    "deal_actual_close": { "type": "string" },
+                    "deal_lost_reason": { "type": "string" },
+                    "deal_won_notes": { "type": "string" },
+                    "deal_proposal_path": { "type": "string" },
+                    "deal_order_form_path": { "type": "string" },
+                    "deal_notes": { "type": "string" },
+                    "deal_stage_changed_at": { "type": "string", "description": "Manually set stage_changed_at timestamp" },
+                    "preserve_stage_date": { "type": "boolean", "description": "If true, don't update deal_stage_changed_at when stage changes" }
                 }),
                 vec!["project_id".to_string()],
             ),
@@ -333,7 +362,8 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         // Projects
         "list-work-projects" => {
             let include_statuses = args.get("include_statuses").and_then(|v| v.as_bool());
-            match work::work_list_projects(include_statuses).await {
+            let project_type = args.get("project_type").and_then(|v| v.as_str()).map(|s| s.to_string());
+            match work::work_list_projects(include_statuses, project_type).await {
                 Ok(projects) => ToolResult::json(&projects),
                 Err(e) => ToolResult::error(e.to_string()),
             }

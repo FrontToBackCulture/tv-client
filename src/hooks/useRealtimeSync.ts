@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // Tables to watch and their corresponding query keys (reference for documentation)
-const _CRM_TABLES = ["crm_companies", "crm_contacts", "crm_deals", "crm_activities", "task_deal_links"];
+const _CRM_TABLES = ["crm_companies", "crm_contacts", "crm_activities", "task_deal_links"];
 const _WORK_TABLES = ["tasks", "projects", "initiatives", "milestones", "project_updates"];
 void _CRM_TABLES; void _WORK_TABLES; // Suppress unused warnings
 
@@ -41,19 +41,6 @@ export function useRealtimeSync() {
         () => {
           queryClient.invalidateQueries({ queryKey: ["crm", "contacts"] });
           queryClient.invalidateQueries({ queryKey: ["crm", "companies"] }); // Contacts affect company details
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "crm_deals",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["crm", "deals"] });
-          queryClient.invalidateQueries({ queryKey: ["crm", "companies"] }); // Deals affect company details
-          queryClient.invalidateQueries({ queryKey: ["crm", "pipeline"] });
         }
       )
       .on(
@@ -110,6 +97,11 @@ export function useRealtimeSync() {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["work", "projects"] });
+          // Projects table now contains deals and workspaces too
+          queryClient.invalidateQueries({ queryKey: ["crm", "deals"] });
+          queryClient.invalidateQueries({ queryKey: ["crm", "pipeline"] });
+          queryClient.invalidateQueries({ queryKey: ["crm", "companies"] });
+          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         }
       )
       .on(
@@ -169,20 +161,9 @@ export function useRealtimeSync() {
 
     channels.push(schedulerChannel);
 
-    // Subscribe to Workspace tables
+    // Subscribe to Workspace child tables (sessions/artifacts/context — still their own tables)
     const workspaceChannel = supabase
       .channel("workspace-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "workspaces",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-        }
-      )
       .on(
         "postgres_changes",
         {
@@ -219,6 +200,35 @@ export function useRealtimeSync() {
       .subscribe();
 
     channels.push(workspaceChannel);
+
+    // Subscribe to Feed tables
+    const feedChannel = supabase
+      .channel("feed-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "feed_cards",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["feed"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "feed_interactions",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["feed"] });
+        }
+      )
+      .subscribe();
+
+    channels.push(feedChannel);
 
     // Cleanup on unmount
     return () => {

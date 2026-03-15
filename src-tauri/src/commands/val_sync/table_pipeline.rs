@@ -411,7 +411,7 @@ pub struct TableInfo {
 
 /// Build a lookup map of table_name -> display_name from all_tables.json
 fn build_table_display_names(global_path: &str) -> HashMap<String, String> {
-    let all_tables_path = Path::new(global_path).join("all_tables.json");
+    let all_tables_path = Path::new(global_path).join("schema/all_tables.json");
     let mut names: HashMap<String, String> = HashMap::new();
 
     if let Ok(content) = fs::read_to_string(&all_tables_path) {
@@ -514,7 +514,7 @@ fn build_child_workflow_map(workflows_file: &AllWorkflowsFile) -> HashMap<i64, C
 
 /// Scan workflows for table dependencies
 fn scan_workflow_dependencies(global_path: &Path, table_name: &str) -> Vec<Value> {
-    let workflows_path = global_path.join("all_workflows.json");
+    let workflows_path = global_path.join("schema/all_workflows.json");
     let mut results: Vec<Value> = Vec::new();
 
     if !workflows_path.exists() {
@@ -614,7 +614,7 @@ fn scan_workflow_dependencies(global_path: &Path, table_name: &str) -> Vec<Value
 
 /// Scan queries for table dependencies
 fn scan_query_dependencies(global_path: &Path, table_name: &str) -> Vec<Value> {
-    let queries_path = global_path.join("all_queries.json");
+    let queries_path = global_path.join("schema/all_queries.json");
     let mut results: Vec<Value> = Vec::new();
 
     if !queries_path.exists() {
@@ -656,7 +656,7 @@ fn scan_query_dependencies(global_path: &Path, table_name: &str) -> Vec<Value> {
 
 /// Scan dashboards for query dependencies
 fn scan_dashboard_dependencies(global_path: &Path, query_dsids: &[i64]) -> Vec<Value> {
-    let dashboards_path = global_path.join("all_dashboards.json");
+    let dashboards_path = global_path.join("schema/all_dashboards.json");
     let mut results: Vec<Value> = Vec::new();
 
     eprintln!("[scan_dashboard_dependencies] Looking for dashboards with query_dsids: {:?}", &query_dsids[..std::cmp::min(10, query_dsids.len())]);
@@ -858,11 +858,11 @@ pub async fn val_prepare_table_overview(
 
     // Load supporting data files
     let all_tables: Vec<AllTablesNode> =
-        load_json_file(&Path::new(global_path).join("all_tables.json")).unwrap_or_default();
+        load_json_file(&Path::new(global_path).join("schema/all_tables.json")).unwrap_or_default();
     let health_results: Option<HealthCheckResults> =
         load_json_file(&Path::new(global_path).join("health-check-results.json"));
     let calc_fields: Vec<CalcFieldEntry> =
-        load_json_file(&Path::new(global_path).join("all_calculated_fields.json")).unwrap_or_default();
+        load_json_file(&Path::new(global_path).join("schema/all_calculated_fields.json")).unwrap_or_default();
 
     // Build lookups
     let mut table_metadata: HashMap<String, TableMeta> = HashMap::new();
@@ -2735,8 +2735,8 @@ pub async fn val_extract_table_calc_fields(
         .join("data_models")
         .join(format!("table_{}", table_name));
     let output_path = table_folder.join("definition_calculated_fields.json");
-    let all_calc_fields_path = Path::new(global_path).join("all_calculated_fields.json");
-    let all_tables_path = Path::new(global_path).join("all_tables.json");
+    let all_calc_fields_path = Path::new(global_path).join("schema/all_calculated_fields.json");
+    let all_tables_path = Path::new(global_path).join("schema/all_tables.json");
 
     // Skip if exists and not overwriting
     if !overwrite && output_path.exists() {
@@ -4122,7 +4122,7 @@ pub struct CategoryEntry {
 pub async fn val_scan_category_library(state: State<'_, AppState>, platform_folder: String) -> CmdResult<CategoryLibrary> {
     let base_path = &state.knowledge_path;
 
-    let domains_path = Path::new(base_path).join(&platform_folder).join("domains/production");
+    let domains_path = Path::new(base_path).join(&platform_folder).join("domains");
 
     let mut data_types: HashMap<String, (usize, HashSet<String>)> = HashMap::new();
     let mut data_categories: HashMap<String, (usize, HashSet<String>)> = HashMap::new();

@@ -31,16 +31,8 @@ function generateId(): string {
 export const useRepositoryStore = create<RepositoryState>()(
   persist(
     (set, get) => ({
-      repositories: [
-        // Default repository
-        {
-          id: "default",
-          name: "tv-knowledge",
-          path: "/Users/melvinwang/Thinkval Dropbox/ThinkVAL team folder/SkyNet/tv-knowledge",
-          addedAt: Date.now(),
-        },
-      ],
-      activeRepositoryId: "default",
+      repositories: [],
+      activeRepositoryId: null,
 
       addRepository: (name: string, path: string) => {
         const id = generateId();

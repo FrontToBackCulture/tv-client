@@ -28,7 +28,7 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "sync-val-fields".to_string(),
-            description: "Sync field definitions from a VAL domain. Downloads all field metadata to all_fields.json.".to_string(),
+            description: "Sync field definitions from a VAL domain. Downloads all field metadata to schema/all_fields.json.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "domain": {
@@ -41,7 +41,7 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "sync-val-queries".to_string(),
-            description: "Sync query definitions from a VAL domain. Downloads all queries to all_queries.json.".to_string(),
+            description: "Sync query definitions from a VAL domain. Downloads all queries to schema/all_queries.json.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "domain": {
@@ -54,7 +54,7 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "sync-val-workflows".to_string(),
-            description: "Sync workflow definitions from a VAL domain. Downloads all workflows to all_workflows.json.".to_string(),
+            description: "Sync workflow definitions from a VAL domain. Downloads all workflows to schema/all_workflows.json.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "domain": {
@@ -67,7 +67,7 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "sync-val-dashboards".to_string(),
-            description: "Sync dashboard definitions from a VAL domain. Downloads all dashboards to all_dashboards.json.".to_string(),
+            description: "Sync dashboard definitions from a VAL domain. Downloads all dashboards to schema/all_dashboards.json.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "domain": {
@@ -80,7 +80,7 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "sync-val-tables".to_string(),
-            description: "Sync table/data model definitions from a VAL domain. Downloads the admin tree to all_tables.json.".to_string(),
+            description: "Sync table/data model definitions from a VAL domain. Downloads the admin tree to schema/all_tables.json.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "domain": {
@@ -93,7 +93,7 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "sync-val-calc-fields".to_string(),
-            description: "Sync calculated field definitions from a VAL domain. Downloads to all_calculated_fields.json.".to_string(),
+            description: "Sync calculated field definitions from a VAL domain. Downloads to schema/all_calculated_fields.json.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "domain": {
@@ -381,7 +381,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
 
             match domain {
                 Some(d) => {
-                    match metadata::val_sync_get_status(d.to_string()) {
+                    match metadata::val_sync_get_status(d.to_string()).await {
                         Ok(meta) => ToolResult::json(&meta),
                         Err(e) => ToolResult::error(format!("Failed to get status: {}", e)),
                     }
@@ -392,13 +392,14 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                         Ok(domains) => {
                             let mut lines = vec!["## Sync Status (All Domains)\n".to_string()];
                             for d in &domains {
-                                match metadata::val_sync_get_status(d.domain.clone()) {
+                                match metadata::val_sync_get_status(d.domain.clone()).await {
                                     Ok(meta) => {
                                         let artifact_count = meta.artifacts.len();
                                         let last_sync = meta
-                                            .history
-                                            .last()
-                                            .map(|h| h.timestamp.as_str())
+                                            .artifacts
+                                            .values()
+                                            .map(|a| a.last_sync.as_str())
+                                            .max()
                                             .unwrap_or("never");
                                         lines.push(format!(
                                             "- **{}**: {} artifact types synced, last: {}",

@@ -447,6 +447,17 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
 
   return (
     <div className="h-full flex flex-col">
+      {/* Description */}
+      <div className="flex-shrink-0 px-4 pt-3 pb-1">
+        <p className="text-xs text-zinc-400">
+          {view === "catalog"
+            ? "Browse all skills by category — click to view details, right-click to move between categories. Assign skills to domains from the domain AI tab."
+            : view === "review"
+            ? "Full grid view of all skills — sort, filter, and review metadata. Click a row to see the SKILL.md preview."
+            : "Build and manage reusable prompt templates for report-generation skills — configure baseline, monthly, and year-in-review prompts."}
+        </p>
+      </div>
+
       {/* Top tab bar — always visible */}
       <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
         <ViewTab label="Browse" icon={LayoutDashboard} active={view === "catalog"} onClick={() => setView("catalog")} />
@@ -686,7 +697,6 @@ export function SkillCatalogView({ registry, driftStatuses, onInit, isIniting }:
           <div className="flex-1 min-w-0 flex overflow-hidden">
             <div className="flex-1 min-w-0">
               <SkillReviewGrid
-                registry={registry}
                 onSelectSkill={setReviewSelectedSlug}
               />
             </div>
