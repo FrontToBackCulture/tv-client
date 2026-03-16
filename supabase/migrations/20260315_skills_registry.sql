@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS skills (
   target TEXT NOT NULL DEFAULT 'platform'
     CHECK (target IN ('bot', 'platform', 'both')),
   status TEXT NOT NULL DEFAULT 'active'
-    CHECK (status IN ('active', 'inactive', 'deprecated', 'test', 'review', 'draft')),
+    CHECK (status IN ('active', 'inactive', 'deprecated', 'test', 'review', 'draft', 'deleted')),
   command TEXT,
   domain TEXT,
   verified BOOLEAN NOT NULL DEFAULT false,

@@ -44,8 +44,8 @@ import { toast } from "../../stores/toastStore";
 import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
 import { invoke } from "@tauri-apps/api/core";
 import { useSkillInit, useSkillExamples } from "./useSkillRegistry";
-import { useQuery } from "@tanstack/react-query";
-import { useSkills, useUpdateSkill, useBulkUpsertSkills } from "../../hooks/skills/useSkills";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSkills, useUpdateSkill } from "../../hooks/skills/useSkills";
 import { supabase } from "../../lib/supabase";
 import { useReportSkillMap, useUpsertReportSkill } from "../../hooks/gallery/useReportSkills";
 import type { ReportSkill } from "../../lib/gallery/types";
@@ -115,7 +115,7 @@ function isStale(lastAudited: string | undefined): boolean {
 
 // ─── Column Definitions ───────────────────────────────────────────────────────
 
-const STATUS_VALUES = ["active", "test", "review", "draft", "inactive", "deprecated"];
+const STATUS_VALUES = ["active", "test", "review", "draft", "inactive", "deprecated", "deleted"];
 
 function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] {
   return [
@@ -128,6 +128,18 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
       pinned: "left",
       editable: true,
       enableRowGroup: false,
+      cellRenderer: (params: { value: string; data?: SkillReviewRow }) => {
+        if (!params.value) return null;
+        const isDeleted = params.data?.status === "deleted";
+        return (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            {isDeleted && (
+              <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-red-500 text-white flex-shrink-0">Deleted</span>
+            )}
+            <span className="font-medium">{params.value}</span>
+          </span>
+        );
+      },
     },
     {
       field: "slug",
@@ -515,9 +527,10 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
 export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
   const theme = useAppStore((s) => s.theme);
   const gridRef = useRef<AgGridReact<SkillReviewRow>>(null);
+  const queryClient = useQueryClient();
   const skillInit = useSkillInit();
   const updateSkill = useUpdateSkill();
-  const bulkUpsert = useBulkUpsertSkills();
+
   const { data: skills = [], isLoading } = useSkills();
   const { data: users } = useQuery({
     queryKey: ["users-for-skills"],
@@ -577,7 +590,39 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         has_guide: skill.has_guide ?? false,
       }));
 
-      await bulkUpsert.mutateAsync(rows);
+      // Upsert directly (bypass mutation hook to avoid premature query invalidation)
+      const { error: upsertError } = await supabase
+        .from("skills")
+        .upsert(rows, { onConflict: "slug" });
+      if (upsertError) throw new Error(`Failed to bulk upsert skills: ${upsertError.message}`);
+
+      // Step 3: Mark DB skills not found on filesystem as "deleted", restore found ones
+      const filesystemSlugs = new Set(rows.map((r) => r.slug));
+      const { data: allDbSkills } = await supabase
+        .from("skills")
+        .select("slug, status");
+
+      if (allDbSkills?.length) {
+        const toDelete = allDbSkills.filter((s) => !filesystemSlugs.has(s.slug) && s.status !== "deleted");
+        const toRestore = allDbSkills.filter((s) => filesystemSlugs.has(s.slug) && s.status === "deleted");
+
+        console.log("[Sync] Filesystem slugs:", [...filesystemSlugs]);
+        console.log("[Sync] DB skills not on filesystem:", toDelete.map((s) => s.slug));
+        console.log("[Sync] Skills to restore:", toRestore.map((s) => s.slug));
+
+        for (const s of toDelete) {
+          const { error } = await supabase.from("skills").update({ status: "deleted" }).eq("slug", s.slug);
+          if (error) console.error(`[Sync] Failed to mark ${s.slug} as deleted:`, error);
+          else console.log(`[Sync] Marked ${s.slug} as deleted`);
+        }
+        for (const s of toRestore) {
+          const { error } = await supabase.from("skills").update({ status: "active" }).eq("slug", s.slug);
+          if (error) console.error(`[Sync] Failed to restore ${s.slug}:`, error);
+        }
+
+        if (toDelete.length) toast.info(`${toDelete.length} skill(s) marked as deleted (not found on filesystem)`);
+        if (toRestore.length) toast.info(`${toRestore.length} skill(s) restored to active`);
+      }
 
       // Step 4: Cross-reference report_skill_library for S3 demo URLs
       const { data: reports } = await supabase
@@ -598,11 +643,14 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         }
       }
 
+      // Final refresh to pick up all status changes (await to ensure data is loaded)
+      await queryClient.refetchQueries({ queryKey: ["skills"] });
+
       toast.success(`${rows.length} skills synced to database`);
     } catch (err) {
       toast.error(`Skill sync failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [skillInit, bulkUpsert]);
+  }, [skillInit, queryClient]);
 
   const handleRevalidateWebsite = useCallback(async () => {
     setIsRevalidating(true);
