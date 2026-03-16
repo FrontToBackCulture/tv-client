@@ -27,7 +27,8 @@ import {
   useS3AiStatus,
   type S3FileStatus,
 } from "../../hooks/val-sync";
-import { useSkillRegistry, useSkillCheckAll, type SkillCategory } from "../skills/useSkillRegistry";
+import { useSkillCheckAll, type SkillCategory } from "../skills/useSkillRegistry";
+import { useSkills } from "../../hooks/skills/useSkills";
 import { SkillAssignmentGrid } from "../../components/SkillAssignmentGrid";
 import { DriftDiffModal, DriftBadge } from "../../components/DriftDiffModal";
 import { useQueryClient } from "@tanstack/react-query";
@@ -41,17 +42,31 @@ interface DomainAiTabProps {
 type SelectedItem = { type: "instructions" } | { type: "skill"; slug: string; path: string } | { type: "manage" } | { type: "s3" } | null;
 
 export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps) {
-  const registryQuery = useSkillRegistry();
-  const registry = registryQuery.data;
+  // Skills from Supabase
+  const { data: supabaseSkills = [] } = useSkills();
+
   const AVAILABLE_AI_SKILLS = useMemo(() => {
-    if (!registry) return [] as string[];
-    return Object.entries(registry.skills)
-      .filter(([, e]) => e.target === "platform" || e.target === "both")
-      .map(([slug]) => slug)
+    return supabaseSkills
+      .filter((s) => (s.target === "platform" || s.target === "both") && s.status !== "deleted" && s.status !== "inactive" && s.status !== "deprecated")
+      .map((s) => s.slug)
       .sort();
-  }, [registry]);
-  const categories = registry?.categories ?? [];
-  const skillEntries = (registry?.skills ?? {}) as Record<string, { name: string; category: string; description?: string; target?: string; verified?: boolean }>;
+  }, [supabaseSkills]);
+
+  const categories = useMemo<SkillCategory[]>(() => {
+    const catSet = new Set<string>();
+    for (const s of supabaseSkills) {
+      if (s.category) catSet.add(s.category);
+    }
+    return [...catSet].sort().map((id) => ({ id, label: id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_]/g, " ") }));
+  }, [supabaseSkills]);
+
+  const skillEntries = useMemo(() => {
+    const map: Record<string, { name: string; category: string; description?: string; target?: string; verified?: boolean }> = {};
+    for (const s of supabaseSkills) {
+      map[s.slug] = { name: s.name, category: s.category, description: s.description, target: s.target, verified: s.verified };
+    }
+    return map;
+  }, [supabaseSkills]);
   const paths = useKnowledgePaths();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<SelectedItem>({ type: "manage" });
