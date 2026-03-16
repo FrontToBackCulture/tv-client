@@ -22,6 +22,7 @@ fn build_current_state(summary: Option<&str>, next_steps: Option<&[String]>) -> 
 
 /// Auto-update workspace context current_state after session add/update.
 /// Best-effort — does not fail the session operation if context update fails.
+/// Works for Work, Deal, and Workspace type projects.
 async fn sync_context_current_state(
     client: &crate::commands::supabase::SupabaseClient,
     workspace_id: &str,
@@ -34,6 +35,10 @@ async fn sync_context_current_state(
         return;
     }
 
+    // Check if this ID exists in the legacy workspaces table
+    let ws_query = format!("id=eq.{}&select=id", workspace_id);
+    let ws_exists: Vec<serde_json::Value> = client.select("workspaces", &ws_query).await.unwrap_or_default();
+
     let context = UpsertWorkspaceContext {
         workspace_id: workspace_id.to_string(),
         context_summary: None, // don't overwrite — only update current_state
@@ -41,10 +46,15 @@ async fn sync_context_current_state(
         key_decisions: None,
     };
 
-    // Dual-write: set both workspace_id and project_id
     let mut context_data = serde_json::to_value(&context).unwrap_or_default();
     if let Some(obj) = context_data.as_object_mut() {
+        // Always set project_id
         obj.insert("project_id".to_string(), serde_json::Value::String(workspace_id.to_string()));
+
+        if ws_exists.is_empty() {
+            // Not a legacy workspace — remove workspace_id to avoid FK violation
+            obj.remove("workspace_id");
+        }
 
         // If session has decisions, merge them into context too
         if let Some(d) = decisions {
@@ -65,10 +75,14 @@ async fn sync_context_current_state(
 pub async fn workspace_add_session(data: CreateWorkspaceSession) -> CmdResult<crate::commands::work::types::WorkspaceSession> {
     let client = get_client().await?;
 
+    // Check if this ID exists in the legacy workspaces table
+    let ws_query = format!("id=eq.{}&select=id", data.workspace_id);
+    let ws_exists: Vec<serde_json::Value> = client.select("workspaces", &ws_query).await.unwrap_or_default();
+
     // Upsert by conversation_id: if a session with this conversation already exists, update it
     if let Some(ref conv_id) = data.conversation_id {
         let query = format!(
-            "workspace_id=eq.{}&conversation_id=eq.{}",
+            "project_id=eq.{}&conversation_id=eq.{}",
             data.workspace_id, conv_id
         );
         let existing: Vec<crate::commands::work::types::WorkspaceSession> =
@@ -105,10 +119,15 @@ pub async fn workspace_add_session(data: CreateWorkspaceSession) -> CmdResult<cr
         }
     }
 
-    // Build insert data with dual-write (workspace_id + project_id)
+    // Build insert data — always set project_id, only set workspace_id if legacy workspace exists
     let mut insert_data = serde_json::to_value(&data).unwrap_or_default();
     if let Some(obj) = insert_data.as_object_mut() {
         obj.insert("project_id".to_string(), serde_json::Value::String(data.workspace_id.clone()));
+
+        if ws_exists.is_empty() {
+            // Not a legacy workspace — remove workspace_id to avoid FK violation
+            obj.remove("workspace_id");
+        }
     }
 
     let result: crate::commands::work::types::WorkspaceSession = client.insert("workspace_sessions", &insert_data).await?;

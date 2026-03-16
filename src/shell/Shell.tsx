@@ -11,6 +11,7 @@ import { ModuleId, isSecondaryWindow } from "../stores/appStore";
 import { useSidePanelStore } from "../stores/sidePanelStore";
 import { HelpHighlight } from "../components/help/HelpHighlight";
 import { SettingsModal } from "../modules/settings/SettingsModule";
+import { WhatsNewModal } from "./WhatsNewModal";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ToastContainer } from "../components/ui/ToastContainer";
 
@@ -97,6 +98,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
       <ToastContainer />
       <CommandPalette />
       <SettingsModal />
+      <WhatsNewModal />
       <HelpHighlight />
     </div>
   );

@@ -6,15 +6,26 @@ use crate::commands::error::CmdResult;
 use crate::commands::supabase::get_client;
 use crate::commands::work::types::WorkspaceArtifact;
 
-/// Add an artifact to a workspace
+/// Add an artifact to a workspace or project (Work, Deal, or Workspace type).
+/// Uses project_id as the primary FK. Sets workspace_id only if the project
+/// also exists in the legacy workspaces table (backward compatibility).
 #[tauri::command]
 pub async fn workspace_add_artifact(data: CreateWorkspaceArtifact) -> CmdResult<WorkspaceArtifact> {
     let client = get_client().await?;
 
-    // Dual-write: set both workspace_id and project_id
+    // Check if this ID exists in the legacy workspaces table
+    let ws_query = format!("id=eq.{}&select=id", data.workspace_id);
+    let ws_exists: Vec<serde_json::Value> = client.select("workspaces", &ws_query).await.unwrap_or_default();
+
     let mut insert_data = serde_json::to_value(&data).unwrap_or_default();
     if let Some(obj) = insert_data.as_object_mut() {
+        // Always set project_id
         obj.insert("project_id".to_string(), serde_json::Value::String(data.workspace_id.clone()));
+
+        if ws_exists.is_empty() {
+            // Not a legacy workspace — remove workspace_id to avoid FK violation
+            obj.remove("workspace_id");
+        }
     }
 
     client.insert("workspace_artifacts", &insert_data).await

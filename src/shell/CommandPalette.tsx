@@ -28,6 +28,7 @@ import {
   Send,
   Trash2,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { useAppStore, ModuleId } from "../stores/appStore";
@@ -39,6 +40,7 @@ import { useViewContextStore } from "../stores/viewContextStore";
 import { useCommandStore, Command } from "../stores/commandStore";
 import { openModuleInNewWindow } from "../lib/windowManager";
 import { HelpMessage } from "../components/help/HelpMessage";
+import { triggerWhatsNew } from "./WhatsNewModal";
 
 const moduleIcons: Record<ModuleId, typeof Library> = {
   home: Home,
@@ -216,6 +218,32 @@ export function CommandPalette() {
           if (!store.isOpen) {
             useSidePanelStore.setState({ isOpen: true, isPickerOpen: true });
           }
+        },
+      },
+      {
+        id: "whats-new",
+        label: "What's New",
+        description: "Show release notes for the current version",
+        icon: <Sparkles size={15} />,
+        section: "general",
+        action: async () => {
+          // Try to fetch notes from GitHub release for current version
+          try {
+            const res = await fetch(
+              `https://api.github.com/repos/FrontToBackCulture/tv-client/releases/tags/v${__APP_VERSION__}`,
+              { headers: { Accept: "application/vnd.github.v3+json" } }
+            );
+            if (res.ok) {
+              const release = await res.json();
+              // Extract the "What's New" section (changelog lines)
+              const body: string = release.body ?? "";
+              const whatsNewMatch = body.match(/## What's New\s*\n([\s\S]*?)(?=\n## |$)/);
+              const notes = whatsNewMatch ? whatsNewMatch[1].trim() : body;
+              triggerWhatsNew({ version: __APP_VERSION__, notes });
+              return;
+            }
+          } catch { /* fall through */ }
+          triggerWhatsNew({ version: __APP_VERSION__, notes: "" });
         },
       }
     );

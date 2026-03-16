@@ -89,10 +89,10 @@ pub fn tools() -> Vec<Tool> {
         // Sessions
         Tool {
             name: "add-workspace-session".to_string(),
-            description: "Add a session entry to a workspace (one per Claude Code conversation)".to_string(),
+            description: "Add a session entry to a project (Work, Deal, or Workspace type — one per Claude Code conversation)".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
-                    "workspace_id": { "type": "string", "description": "Workspace UUID (required)" },
+                    "workspace_id": { "type": "string", "description": "Project UUID — works with Work, Deal, or Workspace type projects (required)" },
                     "date": { "type": "string", "description": "Session date YYYY-MM-DD (defaults to today)" },
                     "summary": { "type": "string", "description": "What was accomplished this session" },
                     "decisions": {
@@ -158,10 +158,10 @@ pub fn tools() -> Vec<Tool> {
         // Artifacts
         Tool {
             name: "add-workspace-artifact".to_string(),
-            description: "Link an artifact (file, skill, deal, task, etc.) to a workspace".to_string(),
+            description: "Link an artifact (file, skill, deal, task, etc.) to a project (Work, Deal, or Workspace type)".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
-                    "workspace_id": { "type": "string", "description": "Workspace UUID (required)" },
+                    "workspace_id": { "type": "string", "description": "Project UUID — works with Work, Deal, or Workspace type projects (required)" },
                     "session_id": { "type": "string", "description": "Session UUID that created this artifact" },
                     "type": {
                         "type": "string",

@@ -141,10 +141,44 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog generation
 
       - name: Get version from tag
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog from git log
+        id: changelog
+        run: |
+          # Find previous tag
+          PREV_TAG=$(git tag --sort=-creatordate | grep '^v' | sed -n '2p')
+          if [ -z "$PREV_TAG" ]; then
+            # First release — use all commits
+            CHANGELOG=$(git log --oneline --no-merges --format="- %s" HEAD)
+          else
+            CHANGELOG=$(git log --oneline --no-merges --format="- %s" "${PREV_TAG}..HEAD")
+          fi
+
+          # Filter out version bump commits
+          CHANGELOG=$(echo "$CHANGELOG" | grep -v "^- Bump version" | grep -v "^- Co-Authored-By" || true)
+
+          # Truncate if too long (keep first 30 lines)
+          CHANGELOG=$(echo "$CHANGELOG" | head -30)
+
+          echo "Previous tag: ${PREV_TAG:-none}"
+          echo "Changelog:"
+          echo "$CHANGELOG"
+
+          # Write to file for JSON embedding (avoids shell escaping issues)
+          echo "$CHANGELOG" > /tmp/changelog.txt
+
+          # Also write to output for GitHub release body
+          {
+            echo "notes<<CHANGELOG_EOF"
+            echo "$CHANGELOG"
+            echo "CHANGELOG_EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Download macOS ARM artifacts
         uses: actions/download-artifact@v4
@@ -214,10 +248,13 @@ jobs:
           WIN_X64_SIG=$(cat "$WIN_SIG_FILE" 2>/dev/null || echo "")
           WIN_EXE_NAME="TV.Client_${VERSION}_x64-setup.exe"
 
+          # Read changelog and JSON-escape it (newlines → \n, quotes → \")
+          NOTES=$(cat /tmp/changelog.txt | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
+
           cat > release/latest.json << ENDJSON
           {
             "version": "${VERSION}",
-            "notes": "Release v${VERSION}",
+            "notes": ${NOTES},
             "pub_date": "${PUB_DATE}",
             "platforms": {
               "darwin-aarch64": {
@@ -245,6 +282,10 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body: |
+            ## What's New
+
+            ${{ steps.changelog.outputs.notes }}
+
             ## Downloads
 
             | Platform | Installer |

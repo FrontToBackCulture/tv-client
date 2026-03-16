@@ -5,8 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { cn } from "../lib/cn";
-import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Download } from "lucide-react";
+import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles } from "lucide-react";
 import { useAppUpdate } from "../hooks/useAppUpdate";
+import { UpdatePreviewPanel } from "./UpdatePreviewPanel";
 
 interface ClaudeMcpStatus {
   binary_installed: boolean;
@@ -45,22 +46,27 @@ export function StatusBar() {
   const clearCompleted = useJobsStore((s) => s.clearCompleted);
   const removeJob = useJobsStore((s) => s.removeJob);
 
-  const { updateAvailable, version: updateVersion, downloading, installed, progress, error: updateError, installUpdate } = useAppUpdate();
+  const { updateAvailable, version: updateVersion, body: updateBody, downloading, installed, progress, error: updateError, installUpdate } = useAppUpdate();
   const [showJobsPanel, setShowJobsPanel] = useState(false);
+  const [showUpdatePreview, setShowUpdatePreview] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const updatePanelRef = useRef<HTMLDivElement>(null);
 
-  // Close panel on outside click
+  // Close panels on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setShowJobsPanel(false);
       }
+      if (updatePanelRef.current && !updatePanelRef.current.contains(e.target as Node)) {
+        setShowUpdatePreview(false);
+      }
     }
-    if (showJobsPanel) {
+    if (showJobsPanel || showUpdatePreview) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [showJobsPanel]);
+  }, [showJobsPanel, showUpdatePreview]);
 
   const hasJobs = recentJobs.length > 0;
   const hasRunning = runningJobs.length > 0;
@@ -81,13 +87,23 @@ export function StatusBar() {
           </span>
         )}
         {updateAvailable && !downloading && !installed && (
-          <button
-            onClick={installUpdate}
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors"
-          >
-            <Download size={10} />
-            <span>Update {updateVersion}</span>
-          </button>
+          <div className="relative" ref={updatePanelRef}>
+            <button
+              onClick={() => setShowUpdatePreview(!showUpdatePreview)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors"
+            >
+              <Sparkles size={10} />
+              <span>Update {updateVersion}</span>
+            </button>
+            {showUpdatePreview && (
+              <UpdatePreviewPanel
+                version={updateVersion!}
+                notes={updateBody}
+                onInstall={() => { setShowUpdatePreview(false); installUpdate(); }}
+                onClose={() => setShowUpdatePreview(false)}
+              />
+            )}
+          </div>
         )}
         {downloading && (
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400">

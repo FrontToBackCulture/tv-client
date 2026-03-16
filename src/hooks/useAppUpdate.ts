@@ -2,9 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
+const WHATS_NEW_KEY = "tv-client-whats-new";
+const LAST_VERSION_KEY = "tv-client-last-version";
+
 interface UpdateState {
   updateAvailable: boolean;
   version: string | null;
+  body: string | null;
   downloading: boolean;
   installed: boolean;
   progress: number; // 0-100
@@ -13,9 +17,51 @@ interface UpdateState {
   installUpdate: () => Promise<void>;
 }
 
+export interface WhatsNewData {
+  version: string;
+  notes: string;
+}
+
+/** Check if app just updated and return the stored release notes */
+export function getWhatsNew(): WhatsNewData | null {
+  const lastVersion = localStorage.getItem(LAST_VERSION_KEY);
+  const currentVersion = __APP_VERSION__;
+
+  // First launch ever — just record current version
+  if (!lastVersion) {
+    localStorage.setItem(LAST_VERSION_KEY, currentVersion);
+    return null;
+  }
+
+  // Same version — no update happened
+  if (lastVersion === currentVersion) return null;
+
+  // Version changed — we just updated
+  const stored = localStorage.getItem(WHATS_NEW_KEY);
+  if (stored) {
+    try {
+      const data = JSON.parse(stored) as WhatsNewData;
+      return data;
+    } catch {
+      // Malformed data, skip
+    }
+  }
+
+  // Version changed but no stored notes (manual install, etc.)
+  // Still show something
+  return { version: currentVersion, notes: "" };
+}
+
+/** Mark "What's New" as dismissed */
+export function dismissWhatsNew() {
+  localStorage.setItem(LAST_VERSION_KEY, __APP_VERSION__);
+  localStorage.removeItem(WHATS_NEW_KEY);
+}
+
 export function useAppUpdate(): UpdateState {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [version, setVersion] = useState<string | null>(null);
+  const [body, setBody] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [installed, setInstalled] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -29,6 +75,7 @@ export function useAppUpdate(): UpdateState {
       if (update) {
         setUpdateAvailable(true);
         setVersion(update.version);
+        setBody(update.body ?? null);
         updateRef.current = update;
       }
     } catch (e) {
@@ -67,6 +114,12 @@ export function useAppUpdate(): UpdateState {
 
       console.log("[updater] downloadAndInstall completed successfully");
 
+      // Store release notes for "What's New" modal after relaunch
+      localStorage.setItem(
+        WHATS_NEW_KEY,
+        JSON.stringify({ version: update.version, notes: update.body ?? "" })
+      );
+
       // Mark as installed before attempting relaunch
       setInstalled(true);
       setDownloading(false);
@@ -97,6 +150,7 @@ export function useAppUpdate(): UpdateState {
   return {
     updateAvailable,
     version,
+    body,
     downloading,
     installed,
     progress,
