@@ -1517,9 +1517,11 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   // Contacts for deal's company
   const { data: contacts = [] } = useContacts(companyId ? { companyId } : undefined);
 
-  // Activities for this project/deal
+  // Activities for this project/deal — query by projectId for all project types
   const { data: activities = [] } = useActivities(
-    isDeal && companyId ? { companyId, limit: 20 } : undefined
+    isDeal && companyId
+      ? { companyId, projectId: workspaceId, limit: 20 }
+      : { projectId: workspaceId, limit: 20 }
   );
 
   // Tasks for this project
@@ -1905,41 +1907,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
               </div>
             )}
 
-            {/* Recent Activities (for deals) */}
-            {isDeal && activities.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
-                <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                  Activities ({activities.length})
-                </h3>
-                <div className="space-y-0.5">
-                  {activities.slice(0, 15).map((activity) => {
-                    const typeInfo = ACTIVITY_TYPES.find(t => t.value === activity.type);
-                    return (
-                      <button
-                        key={activity.id}
-                        onClick={() => setSelection({ type: "activity", id: activity.id })}
-                        className={cn(
-                          "block w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
-                          selection?.type === "activity" && selection.id === activity.id
-                            ? "bg-teal-50 dark:bg-teal-950/30"
-                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                        )}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] px-1 py-0 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
-                            {typeInfo?.label || activity.type}
-                          </span>
-                          {activity.subject && (
-                            <span className="text-zinc-600 dark:text-zinc-300 truncate">{activity.subject}</span>
-                          )}
-                          <span className="text-zinc-400 text-[10px] ml-auto flex-shrink-0">{formatDate(activity.activity_date)}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {/* Activities moved to body pane (right side) */}
           </div>
         </div>
         {/* Resize handle */}
@@ -2053,6 +2021,54 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                   Delete Project
                 </button>
               </div>
+
+              {/* Activities timeline */}
+              {activities.length > 0 && (
+                <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
+                    Activities ({activities.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {activities.slice(0, 20).map((activity) => {
+                      const typeInfo = ACTIVITY_TYPES.find(t => t.value === activity.type);
+                      const date = new Date(activity.activity_date);
+                      const dateStr = date.toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
+                      const timeStr = date.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" });
+                      return (
+                        <div key={activity.id} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={cn(
+                              "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold",
+                              activity.type === "note" ? "bg-blue-50 text-blue-500 dark:bg-blue-950/30 dark:text-blue-400" :
+                              activity.type === "meeting" ? "bg-purple-50 text-purple-500 dark:bg-purple-950/30 dark:text-purple-400" :
+                              activity.type === "call" ? "bg-green-50 text-green-500 dark:bg-green-950/30 dark:text-green-400" :
+                              activity.type === "email" ? "bg-orange-50 text-orange-500 dark:bg-orange-950/30 dark:text-orange-400" :
+                              "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                            )}>
+                              {(typeInfo?.label || activity.type).charAt(0).toUpperCase()}
+                            </div>
+                            <div className="w-px flex-1 bg-zinc-100 dark:bg-zinc-800 mt-1" />
+                          </div>
+                          <div className="flex-1 min-w-0 pb-3">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-medium">
+                                {typeInfo?.label || activity.type}
+                              </span>
+                              <span className="text-[10px] text-zinc-400">{dateStr} {timeStr}</span>
+                            </div>
+                            {activity.subject && (
+                              <div className="text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-0.5">{activity.subject}</div>
+                            )}
+                            {activity.content && (
+                              <div className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{activity.content}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {!context?.current_state && !context?.context_summary && !isDeal && ws.project_type !== "work" && ws.project_type !== "workspace" && (
                 <div className="flex items-center justify-center mt-8">

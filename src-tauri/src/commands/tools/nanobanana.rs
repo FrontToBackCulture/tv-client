@@ -7,7 +7,7 @@
 use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri::command;
 
 const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
@@ -343,7 +343,46 @@ pub fn nanobanana_parse_config(content: String) -> CmdResult<NanobananaConfig> {
     Ok(config)
 }
 
-/// Generate image from a markdown file with nanobanana_prompt in frontmatter
+/// Load reference images from file paths, returning base64-encoded ReferenceImage structs.
+/// Supports comma-separated paths in a single string or a YAML-style list.
+pub fn load_reference_images_from_paths(
+    paths_str: &str,
+    base_dir: &Path,
+) -> Vec<ReferenceImage> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    let paths: Vec<&str> = paths_str
+        .split(',')
+        .map(|s| s.trim().trim_matches(|c| c == '"' || c == '\'' || c == '[' || c == ']'))
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let mut images = Vec::new();
+    for path_str in paths {
+        let path = if Path::new(path_str).is_absolute() {
+            PathBuf::from(path_str)
+        } else {
+            base_dir.join(path_str)
+        };
+
+        if let Ok(bytes) = fs::read(&path) {
+            let data = STANDARD.encode(&bytes);
+            let mime_type = match path.extension().and_then(|e| e.to_str()) {
+                Some("jpg") | Some("jpeg") => "image/jpeg",
+                Some("gif") => "image/gif",
+                Some("webp") => "image/webp",
+                _ => "image/png",
+            }
+            .to_string();
+            images.push(ReferenceImage { data, mime_type });
+        }
+    }
+    images
+}
+
+/// Generate image from a markdown file with nanobanana_prompt in frontmatter.
+/// Supports `nanobanana_references` field with comma-separated file paths
+/// that are automatically loaded and base64-encoded as reference images.
 #[command]
 pub async fn nanobanana_generate_from_file(
     api_key: String,
@@ -352,8 +391,12 @@ pub async fn nanobanana_generate_from_file(
     options: Option<NanobananOptions>,
 ) -> CmdResult<String> {
     let content = fs::read_to_string(&file_path)?;
+    let base_dir = Path::new(&file_path)
+        .parent()
+        .unwrap_or(Path::new("."))
+        .to_path_buf();
 
-    let config = nanobanana_parse_config(content)?;
+    let config = nanobanana_parse_config(content.clone())?;
 
     let prompt = config
         .prompt
@@ -366,6 +409,29 @@ pub async fn nanobanana_generate_from_file(
     }
     if merged_options.reference_images.is_none() && !config.reference_images.is_empty() {
         merged_options.reference_images = Some(config.reference_images);
+    }
+
+    // Load reference images from file paths (nanobanana_references frontmatter)
+    if merged_options.reference_images.is_none() || merged_options.reference_images.as_ref().map_or(true, |v| v.is_empty()) {
+        // Parse nanobanana_references from frontmatter
+        let frontmatter_regex = regex::Regex::new(r"^---\s*\n([\s\S]*?)\n---")
+            .map_err(|e| CommandError::Parse(format!("Regex error: {}", e)))?;
+        if let Some(captures) = frontmatter_regex.captures(&content) {
+            let frontmatter = &captures[1];
+            for line in frontmatter.lines() {
+                let line = line.trim();
+                if let Some(colon_idx) = line.find(':') {
+                    let key = line[..colon_idx].trim();
+                    let value = line[colon_idx + 1..].trim().trim_matches(|c| c == '"' || c == '\'');
+                    if key == "nanobanana_references" && !value.is_empty() {
+                        let ref_images = load_reference_images_from_paths(value, &base_dir);
+                        if !ref_images.is_empty() {
+                            merged_options.reference_images = Some(ref_images);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Determine output path

@@ -399,7 +399,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
       )}
 
       {/* Tab content */}
-      <div className={cn("flex-1 overflow-auto p-4", REVIEW_TABS[activeTab] && "hidden")}>
+      <div className={cn("flex-1 overflow-auto p-4", (REVIEW_TABS[activeTab] || activeTab === "ai" || activeTab === "reports") && "hidden")}>
         {activeTab === "overview" && discoveredDomain && (
           /* Two-column overview when discoveredDomain is provided */
           <div className="flex gap-6">

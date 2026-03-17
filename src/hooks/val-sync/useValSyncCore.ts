@@ -125,9 +125,13 @@ export function useValSyncArtifact() {
       const cmdMap: Record<string, string> = {
         fields: "val_sync_fields",
         queries: "val_sync_queries",
+        "all-queries": "val_sync_queries",
         workflows: "val_sync_workflows",
+        "all-workflows": "val_sync_workflows",
         dashboards: "val_sync_dashboards",
+        "all-dashboards": "val_sync_dashboards",
         tables: "val_sync_tables",
+        "all-tables": "val_sync_tables",
         "calc-fields": "val_sync_calc_fields",
       };
       const cmd = cmdMap[artifactType];

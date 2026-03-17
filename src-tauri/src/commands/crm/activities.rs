@@ -9,6 +9,7 @@ use crate::commands::supabase::get_client;
 pub async fn crm_list_activities(
     company_id: Option<String>,
     deal_id: Option<String>,
+    project_id: Option<String>,
     activity_type: Option<String>,
     limit: Option<i32>,
 ) -> CmdResult<Vec<Activity>> {
@@ -22,6 +23,9 @@ pub async fn crm_list_activities(
     if let Some(did) = deal_id {
         // Query by project_id (unified) with fallback to deal_id
         filters.push(format!("or=(deal_id.eq.{0},project_id.eq.{0})", did));
+    }
+    if let Some(pid) = project_id {
+        filters.push(format!("project_id=eq.{}", pid));
     }
     if let Some(t) = activity_type {
         filters.push(format!("type=eq.{}", t));
@@ -51,22 +55,27 @@ pub async fn crm_log_activity(data: CreateActivity) -> CmdResult<Activity> {
         }
     }
 
-    // Dual-write: if deal_id is present, also set project_id
+    // Set project_id: use explicit project_id if provided, otherwise derive from deal_id
     if let Some(obj) = insert_data.as_object_mut() {
-        if let Some(deal_id) = obj.get("deal_id").and_then(|v| v.as_str()).map(|s| s.to_string()) {
-            obj.insert("project_id".to_string(), serde_json::Value::String(deal_id));
+        let has_project_id = obj.get("project_id").and_then(|v| v.as_str()).is_some();
+        if !has_project_id {
+            if let Some(deal_id) = obj.get("deal_id").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+                obj.insert("project_id".to_string(), serde_json::Value::String(deal_id));
+            }
         }
     }
 
     // Create the activity
     let activity: Activity = client.insert("crm_activities", &insert_data).await?;
 
-    // Update company's updated_at
-    let now = chrono::Utc::now().to_rfc3339();
-    let company_update = serde_json::json!({ "updated_at": now });
-    let _: Company = client
-        .update("crm_companies", &format!("id=eq.{}", data.company_id), &company_update)
-        .await?;
+    // Update company's updated_at (only if company_id is present)
+    if let Some(ref cid) = data.company_id {
+        let now = chrono::Utc::now().to_rfc3339();
+        let company_update = serde_json::json!({ "updated_at": now });
+        let _: Result<Company, _> = client
+            .update("crm_companies", &format!("id=eq.{}", cid), &company_update)
+            .await;
+    }
 
     Ok(activity)
 }

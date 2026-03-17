@@ -156,15 +156,17 @@ pub async fn workspace_update_session(
         .update("workspace_sessions", &format!("id=eq.{}", id), &data)
         .await?;
 
-    // Auto-sync context using the session's workspace_id
-    sync_context_current_state(
-        &client,
-        &result.workspace_id,
-        data.summary.as_deref(),
-        data.next_steps.as_deref(),
-        data.decisions.as_ref(),
-    )
-    .await;
+    // Auto-sync context using the session's workspace_id or project_id
+    if let Some(ref ws_id) = result.workspace_id.as_ref().or(result.project_id.as_ref()) {
+        sync_context_current_state(
+            &client,
+            ws_id,
+            data.summary.as_deref(),
+            data.next_steps.as_deref(),
+            data.decisions.as_ref(),
+        )
+        .await;
+    }
 
     Ok(result)
 }

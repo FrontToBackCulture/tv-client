@@ -274,7 +274,7 @@ pub struct UpdateDeal {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Activity {
     pub id: String,
-    pub company_id: String,
+    pub company_id: Option<String>,
     #[serde(rename = "type")]
     pub activity_type: String, // email | note | meeting | call | task | stage_change
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -301,13 +301,16 @@ pub struct Activity {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateActivity {
-    pub company_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
     #[serde(rename = "type")]
     pub activity_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deal_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

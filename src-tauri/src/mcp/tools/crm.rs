@@ -209,27 +209,29 @@ pub fn tools() -> Vec<Tool> {
         // Activities
         Tool {
             name: "log-crm-activity".to_string(),
-            description: "Log an activity (note, call, meeting) for a company.".to_string(),
+            description: "Log an activity (note, call, meeting) for a company or project. Works with CRM deals and Work projects.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
-                    "company_id": { "type": "string", "description": "Company UUID (required)" },
+                    "company_id": { "type": "string", "description": "Company UUID (required for CRM activities, optional for Work projects)" },
                     "type": { "type": "string", "enum": ["note", "call", "meeting", "email", "task"], "description": "Activity type (required)" },
                     "subject": { "type": "string", "description": "Activity subject/title" },
                     "content": { "type": "string", "description": "Activity content/notes" },
                     "contact_id": { "type": "string", "description": "Link to a contact (optional)" },
                     "deal_id": { "type": "string", "description": "Link to a deal (optional)" },
+                    "project_id": { "type": "string", "description": "Link to a Work or Deal project (optional — auto-set from deal_id if not provided)" },
                     "activity_date": { "type": "string", "description": "When the activity occurred (ISO date, default: now)" }
                 }),
-                vec!["company_id".to_string(), "type".to_string()],
+                vec!["type".to_string()],
             ),
         },
         Tool {
             name: "list-crm-activities".to_string(),
-            description: "List activities for a company or deal.".to_string(),
+            description: "List activities for a company, deal, or project.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "company_id": { "type": "string", "description": "Filter by company UUID" },
                     "deal_id": { "type": "string", "description": "Filter by deal UUID" },
+                    "project_id": { "type": "string", "description": "Filter by project UUID (Work or Deal type)" },
                     "type": { "type": "string", "enum": ["note", "call", "meeting", "email", "task", "stage_change"] },
                     "limit": { "type": "integer", "description": "Max results (default: 20)" }
                 }),
@@ -429,9 +431,10 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         "list-crm-activities" => {
             let company_id = args.get("company_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let deal_id = args.get("deal_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let project_id = args.get("project_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let activity_type = args.get("type").and_then(|v| v.as_str()).map(|s| s.to_string());
             let limit = args.get("limit").and_then(|v| v.as_i64()).map(|n| n as i32);
-            match crm::crm_list_activities(company_id, deal_id, activity_type, limit).await {
+            match crm::crm_list_activities(company_id, deal_id, project_id, activity_type, limit).await {
                 Ok(activities) => ToolResult::json(&activities),
                 Err(e) => ToolResult::error(e.to_string()),
             }

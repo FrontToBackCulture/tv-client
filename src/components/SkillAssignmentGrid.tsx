@@ -181,8 +181,8 @@ export function SkillAssignmentGrid({
 
       {/* Available skills - scrollable */}
       {filteredUnassigned.length > 0 && (
-        <div className="max-h-[280px] overflow-y-auto space-y-1.5 pr-1">
-          <p className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider sticky top-0 bg-white dark:bg-zinc-900 py-0.5 z-10">
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
             Available ({filteredUnassigned.length})
           </p>
 

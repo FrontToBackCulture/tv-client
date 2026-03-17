@@ -572,7 +572,7 @@ pub struct InitiativeProject {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceSession {
     pub id: String,
-    pub workspace_id: String,
+    pub workspace_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
     pub date: String,
@@ -595,7 +595,7 @@ pub struct WorkspaceSession {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceArtifact {
     pub id: String,
-    pub workspace_id: String,
+    pub workspace_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -612,7 +612,7 @@ pub struct WorkspaceArtifact {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceContext {
-    pub workspace_id: String,
+    pub workspace_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

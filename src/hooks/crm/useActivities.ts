@@ -26,6 +26,10 @@ export function useActivities(filters?: ActivityFilters) {
         query = query.or(`deal_id.eq.${filters.dealId},project_id.eq.${filters.dealId}`);
       }
 
+      if (filters?.projectId) {
+        query = query.eq("project_id", filters.projectId);
+      }
+
       if (filters?.contactId) {
         query = query.eq("contact_id", filters.contactId);
       }
@@ -57,7 +61,7 @@ export function useActivities(filters?: ActivityFilters) {
         throw new Error(`Failed to fetch activities: ${error.message}`);
       return data ?? [];
     },
-    enabled: filters?.companyId !== undefined || !filters,
+    enabled: filters?.companyId !== undefined || filters?.projectId !== undefined || !filters,
   });
 }
 

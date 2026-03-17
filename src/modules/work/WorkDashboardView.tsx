@@ -1,6 +1,6 @@
 // WorkViews: Dashboard View — tree (left) + detail (right) layout
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import {
   ChevronDown, ChevronRight, Pencil, Search, ArrowUpDown,
   Target, TrendingUp, CheckCircle2, AlertTriangle, Trash2,
@@ -151,8 +151,29 @@ export function DashboardView({
   onUpdateProject?: (id: string, updates: Record<string, any>) => void;
   onInitiativeLinkChanged?: (projectId: string, initiativeId: string | null) => Promise<void>;
 }) {
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [allCollapsed, setAllCollapsed] = useState(false);
+  // Persist selected project across refreshes
+  const SELECTED_PROJECT_KEY = "tv-dashboard-selected-project";
+
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    // Start with all collapsed — will be reconciled when initiatives load
+    const allIds = new Set<string>();
+    for (const init of initiatives) allIds.add(init.id);
+    allIds.add("__unassigned");
+    return allIds;
+  });
+  const [allCollapsed, setAllCollapsed] = useState(true);
+  const hasInitializedCollapse = useRef(false);
+
+  // When initiatives load (async), ensure all groups start collapsed
+  useEffect(() => {
+    if (initiatives.length === 0 || hasInitializedCollapse.current) return;
+    hasInitializedCollapse.current = true;
+    const allIds = new Set<string>();
+    for (const init of initiatives) allIds.add(init.id);
+    allIds.add("__unassigned");
+    setCollapsedGroups(allIds);
+    setAllCollapsed(true);
+  }, [initiatives]);
 
   const toggleCollapseAll = () => {
     if (allCollapsed) {
@@ -170,7 +191,16 @@ export function DashboardView({
   };
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectIdRaw] = useState<string | null>(() => {
+    try { return localStorage.getItem(SELECTED_PROJECT_KEY) || null; } catch { return null; }
+  });
+  const setSelectedProjectId = useCallback((id: string | null) => {
+    setSelectedProjectIdRaw(id);
+    try {
+      if (id) localStorage.setItem(SELECTED_PROJECT_KEY, id);
+      else localStorage.removeItem(SELECTED_PROJECT_KEY);
+    } catch {}
+  }, []);
   const [selectedInitiativeId, setSelectedInitiativeId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ projectId: string; x: number; y: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
