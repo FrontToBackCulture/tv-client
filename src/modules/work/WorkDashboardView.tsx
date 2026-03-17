@@ -15,7 +15,7 @@ import { isOverdue } from "../../lib/date";
 import { cn } from "../../lib/cn";
 import { DEAL_STAGES } from "../../lib/crm/types";
 import {
-  HealthBadge, StatusBadge, ProgressBar, Stat,
+  HealthBadge, StatusBadge, ProgressBar, Stat, getInitiativeColor,
 } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
@@ -510,7 +510,7 @@ export function DashboardView({
           </div>
           <div className="flex-1 overflow-y-auto">
           {/* Initiative groups */}
-          {initiatives.map(init => {
+          {initiatives.map((init, initIndex) => {
             const linkedProjectIds = initProjectMap.get(init.id) || [];
             const linkedProjects = sortProjects(filterProjects(
               linkedProjectIds
@@ -533,7 +533,7 @@ export function DashboardView({
                     {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                   </button>
                   <div className="flex items-center gap-1.5 min-w-0 flex-1" onClick={() => { setSelectedInitiativeId(init.id); setSelectedProjectId(null); }}>
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: init.color || "#0D7680" }} />
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getInitiativeColor(init, initIndex) }} />
                     <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 truncate">{init.name}</span>
                     <span className="text-[9px] text-zinc-400 ml-0.5">{linkedProjects.length}</span>
                   </div>
@@ -622,14 +622,14 @@ export function DashboardView({
               <span className="w-2 h-2 rounded-full bg-zinc-300 flex-shrink-0" />
               Unassigned
             </button>
-            {initiatives.map(init => {
+            {initiatives.map((init, initIndex) => {
               const isLinked = projectInitiativeMap.get(contextMenu.projectId)?.id === init.id;
               return (
                 <button key={init.id}
                   onClick={async () => { await onInitiativeLinkChanged?.(contextMenu.projectId, init.id); setContextMenu(null); }}
                   className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${isLinked ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
                 >
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: init.color || "#0D7680" }} />
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getInitiativeColor(init, initIndex) }} />
                   <span className={isLinked ? "font-medium text-teal-600" : ""}>{init.name}</span>
                   {isLinked && <CheckCircle2 size={11} className="ml-auto text-teal-500" />}
                 </button>

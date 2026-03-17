@@ -24,6 +24,25 @@ import { formatDateShort as formatDate, isOverdue } from "../../lib/date";
 // ============================
 // Types
 // ============================
+export const INITIATIVE_COLORS = [
+  "#0D7680", // teal
+  "#6366F1", // indigo
+  "#D97706", // amber
+  "#DC2626", // red
+  "#059669", // emerald
+  "#7C3AED", // violet
+  "#DB2777", // pink
+  "#2563EB", // blue
+  "#CA8A04", // yellow
+  "#9333EA", // purple
+  "#0891B2", // cyan
+  "#EA580C", // orange
+];
+
+export function getInitiativeColor(init: { color?: string | null }, index: number): string {
+  return init.color || INITIATIVE_COLORS[index % INITIATIVE_COLORS.length];
+}
+
 export type WorkView = "inbox" | "dashboard" | "board" | "tracker" | "notion" | "project";
 
 export interface InitiativeProjectLink {
@@ -192,7 +211,7 @@ export function ScopeFilterBar({
             >
               All initiatives
             </button>
-            {initiatives.map(i => (
+            {initiatives.map((i, idx) => (
               <button
                 key={i.id}
                 onClick={() => { onInitiativeChange(i.id); onProjectChange(null); setInitDdOpen(false); }}
@@ -200,7 +219,7 @@ export function ScopeFilterBar({
                   i.id === selectedInitiativeId ? "bg-zinc-50 dark:bg-zinc-800" : ""
                 }`}
               >
-                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: i.color || "#0D7680" }} />
+                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: getInitiativeColor(i, idx) }} />
                 <span className="truncate">{i.name}</span>
               </button>
             ))}

@@ -16,6 +16,7 @@ import {
   FolderOutput,
   BadgeCheck,
   Trash2,
+  Database,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
@@ -29,6 +30,7 @@ import {
   type BotEntry,
   type BotProfile,
   type SkillStatus,
+  type MemoryFile,
   DEPT_COLORS,
   GROUP_LABELS,
   SKILL_STATUS_CONFIG,
@@ -97,10 +99,13 @@ export function BotOverview({
   recentSessions,
   skillList,
   skillCategories,
+  memoryList,
+  memoryDir,
   onSkillClick,
   onSkillDelete,
   onSessionClick,
   onCommandsClick,
+  onMemoryClick,
 }: {
   bot: BotEntry;
   profile: BotProfile;
@@ -111,10 +116,13 @@ export function BotOverview({
   recentSessions: { date: string; title: string | null; summary: string | null; path: string }[];
   skillList: { name: string; path: string; title: string; summary: string; subfolders: string[]; status: SkillStatus; verified: boolean; lastRevised: string | null; updated: string | null; category: string | null; command: string | null; input: string | null; output: string | null; sources: string | null; writes: string | null; tools: string | null }[];
   skillCategories: { id: string; label: string }[];
+  memoryList: MemoryFile[];
+  memoryDir: string | undefined;
   onSkillClick: (skill: { name: string; path: string; title: string }) => void;
   onSkillDelete?: (skill: { name: string; path: string; title: string }) => void;
   onSessionClick: (session: { path: string; date: string; title: string | null }) => void;
   onCommandsClick: () => void;
+  onMemoryClick: (mem: MemoryFile) => void;
 }) {
   const colors = DEPT_COLORS[bot.group] || DEPT_COLORS.personal;
   const initials = getBotInitials(bot.name);
@@ -122,7 +130,7 @@ export function BotOverview({
   const [showAssignSkills, setShowAssignSkills] = useState(false);
   const [assigningSkill, setAssigningSkill] = useState<string | null>(null);
   const [assignFeedback, setAssignFeedback] = useState<{ slug: string; action: "added" | "removed" } | null>(null);
-  const [activeTab, setActiveTab] = useState<"skills" | "sessions">("skills");
+  const [activeTab, setActiveTab] = useState<"skills" | "sessions" | "memory">("skills");
   const [skillFilter, setSkillFilter] = useState<"all" | SkillStatus>("active");
   const [skillTab, setSkillTab] = useState<string>("all");
   const [skillSearch, setSkillSearch] = useState("");
@@ -284,6 +292,11 @@ export function BotOverview({
               <button onClick={() => setActiveTab("sessions")} className="focus:outline-none">
                 <StatPill icon={Clock} label="Sessions" count={recentSessions.length} color="text-blue-500" clickable={true} />
               </button>
+              {memoryList.length > 0 && (
+                <button onClick={() => setActiveTab("memory")} className="focus:outline-none">
+                  <StatPill icon={Database} label="Memory" count={memoryList.length} color="text-violet-500" clickable={true} />
+                </button>
+              )}
               <button
                 onClick={() => setShowAssignSkills(!showAssignSkills)}
                 className={cn(
@@ -378,6 +391,21 @@ export function BotOverview({
                   <span className="text-xs tabular-nums opacity-60">{recentSessions.length}</span>
                 )}
               </button>
+              {memoryList.length > 0 && (
+                <button
+                  onClick={() => setActiveTab("memory")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px",
+                    activeTab === "memory"
+                      ? "border-violet-500 text-zinc-800 dark:text-zinc-100"
+                      : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  )}
+                >
+                  <Database size={12} />
+                  Memory
+                  <span className="text-xs tabular-nums opacity-60">{memoryList.length}</span>
+                </button>
+              )}
             </div>
 
             {/* Skills */}
@@ -598,6 +626,57 @@ export function BotOverview({
                         <ChevronRight size={14} className="text-zinc-300 dark:text-zinc-700 mt-1 flex-shrink-0 group-hover:text-zinc-500 transition-colors" />
                       </button>
                     ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Memory */}
+            {activeTab === "memory" && (
+              <section>
+                {memoryDir && (
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3 font-mono truncate" title={memoryDir}>
+                    {memoryDir.replace(/^\/Users\/[^/]+/, "~")}
+                  </p>
+                )}
+                {memoryList.length === 0 ? (
+                  <div className="py-6 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
+                    <Database size={20} className="mx-auto mb-2 text-zinc-300 dark:text-zinc-700" />
+                    <p className="text-xs text-zinc-400">No memory files</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {memoryList.map((mem) => {
+                      const typeColors: Record<string, string> = {
+                        user: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
+                        feedback: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
+                        project: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400",
+                        reference: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
+                      };
+                      return (
+                        <button
+                          key={mem.path}
+                          onClick={() => onMemoryClick(mem)}
+                          className="w-full text-left px-4 py-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-violet-300 dark:hover:border-violet-700 hover:shadow-sm transition-all cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Database size={13} className="text-violet-500 flex-shrink-0" />
+                            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors flex-1">
+                              {mem.memoryName}
+                            </span>
+                            {mem.type && (
+                              <span className={cn("px-1.5 py-0.5 text-xs font-medium rounded", typeColors[mem.type] || "bg-zinc-100 dark:bg-zinc-800 text-zinc-500")}>
+                                {mem.type}
+                              </span>
+                            )}
+                            <ChevronRight size={14} className="text-zinc-300 dark:text-zinc-700 flex-shrink-0 group-hover:text-zinc-500 transition-colors" />
+                          </div>
+                          {mem.description && (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">{mem.description}</p>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </section>

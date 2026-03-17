@@ -21,12 +21,15 @@ import {
   formatBotName,
   parseBotProfile,
   parseSkillFrontmatter,
+  parseMemoryFrontmatter,
   extractDateFromPath,
+  getClaudeMemoryDir,
+  type MemoryFile,
 } from "./botPlaygroundTypes";
 import { SkillModal } from "./BotSkillModal";
 import { BotSkillInlineView } from "./BotSkillInlineView";
 import { BotOverview } from "./BotOverviewPanel";
-import { SessionDetail, CommandListView, SessionsTimeline } from "./BotSessionViews";
+import { SessionDetail, CommandListView, SessionsTimeline, MemoryDetail } from "./BotSessionViews";
 import { BotSidebar } from "./BotSidebar";
 
 export function BotPlayground() {
@@ -232,6 +235,37 @@ export function BotPlayground() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [sessionFiles]);
 
+  // Claude Memory for selected bot
+  const memoryDir = useMemo(() => {
+    if (!selectedBot) return undefined;
+    return getClaudeMemoryDir(selectedBot.dirPath);
+  }, [selectedBot]);
+  const { data: memoryEntries = [] } = useListDirectory(memoryDir);
+  const memoryFiles = useMemo(
+    () => memoryEntries.filter((e) => !e.is_directory && e.name.endsWith(".md") && e.name !== "MEMORY.md"),
+    [memoryEntries]
+  );
+  const memoryContentQueries = useQueries({
+    queries: memoryFiles.map((f) => ({
+      queryKey: ["file", f.path],
+      queryFn: () => invoke<string>("read_file", { path: f.path }),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+  const memoryList: MemoryFile[] = useMemo(() => {
+    return memoryFiles.map((f, i) => {
+      const content = memoryContentQueries[i]?.data;
+      const meta = content ? parseMemoryFrontmatter(content) : { name: "", description: "", type: "" };
+      return {
+        name: f.name,
+        path: f.path,
+        memoryName: meta.name || f.name.replace(/\.md$/, ""),
+        description: meta.description,
+        type: meta.type,
+      };
+    });
+  }, [memoryFiles, memoryContentQueries]);
+
   // Scan recent session notes for /skill-name mentions
   const sessionNoteQueries = useQueries({
     queries: botSessions.slice(0, 20).map((s) => ({
@@ -369,6 +403,8 @@ export function BotPlayground() {
       );
     } else if (detailView.type === "session") {
       content = <SessionDetail sessionPath={detailView.sessionPath} date={detailView.date} title={detailView.title} onBack={handleBackToOverview} />;
+    } else if (detailView.type === "memory") {
+      content = <MemoryDetail memoryPath={detailView.memoryPath} memoryName={detailView.memoryName} onBack={handleBackToOverview} />;
     } else if (detailView.type === "commands" && commandsDir) {
       content = <CommandListView commandsDir={commandsDir} onBack={handleBackToOverview} />;
     }
@@ -385,10 +421,13 @@ export function BotPlayground() {
           recentSessions={botSessions.slice(0, 5)}
           skillList={skillList}
           skillCategories={skillCategoriesData.categories}
+          memoryList={memoryList}
+          memoryDir={memoryDir}
           onSkillClick={(skill) => setDetailView({ type: "skill", skillName: skill.name, skillPath: skill.path, title: skill.title })}
           onSkillDelete={handleSkillDelete}
           onSessionClick={(session) => setDetailView({ type: "session", sessionPath: session.path, date: session.date, title: session.title })}
           onCommandsClick={() => setDetailView({ type: "commands" })}
+          onMemoryClick={(mem) => setDetailView({ type: "memory", memoryPath: mem.path, memoryName: mem.memoryName })}
         />
       </div>
     );

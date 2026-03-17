@@ -236,7 +236,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
             const drift = driftBySlug.get(slug);
             const title = entry?.name || slug;
             const isSelected = selected?.type === "skill" && selected.slug === slug;
-            const s3Key = `skills/${slug}/SKILL.md`;
+            const s3Key = `${slug}/SKILL.md`;
             const s3Info = s3FileMap.get(s3Key);
 
             return (

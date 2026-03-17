@@ -10,6 +10,7 @@ import {
   Eye,
   Pencil,
   Save,
+  Brain,
 } from "lucide-react";
 import { useListDirectory, useReadFile, useWriteFile } from "../hooks/useFiles";
 import { cn } from "../lib/cn";
@@ -223,6 +224,48 @@ function CommandRow({ path, name }: { path: string; name: string }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+export function MemoryDetail({
+  memoryPath,
+  memoryName,
+  onBack,
+}: {
+  memoryPath: string;
+  memoryName: string;
+  onBack: () => void;
+}) {
+  const { data: content, isLoading } = useReadFile(memoryPath);
+
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-4xl mx-auto px-6 py-6">
+        <BackButton label="Back to overview" onClick={onBack} />
+
+        <div className="flex items-center gap-3 mb-1">
+          <Brain size={16} className="text-violet-500" />
+          <div>
+            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              {memoryName}
+            </h1>
+            <p className="text-xs text-zinc-400 mt-0.5 font-mono">
+              {memoryPath.split("/").pop()}
+            </p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={20} className="animate-spin text-zinc-400" />
+          </div>
+        ) : (
+          <div className="mt-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden px-6 py-5">
+            <MarkdownViewer content={content || "(empty)"} filename={memoryPath.split("/").pop() || "memory.md"} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

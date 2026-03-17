@@ -24,7 +24,8 @@ export type DetailView =
   | null
   | { type: "skill"; skillName: string; skillPath: string; title: string }
   | { type: "session"; sessionPath: string; date: string; title: string | null }
-  | { type: "commands" };
+  | { type: "commands" }
+  | { type: "memory"; memoryPath: string; memoryName: string };
 
 export type SkillStatus = "active" | "inactive" | "deprecated" | "test" | "review" | "draft";
 
@@ -189,4 +190,42 @@ export interface StatPillProps {
   count: number;
   color: string;
   clickable: boolean;
+}
+
+// ============================
+// Claude Memory
+// ============================
+export interface MemoryFile {
+  name: string;
+  path: string;
+  memoryName: string;
+  description: string;
+  type: string; // user, feedback, project, reference
+}
+
+/**
+ * Convert a bot's absolute dirPath to the Claude memory directory path.
+ * Claude Code encodes project paths by replacing all non-alphanumeric/dash chars with dashes.
+ * e.g. /Users/me/my_project → ~/.claude/projects/-Users-me-my-project/memory/
+ */
+export function getClaudeMemoryDir(botDirPath: string): string {
+  // Extract home dir: /Users/{username} from the absolute path
+  const homeMatch = botDirPath.match(/^(\/Users\/[^/]+)/);
+  const homeDir = homeMatch?.[1] || "/Users/unknown";
+  const encoded = botDirPath.replace(/[^a-zA-Z0-9-]/g, "-");
+  return `${homeDir}/.claude/projects/${encoded}/memory`;
+}
+
+/**
+ * Parse memory file frontmatter to extract name, description, type.
+ */
+export function parseMemoryFrontmatter(content: string): { name: string; description: string; type: string } {
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!fmMatch) return { name: "", description: "", type: "" };
+  const fm = fmMatch[1];
+  const get = (key: string) => {
+    const m = fm.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?\\s*$`, "m"));
+    return m?.[1]?.trim() || "";
+  };
+  return { name: get("name"), description: get("description"), type: get("type") };
 }

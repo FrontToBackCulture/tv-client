@@ -508,18 +508,18 @@ async fn check_s3_skill_presence(skill: &str) -> CmdResult<Vec<String>> {
         None => return Ok(vec![]),
     };
 
-    // Find keys containing skills/{skill}/
-    let skill_pattern = format!("skills/{}/", skill);
+    // Find keys containing {skill}/ (skills are stored directly under domain, no skills/ prefix)
+    let skill_pattern = format!("{}/", skill);
     let mut domains: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for obj in contents {
         let key = obj.get("Key").and_then(|k| k.as_str()).unwrap_or("");
-        if key.contains(&skill_pattern) {
-            // Key format: solutions/{domain}/skills/{skill}/...
-            if let Some(rest) = key.strip_prefix("solutions/") {
-                if let Some(domain) = rest.split('/').next() {
-                    domains.insert(domain.to_string());
-                }
+        // Key format: solutions/{domain}/{skill}/...
+        if let Some(rest) = key.strip_prefix("solutions/") {
+            // rest = "{domain}/{skill}/..."
+            let parts: Vec<&str> = rest.splitn(3, '/').collect();
+            if parts.len() >= 2 && rest[parts[0].len() + 1..].starts_with(&skill_pattern) {
+                domains.insert(parts[0].to_string());
             }
         }
     }
