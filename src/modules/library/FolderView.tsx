@@ -400,6 +400,7 @@ export function FolderView({
             {/* Folder actions menu (favorites, copy path, etc.) */}
             <FileActions
               path={path}
+              basePath={basePath}
               isDirectory={true}
               isFavorite={favorite}
               onToggleFavorite={handleToggleFavorite}

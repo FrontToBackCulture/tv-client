@@ -65,7 +65,21 @@ async fn sync_config(
     let filter = config.filter.as_ref();
     let since = config.last_synced_at.as_deref();
 
-    let pages = api::query_database(&config.notion_database_id, filter, since).await?;
+    let query_result = api::query_database(&config.notion_database_id, filter, since).await?;
+    let pages = query_result.pages;
+
+    // If the filter was rejected, warn the user but continue with unfiltered results
+    if let Some(ref warning) = query_result.filter_warning {
+        eprintln!("[notion:sync] Filter warning for '{}': {}", config.name, warning);
+        let _ = app_handle.emit(
+            "notion:sync-filter-warning",
+            json!({
+                "config": config.name,
+                "config_id": config.id,
+                "warning": warning,
+            }),
+        );
+    }
 
     let total = pages.len() as i64;
     eprintln!("[notion:sync] Found {} cards to process", total);

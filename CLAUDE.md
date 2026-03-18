@@ -177,9 +177,10 @@ After any changes to `src-tauri/src/mcp/` or `src-tauri/src/commands/`, rebuild 
 cd src-tauri
 cargo build --bin tv-mcp           # DEBUG only — release build hangs (Tauri AppKit/WebKit linking)
 ln -sf "$(pwd)/target/debug/tv-mcp" ~/.tv-desktop/bin/tv-mcp   # symlink, not cp (avoids macOS quarantine)
+pkill -9 tv-mcp                    # kill running processes so Claude Code reconnects to the new binary
 ```
 
-The binary at `~/.tv-desktop/bin/tv-mcp` is what Claude Code connects to (configured in `~/.claude/mcp.json`). The Tauri app and this binary share the same `src-tauri/src/mcp/` module but are separate compiled binaries.
+The binary at `~/.tv-desktop/bin/tv-mcp` is what Claude Code connects to (configured in `~/.claude/mcp.json`). The Tauri app and this binary share the same `src-tauri/src/mcp/` module but are separate compiled binaries. **Running tv-mcp processes must be killed after rebuilding** — Claude Code auto-restarts the MCP server on the next tool call, but won't pick up the new binary while the old process is alive.
 
 ### Supabase credentials — not in `.env`
 

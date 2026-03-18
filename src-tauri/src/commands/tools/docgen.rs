@@ -222,6 +222,33 @@ pub fn parse_order_form_markdown(markdown: &str) -> CmdResult<OrderFormData> {
         .cloned()
         .unwrap_or_default();
 
+    // Validation: check for common data mismatches
+    let sub_fee: u64 = data.subscription_fee.replace(',', "").parse().unwrap_or(0);
+    let sub_total: u64 = data.subscription_payments.iter()
+        .filter_map(|p| p.amount.replace(',', "").parse::<u64>().ok())
+        .sum();
+    let term_years: u64 = data.service_term.chars()
+        .filter(|c| c.is_ascii_digit())
+        .collect::<String>()
+        .parse().unwrap_or(1);
+
+    if sub_total > 0 && sub_fee > 0 {
+        // Check: fee * years should equal payment total
+        if sub_fee * term_years != sub_total {
+            eprintln!("[docgen] WARNING: subscriptionFee ({}) x {} years = {}, but payment rows sum to {}. Verify the data.",
+                data.subscription_fee, term_years, sub_fee * term_years, sub_total);
+        }
+    }
+
+    let impl_total: u64 = data.implementation_payments.iter()
+        .filter_map(|p| p.amount.replace(',', "").parse::<u64>().ok())
+        .sum();
+    let impl_fee_val: u64 = data.implementation_fee.replace(',', "").parse().unwrap_or(0);
+    if impl_total > 0 && impl_fee_val > 0 && impl_total != impl_fee_val {
+        eprintln!("[docgen] WARNING: implementationFee ({}) != implementation payment rows sum ({}). Verify the data.",
+            data.implementation_fee, impl_total);
+    }
+
     Ok(data)
 }
 
@@ -520,7 +547,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         format!("      <p>Number of Outlets: {}</p>", data.number_of_outlets)
     };
 
-    // Generate subscription payments rows
+    // Generate subscription payments rows and compute total from row amounts
     let sub_payments_html: String = data.subscription_payments
         .iter()
         .map(|p| format!(r#"        <tr>
@@ -530,6 +557,18 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         </tr>"#, p.period, p.date, p.amount))
         .collect::<Vec<_>>()
         .join("\n");
+
+    let subscription_total: u64 = data.subscription_payments
+        .iter()
+        .filter_map(|p| p.amount.replace(",", "").parse::<u64>().ok())
+        .sum();
+    let subscription_total_str = format!("{}", subscription_total.to_string()
+        .as_bytes()
+        .rchunks(3)
+        .rev()
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>()
+        .join(","));
 
     // Generate implementation payments rows
     let impl_payments_html: String = data.implementation_payments
@@ -943,7 +982,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
 {subscription_payments}
         <tr class="total-row">
           <td colspan="2"><strong>Total</strong></td>
-          <td><strong>SGD${subscription_fee}</strong></td>
+          <td><strong>SGD${subscription_total}</strong></td>
         </tr>
       </tbody>
     </table>
@@ -1011,6 +1050,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         complementary = complementary_html,
         implementation_plan = implementation_plan_html,
         subscription_payments = sub_payments_html,
+        subscription_total = subscription_total_str,
         implementation_payments = impl_payments_html,
         implementation_fee = data.implementation_fee,
         customer_officer_name = data.customer_officer_name,
@@ -1509,6 +1549,37 @@ pub async fn generate_order_form_pdf_cmd(file_path: String) -> CmdResult<String>
 #[tauri::command]
 pub async fn generate_proposal_pdf_cmd(file_path: String) -> CmdResult<String> {
     generate_proposal_from_file(&file_path, None)
+}
+
+/// Tauri command to convert any HTML file to PDF using Chrome headless
+#[tauri::command]
+pub async fn html_to_pdf_cmd(file_path: String) -> CmdResult<String> {
+    let path = std::path::Path::new(&file_path);
+    if !path.exists() {
+        return Err(CommandError::Internal(format!("File not found: {}", file_path)));
+    }
+
+    // Output PDF next to the HTML file with same name
+    let output_path = path.with_extension("pdf");
+
+    let chrome_path = find_chrome_path()?;
+
+    let status = Command::new(&chrome_path)
+        .args([
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--no-pdf-header-footer",
+            &format!("--print-to-pdf={}", output_path.to_string_lossy()),
+            &file_path,
+        ])
+        .status()?;
+
+    if !status.success() {
+        return Err(CommandError::Internal("Chrome PDF generation failed".to_string()));
+    }
+
+    Ok(output_path.to_string_lossy().to_string())
 }
 
 // ============================================================================

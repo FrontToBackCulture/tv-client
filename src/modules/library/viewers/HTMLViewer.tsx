@@ -7,16 +7,17 @@ import { cn } from "../../../lib/cn";
 interface HTMLViewerProps {
   content: string;
   filename: string;
+  refreshKey?: number;
 }
 
-export function HTMLViewer({ content, filename }: HTMLViewerProps) {
+export function HTMLViewer({ content, filename, refreshKey }: HTMLViewerProps) {
   const [mode, setMode] = useState<"preview" | "code">("preview");
 
-  // Create a blob URL for the iframe preview
+  // Create a blob URL for the iframe preview — refreshKey forces re-creation
   const previewUrl = useMemo(() => {
     const blob = new Blob([content], { type: "text/html" });
     return URL.createObjectURL(blob);
-  }, [content]);
+  }, [content, refreshKey]);
 
   return (
     <div className="h-full flex flex-col">

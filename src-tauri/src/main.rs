@@ -293,6 +293,7 @@ fn main() {
             // Document generation (PDF)
             commands::tools::docgen::generate_order_form_pdf_cmd,
             commands::tools::docgen::generate_proposal_pdf_cmd,
+            commands::tools::docgen::html_to_pdf_cmd,
             // Intercom API (help center publishing)
             commands::tools::intercom::intercom_list_collections,
             commands::tools::intercom::intercom_publish_article,

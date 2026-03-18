@@ -1,6 +1,6 @@
 // src/modules/library/Sidebar.tsx
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Search,
   RefreshCw,
@@ -68,6 +68,18 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
   const { favorites, removeFavorite } = useFavorites();
   const { expandAll, collapseToLevel } = useFolderExpansion();
   const [showCollapseMenu, setShowCollapseMenu] = useState(false);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle "go to path" — when search query looks like a relative path and user presses Enter
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && searchQuery.includes("/")) {
+      const resolved = `${knowledgePath}/${searchQuery.replace(/^\//, "")}`;
+      onFileSelect(resolved);
+      setSearchQuery("");
+      searchInputRef.current?.blur();
+    }
+  }, [searchQuery, knowledgePath, onFileSelect]);
 
   const showSearch = searchQuery.length >= 2;
 
@@ -157,11 +169,13 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
         <div className="relative">
           <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input
+            ref={searchInputRef}
             type="text"
             data-help-id="library-search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search files..."
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Search or paste path..."
             className="w-full pl-7 pr-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-sm text-zinc-800 dark:text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:border-teal-500 dark:focus:border-zinc-600"
           />
           {searchQuery && (

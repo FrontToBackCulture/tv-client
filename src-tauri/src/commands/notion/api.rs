@@ -203,9 +203,56 @@ fn parse_database_properties(props: &Value) -> Vec<NotionPropertySchema> {
     result
 }
 
+/// Result from query_database including any filter warnings
+pub struct QueryResult {
+    pub pages: Vec<NotionPage>,
+    /// If the user filter was invalid and we retried without it
+    pub filter_warning: Option<String>,
+}
+
 /// Query a database with optional filter and pagination
 /// Returns all pages (handles pagination internally)
+/// If the filter is rejected by Notion (400), retries without the user filter and returns a warning
 pub async fn query_database(
+    database_id: &str,
+    filter: Option<&Value>,
+    since: Option<&str>,
+) -> CmdResult<QueryResult> {
+    // Clone filter so we can own it for the retry path
+    let filter_owned = filter.cloned();
+    let since_owned = since.map(|s| s.to_string());
+
+    match query_database_with_filter(database_id, filter_owned.as_ref(), since_owned.as_deref()).await {
+        Ok(pages) => Ok(QueryResult { pages, filter_warning: None }),
+        Err(CommandError::Http { status: 400, body }) if filter.is_some() => {
+            // Filter was rejected — extract error message and retry without it
+            let warning = parse_notion_error(&body);
+            eprintln!(
+                "[notion:query] Filter rejected (400), retrying without filter. Error: {}",
+                warning
+            );
+            let pages = query_database_with_filter(database_id, None, since_owned.as_deref()).await?;
+            Ok(QueryResult {
+                pages,
+                filter_warning: Some(warning),
+            })
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Parse Notion API error body for a human-readable message
+fn parse_notion_error(body: &str) -> String {
+    if let Ok(parsed) = serde_json::from_str::<Value>(body) {
+        if let Some(msg) = parsed["message"].as_str() {
+            return msg.to_string();
+        }
+    }
+    body.to_string()
+}
+
+/// Query implementation with optional filter
+async fn query_database_with_filter(
     database_id: &str,
     filter: Option<&Value>,
     since: Option<&str>,

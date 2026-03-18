@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { FileText, FileCode, AlertCircle, RefreshCw } from "lucide-react";
-import { IconButton } from "../../components/ui";
 import { useReadFile } from "../../hooks/useFiles";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRecentFiles } from "../../hooks/useRecentFiles";
@@ -111,6 +110,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const [intercomModalOpen, setIntercomModalOpen] = useState(false);
   const [portalModalOpen, setPortalModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
   // Auto-save state for markdown files
@@ -127,6 +127,8 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     queryClient.invalidateQueries({ queryKey: ["file", path] });
     queryClient.invalidateQueries({ queryKey: ["fileInfo", path] });
     setRefreshKey((k) => k + 1);
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 600);
   }, [queryClient, path]);
 
   // Domain URL for "Open in VAL" action
@@ -520,7 +522,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     showToast("Video generation coming soon", "success");
   };
 
-  // Handle PDF export for order forms and proposals
+  // Handle PDF export for order forms, proposals, and HTML files
   const handleExportPdf = async () => {
     if (isGenerating) return;
 
@@ -538,14 +540,19 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
         message: "Generating PDF...",
       });
 
-      // Determine if this is an order form or proposal
-      const isOrderForm = filename.toLowerCase() === "order-form-data.md";
+      // Determine file type and call appropriate command
+      const lowerFilename = filename.toLowerCase();
+      const isOrderForm = lowerFilename === "order-form-data.md";
+      const isHtml = lowerFilename.endsWith(".html") || lowerFilename.endsWith(".htm");
+
+      const command = isHtml
+        ? "html_to_pdf_cmd"
+        : isOrderForm
+        ? "generate_order_form_pdf_cmd"
+        : "generate_proposal_pdf_cmd";
 
       // Call the appropriate Rust command
-      const outputPath = await invoke<string>(
-        isOrderForm ? "generate_order_form_pdf_cmd" : "generate_proposal_pdf_cmd",
-        { filePath: path }
-      );
+      const outputPath = await invoke<string>(command, { filePath: path });
 
       const outputFilename = outputPath.split("/").pop();
       updateJob(jobId, {
@@ -622,13 +629,16 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
               Edit
             </button>
           )}
-          <IconButton
-            icon={RefreshCw}
-            label="Refresh file content"
+          <button
             onClick={handleRefresh}
-          />
+            title="Refresh file content"
+            className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
+          </button>
           <FileActions
             path={path}
+            basePath={basePath}
             isDirectory={false}
             isFavorite={favorite}
             onToggleFavorite={handleToggleFavorite}
@@ -866,7 +876,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
         <div className="flex-1 overflow-hidden">
-          <HTMLViewer content={content} filename={filename} />
+          <HTMLViewer content={content} filename={filename} refreshKey={refreshKey} />
         </div>
         {renderToast()}
         <PortalPublishModal

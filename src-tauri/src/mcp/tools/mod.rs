@@ -4,6 +4,7 @@
 pub mod work;
 pub mod workspace;
 pub mod crm;
+pub mod email;
 pub mod generate;
 pub mod intercom;
 pub mod docgen;
@@ -25,6 +26,9 @@ pub fn list_tools() -> Vec<Tool> {
 
     // CRM module tools
     tools.extend(crm::tools());
+
+    // Email campaign tools
+    tools.extend(email::tools());
 
     // Generation tools (Gamma, Nanobanana)
     tools.extend(generate::tools());
@@ -70,6 +74,12 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
        name.starts_with("update-crm-") || name.starts_with("delete-crm-") ||
        name.starts_with("log-crm-") || name == "link-task-to-deal" {
         return crm::call(name, arguments).await;
+    }
+
+    // Email campaign tools
+    if name.starts_with("list-email-") || name.starts_with("create-email-") ||
+       name.starts_with("update-email-") || name.starts_with("delete-email-") {
+        return email::call(name, arguments).await;
     }
 
     // Generation tools

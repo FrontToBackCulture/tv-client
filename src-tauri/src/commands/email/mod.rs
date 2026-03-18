@@ -3,5 +3,6 @@
 // remain on tv-api since they need public URLs.
 
 mod send;
+pub mod campaigns;
 
 pub use send::*;

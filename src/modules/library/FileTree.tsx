@@ -97,6 +97,7 @@ function ContextMenu({
   isFavorite,
   onClose,
   onToggleFavorite,
+  onOpenInNewTab,
 }: {
   x: number;
   y: number;
@@ -105,6 +106,7 @@ function ContextMenu({
   isFavorite: boolean;
   onClose: () => void;
   onToggleFavorite: () => void;
+  onOpenInNewTab?: () => void;
 }) {
   const [showWorkspaces, setShowWorkspaces] = useState(false);
   const { data: workspaces } = useWorkspaces({ status: "open" });
@@ -174,6 +176,21 @@ function ContextMenu({
         className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px]"
         style={{ left: x, top: y }}
       >
+        {onOpenInNewTab && (
+          <>
+            <button
+              onClick={() => {
+                onOpenInNewTab();
+                onClose();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <ExternalLink size={14} />
+              Open in New Tab
+            </button>
+            <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+          </>
+        )}
         <button
           onClick={() => {
             onToggleFavorite();
@@ -360,6 +377,7 @@ export function FileTree({ node, selectedPath, onSelect, onPinSelect, level }: F
           isFavorite={favorite}
           onClose={() => setContextMenu(null)}
           onToggleFavorite={handleToggleFavorite}
+          onOpenInNewTab={onPinSelect ? () => onPinSelect(node.path) : undefined}
         />
       )}
 

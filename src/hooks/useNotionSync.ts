@@ -12,6 +12,7 @@ export function useNotionSync() {
   const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filterWarning, setFilterWarning] = useState<{ config: string; warning: string } | null>(null);
 
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
@@ -37,10 +38,14 @@ export function useNotionSync() {
       setError(event.payload.error);
     }).then((unlisten) => unlisteners.push(unlisten));
 
+    listen<{ config: string; config_id: string; warning: string }>("notion:sync-filter-warning", (event) => {
+      setFilterWarning({ config: event.payload.config, warning: event.payload.warning });
+    }).then((unlisten) => unlisteners.push(unlisten));
+
     return () => {
       unlisteners.forEach((fn) => fn());
     };
   }, [queryClient]);
 
-  return { isSyncing, progress, lastSync, error };
+  return { isSyncing, progress, lastSync, error, filterWarning, clearFilterWarning: () => setFilterWarning(null) };
 }

@@ -6,7 +6,7 @@ import { useNotionSync } from "../../hooks/useNotionSync";
 import { useNotionSyncStart, useNotionSyncStatus } from "../../hooks/useNotion";
 
 export function NotionSyncStatus() {
-  const { isSyncing, progress, error } = useNotionSync();
+  const { isSyncing, progress, error, filterWarning, clearFilterWarning } = useNotionSync();
   const { data: status } = useNotionSyncStatus();
   const syncStart = useNotionSyncStart();
 
@@ -34,6 +34,8 @@ export function NotionSyncStatus() {
     <div className="flex items-center gap-1.5 text-xs text-zinc-500">
       {error ? (
         <AlertTriangle size={14} className="text-amber-500" />
+      ) : filterWarning ? (
+        <AlertTriangle size={14} className="text-amber-500" />
       ) : isSyncing ? (
         <RefreshCw size={14} className="animate-spin text-brand-primary" />
       ) : (
@@ -46,6 +48,14 @@ export function NotionSyncStatus() {
         <span className="text-amber-500 truncate max-w-[200px]" title={error}>
           Sync error
         </span>
+      ) : filterWarning ? (
+        <button
+          onClick={clearFilterWarning}
+          className="text-amber-500 truncate max-w-[250px] hover:underline text-left"
+          title={`Filter issue in "${filterWarning.config}": ${filterWarning.warning}. Synced without filter. Click to dismiss.`}
+        >
+          Filter issue: {filterWarning.config}
+        </button>
       ) : (
         <span title={`${status.enabled_count} sync(s) active`}>
           Notion: {formatTime(status.last_sync)}

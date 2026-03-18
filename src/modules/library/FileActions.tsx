@@ -34,6 +34,7 @@ export interface ActionMenuItem {
 
 interface FileActionsProps {
   path: string;
+  basePath?: string;
   isDirectory?: boolean;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
@@ -76,6 +77,7 @@ function getFileType(path: string): "nanobanana" | "gamma" | "veo" | "order-form
 
 export function FileActions({
   path,
+  basePath,
   isDirectory = false,
   isFavorite = false,
   onToggleFavorite,
@@ -164,8 +166,12 @@ export function FileActions({
     }
   };
 
-  // Get relative path (last 3 segments)
+  // Get relative path from knowledge base root
   const getRelativePath = () => {
+    if (basePath && path.startsWith(basePath)) {
+      return path.slice(basePath.length).replace(/^\//, "");
+    }
+    // Fallback: last 3 segments
     const parts = path.split("/");
     return parts.slice(-3).join("/");
   };
@@ -230,7 +236,7 @@ export function FileActions({
   }
 
   // Export to PDF for markdown files, order forms, and proposals
-  if ((fileType === "markdown" || fileType === "order-form" || fileType === "proposal") && onExportPdf) {
+  if ((fileType === "markdown" || fileType === "order-form" || fileType === "proposal" || fileType === "html") && onExportPdf) {
     items.push({
       label: isExportingPdf ? "Exporting..." : "Export to PDF",
       icon: <FileOutput className="w-4 h-4" />,
