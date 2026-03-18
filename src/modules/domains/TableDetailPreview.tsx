@@ -1,7 +1,7 @@
 // src/modules/library/TableDetailPreview.tsx
 // Right panel preview component for table details in review mode
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   X,
@@ -15,7 +15,10 @@ import {
   Hash,
   Calendar,
   FileOutput,
+  MessageSquare,
 } from "lucide-react";
+import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
+import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { MarkdownViewer } from "../library/MarkdownViewer";
 import { cn } from "../../lib/cn";
 import { Button, IconButton } from "../../components/ui";
@@ -60,6 +63,17 @@ export function TableDetailPreview({
   const [details, setDetails] = useState<TableDetails | null>(null);
   const [sample, setSample] = useState<TableSample | null>(null);
   const [analysis, setAnalysis] = useState<TableAnalysis | null>(null);
+
+  // Discussion entity ID: domain/table/tableName
+  const discussionEntityId = useMemo(() => {
+    const parts = tablePath.split("/");
+    const domainIdx = parts.indexOf("production");
+    if (domainIdx >= 0 && parts.length > domainIdx + 1) {
+      return `${parts[domainIdx + 1]}/table/${tableName}`;
+    }
+    return `table/${tableName}`;
+  }, [tablePath, tableName]);
+  const { data: discussionCount } = useDiscussionCount("domain_artifact", discussionEntityId);
 
   // Pipeline mutations
   const prepareOverviewMutation = usePrepareTableOverview();
@@ -535,6 +549,17 @@ export function TableDetailPreview({
             <Table size={12} />
             Sample
           </TabButton>
+          <TabButton
+            active={activeTab === "discussion"}
+            onClick={() => setActiveTab("discussion")}
+          >
+            <MessageSquare size={12} />
+            {(discussionCount ?? 0) > 0 && (
+              <span className="text-[9px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
+                {discussionCount}
+              </span>
+            )}
+          </TabButton>
         </div>
       </div>
 
@@ -579,6 +604,11 @@ export function TableDetailPreview({
             isGenerating={sampleDataMutation.isPending}
             onFetchCategorical={() => handlePipelineStep("categorical")}
             isFetchingCategorical={fetchCategoricalMutation.isPending}
+          />
+        ) : activeTab === "discussion" ? (
+          <DiscussionPanel
+            entityType="domain_artifact"
+            entityId={discussionEntityId}
           />
         ) : null}
       </div>

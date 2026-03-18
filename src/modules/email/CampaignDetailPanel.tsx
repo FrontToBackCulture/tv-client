@@ -2,8 +2,10 @@
 // Right panel showing campaign details, token-replaced preview, and test send
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { X, Send, Loader2, Copy, Pencil, FlaskConical, User, Maximize2, FileText, Tag, Upload, Check, ChevronRight, ChevronDown, Folder, FolderOpen } from "lucide-react";
+import { X, Send, Loader2, Copy, Pencil, FlaskConical, User, Maximize2, FileText, Tag, Upload, Check, ChevronRight, ChevronDown, Folder, FolderOpen, MessageSquare } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
+import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { invoke } from "@tauri-apps/api/core";
 import {
   useEmailCampaign,
@@ -62,6 +64,8 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
   const queryClient = useQueryClient();
   const [fileHtml, setFileHtml] = useState<string | null>(null);
   const [apiBaseUrl, setApiBaseUrl] = useState<string>("");
+  const [showDiscussions, setShowDiscussions] = useState(false);
+  const { data: discussionCount } = useDiscussionCount("campaign", campaignId);
 
   // Load email API base URL from settings
   useEffect(() => {
@@ -143,14 +147,43 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
             {campaign.name}
           </h2>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded"
-        >
-          <X size={14} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowDiscussions(!showDiscussions)}
+            className={`relative p-1 rounded transition-colors ${
+              showDiscussions
+                ? "text-teal-600 dark:text-teal-400"
+                : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            }`}
+            title="Discussion"
+          >
+            <MessageSquare size={14} />
+            {(discussionCount ?? 0) > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-[12px] flex items-center justify-center text-[8px] font-bold bg-teal-600 text-white rounded-full px-0.5">
+                {discussionCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded"
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
+      {/* Discussion panel (replaces content when open) */}
+      {showDiscussions ? (
+        <div className="flex-1">
+          <DiscussionPanel
+            entityType="campaign"
+            entityId={campaignId}
+            onClose={() => setShowDiscussions(false)}
+          />
+        </div>
+      ) : (
+      <>
       {/* Details */}
       <div className="px-4 py-4 space-y-4">
         <div className="space-y-2">
@@ -481,6 +514,9 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
           </div>
         )}
       </div>
+
+      </>
+      )}
 
       {/* Full preview modal */}
       {showFullPreview && rawHtml && (

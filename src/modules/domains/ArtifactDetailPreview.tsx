@@ -14,7 +14,10 @@ import {
   Workflow,
   LayoutDashboard,
   FileCode,
+  MessageSquare,
 } from "lucide-react";
+import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
+import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { cn } from "../../lib/cn";
 import { useClassificationStore } from "../../stores/classificationStore";
 import { formatDateFull as formatDate } from "../../lib/date";
@@ -248,6 +251,20 @@ export function ArtifactDetailPreview({
   onNavigate,
 }: ArtifactDetailPreviewProps) {
   const classificationValues = useClassificationStore((s) => s.values);
+  const [showDiscussions, setShowDiscussions] = useState(false);
+
+  // Entity ID: domain/resourceType/name (extracted from folder path)
+  const entityId = useMemo(() => {
+    const parts = row.folderPath.split("/");
+    // folderPath is like .../domains/production/domainName/queries/queryName
+    const domainIdx = parts.indexOf("production");
+    if (domainIdx >= 0 && parts.length > domainIdx + 3) {
+      return `${parts[domainIdx + 1]}/${artifactType}/${row.name}`;
+    }
+    return `${artifactType}/${row.name}`;
+  }, [row.folderPath, row.name, artifactType]);
+
+  const { data: discussionCount } = useDiscussionCount("domain_artifact", entityId);
 
   const handleChange = (field: string) => (value: string) => {
     onFieldChange?.(field, value || null);
@@ -267,6 +284,22 @@ export function ArtifactDetailPreview({
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={() => setShowDiscussions(!showDiscussions)}
+            className={`relative p-1.5 rounded transition-colors ${
+              showDiscussions
+                ? "text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            }`}
+            title="Discussion"
+          >
+            <MessageSquare size={14} />
+            {(discussionCount ?? 0) > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-[12px] flex items-center justify-center text-[8px] font-bold bg-teal-600 text-white rounded-full px-0.5">
+                {discussionCount}
+              </span>
+            )}
+          </button>
           {onNavigate && (
             <button
               onClick={() => onNavigate(row.folderPath)}
@@ -286,7 +319,14 @@ export function ArtifactDetailPreview({
         </div>
       </div>
 
-      {/* Scrollable content */}
+      {/* Discussion panel (replaces content when open) */}
+      {showDiscussions ? (
+        <DiscussionPanel
+          entityType="domain_artifact"
+          entityId={entityId}
+          onClose={() => setShowDiscussions(false)}
+        />
+      ) : (
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {/* Read-only info */}
         <section>
@@ -521,6 +561,7 @@ export function ArtifactDetailPreview({
           </div>
         </section>
       </div>
+      )}
     </div>
   );
 }

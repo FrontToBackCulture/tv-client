@@ -26,3 +26,5 @@ pub mod email;
 pub mod gallery;
 pub mod notion;
 pub mod feed;
+pub mod discussions;
+pub mod notifications;

@@ -180,7 +180,7 @@ export interface TableAnalysis {
   columnDescriptions?: Record<string, string>;
 }
 
-export type TabType = "overview" | "details" | "sample";
+export type TabType = "overview" | "details" | "sample" | "discussion";
 
 export function extractDomainFromPath(path: string): string | null {
   const match = path.match(/\/domains\/(production|staging|demo|templates)\/([^/]+)/);

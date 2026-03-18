@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { useNotificationNavStore } from "../../stores/notificationNavStore";
 import { useDiscoverDomains } from "../../hooks/val-sync";
 import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { UnifiedReviewView } from "./UnifiedReviewView";
@@ -32,6 +33,16 @@ export function DomainsModule() {
   // Two-level navigation state
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [activeTab, setActiveTab] = usePersistedModuleView<Level1Tab>("domains", "overview");
+
+  // Handle notification navigation
+  const navTarget = useNotificationNavStore((s) => s.target);
+  const clearNavTarget = useNotificationNavStore((s) => s.clearTarget);
+  useEffect(() => {
+    if (navTarget && (navTarget.entityType === "domain" || navTarget.entityType === "domain_artifact")) {
+      setSelectedDomain(navTarget.entityId);
+      clearNavTarget();
+    }
+  }, [navTarget, clearNavTarget]);
 
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);

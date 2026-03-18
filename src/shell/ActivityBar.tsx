@@ -29,6 +29,7 @@ import { useSidePanelStore } from "../stores/sidePanelStore";
 import { useActivityBarStore } from "../stores/activityBarStore";
 import { openModuleInNewWindow } from "../lib/windowManager";
 import { UserProfile } from "../components/UserProfile";
+import { NotificationBell } from "../components/notifications/NotificationBell";
 import { useModuleVisibilityStore } from "../stores/moduleVisibilityStore";
 import { useTeamConfigStore } from "../stores/teamConfigStore";
 
@@ -319,6 +320,9 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
           </button>
         )
       )}
+
+      {/* Notification bell */}
+      <NotificationBell collapsed={!isExpanded} />
 
       {/* Settings button */}
       {isExpanded ? (

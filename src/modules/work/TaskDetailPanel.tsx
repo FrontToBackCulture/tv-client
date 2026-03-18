@@ -27,7 +27,10 @@ import {
   Tag,
   Trash2,
   Clock,
+  MessageSquare,
 } from "lucide-react";
+import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
+import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { Button, IconButton } from "../../components/ui";
 import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
@@ -66,6 +69,8 @@ export function TaskDetailPanel({
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionValue, setDescriptionValue] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState<"details" | "discussion">("details");
+  const { data: discussionCount } = useDiscussionCount("task", taskId);
 
   if (isLoading) return <DetailLoading />;
 
@@ -136,7 +141,39 @@ export function TaskDetailPanel({
         <IconButton icon={X} size={18} label="Close" onClick={onClose} />
       </div>
 
+      {/* Tabs */}
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+        <button
+          onClick={() => setActiveTab("details")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "details"
+              ? "border-teal-500 text-teal-600 dark:text-teal-400"
+              : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          }`}
+        >
+          Details
+        </button>
+        <button
+          onClick={() => setActiveTab("discussion")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
+            activeTab === "discussion"
+              ? "border-teal-500 text-teal-600 dark:text-teal-400"
+              : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          }`}
+        >
+          <MessageSquare size={13} />
+          {(discussionCount ?? 0) > 0 && (
+            <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
+              {discussionCount}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Content */}
+      {activeTab === "discussion" ? (
+        <DiscussionPanel entityType="task" entityId={taskId} />
+      ) : (
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-6">
           {/* Title */}
@@ -361,6 +398,7 @@ export function TaskDetailPanel({
           </div>
         </div>
       </div>
+      )}
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex justify-between">

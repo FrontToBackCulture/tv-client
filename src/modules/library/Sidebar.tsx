@@ -1,6 +1,6 @@
 // src/modules/library/Sidebar.tsx
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Search,
   RefreshCw,
@@ -38,8 +38,19 @@ interface SidebarProps {
 
 export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect, onRepositoryChange, width = 256 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [showFavorites, setShowFavorites] = useState(true);
   const [showRecent, setShowRecent] = useState(false);
+
+  // Debounce search query (400ms) to avoid hammering file system
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setDebouncedQuery("");
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const queryClient = useQueryClient();
 
@@ -56,11 +67,11 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
     queryClient.invalidateQueries({ queryKey: ["directory"] });
   }, [queryClient]);
 
-  // Search when query is present
+  // Search when debounced query is present
   const { results: searchResults, isLoading: searchLoading } = useSearch(
     knowledgePath,
-    searchQuery,
-    { enabled: searchQuery.length >= 2 }
+    debouncedQuery,
+    { enabled: debouncedQuery.length >= 2 }
   );
 
   // Recent files and favorites
@@ -82,6 +93,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
   }, [searchQuery, knowledgePath, onFileSelect]);
 
   const showSearch = searchQuery.length >= 2;
+  const isDebouncing = searchQuery.length >= 2 && debouncedQuery !== searchQuery;
 
   return (
     <div
@@ -194,7 +206,7 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
         {showSearch ? (
           <SearchResults
             results={searchResults}
-            isLoading={searchLoading}
+            isLoading={searchLoading || isDebouncing}
             onSelect={(result) => onFileSelect(result.path)}
             selectedPath={selectedPath}
           />

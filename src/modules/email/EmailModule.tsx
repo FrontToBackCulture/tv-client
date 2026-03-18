@@ -19,6 +19,7 @@ import { ImportModal } from "./ImportModal";
 import { Users, FolderOpen, Send, BarChart3, LayoutTemplate } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { useNotificationNavStore } from "../../stores/notificationNavStore";
 
 type EmailView = "contacts" | "groups" | "campaigns" | "templates" | "analytics";
 
@@ -35,6 +36,17 @@ export function EmailModule() {
 
   // Enable real-time updates
   useEmailRealtime();
+
+  // Handle notification navigation
+  const navTarget = useNotificationNavStore((s) => s.target);
+  const clearNavTarget = useNotificationNavStore((s) => s.clearTarget);
+  useEffect(() => {
+    if (navTarget?.entityType === "campaign") {
+      setActiveView("campaigns");
+      setSelectedCampaignId(navTarget.entityId);
+      clearNavTarget();
+    }
+  }, [navTarget, clearNavTarget]);
 
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);

@@ -230,6 +230,42 @@ export function useRealtimeSync() {
 
     channels.push(feedChannel);
 
+    // Subscribe to Discussions table
+    const discussionsChannel = supabase
+      .channel("discussions-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "discussions",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["discussions"] });
+        }
+      )
+      .subscribe();
+
+    channels.push(discussionsChannel);
+
+    // Subscribe to Notifications table
+    const notificationsChannel = supabase
+      .channel("notifications-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        }
+      )
+      .subscribe();
+
+    channels.push(notificationsChannel);
+
     // Cleanup on unmount
     return () => {
       channels.forEach((channel) => {

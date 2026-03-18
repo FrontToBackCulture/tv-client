@@ -14,6 +14,7 @@ import { ClosedDealsView } from "./ClosedDealsView";
 import { Building2, BookUser, Users, Archive } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { useNotificationNavStore } from "../../stores/notificationNavStore";
 
 type CrmView = "pipeline" | "directory" | "clients" | "closed";
 
@@ -43,6 +44,16 @@ export function CrmModule() {
 
   // Enable real-time updates from Supabase
   useCRMRealtime();
+
+  // Handle notification navigation — open company when navigated from notification bell
+  const navTarget = useNotificationNavStore((s) => s.target);
+  const clearNavTarget = useNotificationNavStore((s) => s.clearTarget);
+  useEffect(() => {
+    if (navTarget && (navTarget.entityType === "crm_company" || navTarget.entityType === "crm_deal")) {
+      setSelectedCompanyId(navTarget.entityId);
+      clearNavTarget();
+    }
+  }, [navTarget, clearNavTarget]);
 
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);

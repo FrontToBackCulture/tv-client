@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
-import { FileText, FileCode, AlertCircle, RefreshCw } from "lucide-react";
+import { FileText, FileCode, AlertCircle, RefreshCw, MessageSquare } from "lucide-react";
 import { useReadFile } from "../../hooks/useFiles";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRecentFiles } from "../../hooks/useRecentFiles";
@@ -20,6 +20,9 @@ import { IntercomModal } from "./IntercomModal";
 import { PortalPublishModal } from "./PortalPublishModal";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
 import { supabase } from "../../lib/supabase";
+import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
+import { useDiscussionCount } from "../../hooks/useDiscussions";
+import { useNotificationNavStore } from "../../stores/notificationNavStore";
 
 interface FileViewerProps {
   path: string;
@@ -112,6 +115,16 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [showDiscussions, setShowDiscussions] = useState(false);
+
+  // Discussion panel — entity_id is relative path from knowledge base root
+  const relativePath = useMemo(() => {
+    if (basePath && path.startsWith(basePath)) {
+      return path.slice(basePath.length + 1);
+    }
+    return path;
+  }, [path, basePath]);
+  const { data: discussionCount } = useDiscussionCount("file", relativePath);
 
   // Auto-save state for markdown files
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
@@ -284,8 +297,21 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     };
   }, []);
 
-  // Reset edit mode when file changes
-  useEffect(() => { setEditMode(false); }, [path]);
+  // Auto-open discussion panel when navigated from a notification
+  const navTarget = useNotificationNavStore((s) => s.target);
+  const clearNavTarget = useNotificationNavStore((s) => s.clearTarget);
+
+  // Reset edit mode and close discussions when file changes
+  // But if there's a nav target for this file, open discussions instead
+  useEffect(() => {
+    setEditMode(false);
+    if (navTarget?.entityType === "file" && navTarget.openDiscussion && navTarget.entityId === relativePath) {
+      setShowDiscussions(true);
+      clearNavTarget();
+    } else {
+      setShowDiscussions(false);
+    }
+  }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Add to recent files when opened
   useEffect(() => {
@@ -630,6 +656,22 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
             </button>
           )}
           <button
+            onClick={() => setShowDiscussions(!showDiscussions)}
+            title="Discussion"
+            className={`relative p-1.5 rounded-md transition-colors ${
+              showDiscussions
+                ? "text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <MessageSquare size={15} />
+            {(discussionCount ?? 0) > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold bg-teal-600 text-white rounded-full px-0.5">
+                {discussionCount}
+              </span>
+            )}
+          </button>
+          <button
             onClick={handleRefresh}
             title="Refresh file content"
             className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -785,19 +827,35 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   }
 
   // Render based on file type
+  // Wrapper for content + discussion sidebar
+  const renderWithDiscussions = (children: React.ReactNode) => (
+    <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 overflow-hidden">{children}</div>
+      {showDiscussions && (
+        <div className="w-[320px] flex-shrink-0">
+          <DiscussionPanel
+            entityType="file"
+            entityId={relativePath}
+            onClose={() => setShowDiscussions(false)}
+          />
+        </div>
+      )}
+    </div>
+  );
+
   if (fileType === "markdown") {
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader(true)}
 
-        {/* TipTap Editor - always editable */}
-        <div className="flex-1 overflow-hidden">
+        {/* TipTap Editor + optional discussion sidebar */}
+        {renderWithDiscussions(
           <MarkdownEditor
             key={path}
             content={content}
             onChange={handleContentChange}
           />
-        </div>
+        )}
         {renderToast()}
         <IntercomModal
           isOpen={intercomModalOpen}
@@ -827,7 +885,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader(true)}
-        <div className="flex-1 overflow-hidden">
+        {renderWithDiscussions(
           <JSONEditor
             key={path}
             content={content}
@@ -835,7 +893,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
             onChange={handleContentChange}
             saveStatus={saveStatus}
           />
-        </div>
+        )}
         {renderToast()}
       </div>
     );
@@ -845,7 +903,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader(true)}
-        <div className="flex-1 overflow-hidden">
+        {renderWithDiscussions(
           <SQLEditor
             key={path}
             content={content}
@@ -853,7 +911,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
             onChange={handleContentChange}
             saveStatus={saveStatus}
           />
-        </div>
+        )}
         {renderToast()}
       </div>
     );
@@ -863,9 +921,9 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
-        <div className="flex-1 overflow-hidden">
+        {renderWithDiscussions(
           <CSVViewer content={content} filename={filename} />
-        </div>
+        )}
         {renderToast()}
       </div>
     );
@@ -875,9 +933,9 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
-        <div className="flex-1 overflow-hidden">
+        {renderWithDiscussions(
           <HTMLViewer content={content} filename={filename} refreshKey={refreshKey} />
-        </div>
+        )}
         {renderToast()}
         <PortalPublishModal
           isOpen={portalModalOpen}
@@ -922,20 +980,22 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     return (
       <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {renderHeader()}
-        <div className="flex-1 overflow-auto">
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
-              <FileCode size={16} className="text-zinc-500" />
-              <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
-              <span className="text-xs text-zinc-600 dark:text-zinc-600 bg-zinc-200 dark:bg-zinc-800 px-2 py-0.5 rounded ml-auto">
-                {getLanguage(path)}
-              </span>
+        {renderWithDiscussions(
+          <div className="h-full overflow-auto">
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
+                <FileCode size={16} className="text-zinc-500" />
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
+                <span className="text-xs text-zinc-600 dark:text-zinc-600 bg-zinc-200 dark:bg-zinc-800 px-2 py-0.5 rounded ml-auto">
+                  {getLanguage(path)}
+                </span>
+              </div>
+              <pre className="text-sm font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
+                {content}
+              </pre>
             </div>
-            <pre className="text-sm font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
-              {content}
-            </pre>
           </div>
-        </div>
+        )}
         {renderToast()}
       </div>
     );
@@ -945,17 +1005,19 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   return (
     <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
       {renderHeader()}
-      <div className="flex-1 overflow-auto">
-        <div className="p-4">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
-            <FileText size={16} className="text-zinc-500" />
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
+      {renderWithDiscussions(
+        <div className="h-full overflow-auto">
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
+              <FileText size={16} className="text-zinc-500" />
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">{filename}</span>
+            </div>
+            <pre className="text-sm font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
+              {content}
+            </pre>
           </div>
-          <pre className="text-sm font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
-            {content}
-          </pre>
         </div>
-      </div>
+      )}
       {renderToast()}
     </div>
   );

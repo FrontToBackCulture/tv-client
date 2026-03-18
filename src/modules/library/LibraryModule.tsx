@@ -384,12 +384,20 @@ function SplitPane({ splitFile, knowledgePath, onFileSelect, onNavigate, onClose
 
 function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: string; onSelect: (path: string) => void; onClose: () => void }) {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const recentFiles = useRecentFilesStore((s) => s.files);
 
-  const { data: searchResults, isLoading } = useFileSearch(knowledgePath || undefined, query, {
+  // Debounce search query
+  useEffect(() => {
+    if (query.length < 2) { setDebouncedQuery(""); return; }
+    const timer = setTimeout(() => setDebouncedQuery(query), 400);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const { data: searchResults, isLoading } = useFileSearch(knowledgePath || undefined, debouncedQuery, {
     maxResults: 20,
-    enabled: query.length >= 2,
+    enabled: debouncedQuery.length >= 2,
   });
 
   useEffect(() => {

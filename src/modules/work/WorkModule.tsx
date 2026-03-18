@@ -25,6 +25,7 @@ import {
 } from "./WorkViews";
 import { ProjectView } from "./WorkProjectView";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { useNotificationNavStore } from "../../stores/notificationNavStore";
 import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
 import { NotionSyncStatus } from "../notion/NotionSyncStatus";
 
@@ -45,6 +46,21 @@ export function WorkModule() {
     const labels: Record<WorkView, string> = { inbox: "My Tasks", dashboard: "Dashboard", board: "Board", tracker: "Tracker", notion: "Notion Sync", project: "Project" };
     setViewContext(view, labels[view]);
   }, [view, setViewContext]);
+
+  // Handle notification navigation
+  const navTarget = useNotificationNavStore((s) => s.target);
+  const clearNavTarget = useNotificationNavStore((s) => s.clearTarget);
+  useEffect(() => {
+    if (!navTarget) return;
+    if (navTarget.entityType === "task") {
+      setSelectedTaskId(navTarget.entityId);
+      clearNavTarget();
+    } else if (navTarget.entityType === "project") {
+      setSelectedProjectId(navTarget.entityId);
+      setView("project");
+      clearNavTarget();
+    }
+  }, [navTarget, clearNavTarget]);
 
   // Data fetching
   const { data: projects = [], refetch: refetchProjects } = useProjects();

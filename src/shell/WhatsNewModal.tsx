@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { X, Sparkles } from "lucide-react";
-import { getWhatsNew, dismissWhatsNew, type WhatsNewData } from "../hooks/useAppUpdate";
+import { getWhatsNew, dismissWhatsNew, fetchWhatsNewNotes, type WhatsNewData } from "../hooks/useAppUpdate";
 import { IconButton } from "../components/ui/IconButton";
 import { Button } from "../components/ui/Button";
 
@@ -67,9 +67,17 @@ export function WhatsNewModal() {
 
   // Auto-show on launch if version changed
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       const whatsNew = getWhatsNew();
-      if (whatsNew) setData(whatsNew);
+      if (!whatsNew) return;
+
+      // If notes are empty (manual install, etc.), try fetching from latest.json
+      if (!whatsNew.notes) {
+        const fetched = await fetchWhatsNewNotes();
+        if (fetched) whatsNew.notes = fetched;
+      }
+
+      setData(whatsNew);
     }, 500);
     return () => clearTimeout(timer);
   }, []);

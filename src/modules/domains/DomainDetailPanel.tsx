@@ -31,10 +31,13 @@ import {
   FileText,
   AlertCircle,
   ChevronDown,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button, IconButton } from "../../components/ui";
 import { EmptyState } from "../../components/EmptyState";
+import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
+import { useDiscussionCount } from "../../hooks/useDiscussions";
 
 import { useJobsStore } from "../../stores/jobsStore";
 import { useSidePanelStore } from "../../stores/sidePanelStore";
@@ -58,7 +61,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   // Report domain + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", reports: "Reports", ai: "AI" };
+    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", reports: "Reports", ai: "AI", discussion: "Discussion" };
     setViewDetail(`${domain} → ${tabLabels[activeTab]}`);
   }, [domain, activeTab, setViewDetail]);
 
@@ -84,6 +87,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   const { openPanel } = useSidePanelStore();
 
   const isSyncing = syncAllMutation.isPending || syncArtifactMutation.isPending;
+  const { data: discussionCount } = useDiscussionCount("domain", domain);
 
   // Sync dropdown menu
   const [syncMenuOpen, setSyncMenuOpen] = useState(false);
@@ -219,6 +223,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
     { id: "workflows", label: "Workflows" },
     { id: "dashboards", label: "Dashboards" },
     { id: "reports", label: "Reports" },
+    { id: "discussion", label: "Discussion" },
   ];
 
   const typeColors = discoveredDomain ? (TYPE_COLORS[discoveredDomain.domain_type] ?? TYPE_COLORS.production) : null;
@@ -347,16 +352,34 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "py-2 text-sm border-b-2 transition-colors",
+              "py-2 text-sm border-b-2 transition-colors flex items-center gap-1",
               activeTab === tab.id
                 ? "border-teal-500 text-teal-600 dark:text-teal-400"
                 : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             )}
           >
-            {tab.label}
+            {tab.id === "discussion" ? (
+              <>
+                <MessageSquare size={13} />
+                {(discussionCount ?? 0) > 0 && (
+                  <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
+                    {discussionCount}
+                  </span>
+                )}
+              </>
+            ) : (
+              tab.label
+            )}
           </button>
         ))}
       </div>
+
+      {/* Discussion tab */}
+      {activeTab === "discussion" && (
+        <div className="flex-1 overflow-hidden">
+          <DiscussionPanel entityType="domain" entityId={domain} />
+        </div>
+      )}
 
       {/* AI tab — full-height tree+detail pane */}
       {activeTab === "ai" && discoveredDomain && (

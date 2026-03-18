@@ -5,7 +5,9 @@ import { useState, memo } from "react";
 import { useUpdateDeal, useDeleteDeal } from "../../hooks/crm";
 import { Deal, DealTask, DEAL_STAGES } from "../../lib/crm/types";
 import { DealForm } from "./DealForm";
-import { Pencil, Trash2, User, Calendar, ClipboardList, Circle, CheckCircle2 } from "lucide-react";
+import { Pencil, Trash2, User, Calendar, ClipboardList, Circle, CheckCircle2, MessageSquare } from "lucide-react";
+import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
+import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { IconButton, Badge } from "../../components/ui";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
 import { toast } from "../../stores/toastStore";
@@ -76,9 +78,11 @@ export const DealCard = memo(function DealCard({
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
+  const [showDiscussions, setShowDiscussions] = useState(false);
 
   const updateMutation = useUpdateDeal();
   const deleteMutation = useDeleteDeal();
+  const { data: discussionCount } = useDiscussionCount("crm_deal", deal.id);
 
   const stageConfig = DEAL_STAGES.find((s) => s.value === deal.stage);
   const staleStatus = getStaleStatus(deal);
@@ -254,6 +258,22 @@ export const DealCard = memo(function DealCard({
             )}
           </div>
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => setShowDiscussions(!showDiscussions)}
+              className={`relative p-1 rounded transition-colors ${
+                showDiscussions
+                  ? "text-teal-600 dark:text-teal-400"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              }`}
+              title="Discussion"
+            >
+              <MessageSquare size={14} />
+              {(discussionCount ?? 0) > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-[12px] flex items-center justify-center text-[8px] font-bold bg-teal-600 text-white rounded-full px-0.5">
+                  {discussionCount}
+                </span>
+              )}
+            </button>
             <IconButton icon={Pencil} size={14} label="Edit deal" onClick={() => setShowEditForm(true)} />
             <IconButton icon={Trash2} size={14} label="Delete deal" variant="danger" onClick={() => setShowDeleteConfirm(true)} />
           </div>
@@ -312,6 +332,19 @@ export const DealCard = memo(function DealCard({
               {deal.tasks.length > 3 && (
                 <p className="text-xs text-zinc-400 dark:text-zinc-600">+{deal.tasks.length - 3} more</p>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Discussion (collapsible) */}
+        {showDiscussions && (
+          <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700 -mx-3 -mb-3">
+            <div className="h-[280px]">
+              <DiscussionPanel
+                entityType="crm_deal"
+                entityId={deal.id}
+                onClose={() => setShowDiscussions(false)}
+              />
             </div>
           </div>
         )}

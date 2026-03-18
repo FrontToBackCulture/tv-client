@@ -22,6 +22,8 @@ export interface WhatsNewData {
   notes: string;
 }
 
+const UPDATER_ENDPOINT = "https://github.com/FrontToBackCulture/tv-client/releases/latest/download/latest.json";
+
 /** Check if app just updated and return the stored release notes */
 export function getWhatsNew(): WhatsNewData | null {
   const lastVersion = localStorage.getItem(LAST_VERSION_KEY);
@@ -48,8 +50,24 @@ export function getWhatsNew(): WhatsNewData | null {
   }
 
   // Version changed but no stored notes (manual install, etc.)
-  // Still show something
+  // Still show something — notes will be fetched async by fetchWhatsNewNotes()
   return { version: currentVersion, notes: "" };
+}
+
+/** Fetch release notes from latest.json for cases where localStorage has no notes
+ *  (e.g., manual DMG install, or auto-update didn't store notes) */
+export async function fetchWhatsNewNotes(): Promise<string | null> {
+  try {
+    const resp = await fetch(UPDATER_ENDPOINT);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (data.notes && typeof data.notes === "string") {
+      return data.notes;
+    }
+  } catch {
+    // Network error — just skip
+  }
+  return null;
 }
 
 /** Mark "What's New" as dismissed */

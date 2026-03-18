@@ -528,6 +528,17 @@ fn main() {
             commands::email::email_send_campaign,
             commands::email::email_send_test,
             commands::email::email_upload_report,
+            // Discussions
+            commands::discussions::discussions_list,
+            commands::discussions::discussions_create,
+            commands::discussions::discussions_update,
+            commands::discussions::discussions_delete,
+            commands::discussions::discussions_count,
+            // Notifications
+            commands::notifications::notifications_list,
+            commands::notifications::notifications_unread_count,
+            commands::notifications::notifications_mark_read,
+            commands::notifications::notifications_mark_all_read,
             // Notion Sync
             commands::notion::commands::notion_list_databases,
             commands::notion::commands::notion_get_database_schema,

@@ -10,6 +10,8 @@ pub mod intercom;
 pub mod docgen;
 pub mod val_sync;
 pub mod feed;
+pub mod discussions;
+pub mod notifications;
 
 use super::protocol::{Tool, ToolResult};
 use serde_json::Value;
@@ -44,6 +46,12 @@ pub fn list_tools() -> Vec<Tool> {
 
     // Feed tools
     tools.extend(feed::tools());
+
+    // Discussion tools
+    tools.extend(discussions::tools());
+
+    // Notification tools
+    tools.extend(notifications::tools());
 
     tools
 }
@@ -105,6 +113,16 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
     // Feed tools
     if name.ends_with("-feed-card") || name.ends_with("-feed-cards") {
         return feed::call(name, arguments).await;
+    }
+
+    // Discussion tools
+    if name.ends_with("-discussion") || name.ends_with("-discussions") {
+        return discussions::call(name, arguments).await;
+    }
+
+    // Notification tools
+    if name.ends_with("-notification") || name.ends_with("-notifications") || name.starts_with("mark-notification-") {
+        return notifications::call(name, arguments).await;
     }
 
     ToolResult::error(format!("Unknown tool: {}", name))

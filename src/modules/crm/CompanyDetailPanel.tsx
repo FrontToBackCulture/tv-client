@@ -20,7 +20,10 @@ import {
   ExternalLink,
   FolderOpen,
   Globe,
+  MessageSquare,
 } from "lucide-react";
+import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
+import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { DetailLoading, DetailNotFound, DeleteConfirm, IconButton, Badge, Button } from "../../components/ui";
 import { toast } from "../../stores/toastStore";
 
@@ -31,7 +34,7 @@ interface CompanyDetailPanelProps {
   onCompanyDeleted?: () => void;
 }
 
-type TabId = "timeline" | "contacts" | "deals";
+type TabId = "timeline" | "contacts" | "deals" | "discussion";
 
 export function CompanyDetailPanel({
   companyId,
@@ -47,11 +50,12 @@ export function CompanyDetailPanel({
 
   const { data: company, isLoading, refetch } = useCompanyWithRelations(companyId);
   const deleteMutation = useDeleteCompany();
+  const { data: discussionCount } = useDiscussionCount("crm_company", companyId);
 
   // Report company + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<TabId, string> = { timeline: "Timeline", contacts: "Contacts", deals: "Deals" };
+    const tabLabels: Record<TabId, string> = { timeline: "Timeline", contacts: "Contacts", deals: "Deals", discussion: "Discussion" };
     const name = company?.display_name || company?.name;
     if (name) setViewDetail(`${name} → ${tabLabels[activeTab]}`);
   }, [company, activeTab, setViewDetail]);
@@ -167,20 +171,33 @@ export function CompanyDetailPanel({
 
       {/* Tabs */}
       <div className="flex border-b border-zinc-200 dark:border-zinc-800">
-        {(["timeline", "contacts", "deals"] as const).map((tab) => (
+        {(["timeline", "contacts", "deals", "discussion"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             data-help-id={`crm-detail-${tab}`}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
               activeTab === tab
                 ? "border-teal-500 text-teal-600 dark:text-teal-400"
                 : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             }`}
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            {tab === "contacts" && ` (${company.contacts?.length || 0})`}
-            {tab === "deals" && ` (${company.deals?.length || 0})`}
+            {tab === "discussion" ? (
+              <>
+                <MessageSquare size={13} />
+                {(discussionCount ?? 0) > 0 && (
+                  <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
+                    {discussionCount}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === "contacts" && ` (${company.contacts?.length || 0})`}
+                {tab === "deals" && ` (${company.deals?.length || 0})`}
+              </>
+            )}
           </button>
         ))}
       </div>
@@ -235,6 +252,12 @@ export function CompanyDetailPanel({
               )}
             </div>
           </div>
+        )}
+        {activeTab === "discussion" && (
+          <DiscussionPanel
+            entityType="crm_company"
+            entityId={companyId}
+          />
         )}
       </div>
 
