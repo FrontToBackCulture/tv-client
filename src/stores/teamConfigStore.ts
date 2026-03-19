@@ -40,7 +40,20 @@ interface TeamConfigState {
   isAdmin: (login: string) => boolean;
 }
 
-const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "domains", "skills"];
+const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "projects", "domains", "skills"];
+
+// Legacy module IDs that were consolidated into "projects"
+const LEGACY_PROJECT_MODULES = new Set(["work", "workspace", "crm"]);
+
+function migrateVisibleModules(modules: string[] | null): ModuleId[] | null {
+  if (!modules) return null;
+  const hasLegacy = modules.some((m) => LEGACY_PROJECT_MODULES.has(m));
+  if (!hasLegacy) return modules as ModuleId[];
+  // Replace legacy modules with "projects"
+  const migrated = modules.filter((m) => !LEGACY_PROJECT_MODULES.has(m));
+  if (!migrated.includes("projects")) migrated.push("projects");
+  return migrated as ModuleId[];
+}
 
 function mapRowToMember(row: {
   name: string;
@@ -56,7 +69,7 @@ function mapRowToMember(row: {
     avatarUrl: row.avatar_url || "",
     role: (row.role === "admin" ? "admin" : "member") as "admin" | "member",
     lastSeen: row.last_active_at || "",
-    visibleModules: row.visible_modules as ModuleId[] | null,
+    visibleModules: migrateVisibleModules(row.visible_modules),
   };
 }
 
@@ -76,10 +89,26 @@ export const useTeamConfigStore = create<TeamConfigState>((set, get) => ({
       if (error) throw error;
 
       const members: Record<string, TeamMember> = {};
+      const migrateUpdates: Array<{ username: string; modules: ModuleId[] }> = [];
       for (const row of data ?? []) {
         if (row.github_username) {
           members[row.github_username] = mapRowToMember(row);
+          // Queue Supabase update if migration changed the modules
+          const migrated = migrateVisibleModules(row.visible_modules);
+          if (row.visible_modules && migrated &&
+              JSON.stringify(row.visible_modules.sort()) !== JSON.stringify([...migrated].sort())) {
+            migrateUpdates.push({ username: row.github_username, modules: migrated });
+          }
         }
+      }
+
+      // Persist legacy → projects migration back to Supabase (fire-and-forget)
+      for (const { username, modules } of migrateUpdates) {
+        supabase.from("users").update({ visible_modules: modules })
+          .eq("github_username", username).then(({ error: e }) => {
+            if (e) console.warn(`Failed to persist module migration for ${username}:`, e);
+            else console.log(`Migrated visible_modules for ${username}: replaced legacy work/crm/workspace with projects`);
+          });
       }
 
       const config: TeamConfig = {

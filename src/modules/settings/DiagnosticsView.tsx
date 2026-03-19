@@ -135,8 +135,15 @@ const LIVE_TEST_DEPENDENCIES: Record<string, { keys: string[]; label: string }> 
 function errStr(e: unknown): string {
   if (typeof e === "string") return e;
   if (e instanceof Error) return e.message;
-  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
-  return JSON.stringify(e);
+  if (e && typeof e === "object") {
+    const obj = e as Record<string, unknown>;
+    // Tauri CommandError: { code: "...", message: "..." }
+    if (typeof obj.message === "string") return obj.message;
+    // Nested error object
+    if (typeof obj.error === "string") return obj.error;
+    return JSON.stringify(e);
+  }
+  return String(e);
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -209,6 +216,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
         }),
       );
     } catch (e: unknown) {
+      console.error("[claude-install] Raw error:", e);
       toast.error(`Install failed: ${errStr(e)}`);
     } finally {
       setInstallingClaude(false);

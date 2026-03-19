@@ -56,23 +56,34 @@ fn platform_suffix() -> &'static str {
     { "unsupported" }
 }
 
-/// Run `claude <args>` and return the output. On Windows, uses `cmd /C claude` so
-/// that PATHEXT resolution finds both `claude.exe` and `claude.cmd`.
+/// Run `claude <args>` and return the output.
+/// On Windows, tries `claude.exe` first (newer installs), then falls back to
+/// `cmd /C claude` which resolves `.cmd` files via PATHEXT.
 async fn run_claude(args: &[&str]) -> CmdResult<std::process::Output> {
-    let output = if cfg!(target_os = "windows") {
+    if cfg!(target_os = "windows") {
+        // Try claude.exe directly first (Claude Code >= 2.x installs this)
+        if let Ok(output) = tokio::process::Command::new("claude.exe")
+            .args(args)
+            .output()
+            .await
+        {
+            return Ok(output);
+        }
+        // Fallback: run through cmd.exe for .cmd/.bat resolution
         let mut cmd_args = vec!["/C", "claude"];
         cmd_args.extend_from_slice(args);
         tokio::process::Command::new("cmd")
             .args(&cmd_args)
             .output()
             .await
+            .map_err(|e| CommandError::Io(format!("Failed to run claude via cmd.exe: {e}")))
     } else {
         tokio::process::Command::new("claude")
             .args(args)
             .output()
             .await
-    };
-    output.map_err(|e| CommandError::Io(format!("Failed to run claude: {e}")))
+            .map_err(|e| CommandError::Io(format!("Failed to run claude: {e}")))
+    }
 }
 
 /// Run `claude mcp <args>` and return stdout. Returns error if claude CLI not found.
