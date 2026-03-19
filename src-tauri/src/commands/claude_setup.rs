@@ -56,15 +56,30 @@ fn platform_suffix() -> &'static str {
     { "unsupported" }
 }
 
+/// Run `claude <args>` and return the output. On Windows, uses `cmd /C claude` so
+/// that PATHEXT resolution finds both `claude.exe` and `claude.cmd`.
+async fn run_claude(args: &[&str]) -> CmdResult<std::process::Output> {
+    let output = if cfg!(target_os = "windows") {
+        let mut cmd_args = vec!["/C", "claude"];
+        cmd_args.extend_from_slice(args);
+        tokio::process::Command::new("cmd")
+            .args(&cmd_args)
+            .output()
+            .await
+    } else {
+        tokio::process::Command::new("claude")
+            .args(args)
+            .output()
+            .await
+    };
+    output.map_err(|e| CommandError::Io(format!("Failed to run claude: {e}")))
+}
+
 /// Run `claude mcp <args>` and return stdout. Returns error if claude CLI not found.
 async fn run_claude_mcp(args: &[&str]) -> CmdResult<String> {
-    let claude_cmd = if cfg!(target_os = "windows") { "claude.cmd" } else { "claude" };
-    let output = tokio::process::Command::new(claude_cmd)
-        .arg("mcp")
-        .args(args)
-        .output()
-        .await
-        .map_err(|e| CommandError::Io(format!("Failed to run claude mcp: {e}")))?;
+    let mut full_args = vec!["mcp"];
+    full_args.extend_from_slice(args);
+    let output = run_claude(&full_args).await?;
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
@@ -86,7 +101,12 @@ async fn mcp_list_check() -> (bool, Option<String>) {
                     // Look for a path-like string (starts with / on unix or drive letter on windows)
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     parts.iter().find(|p| {
-                        p.starts_with('/') || p.starts_with("C:\\") || p.starts_with("~")
+                        let bytes = p.as_bytes();
+                        let is_win_drive = bytes.len() >= 3
+                            && bytes[0].is_ascii_alphabetic()
+                            && bytes[1] == b':'
+                            && (bytes[2] == b'\\' || bytes[2] == b'/');
+                        p.starts_with('/') || is_win_drive || p.starts_with("~")
                             || p.contains(".tv-desktop") || p.contains("tv-mcp")
                     }).map(|s| s.trim_matches(|c: char| c == '\'' || c == '"').to_string())
                 });
@@ -134,12 +154,8 @@ pub async fn check_claude_cli() -> CmdResult<ClaudeCliStatus> {
         .trim()
         .to_string();
 
-    // Get version
-    let version_output = tokio::process::Command::new("claude")
-        .arg("--version")
-        .output()
-        .await
-        .ok();
+    // Get version — use run_claude helper for correct Windows resolution
+    let version_output = run_claude(&["--version"]).await.ok();
 
     let version = version_output.and_then(|o| {
         if o.status.success() {
@@ -223,16 +239,12 @@ pub async fn claude_mcp_install() -> CmdResult<ClaudeMcpStatus> {
 
     // 4. Register via `claude mcp add` (user-level, not project-level)
     // Remove first in case it already exists with a stale path
-    let claude_cmd = if cfg!(target_os = "windows") { "claude.cmd" } else { "claude" };
-    let _ = tokio::process::Command::new(claude_cmd)
-        .args(["mcp", "remove", "tv-mcp", "-s", "user"])
-        .output()
-        .await;
+    let _ = run_claude(&["mcp", "remove", "tv-mcp", "-s", "user"]).await;
 
-    let add_output = tokio::process::Command::new(claude_cmd)
-        .args(["mcp", "add", "--transport", "stdio", "-s", "user", "tv-mcp", "--", &bin.to_string_lossy()])
-        .output()
-        .await
+    let bin_str_arg = bin.to_string_lossy().to_string();
+    let add_output = run_claude(&[
+        "mcp", "add", "--transport", "stdio", "-s", "user", "tv-mcp", "--", &bin_str_arg,
+    ]).await
         .map_err(|e| CommandError::Io(format!("Failed to run claude mcp add: {e}")))?;
 
     if !add_output.status.success() {
@@ -257,11 +269,7 @@ pub async fn claude_mcp_uninstall() -> CmdResult<ClaudeMcpStatus> {
     }
 
     // 2. Deregister via `claude mcp remove` (user-level)
-    let claude_cmd = if cfg!(target_os = "windows") { "claude.cmd" } else { "claude" };
-    let _ = tokio::process::Command::new(claude_cmd)
-        .args(["mcp", "remove", "tv-mcp", "-s", "user"])
-        .output()
-        .await;
+    let _ = run_claude(&["mcp", "remove", "tv-mcp", "-s", "user"]).await;
     eprintln!("[claude-setup] tv-mcp deregistered");
 
     claude_mcp_status().await
