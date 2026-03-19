@@ -11,20 +11,19 @@ interface ModuleInfo {
 
 const allModules: ModuleInfo[] = [
   { id: "library", label: "Library", description: "Knowledge base content and documents" },
-  { id: "work", label: "Work", description: "Tasks, projects, and initiatives" },
-  { id: "workspace", label: "Workspaces", description: "Collaborative workspaces" },
-  { id: "inbox", label: "Inbox", description: "Email inbox" },
-  { id: "crm", label: "CRM", description: "CRM pipeline, companies, contacts, deals" },
+  { id: "projects", label: "Projects", description: "Tasks, CRM, workspaces — unified project hub" },
   { id: "domains", label: "Domains", description: "VAL client domains and data" },
+  { id: "metadata", label: "Metadata", description: "Data dictionary and field metadata" },
   { id: "product", label: "Product", description: "Product documentation" },
   { id: "gallery", label: "Gallery", description: "Media gallery" },
   { id: "bot", label: "Bots", description: "Bot management" },
   { id: "skills", label: "Skills", description: "Skill registry, catalog, and prompt builder" },
   { id: "questions", label: "Questions", description: "Questions and answers" },
-  { id: "portal", label: "Portal", description: "Client portal management" },
   { id: "scheduler", label: "Scheduler", description: "Task scheduler" },
   { id: "repos", label: "Repos", description: "Repository management" },
-  { id: "email", label: "Email", description: "Email management" },
+  { id: "email", label: "Email", description: "Email campaigns" },
+  { id: "inbox", label: "Inbox", description: "Email inbox" },
+  { id: "portal", label: "Portal", description: "Client portal management" },
 ];
 
 export function ModuleVisibilityView() {
