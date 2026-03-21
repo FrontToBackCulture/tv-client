@@ -425,6 +425,11 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                 {testResult.success ? "Test email sent successfully!" : `Failed: ${testResult.error}`}
               </p>
             )}
+            {sendTest.isError && !testResult && (
+              <p className="text-[10px] text-red-600">
+                {(sendTest.error as any)?.message || String(sendTest.error)}
+              </p>
+            )}
           </div>
         )}
 

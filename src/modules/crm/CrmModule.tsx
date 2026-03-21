@@ -11,12 +11,13 @@ import { DealPipeline } from "./DealPipeline";
 import { DirectoryView } from "./DirectoryView";
 import { ClientsView } from "./ClientsView";
 import { ClosedDealsView } from "./ClosedDealsView";
-import { Building2, BookUser, Users, Archive } from "lucide-react";
+import { CrmDashboard } from "./CrmDashboard";
+import { Building2, BookUser, Users, Archive, LayoutDashboard } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useNotificationNavStore } from "../../stores/notificationNavStore";
 
-type CrmView = "pipeline" | "directory" | "clients" | "closed";
+type CrmView = "dashboard" | "pipeline" | "directory" | "clients" | "closed";
 
 // Storage key
 const CRM_DETAIL_PANEL_WIDTH_KEY = "tv-desktop-crm-detail-panel-width";
@@ -37,7 +38,7 @@ function setDetailPanelWidth(width: number): void {
 // Main module
 // ============================
 export function CrmModule() {
-  const [activeView, setActiveView] = usePersistedModuleView<CrmView>("crm", "pipeline");
+  const [activeView, setActiveView] = usePersistedModuleView<CrmView>("crm", "dashboard");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [showCompanyForm, setShowCompanyForm] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | undefined>(undefined);
@@ -58,7 +59,7 @@ export function CrmModule() {
   // Report view context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
-    const labels: Record<CrmView, string> = { pipeline: "Pipeline", directory: "Directory", clients: "Clients", closed: "Closed Deals" };
+    const labels: Record<CrmView, string> = { dashboard: "Dashboard", pipeline: "Pipeline", directory: "Directory", clients: "Clients", closed: "Closed Deals" };
     setViewContext(activeView, labels[activeView]);
   }, [activeView, setViewContext]);
 
@@ -186,6 +187,7 @@ export function CrmModule() {
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Tab bar */}
       <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
+        <ViewTab label="Dashboard" icon={LayoutDashboard} active={activeView === "dashboard"} onClick={() => handleViewChange("dashboard")} data-help-id="crm-tab-dashboard" />
         <ViewTab label="Pipeline" icon={Building2} active={activeView === "pipeline"} onClick={() => handleViewChange("pipeline")} data-help-id="crm-tab-pipeline" />
         <ViewTab label="Directory" icon={BookUser} active={activeView === "directory"} onClick={() => handleViewChange("directory")} data-help-id="crm-tab-directory" />
         <ViewTab label="Clients" icon={Users} active={activeView === "clients"} onClick={() => handleViewChange("clients")} data-help-id="crm-tab-clients" />
@@ -194,9 +196,21 @@ export function CrmModule() {
 
       {/* Content area */}
       <div ref={containerRef} className="flex-1 flex overflow-hidden">
-        {activeView === "pipeline" ? (
+        {activeView === "dashboard" ? (
           <>
-            {/* Pipeline takes available space, shrinks when detail is open */}
+            <div
+              className="overflow-hidden"
+              style={{
+                flex: selectedCompanyId ? `0 0 ${100 - detailPanelWidth}%` : "1 1 auto",
+                transition: isResizingDetail ? "none" : "flex 200ms",
+              }}
+            >
+              <CrmDashboard onDealClick={handleDealClick} />
+            </div>
+            {detailPanel}
+          </>
+        ) : activeView === "pipeline" ? (
+          <>
             <div
               className="overflow-hidden"
               style={{

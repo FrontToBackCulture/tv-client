@@ -9,6 +9,8 @@ use crate::commands::work::types::WorkspaceArtifact;
 /// Add an artifact to a workspace or project (Work, Deal, or Workspace type).
 /// Uses project_id as the primary FK. Sets workspace_id only if the project
 /// also exists in the legacy workspaces table (backward compatibility).
+/// If session_id is provided, resolves it: if it matches a conversation_id in
+/// workspace_sessions, uses the session's actual id (UUID PK) for the FK.
 #[tauri::command]
 pub async fn workspace_add_artifact(data: CreateWorkspaceArtifact) -> CmdResult<WorkspaceArtifact> {
     let client = get_client().await?;
@@ -25,6 +27,29 @@ pub async fn workspace_add_artifact(data: CreateWorkspaceArtifact) -> CmdResult<
         if ws_exists.is_empty() {
             // Not a legacy workspace — remove workspace_id to avoid FK violation
             obj.remove("workspace_id");
+        }
+
+        // Resolve session_id: caller may pass conversation_id instead of the session's PK.
+        // Look up by conversation_id first, fall back to direct id match.
+        if let Some(sid) = obj.get("session_id").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+            // Try to find a session where conversation_id matches
+            let conv_query = format!(
+                "project_id=eq.{}&conversation_id=eq.{}&select=id",
+                data.workspace_id, sid
+            );
+            let conv_matches: Vec<serde_json::Value> = client
+                .select("workspace_sessions", &conv_query)
+                .await
+                .unwrap_or_default();
+
+            if let Some(first) = conv_matches.first() {
+                // Found a session by conversation_id — use its actual PK
+                if let Some(real_id) = first.get("id").and_then(|v| v.as_str()) {
+                    obj.insert("session_id".to_string(), serde_json::Value::String(real_id.to_string()));
+                }
+            }
+            // If no match by conversation_id, leave session_id as-is (it may be the actual PK).
+            // If it's invalid, the DB FK constraint will catch it — caller gets a clear error.
         }
     }
 

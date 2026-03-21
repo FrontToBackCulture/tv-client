@@ -36,6 +36,7 @@ import {
   ChevronDown,
   RefreshCw,
   CloudUpload,
+  Trash2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button } from "../../components/ui";
@@ -564,6 +565,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
   const { data: skillExamples } = useSkillExamples();
 
   const [quickFilter, setQuickFilter] = useState("");
+  const [hideDeleted, setHideDeleted] = useState(true);
   const [wrapNotes, setWrapNotes] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRevalidating, setIsRevalidating] = useState(false);
@@ -751,6 +753,11 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
       } satisfies SkillReviewRow;
     });
   }, [skills, webLookup, feedCardSlugs]);
+
+  const filteredRowData = useMemo(() => {
+    if (!hideDeleted) return rowData;
+    return rowData.filter((r) => r.status !== "deleted");
+  }, [rowData, hideDeleted]);
 
   const columnDefs = useMemo(() => buildColumns(wrapNotes, users ?? []), [wrapNotes, users]);
 
@@ -1164,6 +1171,20 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
             />
           </div>
 
+          <button
+            onClick={() => setHideDeleted(!hideDeleted)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap",
+              hideDeleted
+                ? "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                : "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50"
+            )}
+            title={hideDeleted ? "Show deleted skills" : "Hide deleted skills"}
+          >
+            <Trash2 size={14} />
+            {hideDeleted ? "Show Deleted" : "Showing Deleted"}
+          </button>
+
         </div>
 
         {/* Right: actions */}
@@ -1339,7 +1360,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         <AgGridReact<SkillReviewRow>
           ref={gridRef}
           theme="legacy"
-          rowData={rowData}
+          rowData={filteredRowData}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
           autoGroupColumnDef={autoGroupColumnDef}

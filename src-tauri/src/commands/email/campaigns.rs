@@ -39,15 +39,25 @@ pub struct CreateCampaign {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateCampaign {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub from_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub from_email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub group_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub html_body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub content_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bcc_email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
 }
 

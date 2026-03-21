@@ -413,6 +413,101 @@ pub async fn email_send_campaign(
     })
 }
 
+// ── SES connection test ───────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SesTestConnectionResult {
+    pub success: bool,
+    pub verified_email: Option<String>,
+    pub send_result: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Test SES connectivity: verify credentials, check sender identity, optionally send a test email
+#[command]
+pub async fn email_test_ses_connection(
+    test_email: Option<String>,
+) -> CmdResult<SesTestConnectionResult> {
+    let settings = crate::commands::settings::load_settings()?;
+    let access_key = settings
+        .keys
+        .get("aws_access_key_id")
+        .ok_or_else(|| CommandError::Config("AWS Access Key ID not configured".into()))?;
+    let secret_key = settings
+        .keys
+        .get("aws_secret_access_key")
+        .ok_or_else(|| CommandError::Config("AWS Secret Access Key not configured".into()))?;
+
+    let ses = build_ses_client(access_key, secret_key);
+
+    // Step 1: Verify credentials by listing verified email identities
+    let identities = ses
+        .list_identities()
+        .identity_type(aws_sdk_ses::types::IdentityType::EmailAddress)
+        .send()
+        .await
+        .map_err(|e| CommandError::Network(format!("SES credential check failed: {}", e)))?;
+
+    let verified_email = identities.identities().first().map(|s| s.to_string());
+
+    // Step 2: If a test email was provided, send a simple test message
+    let send_result = if let Some(ref to_email) = test_email {
+        let from = verified_email.as_deref().unwrap_or("noreply@thinkval.com");
+        let boundary = format!("----=_Part_{}", chrono::Utc::now().timestamp_millis());
+        let raw_email = format!(
+            "From: ThinkVAL <{}>\r\n\
+             To: {}\r\n\
+             Subject: [SES Test] Connection Verified\r\n\
+             MIME-Version: 1.0\r\n\
+             Content-Type: multipart/alternative; boundary=\"{}\"\r\n\
+             \r\n\
+             --{}\r\n\
+             Content-Type: text/html; charset=UTF-8\r\n\
+             Content-Transfer-Encoding: 7bit\r\n\
+             \r\n\
+             <html><body style=\"font-family:sans-serif;padding:24px\">\
+             <h2 style=\"color:#18181b\">SES Connection Test</h2>\
+             <p style=\"color:#52525b\">If you're reading this, your AWS SES configuration in tv-client is working correctly.</p>\
+             <p style=\"color:#a1a1aa;font-size:12px\">Sent from tv-client settings</p>\
+             </body></html>\r\n\
+             \r\n\
+             --{}--",
+            from, to_email, boundary, boundary, boundary,
+        );
+
+        match ses
+            .send_raw_email()
+            .raw_message(
+                RawMessage::builder()
+                    .data(Blob::new(raw_email.as_bytes()))
+                    .build()
+                    .map_err(|e| CommandError::Internal(format!("Failed to build message: {}", e)))?,
+            )
+            .send()
+            .await
+        {
+            Ok(output) => Some(format!("Sent! Message ID: {}", output.message_id())),
+            Err(e) => {
+                return Ok(SesTestConnectionResult {
+                    success: false,
+                    verified_email,
+                    send_result: None,
+                    error: Some(format!("Credentials OK but send failed: {}", e)),
+                });
+            }
+        }
+    } else {
+        None
+    };
+
+    Ok(SesTestConnectionResult {
+        success: true,
+        verified_email,
+        send_result,
+        error: None,
+    })
+}
+
 // ── Test send command ─────────────────────────────────────────────
 
 #[command]
@@ -497,7 +592,14 @@ pub async fn email_send_test(
         .await
     {
         Ok(_) => Ok(SendTestResult { success: true, error: None }),
-        Err(e) => Ok(SendTestResult { success: false, error: Some(format!("SES error: {}", e)) }),
+        Err(e) => {
+            let msg = if let Some(service_err) = e.as_service_error() {
+                format!("SES: {}", service_err.meta().message().unwrap_or(&format!("{}", service_err)))
+            } else {
+                format!("SES error: {:?}", e)
+            };
+            Ok(SendTestResult { success: false, error: Some(msg) })
+        }
     }
 }
 
@@ -565,7 +667,14 @@ async fn send_to_contact(
         )
         .send()
         .await
-        .map_err(|e| CommandError::Network(format!("SES error: {}", e)))?;
+        .map_err(|e| {
+            let msg = if let Some(service_err) = e.as_service_error() {
+                format!("SES: {}", service_err.meta().message().unwrap_or(&format!("{}", service_err)))
+            } else {
+                format!("SES error: {:?}", e)
+            };
+            CommandError::Network(msg)
+        })?;
 
     // Send untracked BCC copy (no open pixel, no click tracking, no event row)
     if let Some(bcc) = &campaign.bcc_email {

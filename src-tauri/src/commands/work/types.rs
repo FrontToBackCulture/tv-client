@@ -612,6 +612,8 @@ pub struct WorkspaceArtifact {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceContext {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     pub workspace_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,

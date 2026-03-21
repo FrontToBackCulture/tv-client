@@ -64,7 +64,7 @@ async fn sync_context_current_state(
         }
     }
 
-    let _: Result<WorkspaceContext, _> = client.upsert("workspace_context", &context_data).await;
+    let _: Result<WorkspaceContext, _> = client.upsert_on("workspace_context", &context_data, Some("project_id")).await;
 }
 
 /// Add a session entry to a workspace.

@@ -4,7 +4,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import {
-  LayoutDashboard, Columns3, Building2,
+  LayoutDashboard, Columns3, Building2, BarChart3,
   Plus, Target, FolderPlus,
 } from "lucide-react";
 import { Button } from "../../components/ui";
@@ -31,6 +31,7 @@ import { MetadataView } from "./MetadataView";
 import { ProjectsGrid } from "./ProjectsGrid";
 import { ProjectView } from "../work/WorkProjectView";
 import { DealPipeline } from "../crm/DealPipeline";
+import { CrmDashboard } from "../crm/CrmDashboard";
 import { DirectoryView } from "../crm/DirectoryView";
 import { ClientsView } from "../crm/ClientsView";
 import { ClosedDealsView } from "../crm/ClosedDealsView";
@@ -39,7 +40,7 @@ import { useViewContextStore } from "../../stores/viewContextStore";
 
 type ProjectsView =
   | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project"              // Work views
-  | "pipeline" | "metadata" | "directory" | "clients" | "closed"                 // CRM views
+  | "crm-dashboard" | "pipeline" | "metadata" | "directory" | "clients" | "closed"  // CRM views
   | "workspace-detail";                                                          // Workspace views
 
 const CRM_DETAIL_PANEL_WIDTH_KEY = "tv-desktop-crm-detail-panel-width";
@@ -81,7 +82,7 @@ export function ProjectsModule() {
     const labels: Record<ProjectsView, string> = {
       all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board",
       tracker: "Tracker", project: "Project",
-      pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals",
+      "crm-dashboard": "CRM Dashboard", pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals",
       "workspace-detail": "Workspace Detail",
     };
     setViewContext(view, labels[view]);
@@ -264,7 +265,7 @@ export function ProjectsModule() {
 
   // ---- Determine which section is active ----
   const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project"].includes(view);
-  const isCrmView = ["pipeline", "directory", "clients", "closed"].includes(view);
+  const isCrmView = ["crm-dashboard", "pipeline", "directory", "clients", "closed"].includes(view);
 
   const showProjectView = view === "project" && selectedProject;
 
@@ -313,7 +314,9 @@ export function ProjectsModule() {
       {/* Header */}
       <div className="flex-shrink-0 px-4 pt-3 pb-1">
         <p className="text-xs text-zinc-400">
-          {view === "pipeline"
+          {view === "crm-dashboard"
+            ? "Pipeline overview — action queue, stage summary, and upcoming closes at a glance."
+            : view === "pipeline"
             ? "Track deals through pipeline stages — drag cards between columns to update deal progress."
             : allSubView === "manage"
             ? "Full grid view of all projects — sort, filter, group, and bulk edit. Use Layouts to save custom views."
@@ -331,6 +334,7 @@ export function ProjectsModule() {
           {/* Separator */}
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
+          <ViewTab label="CRM Dashboard" icon={BarChart3} active={view === "crm-dashboard"} onClick={() => handleViewChange("crm-dashboard")} />
           <ViewTab label="CRM Pipeline" icon={Building2} active={view === "pipeline"} onClick={() => handleViewChange("pipeline")} />
         </div>
 
@@ -435,6 +439,14 @@ export function ProjectsModule() {
           </div>
         )}
         {/* ---- CRM Views ---- */}
+        {view === "crm-dashboard" && (
+          <>
+            <div className="overflow-hidden" style={{ flex: selectedCompanyId ? `0 0 ${100 - detailPanelWidth}%` : "1 1 auto", transition: isResizingDetail ? "none" : "flex 200ms" }}>
+              <CrmDashboard onDealClick={handleDealClick} />
+            </div>
+            {companyDetailPanel}
+          </>
+        )}
         {view === "pipeline" && (
           <>
             <div className="overflow-hidden" style={{ flex: selectedCompanyId ? `0 0 ${100 - detailPanelWidth}%` : "1 1 auto", transition: isResizingDetail ? "none" : "flex 200ms" }}>
