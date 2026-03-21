@@ -188,11 +188,10 @@ jobs:
 
             # Re-sign the new tar.gz for auto-updater verification
             if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-              echo "$TAURI_SIGNING_PRIVATE_KEY" > "$RUNNER_TEMP/updater.key"
-              npx tauri signer sign --private-key-path "$RUNNER_TEMP/updater.key" \
+              npx tauri signer sign \
+                --private-key "$TAURI_SIGNING_PRIVATE_KEY" \
                 ${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:+--password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"} \
                 "$TARGZ"
-              rm -f "$RUNNER_TEMP/updater.key"
             fi
           fi
 
