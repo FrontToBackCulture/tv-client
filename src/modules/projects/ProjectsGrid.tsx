@@ -69,7 +69,7 @@ const LAYOUT_STORAGE_KEY = "tv-desktop-project-grid-layouts";
 const DEFAULT_LAYOUT_KEY = "tv-desktop-project-grid-default-layout";
 
 const STATUS_VALUES = ["planned", "active", "completed", "paused"];
-const TYPE_VALUES = ["work", "deal", "workspace"];
+const TYPE_VALUES = ["work", "deal"];
 const HEALTH_VALUES = ["on_track", "at_risk", "off_track", ""];
 
 function buildColumns(wrapNotes: boolean): (ColDef<ProjectRow> | ColGroupDef<ProjectRow>)[] {
@@ -85,7 +85,6 @@ function buildColumns(wrapNotes: boolean): (ColDef<ProjectRow> | ColGroupDef<Pro
         if (!params.value) return null;
         const colors: Record<string, string> = {
           deal: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-          workspace: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
           work: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
         };
         return <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", colors[params.value] ?? "")}>{params.value}</span>;
@@ -185,13 +184,13 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
     const company = companyMap.get(p.company_id || "");
     return {
       id: p.id, name: p.name, project_type: p.project_type || "work", status: p.status || "active",
-      description: p.description, owner: p.owner,
+      description: p.description, owner: (p as any).owner,
       company_name: company?.name || null, company_stage: company?.stage || null,
       deal_stage: p.deal_stage, deal_value: p.deal_value, deal_currency: p.deal_currency,
       deal_solution: p.deal_solution, deal_expected_close: p.deal_expected_close,
       deal_actual_close: p.deal_actual_close, deal_notes: p.deal_notes,
       deal_proposal_path: p.deal_proposal_path, deal_order_form_path: p.deal_order_form_path,
-      health: p.health, lead: p.lead, target_date: p.target_date, intent: p.intent,
+      health: p.health, lead: p.lead, target_date: p.target_date, intent: (p as any).intent,
       created_at: p.created_at, updated_at: p.updated_at,
       task_count: counts.total, completed_count: counts.completed, overdue_count: counts.overdue,
     };

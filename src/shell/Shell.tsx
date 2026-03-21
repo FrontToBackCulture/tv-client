@@ -28,7 +28,6 @@ const moduleLabels: Record<ModuleId, string> = {
   gallery: "Gallery",
   bot: "Bots",
   skills: "Skills",
-  questions: "Questions",
   portal: "Portal",
   scheduler: "Scheduler",
   repos: "Repos",

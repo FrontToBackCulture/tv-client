@@ -1,5 +1,5 @@
 // Workspace CRUD hooks
-// Now queries from unified projects table (project_type='workspace')
+// Queries from unified projects table (project_type='work')
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
@@ -49,7 +49,7 @@ export function useWorkspaces(filters?: { status?: string; owner?: string }) {
       let query = supabase
         .from("projects")
         .select("*, project_sessions(count), project_artifacts(count)")
-        .eq("project_type", "workspace")
+        .eq("project_type", "work")
         .is("archived_at", null)
         .order("updated_at", { ascending: false });
 
@@ -179,7 +179,7 @@ export function useCreateWorkspace() {
           name: workspace.title,
           description: workspace.description,
           status: wsToProjectStatus[workspace.status || "active"] || "active",
-          project_type: "workspace",
+          project_type: "work",
           owner: workspace.owner,
           intent: workspace.intent,
           identifier_prefix: "WS",
@@ -262,14 +262,11 @@ export function useAddArtifact() {
     mutationFn: async (artifact: WorkspaceArtifactInsert): Promise<void> => {
       const { error } = await supabase
         .from("project_artifacts")
-        .insert({
-          ...artifact,
-          project_id: artifact.workspace_id || artifact.project_id,
-        });
+        .insert(artifact);
       if (error) throw new Error(`Failed to add artifact: ${error.message}`);
     },
     onSuccess: (_, artifact) => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(artifact.workspace_id || artifact.project_id || "") });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(artifact.project_id || "") });
     },
   });
 }

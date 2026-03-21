@@ -18,7 +18,6 @@ import { PortalModule } from "./modules/portal";
 import { SchedulerModule } from "./modules/scheduler";
 import { ReposModule } from "./modules/repos";
 import { SkillsModule } from "./modules/skills/SkillsModule";
-import { QuestionsModule } from "./modules/questions";
 import { EmailModule } from "./modules/email/EmailModule";
 import { GalleryModule } from "./modules/gallery";
 import { HomeModule } from "./modules/home/HomeModule";
@@ -49,7 +48,6 @@ const modules: Record<ModuleId, React.ComponentType> = {
   gallery: GalleryModule,
   bot: BotModule,
   skills: SkillsModule,
-  questions: QuestionsModule,
   portal: PortalModule,
   scheduler: SchedulerModule,
   repos: ReposModule,
@@ -82,7 +80,7 @@ export default function App() {
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeModule)) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "workspace", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "questions", "portal", "scheduler", "repos", "email"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id));
       if (firstVisible) {
         setActiveModule(firstVisible);

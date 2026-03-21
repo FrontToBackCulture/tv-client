@@ -404,7 +404,7 @@ export function DashboardView({
             <>
               <div className="fixed inset-0 z-10" onClick={() => setEditingTypeId(null)} />
               <div className="absolute mt-5 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[100px]">
-                {(["work", "deal", "workspace"] as const).map(t => (
+                {(["work", "deal"] as const).map(t => (
                   <button key={t} onClick={() => { onUpdateProject?.(p.id, { project_type: t }); setEditingTypeId(null); }}
                     className={`w-full text-left px-3 py-1 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 ${(p.project_type || "work") === t ? "font-medium text-teal-600" : ""}`}
                   >{t}</button>
@@ -415,7 +415,6 @@ export function DashboardView({
             <button onClick={() => setEditingTypeId(p.id)}
               className={`text-[8px] px-1 py-0 rounded-full font-semibold uppercase tracking-wider ${
                 p.project_type === "deal" ? "bg-blue-50 dark:bg-blue-900/30 text-blue-500"
-                  : p.project_type === "workspace" ? "bg-purple-50 dark:bg-purple-900/30 text-purple-500"
                   : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
               }`}
             >{p.project_type || "work"}</button>

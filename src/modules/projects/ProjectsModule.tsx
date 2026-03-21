@@ -8,7 +8,6 @@ import {
   Plus, Target, FolderPlus,
 } from "lucide-react";
 import { Button } from "../../components/ui";
-import { useQuery } from "@tanstack/react-query";
 import { useProjects, useAllTasks, useInitiatives, useUsers, useUpdateProject } from "../../hooks/work";
 import { supabase } from "../../lib/supabase";
 import { usePipelineStats, useCRMRealtime } from "../../hooks/crm";
@@ -41,7 +40,6 @@ import { useViewContextStore } from "../../stores/viewContextStore";
 type ProjectsView =
   | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project"              // Work views
   | "crm-dashboard" | "pipeline" | "metadata" | "directory" | "clients" | "closed"  // CRM views
-  | "workspace-detail";                                                          // Workspace views
 
 const CRM_DETAIL_PANEL_WIDTH_KEY = "tv-desktop-crm-detail-panel-width";
 
@@ -62,7 +60,6 @@ export function ProjectsModule() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showInitiativeForm, setShowInitiativeForm] = useState(false);
   const [editingInitiative, setEditingInitiative] = useState<any>(null);
@@ -83,7 +80,6 @@ export function ProjectsModule() {
       all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board",
       tracker: "Tracker", project: "Project",
       "crm-dashboard": "CRM Dashboard", pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals",
-      "workspace-detail": "Workspace Detail",
     };
     setViewContext(view, labels[view]);
   }, [view, setViewContext]);
@@ -166,7 +162,6 @@ export function ProjectsModule() {
     setView(v);
     setSelectedTaskId(null);
     setSelectedCompanyId(null);
-    setSelectedWorkspaceId(null);
     if (v !== "project") setSelectedProjectId(null);
   }, []);
 
@@ -251,12 +246,6 @@ export function ProjectsModule() {
   }, [pipelineStatsQuery]);
   const handleCloseCompanyDetail = useCallback(() => setSelectedCompanyId(null), []);
 
-  // Workspace handlers
-  const handleBackFromWorkspace = useCallback(() => {
-    setSelectedWorkspaceId(null);
-    setView("all");
-  }, []);
-
   // ---- Determine which section is active ----
   const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project"].includes(view);
   const isCrmView = ["crm-dashboard", "pipeline", "directory", "clients", "closed"].includes(view);
@@ -289,19 +278,6 @@ export function ProjectsModule() {
       />
     </div>
   );
-
-  // ---- Full-screen workspace detail ----
-  if (view === "workspace-detail" && selectedWorkspaceId) {
-    return (
-      <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-        <WorkspaceDetailView
-          workspaceId={selectedWorkspaceId}
-          onBack={handleBackFromWorkspace}
-          onUpdated={() => {}}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">

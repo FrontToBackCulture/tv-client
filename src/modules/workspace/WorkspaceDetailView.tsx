@@ -22,8 +22,12 @@ import {
 } from "../library/viewers";
 import { useWorkspace, useUpdateWorkspace, useAddArtifact, useRemoveArtifact } from "../../hooks/workspace";
 import { useFileTree, useReadFile, useFolderChildren, type TreeNode } from "../../hooks/useFiles";
-import { useTask, useAllTasks } from "../../hooks/work/useTasks";
+import { useTask, useAllTasks, useUpdateTask } from "../../hooks/work/useTasks";
+import { useStatuses } from "../../hooks/work/useStatuses";
+import { useUsers } from "../../hooks/work/useUsers";
 import { useProjects } from "../../hooks/work/useProjects";
+import { TaskDetailPanel } from "../work/TaskDetailPanel";
+import { getFieldDefsForType, useProjectFieldsStore } from "../../stores/projectFieldsStore";
 import { useDeal } from "../../hooks/crm/useDeals";
 import { useCompany } from "../../hooks/crm/useCompanies";
 import { useContacts } from "../../hooks/crm/useContacts";
@@ -31,11 +35,12 @@ import { useActivities } from "../../hooks/crm/useActivities";
 import { ACTIVITY_TYPES } from "../../lib/crm/types";
 import { DEAL_STAGES, DEAL_SOLUTIONS, COMPANY_STAGES } from "../../lib/crm/types";
 import { useRepository } from "../../stores/repositoryStore";
+import { toast } from "../../stores/toastStore";
 import type { WorkspaceSession, WorkspaceArtifact } from "../../lib/workspace/types";
 
 /** Unescape literal \n sequences that arrive from MCP JSON serialization */
 const unescapeNewlines = (s: string) => s.replace(/\\n/g, "\n");
-import { type StatusType, PriorityLabels, PriorityColors, type Priority } from "../../lib/work/types";
+import { type StatusType, PriorityLabels, PriorityColors, Priority, getTaskIdentifier } from "../../lib/work/types";
 import {
   ARTIFACT_TYPE_LABELS,
   WORKSPACE_STATUS_LABELS,
@@ -1023,106 +1028,6 @@ function SessionDetail({ session, artifacts }: { session: WorkspaceSession; arti
 }
 
 // ============================================================================
-// Task Detail (right panel)
-// ============================================================================
-
-function TaskDetail({ taskId }: { taskId: string }) {
-  const { data: task, isLoading } = useTask(taskId);
-
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center text-zinc-400">
-        <Loader2 size={20} className="animate-spin" />
-      </div>
-    );
-  }
-
-  if (!task) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle size={24} className="mx-auto mb-2 text-red-400" />
-          <p className="text-xs text-red-400">Task not found</p>
-          <p className="text-xs text-zinc-500 mt-1 font-mono">{taskId}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const statusType = (task.status?.type as StatusType) ?? "unstarted";
-  const statusColor = STATUS_TYPE_COLORS[statusType] || "#6B7280";
-  const statusLabel = STATUS_TYPE_LABELS[statusType] || statusType;
-  const priorityLabel = PriorityLabels[task.priority as Priority] ?? "None";
-  const priorityColor = PriorityColors[task.priority as Priority] ?? "#6B7280";
-  const identifier = task.project
-    ? `${task.project.identifier_prefix}-${task.task_number}`
-    : `#${task.task_number}`;
-
-  return (
-    <div className="h-full overflow-y-auto">
-      <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
-        <div className="flex items-center gap-2 mb-1">
-          <ListChecks size={14} className="text-teal-500" />
-          <span className="text-xs font-mono text-zinc-400">{identifier}</span>
-          <span
-            className="text-xs font-medium px-1.5 py-0.5 rounded-full"
-            style={{ backgroundColor: `${statusColor}18`, color: statusColor }}
-          >
-            {statusLabel}
-          </span>
-          <span
-            className="text-xs font-medium px-1.5 py-0.5 rounded-full"
-            style={{ backgroundColor: `${priorityColor}18`, color: priorityColor }}
-          >
-            {priorityLabel}
-          </span>
-        </div>
-        <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{task.title}</h3>
-      </div>
-
-      <div className="p-6 space-y-5">
-        {task.description && (
-          <div>
-            <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Description</h4>
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.description}</ReactMarkdown>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
-          {task.project && (
-            <div>
-              <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Project</h4>
-              <span className="text-sm text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: task.project.color || "#6B7280" }} />
-                {task.project.name}
-              </span>
-            </div>
-          )}
-          {task.assignee && (
-            <div>
-              <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Assignee</h4>
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">{task.assignee.name}</span>
-            </div>
-          )}
-          {task.milestone && (
-            <div>
-              <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Milestone</h4>
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">{task.milestone.name}</span>
-            </div>
-          )}
-          <div>
-            <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Created</h4>
-            <span className="text-sm text-zinc-700 dark:text-zinc-300">{formatDateTime(task.created_at)}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
 // File Picker Modal (for adding artifacts)
 // ============================================================================
 
@@ -1239,7 +1144,7 @@ function ArtifactPickerModal({
     }
 
     addMutation.mutate(
-      { workspace_id: workspaceId, label, reference, type },
+      { project_id: workspaceId, label, reference, type },
       { onSuccess: onClose }
     );
   };
@@ -1480,6 +1385,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [taskContextMenu, setTaskContextMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
   const [taskProjectSearch, setTaskProjectSearch] = useState("");
+  const [taskDetailId, setTaskDetailId] = useState<string | null>(null);
 
   // Direct project update via Supabase
   const updateProjectField = useCallback(async (field: string, value: any) => {
@@ -1528,7 +1434,10 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const { data: allTasks = [] } = useAllTasks();
   // All projects for task reassignment
   const { data: allProjectsList = [] } = useProjects("all");
-
+  // Task inline editing hooks
+  const updateTaskMutation = useUpdateTask();
+  const { data: taskStatuses = [] } = useStatuses(workspaceId);
+  const { data: taskUsers = [] } = useUsers();
   const reassignTask = useCallback(async (taskId: string, newProjectId: string) => {
     const { supabase } = await import("../../lib/supabase");
     await supabase.from("tasks").update({ project_id: newProjectId }).eq("id", taskId);
@@ -1572,6 +1481,10 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
 
   const projectTasks = allTasks.filter(t => t.project_id === workspaceId);
   const completedTasks = projectTasks.filter(t => t.status?.type === "completed").length;
+
+  // Config-driven project fields — subscribe to store so changes in settings trigger re-render
+  const enabledProjectFields = useProjectFieldsStore((s) => s.getEnabledFields((workspace as any)?.project_type || "work"));
+  const configuredFields = getFieldDefsForType((workspace as any)?.project_type || "work").filter(f => enabledProjectFields.includes(f.key));
 
   if (isLoading) {
     return <div className="h-full flex items-center justify-center text-zinc-400">Loading...</div>;
@@ -1618,7 +1531,6 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                   <span className={cn(
                     "text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider flex-shrink-0",
                     projectType === "deal" ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                      : projectType === "workspace" ? "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
                       : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
                   )}>
                     {projectType}
@@ -1674,6 +1586,13 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
           </div>
           <div className="flex items-center gap-3 text-xs text-zinc-400 flex-shrink-0">
             {workspace.owner && <span>{workspace.owner}</span>}
+            <button
+              onClick={() => { navigator.clipboard.writeText(workspaceId); toast.success("Project ID copied"); }}
+              className="font-mono text-zinc-300 dark:text-zinc-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors cursor-copy"
+              title="Click to copy project ID"
+            >
+              {workspaceId.slice(0, 8)}
+            </button>
             <span>{formatDateTime(workspace.updated_at)}</span>
           </div>
         </div>
@@ -1728,8 +1647,8 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                             key={artifact.id}
                             artifact={artifact}
                             workspaceId={workspaceId}
-                            isSelected={selection?.type === "task" && selection.id === artifact.reference}
-                            onSelect={() => setSelection({ type: "task", id: artifact.reference })}
+                            isSelected={taskDetailId === artifact.reference}
+                            onSelect={() => setTaskDetailId(artifact.reference)}
                           />
                         ) : artifact.type === "crm_deal" ? (
                           <CrmDealArtifactItem
@@ -1784,55 +1703,6 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                 </div>
               )}
             </div>
-
-            {/* Task progress + task list */}
-            {projectTasks.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
-                <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                  Tasks ({projectTasks.length})
-                </h3>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-teal-500 rounded-full transition-all"
-                      style={{ width: `${projectTasks.length ? (completedTasks / projectTasks.length) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-zinc-400">{completedTasks}/{projectTasks.length}</span>
-                </div>
-                <div className="space-y-0.5">
-                  {projectTasks
-                    .sort((a, b) => {
-                      const order: Record<string, number> = { started: 0, unstarted: 1, backlog: 2, completed: 3, canceled: 4 };
-                      return (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
-                    })
-                    .map((task) => (
-                      <button
-                        key={task.id}
-                        onClick={() => setSelection({ type: "task", id: task.id })}
-                        onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY }); setTaskProjectSearch(""); }}
-                        className={cn(
-                          "flex items-center gap-1.5 w-full text-left px-2 py-1 rounded text-xs transition-colors",
-                          selection?.type === "task" && selection.id === task.id
-                            ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
-                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400"
-                        )}
-                      >
-                        {task.status?.type === "completed" ? (
-                          <CheckCircle2 size={11} className="text-green-500 flex-shrink-0" />
-                        ) : task.status?.type === "canceled" ? (
-                          <XCircle size={11} className="text-zinc-400 flex-shrink-0" />
-                        ) : task.status?.type === "started" ? (
-                          <Circle size={11} className="text-blue-500 flex-shrink-0" />
-                        ) : (
-                          <Circle size={11} className="text-zinc-300 flex-shrink-0" />
-                        )}
-                        <span className="truncate">{task.title}</span>
-                      </button>
-                    ))}
-                </div>
-              </div>
-            )}
 
             {/* Deal metadata — editable */}
             {isDeal && (
@@ -1915,8 +1785,6 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
             <FilePreview path={selectedFile} />
           ) : selectedSession ? (
             <SessionDetail session={selectedSession} artifacts={artifacts} />
-          ) : selection?.type === "task" ? (
-            <TaskDetail taskId={selection.id} />
           ) : selection?.type === "crm_deal" ? (
             <DealDetail dealId={selection.id} />
           ) : selection?.type === "crm_company" ? (
@@ -1947,7 +1815,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
               {/* Project Details — editable fields */}
               <div className="mb-6">
                 <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">Project Details</h3>
-                <div className="space-y-1 text-xs max-w-lg">
+                <div className="space-y-1 text-xs">
                   <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
                     <span className="text-zinc-400 py-1">Name</span>
                     <EditableField value={workspace.title} onSave={(v) => updateProjectField("name", v)} />
@@ -1972,37 +1840,170 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                     </div>
                   )}
 
-                  {/* Work project fields */}
-                  {ws.project_type === "work" && (
+                  {/* Configurable fields (driven by Settings > Project Fields) */}
+                  {configuredFields.length > 0 && (
                     <>
                       <div className="border-t border-zinc-100 dark:border-zinc-800 my-2" />
-                      <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
-                        <span className="text-zinc-400 py-1">Health</span>
-                        <EditableField value={ws.health} type="select" options={[{ value: "on_track", label: "On Track" }, { value: "at_risk", label: "At Risk" }, { value: "off_track", label: "Off Track" }]} onSave={(v) => updateProjectField("health", v || null)} />
-                      </div>
-                      <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
-                        <span className="text-zinc-400 py-1">Lead</span>
-                        <EditableField value={ws.lead} onSave={(v) => updateProjectField("lead", v || null)} />
-                      </div>
-                      <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
-                        <span className="text-zinc-400 py-1">Target Date</span>
-                        <EditableField value={ws.target_date} type="date" onSave={(v) => updateProjectField("target_date", v || null)} />
-                      </div>
-                    </>
-                  )}
-
-                  {/* Workspace fields */}
-                  {ws.project_type === "workspace" && (
-                    <>
-                      <div className="border-t border-zinc-100 dark:border-zinc-800 my-2" />
-                      <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
-                        <span className="text-zinc-400 py-1">Intent</span>
-                        <EditableField value={ws.intent} type="select" options={[{ value: "skill_review", label: "Skill Review" }, { value: "skill_creation", label: "Skill Creation" }, { value: "feature_build", label: "Feature Build" }]} onSave={(v) => updateProjectField("intent", v || null)} />
-                      </div>
+                      {configuredFields.map((field) => (
+                        <div key={field.key} className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                          <span className="text-zinc-400 py-1">{field.label}</span>
+                          <EditableField
+                            value={ws[field.key]}
+                            type={field.type}
+                            options={field.options}
+                            displayValue={field.options?.find((o: { value: string; label: string }) => o.value === String(ws[field.key] ?? ""))?.label}
+                            onSave={(v) => updateProjectField(field.key, field.type === "number" ? (parseFloat(v) || null) : (v || null))}
+                          />
+                        </div>
+                      ))}
                     </>
                   )}
                 </div>
               </div>
+
+              {/* Tasks table */}
+              {projectTasks.length > 0 && (
+                <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                      Tasks ({projectTasks.length})
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 w-40">
+                        <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-teal-500 rounded-full transition-all"
+                            style={{ width: `${projectTasks.length ? (completedTasks / projectTasks.length) * 100 : 0}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-zinc-400">{completedTasks}/{projectTasks.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
+                          <th className="text-left px-3 py-2 font-medium text-zinc-400 w-8"></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16">ID</th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400">Title</th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24">Priority</th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28">Assignee</th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28">Due Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projectTasks
+                          .sort((a, b) => {
+                            const order: Record<string, number> = { started: 0, review: 0, unstarted: 1, backlog: 2, completed: 3, canceled: 4 };
+                            return (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
+                          })
+                          .map((task) => {
+                            const statusType = (task.status?.type as StatusType) ?? "unstarted";
+                            const statusColor = STATUS_TYPE_COLORS[statusType] || "#6B7280";
+                            const identifier = getTaskIdentifier(task);
+                            const priorityColor = PriorityColors[task.priority as Priority] ?? "#6B7280";
+
+                            return (
+                              <tr
+                                key={task.id}
+                                onClick={() => setTaskDetailId(task.id)}
+                                onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY }); setTaskProjectSearch(""); }}
+                                className={cn(
+                                  "border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors group",
+                                  taskDetailId === task.id
+                                    ? "bg-teal-50/50 dark:bg-teal-950/20"
+                                    : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
+                                )}
+                              >
+                                {/* Status */}
+                                <td className="px-3 py-1.5 relative" onClick={(e) => e.stopPropagation()}>
+                                  <div className="relative w-5 h-5">
+                                    {/* Visual icon */}
+                                    <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      {statusType === "completed" ? (
+                                        <CheckCircle2 size={14} style={{ color: statusColor }} />
+                                      ) : statusType === "canceled" ? (
+                                        <XCircle size={14} style={{ color: statusColor }} />
+                                      ) : statusType === "started" || statusType === "review" ? (
+                                        <svg width="14" height="14" viewBox="0 0 16 16">
+                                          <circle cx="8" cy="8" r="6.5" fill="none" stroke={statusColor} strokeWidth="1.5" />
+                                          <path d="M8 1.5 A6.5 6.5 0 0 1 8 14.5" fill={statusColor} />
+                                        </svg>
+                                      ) : (
+                                        <Circle size={14} style={{ color: statusColor }} />
+                                      )}
+                                    </span>
+                                    {/* Invisible select on top */}
+                                    <select
+                                      value={task.status_id || ""}
+                                      onChange={(e) => {
+                                        updateTaskMutation.mutate({ id: task.id, updates: { status_id: e.target.value } });
+                                      }}
+                                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                      title={STATUS_TYPE_LABELS[statusType]}
+                                    >
+                                      {taskStatuses.map((s) => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </td>
+                                {/* ID */}
+                                <td className="px-2 py-1.5 text-zinc-400 font-mono text-[11px]">{identifier}</td>
+                                {/* Title */}
+                                <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-medium truncate max-w-0">
+                                  <span className="truncate block">{task.title}</span>
+                                </td>
+                                {/* Priority */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <select
+                                    value={task.priority ?? Priority.None}
+                                    onChange={(e) => {
+                                      updateTaskMutation.mutate({ id: task.id, updates: { priority: parseInt(e.target.value) } });
+                                    }}
+                                    className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none px-1.5 py-0.5 rounded-full font-medium"
+                                    style={{ backgroundColor: `${priorityColor}15`, color: priorityColor }}
+                                  >
+                                    {Object.entries(PriorityLabels).map(([value, label]) => (
+                                      <option key={value} value={value}>{label}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                {/* Assignee */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <select
+                                    value={task.assignee_id || ""}
+                                    onChange={(e) => {
+                                      updateTaskMutation.mutate({ id: task.id, updates: { assignee_id: e.target.value || null } });
+                                    }}
+                                    className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 w-full truncate"
+                                  >
+                                    <option value="">—</option>
+                                    {taskUsers.map((u) => (
+                                      <option key={u.id} value={u.id}>{u.name}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                {/* Due Date */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="date"
+                                    value={task.due_date?.split("T")[0] || ""}
+                                    onChange={(e) => {
+                                      updateTaskMutation.mutate({ id: task.id, updates: { due_date: e.target.value ? `${e.target.value}T00:00:00Z` : null } });
+                                    }}
+                                    className="bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 w-full"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Delete project */}
               <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
@@ -2063,7 +2064,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                 </div>
               )}
 
-              {!context?.current_state && !context?.context_summary && !isDeal && ws.project_type !== "work" && ws.project_type !== "workspace" && (
+              {!context?.current_state && !context?.context_summary && !isDeal && ws.project_type !== "work" && (
                 <div className="flex items-center justify-center mt-8">
                   <div className="text-center">
                     <FileText size={32} className="mx-auto mb-3 text-zinc-300 dark:text-zinc-700" />
@@ -2115,7 +2116,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                       <div className="w-1.5 h-1.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
                       <span className={`truncate ${isCurrent ? "font-medium text-teal-600" : ""}`}>{p.name}</span>
                       <span className={`text-[8px] px-1 rounded-full uppercase ml-auto flex-shrink-0 ${
-                        p.project_type === "deal" ? "bg-blue-50 text-blue-500" : p.project_type === "workspace" ? "bg-purple-50 text-purple-500" : "bg-zinc-100 text-zinc-400"
+                        p.project_type === "deal" ? "bg-blue-50 text-blue-500" : "bg-zinc-100 text-zinc-400"
                       }`}>{p.project_type || "work"}</span>
                     </button>
                   );
@@ -2131,6 +2132,21 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
           workspaceId={workspaceId}
           onClose={() => setShowPicker(false)}
         />
+      )}
+
+      {/* Task detail slide-out panel */}
+      {taskDetailId && (
+        <>
+          <div className="fixed inset-0 z-30 bg-black/10" onClick={() => setTaskDetailId(null)} />
+          <div className="fixed right-0 top-0 bottom-0 z-40 w-[420px] shadow-xl border-l border-zinc-200 dark:border-zinc-800">
+            <TaskDetailPanel
+              taskId={taskDetailId}
+              onClose={() => setTaskDetailId(null)}
+              onUpdated={() => refetchWorkspace()}
+              onDeleted={() => { setTaskDetailId(null); refetchWorkspace(); }}
+            />
+          </div>
+        </>
       )}
     </div>
   );
