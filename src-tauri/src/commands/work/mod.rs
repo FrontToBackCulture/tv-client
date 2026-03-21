@@ -8,6 +8,7 @@ pub mod milestones;
 pub mod initiatives;
 pub mod labels;
 pub mod users;
+pub mod sessions;
 
 #[allow(unused_imports)]
 pub use types::*;
@@ -17,3 +18,4 @@ pub use milestones::*;
 pub use initiatives::*;
 pub use labels::*;
 pub use users::*;
+pub use sessions::*;

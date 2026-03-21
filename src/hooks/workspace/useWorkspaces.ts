@@ -48,7 +48,7 @@ export function useWorkspaces(filters?: { status?: string; owner?: string }) {
     queryFn: async (): Promise<WorkspaceWithCounts[]> => {
       let query = supabase
         .from("projects")
-        .select("*, workspace_sessions(count), workspace_artifacts(count)")
+        .select("*, project_sessions(count), project_artifacts(count)")
         .eq("project_type", "workspace")
         .is("archived_at", null)
         .order("updated_at", { ascending: false });
@@ -75,8 +75,8 @@ export function useWorkspaces(filters?: { status?: string; owner?: string }) {
         initiative_id: null,
         created_at: row.created_at,
         updated_at: row.updated_at,
-        session_count: row.workspace_sessions?.[0]?.count ?? 0,
-        artifact_count: row.workspace_artifacts?.[0]?.count ?? 0,
+        session_count: row.project_sessions?.[0]?.count ?? 0,
+        artifact_count: row.project_artifacts?.[0]?.count ?? 0,
       }));
     },
   });
@@ -101,17 +101,17 @@ export function useWorkspace(id: string | null) {
       // Fetch related data in parallel (query by project_id)
       const [sessionsRes, artifactsRes, contextRes] = await Promise.all([
         supabase
-          .from("workspace_sessions")
+          .from("project_sessions")
           .select("*")
           .eq("project_id", id)
           .order("date", { ascending: false }),
         supabase
-          .from("workspace_artifacts")
+          .from("project_artifacts")
           .select("*")
           .eq("project_id", id)
           .order("created_at", { ascending: false }),
         supabase
-          .from("workspace_context")
+          .from("project_context")
           .select("*")
           .eq("project_id", id)
           .maybeSingle(),
@@ -260,17 +260,16 @@ export function useAddArtifact() {
 
   return useMutation({
     mutationFn: async (artifact: WorkspaceArtifactInsert): Promise<void> => {
-      // Dual-write: set both workspace_id and project_id
       const { error } = await supabase
-        .from("workspace_artifacts")
+        .from("project_artifacts")
         .insert({
           ...artifact,
-          project_id: artifact.workspace_id,
+          project_id: artifact.workspace_id || artifact.project_id,
         });
       if (error) throw new Error(`Failed to add artifact: ${error.message}`);
     },
     onSuccess: (_, artifact) => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(artifact.workspace_id) });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(artifact.workspace_id || artifact.project_id || "") });
     },
   });
 }
@@ -280,7 +279,7 @@ export function useRemoveArtifact() {
 
   return useMutation({
     mutationFn: async ({ id, workspaceId }: { id: string; workspaceId: string }): Promise<void> => {
-      const { error } = await supabase.from("workspace_artifacts").delete().eq("id", id);
+      const { error } = await supabase.from("project_artifacts").delete().eq("id", id);
       if (error) throw new Error(`Failed to remove artifact: ${error.message}`);
       void workspaceId;
     },

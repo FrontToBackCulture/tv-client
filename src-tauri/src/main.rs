@@ -360,13 +360,6 @@ fn main() {
             commands::crm::crm_create_contact,
             commands::crm::crm_update_contact,
             commands::crm::crm_delete_contact,
-            // CRM Module - Deals
-            commands::crm::crm_list_deals,
-            commands::crm::crm_get_deal,
-            commands::crm::crm_create_deal,
-            commands::crm::crm_update_deal,
-            commands::crm::crm_delete_deal,
-            commands::crm::crm_get_pipeline,
             // CRM Module - Activities
             commands::crm::crm_list_activities,
             commands::crm::crm_log_activity,

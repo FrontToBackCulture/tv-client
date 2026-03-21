@@ -49,7 +49,6 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   metadata: Library,
   crm: Building2,
   work: CheckSquare,
-  workspace: FolderOpen,
   domains: Globe,
   product: Boxes,
   gallery: GalleryHorizontalEnd,
@@ -70,7 +69,7 @@ const moduleLabels: Record<ModuleId, string> = {
   metadata: "Metadata",
   crm: "CRM",
   work: "Work",
-  workspace: "Workspaces",
+
   domains: "Domains",
   product: "Product",
   gallery: "Gallery",
@@ -88,7 +87,7 @@ const MODULE_LABELS: Record<string, string> = {
   library: "Library",
   crm: "CRM",
   work: "Work",
-  workspace: "Workspaces",
+
   domains: "Domains",
   product: "Product",
   bot: "Bots",

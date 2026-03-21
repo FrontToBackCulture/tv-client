@@ -21,7 +21,6 @@ const moduleLabels: Record<ModuleId, string> = {
   projects: "Projects",
   metadata: "Metadata",
   work: "Work",
-  workspace: "Workspaces",
   inbox: "Inbox",
   crm: "CRM",
   domains: "Domains",

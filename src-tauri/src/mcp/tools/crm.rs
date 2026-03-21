@@ -1,10 +1,7 @@
 // CRM Module MCP Tools
-// Company, contact, deal, and activity management tools
+// Company, contact, and activity management tools
 
-use crate::commands::crm::{
-    self, CreateActivity, CreateCompany, CreateContact, CreateDeal, UpdateCompany, UpdateContact,
-    UpdateDeal,
-};
+use crate::commands::crm::{self, CreateActivity, CreateCompany, CreateContact, UpdateCompany, UpdateContact};
 use crate::mcp::protocol::{InputSchema, Tool, ToolResult};
 use serde_json::{json, Value};
 
@@ -42,7 +39,7 @@ pub fn tools() -> Vec<Tool> {
             input_schema: InputSchema::with_properties(
                 json!({
                     "company_id": { "type": "string", "description": "The company UUID" },
-                    "include_relations": { "type": "boolean", "description": "Include contacts, deals, and activities" }
+                    "include_relations": { "type": "boolean", "description": "Include contacts and activities" }
                 }),
                 vec!["company_id".to_string()],
             ),
@@ -85,7 +82,7 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "delete-crm-company".to_string(),
-            description: "Delete a company and all related records (contacts, deals, activities).".to_string(),
+            description: "Delete a company and all related records (contacts, activities).".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "company_id": { "type": "string", "description": "The company UUID" }
@@ -152,73 +149,18 @@ pub fn tools() -> Vec<Tool> {
                 vec!["contact_id".to_string()],
             ),
         },
-        // Deals
-        Tool {
-            name: "list-crm-deals".to_string(),
-            description: "List deals with optional filters.".to_string(),
-            input_schema: InputSchema::with_properties(
-                json!({
-                    "company_id": { "type": "string", "description": "Filter by company UUID" },
-                    "stage": { "type": "string", "enum": ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"] }
-                }),
-                vec![],
-            ),
-        },
-        Tool {
-            name: "create-crm-deal".to_string(),
-            description: "Create a new deal for a company.".to_string(),
-            input_schema: InputSchema::with_properties(
-                json!({
-                    "company_id": { "type": "string", "description": "Company UUID (required)" },
-                    "name": { "type": "string", "description": "Deal name (required)" },
-                    "description": { "type": "string" },
-                    "stage": { "type": "string", "enum": ["prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"], "description": "Deal stage (default: qualified)" },
-                    "solution": { "type": "string", "description": "Solution category (e.g., ap_automation, ar_automation, free_invoice_scan, events_ai)" },
-                    "value": { "type": "number", "description": "Deal value in dollars" },
-                    "currency": { "type": "string", "description": "Currency code (default: SGD)" },
-                    "expected_close_date": { "type": "string", "description": "Expected close date (YYYY-MM-DD)" },
-                    "notes": { "type": "string" }
-                }),
-                vec!["company_id".to_string(), "name".to_string()],
-            ),
-        },
-        Tool {
-            name: "update-crm-deal".to_string(),
-            description: "Update a deal's details or move it through the pipeline.".to_string(),
-            input_schema: InputSchema::with_properties(
-                json!({
-                    "deal_id": { "type": "string", "description": "Deal UUID (required)" },
-                    "name": { "type": "string" },
-                    "description": { "type": "string" },
-                    "stage": { "type": "string", "enum": ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"] },
-                    "value": { "type": "number" },
-                    "expected_close_date": { "type": "string" },
-                    "actual_close_date": { "type": "string" },
-                    "lost_reason": { "type": "string", "description": "Reason if deal is lost" },
-                    "won_notes": { "type": "string", "description": "Notes if deal is won" },
-                    "proposal_path": { "type": "string", "description": "Path to proposal document" },
-                    "order_form_path": { "type": "string", "description": "Path to order form" },
-                    "notes": { "type": "string" },
-                    "solution": { "type": "string", "description": "Solution category (e.g., ap_automation, ar_automation, free_invoice_scan, events_ai)" },
-                    "stage_changed_at": { "type": "string", "description": "Manually set stage_changed_at timestamp (ISO format)" },
-                    "preserve_stage_date": { "type": "boolean", "description": "If true, don't update stage_changed_at when stage changes (keeps days-in-stage counter)" }
-                }),
-                vec!["deal_id".to_string()],
-            ),
-        },
         // Activities
         Tool {
             name: "log-crm-activity".to_string(),
-            description: "Log an activity (note, call, meeting) for a company or project. Works with CRM deals and Work projects.".to_string(),
+            description: "Log an activity (note, call, meeting) for a company or project.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
-                    "company_id": { "type": "string", "description": "Company UUID (required for CRM activities, optional for Work projects)" },
+                    "company_id": { "type": "string", "description": "Company UUID (optional)" },
                     "type": { "type": "string", "enum": ["note", "call", "meeting", "email", "task"], "description": "Activity type (required)" },
                     "subject": { "type": "string", "description": "Activity subject/title" },
                     "content": { "type": "string", "description": "Activity content/notes" },
                     "contact_id": { "type": "string", "description": "Link to a contact (optional)" },
-                    "deal_id": { "type": "string", "description": "Link to a deal (optional)" },
-                    "project_id": { "type": "string", "description": "Link to a Work or Deal project (optional — auto-set from deal_id if not provided)" },
+                    "project_id": { "type": "string", "description": "Link to a project (optional)" },
                     "activity_date": { "type": "string", "description": "When the activity occurred (ISO date, default: now)" }
                 }),
                 vec!["type".to_string()],
@@ -226,34 +168,15 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "list-crm-activities".to_string(),
-            description: "List activities for a company, deal, or project.".to_string(),
+            description: "List activities for a company or project.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "company_id": { "type": "string", "description": "Filter by company UUID" },
-                    "deal_id": { "type": "string", "description": "Filter by deal UUID" },
-                    "project_id": { "type": "string", "description": "Filter by project UUID (Work or Deal type)" },
+                    "project_id": { "type": "string", "description": "Filter by project UUID" },
                     "type": { "type": "string", "enum": ["note", "call", "meeting", "email", "task", "stage_change"] },
                     "limit": { "type": "integer", "description": "Max results (default: 20)" }
                 }),
                 vec![],
-            ),
-        },
-        // Pipeline
-        Tool {
-            name: "get-crm-pipeline".to_string(),
-            description: "Get pipeline statistics: total deals, value by stage, counts.".to_string(),
-            input_schema: InputSchema::empty(),
-        },
-        // Task-Deal Linking
-        Tool {
-            name: "link-task-to-deal".to_string(),
-            description: "Link a task to a CRM deal via the junction table. Use this to link a task to multiple deals.".to_string(),
-            input_schema: InputSchema::with_properties(
-                json!({
-                    "task_id": { "type": "string", "description": "The task UUID" },
-                    "deal_id": { "type": "string", "description": "The deal UUID" }
-                }),
-                vec!["task_id".to_string(), "deal_id".to_string()],
             ),
         },
     ]
@@ -379,44 +302,6 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             }
         }
 
-        // Deals
-        "list-crm-deals" => {
-            let company_id = args.get("company_id").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let stage = args.get("stage").and_then(|v| v.as_str()).map(|s| s.to_string());
-            match crm::crm_list_deals(company_id, stage).await {
-                Ok(deals) => ToolResult::json(&deals),
-                Err(e) => ToolResult::error(e.to_string()),
-            }
-        }
-        "create-crm-deal" => {
-            let data: CreateDeal = match serde_json::from_value(args) {
-                Ok(d) => d,
-                Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
-            };
-            match crm::crm_create_deal(data).await {
-                Ok(deal) => ToolResult::json(&deal),
-                Err(e) => ToolResult::error(e.to_string()),
-            }
-        }
-        "update-crm-deal" => {
-            let deal_id = match args.get("deal_id").and_then(|v| v.as_str()) {
-                Some(id) => id.to_string(),
-                None => return ToolResult::error("deal_id is required".to_string()),
-            };
-            let mut data_args = args.clone();
-            if let Some(obj) = data_args.as_object_mut() {
-                obj.remove("deal_id");
-            }
-            let data: UpdateDeal = match serde_json::from_value(data_args) {
-                Ok(d) => d,
-                Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
-            };
-            match crm::crm_update_deal(deal_id, data).await {
-                Ok(deal) => ToolResult::json(&deal),
-                Err(e) => ToolResult::error(e.to_string()),
-            }
-        }
-
         // Activities
         "log-crm-activity" => {
             let data: CreateActivity = match serde_json::from_value(args) {
@@ -430,36 +315,11 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         }
         "list-crm-activities" => {
             let company_id = args.get("company_id").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let deal_id = args.get("deal_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let project_id = args.get("project_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let activity_type = args.get("type").and_then(|v| v.as_str()).map(|s| s.to_string());
             let limit = args.get("limit").and_then(|v| v.as_i64()).map(|n| n as i32);
-            match crm::crm_list_activities(company_id, deal_id, project_id, activity_type, limit).await {
+            match crm::crm_list_activities(company_id, None, project_id, activity_type, limit).await {
                 Ok(activities) => ToolResult::json(&activities),
-                Err(e) => ToolResult::error(e.to_string()),
-            }
-        }
-
-        // Pipeline
-        "get-crm-pipeline" => {
-            match crm::crm_get_pipeline().await {
-                Ok(stats) => ToolResult::json(&stats),
-                Err(e) => ToolResult::error(e.to_string()),
-            }
-        }
-
-        // Task-Deal Linking
-        "link-task-to-deal" => {
-            let task_id = match args.get("task_id").and_then(|v| v.as_str()) {
-                Some(id) => id.to_string(),
-                None => return ToolResult::error("task_id is required".to_string()),
-            };
-            let deal_id = match args.get("deal_id").and_then(|v| v.as_str()) {
-                Some(id) => id.to_string(),
-                None => return ToolResult::error("deal_id is required".to_string()),
-            };
-            match crm::crm_link_task_to_deal(task_id, deal_id).await {
-                Ok(result) => ToolResult::json(&result),
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }

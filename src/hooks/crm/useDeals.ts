@@ -327,47 +327,21 @@ export function useDealsWithTasks(filters?: DealFilters) {
   const dealIds = (dealsQuery.data ?? []).map((d) => d.id);
   const dealIdsKey = dealIds.join(",");
 
-  // Fetch tasks linked to these specific deals
+  // Fetch tasks linked to these deals (deals are projects, tasks link via project_id)
   const tasksQuery = useQuery({
     queryKey: [...crmKeys.deals(), "tasks", dealIdsKey],
     queryFn: async (): Promise<Map<string, DealTask[]>> => {
       if (!dealIds.length) return new Map();
 
-      // Step 1: Get task links from task_deal_links junction table
-      const { data: links } = await supabase
-        .from("task_deal_links")
-        .select("task_id, deal_id")
-        .in("deal_id", dealIds);
-
-      const linkedTaskIds = (links ?? []).map((l) => l.task_id);
-
-      // Step 2: Fetch tasks linked via junction table
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let junctionTasks: any[] = [];
-      if (linkedTaskIds.length > 0) {
-        const { data, error } = await supabase
-          .from("tasks")
-          .select("id, title, priority, due_date, crm_deal_id, status_id, assignee_id")
-          .in("id", linkedTaskIds);
-
-        if (!error) junctionTasks = data ?? [];
-      }
-
-      // Step 3: Fetch tasks linked via crm_deal_id
-      const { data: directTasks } = await supabase
+      // Tasks link to deal-projects via project_id
+      const { data: tasks } = await supabase
         .from("tasks")
-        .select("id, title, priority, due_date, crm_deal_id, status_id, assignee_id")
-        .in("crm_deal_id", dealIds);
+        .select("id, title, priority, due_date, project_id, status_id, assignee_id")
+        .in("project_id", dealIds);
 
-      // Merge tasks (dedup by id)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const allTasksMap = new Map<string, any>();
-      [...junctionTasks, ...(directTasks ?? [])].forEach(t => {
-        allTasksMap.set(t.id, t);
-      });
-      const tasks = Array.from(allTasksMap.values());
+      if (!tasks?.length) return new Map();
 
-      // Step 4: Fetch statuses for all tasks
+      // Fetch statuses
       const statusIds = [...new Set(tasks.map(t => t.status_id).filter(Boolean))];
       let statusMap = new Map<string, string>();
       if (statusIds.length > 0) {
@@ -375,11 +349,10 @@ export function useDealsWithTasks(filters?: DealFilters) {
           .from("task_statuses")
           .select("id, type")
           .in("id", statusIds);
-
         statusMap = new Map((statuses ?? []).map(s => [s.id, s.type]));
       }
 
-      // Step 5: Fetch assignee names
+      // Fetch assignee names
       const assigneeIds = [...new Set(tasks.map(t => t.assignee_id).filter(Boolean))];
       let assigneeMap = new Map<string, string>();
       if (assigneeIds.length > 0) {
@@ -387,55 +360,24 @@ export function useDealsWithTasks(filters?: DealFilters) {
           .from("users")
           .select("id, name")
           .in("id", assigneeIds);
-
         assigneeMap = new Map((users ?? []).map(u => [u.id, u.name]));
       }
 
-      // Enrich tasks with status type and assignee name
-      const enrichedTasks = tasks.map(t => ({
-        ...t,
-        status_type: statusMap.get(t.status_id) || "unstarted",
-        assignee_name: assigneeMap.get(t.assignee_id) || null,
-      }));
-
-      // Step 6: Build deal-to-tasks mapping
+      // Build deal-to-tasks mapping
       const tasksByDeal = new Map<string, DealTask[]>();
-
-      const junctionMap = new Map<string, string[]>();
-      (links ?? []).forEach((link) => {
-        const deals = junctionMap.get(link.task_id) || [];
-        deals.push(link.deal_id);
-        junctionMap.set(link.task_id, deals);
-      });
-
-      enrichedTasks.forEach((task) => {
+      tasks.forEach((task) => {
         const dealTask: DealTask = {
           id: task.id,
           title: task.title,
-          status_type: task.status_type,
+          status_type: statusMap.get(task.status_id) || "unstarted",
           priority: task.priority,
           due_date: task.due_date,
-          assignee_name: task.assignee_name,
+          assignee_name: assigneeMap.get(task.assignee_id) || null,
         };
-
-        // Add to deals via junction table
-        const linkedDealIds = junctionMap.get(task.id) || [];
-        linkedDealIds.forEach((dealId) => {
-          const dealTasks = tasksByDeal.get(dealId) || [];
-          if (!dealTasks.find((t) => t.id === task.id)) {
-            dealTasks.push(dealTask);
-          }
-          tasksByDeal.set(dealId, dealTasks);
-        });
-
-        // Add to deal via legacy crm_deal_id field
-        if (task.crm_deal_id && dealIds.includes(task.crm_deal_id)) {
-          const dealTasks = tasksByDeal.get(task.crm_deal_id) || [];
-          if (!dealTasks.find((t) => t.id === task.id)) {
-            dealTasks.push(dealTask);
-          }
-          tasksByDeal.set(task.crm_deal_id, dealTasks);
-        }
+        const dealId = task.project_id;
+        const dealTasks = tasksByDeal.get(dealId) || [];
+        dealTasks.push(dealTask);
+        tasksByDeal.set(dealId, dealTasks);
       });
 
       return tasksByDeal;
@@ -496,38 +438,19 @@ export function useDealTasks(dealId: string | null) {
     queryFn: async (): Promise<DealTaskFull[]> => {
       if (!dealId) return [];
 
-      // Step 1: Get task IDs from junction table
-      const { data: links, error: linksError } = await supabase
-        .from("task_deal_links")
-        .select("task_id")
-        .eq("deal_id", dealId);
-
-      if (linksError) {
-        console.error("[useDealTasks] Junction error:", linksError);
-      }
-
-      const junctionTaskIds = (links ?? []).map((l) => l.task_id);
-
-      // Step 2: Get task IDs from legacy crm_deal_id field
-      const { data: legacyTasks, error: legacyError } = await supabase
+      // Deal is a project — tasks link via project_id
+      const { data: projectTasks } = await supabase
         .from("tasks")
         .select("id")
-        .eq("crm_deal_id", dealId);
+        .eq("project_id", dealId);
 
-      if (legacyError) {
-        console.error("[useDealTasks] Legacy error:", legacyError);
-      }
-
-      const legacyTaskIds = (legacyTasks ?? []).map((t) => t.id);
-
-      // Step 3: Combine and dedupe
-      const allTaskIds = [...new Set([...junctionTaskIds, ...legacyTaskIds])];
+      const allTaskIds = (projectTasks ?? []).map((t) => t.id);
 
       if (allTaskIds.length === 0) {
         return [];
       }
 
-      // Step 4: Fetch full task details with embedded relations
+      // Fetch full task details with embedded relations
       const { data, error } = await supabase
         .from("tasks")
         .select("id, title, description, priority, due_date, status_id, task_number, project_id, task_statuses(type), projects(identifier_prefix)")

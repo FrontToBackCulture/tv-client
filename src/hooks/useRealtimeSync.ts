@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // Tables to watch and their corresponding query keys (reference for documentation)
-const _CRM_TABLES = ["crm_companies", "crm_contacts", "crm_activities", "task_deal_links"];
+const _CRM_TABLES = ["crm_companies", "crm_contacts", "crm_activities"];
 const _WORK_TABLES = ["tasks", "projects", "initiatives", "milestones", "project_updates"];
 void _CRM_TABLES; void _WORK_TABLES; // Suppress unused warnings
 
@@ -53,18 +53,6 @@ export function useRealtimeSync() {
         () => {
           queryClient.invalidateQueries({ queryKey: ["crm", "activities"] });
           queryClient.invalidateQueries({ queryKey: ["crm", "companies"] }); // Activities shown in company detail
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "task_deal_links",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["crm", "deals"] }); // Tasks shown in deal cards
-          queryClient.invalidateQueries({ queryKey: ["crm", "deal-tasks"] });
         }
       )
       .subscribe();

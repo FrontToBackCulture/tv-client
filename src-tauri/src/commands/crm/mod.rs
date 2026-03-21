@@ -1,15 +1,13 @@
 // CRM Module
-// Company, contact, deal, and activity management
+// Company, contact, and activity management
 
 pub mod types;
 pub mod companies;
 pub mod contacts;
-pub mod deals;
 pub mod activities;
 
 #[allow(unused_imports)]
 pub use types::*;
 pub use companies::*;
 pub use contacts::*;
-pub use deals::*;
 pub use activities::*;

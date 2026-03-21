@@ -65,11 +65,10 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
         .insert({
           title: taskData.title.trim(),
           description: taskData.description || `Follow-up for deal: ${dealName}`,
-          project_id: CRM_FOLLOWUPS_PROJECT_ID,
+          project_id: dealId,
           status_id: unstartedStatus.id,
           priority: taskData.priority,
           due_date: taskData.dueDate || null,
-          crm_deal_id: dealId,
         })
         .select()
         .single();

@@ -1,20 +1,21 @@
-// Work Module MCP Tools
-// Task and project management tools
+// Project Module MCP Tools
+// Project, task, milestone, initiative, and label management tools
 
 use crate::commands::work::{
     self, CreateInitiative, CreateLabel, CreateMilestone, CreateProject, CreateProjectUpdate,
+    CreateProjectSession, CreateProjectArtifact, UpsertProjectContext, UpdateProjectSession,
     CreateTask, UpdateInitiative, UpdateMilestone, UpdateProject, UpdateTask,
 };
 use crate::mcp::protocol::{InputSchema, Tool, ToolResult};
 use serde_json::{json, Value};
 
-/// Define Work module tools
+/// Define Project module tools
 pub fn tools() -> Vec<Tool> {
     vec![
         // Projects
         Tool {
-            name: "list-work-projects".to_string(),
-            description: "List projects. Use project_type filter to show only work/deal/workspace projects.".to_string(),
+            name: "list-projects".to_string(),
+            description: "List projects. Use project_type filter to show only work or deal projects.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "include_statuses": {
@@ -23,7 +24,7 @@ pub fn tools() -> Vec<Tool> {
                     },
                     "project_type": {
                         "type": "string",
-                        "enum": ["work", "deal", "workspace"],
+                        "enum": ["work", "deal"],
                         "description": "Filter by project type (default: all types)"
                     }
                 }),
@@ -31,7 +32,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "get-work-project".to_string(),
+            name: "get-project".to_string(),
             description: "Get details for a specific project by ID".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -44,8 +45,8 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "create-work-project".to_string(),
-            description: "Create a new project with default statuses. Set project_type to 'deal' or 'workspace' for those types.".to_string(),
+            name: "create-project".to_string(),
+            description: "Create a new project with default statuses. Set project_type to 'deal' for deal projects with pipeline stages.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "name": { "type": "string", "description": "Project name (required)" },
@@ -54,9 +55,7 @@ pub fn tools() -> Vec<Tool> {
                     "icon": { "type": "string", "description": "Icon identifier" },
                     "color": { "type": "string", "description": "Hex color" },
                     "identifier_prefix": { "type": "string", "description": "Task ID prefix (e.g., 'PRD')" },
-                    "project_type": { "type": "string", "enum": ["work", "deal", "workspace"], "description": "Project type (default: work)" },
-                    "owner": { "type": "string", "description": "Owner name (for workspace type)" },
-                    "intent": { "type": "string", "enum": ["skill_review", "skill_creation", "feature_build"], "description": "Intent (for workspace type)" },
+                    "project_type": { "type": "string", "enum": ["work", "deal"], "description": "Project type (default: work)" },
                     "company_id": { "type": "string", "description": "Company UUID (for deal type)" },
                     "deal_stage": { "type": "string", "enum": ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"], "description": "Deal stage (for deal type)" },
                     "deal_solution": { "type": "string", "description": "Solution category (for deal type)" },
@@ -69,8 +68,8 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "update-work-project".to_string(),
-            description: "Update an existing project (works for all project types: work, deal, workspace)".to_string(),
+            name: "update-project".to_string(),
+            description: "Update an existing project (works for all project types: work, deal)".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "project_id": { "type": "string", "description": "The project UUID (required)" },
@@ -80,8 +79,6 @@ pub fn tools() -> Vec<Tool> {
                     "priority": { "type": "integer", "enum": [0, 1, 2, 3, 4] },
                     "status": { "type": "string", "enum": ["planned", "active", "completed", "paused"] },
                     "target_date": { "type": "string", "description": "Target date (YYYY-MM-DD)" },
-                    "owner": { "type": "string", "description": "Owner name (workspace)" },
-                    "intent": { "type": "string", "enum": ["skill_review", "skill_creation", "feature_build"] },
                     "deal_stage": { "type": "string", "enum": ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation", "won", "lost"] },
                     "deal_value": { "type": "number" },
                     "deal_solution": { "type": "string" },
@@ -99,7 +96,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "delete-work-project".to_string(),
+            name: "delete-project".to_string(),
             description: "Delete a project (soft delete via archived_at).".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -110,7 +107,7 @@ pub fn tools() -> Vec<Tool> {
         },
         // Tasks
         Tool {
-            name: "list-work-tasks".to_string(),
+            name: "list-tasks".to_string(),
             description: "List tasks with optional filters".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -124,7 +121,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "get-work-task".to_string(),
+            name: "get-task".to_string(),
             description: "Get details for a specific task by ID".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -134,7 +131,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "create-work-task".to_string(),
+            name: "create-task".to_string(),
             description: "Create a new task in a project".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -148,14 +145,13 @@ pub fn tools() -> Vec<Tool> {
                     "milestone_id": { "type": "string", "description": "Milestone UUID" },
                     "depends_on": { "type": "array", "items": { "type": "string" }, "description": "Task IDs this depends on" },
                     "session_ref": { "type": "string", "description": "Session folder path" },
-                    "requires_review": { "type": "boolean", "description": "Requires human review" },
-                    "crm_deal_id": { "type": "string", "description": "CRM deal UUID to link this task to" }
+                    "requires_review": { "type": "boolean", "description": "Requires human review" }
                 }),
                 vec!["project_id".to_string(), "status_id".to_string(), "title".to_string()],
             ),
         },
         Tool {
-            name: "update-work-task".to_string(),
+            name: "update-task".to_string(),
             description: "Update an existing task".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -169,15 +165,14 @@ pub fn tools() -> Vec<Tool> {
                     "milestone_id": { "type": "string" },
                     "depends_on": { "type": "array", "items": { "type": "string" } },
                     "session_ref": { "type": "string" },
-                    "requires_review": { "type": "boolean" },
-                    "crm_deal_id": { "type": "string", "description": "CRM deal UUID to link this task to" }
+                    "requires_review": { "type": "boolean" }
                 }),
                 vec!["task_id".to_string()],
             ),
         },
         // Milestones
         Tool {
-            name: "list-work-milestones".to_string(),
+            name: "list-milestones".to_string(),
             description: "List milestones for a project".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -187,7 +182,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "create-work-milestone".to_string(),
+            name: "create-milestone".to_string(),
             description: "Create a new milestone for a project".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -200,7 +195,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "update-work-milestone".to_string(),
+            name: "update-milestone".to_string(),
             description: "Update an existing milestone".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -214,7 +209,7 @@ pub fn tools() -> Vec<Tool> {
         },
         // Initiatives
         Tool {
-            name: "list-work-initiatives".to_string(),
+            name: "list-initiatives".to_string(),
             description: "List all initiatives".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -224,7 +219,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "create-work-initiative".to_string(),
+            name: "create-initiative".to_string(),
             description: "Create a new initiative (strategic layer above projects)".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -242,7 +237,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "update-work-initiative".to_string(),
+            name: "update-initiative".to_string(),
             description: "Update an existing initiative".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -258,7 +253,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "delete-work-initiative".to_string(),
+            name: "delete-initiative".to_string(),
             description: "Delete an initiative (soft delete via archived_at).".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -302,12 +297,12 @@ pub fn tools() -> Vec<Tool> {
         },
         // Labels
         Tool {
-            name: "list-work-labels".to_string(),
-            description: "List all labels in the Work module".to_string(),
+            name: "list-labels".to_string(),
+            description: "List all labels".to_string(),
             input_schema: InputSchema::empty(),
         },
         Tool {
-            name: "create-work-label".to_string(),
+            name: "create-label".to_string(),
             description: "Create a new label".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -320,18 +315,24 @@ pub fn tools() -> Vec<Tool> {
         },
         // Users
         Tool {
-            name: "list-work-users".to_string(),
-            description: "List all users (humans and bots) in the Work module".to_string(),
+            name: "list-users".to_string(),
+            description: "List all users (humans and bots)".to_string(),
             input_schema: InputSchema::empty(),
         },
         Tool {
-            name: "list-work-bots".to_string(),
-            description: "List all bots registered in the Work module".to_string(),
+            name: "list-bots".to_string(),
+            description: "List all registered bots".to_string(),
+            input_schema: InputSchema::empty(),
+        },
+        // Pipeline
+        Tool {
+            name: "get-pipeline".to_string(),
+            description: "Get deal pipeline statistics: total deals, value by stage, counts.".to_string(),
             input_schema: InputSchema::empty(),
         },
         // Project updates
         Tool {
-            name: "list-work-project-updates".to_string(),
+            name: "list-project-updates".to_string(),
             description: "List status updates for a project".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -341,7 +342,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "create-work-project-update".to_string(),
+            name: "create-project-update".to_string(),
             description: "Create a status update for a project".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -353,14 +354,87 @@ pub fn tools() -> Vec<Tool> {
                 vec!["project_id".to_string(), "content".to_string()],
             ),
         },
+        // Project sessions
+        Tool {
+            name: "add-project-session".to_string(),
+            description: "Add a session entry to a project. If conversation_id matches an existing session, updates it instead.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "project_id": { "type": "string", "description": "Project UUID (required)" },
+                    "summary": { "type": "string", "description": "What was accomplished" },
+                    "decisions": { "type": "array", "items": { "type": "string" }, "description": "Decisions made" },
+                    "next_steps": { "type": "array", "items": { "type": "string" }, "description": "Next steps" },
+                    "open_questions": { "type": "array", "items": { "type": "string" }, "description": "Open questions" },
+                    "notes": { "type": "string", "description": "Full session notes or transcript" },
+                    "conversation_id": { "type": "string", "description": "Claude Code session UUID (for upsert dedup)" }
+                }),
+                vec!["project_id".to_string()],
+            ),
+        },
+        Tool {
+            name: "update-project-session".to_string(),
+            description: "Update an existing project session entry".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "session_id": { "type": "string", "description": "Session UUID (required)" },
+                    "summary": { "type": "string" },
+                    "decisions": { "type": "array", "items": { "type": "string" } },
+                    "next_steps": { "type": "array", "items": { "type": "string" } },
+                    "open_questions": { "type": "array", "items": { "type": "string" } },
+                    "notes": { "type": "string" },
+                    "conversation_id": { "type": "string" }
+                }),
+                vec!["session_id".to_string()],
+            ),
+        },
+        // Project artifacts
+        Tool {
+            name: "add-project-artifact".to_string(),
+            description: "Add an artifact (file, skill, task, entity) to a project for tracking".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "project_id": { "type": "string", "description": "Project UUID (required)" },
+                    "type": { "type": "string", "description": "Artifact type: skill, doc, crm_company, task, deal, file (required)" },
+                    "reference": { "type": "string", "description": "Artifact identifier — UUID for DB entities, relative path for files (required)" },
+                    "label": { "type": "string", "description": "Human-readable label (required)" },
+                    "session_id": { "type": "string", "description": "Session UUID or conversation_id to link artifact to" },
+                    "preview_content": { "type": "string", "description": "Preview text for the artifact" }
+                }),
+                vec!["project_id".to_string(), "type".to_string(), "reference".to_string(), "label".to_string()],
+            ),
+        },
+        Tool {
+            name: "remove-project-artifact".to_string(),
+            description: "Remove an artifact from a project".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "artifact_id": { "type": "string", "description": "Artifact UUID (required)" }
+                }),
+                vec!["artifact_id".to_string()],
+            ),
+        },
+        // Project context
+        Tool {
+            name: "update-project-context".to_string(),
+            description: "Upsert the rolling context for a project (context_summary, current_state, key_decisions). Used for cold-start context loading.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "project_id": { "type": "string", "description": "Project UUID (required)" },
+                    "context_summary": { "type": "string", "description": "High-level summary of the project state" },
+                    "current_state": { "type": "string", "description": "What's happening right now" },
+                    "key_decisions": { "type": "array", "items": { "type": "string" }, "description": "Key decisions made" }
+                }),
+                vec!["project_id".to_string()],
+            ),
+        },
     ]
 }
 
-/// Call a Work module tool
+/// Call a Project module tool
 pub async fn call(name: &str, args: Value) -> ToolResult {
     match name {
         // Projects
-        "list-work-projects" => {
+        "list-projects" => {
             let include_statuses = args.get("include_statuses").and_then(|v| v.as_bool());
             let project_type = args.get("project_type").and_then(|v| v.as_str()).map(|s| s.to_string());
             match work::work_list_projects(include_statuses, project_type).await {
@@ -368,7 +442,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "get-work-project" => {
+        "get-project" => {
             let project_id = match args.get("project_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("project_id is required".to_string()),
@@ -378,7 +452,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "create-work-project" => {
+        "create-project" => {
             let data: CreateProject = match serde_json::from_value(args) {
                 Ok(d) => d,
                 Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
@@ -388,7 +462,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "update-work-project" => {
+        "update-project" => {
             let project_id = match args.get("project_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("project_id is required".to_string()),
@@ -406,7 +480,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "delete-work-project" => {
+        "delete-project" => {
             let project_id = match args.get("project_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("project_id is required".to_string()),
@@ -418,7 +492,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         }
 
         // Tasks
-        "list-work-tasks" => {
+        "list-tasks" => {
             let project_id = args.get("project_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let status_id = args.get("status_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let status_type = args.get("status_type").and_then(|v| v.as_str()).map(|s| s.to_string());
@@ -429,7 +503,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "get-work-task" => {
+        "get-task" => {
             let task_id = match args.get("task_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("task_id is required".to_string()),
@@ -439,7 +513,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "create-work-task" => {
+        "create-task" => {
             let data: CreateTask = match serde_json::from_value(args) {
                 Ok(d) => d,
                 Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
@@ -449,7 +523,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "update-work-task" => {
+        "update-task" => {
             let task_id = match args.get("task_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("task_id is required".to_string()),
@@ -469,7 +543,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         }
 
         // Milestones
-        "list-work-milestones" => {
+        "list-milestones" => {
             let project_id = match args.get("project_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("project_id is required".to_string()),
@@ -479,7 +553,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "create-work-milestone" => {
+        "create-milestone" => {
             let data: CreateMilestone = match serde_json::from_value(args) {
                 Ok(d) => d,
                 Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
@@ -489,7 +563,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "update-work-milestone" => {
+        "update-milestone" => {
             let milestone_id = match args.get("milestone_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("milestone_id is required".to_string()),
@@ -509,14 +583,14 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         }
 
         // Initiatives
-        "list-work-initiatives" => {
+        "list-initiatives" => {
             let include_projects = args.get("include").and_then(|v| v.as_str()) == Some("projects");
             match work::work_list_initiatives(Some(include_projects)).await {
                 Ok(initiatives) => ToolResult::json(&initiatives),
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "create-work-initiative" => {
+        "create-initiative" => {
             let data: CreateInitiative = match serde_json::from_value(args) {
                 Ok(d) => d,
                 Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
@@ -526,7 +600,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "update-work-initiative" => {
+        "update-initiative" => {
             let initiative_id = match args.get("initiative_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("initiative_id is required".to_string()),
@@ -545,7 +619,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             }
         }
 
-        "delete-work-initiative" => {
+        "delete-initiative" => {
             let initiative_id = match args.get("initiative_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("initiative_id is required".to_string()),
@@ -597,13 +671,13 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         }
 
         // Labels
-        "list-work-labels" => {
+        "list-labels" => {
             match work::work_list_labels().await {
                 Ok(labels) => ToolResult::json(&labels),
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "create-work-label" => {
+        "create-label" => {
             let data: CreateLabel = match serde_json::from_value(args) {
                 Ok(d) => d,
                 Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
@@ -615,21 +689,29 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         }
 
         // Users
-        "list-work-users" => {
+        "list-users" => {
             match work::work_list_users().await {
                 Ok(users) => ToolResult::json(&users),
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "list-work-bots" => {
+        "list-bots" => {
             match work::work_list_bots().await {
                 Ok(bots) => ToolResult::json(&bots),
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
 
+        // Pipeline
+        "get-pipeline" => {
+            match work::work_get_pipeline().await {
+                Ok(stats) => ToolResult::json(&stats),
+                Err(e) => ToolResult::error(e.to_string()),
+            }
+        }
+
         // Project updates
-        "list-work-project-updates" => {
+        "list-project-updates" => {
             let project_id = match args.get("project_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("project_id is required".to_string()),
@@ -639,7 +721,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "create-work-project-update" => {
+        "create-project-update" => {
             let project_id = match args.get("project_id").and_then(|v| v.as_str()) {
                 Some(id) => id.to_string(),
                 None => return ToolResult::error("project_id is required".to_string()),
@@ -658,6 +740,70 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             }
         }
 
-        _ => ToolResult::error(format!("Unknown work tool: {}", name)),
+        // Project sessions
+        "add-project-session" => {
+            let data: CreateProjectSession = match serde_json::from_value(args) {
+                Ok(d) => d,
+                Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
+            };
+            match work::project_add_session(data).await {
+                Ok(session) => ToolResult::json(&session),
+                Err(e) => ToolResult::error(e.to_string()),
+            }
+        }
+        "update-project-session" => {
+            let session_id = match args.get("session_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("session_id is required".to_string()),
+            };
+            let mut data_args = args.clone();
+            if let Some(obj) = data_args.as_object_mut() {
+                obj.remove("session_id");
+            }
+            let data: UpdateProjectSession = match serde_json::from_value(data_args) {
+                Ok(d) => d,
+                Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
+            };
+            match work::project_update_session(session_id, data).await {
+                Ok(session) => ToolResult::json(&session),
+                Err(e) => ToolResult::error(e.to_string()),
+            }
+        }
+
+        // Project artifacts
+        "add-project-artifact" => {
+            let data: CreateProjectArtifact = match serde_json::from_value(args) {
+                Ok(d) => d,
+                Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
+            };
+            match work::project_add_artifact(data).await {
+                Ok(artifact) => ToolResult::json(&artifact),
+                Err(e) => ToolResult::error(e.to_string()),
+            }
+        }
+        "remove-project-artifact" => {
+            let artifact_id = match args.get("artifact_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("artifact_id is required".to_string()),
+            };
+            match work::project_remove_artifact(artifact_id).await {
+                Ok(()) => ToolResult::text("Artifact removed successfully.".to_string()),
+                Err(e) => ToolResult::error(e.to_string()),
+            }
+        }
+
+        // Project context
+        "update-project-context" => {
+            let data: UpsertProjectContext = match serde_json::from_value(args) {
+                Ok(d) => d,
+                Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
+            };
+            match work::project_update_context(data).await {
+                Ok(context) => ToolResult::json(&context),
+                Err(e) => ToolResult::error(e.to_string()),
+            }
+        }
+
+        _ => ToolResult::error(format!("Unknown project tool: {}", name)),
     }
 }

@@ -265,10 +265,6 @@ export function DashboardView({
     for (const t of allTasks) {
       const key1 = `${t.id}:${t.project_id}`;
       if (!counted.has(key1)) { addCount(t.project_id, t); counted.add(key1); }
-      if (t.crm_deal_id && t.crm_deal_id !== t.project_id) {
-        const key2 = `${t.id}:${t.crm_deal_id}`;
-        if (!counted.has(key2)) { addCount(t.crm_deal_id, t); counted.add(key2); }
-      }
     }
     if (taskDealLinks) {
       const taskMap = new Map(allTasks.map(t => [t.id, t]));

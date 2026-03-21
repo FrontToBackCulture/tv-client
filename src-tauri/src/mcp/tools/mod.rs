@@ -2,7 +2,6 @@
 // Defines and dispatches tools for Claude Code
 
 pub mod work;
-pub mod workspace;
 pub mod crm;
 pub mod email;
 pub mod generate;
@@ -20,13 +19,10 @@ use serde_json::Value;
 pub fn list_tools() -> Vec<Tool> {
     let mut tools = Vec::new();
 
-    // Work module tools
+    // Project module tools (projects, tasks, milestones, initiatives, labels, users)
     tools.extend(work::tools());
 
-    // Workspace module tools
-    tools.extend(workspace::tools());
-
-    // CRM module tools
+    // CRM module tools (companies, contacts, activities)
     tools.extend(crm::tools());
 
     // Email campaign tools
@@ -58,29 +54,30 @@ pub fn list_tools() -> Vec<Tool> {
 
 /// Call a tool by name
 pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
-    // Workspace module tools (checked BEFORE work — "create-workspace" would match "create-work-*")
-    if name.ends_with("-workspace") || name.ends_with("-workspaces") ||
-       name.starts_with("get-workspace") || name.starts_with("create-workspace") ||
-       name.starts_with("update-workspace") || name.starts_with("delete-workspace") ||
-       name.starts_with("add-workspace-") || name.starts_with("remove-workspace-") ||
-       name == "list-workspaces" {
-        return workspace::call(name, arguments).await;
-    }
-
-    // Work module tools
-    if name.starts_with("list-work-") || name.starts_with("get-work-") ||
-       name.starts_with("create-work-") || name.starts_with("update-work-") ||
-       name.starts_with("delete-work-") ||
+    // Project module tools
+    if name.starts_with("list-project") || name.starts_with("get-project") ||
+       name.starts_with("create-project") || name.starts_with("update-project") ||
+       name.starts_with("delete-project") ||
+       name.starts_with("list-task") || name.starts_with("get-task") ||
+       name.starts_with("create-task") || name.starts_with("update-task") ||
+       name.starts_with("list-milestone") || name.starts_with("create-milestone") ||
+       name.starts_with("update-milestone") ||
+       name.starts_with("list-initiative") || name.starts_with("create-initiative") ||
+       name.starts_with("update-initiative") || name.starts_with("delete-initiative") ||
        name == "add-project-to-initiative" || name == "remove-project-from-initiative" ||
-       name == "list-initiative-projects" {
+       name == "list-initiative-projects" ||
+       name.starts_with("list-label") || name.starts_with("create-label") ||
+       name == "list-users" || name == "list-bots" ||
+       name == "get-pipeline" ||
+       name.starts_with("add-project-") || name.starts_with("remove-project-") {
         return work::call(name, arguments).await;
     }
 
-    // CRM module tools
+    // CRM module tools (companies, contacts, activities only — deals are projects now)
     if name.starts_with("list-crm-") || name.starts_with("find-crm-") ||
        name.starts_with("get-crm-") || name.starts_with("create-crm-") ||
        name.starts_with("update-crm-") || name.starts_with("delete-crm-") ||
-       name.starts_with("log-crm-") || name == "link-task-to-deal" {
+       name.starts_with("log-crm-") {
         return crm::call(name, arguments).await;
     }
 

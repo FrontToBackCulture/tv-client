@@ -1,5 +1,5 @@
 // CRM Module Types
-// Data structures for companies, contacts, deals, activities
+// Data structures for companies, contacts, and activities
 
 use serde::{Deserialize, Serialize};
 
@@ -40,8 +40,6 @@ pub struct Company {
     // Nested data (from joins)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contacts: Option<Vec<Contact>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deals: Option<Vec<Deal>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activities: Option<Vec<Activity>>,
 }
@@ -162,112 +160,6 @@ pub struct UpdateContact {
 }
 
 // ============================================================================
-// Deals
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Deal {
-    pub id: String,
-    pub company_id: String,
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stage: Option<String>, // prospect | lead | qualified | pilot | proposal | negotiation | won | lost
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub solution: Option<String>, // ar_automation | free_invoice_scan | analytics | revenue_reconciliation | other
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub value: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub currency: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expected_close_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actual_close_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub lost_reason: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub won_notes: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub proposal_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub order_form_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contact_ids: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tags: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stage_changed_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stale_snoozed_until: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
-    // Nested data
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub company: Option<Box<Company>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contacts: Option<Vec<Contact>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateDeal {
-    pub company_id: String,
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stage: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub solution: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub value: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub currency: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expected_close_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct UpdateDeal {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stage: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub solution: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub value: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expected_close_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actual_close_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub lost_reason: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub won_notes: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub proposal_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub order_form_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-    /// Manually set stage_changed_at (use with preserve_stage_date to override automatic update)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stage_changed_at: Option<String>,
-    /// If true, don't update stage_changed_at when stage changes (preserves days-in-stage counter)
-    #[serde(skip_serializing)]
-    pub preserve_stage_date: Option<bool>,
-}
-
-// ============================================================================
 // Activities
 // ============================================================================
 
@@ -280,7 +172,7 @@ pub struct Activity {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deal_id: Option<String>,
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -307,8 +199,6 @@ pub struct CreateActivity {
     pub activity_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deal_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -349,8 +239,4 @@ pub struct LinkEmailRequest {
     pub match_type: String,
 }
 
-// Pipeline Stats — defined in work/types.rs, re-exported via work module
-// CRM deals.rs imports PipelineStats from work types
-
-// ============================================================================
-// (PipelineStage and PipelineStats live in work/types.rs to avoid duplication)
+// Pipeline Stats live in work/types.rs (deals are projects now)

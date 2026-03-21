@@ -46,13 +46,7 @@ pub struct Project {
 
     // Unified project type
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub project_type: Option<String>, // work | deal | workspace
-
-    // Workspace fields
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub intent: Option<String>, // skill_review | skill_creation | feature_build
+    pub project_type: Option<String>, // work | deal
 
     // Deal fields
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -96,13 +90,13 @@ pub struct Project {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_count: Option<i32>,
 
-    // Workspace nested data
+    // Project sessions/artifacts/context
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sessions: Option<Vec<WorkspaceSession>>,
+    pub sessions: Option<Vec<ProjectSession>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub artifacts: Option<Vec<WorkspaceArtifact>>,
+    pub artifacts: Option<Vec<ProjectArtifact>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<WorkspaceContext>,
+    pub context: Option<ProjectContext>,
 
     // Deal nested data
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -137,10 +131,6 @@ pub struct CreateProject {
     // Unified fields
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub intent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub company_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -181,11 +171,6 @@ pub struct UpdateProject {
     pub lead: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
-    // Workspace fields
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub intent: Option<String>,
     // Deal fields
     #[serde(skip_serializing_if = "Option::is_none")]
     pub company_id: Option<String>,
@@ -284,9 +269,6 @@ pub struct Task {
     // Notion sync
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notion_page_id: Option<String>,
-    // CRM link
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub crm_deal_id: Option<String>,
     // Nested data (from joins)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project: Option<Box<Project>>,
@@ -319,8 +301,6 @@ pub struct CreateTask {
     pub session_ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires_review: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub crm_deal_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -347,8 +327,6 @@ pub struct UpdateTask {
     pub requires_review: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_order: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub crm_deal_id: Option<String>,
 }
 
 // ============================================================================
@@ -566,15 +544,13 @@ pub struct InitiativeProject {
 }
 
 // ============================================================================
-// Workspace Session/Artifact/Context (previously in workspace module)
+// Project Session/Artifact/Context
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceSession {
+pub struct ProjectSession {
     pub id: String,
-    pub workspace_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub project_id: Option<String>,
+    pub project_id: String,
     pub date: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
@@ -593,11 +569,9 @@ pub struct WorkspaceSession {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceArtifact {
+pub struct ProjectArtifact {
     pub id: String,
-    pub workspace_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub project_id: Option<String>,
+    pub project_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(rename = "type")]
@@ -611,12 +585,10 @@ pub struct WorkspaceArtifact {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceContext {
+pub struct ProjectContext {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-    pub workspace_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub project_id: Option<String>,
+    pub project_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_summary: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -675,4 +647,67 @@ pub struct PipelineStats {
     pub by_stage: Vec<PipelineStage>,
     pub total_value: f64,
     pub total_deals: i32,
+}
+
+// ============================================================================
+// Session/Artifact/Context create/update types
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateProjectSession {
+    pub project_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decisions: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_steps: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_questions: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateProjectSession {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decisions: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_steps: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_questions: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateProjectArtifact {
+    pub project_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(rename = "type")]
+    pub artifact_type: String,
+    pub reference: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_content: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpsertProjectContext {
+    pub project_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_state: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_decisions: Option<serde_json::Value>,
 }

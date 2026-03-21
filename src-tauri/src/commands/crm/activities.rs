@@ -8,7 +8,7 @@ use crate::commands::supabase::get_client;
 #[tauri::command]
 pub async fn crm_list_activities(
     company_id: Option<String>,
-    deal_id: Option<String>,
+    _deal_id: Option<String>, // deprecated — use project_id instead
     project_id: Option<String>,
     activity_type: Option<String>,
     limit: Option<i32>,
@@ -19,10 +19,6 @@ pub async fn crm_list_activities(
 
     if let Some(cid) = company_id {
         filters.push(format!("company_id=eq.{}", cid));
-    }
-    if let Some(did) = deal_id {
-        // Query by project_id (unified) with fallback to deal_id
-        filters.push(format!("or=(deal_id.eq.{0},project_id.eq.{0})", did));
     }
     if let Some(pid) = project_id {
         filters.push(format!("project_id=eq.{}", pid));
@@ -55,15 +51,7 @@ pub async fn crm_log_activity(data: CreateActivity) -> CmdResult<Activity> {
         }
     }
 
-    // Set project_id: use explicit project_id if provided, otherwise derive from deal_id
-    if let Some(obj) = insert_data.as_object_mut() {
-        let has_project_id = obj.get("project_id").and_then(|v| v.as_str()).is_some();
-        if !has_project_id {
-            if let Some(deal_id) = obj.get("deal_id").and_then(|v| v.as_str()).map(|s| s.to_string()) {
-                obj.insert("project_id".to_string(), serde_json::Value::String(deal_id));
-            }
-        }
-    }
+    // project_id is set directly by the caller (deals are projects now)
 
     // Create the activity
     let activity: Activity = client.insert("crm_activities", &insert_data).await?;

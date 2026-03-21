@@ -10,12 +10,12 @@ pub fn tools() -> Vec<Tool> {
     vec![
         Tool {
             name: "list-discussions".to_string(),
-            description: "List comments/discussions on any entity (file, deal, company, task, workspace, campaign).".to_string(),
+            description: "List comments/discussions on any entity (file, company, task, project, campaign).".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "entity_type": {
                         "type": "string",
-                        "enum": ["file", "crm_deal", "crm_company", "task", "project", "workspace", "campaign", "domain", "domain_artifact"],
+                        "enum": ["file", "crm_company", "task", "project", "campaign", "domain", "domain_artifact"],
                         "description": "The type of entity"
                     },
                     "entity_id": {
@@ -37,7 +37,7 @@ pub fn tools() -> Vec<Tool> {
                 json!({
                     "entity_type": {
                         "type": "string",
-                        "enum": ["file", "crm_deal", "crm_company", "task", "project", "workspace", "campaign", "domain", "domain_artifact"],
+                        "enum": ["file", "crm_company", "task", "project", "campaign", "domain", "domain_artifact"],
                         "description": "The type of entity"
                     },
                     "entity_id": {

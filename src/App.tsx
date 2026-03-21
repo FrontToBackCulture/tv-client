@@ -6,7 +6,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Shell } from "./shell/Shell";
 import { LibraryModule } from "./modules/library/LibraryModule";
 import { WorkModule } from "./modules/work/WorkModule";
-import { WorkspaceModule } from "./modules/workspace";
+
 import { ProjectsModule } from "./modules/projects";
 import { MetadataModule } from "./modules/metadata";
 import { InboxModule } from "./modules/inbox/InboxModule";
@@ -42,7 +42,6 @@ const modules: Record<ModuleId, React.ComponentType> = {
   projects: ProjectsModule,
   metadata: MetadataModule,
   work: WorkModule,
-  workspace: WorkspaceModule,
   inbox: InboxModule,
   crm: CrmModule,
   domains: DomainsModule,

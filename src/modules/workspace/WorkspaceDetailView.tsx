@@ -1544,27 +1544,20 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
     if (tasks) {
       for (const t of tasks) {
         await supabase.from("task_labels").delete().eq("task_id", t.id);
-        await supabase.from("task_deal_links").delete().eq("task_id", t.id);
         await supabase.from("task_activity").delete().eq("task_id", t.id);
         await supabase.from("tasks").delete().eq("id", t.id);
       }
     }
     // Delete task statuses
     await supabase.from("task_statuses").delete().eq("project_id", workspaceId);
-    // Delete workspace children (both FKs)
-    await supabase.from("workspace_sessions").delete().eq("project_id", workspaceId);
-    await supabase.from("workspace_sessions").delete().eq("workspace_id", workspaceId);
-    await supabase.from("workspace_artifacts").delete().eq("project_id", workspaceId);
-    await supabase.from("workspace_artifacts").delete().eq("workspace_id", workspaceId);
-    await supabase.from("workspace_context").delete().eq("project_id", workspaceId);
-    await supabase.from("workspace_context").delete().eq("workspace_id", workspaceId);
+    // Delete project children
+    await supabase.from("project_sessions").delete().eq("project_id", workspaceId);
+    await supabase.from("project_artifacts").delete().eq("project_id", workspaceId);
+    await supabase.from("project_context").delete().eq("project_id", workspaceId);
     // Delete activities
     await supabase.from("crm_activities").delete().eq("project_id", workspaceId);
-    await supabase.from("crm_activities").delete().eq("deal_id", workspaceId);
     // Delete initiative links
     await supabase.from("initiative_projects").delete().eq("project_id", workspaceId);
-    // Delete task deal links
-    await supabase.from("task_deal_links").delete().eq("deal_id", workspaceId);
     // Delete project updates
     await supabase.from("project_updates").delete().eq("project_id", workspaceId);
     // Delete the project

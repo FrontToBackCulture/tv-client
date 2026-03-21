@@ -21,7 +21,6 @@ pub mod val_sync;
 pub mod skill_registry;
 pub mod repos;
 pub mod work;
-pub mod workspace;
 pub mod email;
 pub mod gallery;
 pub mod notion;

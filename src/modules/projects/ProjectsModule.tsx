@@ -105,14 +105,8 @@ export function ProjectsModule() {
   // Data fetching — CRM
   const pipelineStatsQuery = usePipelineStats();
 
-  // Data fetching — Task-Deal junction links
-  const { data: taskDealLinks = [] } = useQuery({
-    queryKey: ["task-deal-links"],
-    queryFn: async () => {
-      const { data } = await supabase.from("task_deal_links").select("task_id, deal_id");
-      return (data ?? []) as { task_id: string; deal_id: string }[];
-    },
-  });
+  // Task-Deal links (deprecated — tasks link to deal-projects via project_id now)
+  const taskDealLinks: { task_id: string; deal_id: string }[] = [];
 
   // Detail panel resizing (CRM views)
   const [detailPanelWidth, setDetailPanelWidthState] = useState(50);

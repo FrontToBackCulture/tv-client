@@ -1,5 +1,5 @@
-// Work Module - Project Commands
-// Unified handler for work projects, deals, and workspaces
+// Project Module - Project Commands
+// Unified handler for work projects and deals
 
 use super::types::*;
 use crate::commands::error::{CmdResult, CommandError};
@@ -28,7 +28,7 @@ pub async fn work_list_projects(
     client.select("projects", &query).await
 }
 
-/// Get a single project by ID — joins workspace and deal data as needed
+/// Get a single project by ID — joins sessions/artifacts/context and deal data
 #[tauri::command]
 pub async fn work_get_project(project_id: String) -> CmdResult<Project> {
     let client = get_client().await?;
@@ -44,36 +44,34 @@ pub async fn work_get_project(project_id: String) -> CmdResult<Project> {
         .await?
         .ok_or_else(|| CommandError::NotFound(format!("Project not found: {}", project_id)))?;
 
-    // If workspace type, join sessions/artifacts/context
-    if project.project_type.as_deref() == Some("workspace") {
-        let sessions_query = format!(
-            "project_id=eq.{}&order=date.desc",
-            project_id
-        );
-        let sessions: Vec<WorkspaceSession> = client
-            .select("workspace_sessions", &sessions_query)
-            .await
-            .unwrap_or_default();
+    // Join sessions/artifacts/context for any project type
+    let sessions_query = format!(
+        "project_id=eq.{}&order=date.desc",
+        project_id
+    );
+    let sessions: Vec<ProjectSession> = client
+        .select("project_sessions", &sessions_query)
+        .await
+        .unwrap_or_default();
 
-        let artifacts_query = format!(
-            "project_id=eq.{}&order=created_at.desc",
-            project_id
-        );
-        let artifacts: Vec<WorkspaceArtifact> = client
-            .select("workspace_artifacts", &artifacts_query)
-            .await
-            .unwrap_or_default();
+    let artifacts_query = format!(
+        "project_id=eq.{}&order=created_at.desc",
+        project_id
+    );
+    let artifacts: Vec<ProjectArtifact> = client
+        .select("project_artifacts", &artifacts_query)
+        .await
+        .unwrap_or_default();
 
-        let context_query = format!("project_id=eq.{}", project_id);
-        let context: Option<WorkspaceContext> = client
-            .select_single("workspace_context", &context_query)
-            .await
-            .unwrap_or(None);
+    let context_query = format!("project_id=eq.{}", project_id);
+    let context: Option<ProjectContext> = client
+        .select_single("project_context", &context_query)
+        .await
+        .unwrap_or(None);
 
-        project.sessions = Some(sessions);
-        project.artifacts = Some(artifacts);
-        project.context = context;
-    }
+    project.sessions = Some(sessions);
+    project.artifacts = Some(artifacts);
+    project.context = context;
 
     // If deal type, join company
     if project.project_type.as_deref() == Some("deal") {
@@ -126,22 +124,13 @@ pub async fn work_create_project(data: CreateProject) -> CmdResult<Project> {
             }
         }
 
-        // Workspace-specific defaults
-        if data.project_type.as_deref() == Some("workspace") {
-            if obj.get("identifier_prefix").map_or(true, |v| v.is_null()) {
-                obj.insert("identifier_prefix".to_string(), serde_json::Value::String("WS".to_string()));
-            }
-            if obj.get("status").map_or(true, |v| v.is_null()) {
-                obj.insert("status".to_string(), serde_json::Value::String("active".to_string()));
-            }
-        }
     }
 
     // Create project
     let project: Project = client.insert("projects", &insert_data).await?;
 
     // Create default statuses
-    let default_statuses = if data.project_type.as_deref() == Some("deal") || data.project_type.as_deref() == Some("workspace") {
+    let default_statuses = if data.project_type.as_deref() == Some("deal") {
         vec![
             ("Backlog", "backlog", "#6B7280", 0),
             ("Todo", "unstarted", "#3B82F6", 1),
@@ -231,7 +220,6 @@ pub async fn work_update_project(project_id: String, data: UpdateProject) -> Cmd
                         let activity = serde_json::json!({
                             "company_id": cid,
                             "project_id": project_id,
-                            "deal_id": project_id,
                             "type": "stage_change",
                             "old_value": old_stage,
                             "new_value": new_stage,
@@ -383,26 +371,6 @@ pub async fn work_delete_project_update(update_id: String) -> CmdResult<()> {
 
     let query = format!("id=eq.{}", update_id);
     client.delete("project_updates", &query).await
-}
-
-/// Link a task to a deal (project) via the junction table
-#[tauri::command]
-pub async fn work_link_task_to_deal(task_id: String, deal_id: String) -> CmdResult<serde_json::Value> {
-    let client = get_client().await?;
-
-    let link_data = serde_json::json!({
-        "task_id": task_id,
-        "deal_id": deal_id
-    });
-
-    let result: serde_json::Value = client.insert("task_deal_links", &link_data).await?;
-
-    Ok(serde_json::json!({
-        "success": true,
-        "task_id": task_id,
-        "deal_id": deal_id,
-        "result": result
-    }))
 }
 
 // Helper function to create URL-friendly slug
