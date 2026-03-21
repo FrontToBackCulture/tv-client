@@ -1,3 +1,4 @@
+Initialising login role...
 export type Json =
   | string
   | number
@@ -11,6 +12,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.1"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -89,12 +115,11 @@ export type Database = {
       crm_activities: {
         Row: {
           activity_date: string
-          company_id: string
+          company_id: string | null
           contact_id: string | null
           content: string | null
           created_at: string | null
           created_by: string | null
-          deal_id: string | null
           email_id: string | null
           id: string
           new_value: string | null
@@ -105,12 +130,11 @@ export type Database = {
         }
         Insert: {
           activity_date?: string
-          company_id: string
+          company_id?: string | null
           contact_id?: string | null
           content?: string | null
           created_at?: string | null
           created_by?: string | null
-          deal_id?: string | null
           email_id?: string | null
           id?: string
           new_value?: string | null
@@ -121,12 +145,11 @@ export type Database = {
         }
         Update: {
           activity_date?: string
-          company_id?: string
+          company_id?: string | null
           contact_id?: string | null
           content?: string | null
           created_at?: string | null
           created_by?: string | null
-          deal_id?: string | null
           email_id?: string | null
           id?: string
           new_value?: string | null
@@ -148,13 +171,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "crm_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_activities_deal_id_fkey"
-            columns: ["deal_id"]
-            isOneToOne: false
-            referencedRelation: "crm_deals"
             referencedColumns: ["id"]
           },
           {
@@ -276,86 +292,6 @@ export type Database = {
           },
         ]
       }
-      crm_deals: {
-        Row: {
-          actual_close_date: string | null
-          company_id: string
-          contact_ids: string[] | null
-          created_at: string | null
-          currency: string | null
-          description: string | null
-          expected_close_date: string | null
-          id: string
-          lost_reason: string | null
-          name: string
-          notes: string | null
-          order_form_path: string | null
-          proposal_path: string | null
-          solution: string | null
-          stage: string
-          stage_changed_at: string | null
-          stale_snoozed_until: string | null
-          tags: string[] | null
-          updated_at: string | null
-          value: number | null
-          won_notes: string | null
-        }
-        Insert: {
-          actual_close_date?: string | null
-          company_id: string
-          contact_ids?: string[] | null
-          created_at?: string | null
-          currency?: string | null
-          description?: string | null
-          expected_close_date?: string | null
-          id?: string
-          lost_reason?: string | null
-          name: string
-          notes?: string | null
-          order_form_path?: string | null
-          proposal_path?: string | null
-          solution?: string | null
-          stage?: string
-          stage_changed_at?: string | null
-          stale_snoozed_until?: string | null
-          tags?: string[] | null
-          updated_at?: string | null
-          value?: number | null
-          won_notes?: string | null
-        }
-        Update: {
-          actual_close_date?: string | null
-          company_id?: string
-          contact_ids?: string[] | null
-          created_at?: string | null
-          currency?: string | null
-          description?: string | null
-          expected_close_date?: string | null
-          id?: string
-          lost_reason?: string | null
-          name?: string
-          notes?: string | null
-          order_form_path?: string | null
-          proposal_path?: string | null
-          solution?: string | null
-          stage?: string
-          stage_changed_at?: string | null
-          stale_snoozed_until?: string | null
-          tags?: string[] | null
-          updated_at?: string | null
-          value?: number | null
-          won_notes?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "crm_deals_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "crm_companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       crm_email_company_links: {
         Row: {
           company_id: string
@@ -394,6 +330,47 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discussions: {
+        Row: {
+          author: string
+          body: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          author: string
+          body: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author?: string
+          body?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discussions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "discussions"
             referencedColumns: ["id"]
           },
         ]
@@ -566,6 +543,36 @@ export type Database = {
           domain?: string
           domain_type?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      domain_sync_status: {
+        Row: {
+          artifact: string
+          count: number
+          domain: string
+          duration_ms: number | null
+          last_sync: string
+          phase: string
+          status: string
+        }
+        Insert: {
+          artifact: string
+          count?: number
+          domain: string
+          duration_ms?: number | null
+          last_sync?: string
+          phase: string
+          status?: string
+        }
+        Update: {
+          artifact?: string
+          count?: number
+          domain?: string
+          duration_ms?: number | null
+          last_sync?: string
+          phase?: string
+          status?: string
         }
         Relationships: []
       }
@@ -1151,6 +1158,53 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          actor: string
+          body_preview: string
+          created_at: string
+          discussion_id: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          read: boolean
+          recipient: string
+          type: string
+        }
+        Insert: {
+          actor: string
+          body_preview: string
+          created_at?: string
+          discussion_id?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          read?: boolean
+          recipient: string
+          type?: string
+        }
+        Update: {
+          actor?: string
+          body_preview?: string
+          created_at?: string
+          discussion_id?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          read?: boolean
+          recipient?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_discussion_id_fkey"
+            columns: ["discussion_id"]
+            isOneToOne: false
+            referencedRelation: "discussions"
             referencedColumns: ["id"]
           },
         ]
@@ -2383,6 +2437,136 @@ export type Database = {
           },
         ]
       }
+      project_artifacts: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          preview_content: string | null
+          project_id: string | null
+          reference: string
+          session_id: string | null
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          preview_content?: string | null
+          project_id?: string | null
+          reference: string
+          session_id?: string | null
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          preview_content?: string | null
+          project_id?: string | null
+          reference?: string
+          session_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_artifacts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_artifacts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "project_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_context: {
+        Row: {
+          context_summary: string | null
+          current_state: string | null
+          id: string
+          key_decisions: Json | null
+          project_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          context_summary?: string | null
+          current_state?: string | null
+          id?: string
+          key_decisions?: Json | null
+          project_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          context_summary?: string | null
+          current_state?: string | null
+          id?: string
+          key_decisions?: Json | null
+          project_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_context_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_sessions: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          date: string
+          decisions: Json | null
+          id: string
+          next_steps: string[] | null
+          notes: string | null
+          open_questions: string[] | null
+          project_id: string | null
+          summary: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          date?: string
+          decisions?: Json | null
+          id?: string
+          next_steps?: string[] | null
+          notes?: string | null
+          open_questions?: string[] | null
+          project_id?: string | null
+          summary?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          date?: string
+          decisions?: Json | null
+          id?: string
+          next_steps?: string[] | null
+          notes?: string | null
+          open_questions?: string[] | null
+          project_id?: string | null
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_updates: {
         Row: {
           content: string
@@ -2451,12 +2635,10 @@ export type Database = {
           icon: string | null
           id: string
           identifier_prefix: string | null
-          intent: string | null
           lead: string | null
           lead_id: string | null
           name: string
           next_task_number: number | null
-          owner: string | null
           priority: number | null
           project_type: string
           slug: string
@@ -2491,12 +2673,10 @@ export type Database = {
           icon?: string | null
           id?: string
           identifier_prefix?: string | null
-          intent?: string | null
           lead?: string | null
           lead_id?: string | null
           name: string
           next_task_number?: number | null
-          owner?: string | null
           priority?: number | null
           project_type?: string
           slug: string
@@ -2531,12 +2711,10 @@ export type Database = {
           icon?: string | null
           id?: string
           identifier_prefix?: string | null
-          intent?: string | null
           lead?: string | null
           lead_id?: string | null
           name?: string
           next_task_number?: number | null
-          owner?: string | null
           priority?: number | null
           project_type?: string
           slug?: string
@@ -2721,99 +2899,6 @@ export type Database = {
           },
         ]
       }
-      skills: {
-        Row: {
-          slug: string
-          name: string
-          description: string
-          category: string
-          subcategory: string | null
-          target: string
-          status: string
-          command: string | null
-          domain: string | null
-          verified: boolean
-          owner: string | null
-          last_audited: string | null
-          rating: number | null
-          has_demo: boolean
-          has_examples: boolean
-          has_deck: boolean
-          has_guide: boolean
-          demo_uploaded: boolean
-          demo_url: string | null
-          needs_work: string | null
-          work_notes: string | null
-          action: string | null
-          outcome: string | null
-          gallery_pinned: boolean
-          gallery_order: number | null
-          distributions: unknown
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          slug: string
-          name: string
-          description?: string
-          category?: string
-          subcategory?: string | null
-          target?: string
-          status?: string
-          command?: string | null
-          domain?: string | null
-          verified?: boolean
-          owner?: string | null
-          last_audited?: string | null
-          rating?: number | null
-          has_demo?: boolean
-          has_examples?: boolean
-          has_deck?: boolean
-          has_guide?: boolean
-          demo_uploaded?: boolean
-          demo_url?: string | null
-          needs_work?: string | null
-          work_notes?: string | null
-          action?: string | null
-          outcome?: string | null
-          gallery_pinned?: boolean
-          gallery_order?: number | null
-          distributions?: unknown
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          slug?: string
-          name?: string
-          description?: string
-          category?: string
-          subcategory?: string | null
-          target?: string
-          status?: string
-          command?: string | null
-          domain?: string | null
-          verified?: boolean
-          owner?: string | null
-          last_audited?: string | null
-          rating?: number | null
-          has_demo?: boolean
-          has_examples?: boolean
-          has_deck?: boolean
-          has_guide?: boolean
-          demo_uploaded?: boolean
-          demo_url?: string | null
-          needs_work?: string | null
-          work_notes?: string | null
-          action?: string | null
-          outcome?: string | null
-          gallery_pinned?: boolean
-          gallery_order?: number | null
-          distributions?: unknown
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       scheduler_runs: {
         Row: {
           cache_creation_tokens: number | null
@@ -2880,6 +2965,99 @@ export type Database = {
         }
         Relationships: []
       }
+      skills: {
+        Row: {
+          action: string | null
+          category: string
+          command: string | null
+          created_at: string
+          demo_uploaded: boolean
+          demo_url: string | null
+          description: string
+          distributions: Json
+          domain: string | null
+          gallery_order: number | null
+          gallery_pinned: boolean
+          has_deck: boolean
+          has_demo: boolean
+          has_examples: boolean
+          has_guide: boolean
+          last_audited: string | null
+          name: string
+          needs_work: string | null
+          outcome: string | null
+          owner: string | null
+          rating: number | null
+          slug: string
+          status: string
+          subcategory: string | null
+          target: string
+          updated_at: string
+          verified: boolean
+          work_notes: string | null
+        }
+        Insert: {
+          action?: string | null
+          category?: string
+          command?: string | null
+          created_at?: string
+          demo_uploaded?: boolean
+          demo_url?: string | null
+          description?: string
+          distributions?: Json
+          domain?: string | null
+          gallery_order?: number | null
+          gallery_pinned?: boolean
+          has_deck?: boolean
+          has_demo?: boolean
+          has_examples?: boolean
+          has_guide?: boolean
+          last_audited?: string | null
+          name: string
+          needs_work?: string | null
+          outcome?: string | null
+          owner?: string | null
+          rating?: number | null
+          slug: string
+          status?: string
+          subcategory?: string | null
+          target?: string
+          updated_at?: string
+          verified?: boolean
+          work_notes?: string | null
+        }
+        Update: {
+          action?: string | null
+          category?: string
+          command?: string | null
+          created_at?: string
+          demo_uploaded?: boolean
+          demo_url?: string | null
+          description?: string
+          distributions?: Json
+          domain?: string | null
+          gallery_order?: number | null
+          gallery_pinned?: boolean
+          has_deck?: boolean
+          has_demo?: boolean
+          has_examples?: boolean
+          has_guide?: boolean
+          last_audited?: string | null
+          name?: string
+          needs_work?: string | null
+          outcome?: string | null
+          owner?: string | null
+          rating?: number | null
+          slug?: string
+          status?: string
+          subcategory?: string | null
+          target?: string
+          updated_at?: string
+          verified?: boolean
+          work_notes?: string | null
+        }
+        Relationships: []
+      }
       task_activity: {
         Row: {
           action: string
@@ -2911,42 +3089,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "task_activity_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      task_deal_links: {
-        Row: {
-          created_at: string | null
-          deal_id: string
-          id: string
-          task_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          deal_id: string
-          id?: string
-          task_id: string
-        }
-        Update: {
-          created_at?: string | null
-          deal_id?: string
-          id?: string
-          task_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "task_deal_links_deal_id_fkey"
-            columns: ["deal_id"]
-            isOneToOne: false
-            referencedRelation: "crm_deals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "task_deal_links_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
@@ -3039,7 +3181,6 @@ export type Database = {
           completed_at: string | null
           created_at: string | null
           created_by: string | null
-          crm_deal_id: string | null
           depends_on: string[] | null
           description: string | null
           due_date: string | null
@@ -3065,7 +3206,6 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
-          crm_deal_id?: string | null
           depends_on?: string[] | null
           description?: string | null
           due_date?: string | null
@@ -3091,7 +3231,6 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
-          crm_deal_id?: string | null
           depends_on?: string[] | null
           description?: string | null
           due_date?: string | null
@@ -3123,13 +3262,6 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tasks_crm_deal_id_fkey"
-            columns: ["crm_deal_id"]
-            isOneToOne: false
-            referencedRelation: "crm_deals"
             referencedColumns: ["id"]
           },
           {
@@ -3205,207 +3337,6 @@ export type Database = {
           visible_modules?: string[] | null
         }
         Relationships: []
-      }
-      workspace_artifacts: {
-        Row: {
-          created_at: string
-          id: string
-          label: string
-          preview_content: string | null
-          project_id: string | null
-          reference: string
-          session_id: string | null
-          type: string
-          workspace_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          label: string
-          preview_content?: string | null
-          project_id?: string | null
-          reference: string
-          session_id?: string | null
-          type: string
-          workspace_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          label?: string
-          preview_content?: string | null
-          project_id?: string | null
-          reference?: string
-          session_id?: string | null
-          type?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workspace_artifacts_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workspace_artifacts_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "workspace_sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workspace_artifacts_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workspace_context: {
-        Row: {
-          context_summary: string | null
-          current_state: string | null
-          key_decisions: Json | null
-          project_id: string | null
-          updated_at: string
-          workspace_id: string
-        }
-        Insert: {
-          context_summary?: string | null
-          current_state?: string | null
-          key_decisions?: Json | null
-          project_id?: string | null
-          updated_at?: string
-          workspace_id: string
-        }
-        Update: {
-          context_summary?: string | null
-          current_state?: string | null
-          key_decisions?: Json | null
-          project_id?: string | null
-          updated_at?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workspace_context_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workspace_context_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: true
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workspace_sessions: {
-        Row: {
-          conversation_id: string | null
-          created_at: string
-          date: string
-          decisions: Json | null
-          id: string
-          next_steps: string[] | null
-          notes: string | null
-          open_questions: string[] | null
-          project_id: string | null
-          summary: string | null
-          workspace_id: string
-        }
-        Insert: {
-          conversation_id?: string | null
-          created_at?: string
-          date?: string
-          decisions?: Json | null
-          id?: string
-          next_steps?: string[] | null
-          notes?: string | null
-          open_questions?: string[] | null
-          project_id?: string | null
-          summary?: string | null
-          workspace_id: string
-        }
-        Update: {
-          conversation_id?: string | null
-          created_at?: string
-          date?: string
-          decisions?: Json | null
-          id?: string
-          next_steps?: string[] | null
-          notes?: string | null
-          open_questions?: string[] | null
-          project_id?: string | null
-          summary?: string | null
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workspace_sessions_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workspace_sessions_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workspaces: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          initiative_id: string | null
-          intent: string | null
-          owner: string
-          status: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          initiative_id?: string | null
-          intent?: string | null
-          owner: string
-          status?: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          initiative_id?: string | null
-          intent?: string | null
-          owner?: string
-          status?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workspaces_initiative_id_fkey"
-            columns: ["initiative_id"]
-            isOneToOne: false
-            referencedRelation: "initiatives"
-            referencedColumns: ["id"]
-          },
-        ]
       }
     }
     Views: {
@@ -3541,6 +3472,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
