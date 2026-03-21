@@ -1,6 +1,6 @@
 [package]
 name = "tv-client"
-version = "0.9.10"
+version = "0.9.11"
 edition = "2021"
 default-run = "tv-client"
 
