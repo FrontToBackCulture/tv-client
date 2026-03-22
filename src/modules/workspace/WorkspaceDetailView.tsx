@@ -7,7 +7,7 @@ import {
   BarChart3, ListChecks, Globe, FileSpreadsheet, ChevronDown,
   ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
-  Circle, XCircle, PenTool, Trash2,
+  Circle, XCircle, PenTool, Trash2, Milestone as MilestoneIcon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -23,13 +23,14 @@ import {
 import { useWorkspace, useUpdateWorkspace, useAddArtifact, useRemoveArtifact } from "../../hooks/workspace";
 import { useFileTree, useReadFile, useFolderChildren, type TreeNode } from "../../hooks/useFiles";
 import { useTask, useAllTasks, useUpdateTask } from "../../hooks/work/useTasks";
+import { useMilestones, useCreateMilestone, useDeleteMilestone } from "../../hooks/work/useMilestones";
 import { useStatuses } from "../../hooks/work/useStatuses";
 import { useUsers } from "../../hooks/work/useUsers";
 import { useProjects } from "../../hooks/work/useProjects";
 import { TaskDetailPanel } from "../work/TaskDetailPanel";
 import { getFieldDefsForType, useProjectFieldsStore } from "../../stores/projectFieldsStore";
 import { useDeal } from "../../hooks/crm/useDeals";
-import { useCompany } from "../../hooks/crm/useCompanies";
+import { useCompany, useCompanies } from "../../hooks/crm/useCompanies";
 import { useContacts } from "../../hooks/crm/useContacts";
 import { useActivities } from "../../hooks/crm/useActivities";
 import { ACTIVITY_TYPES } from "../../lib/crm/types";
@@ -37,6 +38,7 @@ import { DEAL_STAGES, DEAL_SOLUTIONS, COMPANY_STAGES } from "../../lib/crm/types
 import { useRepository } from "../../stores/repositoryStore";
 import { toast } from "../../stores/toastStore";
 import type { WorkspaceSession, WorkspaceArtifact } from "../../lib/workspace/types";
+import { MilestoneTaskGroups } from "./MilestoneTaskGroups";
 
 /** Unescape literal \n sequences that arrive from MCP JSON serialization */
 const unescapeNewlines = (s: string) => s.replace(/\\n/g, "\n");
@@ -51,6 +53,7 @@ interface Props {
   workspaceId: string;
   onBack: () => void;
   onUpdated: () => void;
+  onCreateTask?: () => void;
 }
 
 // Artifact type to icon mapping
@@ -95,8 +98,22 @@ function formatDateTime(dateStr: string | null): string {
 }
 
 // Resolve a reference path to absolute
-function resolveRef(ref: string, basePath: string): string {
+// If the reference starts with a known repository name (e.g. "tv-client/..."),
+// resolve it relative to that repository's parent directory instead of basePath.
+function resolveRef(ref: string, basePath: string, allRepoPaths?: string[]): string {
   if (ref.startsWith("/")) return ref;
+  // Check if ref starts with a known repository folder name
+  if (allRepoPaths?.length) {
+    const firstSegment = ref.split("/")[0];
+    for (const repoPath of allRepoPaths) {
+      const repoName = repoPath.split("/").filter(Boolean).pop() || "";
+      if (repoName && repoName === firstSegment) {
+        // Resolve from this repo's parent: e.g. "tv-client/src/foo" → "/path/to/SkyNet/tv-client/src/foo"
+        const parentDir = repoPath.substring(0, repoPath.lastIndexOf("/"));
+        return `${parentDir}/${ref}`.replace(/\/+/g, "/");
+      }
+    }
+  }
   return `${basePath}/${ref}`.replace(/\/+/g, "/");
 }
 
@@ -200,21 +217,25 @@ function ArtifactTreeItem({
   artifact,
   workspaceId,
   basePath,
+  allRepoPaths,
   selectedFile,
   onSelectFile,
+  pathPrefix,
 }: {
   artifact: WorkspaceArtifact;
   workspaceId: string;
   basePath: string;
+  allRepoPaths?: string[];
   selectedFile: string | null;
   onSelectFile: (path: string) => void;
+  pathPrefix?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const removeMutation = useRemoveArtifact();
 
   const Icon = ARTIFACT_ICONS[artifact.type] || FileText;
   const isFolder = isDirectoryRef(artifact.reference);
-  const absPath = resolveRef(artifact.reference, basePath);
+  const absPath = resolveRef(artifact.reference, basePath, allRepoPaths);
 
   // Load file tree for folder artifacts when expanded
   const { data: tree } = useFileTree(
@@ -261,7 +282,7 @@ function ArtifactTreeItem({
           )}
           title={artifact.reference}
         >
-          {artifact.label}
+          {pathPrefix ? <><span className="text-zinc-400 dark:text-zinc-500">{pathPrefix}/</span>{artifact.label}</> : artifact.label}
         </span>
         <button
           onClick={handleRemove}
@@ -753,12 +774,30 @@ function FilePreview({ path }: { path: string }) {
   }
 
   if (!skipContent && (isError || !content)) {
+    // Check if this looks like an unresolved cross-repo reference
+    const segments = path.split("/");
+    const knowledgeIdx = segments.indexOf("tv-knowledge");
+    const afterKnowledge = knowledgeIdx >= 0 ? segments[knowledgeIdx + 1] : null;
+    const isCrossRepo = afterKnowledge && /^(tv-|val)/.test(afterKnowledge);
+
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle size={24} className="mx-auto mb-2 text-red-400" />
-          <p className="text-xs text-red-400">Failed to load file</p>
-          <p className="text-xs text-zinc-500 mt-1 max-w-xs truncate">{path}</p>
+        <div className="text-center max-w-sm">
+          <AlertCircle size={24} className="mx-auto mb-2 text-zinc-300 dark:text-zinc-600" />
+          {isCrossRepo ? (
+            <>
+              <p className="text-xs text-zinc-500 font-medium">Cannot preview — file is in a different repository</p>
+              <p className="text-xs text-zinc-400 mt-1">
+                This artifact references <span className="font-mono text-zinc-500">{afterKnowledge}/</span> which is not in the current knowledge base.
+              </p>
+              <p className="text-xs text-zinc-400 mt-2">Add the repository in Settings to enable preview.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-zinc-500">File not found</p>
+              <p className="text-xs text-zinc-400 mt-1 truncate" title={path}>{path}</p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -1375,10 +1414,10 @@ function EditableField({ value, onSave, type = "text", options, displayValue }: 
   );
 }
 
-export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated }: Props) {
+export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated, onCreateTask }: Props) {
   const { data: workspace, isLoading, refetch: refetchWorkspace } = useWorkspace(workspaceId);
   const updateWorkspace = useUpdateWorkspace();
-  const { activeRepository } = useRepository();
+  const { activeRepository, repositories } = useRepository();
   const basePath = activeRepository?.path ?? "";
   const [selection, setSelection] = useState<{ type: "file"; path: string } | { type: "session"; id: string } | { type: "task"; id: string } | { type: "crm_deal"; id: string } | { type: "crm_company"; id: string } | { type: "activity"; id: string } | { type: "contact"; id: string } | null>(null);
   const [showPicker, setShowPicker] = useState(false);
@@ -1386,6 +1425,10 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const [taskContextMenu, setTaskContextMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
   const [taskProjectSearch, setTaskProjectSearch] = useState("");
   const [taskDetailId, setTaskDetailId] = useState<string | null>(null);
+  const [showMilestoneInput, setShowMilestoneInput] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ context: true, details: true, activities: true });
+  const [contextMenuTab, setContextMenuTab] = useState<"milestone" | "project">("milestone");
+  const [newMilestoneName, setNewMilestoneName] = useState("");
 
   // Direct project update via Supabase
   const updateProjectField = useCallback(async (field: string, value: any) => {
@@ -1394,6 +1437,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
     refetchWorkspace();
   }, [workspaceId, refetchWorkspace]);
   const [sidebarWidth, setSidebarWidth] = useState(280);
+  const [contactsExpanded, setContactsExpanded] = useState(false);
   const dragging = useRef(false);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
@@ -1438,6 +1482,11 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const updateTaskMutation = useUpdateTask();
   const { data: taskStatuses = [] } = useStatuses(workspaceId);
   const { data: taskUsers = [] } = useUsers();
+  const { data: allCompanies = [] } = useCompanies();
+  const { data: allContacts = [] } = useContacts();
+  const { data: milestones = [] } = useMilestones(workspaceId);
+  const createMilestoneMutation = useCreateMilestone();
+  const deleteMilestoneMutation = useDeleteMilestone();
   const reassignTask = useCallback(async (taskId: string, newProjectId: string) => {
     const { supabase } = await import("../../lib/supabase");
     await supabase.from("tasks").update({ project_id: newProjectId }).eq("id", taskId);
@@ -1484,7 +1533,10 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
 
   // Config-driven project fields — subscribe to store so changes in settings trigger re-render
   const enabledProjectFields = useProjectFieldsStore((s) => s.getEnabledFields((workspace as any)?.project_type || "work"));
-  const configuredFields = getFieldDefsForType((workspace as any)?.project_type || "work").filter(f => enabledProjectFields.includes(f.key));
+  const dealFieldKeys = new Set(["deal_stage", "deal_value", "deal_currency", "deal_solution", "deal_expected_close", "deal_actual_close", "deal_proposal_path", "deal_order_form_path", "deal_lost_reason", "deal_won_notes", "deal_notes"]);
+  const configuredFields = getFieldDefsForType((workspace as any)?.project_type || "work")
+    .filter(f => enabledProjectFields.includes(f.key))
+    .filter(f => !(!companyId && dealFieldKeys.has(f.key))); // Hide deal fields for projects without a company
 
   if (isLoading) {
     return <div className="h-full flex items-center justify-center text-zinc-400">Loading...</div>;
@@ -1588,8 +1640,8 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
             {workspace.owner && <span>{workspace.owner}</span>}
             <button
               onClick={() => { navigator.clipboard.writeText(workspaceId); toast.success("Project ID copied"); }}
-              className="font-mono text-zinc-300 dark:text-zinc-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors cursor-copy"
-              title="Click to copy project ID"
+              className="font-mono text-zinc-300 dark:text-zinc-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors cursor-pointer"
+              title={workspaceId}
             >
               {workspaceId.slice(0, 8)}
             </button>
@@ -1641,42 +1693,70 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                       <span className="text-zinc-300 dark:text-zinc-600">({typeArtifacts.length})</span>
                     </h4>
                     <div className="space-y-0.5">
-                      {typeArtifacts.map((artifact) =>
-                        artifact.type === "task" ? (
-                          <TaskArtifactItem
-                            key={artifact.id}
-                            artifact={artifact}
-                            workspaceId={workspaceId}
-                            isSelected={taskDetailId === artifact.reference}
-                            onSelect={() => setTaskDetailId(artifact.reference)}
-                          />
-                        ) : artifact.type === "crm_deal" ? (
-                          <CrmDealArtifactItem
-                            key={artifact.id}
-                            artifact={artifact}
-                            workspaceId={workspaceId}
-                            isSelected={selection?.type === "crm_deal" && selection.id === artifact.reference}
-                            onSelect={() => setSelection({ type: "crm_deal", id: artifact.reference })}
-                          />
-                        ) : artifact.type === "crm_company" ? (
-                          <CrmCompanyArtifactItem
-                            key={artifact.id}
-                            artifact={artifact}
-                            workspaceId={workspaceId}
-                            isSelected={selection?.type === "crm_company" && selection.id === artifact.reference}
-                            onSelect={() => setSelection({ type: "crm_company", id: artifact.reference })}
-                          />
-                        ) : (
-                          <ArtifactTreeItem
-                            key={artifact.id}
-                            artifact={artifact}
-                            workspaceId={workspaceId}
-                            basePath={basePath}
-                            selectedFile={selectedFile}
-                            onSelectFile={(path) => setSelection({ type: "file", path })}
-                          />
-                        )
-                      )}
+                      {(() => {
+                        // Compute minimum unique path prefixes for duplicate labels
+                        const prefixMap = new Map<string, string>();
+                        const labelGroups = new Map<string, typeof typeArtifacts>();
+                        for (const a of typeArtifacts) {
+                          const group = labelGroups.get(a.label) || [];
+                          group.push(a);
+                          labelGroups.set(a.label, group);
+                        }
+                        for (const [, group] of labelGroups) {
+                          if (group.length <= 1) continue;
+                          // Walk up path segments until all are unique
+                          const refs = group.map(a => a.reference?.replace(/\/$/, "").split("/") || []);
+                          for (let depth = 1; depth <= 10; depth++) {
+                            const prefixes = refs.map(parts => {
+                              const start = Math.max(0, parts.length - 1 - depth);
+                              return parts.slice(start, parts.length - 1).join("/");
+                            });
+                            const unique = new Set(prefixes);
+                            if (unique.size === group.length || depth === 10) {
+                              group.forEach((a, i) => prefixMap.set(a.id, prefixes[i]));
+                              break;
+                            }
+                          }
+                        }
+                        return typeArtifacts.map((artifact) =>
+                          artifact.type === "task" ? (
+                            <TaskArtifactItem
+                              key={artifact.id}
+                              artifact={artifact}
+                              workspaceId={workspaceId}
+                              isSelected={taskDetailId === artifact.reference}
+                              onSelect={() => setTaskDetailId(artifact.reference)}
+                            />
+                          ) : artifact.type === "crm_deal" ? (
+                            <CrmDealArtifactItem
+                              key={artifact.id}
+                              artifact={artifact}
+                              workspaceId={workspaceId}
+                              isSelected={selection?.type === "crm_deal" && selection.id === artifact.reference}
+                              onSelect={() => setSelection({ type: "crm_deal", id: artifact.reference })}
+                            />
+                          ) : artifact.type === "crm_company" ? (
+                            <CrmCompanyArtifactItem
+                              key={artifact.id}
+                              artifact={artifact}
+                              workspaceId={workspaceId}
+                              isSelected={selection?.type === "crm_company" && selection.id === artifact.reference}
+                              onSelect={() => setSelection({ type: "crm_company", id: artifact.reference })}
+                            />
+                          ) : (
+                            <ArtifactTreeItem
+                              key={artifact.id}
+                              artifact={artifact}
+                              workspaceId={workspaceId}
+                              basePath={basePath}
+                              allRepoPaths={repositories.map(r => r.path)}
+                              selectedFile={selectedFile}
+                              onSelectFile={(path) => setSelection({ type: "file", path })}
+                              pathPrefix={prefixMap.get(artifact.id)}
+                            />
+                          )
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -1704,8 +1784,8 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
               )}
             </div>
 
-            {/* Deal metadata — editable */}
-            {isDeal && (
+            {/* Deal metadata — hidden from project details pane, managed via CRM */}
+            {false && isDeal && companyId && (
               <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
                 <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
                   Deal Info
@@ -1739,34 +1819,42 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
               </div>
             )}
 
-            {/* Contacts (for deals) */}
-            {isDeal && contacts.length > 0 && (
+            {/* Contacts (for deals with a company) */}
+            {isDeal && companyId && contacts.length > 0 && (
               <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
-                <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                  Contacts ({contacts.length})
-                </h3>
-                <div className="space-y-0.5">
-                  {contacts.map((contact) => (
-                    <button
-                      key={contact.id}
-                      onClick={() => setSelection({ type: "contact", id: contact.id })}
-                      className={cn(
-                        "block w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
-                        selection?.type === "contact" && selection.id === contact.id
-                          ? "bg-teal-50 dark:bg-teal-950/30"
-                          : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-zinc-600 dark:text-zinc-300">{contact.name}</span>
-                        {contact.is_primary && (
-                          <span className="text-[9px] px-1 py-0 rounded bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">Primary</span>
+                <button
+                  onClick={() => setContactsExpanded(!contactsExpanded)}
+                  className="flex items-center gap-1 w-full text-left mb-1.5"
+                >
+                  {contactsExpanded ? <ChevronDown size={12} className="text-zinc-400" /> : <ChevronRight size={12} className="text-zinc-400" />}
+                  <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                    Contacts ({contacts.length})
+                  </h3>
+                </button>
+                {contactsExpanded && (
+                  <div className="space-y-0.5">
+                    {contacts.map((contact) => (
+                      <button
+                        key={contact.id}
+                        onClick={() => setSelection({ type: "contact", id: contact.id })}
+                        className={cn(
+                          "block w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
+                          selection?.type === "contact" && selection.id === contact.id
+                            ? "bg-teal-50 dark:bg-teal-950/30"
+                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                         )}
-                      </div>
-                      {contact.role && <div className="text-zinc-400 text-[11px]">{contact.role}</div>}
-                    </button>
-                  ))}
-                </div>
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-zinc-600 dark:text-zinc-300">{contact.name}</span>
+                          {contact.is_primary && (
+                            <span className="text-[9px] px-1 py-0 rounded bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">Primary</span>
+                          )}
+                        </div>
+                        {contact.role && <div className="text-zinc-400 text-[11px]">{contact.role}</div>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1780,7 +1868,25 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
         />
 
         {/* RIGHT: File preview, session detail, task detail, or context */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {/* Close bar — shown when viewing a file/session/entity so user can return to project details */}
+          {selection && (
+            <div className="flex-shrink-0 flex items-center justify-between px-3 py-1 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/80 dark:bg-zinc-900/50">
+              <button
+                onClick={() => setSelection(null)}
+                className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+              >
+                <ArrowLeft size={12} />
+                Project Details
+              </button>
+              <button
+                onClick={() => setSelection(null)}
+                className="p-0.5 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
           {selectedFile ? (
             <FilePreview path={selectedFile} />
           ) : selectedSession ? (
@@ -1795,27 +1901,40 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
             <ActivityDetailPanel activity={activities.find(a => a.id === selection.id) || null} />
           ) : (
             <div className="h-full overflow-y-auto p-6">
-              {/* Context */}
-              {context?.current_state && (
-                <div className="mb-6 p-3 bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/50 rounded-lg">
-                  <h3 className="text-xs font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <AlertCircle size={12} /> Current State
-                  </h3>
+              {/* Current State */}
+              <div className="mb-6 p-3 bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/50 rounded-lg">
+                <h3 className="text-xs font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <AlertCircle size={12} /> Current State
+                </h3>
+                {context?.current_state ? (
                   <p className="text-sm text-teal-800 dark:text-teal-300">{context.current_state}</p>
-                </div>
-              )}
+                ) : (
+                  <p className="text-xs text-teal-600/50 dark:text-teal-500/50 italic">No current state set</p>
+                )}
+              </div>
 
-              {context?.context_summary && (
-                <div className="mb-6">
-                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2">Context</h3>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap">{unescapeNewlines(context.context_summary)}</p>
-                </div>
-              )}
+              {/* Context */}
+              <div className="mb-6">
+                <button onClick={() => setCollapsedSections(s => ({ ...s, context: !s.context }))} className="flex items-center gap-1.5 mb-2 group">
+                  {collapsedSections.context ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
+                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Context</h3>
+                </button>
+                {!collapsedSections.context && (
+                  context?.context_summary ? (
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap pl-5">{unescapeNewlines(context.context_summary)}</p>
+                  ) : (
+                    <p className="text-xs text-zinc-400 italic pl-5">No context summary yet</p>
+                  )
+                )}
+              </div>
 
               {/* Project Details — editable fields */}
               <div className="mb-6">
-                <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">Project Details</h3>
-                <div className="space-y-1 text-xs">
+                <button onClick={() => setCollapsedSections(s => ({ ...s, details: !s.details }))} className="flex items-center gap-1.5 mb-3 group">
+                  {collapsedSections.details ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
+                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Project Details</h3>
+                </button>
+                {!collapsedSections.details && <div className="space-y-1 text-xs pl-5">
                   <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
                     <span className="text-zinc-400 py-1">Name</span>
                     <EditableField value={workspace.title} onSave={(v) => updateProjectField("name", v)} />
@@ -1826,7 +1945,17 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                   </div>
                   <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
                     <span className="text-zinc-400 py-1">Owner</span>
-                    <EditableField value={ws.owner} onSave={(v) => updateProjectField("owner", v || null)} />
+                    <EditableField
+                      value={ws.lead_id || ""}
+                      type="select"
+                      options={[{ value: "", label: "—" }, ...taskUsers.map(u => ({ value: u.id, label: u.name }))]}
+                      displayValue={taskUsers.find(u => u.id === ws.lead_id)?.name || ws.owner || undefined}
+                      onSave={(v) => {
+                        const user = taskUsers.find(u => u.id === v);
+                        updateProjectField("lead_id", v || null);
+                        updateProjectField("owner", user?.name || null);
+                      }}
+                    />
                   </div>
 
                   {/* Company (for deals) */}
@@ -1844,31 +1973,88 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                   {configuredFields.length > 0 && (
                     <>
                       <div className="border-t border-zinc-100 dark:border-zinc-800 my-2" />
-                      {configuredFields.map((field) => (
-                        <div key={field.key} className="grid grid-cols-[120px,1fr] gap-2 items-start">
-                          <span className="text-zinc-400 py-1">{field.label}</span>
-                          <EditableField
-                            value={ws[field.key]}
-                            type={field.type}
-                            options={field.options}
-                            displayValue={field.options?.find((o: { value: string; label: string }) => o.value === String(ws[field.key] ?? ""))?.label}
-                            onSave={(v) => updateProjectField(field.key, field.type === "number" ? (parseFloat(v) || null) : (v || null))}
-                          />
-                        </div>
-                      ))}
+                      {configuredFields.map((field) => {
+                        let displayValue: string | undefined;
+                        if (field.options) {
+                          displayValue = field.options.find((o: { value: string; label: string }) => o.value === String(ws[field.key] ?? ""))?.label;
+                        } else if (field.key === "deal_value" && ws[field.key]) {
+                          displayValue = `${ws.deal_currency || "SGD"} ${Number(ws[field.key]).toLocaleString()}`;
+                        }
+                        return (
+                          <div key={field.key} className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                            <span className="text-zinc-400 py-1">{field.label}</span>
+                            <EditableField
+                              value={ws[field.key]}
+                              type={field.type}
+                              options={field.options}
+                              displayValue={displayValue}
+                              onSave={(v) => updateProjectField(field.key, field.type === "number" ? (parseFloat(v) || null) : (v || null))}
+                            />
+                          </div>
+                        );
+                      })}
                     </>
                   )}
-                </div>
+                  <div className="border-t border-zinc-100 dark:border-zinc-800 mt-3 pt-3">
+                    <button
+                      onClick={deleteProject}
+                      className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded px-2 py-1.5 transition-colors"
+                    >
+                      <Trash2 size={12} />
+                      Delete Project
+                    </button>
+                  </div>
+                </div>}
               </div>
 
-              {/* Tasks table */}
-              {projectTasks.length > 0 && (
-                <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center justify-between mb-3">
+              {/* Tasks table — grouped by milestone when milestones exist */}
+              <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <button onClick={() => setCollapsedSections(s => ({ ...s, tasks: !s.tasks }))} className="flex items-center gap-1.5 group">
+                    {collapsedSections.tasks ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
                     <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                       Tasks ({projectTasks.length})
                     </h3>
-                    <div className="flex items-center gap-2">
+                  </button>
+                    <div className="flex items-center gap-3">
+                      {onCreateTask && (
+                        <button
+                          onClick={onCreateTask}
+                          className="flex items-center gap-1 text-[10px] font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors"
+                        >
+                          <Plus size={10} /> New Task
+                        </button>
+                      )}
+                      {showMilestoneInput ? (
+                        <form
+                          className="flex items-center gap-1"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (newMilestoneName.trim()) {
+                              createMilestoneMutation.mutate({ project_id: workspaceId, name: newMilestoneName.trim() });
+                            }
+                            setNewMilestoneName("");
+                            setShowMilestoneInput(false);
+                          }}
+                        >
+                          <input
+                            autoFocus
+                            value={newMilestoneName}
+                            onChange={(e) => setNewMilestoneName(e.target.value)}
+                            onBlur={() => { setNewMilestoneName(""); setShowMilestoneInput(false); }}
+                            onKeyDown={(e) => { if (e.key === "Escape") { setNewMilestoneName(""); setShowMilestoneInput(false); } }}
+                            placeholder="Milestone name..."
+                            className="text-[11px] border border-teal-400 rounded px-1.5 py-0.5 bg-white dark:bg-zinc-900 outline-none w-36"
+                          />
+                        </form>
+                      ) : (
+                        <button
+                          onClick={() => setShowMilestoneInput(true)}
+                          className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                        >
+                          <Plus size={10} /> Milestone
+                        </button>
+                      )}
                       <div className="flex items-center gap-2 w-40">
                         <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                           <div
@@ -1880,6 +2066,21 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                       </div>
                     </div>
                   </div>
+                  {collapsedSections.tasks ? null : projectTasks.length === 0 ? (
+                    <p className="text-xs text-zinc-400 italic pl-5">No tasks yet</p>
+                  ) : milestones.length > 0 ? (
+                    <MilestoneTaskGroups
+                      milestones={milestones}
+                      tasks={projectTasks}
+                      taskStatuses={taskStatuses}
+                      taskUsers={taskUsers}
+                      taskDetailId={taskDetailId}
+                      onSelectTask={setTaskDetailId}
+                      onContextMenu={(taskId, x, y) => { setTaskContextMenu({ taskId, x, y }); setTaskProjectSearch(""); }}
+                      onUpdateTask={(id, updates) => updateTaskMutation.mutate({ id, updates })}
+                      onDeleteMilestone={(id) => deleteMilestoneMutation.mutate(id)}
+                    />
+                  ) : (
                   <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
                     <table className="w-full text-xs">
                       <thead>
@@ -1887,6 +2088,10 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                           <th className="text-left px-3 py-2 font-medium text-zinc-400 w-8"></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16">ID</th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400">Title</th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20">Type</th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400">Company</th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400">Contact</th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16">Days</th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24">Priority</th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28">Assignee</th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28">Due Date</th>
@@ -1896,7 +2101,9 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                         {projectTasks
                           .sort((a, b) => {
                             const order: Record<string, number> = { started: 0, review: 0, unstarted: 1, backlog: 2, completed: 3, canceled: 4 };
-                            return (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
+                            const statusDiff = (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
+                            if (statusDiff !== 0) return statusDiff;
+                            return (a.task_number ?? 0) - (b.task_number ?? 0);
                           })
                           .map((task) => {
                             const statusType = (task.status?.type as StatusType) ?? "unstarted";
@@ -1950,10 +2157,70 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                                   </div>
                                 </td>
                                 {/* ID */}
-                                <td className="px-2 py-1.5 text-zinc-400 font-mono text-[11px]">{identifier}</td>
+                                <td className="px-2 py-1.5 text-zinc-400 font-mono text-[11px] whitespace-nowrap">{identifier}</td>
                                 {/* Title */}
                                 <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-medium truncate max-w-0">
                                   <span className="truncate block">{task.title}</span>
+                                </td>
+                                {/* Type */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <select
+                                    value={task.task_type || "general"}
+                                    onChange={(e) => {
+                                      updateTaskMutation.mutate({ id: task.id, updates: { task_type: e.target.value } });
+                                    }}
+                                    className={`appearance-none text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer border-0 outline-none ${
+                                      task.task_type === "target" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                                      task.task_type === "prospect" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                                      task.task_type === "follow_up" ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" :
+                                      "bg-transparent text-zinc-400"
+                                    }`}
+                                  >
+                                    <option value="general">—</option>
+                                    <option value="target">Target</option>
+                                    <option value="prospect">Prospect</option>
+                                    <option value="follow_up">Follow Up</option>
+                                  </select>
+                                </td>
+                                {/* Company */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <select
+                                    value={(task as any).company_id || ""}
+                                    onChange={(e) => {
+                                      updateTaskMutation.mutate({ id: task.id, updates: { company_id: e.target.value || null, contact_id: null } });
+                                    }}
+                                    className="appearance-none bg-transparent text-[11px] cursor-pointer border-0 outline-none text-zinc-500"
+                                  >
+                                    <option value="">—</option>
+                                    {allCompanies.map((c) => (
+                                      <option key={c.id} value={c.id}>{c.display_name || c.name}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                {/* Contact */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <select
+                                    value={(task as any).contact_id || ""}
+                                    onChange={(e) => {
+                                      updateTaskMutation.mutate({ id: task.id, updates: { contact_id: e.target.value || null } });
+                                    }}
+                                    className="appearance-none bg-transparent text-[11px] cursor-pointer border-0 outline-none text-zinc-500"
+                                  >
+                                    <option value="">—</option>
+                                    {allContacts
+                                      .filter((c) => !(task as any).company_id || c.company_id === (task as any).company_id)
+                                      .map((c) => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                      ))}
+                                  </select>
+                                </td>
+                                {/* Days in Stage */}
+                                <td className="px-2 py-1.5">
+                                  {task.task_type_changed_at && task.task_type && task.task_type !== "general" && (() => {
+                                    const days = Math.floor((Date.now() - new Date(task.task_type_changed_at!).getTime()) / (1000 * 60 * 60 * 24));
+                                    const color = days > 30 ? "text-red-500" : days > 14 ? "text-amber-500" : "text-zinc-400";
+                                    return <span className={`text-[11px] ${color}`}>{days}d</span>;
+                                  })()}
                                 </td>
                                 {/* Priority */}
                                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
@@ -1987,14 +2254,25 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                                 </td>
                                 {/* Due Date */}
                                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <input
-                                    type="date"
-                                    value={task.due_date?.split("T")[0] || ""}
-                                    onChange={(e) => {
-                                      updateTaskMutation.mutate({ id: task.id, updates: { due_date: e.target.value ? `${e.target.value}T00:00:00Z` : null } });
-                                    }}
-                                    className="bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 w-full"
-                                  />
+                                  <div className="flex items-center gap-0.5">
+                                    <input
+                                      type="date"
+                                      value={task.due_date?.split("T")[0] || ""}
+                                      onChange={(e) => {
+                                        updateTaskMutation.mutate({ id: task.id, updates: { due_date: e.target.value ? `${e.target.value}T00:00:00Z` : null } });
+                                      }}
+                                      className="bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 flex-1 min-w-0"
+                                    />
+                                    {task.due_date && (
+                                      <button
+                                        onClick={() => updateTaskMutation.mutate({ id: task.id, updates: { due_date: null } })}
+                                        className="shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-300 group-hover:text-zinc-400 hover:!text-red-500 transition-colors"
+                                        title="Clear due date"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -2002,28 +2280,22 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                       </tbody>
                     </table>
                   </div>
-                </div>
-              )}
-
-              {/* Delete project */}
-              <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <button
-                  onClick={deleteProject}
-                  className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded px-2 py-1.5 transition-colors"
-                >
-                  <Trash2 size={12} />
-                  Delete Project
-                </button>
+                  )}
               </div>
 
               {/* Activities timeline */}
-              {activities.length > 0 && (
-                <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
+              <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                <button onClick={() => setCollapsedSections(s => ({ ...s, activities: !s.activities }))} className="flex items-center gap-1.5 mb-3 group">
+                  {collapsedSections.activities ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
+                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                     Activities ({activities.length})
                   </h3>
-                  <div className="space-y-3">
-                    {activities.slice(0, 20).map((activity) => {
+                </button>
+                {collapsedSections.activities ? null : activities.length === 0 ? (
+                  <p className="text-xs text-zinc-400 italic pl-5">No activities yet</p>
+                ) : (
+                <div className="space-y-3 pl-5">
+                  {activities.slice(0, 20).map((activity) => {
                       const typeInfo = ACTIVITY_TYPES.find(t => t.value === activity.type);
                       const date = new Date(activity.activity_date);
                       const dateStr = date.toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
@@ -2061,18 +2333,8 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                       );
                     })}
                   </div>
-                </div>
-              )}
-
-              {!context?.current_state && !context?.context_summary && !isDeal && ws.project_type !== "work" && (
-                <div className="flex items-center justify-center mt-8">
-                  <div className="text-center">
-                    <FileText size={32} className="mx-auto mb-3 text-zinc-300 dark:text-zinc-700" />
-                    <p className="text-sm text-zinc-400">Select a file to preview</p>
-                    <p className="text-xs text-zinc-400 mt-1">or expand a folder in the artifact tree</p>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -2082,46 +2344,111 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
       {/* Task right-click context menu — reassign to project */}
       {taskContextMenu && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setTaskContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu(null); }} />
+          <div className="fixed inset-0 z-40" onClick={() => { setTaskContextMenu(null); setContextMenuTab("milestone"); }} onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu(null); setContextMenuTab("milestone"); }} />
           <div
-            className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[220px] max-h-[300px] flex flex-col"
-            style={{ left: taskContextMenu.x, top: Math.min(taskContextMenu.y, window.innerHeight - 320) }}
+            className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl min-w-[260px] max-h-[340px] flex flex-col overflow-hidden"
+            style={{ left: taskContextMenu.x, top: Math.min(taskContextMenu.y, window.innerHeight - 360) }}
           >
-            <div className="px-3 py-1.5 text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Move to Project</div>
-            <div className="px-2 pb-1">
-              <input
-                type="text"
-                value={taskProjectSearch}
-                onChange={(e) => setTaskProjectSearch(e.target.value)}
-                placeholder="Search projects..."
-                className="text-xs w-full border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 bg-zinc-50 dark:bg-zinc-800 outline-none"
-                autoFocus
-              />
+            {/* Tabs */}
+            <div className="flex border-b border-zinc-200 dark:border-zinc-700">
+              {milestones.length > 0 && (
+                <button
+                  onClick={() => setContextMenuTab("milestone")}
+                  className={cn(
+                    "flex-1 px-3 py-2 text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5",
+                    contextMenuTab === "milestone"
+                      ? "text-teal-600 border-b-2 border-teal-500 -mb-px"
+                      : "text-zinc-400 hover:text-zinc-600"
+                  )}
+                >
+                  <MilestoneIcon size={12} /> Milestone
+                </button>
+              )}
+              <button
+                onClick={() => setContextMenuTab("project")}
+                className={cn(
+                  "flex-1 px-3 py-2 text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5",
+                  contextMenuTab === "project" || milestones.length === 0
+                    ? "text-teal-600 border-b-2 border-teal-500 -mb-px"
+                    : "text-zinc-400 hover:text-zinc-600"
+                )}
+              >
+                <Folder size={12} /> Project
+              </button>
             </div>
-            <div className="overflow-y-auto flex-1">
-              {allProjectsList
-                .filter(p => !taskProjectSearch || p.name.toLowerCase().includes(taskProjectSearch.toLowerCase()))
-                .slice(0, 20)
-                .map(p => {
-                  const isCurrent = p.id === workspaceId;
+
+            {/* Milestone tab */}
+            {contextMenuTab === "milestone" && milestones.length > 0 && (
+              <div className="overflow-y-auto flex-1 py-1">
+                <button
+                  onClick={() => {
+                    updateTaskMutation.mutate({ id: taskContextMenu.taskId, updates: { milestone_id: null } });
+                    setTaskContextMenu(null); setContextMenuTab("milestone");
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-400 italic"
+                >
+                  No milestone
+                </button>
+                {milestones.map(m => {
+                  const task = projectTasks.find(t => t.id === taskContextMenu.taskId);
+                  const isCurrent = task?.milestone_id === m.id;
                   return (
                     <button
-                      key={p.id}
-                      onClick={async () => {
-                        await reassignTask(taskContextMenu.taskId, p.id);
-                        setTaskContextMenu(null);
+                      key={m.id}
+                      onClick={() => {
+                        updateTaskMutation.mutate({ id: taskContextMenu.taskId, updates: { milestone_id: m.id } });
+                        setTaskContextMenu(null); setContextMenuTab("milestone");
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${isCurrent ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
+                      className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 ${isCurrent ? "bg-teal-50 dark:bg-teal-950/20" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
                     >
-                      <div className="w-1.5 h-1.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
-                      <span className={`truncate ${isCurrent ? "font-medium text-teal-600" : ""}`}>{p.name}</span>
-                      <span className={`text-[8px] px-1 rounded-full uppercase ml-auto flex-shrink-0 ${
-                        p.project_type === "deal" ? "bg-blue-50 text-blue-500" : "bg-zinc-100 text-zinc-400"
-                      }`}>{p.project_type || "work"}</span>
+                      <MilestoneIcon size={12} className={isCurrent ? "text-teal-500" : "text-zinc-400"} />
+                      <span className={isCurrent ? "font-medium text-teal-600" : ""}>{m.name}</span>
+                      {isCurrent && <CheckCircle2 size={12} className="ml-auto text-teal-500" />}
                     </button>
                   );
                 })}
-            </div>
+              </div>
+            )}
+
+            {/* Project tab */}
+            {(contextMenuTab === "project" || milestones.length === 0) && contextMenuTab !== "milestone" && (
+              <>
+                <div className="px-2 py-2">
+                  <input
+                    type="text"
+                    value={taskProjectSearch}
+                    onChange={(e) => setTaskProjectSearch(e.target.value)}
+                    placeholder="Search projects..."
+                    className="text-xs w-full border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 bg-zinc-50 dark:bg-zinc-800 outline-none"
+                    autoFocus
+                  />
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  {allProjectsList
+                    .filter(p => !taskProjectSearch || p.name.toLowerCase().includes(taskProjectSearch.toLowerCase()))
+                    .slice(0, 20)
+                    .map(p => {
+                      const isCurrent = p.id === workspaceId;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={async () => {
+                            await reassignTask(taskContextMenu.taskId, p.id);
+                            setTaskContextMenu(null); setContextMenuTab("milestone");
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${isCurrent ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
+                        >
+                          <div className="w-1.5 h-1.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
+                          <span className={`truncate ${isCurrent ? "font-medium text-teal-600" : ""}`}>{p.name}</span>
+                          <span className={`text-[8px] px-1 rounded-full uppercase ml-auto flex-shrink-0 ${
+                            p.project_type === "deal" ? "bg-blue-50 text-blue-500" : "bg-zinc-100 text-zinc-400"
+                          }`}>{p.project_type || "work"}</span>
+                        </button>
+                      );
+                    })}
+                </div>
+              </>
+            )}
           </div>
         </>
       )}
@@ -2138,7 +2465,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
       {taskDetailId && (
         <>
           <div className="fixed inset-0 z-30 bg-black/10" onClick={() => setTaskDetailId(null)} />
-          <div className="fixed right-0 top-0 bottom-0 z-40 w-[420px] shadow-xl border-l border-zinc-200 dark:border-zinc-800">
+          <div className="fixed right-0 top-0 bottom-0 z-40 w-[560px] shadow-xl border-l border-zinc-200 dark:border-zinc-800">
             <TaskDetailPanel
               taskId={taskDetailId}
               onClose={() => setTaskDetailId(null)}

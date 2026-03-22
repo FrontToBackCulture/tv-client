@@ -47,6 +47,8 @@ interface ProjectRow {
   deal_notes: string | null;
   deal_proposal_path: string | null;
   deal_order_form_path: string | null;
+  deal_stage_changed_at: string | null;
+  days_in_stage: number | null;
   health: string | null;
   lead: string | null;
   target_date: string | null;
@@ -117,6 +119,15 @@ function buildColumns(wrapNotes: boolean): (ColDef<ProjectRow> | ColGroupDef<Pro
     {
       field: "deal_solution", headerName: "Solution", width: 130, editable: true, filter: "agSetColumnFilter",
       cellEditor: "agSelectCellEditor", cellEditorParams: { values: [...DEAL_SOLUTIONS.map(s => s.value), ""] },
+    },
+    {
+      field: "days_in_stage", headerName: "Days in Stage", width: 110, filter: "agNumberColumnFilter",
+      cellRenderer: (params: any) => {
+        if (params.value == null) return null;
+        const d = params.value;
+        const color = d > 30 ? "text-red-500" : d > 14 ? "text-amber-500" : "text-zinc-400";
+        return <span className={`text-xs ${color}`}>{d}d</span>;
+      },
     },
     { field: "deal_expected_close", headerName: "Exp. Close", width: 110, editable: true, filter: "agDateColumnFilter" },
     { field: "deal_actual_close", headerName: "Act. Close", width: 110, editable: true, hide: true },
@@ -190,6 +201,8 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
       deal_solution: p.deal_solution, deal_expected_close: p.deal_expected_close,
       deal_actual_close: p.deal_actual_close, deal_notes: p.deal_notes,
       deal_proposal_path: p.deal_proposal_path, deal_order_form_path: p.deal_order_form_path,
+      deal_stage_changed_at: p.deal_stage_changed_at || null,
+      days_in_stage: p.deal_stage_changed_at ? Math.floor((Date.now() - new Date(p.deal_stage_changed_at).getTime()) / (1000 * 60 * 60 * 24)) : null,
       health: p.health, lead: p.lead, target_date: p.target_date, intent: (p as any).intent,
       created_at: p.created_at, updated_at: p.updated_at,
       task_count: counts.total, completed_count: counts.completed, overdue_count: counts.overdue,

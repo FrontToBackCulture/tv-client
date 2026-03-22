@@ -40,6 +40,10 @@ export type ProjectUpdateRecord =
 export type ProjectUpdateInsert =
   Database["public"]["Tables"]["project_updates"]["Insert"];
 
+// CRM types for task relations
+export type CrmCompany = Database["public"]["Tables"]["crm_companies"]["Row"];
+export type CrmContact = Database["public"]["Tables"]["crm_contacts"]["Row"];
+
 // Extended types with relations
 export interface TaskWithRelations extends Task {
   status?: TaskStatus;
@@ -49,6 +53,8 @@ export interface TaskWithRelations extends Task {
   milestone?: Milestone | null;
   assignee?: User | null;
   creator?: User | null;
+  company?: Pick<CrmCompany, "id" | "name" | "display_name" | "stage"> | null;
+  contact?: Pick<CrmContact, "id" | "name" | "email"> | null;
 }
 
 export interface ProjectWithStatuses extends Project {

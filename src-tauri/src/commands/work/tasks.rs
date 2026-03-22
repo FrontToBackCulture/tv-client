@@ -12,6 +12,8 @@ pub async fn work_list_tasks(
     status_type: Option<String>,
     assignee_id: Option<String>,
     milestone_id: Option<String>,
+    company_id: Option<String>,
+    task_type: Option<String>,
 ) -> CmdResult<Vec<Task>> {
     let client = get_client().await?;
 
@@ -31,6 +33,12 @@ pub async fn work_list_tasks(
     }
     if let Some(mid) = milestone_id {
         filters.push(format!("milestone_id=eq.{}", mid));
+    }
+    if let Some(cid) = company_id {
+        filters.push(format!("company_id=eq.{}", cid));
+    }
+    if let Some(tt) = task_type {
+        filters.push(format!("task_type=eq.{}", tt));
     }
 
     filters.push("order=sort_order.asc,created_at.desc".to_string());
@@ -84,6 +92,10 @@ pub async fn work_create_task(data: CreateTask) -> CmdResult<Task> {
         "depends_on": data.depends_on,
         "session_ref": data.session_ref,
         "requires_review": data.requires_review,
+        "company_id": data.company_id,
+        "contact_id": data.contact_id,
+        "task_type": data.task_type,
+        "task_type_changed_at": if data.task_type.is_some() { Some(chrono::Utc::now().to_rfc3339()) } else { None },
         "task_number": next_number
     });
 
@@ -104,6 +116,21 @@ pub async fn work_create_task(data: CreateTask) -> CmdResult<Task> {
 #[tauri::command]
 pub async fn work_update_task(task_id: String, data: UpdateTask) -> CmdResult<Task> {
     let client = get_client().await?;
+
+    // If task_type is changing, update task_type_changed_at
+    if data.task_type.is_some() {
+        let mut update_data = serde_json::to_value(&data)?;
+        if let Some(obj) = update_data.as_object_mut() {
+            obj.insert(
+                "task_type_changed_at".to_string(),
+                serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+            );
+        }
+        let _: Task = client
+            .update("tasks", &format!("id=eq.{}", task_id), &update_data)
+            .await?;
+        return work_get_task(task_id).await;
+    }
 
     // Check if status is changing to completed
     if let Some(status_id) = &data.status_id {

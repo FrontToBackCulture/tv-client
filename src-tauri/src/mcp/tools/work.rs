@@ -115,7 +115,9 @@ pub fn tools() -> Vec<Tool> {
                     "status_id": { "type": "string", "description": "Filter by status UUID" },
                     "status_type": { "type": "string", "enum": ["backlog", "unstarted", "started", "review", "completed", "canceled"] },
                     "assignee_id": { "type": "string", "description": "Filter by assignee UUID" },
-                    "milestone_id": { "type": "string", "description": "Filter by milestone UUID" }
+                    "milestone_id": { "type": "string", "description": "Filter by milestone UUID" },
+                    "company_id": { "type": "string", "description": "Filter by CRM company UUID" },
+                    "task_type": { "type": "string", "enum": ["general", "target", "prospect", "follow_up"], "description": "Filter by task type" }
                 }),
                 vec![],
             ),
@@ -145,7 +147,10 @@ pub fn tools() -> Vec<Tool> {
                     "milestone_id": { "type": "string", "description": "Milestone UUID" },
                     "depends_on": { "type": "array", "items": { "type": "string" }, "description": "Task IDs this depends on" },
                     "session_ref": { "type": "string", "description": "Session folder path" },
-                    "requires_review": { "type": "boolean", "description": "Requires human review" }
+                    "requires_review": { "type": "boolean", "description": "Requires human review" },
+                    "company_id": { "type": "string", "description": "CRM company UUID" },
+                    "contact_id": { "type": "string", "description": "CRM contact UUID" },
+                    "task_type": { "type": "string", "enum": ["general", "target", "prospect", "follow_up"], "description": "Task type" }
                 }),
                 vec!["project_id".to_string(), "status_id".to_string(), "title".to_string()],
             ),
@@ -165,7 +170,10 @@ pub fn tools() -> Vec<Tool> {
                     "milestone_id": { "type": "string" },
                     "depends_on": { "type": "array", "items": { "type": "string" } },
                     "session_ref": { "type": "string" },
-                    "requires_review": { "type": "boolean" }
+                    "requires_review": { "type": "boolean" },
+                    "company_id": { "type": "string", "description": "CRM company UUID" },
+                    "contact_id": { "type": "string", "description": "CRM contact UUID" },
+                    "task_type": { "type": "string", "enum": ["general", "target", "prospect", "follow_up"], "description": "Task type" }
                 }),
                 vec!["task_id".to_string()],
             ),
@@ -390,12 +398,12 @@ pub fn tools() -> Vec<Tool> {
         // Project artifacts
         Tool {
             name: "add-project-artifact".to_string(),
-            description: "Add an artifact (file, skill, task, entity) to a project for tracking".to_string(),
+            description: "Add an artifact (file, skill, entity) to a project for tracking. Only reference files within tv-knowledge — never code repos (tv-client, tv-api, etc.). Never use type 'task'.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "project_id": { "type": "string", "description": "Project UUID (required)" },
-                    "type": { "type": "string", "description": "Artifact type: skill, doc, crm_company, task, deal, file (required)" },
-                    "reference": { "type": "string", "description": "Artifact identifier — UUID for DB entities, relative path for files (required)" },
+                    "type": { "type": "string", "description": "Artifact type: skill, doc, crm_company, crm_deal, proposal, other (required). Never use 'task'." },
+                    "reference": { "type": "string", "description": "Artifact identifier — UUID for DB entities, path relative to tv-knowledge for files (required). Must NOT reference code repos (tv-client/, tv-api/, etc.)." },
                     "label": { "type": "string", "description": "Human-readable label (required)" },
                     "session_id": { "type": "string", "description": "Session UUID or conversation_id to link artifact to" },
                     "preview_content": { "type": "string", "description": "Preview text for the artifact" }
@@ -498,7 +506,9 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let status_type = args.get("status_type").and_then(|v| v.as_str()).map(|s| s.to_string());
             let assignee_id = args.get("assignee_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let milestone_id = args.get("milestone_id").and_then(|v| v.as_str()).map(|s| s.to_string());
-            match work::work_list_tasks(project_id, status_id, status_type, assignee_id, milestone_id).await {
+            let company_id = args.get("company_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let task_type = args.get("task_type").and_then(|v| v.as_str()).map(|s| s.to_string());
+            match work::work_list_tasks(project_id, status_id, status_type, assignee_id, milestone_id, company_id, task_type).await {
                 Ok(tasks) => ToolResult::json(&tasks),
                 Err(e) => ToolResult::error(e.to_string()),
             }
@@ -776,6 +786,18 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Ok(d) => d,
                 Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
             };
+            if data.artifact_type == "task" {
+                return ToolResult::error("Cannot add artifacts with type 'task'. Tasks belong in the tasks list (create-task / update-task), not as project artifacts.".to_string());
+            }
+            // Reject references to code repos — artifacts should only point to tv-knowledge files or UUIDs
+            let ref_lower = data.reference.to_lowercase();
+            let code_repo_prefixes = ["tv-client/", "tv-api/", "tv-portal/", "tv-website/", "tv-support/", "val-", "valrpa/"];
+            if code_repo_prefixes.iter().any(|p| ref_lower.starts_with(p)) {
+                return ToolResult::error(format!(
+                    "Cannot add artifact referencing code repo '{}'. Artifacts should only reference files within the knowledge base (tv-knowledge), not source code. Use session notes to record code references instead.",
+                    data.reference.split('/').next().unwrap_or(&data.reference)
+                ));
+            }
             match work::project_add_artifact(data).await {
                 Ok(artifact) => ToolResult::json(&artifact),
                 Err(e) => ToolResult::error(e.to_string()),

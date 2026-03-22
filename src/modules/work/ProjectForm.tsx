@@ -6,7 +6,7 @@ import {
   useCreateProject,
   useUpdateProject,
 } from "../../hooks/work/useProjects";
-import { useUsers } from "../../hooks/work";
+import { useUsers, useInitiatives } from "../../hooks/work";
 import type {
   Project,
   ProjectInsert,
@@ -21,6 +21,7 @@ import { Calendar, User as UserIcon } from "lucide-react";
 import { FormModal } from "../../components/ui/FormModal";
 import { FormField, Input, Select, Textarea } from "../../components/ui";
 import { toast } from "../../stores/toastStore";
+import { supabase } from "../../lib/supabase";
 
 interface ProjectFormProps {
   project?: Project;
@@ -48,6 +49,7 @@ function prefixFromName(name: string): string {
 
 export function ProjectForm({ project, onClose, onSaved }: ProjectFormProps) {
   const { data: users = [] } = useUsers();
+  const { data: initiatives = [] } = useInitiatives();
 
   const [formData, setFormData] = useState<Partial<ProjectInsert | ProjectUpdate>>({
     name: project?.name || "",
@@ -60,7 +62,9 @@ export function ProjectForm({ project, onClose, onSaved }: ProjectFormProps) {
     color: project?.color || "#0D7680",
     identifier_prefix: project?.identifier_prefix || "",
     priority: project?.priority ?? null,
+    project_type: project?.project_type || "work",
   });
+  const [initiativeId, setInitiativeId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
   const createMutation = useCreateProject();
@@ -87,12 +91,20 @@ export function ProjectForm({ project, onClose, onSaved }: ProjectFormProps) {
       } else {
         const slug = slugify(formData.name) || `proj-${Date.now().toString(36)}`;
         const prefix = (formData as ProjectInsert).identifier_prefix?.trim() || prefixFromName(formData.name);
-        await createMutation.mutateAsync({
+        const created = await createMutation.mutateAsync({
           ...formData,
           name: formData.name!,
           slug,
           identifier_prefix: prefix,
         } as ProjectInsert);
+
+        // Add to initiative if selected
+        if (initiativeId && created?.id) {
+          await supabase.from("initiative_projects").insert({
+            initiative_id: initiativeId,
+            project_id: created.id,
+          });
+        }
       }
 
       toast.success(isEditing ? "Project updated" : "Project created");
@@ -145,6 +157,31 @@ export function ProjectForm({ project, onClose, onSaved }: ProjectFormProps) {
         />
         <p className="text-[10px] text-zinc-400 mt-1">Used for task IDs (e.g. PROJ-1, PROJ-2)</p>
       </FormField>
+
+      {/* Type & Initiative */}
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Type">
+          <Select
+            value={formData.project_type || "work"}
+            onChange={(e) => setFormData({ ...formData, project_type: e.target.value as "work" | "deal" })}
+          >
+            <option value="work">Work</option>
+            <option value="deal">Deal</option>
+          </Select>
+        </FormField>
+
+        <FormField label="Initiative">
+          <Select
+            value={initiativeId}
+            onChange={(e) => setInitiativeId(e.target.value)}
+          >
+            <option value="">No initiative</option>
+            {initiatives.map((i) => (
+              <option key={i.id} value={i.id}>{i.name}</option>
+            ))}
+          </Select>
+        </FormField>
+      </div>
 
       {/* Status & Health */}
       <div className="grid grid-cols-2 gap-4">

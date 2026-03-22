@@ -1,16 +1,22 @@
 // WorkViews: Dashboard View — tree (left) + detail (right) layout
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "../../stores/toastStore";
 import {
   ChevronDown, ChevronRight, Pencil, Search, ArrowUpDown,
   Target, TrendingUp, CheckCircle2, AlertTriangle, Trash2,
+  PanelLeftClose, PanelLeftOpen, EyeOff, Eye, ArrowUp, ArrowDown,
 } from "lucide-react";
 import type { TaskWithRelations, Project, Initiative } from "../../lib/work/types";
 import {
   ProjectStatusLabels,
   ProjectStatusColors,
+  PriorityColors,
+  Priority,
 } from "../../lib/work/types";
 import type { ProjectStatus } from "../../lib/work/types";
+import { ProjectHealthColors } from "../../lib/work/types";
 import { isOverdue } from "../../lib/date";
 import { cn } from "../../lib/cn";
 import { DEAL_STAGES } from "../../lib/crm/types";
@@ -59,7 +65,16 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
 
   return (
     <div className="h-full overflow-y-auto p-6">
-      <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-1">{initiative.name}</h2>
+      <div className="flex items-center gap-2 mb-1">
+        <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">{initiative.name}</h2>
+        <button
+          onClick={() => { navigator.clipboard.writeText(initiative.id); toast.success("Initiative ID copied"); }}
+          className="font-mono text-[10px] text-zinc-300 dark:text-zinc-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors cursor-pointer"
+          title={initiative.id}
+        >
+          {initiative.id.slice(0, 8)}
+        </button>
+      </div>
       {initiative.description && <p className="text-xs text-zinc-500 mb-4">{initiative.description}</p>}
 
       <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Initiative Details</h3>
@@ -140,7 +155,7 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
 }
 
 export function DashboardView({
-  projects, allTasks, initiatives, initiativeLinks, taskDealLinks, onEditInitiative, onUpdateProject, onInitiativeLinkChanged,
+  projects, allTasks, initiatives, initiativeLinks, taskDealLinks, onEditInitiative, onUpdateProject, onInitiativeLinkChanged, onCreateTask,
 }: {
   projects: Project[];
   allTasks: TaskWithRelations[];
@@ -150,6 +165,7 @@ export function DashboardView({
   taskDealLinks?: { task_id: string; deal_id: string }[];
   onUpdateProject?: (id: string, updates: Record<string, any>) => void;
   onInitiativeLinkChanged?: (projectId: string, initiativeId: string | null) => Promise<void>;
+  onCreateTask?: (projectId: string) => void;
 }) {
   // Persist selected project across refreshes
   const SELECTED_PROJECT_KEY = "tv-dashboard-selected-project";
@@ -204,9 +220,28 @@ export function DashboardView({
   const [selectedInitiativeId, setSelectedInitiativeId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ projectId: string; x: number; y: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"name" | "tasks" | "status">("name");
+  const [hideCompleted, setHideCompleted] = useState(false);
+  const [sortBy, setSortBy] = useState<"name" | "tasks" | "status" | "target">("name");
   const [sidebarWidth, setSidebarWidth] = useState(400);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const dragging = useRef(false);
+
+  // Initiative reorder
+  const queryClient = useQueryClient();
+
+  const moveInitiative = useCallback(async (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= initiatives.length) return;
+
+    const { supabase } = await import("../../lib/supabase");
+    const a = initiatives[index];
+    const b = initiatives[targetIndex];
+    await Promise.all([
+      supabase.from("initiatives").update({ sort_order: targetIndex }).eq("id", a.id),
+      supabase.from("initiatives").update({ sort_order: index }).eq("id", b.id),
+    ]);
+    queryClient.invalidateQueries({ queryKey: ["work", "initiatives"] });
+  }, [initiatives, queryClient]);
 
   const toggleGroup = (id: string) => {
     setCollapsedGroups(prev => {
@@ -296,6 +331,12 @@ export function DashboardView({
 
   const sortProjects = useCallback((list: Project[]) => {
     return [...list].sort((a, b) => {
+      // Active projects always float to top
+      const aActive = a.status === "active" ? 0 : 1;
+      const bActive = b.status === "active" ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+
+      // Within same active/inactive group, apply chosen sort
       if (sortBy === "tasks") {
         const ca = projectTaskCounts.get(a.id)?.total || 0;
         const cb = projectTaskCounts.get(b.id)?.total || 0;
@@ -306,15 +347,29 @@ export function DashboardView({
         const sb = order[b.status || ""] ?? 4;
         if (sa !== sb) return sa - sb;
       }
+
+      // Sort by target_date (latest date first, nulls last)
+      const aDate = a.target_date ? new Date(a.target_date).getTime() : 0;
+      const bDate = b.target_date ? new Date(b.target_date).getTime() : 0;
+      if (aDate !== bDate) {
+        if (!aDate) return 1;  // no date → bottom
+        if (!bDate) return -1;
+        return bDate - aDate;  // latest date first
+      }
+
       return a.name.localeCompare(b.name);
     });
   }, [sortBy, projectTaskCounts]);
 
   const filterProjects = useCallback((list: Project[]) => {
-    if (!searchQuery) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter(p => p.name.toLowerCase().includes(q));
-  }, [searchQuery]);
+    let filtered = list;
+    if (hideCompleted) filtered = filtered.filter(p => p.status !== "completed");
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(p => p.name.toLowerCase().includes(q));
+    }
+    return filtered;
+  }, [searchQuery, hideCompleted]);
 
   const unassignedProjects = useMemo(() => {
     return sortProjects(filterProjects(projects.filter(p => !projectInitiativeMap.has(p.id))));
@@ -383,19 +438,44 @@ export function DashboardView({
         key={p.id}
         onClick={() => { setSelectedProjectId(p.id); setSelectedInitiativeId(null); }}
         onContextMenu={(e) => { e.preventDefault(); setContextMenu({ projectId: p.id, x: e.clientX, y: e.clientY }); }}
-        className={`grid grid-cols-[1fr,55px,50px,70px] gap-1 items-center pr-2 py-1.5 cursor-pointer transition-colors group ${
+        className={`grid grid-cols-[1fr,55px,30px,50px,70px] gap-1 items-center pr-2 py-1.5 cursor-pointer transition-colors group ${
           isSelected
             ? "bg-teal-50 dark:bg-teal-950/30"
             : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
         } ${isDimmed ? "opacity-50" : ""}`}
         style={{ paddingLeft: indentExtra ? "3.5rem" : "2rem" }}
       >
-        {/* Name */}
+        {/* Name + Health + Priority */}
         <div className="flex items-center gap-1.5 min-w-0">
-          <div className="w-1.5 h-1.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
+          <div className="w-3 flex items-center justify-center flex-shrink-0">
+            {p.health && p.health !== "on_track" ? (
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{
+                  backgroundColor: (ProjectHealthColors as any)[p.health],
+                  boxShadow: `0 0 0 2px white, 0 0 0 3px ${(ProjectHealthColors as any)[p.health]}`,
+                }}
+                title={p.health.replace("_", " ")}
+              />
+            ) : (
+              <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: p.color || "#6B7280" }} />
+            )}
+          </div>
           <span className={`text-[11px] truncate ${isSelected ? "text-teal-700 dark:text-teal-300 font-medium" : "text-zinc-700 dark:text-zinc-300"}`}>
             {p.name}
           </span>
+          {p.priority != null && p.priority > 0 && p.priority <= 2 && (
+            <span
+              className="text-[9px] px-1 py-px rounded font-semibold flex-shrink-0 leading-tight"
+              style={{
+                color: PriorityColors[p.priority as Priority],
+                backgroundColor: `${PriorityColors[p.priority as Priority]}15`,
+              }}
+              title={`Priority: ${Priority[p.priority] || p.priority}`}
+            >
+              {p.priority === 1 ? "URGENT" : "HIGH"}
+            </span>
+          )}
         </div>
 
         {/* Type */}
@@ -421,13 +501,23 @@ export function DashboardView({
           )}
         </div>
 
+        {/* Days in Stage */}
+        <span className={`text-[9px] tabular-nums text-right ${
+          p.deal_stage_changed_at ? (() => {
+            const d = Math.floor((Date.now() - new Date(p.deal_stage_changed_at).getTime()) / (1000 * 60 * 60 * 24));
+            return d > 30 ? "text-red-500" : d > 14 ? "text-amber-500" : "text-zinc-400";
+          })() : ""
+        }`} title={p.deal_stage_changed_at ? "Days in current stage" : undefined}>
+          {p.deal_stage_changed_at ? `${Math.floor((Date.now() - new Date(p.deal_stage_changed_at).getTime()) / (1000 * 60 * 60 * 24))}d` : ""}
+        </span>
+
         {/* Progress */}
         <div className="w-full">
           <ProgressBar completed={counts.completed} total={counts.total} color={p.color || "#0D7680"} />
         </div>
 
         {/* Status */}
-        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
           {editingStatusId === p.id ? (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setEditingStatusId(null)} />
@@ -470,10 +560,30 @@ export function DashboardView({
       {/* Body: tree (left) + detail (right) */}
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT: Project tree */}
-        <div className="flex-shrink-0 flex flex-col border-r border-zinc-100 dark:border-zinc-800/50" style={{ width: sidebarWidth }}>
+        <div className="flex-shrink-0 flex flex-col border-r border-zinc-100 dark:border-zinc-800/50 transition-all duration-200" style={{ width: sidebarCollapsed ? 40 : sidebarWidth }}>
+          {sidebarCollapsed ? (
+            <div className="flex flex-col items-center py-2">
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="Expand panel"
+              >
+                <PanelLeftOpen size={14} />
+              </button>
+            </div>
+          ) : (
+          <>
           {/* Tree header */}
           <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50">
             <div className="flex items-center gap-2 px-3 py-1.5">
+              {/* Collapse panel */}
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors flex-shrink-0"
+                title="Collapse panel"
+              >
+                <PanelLeftClose size={12} />
+              </button>
               {/* Search */}
               <div className="flex items-center gap-1 flex-1 bg-zinc-50 dark:bg-zinc-900 rounded px-2 py-1">
                 <Search size={11} className="text-zinc-400 flex-shrink-0" />
@@ -487,12 +597,26 @@ export function DashboardView({
               </div>
               {/* Sort */}
               <button
-                onClick={() => setSortBy(prev => prev === "name" ? "tasks" : prev === "tasks" ? "status" : "name")}
+                onClick={() => setSortBy(prev => prev === "name" ? "target" : prev === "target" ? "tasks" : prev === "tasks" ? "status" : "name")}
                 className="flex items-center gap-0.5 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors flex-shrink-0"
                 title={`Sort by: ${sortBy}`}
               >
                 <ArrowUpDown size={10} />
-                {sortBy}
+                {{ name: "name", target: "target date", tasks: "tasks", status: "status" }[sortBy]}
+              </button>
+              {/* Hide completed */}
+              <button
+                onClick={() => setHideCompleted(prev => !prev)}
+                className={cn(
+                  "flex items-center gap-1 text-[10px] transition-colors flex-shrink-0 px-1.5 py-0.5 rounded",
+                  hideCompleted
+                    ? "text-teal-600 bg-teal-50 dark:text-teal-400 dark:bg-teal-950/40"
+                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                )}
+                title={hideCompleted ? "Show completed projects" : "Hide completed projects"}
+              >
+                {hideCompleted ? <EyeOff size={10} /> : <Eye size={10} />}
+                {hideCompleted ? "Hidden" : "Done"}
               </button>
               {/* Collapse all */}
               <button
@@ -507,40 +631,70 @@ export function DashboardView({
           {/* Initiative groups */}
           {initiatives.map((init, initIndex) => {
             const linkedProjectIds = initProjectMap.get(init.id) || [];
-            const linkedProjects = sortProjects(filterProjects(
-              linkedProjectIds
-                .map(id => projectById.get(id))
-                .filter((p): p is Project => !!p)
-            ));
+            const allLinkedProjects = linkedProjectIds
+              .map(id => projectById.get(id))
+              .filter((p): p is Project => !!p);
+            const linkedProjects = sortProjects(filterProjects(allLinkedProjects));
             const isExpanded = !collapsedGroups.has(init.id);
+
+            // Derive initiative status from child projects
+            const derivedStatus = (() => {
+              if (allLinkedProjects.length === 0) return "planned";
+              if (allLinkedProjects.every(p => p.status === "completed")) return "completed";
+              if (allLinkedProjects.some(p => p.status === "active" || p.status === "started")) return "active";
+              if (allLinkedProjects.every(p => p.status === "paused")) return "paused";
+              return "planned";
+            })();
+
+            // Hide initiative when filtering completed and no visible projects remain
+            if (hideCompleted && linkedProjects.length === 0) return null;
 
             return (
               <div key={init.id}>
                 <div
                   className={cn(
-                    "w-full flex items-center gap-1.5 px-3 py-2 transition-colors group cursor-pointer",
+                    "w-full flex items-center gap-1.5 pl-1 pr-0 py-2 transition-colors group cursor-pointer",
                     selectedInitiativeId === init.id && !selectedProjectId
                       ? "bg-teal-50 dark:bg-teal-950/30"
                       : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
                   )}
                 >
+                  <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); moveInitiative(initIndex, "up"); }}
+                      disabled={initIndex === 0}
+                      className="p-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-20 disabled:cursor-default"
+                      title="Move up"
+                    >
+                      <ArrowUp size={9} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); moveInitiative(initIndex, "down"); }}
+                      disabled={initIndex === initiatives.length - 1}
+                      className="p-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-20 disabled:cursor-default"
+                      title="Move down"
+                    >
+                      <ArrowDown size={9} />
+                    </button>
+                  </div>
                   <button onClick={(e) => { e.stopPropagation(); toggleGroup(init.id); }} className="p-0.5 text-zinc-400 hover:text-zinc-600 flex-shrink-0">
                     {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                   </button>
                   <div className="flex items-center gap-1.5 min-w-0 flex-1" onClick={() => { setSelectedInitiativeId(init.id); setSelectedProjectId(null); }}>
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getInitiativeColor(init, initIndex) }} />
                     <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 truncate">{init.name}</span>
-                    <span className="text-[9px] text-zinc-400 ml-0.5">{linkedProjects.length}</span>
+                    <span className="text-[9px] text-zinc-400 ml-0.5">{allLinkedProjects.filter(p => p.status === "active").length}</span>
                   </div>
-                  <div className="ml-auto flex items-center gap-1 flex-shrink-0">
-                    <HealthBadge health={init.health} />
-                    <StatusBadge status={init.status} />
+                  <div className="ml-auto flex items-center flex-shrink-0">
                     {onEditInitiative && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onEditInitiative(init); }}
-                        className="p-0.5 rounded text-zinc-400 hover:text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="p-0.5 rounded text-zinc-400 hover:text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity mr-1"
                       ><Pencil size={9} /></button>
                     )}
+                  </div>
+                  <div className="w-[70px] flex justify-end flex-shrink-0 mr-2">
+                    <StatusBadge status={derivedStatus} />
                   </div>
                 </div>
                 {isExpanded && renderProjectList(linkedProjects)}
@@ -564,21 +718,26 @@ export function DashboardView({
             </div>
           )}
           </div>
+          </>
+          )}
         </div>
 
         {/* Resize handle */}
+        {!sidebarCollapsed && (
         <div
           onMouseDown={onMouseDown}
           className="w-1 flex-shrink-0 cursor-col-resize hover:bg-teal-500/30 active:bg-teal-500/50 transition-colors"
         />
+        )}
 
         {/* RIGHT: Project detail */}
         <div className="flex-1 overflow-hidden">
           {selectedProjectId ? (
             <WorkspaceDetailView
               workspaceId={selectedProjectId}
-              onBack={() => { setSelectedProjectId(null); window.location.reload(); }}
-              onUpdated={() => { window.location.reload(); }}
+              onBack={() => setSelectedProjectId(null)}
+              onUpdated={() => {}}
+              onCreateTask={onCreateTask ? () => onCreateTask(selectedProjectId) : undefined}
             />
           ) : selectedInitiativeId ? (
             <InitiativeDetailPane

@@ -266,6 +266,15 @@ pub struct Task {
     pub session_ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires_review: Option<bool>,
+    // CRM associations
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_type: Option<String>, // general, target, prospect, follow_up
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_type_changed_at: Option<String>,
     // Notion sync
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notion_page_id: Option<String>,
@@ -301,6 +310,12 @@ pub struct CreateTask {
     pub session_ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires_review: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -327,6 +342,12 @@ pub struct UpdateTask {
     pub requires_review: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_order: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_type: Option<String>,
 }
 
 // ============================================================================

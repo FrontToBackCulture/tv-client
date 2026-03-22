@@ -17,8 +17,9 @@ import {
   getTaskIdentifier,
   InitiativeHealthLabels, InitiativeHealthColors,
   InitiativeStatusLabels,
+  ProjectStatusColors, ProjectStatusLabels,
 } from "../../lib/work/types";
-import type { StatusType, InitiativeHealth, InitiativeStatus } from "../../lib/work/types";
+import type { StatusType, InitiativeHealth, InitiativeStatus, ProjectStatus } from "../../lib/work/types";
 import { formatDateShort as formatDate, isOverdue } from "../../lib/date";
 
 // ============================
@@ -128,9 +129,14 @@ export function HealthBadge({ health }: { health: string | null }) {
 
 export function StatusBadge({ status }: { status: string | null }) {
   if (!status) return null;
-  const label = InitiativeStatusLabels[status as InitiativeStatus] || status;
+  const label = ProjectStatusLabels[status as ProjectStatus] || InitiativeStatusLabels[status as InitiativeStatus] || status;
+  const color = ProjectStatusColors[status as ProjectStatus] || "#6B7280";
   return (
-    <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+    <span
+      className="inline-flex items-center gap-0.5 text-[9px] font-medium"
+      style={{ color }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
       {label}
     </span>
   );
@@ -296,6 +302,25 @@ export const TaskRow = memo(function TaskRow({ task, onSelect }: { task: TaskWit
       <PriorityBars priority={task.priority || 0} size={11} />
       <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
       <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
+      {task.task_type && task.task_type !== "general" && (
+        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${
+          task.task_type === "target" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+          task.task_type === "prospect" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+          "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+        }`}>
+          {task.task_type === "follow_up" ? "Follow Up" : task.task_type.charAt(0).toUpperCase() + task.task_type.slice(1)}
+        </span>
+      )}
+      {task.company && (
+        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 max-w-[120px] truncate" title={task.company.display_name || task.company.name}>
+          {task.company.display_name || task.company.name}
+        </span>
+      )}
+      {task.task_type_changed_at && task.task_type && task.task_type !== "general" && (() => {
+        const days = Math.floor((Date.now() - new Date(task.task_type_changed_at!).getTime()) / (1000 * 60 * 60 * 24));
+        const color = days > 30 ? "text-red-500" : days > 14 ? "text-amber-500" : "text-zinc-400";
+        return <span className={`text-[10px] ${color} flex-shrink-0`} title="Days in stage">{days}d</span>;
+      })()}
       {task.assignee?.name && (
         <div
           className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"

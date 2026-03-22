@@ -1,7 +1,9 @@
 // src/modules/work/TaskDetailPanel.tsx
 // Task detail panel/modal with full editing
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   useTask,
   useUpdateTask,
@@ -28,6 +30,8 @@ import {
   Trash2,
   Clock,
   MessageSquare,
+  Building2,
+  Target,
 } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
@@ -35,6 +39,18 @@ import { Button, IconButton } from "../../components/ui";
 import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
 import { toast } from "../../stores/toastStore";
+
+function AutoResizeTextarea({ minRows = 4, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { minRows?: number }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const resize = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(el.scrollHeight, minRows * 22)}px`;
+  }, [minRows]);
+  useEffect(() => { resize(); }, [props.value, resize]);
+  return <textarea ref={ref} onInput={resize} {...props} />;
+}
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -94,10 +110,11 @@ export function TaskDetailPanel({
   }
 
   async function handleSaveTitle() {
-    if (titleValue.trim() && titleValue !== task?.title) {
-      await handleUpdateField("title", titleValue.trim());
-    }
+    const trimmed = titleValue.trim();
     setEditingTitle(false);
+    if (trimmed && trimmed !== task?.title) {
+      await handleUpdateField("title", trimmed);
+    }
   }
 
   async function handleSaveDescription() {
@@ -126,6 +143,13 @@ export function TaskDetailPanel({
         <div className="flex items-center gap-3">
           <StatusIcon type={statusType} color={statusColor} size={20} />
           <span className="text-sm text-zinc-500 font-mono">{identifier}</span>
+          <span
+            onClick={() => { navigator.clipboard.writeText(task.id); toast.success("Task ID copied"); }}
+            className="text-[10px] text-zinc-300 dark:text-zinc-600 font-mono cursor-pointer hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+            title={task.id}
+          >
+            {task.id.slice(0, 8)}
+          </span>
           {task.project && (
             <span
               className="px-2 py-0.5 rounded text-xs font-medium"
@@ -205,14 +229,14 @@ export function TaskDetailPanel({
           </div>
 
           {/* Fields */}
-          <div className="rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 p-3 space-y-3">
+          <div className="space-y-1">
             {/* Status */}
             <div className="flex items-center gap-3">
               <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500">Status</span>
               <select
                 value={task.status_id || ""}
                 onChange={(e) => handleUpdateField("status_id", e.target.value)}
-                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
               >
                 {statuses.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -231,7 +255,7 @@ export function TaskDetailPanel({
               <select
                 value={task.priority ?? Priority.None}
                 onChange={(e) => handleUpdateField("priority", parseInt(e.target.value))}
-                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
               >
                 {Object.entries(PriorityLabels).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -252,7 +276,7 @@ export function TaskDetailPanel({
                 onChange={(e) =>
                   handleUpdateField("assignee_id", e.target.value || null)
                 }
-                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
               >
                 <option value="">Unassigned</option>
                 {users.map((u) => (
@@ -274,7 +298,7 @@ export function TaskDetailPanel({
                 onChange={(e) =>
                   handleUpdateField("milestone_id", e.target.value || null)
                 }
-                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
               >
                 <option value="">No milestone</option>
                 {milestones.map((m) => (
@@ -291,17 +315,97 @@ export function TaskDetailPanel({
                 <Calendar size={12} />
                 Due Date
               </span>
-              <input
-                type="date"
-                value={task.due_date?.split("T")[0] || ""}
-                onChange={(e) =>
-                  handleUpdateField(
-                    "due_date",
-                    e.target.value ? `${e.target.value}T00:00:00Z` : null
-                  )
+              <div className="flex-1 flex items-center gap-1">
+                <input
+                  type="date"
+                  value={task.due_date?.split("T")[0] || ""}
+                  onChange={(e) =>
+                    handleUpdateField(
+                      "due_date",
+                      e.target.value ? `${e.target.value}T00:00:00Z` : null
+                    )
+                  }
+                  className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none cursor-pointer transition-colors"
+                />
+                {task.due_date && (
+                  <button
+                    onClick={() => handleUpdateField("due_date", null)}
+                    className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 transition-colors"
+                    title="Clear due date"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Task Type */}
+            <div className="flex items-center gap-3">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                <Target size={12} />
+                Type
+              </span>
+              <select
+                value={task.task_type || "general"}
+                onChange={(e) => handleUpdateField("task_type", e.target.value)}
+                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+              >
+                <option value="general">General</option>
+                <option value="target">Target</option>
+                <option value="prospect">Prospect</option>
+                <option value="follow_up">Follow Up</option>
+              </select>
+            </div>
+
+            {/* Days in Stage */}
+            {task.task_type_changed_at && task.task_type && task.task_type !== "general" && (() => {
+              const days = Math.floor((Date.now() - new Date(task.task_type_changed_at).getTime()) / (1000 * 60 * 60 * 24));
+              const color = days > 30 ? "text-red-500" : days > 14 ? "text-amber-500" : "text-zinc-600 dark:text-zinc-300";
+              return (
+                <div className="flex items-center gap-3">
+                  <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                    <Clock size={12} />
+                    In Stage
+                  </span>
+                  <span className={`flex-1 px-2 py-1.5 text-sm font-medium ${color}`}>
+                    {days} {days === 1 ? "day" : "days"}
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Company */}
+            <div className="flex items-center gap-3">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                <Building2 size={12} />
+                Company
+              </span>
+              <span className="flex-1 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100">
+                {task.company
+                  ? (task.company.display_name || task.company.name)
+                  : <span className="text-zinc-400 dark:text-zinc-500">No company</span>
                 }
-                className="flex-1 px-2 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
-              />
+              </span>
+            </div>
+
+            {/* Contact */}
+            <div className="flex items-center gap-3">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                <User size={12} />
+                Contact
+              </span>
+              <span className="flex-1 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100">
+                {task.contact ? (
+                  <>
+                    {task.contact.name}
+                    {task.contact.email && (
+                      <span className="text-zinc-400 ml-1">({task.contact.email})</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-zinc-400 dark:text-zinc-500">No contact</span>
+                )}
+              </span>
             </div>
 
             {/* Labels */}
@@ -334,12 +438,12 @@ export function TaskDetailPanel({
             <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Description</h3>
             {editingDescription ? (
               <div>
-                <textarea
+                <AutoResizeTextarea
                   value={descriptionValue}
                   onChange={(e) => setDescriptionValue(e.target.value)}
-                  rows={6}
-                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                  className="w-full px-2 py-1.5 text-sm rounded-md bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500 border-none leading-relaxed resize-none"
                   autoFocus
+                  minRows={4}
                 />
                 <div className="flex justify-end gap-2 mt-2">
                   <Button variant="ghost" onClick={() => setEditingDescription(false)}>
@@ -356,39 +460,50 @@ export function TaskDetailPanel({
                   setDescriptionValue(task.description || "");
                   setEditingDescription(true);
                 }}
-                className="min-h-[100px] px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-900/50 rounded border border-zinc-200 dark:border-zinc-800 cursor-text hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors whitespace-pre-wrap"
+                className="px-1 py-1 text-sm text-zinc-700 dark:text-zinc-300 rounded-md cursor-text hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
               >
-                {task.description || (
-                  <span className="text-zinc-500 dark:text-zinc-600">Add a description...</span>
+                {task.description ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-li:my-0 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.description}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <span className="text-zinc-400 dark:text-zinc-600">Add a description...</span>
                 )}
               </div>
             )}
           </div>
 
           {/* Activity */}
-          {task.activity && task.activity.length > 0 && (
-            <div>
-              <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Activity</h3>
+          <div>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Activity</h3>
+            {task.activity && task.activity.length > 0 ? (
               <div className="space-y-2">
-                {task.activity.slice(0, 5).map((activity) => (
+                {[...task.activity].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")).map((activity) => (
                   <div
                     key={activity.id}
                     className="flex items-start gap-2 text-sm"
                   >
-                    <Clock size={14} className="text-zinc-500 dark:text-zinc-600 mt-0.5" />
-                    <div>
+                    <Clock size={14} className="text-zinc-500 dark:text-zinc-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
                       <span className="text-zinc-600 dark:text-zinc-400">
                         {activity.action}
                       </span>
-                      <span className="text-zinc-500 dark:text-zinc-600 text-xs ml-2">
+                      {activity.actor_name && (
+                        <span className="text-zinc-400 dark:text-zinc-600 text-xs ml-1">
+                          by {activity.actor_name}
+                        </span>
+                      )}
+                      <span className="text-zinc-400 dark:text-zinc-600 text-xs ml-2">
                         {formatDate(activity.created_at)}
                       </span>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-xs text-zinc-400 dark:text-zinc-600">No activity yet</p>
+            )}
+          </div>
 
           {/* Metadata */}
           <div className="text-xs text-zinc-400 dark:text-zinc-600 space-y-1">

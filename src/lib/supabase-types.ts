@@ -1,4 +1,3 @@
-Initialising login role...
 export type Json =
   | string
   | number
@@ -2741,114 +2740,6 @@ export type Database = {
           },
         ]
       }
-      question_library: {
-        Row: {
-          category: string
-          created_at: string
-          description: string | null
-          featured: boolean
-          id: string
-          published: boolean
-          question: string
-          solution: string
-          sort_order: number
-          subcategory: string | null
-          updated_at: string
-          video_url: string | null
-        }
-        Insert: {
-          category: string
-          created_at?: string
-          description?: string | null
-          featured?: boolean
-          id?: string
-          published?: boolean
-          question: string
-          solution?: string
-          sort_order?: number
-          subcategory?: string | null
-          updated_at?: string
-          video_url?: string | null
-        }
-        Update: {
-          category?: string
-          created_at?: string
-          description?: string | null
-          featured?: boolean
-          id?: string
-          published?: boolean
-          question?: string
-          solution?: string
-          sort_order?: number
-          subcategory?: string | null
-          updated_at?: string
-          video_url?: string | null
-        }
-        Relationships: []
-      }
-      report_skill_library: {
-        Row: {
-          category: string
-          created_at: string
-          description: string | null
-          featured: boolean
-          file_name: string
-          id: string
-          metrics: string[] | null
-          published: boolean
-          report_url: string | null
-          skill_slug: string
-          solution: string
-          sort_order: number
-          sources: string[] | null
-          subcategory: string | null
-          thumbnail_url: string | null
-          title: string
-          updated_at: string
-          writeup: string | null
-        }
-        Insert: {
-          category: string
-          created_at?: string
-          description?: string | null
-          featured?: boolean
-          file_name: string
-          id?: string
-          metrics?: string[] | null
-          published?: boolean
-          report_url?: string | null
-          skill_slug: string
-          solution?: string
-          sort_order?: number
-          sources?: string[] | null
-          subcategory?: string | null
-          thumbnail_url?: string | null
-          title: string
-          updated_at?: string
-          writeup?: string | null
-        }
-        Update: {
-          category?: string
-          created_at?: string
-          description?: string | null
-          featured?: boolean
-          file_name?: string
-          id?: string
-          metrics?: string[] | null
-          published?: boolean
-          report_url?: string | null
-          skill_slug?: string
-          solution?: string
-          sort_order?: number
-          sources?: string[] | null
-          subcategory?: string | null
-          thumbnail_url?: string | null
-          title?: string
-          updated_at?: string
-          writeup?: string | null
-        }
-        Relationships: []
-      }
       scheduler_run_steps: {
         Row: {
           cache_creation_tokens: number | null
@@ -2965,6 +2856,111 @@ export type Database = {
         }
         Relationships: []
       }
+      skill_activity: {
+        Row: {
+          action: string
+          actor: string | null
+          created_at: string
+          file_path: string
+          id: string
+          machine: string | null
+          new_value: string | null
+          old_value: string | null
+          skill_slug: string
+          summary: string | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          created_at?: string
+          file_path: string
+          id?: string
+          machine?: string | null
+          new_value?: string | null
+          old_value?: string | null
+          skill_slug: string
+          summary?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          created_at?: string
+          file_path?: string
+          id?: string
+          machine?: string | null
+          new_value?: string | null
+          old_value?: string | null
+          skill_slug?: string
+          summary?: string | null
+        }
+        Relationships: []
+      }
+      skill_library: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          featured: boolean
+          file_name: string
+          id: string
+          metrics: string[] | null
+          published: boolean
+          report_url: string | null
+          skill_slug: string
+          solution: string
+          sort_order: number
+          sources: string[] | null
+          subcategory: string | null
+          thumbnail_url: string | null
+          title: string
+          type: string
+          updated_at: string
+          writeup: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          featured?: boolean
+          file_name: string
+          id?: string
+          metrics?: string[] | null
+          published?: boolean
+          report_url?: string | null
+          skill_slug: string
+          solution?: string
+          sort_order?: number
+          sources?: string[] | null
+          subcategory?: string | null
+          thumbnail_url?: string | null
+          title: string
+          type?: string
+          updated_at?: string
+          writeup?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          featured?: boolean
+          file_name?: string
+          id?: string
+          metrics?: string[] | null
+          published?: boolean
+          report_url?: string | null
+          skill_slug?: string
+          solution?: string
+          sort_order?: number
+          sources?: string[] | null
+          subcategory?: string | null
+          thumbnail_url?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+          writeup?: string | null
+        }
+        Relationships: []
+      }
       skills: {
         Row: {
           action: string | null
@@ -2988,6 +2984,7 @@ export type Database = {
           outcome: string | null
           owner: string | null
           rating: number | null
+          skill_type: string
           slug: string
           status: string
           subcategory: string | null
@@ -3018,6 +3015,7 @@ export type Database = {
           outcome?: string | null
           owner?: string | null
           rating?: number | null
+          skill_type?: string
           slug: string
           status?: string
           subcategory?: string | null
@@ -3048,6 +3046,7 @@ export type Database = {
           outcome?: string | null
           owner?: string | null
           rating?: number | null
+          skill_type?: string
           slug?: string
           status?: string
           subcategory?: string | null
@@ -3178,7 +3177,9 @@ export type Database = {
           ai_generated: boolean | null
           ai_suggestion_source: string | null
           assignee_id: string | null
+          company_id: string | null
           completed_at: string | null
+          contact_id: string | null
           created_at: string | null
           created_by: string | null
           depends_on: string[] | null
@@ -3196,6 +3197,8 @@ export type Database = {
           sort_order: number | null
           status_id: string
           task_number: number | null
+          task_type: string | null
+          task_type_changed_at: string | null
           title: string
           updated_at: string | null
         }
@@ -3203,7 +3206,9 @@ export type Database = {
           ai_generated?: boolean | null
           ai_suggestion_source?: string | null
           assignee_id?: string | null
+          company_id?: string | null
           completed_at?: string | null
+          contact_id?: string | null
           created_at?: string | null
           created_by?: string | null
           depends_on?: string[] | null
@@ -3221,6 +3226,8 @@ export type Database = {
           sort_order?: number | null
           status_id: string
           task_number?: number | null
+          task_type?: string | null
+          task_type_changed_at?: string | null
           title: string
           updated_at?: string | null
         }
@@ -3228,7 +3235,9 @@ export type Database = {
           ai_generated?: boolean | null
           ai_suggestion_source?: string | null
           assignee_id?: string | null
+          company_id?: string | null
           completed_at?: string | null
+          contact_id?: string | null
           created_at?: string | null
           created_by?: string | null
           depends_on?: string[] | null
@@ -3246,6 +3255,7 @@ export type Database = {
           sort_order?: number | null
           status_id?: string
           task_number?: number | null
+          task_type?: string | null
           title?: string
           updated_at?: string | null
         }
@@ -3255,6 +3265,20 @@ export type Database = {
             columns: ["assignee_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
             referencedColumns: ["id"]
           },
           {
