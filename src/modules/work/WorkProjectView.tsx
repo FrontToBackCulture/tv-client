@@ -17,7 +17,7 @@ import { StatusIcon } from "./StatusIcon";
 type GroupBy = "status" | "priority" | "assignee";
 
 export function ProjectView({
-  project, allTasks, users, onSelectTask, onBack, onCreateTask,
+  project, allTasks, users, onSelectTask, onBack, onCreateTask: _onCreateTask,
 }: {
   project: Project;
   allTasks: TaskWithRelations[];
