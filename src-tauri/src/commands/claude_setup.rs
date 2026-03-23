@@ -188,41 +188,37 @@ async fn run_claude_mcp(args: &[&str]) -> CmdResult<String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-/// Check tv-mcp registration and extract the registered path from `claude mcp list` output.
-/// Returns (is_registered, Option<registered_path>)
+/// Check tv-mcp registration by reading Claude config JSON directly.
+/// This avoids PATH issues and CLI output format fragility.
+/// Returns (is_registered, Option<registered_command_path>)
 async fn mcp_list_check() -> (bool, Option<String>) {
-    match run_claude_mcp(&["list"]).await {
-        Ok(out) => {
-            if !out.contains("tv-mcp") {
-                return (false, None);
-            }
-            let registered_path = out
-                .lines()
-                .find(|line| line.contains("tv-mcp"))
-                .and_then(|line| {
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    parts
-                        .iter()
-                        .find(|p| {
-                            let bytes = p.as_bytes();
-                            let is_win_drive = bytes.len() >= 3
-                                && bytes[0].is_ascii_alphabetic()
-                                && bytes[1] == b':'
-                                && (bytes[2] == b'\\' || bytes[2] == b'/');
-                            p.starts_with('/')
-                                || is_win_drive
-                                || p.starts_with("~")
-                                || p.contains("tv-mcp")
-                        })
-                        .map(|s| {
-                            s.trim_matches(|c: char| c == '\'' || c == '"')
-                                .to_string()
-                        })
-                });
-            (true, registered_path)
-        }
-        Err(_) => (false, None),
-    }
+    // Read ~/.claude.json (primary config location)
+    let config_path = match dirs::home_dir() {
+        Some(home) => home.join(".claude.json"),
+        None => return (false, None),
+    };
+
+    let content = match tokio::fs::read_to_string(&config_path).await {
+        Ok(c) => c,
+        Err(_) => return (false, None),
+    };
+
+    let json: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return (false, None),
+    };
+
+    let tv_mcp = match json.get("mcpServers").and_then(|s| s.get("tv-mcp")) {
+        Some(v) => v,
+        None => return (false, None),
+    };
+
+    let command = tv_mcp
+        .get("command")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    (true, command)
 }
 
 // ── Commands ─────────────────────────────────────────────
