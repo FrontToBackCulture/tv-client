@@ -116,6 +116,39 @@ fn platform_label() -> &'static str {
     { "unsupported" }
 }
 
+/// Resolve the full path to the `claude` CLI binary.
+/// macOS GUI apps don't inherit the user's shell PATH, so we check common
+/// installation locations directly before falling back to bare `claude`.
+fn resolve_claude_path() -> String {
+    if cfg!(target_os = "windows") {
+        return "claude.exe".to_string();
+    }
+
+    // Common install locations on macOS/Linux
+    let candidates: Vec<PathBuf> = {
+        let mut paths = vec![
+            PathBuf::from("/usr/local/bin/claude"),
+            PathBuf::from("/opt/homebrew/bin/claude"),
+        ];
+        if let Some(home) = dirs::home_dir() {
+            paths.push(home.join(".claude").join("local").join("claude"));
+            paths.push(home.join(".local").join("bin").join("claude"));
+            // npm global installs
+            paths.push(home.join(".npm-global").join("bin").join("claude"));
+        }
+        paths
+    };
+
+    for path in &candidates {
+        if path.exists() {
+            return path.to_string_lossy().to_string();
+        }
+    }
+
+    // Fallback: try bare name (works if PATH is set correctly)
+    "claude".to_string()
+}
+
 /// Run `claude <args>` and return the output.
 /// On Windows, tries `claude.exe` first (newer installs), then falls back to
 /// `cmd /C claude` which resolves `.cmd` files via PATHEXT.
@@ -138,11 +171,12 @@ async fn run_claude(args: &[&str]) -> CmdResult<std::process::Output> {
             .await
             .map_err(|e| CommandError::Io(format!("Failed to run claude via cmd.exe: {e}")))
     } else {
-        tokio::process::Command::new("claude")
+        let claude_path = resolve_claude_path();
+        tokio::process::Command::new(&claude_path)
             .args(args)
             .output()
             .await
-            .map_err(|e| CommandError::Io(format!("Failed to run claude: {e}")))
+            .map_err(|e| CommandError::Io(format!("Failed to run {claude_path}: {e}")))
     }
 }
 
@@ -195,29 +229,29 @@ async fn mcp_list_check() -> (bool, Option<String>) {
 
 #[command]
 pub async fn check_claude_cli() -> CmdResult<ClaudeCliStatus> {
-    let which_cmd = if cfg!(target_os = "windows") {
-        "where"
+    let claude_path = resolve_claude_path();
+
+    // Check if the resolved path actually exists (or is findable)
+    let path_exists = if claude_path == "claude" || claude_path == "claude.exe" {
+        // Bare name — try `which`/`where` to verify
+        let which_cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
+        tokio::process::Command::new(which_cmd)
+            .arg(&claude_path)
+            .output()
+            .await
+            .map(|o| o.status.success())
+            .unwrap_or(false)
     } else {
-        "which"
+        PathBuf::from(&claude_path).exists()
     };
 
-    let path_output = tokio::process::Command::new(which_cmd)
-        .arg("claude")
-        .output()
-        .await
-        .map_err(|e| CommandError::Io(format!("Failed to run {which_cmd}: {e}")))?;
-
-    if !path_output.status.success() {
+    if !path_exists {
         return Ok(ClaudeCliStatus {
             installed: false,
             version: None,
             path: None,
         });
     }
-
-    let path = String::from_utf8_lossy(&path_output.stdout)
-        .trim()
-        .to_string();
 
     let version_output = run_claude(&["--version"]).await.ok();
     let version = version_output.and_then(|o| {
@@ -231,7 +265,7 @@ pub async fn check_claude_cli() -> CmdResult<ClaudeCliStatus> {
     Ok(ClaudeCliStatus {
         installed: true,
         version,
-        path: Some(path),
+        path: Some(claude_path),
     })
 }
 
