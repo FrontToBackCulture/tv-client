@@ -31,6 +31,17 @@ if [ ! -f "$DEST" ]; then
     chmod +x "$DEST" 2>/dev/null || true
 fi
 
+# When cross-compiling, Tauri also checks for the HOST triple's binary
+HOST_TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+HOST_DEST="binaries/tv-mcp-${HOST_TRIPLE}"
+if [[ "$HOST_TRIPLE" == *"windows"* ]]; then
+    HOST_DEST="${HOST_DEST}.exe"
+fi
+if [ "$HOST_TRIPLE" != "$TARGET" ] && [ ! -f "$HOST_DEST" ]; then
+    touch "$HOST_DEST"
+    chmod +x "$HOST_DEST" 2>/dev/null || true
+fi
+
 # Build the actual binary
 if [ "$PROFILE" = "debug" ]; then
     cargo build --bin tv-mcp

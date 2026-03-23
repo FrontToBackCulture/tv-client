@@ -44,7 +44,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["dmg", "nsis"],
     "createUpdaterArtifacts": true,
     "externalBin": ["binaries/tv-mcp"],
     "icon": [
