@@ -7,7 +7,7 @@ import {
   BarChart3, ListChecks, Globe, FileSpreadsheet, ChevronDown,
   ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
-  Circle, XCircle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Sparkles, Mail,
+  Circle, XCircle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Sparkles, Mail, CalendarDays,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
@@ -46,6 +46,8 @@ import { useInitiatives } from "../../hooks/work/useInitiatives";
 import { useInitiativeProjects } from "../work/workViewsShared";
 import { EmailsPanel } from "../../components/emails/EmailsPanel";
 import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
+import { EventsPanel } from "../../components/events/EventsPanel";
+import { useLinkedEventCount } from "../../hooks/useEntityEvents";
 
 /** Unescape literal \n sequences that arrive from MCP JSON serialization */
 const unescapeNewlines = (s: string) => s.replace(/\\n/g, "\n");
@@ -1548,6 +1550,9 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   // Email count for badge
   const { data: emailCount } = useLinkedEmailCount("project", workspaceId);
 
+  // Event count for badge
+  const { data: eventCount } = useLinkedEventCount("project", workspaceId);
+
   // Activities for this project/deal — query by projectId for all project types
   const { data: activities = [] } = useActivities(
     isDeal && companyId
@@ -2923,6 +2928,22 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                 {!collapsedSections.emails && (
                   <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden" style={{ maxHeight: 400 }}>
                     <EmailsPanel entityType="project" entityId={workspaceId} />
+                  </div>
+                )}
+              </div>
+
+              {/* Calendar Events */}
+              <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                <button onClick={() => setCollapsedSections(s => ({ ...s, events: !s.events }))} className="flex items-center gap-1.5 mb-3 group">
+                  {collapsedSections.events ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
+                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1">
+                    <CalendarDays size={12} />
+                    Events ({eventCount ?? 0})
+                  </h3>
+                </button>
+                {!collapsedSections.events && (
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden" style={{ maxHeight: 400 }}>
+                    <EventsPanel entityType="project" entityId={workspaceId} />
                   </div>
                 )}
               </div>

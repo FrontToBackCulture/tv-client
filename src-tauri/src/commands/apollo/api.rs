@@ -95,4 +95,38 @@ impl ApolloClient {
 
         Ok(data)
     }
+
+    /// Request phone number reveal — costs 1 mobile credit.
+    /// Phone is delivered asynchronously via webhook.
+    pub async fn reveal_phone(
+        &self,
+        person_id: &str,
+        webhook_url: &str,
+    ) -> CmdResult<()> {
+        let url = format!("{}/people/match", APOLLO_BASE);
+
+        let body = serde_json::json!({
+            "id": person_id,
+            "reveal_phone_number": true,
+            "webhook_url": webhook_url,
+        });
+
+        let response = self
+            .client
+            .post(&url)
+            .header("X-Api-Key", &self.api_key)
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(CommandError::Http { status, body });
+        }
+
+        // Phone will be delivered asynchronously via webhook
+        Ok(())
+    }
 }

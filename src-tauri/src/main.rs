@@ -367,6 +367,7 @@ fn main() {
             // Apollo Module - Prospect Search & Import
             commands::apollo::apollo_search_people,
             commands::apollo::apollo_enrich_person,
+            commands::apollo::apollo_reveal_phone,
             commands::apollo::apollo_check_existing,
             commands::apollo::apollo_import_prospects,
             // CRM Module - Email Links
@@ -526,6 +527,7 @@ fn main() {
             // Outlook - Calendar
             commands::outlook::commands::outlook_list_calendars,
             commands::outlook::commands::outlook_list_events,
+            commands::outlook::commands::outlook_scan_events,
             // Email (SES campaign sending)
             commands::email::email_send_campaign,
             commands::email::email_send_test,

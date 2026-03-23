@@ -290,6 +290,22 @@ pub struct EventAttendee {
     pub attendee_type: String,
 }
 
+// Calendar scan types
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventScanCandidate {
+    pub event_id: String,
+    pub subject: String,
+    pub start_at: String,
+    pub end_at: String,
+    pub organizer_name: String,
+    pub organizer_email: String,
+    pub location: String,
+    pub match_method: String,
+    pub relevance_score: f64,
+}
+
 // Graph API calendar response types
 
 #[derive(Debug, Deserialize)]

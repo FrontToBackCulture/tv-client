@@ -53,14 +53,15 @@ function formatRelativeTime(dateStr: string): string {
 
 interface NotificationBellProps {
   collapsed?: boolean;
+  variant?: "sidebar" | "statusbar";
 }
 
-export function NotificationBell({ collapsed = false }: NotificationBellProps) {
+export function NotificationBell({ collapsed = false, variant = "sidebar" }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLButtonElement>(null);
-  const [panelPos, setPanelPos] = useState<{ left: number; bottom: number }>({ left: 0, bottom: 0 });
+  const [panelPos, setPanelPos] = useState<{ left?: number; right?: number; bottom: number }>({ left: 0, bottom: 0 });
 
   const user = useAuth((s) => s.user);
   const { data: allUsers = [] } = useUsers();
@@ -89,10 +90,19 @@ export function NotificationBell({ collapsed = false }: NotificationBellProps) {
   function toggleOpen() {
     if (!isOpen && bellRef.current) {
       const rect = bellRef.current.getBoundingClientRect();
-      setPanelPos({
-        left: rect.right + 8,
-        bottom: window.innerHeight - rect.bottom,
-      });
+      if (variant === "statusbar") {
+        // Open upward, right-aligned to button
+        setPanelPos({
+          right: window.innerWidth - rect.right,
+          bottom: window.innerHeight - rect.top + 4,
+        });
+      } else {
+        // Sidebar: open to the right of the bell
+        setPanelPos({
+          left: rect.right + 8,
+          bottom: window.innerHeight - rect.bottom,
+        });
+      }
     }
     setIsOpen(!isOpen);
   }
@@ -155,7 +165,25 @@ export function NotificationBell({ collapsed = false }: NotificationBellProps) {
   return (
     <>
       {/* Bell button */}
-      {collapsed ? (
+      {variant === "statusbar" ? (
+        <button
+          ref={bellRef}
+          onClick={toggleOpen}
+          className={cn(
+            "flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors relative",
+            isOpen
+              ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+              : "hover:bg-zinc-200 dark:hover:bg-zinc-800"
+          )}
+          title="Notifications"
+        >
+          <Bell size={12} />
+          <span>{unreadCount > 0 ? `${unreadCount > 9 ? "9+" : unreadCount} new` : "Notifications"}</span>
+          {unreadCount > 0 && (
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+          )}
+        </button>
+      ) : collapsed ? (
         <button
           ref={bellRef}
           onClick={toggleOpen}
@@ -204,7 +232,7 @@ export function NotificationBell({ collapsed = false }: NotificationBellProps) {
           ref={panelRef}
           className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl overflow-hidden w-[380px]"
           style={{
-            left: panelPos.left,
+            ...(panelPos.right !== undefined ? { right: panelPos.right } : { left: panelPos.left }),
             bottom: panelPos.bottom,
           }}
         >

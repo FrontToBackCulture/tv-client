@@ -18,6 +18,9 @@ export interface ApolloSearchFilters {
   organization_num_employees_ranges?: string[];
   q_organization_name?: string;
   q_keywords?: string;
+  contact_email_status?: string[];
+  person_departments?: string[];
+  organization_industry_tag_ids?: string[];
   page?: number;
   per_page?: number;
 }
@@ -141,6 +144,20 @@ export function useApolloCheckExisting(people: ApolloPerson[]) {
     },
     enabled: checkPayload.length > 0,
     staleTime: 30 * 1000,
+  });
+}
+
+/** Request phone number reveal for a CRM contact. Costs 1 mobile credit. */
+export function useApolloRevealPhone() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (contactId: string): Promise<string> => {
+      return await invoke("apollo_reveal_phone", { contactId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm"] });
+    },
   });
 }
 

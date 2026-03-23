@@ -128,6 +128,8 @@ pub struct Contact {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seniority: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub email_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,

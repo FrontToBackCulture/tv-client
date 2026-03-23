@@ -282,6 +282,7 @@ export type Database = {
           created_at: string | null
           department: string | null
           email: string
+          email_status: string | null
           id: string
           is_active: boolean | null
           is_primary: boolean | null
@@ -300,6 +301,7 @@ export type Database = {
           created_at?: string | null
           department?: string | null
           email: string
+          email_status?: string | null
           id?: string
           is_active?: boolean | null
           is_primary?: boolean | null
@@ -318,6 +320,7 @@ export type Database = {
           created_at?: string | null
           department?: string | null
           email?: string
+          email_status?: string | null
           id?: string
           is_active?: boolean | null
           is_primary?: boolean | null

@@ -42,13 +42,13 @@ if [ "$HOST_TRIPLE" != "$TARGET" ] && [ ! -f "$HOST_DEST" ]; then
     chmod +x "$HOST_DEST" 2>/dev/null || true
 fi
 
-# Build the actual binary
+# Build the actual binary (cross-compile to TARGET if different from host)
 if [ "$PROFILE" = "debug" ]; then
-    cargo build --bin tv-mcp
-    SRC="target/debug/tv-mcp"
+    cargo build --bin tv-mcp --target "$TARGET"
+    SRC="target/${TARGET}/debug/tv-mcp"
 else
-    cargo build --release --bin tv-mcp
-    SRC="target/release/tv-mcp"
+    cargo build --release --bin tv-mcp --target "$TARGET"
+    SRC="target/${TARGET}/release/tv-mcp"
 fi
 
 if [[ "$TARGET" == *"windows"* ]]; then

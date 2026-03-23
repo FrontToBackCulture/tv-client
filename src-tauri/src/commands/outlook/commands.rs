@@ -277,6 +277,20 @@ fn graph_event_to_calendar_event(e: super::types::GraphEvent) -> super::types::C
 }
 
 // ============================================================================
+// Calendar event scan (matches local SQLite events against CRM domains/contacts)
+// ============================================================================
+
+#[tauri::command]
+pub async fn outlook_scan_events(
+    domains: Vec<String>,
+    contact_emails: Vec<String>,
+    since: Option<String>,
+) -> CmdResult<Vec<super::types::EventScanCandidate>> {
+    let db = EmailDb::open()?;
+    db.scan_events_for_entity(&domains, &contact_emails, since.as_deref())
+}
+
+// ============================================================================
 // Email scan (matches local SQLite emails against CRM domains/contacts)
 // ============================================================================
 

@@ -26,6 +26,12 @@ pub struct ApolloSearchFilters {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub q_keywords: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_email_status: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub person_departments: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_industry_tag_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub page: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub per_page: Option<i32>,
@@ -62,6 +68,8 @@ pub struct ApolloPerson {
     pub linkedin_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email_status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub city: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

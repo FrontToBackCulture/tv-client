@@ -33,6 +33,23 @@ const SENIORITY_OPTIONS = [
   { value: "entry", label: "Entry" },
 ];
 
+const EMAIL_STATUS_OPTIONS = [
+  { value: "verified", label: "Verified" },
+  { value: "guessed", label: "Guessed" },
+  { value: "unavailable", label: "Unavailable" },
+];
+
+const DEPARTMENT_OPTIONS = [
+  { value: "c_suite", label: "C-Suite" },
+  { value: "finance", label: "Finance" },
+  { value: "operations", label: "Operations" },
+  { value: "sales", label: "Sales" },
+  { value: "marketing", label: "Marketing" },
+  { value: "engineering", label: "Engineering" },
+  { value: "human_resources", label: "HR" },
+  { value: "information_technology", label: "IT" },
+];
+
 const EMPLOYEE_RANGES = [
   { value: "1,10", label: "1-10" },
   { value: "11,50", label: "11-50" },
@@ -50,6 +67,8 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
   const [locations, setLocations] = useState("");
   const [seniorities, setSeniorities] = useState<string[]>([]);
   const [employeeRanges, setEmployeeRanges] = useState<string[]>([]);
+  const [emailStatuses, setEmailStatuses] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
   const [page, setPage] = useState(1);
 
   // Selection state
@@ -68,8 +87,10 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
     if (locations.trim()) f.person_locations = locations.split(",").map((l) => l.trim()).filter(Boolean);
     if (seniorities.length > 0) f.person_seniorities = seniorities;
     if (employeeRanges.length > 0) f.organization_num_employees_ranges = employeeRanges;
+    if (emailStatuses.length > 0) f.contact_email_status = emailStatuses;
+    if (departments.length > 0) f.person_departments = departments;
     return f;
-  }, [hasSearched, titles, orgName, keywords, locations, seniorities, employeeRanges, page]);
+  }, [hasSearched, titles, orgName, keywords, locations, seniorities, employeeRanges, emailStatuses, departments, page]);
 
   const { data, isLoading, error } = useApolloSearch(filters);
   const importMutation = useApolloImport();
@@ -133,6 +154,14 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
 
   const toggleEmployeeRange = (val: string) => {
     setEmployeeRanges((prev) => (prev.includes(val) ? prev.filter((r) => r !== val) : [...prev, val]));
+  };
+
+  const toggleEmailStatus = (val: string) => {
+    setEmailStatuses((prev) => (prev.includes(val) ? prev.filter((s) => s !== val) : [...prev, val]));
+  };
+
+  const toggleDepartment = (val: string) => {
+    setDepartments((prev) => (prev.includes(val) ? prev.filter((d) => d !== val) : [...prev, val]));
   };
 
   return (
@@ -260,6 +289,38 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
               onClick={() => toggleEmployeeRange(opt.value)}
               className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                 employeeRanges.includes(opt.value)
+                  ? "bg-teal-500 text-white border-teal-500"
+                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-teal-300"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Email status + Department chips */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-[10px] text-zinc-400 mr-1">Email:</span>
+          {EMAIL_STATUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => toggleEmailStatus(opt.value)}
+              className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+                emailStatuses.includes(opt.value)
+                  ? "bg-teal-500 text-white border-teal-500"
+                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-teal-300"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+          <span className="text-[10px] text-zinc-400 ml-2 mr-1">Dept:</span>
+          {DEPARTMENT_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => toggleDepartment(opt.value)}
+              className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+                departments.includes(opt.value)
                   ? "bg-teal-500 text-white border-teal-500"
                   : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-teal-300"
               }`}

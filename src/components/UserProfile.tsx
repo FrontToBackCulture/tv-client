@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from "react";
 import { LogOut, User, Github, ChevronDown, Settings } from "lucide-react";
 import { useAuth, useUserInfo } from "../stores/authStore";
+import { useAppStore } from "../stores/appStore";
 import { cn } from "../lib/cn";
 
 interface UserProfileProps {
@@ -13,6 +14,7 @@ interface UserProfileProps {
 export function UserProfile({ collapsed = false }: UserProfileProps) {
   const { signOut, isLoading } = useAuth();
   const userInfo = useUserInfo();
+  const openSettings = useAppStore((s) => s.openSettings);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -157,11 +159,15 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
               Profile
             </button>
             <button
-              onClick={() => setShowDropdown(false)}
+              onClick={() => {
+                setShowDropdown(false);
+                openSettings();
+              }}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
             >
               <Settings size={16} />
               Settings
+              <span className="ml-auto text-xs text-zinc-400">⌘,</span>
             </button>
             <div className="my-1 border-t border-zinc-200 dark:border-zinc-800" />
             <button

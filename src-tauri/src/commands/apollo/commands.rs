@@ -25,6 +25,44 @@ pub async fn apollo_enrich_person(person_id: String) -> CmdResult<ApolloEnrichRe
     client.enrich_person(&person_id).await
 }
 
+/// Request phone number reveal for a contact — costs 1 mobile credit.
+/// Requires the contact to have a source_id (Apollo person ID).
+/// Phone is delivered asynchronously via webhook to tv-api.
+#[tauri::command]
+pub async fn apollo_reveal_phone(
+    contact_id: String,
+) -> CmdResult<String> {
+    let apollo = ApolloClient::new()?;
+    let db = get_client().await?;
+
+    // Get the contact's Apollo source_id
+    let contacts: Vec<Contact> = db
+        .select("crm_contacts", &format!("id=eq.{}&limit=1", contact_id))
+        .await?;
+
+    let contact = contacts.first()
+        .ok_or_else(|| crate::commands::error::CommandError::NotFound("Contact not found".into()))?;
+
+    let source_id = contact.source_id.as_ref()
+        .ok_or_else(|| crate::commands::error::CommandError::Config(
+            "Contact has no Apollo ID — import from Apollo first".into()
+        ))?;
+
+    // Get webhook URL from settings (email_api_base_url + /webhooks/apollo/phone)
+    let settings = crate::commands::settings::load_settings()?;
+    let api_base = settings.keys
+        .get(crate::commands::settings::KEY_EMAIL_API_BASE_URL)
+        .ok_or_else(|| crate::commands::error::CommandError::Config(
+            "Email API base URL not configured — needed for Apollo webhook".into()
+        ))?;
+
+    let webhook_url = format!("{}/webhooks/apollo/phone", api_base.trim_end_matches('/'));
+
+    apollo.reveal_phone(source_id, &webhook_url).await?;
+
+    Ok(format!("Phone reveal requested for {}. It will appear shortly.", contact.name))
+}
+
 /// Check which Apollo people already exist in CRM contacts.
 /// Matches by source_id OR by first_name + company name combo.
 /// Returns matches with company IDs so the UI can link to the CRM record.
@@ -335,6 +373,9 @@ pub async fn apollo_import_prospects(
 
             if let Some(ref title) = person.title {
                 create_data["role"] = serde_json::Value::String(title.clone());
+            }
+            if let Some(ref email_status) = person.email_status {
+                create_data["email_status"] = serde_json::Value::String(email_status.clone());
             }
             if let Some(ref linkedin) = person.linkedin_url {
                 create_data["linkedin_url"] = serde_json::Value::String(linkedin.clone());

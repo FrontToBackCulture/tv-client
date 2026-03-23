@@ -29,6 +29,7 @@ import { useAllLookupValues } from "../../hooks/useLookupValues";
 import { Settings, FolderOpen, ChevronRight, ChevronDown, Folder, RefreshCw } from "lucide-react";
 import { useRepository } from "../../stores/repositoryStore";
 import { useFolderChildren } from "../../hooks/useFiles";
+import { useApolloRevealPhone } from "../../hooks/apollo/useApollo";
 
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
 if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
@@ -217,6 +218,27 @@ function EmailDomainsField({ value, companyId, contacts, onSave }: {
 }
 
 type FieldType = "text" | "textarea" | "select" | "folder_picker" | "email_domains";
+
+function RequestPhoneButton({ contactId, onSuccess }: { contactId: string; onSuccess: () => void }) {
+  const revealPhone = useApolloRevealPhone();
+  return (
+    <button
+      onClick={() => revealPhone.mutate(contactId, { onSuccess })}
+      disabled={revealPhone.isPending}
+      className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-500 disabled:opacity-50"
+      title="Request phone number from Apollo (1 mobile credit)"
+    >
+      {revealPhone.isPending ? (
+        <span className="inline-block w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><line x1="14" y1="2" x2="14" y2="8"/><line x1="17" y1="5" x2="11" y2="5"/></svg>
+      )}
+      Request Phone (1 credit)
+      {revealPhone.isSuccess && <span className="text-green-500 ml-1">Requested — arriving shortly</span>}
+      {revealPhone.isError && <span className="text-red-500 ml-1">{(revealPhone.error as Error)?.message || "Failed"}</span>}
+    </button>
+  );
+}
 
 function FieldGrid({ fields, onUpdate, companyId, contacts }: {
   fields: { label: string; field: string; value: any; type?: FieldType; options?: { value: string; label: string }[] }[];
@@ -432,6 +454,12 @@ export function MetadataView() {
     },
     { field: "is_active", headerName: "Active", width: 80, filter: "agSetColumnFilter",
       cellRenderer: (p: any) => p.value === false ? <span className="text-red-500 text-xs">No</span> : <span className="text-zinc-400 text-xs">Yes</span>,
+    },
+    { field: "source", headerName: "Source", width: 80, filter: "agSetColumnFilter",
+      cellRenderer: (p: any) => p.value === "apollo" ? <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded font-medium">Apollo</span> : p.value ? <span className="text-zinc-400 text-xs">{p.value}</span> : null,
+    },
+    { field: "email_status", headerName: "Email Status", width: 100, filter: "agSetColumnFilter",
+      cellRenderer: (p: any) => p.value === "verified" ? <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-600 rounded font-medium">Verified</span> : p.value === "guessed" ? <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded font-medium">Guessed</span> : p.value ? <span className="text-zinc-400 text-xs">{p.value}</span> : null,
     },
     { field: "linkedin_url", headerName: "LinkedIn", width: 180, editable: true, hide: true },
     { field: "notes", headerName: "Notes", width: 200, editable: true, hide: true },
@@ -790,8 +818,24 @@ export function MetadataView() {
                       >
                         {selectedContact.id.slice(0, 8)}
                       </button>
+                      {selectedContact.source === "apollo" && (
+                        <span className="px-1.5 py-0.5 text-[9px] font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded" title={`Apollo ID: ${selectedContact.source_id || "—"}`}>
+                          Apollo
+                        </span>
+                      )}
                     </div>
                     {selectedContact.role && <p className="text-[11px] text-zinc-500 mb-3">{selectedContact.role}</p>}
+                    {selectedContact.email_status && (
+                      <p className="text-[10px] mb-2">
+                        <span className={`px-1.5 py-0.5 rounded ${
+                          selectedContact.email_status === "verified" ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400" :
+                          selectedContact.email_status === "guessed" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400" :
+                          "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
+                        }`}>
+                          Email: {selectedContact.email_status}
+                        </span>
+                      </p>
+                    )}
                     <FieldGrid fields={[
                       { label: "Name", field: "name", value: selectedContact.name },
                       { label: "Email", field: "email", value: selectedContact.email },
@@ -802,6 +846,9 @@ export function MetadataView() {
                       { label: "Primary", field: "is_primary", value: selectedContact.is_primary ? "Yes" : "No", type: "select", options: [{ value: "true", label: "Yes" }, { value: "false", label: "No" }] },
                       { label: "Notes", field: "notes", value: selectedContact.notes, type: "textarea" },
                     ]} onUpdate={(f, v) => { updateEntity("crm_contacts", selectedContact.id, f, f === "is_primary" ? v === "true" : v); }} />
+                    {!selectedContact.phone && selectedContact.source_id && (
+                      <RequestPhoneButton contactId={selectedContact.id} onSuccess={() => refetchContacts()} />
+                    )}
                     <div className="mt-3 text-xs text-zinc-400 flex items-center gap-1">
                       Company:
                       <select

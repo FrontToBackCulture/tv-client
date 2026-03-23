@@ -664,6 +664,129 @@ impl EmailDb {
         Ok(events)
     }
 
+    /// Scan calendar events matching attendee emails or organizer domains
+    pub fn scan_events_for_entity(
+        &self,
+        domains: &[String],
+        contact_emails: &[String],
+        since: Option<&str>,
+    ) -> CmdResult<Vec<super::types::EventScanCandidate>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
+
+        let mut candidates: Vec<super::types::EventScanCandidate> = Vec::new();
+        let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        // 1. Match by contact emails (organizer or attendees JSON)
+        for email in contact_emails {
+            let email_lower = email.to_lowercase();
+            let like_pattern = format!("%{}%", email_lower);
+
+            let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(s) = since {
+                (
+                    "SELECT id, subject, start_at, end_at, organizer_name, organizer_email, location, attendees
+                     FROM events
+                     WHERE (LOWER(organizer_email) = ?1 OR LOWER(attendees) LIKE ?2) AND start_at >= ?3
+                     ORDER BY start_at DESC".to_string(),
+                    vec![Box::new(email_lower), Box::new(like_pattern), Box::new(s.to_string())],
+                )
+            } else {
+                (
+                    "SELECT id, subject, start_at, end_at, organizer_name, organizer_email, location, attendees
+                     FROM events
+                     WHERE (LOWER(organizer_email) = ?1 OR LOWER(attendees) LIKE ?2)
+                     ORDER BY start_at DESC".to_string(),
+                    vec![Box::new(email_lower), Box::new(like_pattern)],
+                )
+            };
+
+            let mut stmt = conn.prepare(&sql)
+                .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+            let params_ref: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+            let rows = stmt.query_map(params_ref.as_slice(), |row| {
+                Ok(super::types::EventScanCandidate {
+                    event_id: row.get(0)?,
+                    subject: row.get(1)?,
+                    start_at: row.get(2)?,
+                    end_at: row.get(3)?,
+                    organizer_name: row.get(4)?,
+                    organizer_email: row.get(5)?,
+                    location: row.get(6)?,
+                    match_method: "auto_contact".to_string(),
+                    relevance_score: 0.9,
+                })
+            }).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+
+            for row in rows {
+                if let Ok(c) = row {
+                    if seen_ids.insert(c.event_id.clone()) {
+                        candidates.push(c);
+                    }
+                }
+            }
+        }
+
+        // 2. Match by domain (organizer_email domain or attendees domain)
+        for domain in domains {
+            let domain_lower = domain.to_lowercase();
+            let org_pattern = format!("%@{}", domain_lower);
+            let att_pattern = format!("%@{}%", domain_lower);
+
+            let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(s) = since {
+                (
+                    "SELECT id, subject, start_at, end_at, organizer_name, organizer_email, location, attendees
+                     FROM events
+                     WHERE (LOWER(organizer_email) LIKE ?1 OR LOWER(attendees) LIKE ?2) AND start_at >= ?3
+                     ORDER BY start_at DESC".to_string(),
+                    vec![Box::new(org_pattern), Box::new(att_pattern), Box::new(s.to_string())],
+                )
+            } else {
+                (
+                    "SELECT id, subject, start_at, end_at, organizer_name, organizer_email, location, attendees
+                     FROM events
+                     WHERE (LOWER(organizer_email) LIKE ?1 OR LOWER(attendees) LIKE ?2)
+                     ORDER BY start_at DESC".to_string(),
+                    vec![Box::new(org_pattern), Box::new(att_pattern)],
+                )
+            };
+
+            let mut stmt = conn.prepare(&sql)
+                .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+            let params_ref: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+            let rows = stmt.query_map(params_ref.as_slice(), |row| {
+                Ok(super::types::EventScanCandidate {
+                    event_id: row.get(0)?,
+                    subject: row.get(1)?,
+                    start_at: row.get(2)?,
+                    end_at: row.get(3)?,
+                    organizer_name: row.get(4)?,
+                    organizer_email: row.get(5)?,
+                    location: row.get(6)?,
+                    match_method: "auto_domain".to_string(),
+                    relevance_score: 0.6,
+                })
+            }).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+
+            for row in rows {
+                if let Ok(c) = row {
+                    if seen_ids.insert(c.event_id.clone()) {
+                        candidates.push(c);
+                    }
+                }
+            }
+        }
+
+        // Sort by relevance then date
+        candidates.sort_by(|a, b| {
+            b.relevance_score.partial_cmp(&a.relevance_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| b.start_at.cmp(&a.start_at))
+        });
+
+        Ok(candidates)
+    }
+
     pub fn delete_events_in_range(&self, start_after: &str, end_before: &str) -> CmdResult<()> {
         let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.execute(

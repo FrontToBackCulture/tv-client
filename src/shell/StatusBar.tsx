@@ -5,7 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { cn } from "../lib/cn";
-import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles } from "lucide-react";
+import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, PanelRight } from "lucide-react";
+import { useSidePanelStore } from "../stores/sidePanelStore";
+import { NotificationBell } from "../components/notifications/NotificationBell";
 import { useAppUpdate } from "../hooks/useAppUpdate";
 import { UpdatePreviewPanel } from "./UpdatePreviewPanel";
 
@@ -46,6 +48,9 @@ export function StatusBar() {
   const clearCompleted = useJobsStore((s) => s.clearCompleted);
   const removeJob = useJobsStore((s) => s.removeJob);
 
+  const sidePanelOpen = useSidePanelStore((s) => s.isOpen);
+  const togglePanel = useSidePanelStore((s) => s.togglePanel);
+  const activeModule = useAppStore((s) => s.activeModule);
   const { updateAvailable, version: updateVersion, body: updateBody, downloading, installed, progress, error: updateError, installUpdate } = useAppUpdate();
   const [showJobsPanel, setShowJobsPanel] = useState(false);
   const [showUpdatePreview, setShowUpdatePreview] = useState(false);
@@ -271,6 +276,26 @@ export function StatusBar() {
           </div>
 
         <span>⌘K for commands</span>
+
+        {/* Notifications */}
+        <NotificationBell variant="statusbar" />
+
+        {/* Doc panel toggle */}
+        {activeModule !== "library" && (
+          <button
+            onClick={togglePanel}
+            className={cn(
+              "flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors",
+              sidePanelOpen
+                ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                : "hover:bg-zinc-200 dark:hover:bg-zinc-800"
+            )}
+            title="Toggle Document Panel (⌘.)"
+          >
+            <PanelRight size={12} />
+            <span>Doc Panel</span>
+          </button>
+        )}
 
         {/* Theme toggle */}
         <button

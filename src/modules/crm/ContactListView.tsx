@@ -4,8 +4,9 @@
 import { useState } from "react";
 import { Contact } from "../../lib/crm/types";
 import { ContactForm } from "./ContactForm";
-import { Pencil, Mail, Phone, Users } from "lucide-react";
+import { Pencil, Mail, Phone, PhoneCall, Users, Loader2 } from "lucide-react";
 import { EmptyState } from "../../components/EmptyState";
+import { useApolloRevealPhone } from "../../hooks/apollo/useApollo";
 
 interface ContactListViewProps {
   contacts: Contact[];
@@ -14,6 +15,7 @@ interface ContactListViewProps {
 
 export function ContactListView({ contacts, onContactUpdated }: ContactListViewProps) {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const revealPhone = useApolloRevealPhone();
 
   if (contacts.length === 0) {
     return <EmptyState icon={Users} message="No contacts yet" />;
@@ -58,7 +60,7 @@ export function ContactListView({ contacts, onContactUpdated }: ContactListViewP
                     <Mail size={12} />
                     {contact.email}
                   </a>
-                  {contact.phone && (
+                  {contact.phone ? (
                     <a
                       href={`tel:${contact.phone}`}
                       className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
@@ -66,7 +68,17 @@ export function ContactListView({ contacts, onContactUpdated }: ContactListViewP
                       <Phone size={12} />
                       {contact.phone}
                     </a>
-                  )}
+                  ) : contact.source_id ? (
+                    <button
+                      onClick={() => revealPhone.mutate(contact.id, { onSuccess: () => onContactUpdated?.() })}
+                      disabled={revealPhone.isPending}
+                      className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-500 disabled:opacity-50"
+                      title="Request phone number from Apollo (1 mobile credit)"
+                    >
+                      {revealPhone.isPending ? <Loader2 size={12} className="animate-spin" /> : <PhoneCall size={12} />}
+                      Request Phone
+                    </button>
+                  ) : null}
                 </div>
               </div>
               <button
