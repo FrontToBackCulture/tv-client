@@ -117,7 +117,7 @@ const KEY_FEATURE_MAP: Record<string, { features: string; howToGet: string; requ
 
 const EXPECTED_TOOL_GROUPS: Record<string, string[]> = {
   "Work Module": ["list-projects", "create-project", "list-tasks", "create-task"],
-  "CRM": ["list-crm-companies", "list-crm-deals", "list-crm-contacts", "log-crm-activity"],
+  "CRM": ["list-crm-companies", "list-crm-contacts", "log-crm-activity", "list-crm-activities"],
   "VAL Sync": ["execute-val-sql", "sync-val-status", "sync-val-all"],
   "Content Generation": ["gamma-generate", "nanobanana-generate", "generate-proposal", "generate-order-form"],
   "Publishing": ["publish-to-intercom", "list-intercom-collections"],
