@@ -722,3 +722,213 @@ async fn send_to_contact(
 
     Ok(())
 }
+
+// ── Draft send (called from UI) ───────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct EmailDraft {
+    pub id: String,
+    pub to_email: String,
+    pub subject: String,
+    pub html_body: String,
+    pub from_name: String,
+    pub from_email: String,
+    pub contact_id: Option<String>,
+    pub company_id: Option<String>,
+}
+
+/// Send an email draft — fetches from Supabase, injects tracking, sends via SES,
+/// updates status, and logs CRM activity.
+#[command]
+pub async fn email_send_draft(draft_id: String, test_email: Option<String>) -> CmdResult<SendTransactionalResult> {
+    let client = get_client().await?;
+    let settings = crate::commands::settings::load_settings()?;
+
+    // Fetch draft
+    let draft: EmailDraft = client
+        .select_single("email_drafts", &format!("id=eq.{}", draft_id))
+        .await?
+        .ok_or_else(|| CommandError::NotFound(format!("Draft {} not found", draft_id)))?;
+
+    // Determine recipient: test_email overrides the real to_email
+    let recipient = test_email.as_deref().unwrap_or(&draft.to_email);
+    let is_test = test_email.is_some();
+
+    // Get API base URL for tracking (open pixel, click tracking)
+    let api_base_url = settings
+        .keys
+        .get("email_api_base_url")
+        .cloned()
+        .unwrap_or_default();
+
+    // Prepare HTML — inject tracking if api_base_url is configured
+    let html_body = if !api_base_url.is_empty() {
+        // Create email_events row for tracking
+        let mut event_data = serde_json::json!({
+            "draft_id": draft_id,
+            "event_type": "sent",
+        });
+        if let Some(ref cid) = draft.contact_id {
+            event_data["crm_contact_id"] = serde_json::json!(cid);
+        }
+        let event: EventRow = client
+            .insert("email_events", &event_data)
+            .await
+            .unwrap_or(EventRow { id: String::new() });
+
+        if !event.id.is_empty() {
+            // Inject open pixel and rewrite links for click tracking
+            let mut html = draft.html_body.clone();
+
+            // Open tracking pixel
+            let open_pixel = format!(
+                r#"<img src="{}/email/track/open?eid={}" width="1" height="1" style="display:none" alt="" />"#,
+                api_base_url, event.id
+            );
+            if html.contains("</body>") {
+                html = html.replace("</body>", &format!("{}</body>", open_pixel));
+            } else {
+                html.push_str(&open_pixel);
+            }
+
+            // Click tracking
+            html = rewrite_links(&html, &event.id, &api_base_url);
+            html
+        } else {
+            draft.html_body.clone()
+        }
+    } else {
+        draft.html_body.clone()
+    };
+
+    let result = send_transactional_email(
+        recipient,
+        &draft.subject,
+        &html_body,
+        Some(&draft.from_name),
+        Some(&draft.from_email),
+    )
+    .await?;
+
+    if result.success && !is_test {
+        // Update draft status to sent
+        let update_data = serde_json::json!({
+            "status": "sent",
+            "sent_at": chrono::Utc::now().to_rfc3339()
+        });
+        let _: Result<EmailDraft, _> = client
+            .update("email_drafts", &format!("id=eq.{}", draft_id), &update_data)
+            .await;
+
+        // Log CRM activity
+        if let Some(company_id) = &draft.company_id {
+            let activity = crate::commands::crm::CreateActivity {
+                company_id: Some(company_id.clone()),
+                activity_type: "email".to_string(),
+                contact_id: draft.contact_id.clone(),
+                project_id: None,
+                email_id: None,
+                subject: Some(draft.subject.clone()),
+                content: Some(format!("Sent to: {}", draft.to_email)),
+                activity_date: None,
+            };
+            let _ = crate::commands::crm::crm_log_activity(activity).await;
+        }
+    } else if !result.success && !is_test {
+        let update_data = serde_json::json!({ "status": "failed" });
+        let _: Result<EmailDraft, _> = client
+            .update("email_drafts", &format!("id=eq.{}", draft_id), &update_data)
+            .await;
+    }
+
+    Ok(result)
+}
+
+// ── Transactional (1-to-1) send ───────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SendTransactionalResult {
+    pub success: bool,
+    pub message_id: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Send a single transactional email via SES.
+/// Called by the MCP tool handler — not a Tauri command.
+pub async fn send_transactional_email(
+    to: &str,
+    subject: &str,
+    html_body: &str,
+    from_name: Option<&str>,
+    from_email: Option<&str>,
+) -> CmdResult<SendTransactionalResult> {
+    let settings = crate::commands::settings::load_settings()?;
+    let access_key = settings
+        .keys
+        .get("aws_access_key_id")
+        .ok_or_else(|| CommandError::Config("AWS Access Key ID not configured".into()))?;
+    let secret_key = settings
+        .keys
+        .get("aws_secret_access_key")
+        .ok_or_else(|| CommandError::Config("AWS Secret Access Key not configured".into()))?;
+
+    let ses = build_ses_client(access_key, secret_key);
+
+    let sender_name = from_name.unwrap_or("ThinkVAL");
+    let sender_email = from_email.unwrap_or("hello@thinkval.com");
+    let boundary = format!("----=_Part_{}", chrono::Utc::now().timestamp_millis());
+
+    let raw_email = format!(
+        "From: {} <{}>\r\n\
+         To: {}\r\n\
+         Subject: {}\r\n\
+         MIME-Version: 1.0\r\n\
+         Content-Type: multipart/alternative; boundary=\"{}\"\r\n\
+         \r\n\
+         --{}\r\n\
+         Content-Type: text/html; charset=UTF-8\r\n\
+         Content-Transfer-Encoding: 7bit\r\n\
+         \r\n\
+         {}\r\n\
+         \r\n\
+         --{}--",
+        sender_name, sender_email, to, subject, boundary, boundary, html_body, boundary,
+    );
+
+    match ses
+        .send_raw_email()
+        .raw_message(
+            RawMessage::builder()
+                .data(Blob::new(raw_email.as_bytes()))
+                .build()
+                .map_err(|e| CommandError::Internal(format!("Failed to build message: {}", e)))?,
+        )
+        .send()
+        .await
+    {
+        Ok(output) => Ok(SendTransactionalResult {
+            success: true,
+            message_id: Some(output.message_id().to_string()),
+            error: None,
+        }),
+        Err(e) => {
+            let msg = if let Some(service_err) = e.as_service_error() {
+                format!(
+                    "SES: {}",
+                    service_err
+                        .meta()
+                        .message()
+                        .unwrap_or(&format!("{}", service_err))
+                )
+            } else {
+                format!("SES error: {:?}", e)
+            };
+            Ok(SendTransactionalResult {
+                success: false,
+                message_id: None,
+                error: Some(msg),
+            })
+        }
+    }
+}

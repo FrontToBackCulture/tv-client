@@ -5,7 +5,7 @@ use rusqlite::{params, Connection};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use super::types::{CalendarEvent, ContactRule, EmailEntry, EmailStats, EventAttendee};
+use super::types::{CalendarEvent, ContactRule, EmailEntry, EmailStats};
 use crate::commands::error::{CmdResult, CommandError};
 
 // ============================================================================

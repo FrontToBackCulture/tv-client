@@ -180,14 +180,6 @@ async fn run_claude(args: &[&str]) -> CmdResult<std::process::Output> {
     }
 }
 
-/// Run `claude mcp <args>` and return stdout. Returns error if claude CLI not found.
-async fn run_claude_mcp(args: &[&str]) -> CmdResult<String> {
-    let mut full_args = vec!["mcp"];
-    full_args.extend_from_slice(args);
-    let output = run_claude(&full_args).await?;
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
 /// Check tv-mcp registration by reading Claude config JSON directly.
 /// This avoids PATH issues and CLI output format fragility.
 /// Returns (is_registered, Option<registered_command_path>)

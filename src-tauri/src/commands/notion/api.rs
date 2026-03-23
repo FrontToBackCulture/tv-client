@@ -796,7 +796,7 @@ pub async fn list_database_pages(database_id: &str) -> CmdResult<Vec<(String, St
     let mut cursor: Option<String> = None;
 
     loop {
-        let mut url = format!("{}/databases/{}/query", NOTION_API_BASE, database_id);
+        let url = format!("{}/databases/{}/query", NOTION_API_BASE, database_id);
         let mut body = json!({ "page_size": 100 });
 
         if let Some(ref c) = cursor {
