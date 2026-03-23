@@ -31,7 +31,7 @@ import { isOverdue } from "../../lib/date";
 import { cn } from "../../lib/cn";
 import { DEAL_STAGES } from "../../lib/crm/types";
 import {
-  HealthBadge, StatusBadge, ProgressBar, Stat, getInitiativeColor,
+  StatusBadge, ProgressBar, Stat, getInitiativeColor,
 } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";

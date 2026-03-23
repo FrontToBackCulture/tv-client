@@ -100,33 +100,6 @@ function TaskBuckets({ tasks, onSelectTask, contextLabels, showCompleted }: {
   );
 }
 
-// ─── SectionHeader ────────────────────────────────────────────────────────
-
-function SectionHeader({ label, count, color, icon: Icon, defaultOpen = true, children }: {
-  label: string;
-  count: number;
-  color: string;
-  icon: typeof AlertTriangle;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="mb-3">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors rounded-lg"
-      >
-        {open ? <ChevronDown size={14} className="text-zinc-400" /> : <ChevronRight size={14} className="text-zinc-400" />}
-        <Icon size={14} style={{ color }} />
-        <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{label}</span>
-        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${color}15`, color }}>{count}</span>
-      </button>
-      {open && <div className="ml-2 pl-2">{children}</div>}
-    </div>
-  );
-}
-
 // ─── MyTasksView ──────────────────────────────────────────────────────────
 
 export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, initiatives, initiativeLinks }: {

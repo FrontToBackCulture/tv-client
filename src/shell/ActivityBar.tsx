@@ -255,8 +255,6 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
     setContextMenu({ moduleId: item.id, label: item.label, x: e.clientX, y: e.clientY });
   };
 
-  const ToggleIcon = isExpanded ? PanelLeftClose : PanelLeft;
-
   return (
     <div
       data-help-id="activity-bar"

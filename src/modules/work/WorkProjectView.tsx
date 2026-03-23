@@ -17,13 +17,14 @@ import { StatusIcon } from "./StatusIcon";
 type GroupBy = "status" | "priority" | "assignee";
 
 export function ProjectView({
-  project, allTasks, users, onSelectTask, onBack,
+  project, allTasks, users, onSelectTask, onBack, onCreateTask,
 }: {
   project: Project;
   allTasks: TaskWithRelations[];
   users: WorkUser[];
   onSelectTask: (id: string) => void;
   onBack: () => void;
+  onCreateTask?: () => void;
 }) {
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
   const [showDiscussions, setShowDiscussions] = useState(false);
