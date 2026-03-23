@@ -290,7 +290,7 @@ export function ScopeFilterBar({
 // ============================
 // TaskRow (shared)
 // ============================
-export const TaskRow = memo(function TaskRow({ task, onSelect }: { task: TaskWithRelations; onSelect: (id: string) => void }) {
+export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel }: { task: TaskWithRelations; onSelect: (id: string) => void; contextLabel?: string }) {
   return (
     <button
       onClick={() => onSelect(task.id)}
@@ -301,6 +301,11 @@ export const TaskRow = memo(function TaskRow({ task, onSelect }: { task: TaskWit
       )}
       <PriorityBars priority={task.priority || 0} size={11} />
       <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
+      {contextLabel && (
+        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 min-w-[180px] max-w-[320px] truncate" title={contextLabel}>
+          {contextLabel}
+        </span>
+      )}
       <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
       {task.task_type && task.task_type !== "general" && (
         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${

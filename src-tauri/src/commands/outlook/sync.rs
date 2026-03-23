@@ -53,6 +53,7 @@ fn write_body_file(message_id: &str, html: &str) -> CmdResult<String> {
 pub async fn run_initial_sync(
     db: &EmailDb,
     app_handle: &tauri::AppHandle,
+    sync_months: i64,
 ) -> CmdResult<i64> {
     use tauri::Emitter;
 
@@ -71,10 +72,12 @@ pub async fn run_initial_sync(
         db.upsert_folder(&folder.id, &folder.display_name)?;
     }
 
-    // 2. Fetch all messages (metadata only, no bodies)
-    emit_progress(app_handle, "messages", 0, 0, "Fetching messages...");
-    eprintln!("[outlook:sync] Fetching messages (up to 10000)...");
-    let messages = graph.fetch_messages(10000, None).await.map_err(|e| {
+    // 2. Fetch messages (metadata only, no bodies)
+    let cutoff = chrono::Utc::now() - chrono::Duration::days(sync_months * 30);
+    let date_filter = format!("receivedDateTime ge {}", cutoff.format("%Y-%m-%dT%H:%M:%SZ"));
+    emit_progress(app_handle, "messages", 0, 0, &format!("Fetching messages (last {} months)...", sync_months));
+    eprintln!("[outlook:sync] Fetching messages (last {} months, up to 10000)...", sync_months);
+    let messages = graph.fetch_messages(10000, Some(&date_filter)).await.map_err(|e| {
         eprintln!("[outlook:sync] Failed to fetch messages: {}", e);
         e
     })?;

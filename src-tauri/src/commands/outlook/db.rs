@@ -552,6 +552,127 @@ impl EmailDb {
         conn.query_row("SELECT COUNT(*) FROM emails", [], |row| row.get(0))
             .map_err(|e| CommandError::Internal(format!("DB: {}", e)))
     }
+
+    /// Scan emails matching company domains or contact emails
+    pub fn scan_emails_for_entity(
+        &self,
+        domains: &[String],
+        contact_emails: &[String],
+        since: Option<&str>,
+    ) -> CmdResult<Vec<super::types::EmailScanCandidate>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
+
+        let mut candidates: Vec<super::types::EmailScanCandidate> = Vec::new();
+        let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        // 1. Match by contact emails (from or to)
+        for email in contact_emails {
+            let email_lower = email.to_lowercase();
+            let like_pattern = format!("%{}%", email_lower);
+
+            let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(s) = since {
+                (
+                    "SELECT id, subject, from_email, from_name, received_at, folder_name
+                     FROM emails
+                     WHERE (LOWER(from_email) = ?1 OR LOWER(to_addresses) LIKE ?2) AND received_at >= ?3
+                     ORDER BY received_at DESC".to_string(),
+                    vec![Box::new(email_lower), Box::new(like_pattern), Box::new(s.to_string())],
+                )
+            } else {
+                (
+                    "SELECT id, subject, from_email, from_name, received_at, folder_name
+                     FROM emails
+                     WHERE (LOWER(from_email) = ?1 OR LOWER(to_addresses) LIKE ?2)
+                     ORDER BY received_at DESC".to_string(),
+                    vec![Box::new(email_lower), Box::new(like_pattern)],
+                )
+            };
+
+            let mut stmt = conn.prepare(&sql)
+                .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+            let params_ref: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+            let rows = stmt.query_map(params_ref.as_slice(), |row| {
+                Ok(super::types::EmailScanCandidate {
+                    email_id: row.get(0)?,
+                    subject: row.get(1)?,
+                    from_email: row.get(2)?,
+                    from_name: row.get(3)?,
+                    received_at: row.get(4)?,
+                    folder_name: row.get(5)?,
+                    match_method: "auto_contact".to_string(),
+                    relevance_score: 0.9,
+                })
+            }).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+
+            for row in rows {
+                if let Ok(c) = row {
+                    if seen_ids.insert(c.email_id.clone()) {
+                        candidates.push(c);
+                    }
+                }
+            }
+        }
+
+        // 2. Match by domain (from_email domain or to_addresses domain)
+        for domain in domains {
+            let domain_lower = domain.to_lowercase();
+            let from_pattern = format!("%@{}", domain_lower);
+            let to_pattern = format!("%@{}%", domain_lower);
+
+            let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(s) = since {
+                (
+                    "SELECT id, subject, from_email, from_name, received_at, folder_name
+                     FROM emails
+                     WHERE (LOWER(from_email) LIKE ?1 OR LOWER(to_addresses) LIKE ?2) AND received_at >= ?3
+                     ORDER BY received_at DESC".to_string(),
+                    vec![Box::new(from_pattern), Box::new(to_pattern), Box::new(s.to_string())],
+                )
+            } else {
+                (
+                    "SELECT id, subject, from_email, from_name, received_at, folder_name
+                     FROM emails
+                     WHERE (LOWER(from_email) LIKE ?1 OR LOWER(to_addresses) LIKE ?2)
+                     ORDER BY received_at DESC".to_string(),
+                    vec![Box::new(from_pattern), Box::new(to_pattern)],
+                )
+            };
+
+            let mut stmt = conn.prepare(&sql)
+                .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+            let params_ref: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+            let rows = stmt.query_map(params_ref.as_slice(), |row| {
+                Ok(super::types::EmailScanCandidate {
+                    email_id: row.get(0)?,
+                    subject: row.get(1)?,
+                    from_email: row.get(2)?,
+                    from_name: row.get(3)?,
+                    received_at: row.get(4)?,
+                    folder_name: row.get(5)?,
+                    match_method: "auto_domain".to_string(),
+                    relevance_score: 0.6,
+                })
+            }).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+
+            for row in rows {
+                if let Ok(c) = row {
+                    if seen_ids.insert(c.email_id.clone()) {
+                        candidates.push(c);
+                    }
+                }
+            }
+        }
+
+        // Sort by relevance then date
+        candidates.sort_by(|a, b| {
+            b.relevance_score.partial_cmp(&a.relevance_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| b.received_at.cmp(&a.received_at))
+        });
+
+        Ok(candidates)
+    }
 }
 
 // ============================================================================

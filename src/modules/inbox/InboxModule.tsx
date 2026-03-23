@@ -93,9 +93,12 @@ export function InboxModule() {
     setSelectedEmailId(null);
   }, [selectedFolder, selectedCategory, selectedStatus]);
 
-  const handleRefresh = () => {
-    console.log("[inbox] handleRefresh called, invoking outlook_sync_start");
-    syncStart.mutate(undefined, {
+  const [syncMonths, setSyncMonths] = useState(3);
+
+  const handleRefresh = (months?: number) => {
+    const m = months ?? syncMonths;
+    console.log("[inbox] handleRefresh called, months:", m);
+    syncStart.mutate(m, {
       onSuccess: (count) => {
         console.log("[inbox] sync success:", count, "emails");
       },
@@ -152,9 +155,11 @@ export function InboxModule() {
           stats={sidebarStats}
           onRefresh={handleRefresh}
           isRefreshing={isSyncing}
+          syncMonths={syncMonths}
+          onSyncMonthsChange={setSyncMonths}
         />
         <EmptyInbox
-          onRefresh={handleRefresh}
+          onRefresh={() => handleRefresh()}
           isSyncing={isSyncing || syncStart.isPending}
           syncError={emailsError ? String(emailsError) : syncEventError || (syncStart.error ? String(syncStart.error) : null)}
           syncProgress={syncProgress}
@@ -232,6 +237,8 @@ export function InboxModule() {
           stats={sidebarStats}
           onRefresh={handleRefresh}
           isRefreshing={isAnySyncing}
+          syncMonths={syncMonths}
+          onSyncMonthsChange={setSyncMonths}
         />
 
         {/* Email List */}

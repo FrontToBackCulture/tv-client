@@ -16,6 +16,8 @@ import {
   Users,
   FolderOpen,
   Cloud,
+  SlidersHorizontal,
+  ListChecks,
 } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -35,8 +37,10 @@ import { DiagnosticsView } from "./DiagnosticsView";
 import { TeamView } from "./TeamView";
 import { FolderPathsView } from "./FolderPathsView";
 import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
+import { ProjectFieldsView } from "./ProjectFieldsView";
+import { TaskFieldsView } from "./TaskFieldsView";
 
-type SettingsViewId = "keys" | "val" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics";
+type SettingsViewId = "keys" | "val" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics" | "project-fields" | "task-fields";
 
 interface SidebarItem {
   id: SettingsViewId;
@@ -44,18 +48,45 @@ interface SidebarItem {
   icon: LucideIcon;
 }
 
-const baseSidebarItems: SidebarItem[] = [
-  { id: "keys", label: "API Keys", icon: Key },
-  { id: "val", label: "VAL Credentials", icon: Database },
-  { id: "sync", label: "Sync Paths", icon: RefreshCw },
-  { id: "folders", label: "Folder Paths", icon: FolderOpen },
-  { id: "mcp", label: "MCP Endpoints", icon: Globe },
-  { id: "claude", label: "Claude Code", icon: Cpu },
-  { id: "bots", label: "Bots", icon: Bot },
-  { id: "portal", label: "Portal", icon: Megaphone },
-  { id: "notion", label: "Notion Sync", icon: Cloud },
-  { id: "team", label: "Team", icon: Users },
-  { id: "diagnostics", label: "Diagnostics", icon: Stethoscope },
+interface SidebarGroup {
+  label: string;
+  items: SidebarItem[];
+}
+
+const baseSidebarGroups: SidebarGroup[] = [
+  {
+    label: "Connections",
+    items: [
+      { id: "keys", label: "API Keys", icon: Key },
+      { id: "val", label: "VAL Credentials", icon: Database },
+      { id: "mcp", label: "MCP Endpoints", icon: Globe },
+    ],
+  },
+  {
+    label: "Data",
+    items: [
+      { id: "sync", label: "Sync Paths", icon: RefreshCw },
+      { id: "folders", label: "Folder Paths", icon: FolderOpen },
+      { id: "notion", label: "Notion Sync", icon: Cloud },
+    ],
+  },
+  {
+    label: "Platform",
+    items: [
+      { id: "claude", label: "Claude Code", icon: Cpu },
+      { id: "bots", label: "Bots", icon: Bot },
+      { id: "project-fields", label: "Project Fields", icon: SlidersHorizontal },
+      { id: "task-fields", label: "Task Fields", icon: ListChecks },
+      { id: "portal", label: "Portal", icon: Megaphone },
+    ],
+  },
+  {
+    label: "Admin",
+    items: [
+      { id: "team", label: "Team", icon: Users },
+      { id: "diagnostics", label: "Diagnostics", icon: Stethoscope },
+    ],
+  },
 ];
 
 export function SettingsModal() {
@@ -66,9 +97,10 @@ export function SettingsModal() {
   const user = useAuth((s) => s.user);
   const isAdmin = useTeamConfigStore((s) => s.isAdmin);
   const showTeam = user ? isAdmin(user.login) : false;
-  const sidebarItems = baseSidebarItems.filter(
-    (item) => item.id !== "team" || showTeam
-  );
+  const sidebarGroups = baseSidebarGroups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => item.id !== "team" || showTeam),
+  })).filter((group) => group.items.length > 0);
   const [activeView, setActiveView] = useState<SettingsViewId>(
     (settingsView as SettingsViewId) || "keys"
   );
@@ -111,7 +143,7 @@ export function SettingsModal() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     if (!settingsOpen) return;
-    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", portal: "Portal", notion: "Notion Sync", team: "Team", diagnostics: "Diagnostics" };
+    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", "project-fields": "Project Fields", "task-fields": "Task Fields", portal: "Portal", notion: "Notion Sync", team: "Team", diagnostics: "Diagnostics" };
     setViewContext(activeView, labels[activeView]);
   }, [activeView, setViewContext, settingsOpen]);
 
@@ -126,7 +158,7 @@ export function SettingsModal() {
       />
 
       {/* Modal */}
-      <div className="relative max-w-5xl w-full mx-4 h-[75vh] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl overflow-hidden flex flex-col animate-modal-in">
+      <div className="relative max-w-6xl w-full mx-4 h-[80vh] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl overflow-hidden flex flex-col animate-modal-in">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -141,35 +173,43 @@ export function SettingsModal() {
         {/* Body: sidebar + content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Sidebar */}
-          <aside className="w-44 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-2">
-            <nav className="space-y-0.5">
-              {sidebarItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeView === item.id;
-
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveView(item.id)}
-                    data-help-id={`settings-nav-${item.id}`}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors",
-                      isActive
-                        ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
-                        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
-                    )}
-                  >
-                    <Icon size={16} />
-                    {item.label}
-                  </button>
-                );
-              })}
+          <aside className="w-44 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-2 overflow-y-auto">
+            <nav className="space-y-3">
+              {sidebarGroups.map((group) => (
+                <div key={group.label}>
+                  <div className="px-3 py-1 text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                    {group.label}
+                  </div>
+                  <div className="space-y-0.5 mt-0.5">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeView === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => setActiveView(item.id)}
+                          data-help-id={`settings-nav-${item.id}`}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors",
+                            isActive
+                              ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
+                              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                          )}
+                        >
+                          <Icon size={16} />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </nav>
           </aside>
 
           {/* Content */}
           <div className="flex-1 overflow-auto">
-            <div className="max-w-2xl mx-auto p-6">
+            <div className={cn("mx-auto p-6", activeView === "notion" ? "max-w-4xl" : "max-w-2xl")}>
               {activeView === "keys" && <ApiKeysView />}
               {activeView === "val" && <ValCredentialsView />}
               {activeView === "sync" && <SyncPathsView />}
@@ -177,6 +217,8 @@ export function SettingsModal() {
               {activeView === "mcp" && <McpEndpointsView />}
               {activeView === "claude" && <ClaudeCodeSetupView />}
               {activeView === "bots" && <BotsPathView />}
+              {activeView === "project-fields" && <ProjectFieldsView />}
+              {activeView === "task-fields" && <TaskFieldsView />}
               {activeView === "portal" && <PortalSettingsView />}
               {activeView === "notion" && <NotionSyncConfigs />}
               {activeView === "team" && <TeamView />}

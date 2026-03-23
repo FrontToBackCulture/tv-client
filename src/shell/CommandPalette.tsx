@@ -29,6 +29,7 @@ import {
   Trash2,
   Loader2,
   Sparkles,
+  FileText,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { useAppStore, ModuleId } from "../stores/appStore";
@@ -59,6 +60,8 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   inbox: Mail,
   portal: Settings,
   email: MailPlus,
+  blog: FileText,
+  s3browser: Globe,
 };
 
 const moduleLabels: Record<ModuleId, string> = {
@@ -78,7 +81,9 @@ const moduleLabels: Record<ModuleId, string> = {
   repos: "Repos",
   inbox: "Inbox",
   portal: "Portal",
-  email: "Email",
+  email: "EDM",
+  blog: "Blog",
+  s3browser: "S3 Browser",
 };
 
 const MODULE_LABELS: Record<string, string> = {

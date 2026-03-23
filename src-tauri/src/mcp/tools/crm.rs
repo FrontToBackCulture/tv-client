@@ -72,7 +72,9 @@ pub fn tools() -> Vec<Tool> {
                     "industry": { "type": "string" },
                     "website": { "type": "string" },
                     "stage": { "type": "string", "enum": ["prospect", "opportunity", "client", "churned", "partner"] },
-                    "client_folder_path": { "type": "string", "description": "Path to client folder in knowledge base" },
+                    "client_folder_path": { "type": "string", "description": "Path to client folder in knowledge base (e.g., 3_Clients/lag)" },
+                    "deal_folder_path": { "type": "string", "description": "Path to deal folder in knowledge base (e.g., 4_Sales/deals/les-amis)" },
+                    "research_folder_path": { "type": "string", "description": "Path to research profile folder in knowledge base (e.g., 4_Sales/research/companies/les-amis-group)" },
                     "domain_id": { "type": "string", "description": "VAL domain ID if client" },
                     "notes": { "type": "string" },
                     "tags": { "type": "array", "items": { "type": "string" } }

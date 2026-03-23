@@ -54,9 +54,27 @@ export function getWhatsNew(): WhatsNewData | null {
   return { version: currentVersion, notes: "" };
 }
 
-/** Fetch release notes from latest.json for cases where localStorage has no notes
- *  (e.g., manual DMG install, or auto-update didn't store notes) */
+/** Fetch release notes for the current version.
+ *  Tries GitHub API first (full release body), falls back to latest.json. */
 export async function fetchWhatsNewNotes(): Promise<string | null> {
+  // Try GitHub API — same approach as Command Palette
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/FrontToBackCulture/tv-client/releases/tags/v${__APP_VERSION__}`,
+      { headers: { Accept: "application/vnd.github.v3+json" } }
+    );
+    if (res.ok) {
+      const release = await res.json();
+      const body: string = release.body ?? "";
+      const match = body.match(/## What's New\s*\n([\s\S]*?)(?=\n## |$)/);
+      if (match) return match[1].trim();
+      if (body) return body;
+    }
+  } catch {
+    // Fall through to latest.json
+  }
+
+  // Fallback: latest.json
   try {
     const resp = await fetch(UPDATER_ENDPOINT);
     if (!resp.ok) return null;

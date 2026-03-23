@@ -11,6 +11,7 @@ pub mod val_sync;
 pub mod feed;
 pub mod discussions;
 pub mod notifications;
+pub mod blog;
 
 use super::protocol::{Tool, ToolResult};
 use serde_json::Value;
@@ -48,6 +49,9 @@ pub fn list_tools() -> Vec<Tool> {
 
     // Notification tools
     tools.extend(notifications::tools());
+
+    // Blog tools
+    tools.extend(blog::tools());
 
     tools
 }
@@ -120,6 +124,11 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
     // Notification tools
     if name.ends_with("-notification") || name.ends_with("-notifications") || name.starts_with("mark-notification-") {
         return notifications::call(name, arguments).await;
+    }
+
+    // Blog tools
+    if name.ends_with("-blog-article") || name.ends_with("-blog-articles") {
+        return blog::call(name, arguments).await;
     }
 
     ToolResult::error(format!("Unknown tool: {}", name))

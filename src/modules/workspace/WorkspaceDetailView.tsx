@@ -1,14 +1,16 @@
 // src/modules/workspace/WorkspaceDetailView.tsx
 // Workspace detail: artifact tree (left) + file preview / sessions (right)
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   ArrowLeft, FileText, Puzzle, Building2, Code2,
   BarChart3, ListChecks, Globe, FileSpreadsheet, ChevronDown,
   ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
-  Circle, XCircle, PenTool, Trash2, Milestone as MilestoneIcon,
+  Circle, XCircle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Sparkles, Mail,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { open as openUrl } from "@tauri-apps/plugin-shell";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../../lib/cn";
@@ -29,7 +31,7 @@ import { useUsers } from "../../hooks/work/useUsers";
 import { useProjects } from "../../hooks/work/useProjects";
 import { TaskDetailPanel } from "../work/TaskDetailPanel";
 import { getFieldDefsForType, useProjectFieldsStore } from "../../stores/projectFieldsStore";
-import { useDeal } from "../../hooks/crm/useDeals";
+import { useDeal, useCreateDeal } from "../../hooks/crm/useDeals";
 import { useCompany, useCompanies } from "../../hooks/crm/useCompanies";
 import { useContacts } from "../../hooks/crm/useContacts";
 import { useActivities } from "../../hooks/crm/useActivities";
@@ -37,8 +39,13 @@ import { ACTIVITY_TYPES } from "../../lib/crm/types";
 import { DEAL_STAGES, DEAL_SOLUTIONS, COMPANY_STAGES } from "../../lib/crm/types";
 import { useRepository } from "../../stores/repositoryStore";
 import { toast } from "../../stores/toastStore";
+import { useTaskFieldsStore } from "../../stores/taskFieldsStore";
 import type { WorkspaceSession, WorkspaceArtifact } from "../../lib/workspace/types";
 import { MilestoneTaskGroups } from "./MilestoneTaskGroups";
+import { useInitiatives } from "../../hooks/work/useInitiatives";
+import { useInitiativeProjects } from "../work/workViewsShared";
+import { EmailsPanel } from "../../components/emails/EmailsPanel";
+import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
 
 /** Unescape literal \n sequences that arrive from MCP JSON serialization */
 const unescapeNewlines = (s: string) => s.replace(/\\n/g, "\n");
@@ -54,6 +61,7 @@ interface Props {
   onBack: () => void;
   onUpdated: () => void;
   onCreateTask?: () => void;
+  onNavigateToProject?: (projectId: string) => void;
 }
 
 // Artifact type to icon mapping
@@ -319,10 +327,10 @@ function ArtifactTreeItem({
 // ============================================================================
 
 const STATUS_TYPE_COLORS: Record<StatusType, string> = {
-  backlog: "#6B7280",
-  unstarted: "#6B7280",
-  started: "#3B82F6",
-  review: "#F59E0B",
+  backlog: "#9CA3AF",
+  unstarted: "#3B82F6",
+  started: "#F59E0B",
+  review: "#8B5CF6",
   completed: "#10B981",
   canceled: "#EF4444",
 };
@@ -1334,7 +1342,7 @@ function ActivityDetailPanel({ activity }: { activity: any | null }) {
 function EditableField({ value, onSave, type = "text", options, displayValue }: {
   value: string | number | null | undefined;
   onSave: (val: string) => void;
-  type?: "text" | "number" | "date" | "select" | "textarea";
+  type?: "text" | "number" | "date" | "select" | "multiselect" | "textarea";
   options?: { value: string; label: string }[];
   displayValue?: string;
 }) {
@@ -1357,7 +1365,14 @@ function EditableField({ value, onSave, type = "text", options, displayValue }: 
   };
 
   if (!editing) {
-    const display = displayValue || (value != null && value !== "" ? String(value) : null);
+    let display: React.ReactNode = null;
+    if (type === "multiselect" && options && value) {
+      const selected = String(value).split(",").filter(Boolean);
+      const labels = selected.map(v => options.find(o => o.value === v)?.label || v);
+      display = labels.length > 0 ? labels.join(", ") : null;
+    } else {
+      display = displayValue || (value != null && value !== "" ? String(value) : null);
+    }
     return (
       <button
         onClick={() => { setDraft(String(value ?? "")); setEditing(true); }}
@@ -1369,6 +1384,42 @@ function EditableField({ value, onSave, type = "text", options, displayValue }: 
           <span className="text-zinc-300 dark:text-zinc-600">—</span>
         )}
       </button>
+    );
+  }
+
+  if (type === "multiselect" && options) {
+    const selected = new Set(String(value ?? "").split(",").filter(Boolean));
+    const toggle = (v: string) => {
+      const next = new Set(selected);
+      if (next.has(v)) next.delete(v); else next.add(v);
+      const csv = [...next].join(",");
+      onSave(csv);
+    };
+    return (
+      <div className="flex flex-wrap gap-1 py-0.5">
+        {options.map(o => {
+          const isSelected = selected.has(o.value);
+          return (
+            <button
+              key={o.value}
+              onClick={() => toggle(o.value)}
+              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                isSelected
+                  ? "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 ring-1 ring-teal-300 dark:ring-teal-700"
+                  : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setEditing(false)}
+          className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-300"
+        >
+          Done
+        </button>
+      </div>
     );
   }
 
@@ -1414,7 +1465,7 @@ function EditableField({ value, onSave, type = "text", options, displayValue }: 
   );
 }
 
-export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated, onCreateTask }: Props) {
+export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated, onCreateTask, onNavigateToProject }: Props) {
   const { data: workspace, isLoading, refetch: refetchWorkspace } = useWorkspace(workspaceId);
   const updateWorkspace = useUpdateWorkspace();
   const { activeRepository, repositories } = useRepository();
@@ -1424,19 +1475,45 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [taskContextMenu, setTaskContextMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
   const [taskProjectSearch, setTaskProjectSearch] = useState("");
+  const [contextMenuLoading, setContextMenuLoading] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [bulkProjectMenu, setBulkProjectMenu] = useState<{ x: number; y: number } | null>(null);
+  const [bulkProjectSearch, setBulkProjectSearch] = useState("");
+  const [bulkMoving, setBulkMoving] = useState(false);
   const [taskDetailId, setTaskDetailId] = useState<string | null>(null);
   const [showMilestoneInput, setShowMilestoneInput] = useState(false);
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ context: true, details: true, activities: true });
-  const [contextMenuTab, setContextMenuTab] = useState<"milestone" | "project">("milestone");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskPageSize, setTaskPageSize] = useState(50);
+  const TASK_PAGE_INCREMENT = 50;
+  const [filterPriority, setFilterPriority] = useState<number | null>(null);
+  const [filterAssignee, setFilterAssignee] = useState<string | null>(null);
+  const [filterCompany, setFilterCompany] = useState<string | null>(null);
+  const [filterDueDate, setFilterDueDate] = useState<string | null>(null); // "overdue" | "this_week" | "has_date" | "no_date"
+  const [sortColumn, setSortColumn] = useState<string | null>(null); // column key
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [contextMenuTab, setContextMenuTab] = useState<"milestone" | "project" | "convert">("milestone");
   const [newMilestoneName, setNewMilestoneName] = useState("");
 
-  // Direct project update via Supabase
-  const updateProjectField = useCallback(async (field: string, value: any) => {
-    const { supabase } = await import("../../lib/supabase");
-    await supabase.from("projects").update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", workspaceId);
-    refetchWorkspace();
+  // Direct project update via Supabase — fire-and-forget for speed, toast on result
+  const updateProjectField = useCallback((field: string, value: any) => {
+    import("../../lib/supabase").then(({ supabase }) => {
+      supabase.from("projects").update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", workspaceId).then(({ error }) => {
+        if (error) { toast.error(`Failed to update ${field}: ${error.message}`); }
+        else { toast.success("Saved"); refetchWorkspace(); }
+      });
+    });
   }, [workspaceId, refetchWorkspace]);
-  const [sidebarWidth, setSidebarWidth] = useState(280);
+  const [sidebarWidth, setSidebarWidthRaw] = useState(() => {
+    try { return parseInt(localStorage.getItem("tv-detail-sidebar-width") || "280", 10); } catch { return 280; }
+  });
+  const setSidebarWidth = useCallback((w: number | ((prev: number) => number)) => {
+    setSidebarWidthRaw(prev => {
+      const next = typeof w === "function" ? w(prev) : w;
+      try { localStorage.setItem("tv-detail-sidebar-width", String(next)); } catch {}
+      return next;
+    });
+  }, []);
   const [contactsExpanded, setContactsExpanded] = useState(false);
   const dragging = useRef(false);
 
@@ -1463,9 +1540,13 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const ws = workspace as any;
   const isDeal = ws?.project_type === "deal";
   const companyId = isDeal ? ws?.company_id : null;
+  const enabledTaskFields = useTaskFieldsStore((s) => s.getEnabledFields(ws?.project_type || "work"));
 
   // Contacts for deal's company
   const { data: contacts = [] } = useContacts(companyId ? { companyId } : undefined);
+
+  // Email count for badge
+  const { data: emailCount } = useLinkedEmailCount("project", workspaceId);
 
   // Activities for this project/deal — query by projectId for all project types
   const { data: activities = [] } = useActivities(
@@ -1478,18 +1559,137 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const { data: allTasks = [] } = useAllTasks();
   // All projects for task reassignment
   const { data: allProjectsList = [] } = useProjects("all");
+  // Initiatives for project labels
+  const { data: allInitiatives = [] } = useInitiatives();
+  const { data: allInitiativeLinks = [] } = useInitiativeProjects();
+  const projectInitiativeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const link of allInitiativeLinks) {
+      const init = allInitiatives.find(i => i.id === link.initiative_id);
+      if (init) map.set(link.project_id, init.name);
+    }
+    return map;
+  }, [allInitiativeLinks, allInitiatives]);
   // Task inline editing hooks
   const updateTaskMutation = useUpdateTask();
   const { data: taskStatuses = [] } = useStatuses(workspaceId);
   const { data: taskUsers = [] } = useUsers();
   const { data: allCompanies = [] } = useCompanies();
   const { data: allContacts = [] } = useContacts();
+  const partnerCompanyIds = new Set(allCompanies.filter(c => c.stage === "partner").map(c => c.id));
+  const referralContactNames = useMemo(() => {
+    const names = new Set<string>();
+    // Partner company contacts
+    allContacts.filter(c => partnerCompanyIds.has(c.company_id)).forEach(c => names.add(c.name));
+    // Existing referred_by values from all companies (so previous referrals stay selectable)
+    allCompanies.forEach(c => { if ((c as any).referred_by) names.add((c as any).referred_by); });
+    return [...names].sort();
+  }, [allContacts, allCompanies, partnerCompanyIds]);
   const { data: milestones = [] } = useMilestones(workspaceId);
   const createMilestoneMutation = useCreateMilestone();
   const deleteMilestoneMutation = useDeleteMilestone();
+  const createDealMutation = useCreateDeal();
+  const [isDescribing, setIsDescribing] = useState(false);
+
+  const describeCurrentState = useCallback(async () => {
+    setIsDescribing(true);
+    try {
+      const apiKey = await invoke<string | null>("settings_get_anthropic_key");
+      if (!apiKey) { toast.error("No Anthropic API key configured. Add it in Settings."); return; }
+
+      // Gather project context
+      const tasks = allTasks.filter(t => t.project_id === workspaceId);
+      const taskSummary = tasks.map(t => {
+        const statusLabel = t.status?.name || "Unknown";
+        const company = allCompanies.find(c => c.id === t.company_id);
+        return `- [${statusLabel}] ${t.title}${company ? ` (${company.display_name || company.name})` : ""}${t.due_date ? ` due ${t.due_date}` : ""}`;
+      }).join("\n");
+
+      const projectInfo = [
+        `Project: ${ws?.name || "Unknown"}`,
+        `Type: ${ws?.project_type || "work"}`,
+        ws?.deal_stage ? `Deal Stage: ${ws.deal_stage}` : null,
+        ws?.deal_solution ? `Solution: ${ws.deal_solution}` : null,
+        ws?.deal_value ? `Value: ${ws.deal_currency || "SGD"} ${ws.deal_value}` : null,
+        ws?.description ? `Description: ${ws.description}` : null,
+        `Status: ${ws?.status || "active"}`,
+      ].filter(Boolean).join("\n");
+
+      const activitySummary = activities.slice(0, 10).map(a =>
+        `- [${a.type}] ${a.subject || a.content || ""}${a.created_at ? ` (${new Date(a.created_at).toLocaleDateString()})` : ""}`
+      ).join("\n");
+
+      const prompt = `You are summarizing the current state of a project for a project manager. Be concise — 1-3 sentences max. Focus on what's happening right now: progress, blockers, next steps.
+
+${projectInfo}
+
+Tasks (${tasks.length} total):
+${taskSummary || "No tasks yet"}
+
+Recent Activities:
+${activitySummary || "No activities yet"}
+
+${workspace?.context?.context_summary ? `Context: ${workspace.context.context_summary}` : ""}
+
+Write a brief current state summary. No bullet points, just a natural sentence or two.`;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 256,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`API error: ${response.status} ${err}`);
+      }
+
+      const data = await response.json();
+      const text = data.content?.[0]?.text;
+      if (!text) throw new Error("Empty response");
+
+      // Save to project_context
+      const { supabase } = await import("../../lib/supabase");
+      const { data: existing } = await supabase
+        .from("project_context")
+        .select("id")
+        .eq("project_id", workspaceId)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from("project_context").update({ current_state: text, updated_at: new Date().toISOString() }).eq("id", existing.id);
+      } else {
+        await supabase.from("project_context").insert({ project_id: workspaceId, current_state: text });
+      }
+
+      refetchWorkspace();
+      toast.success("Current state updated");
+    } catch (err: any) {
+      toast.error(`Failed to describe state: ${err.message}`);
+    } finally {
+      setIsDescribing(false);
+    }
+  }, [workspaceId, allTasks, allCompanies, activities, ws, workspace, refetchWorkspace]);
+
   const reassignTask = useCallback(async (taskId: string, newProjectId: string) => {
     const { supabase } = await import("../../lib/supabase");
     await supabase.from("tasks").update({ project_id: newProjectId }).eq("id", taskId);
+    refetchWorkspace();
+  }, [refetchWorkspace]);
+
+  const reassignTasks = useCallback(async (taskIds: string[], newProjectId: string) => {
+    const { supabase } = await import("../../lib/supabase");
+    await supabase.from("tasks").update({ project_id: newProjectId }).in("id", taskIds);
+    setSelectedTaskIds(new Set());
     refetchWorkspace();
   }, [refetchWorkspace]);
 
@@ -1497,46 +1697,151 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
     if (!confirm("Delete this project and all its tasks? This cannot be undone.")) return;
     const { supabase } = await import("../../lib/supabase");
 
-    // Delete tasks one by one (they may have FK refs from task_labels etc)
-    const { data: tasks } = await supabase.from("tasks").select("id").eq("project_id", workspaceId);
-    if (tasks) {
-      for (const t of tasks) {
-        await supabase.from("task_labels").delete().eq("task_id", t.id);
-        await supabase.from("task_activity").delete().eq("task_id", t.id);
-        await supabase.from("tasks").delete().eq("id", t.id);
+    try {
+      // 1. Get all task IDs in this project
+      const { data: tasks } = await supabase.from("tasks").select("id").eq("project_id", workspaceId);
+      const taskIds = (tasks || []).map(t => t.id);
+
+      // 2. Delete task children in bulk
+      if (taskIds.length > 0) {
+        await supabase.from("task_labels").delete().in("task_id", taskIds);
+        await supabase.from("task_activity").delete().in("task_id", taskIds);
+        await supabase.from("product_task_links").delete().in("task_id", taskIds);
+        await supabase.from("discussions").delete().eq("entity_type", "task").in("entity_id", taskIds);
       }
+      // Delete all tasks in bulk
+      await supabase.from("tasks").delete().eq("project_id", workspaceId);
+
+      // 3. Fix orphaned status refs — tasks moved to other projects may still use this project's statuses
+      const { data: projStatuses } = await supabase.from("task_statuses").select("id").eq("project_id", workspaceId);
+      const sIds = (projStatuses || []).map(s => s.id);
+      if (sIds.length > 0) {
+        const { data: orphans } = await supabase.from("tasks").select("id, project_id").in("status_id", sIds).neq("project_id", workspaceId);
+        if (orphans?.length) {
+          const pids = [...new Set(orphans.map(t => t.project_id))];
+          for (const pid of pids) {
+            const { data: ts } = await supabase.from("task_statuses").select("id").eq("project_id", pid).eq("type", "unstarted").limit(1);
+            if (ts?.[0]) await supabase.from("tasks").update({ status_id: ts[0].id }).in("id", orphans.filter(t => t.project_id === pid).map(t => t.id));
+          }
+        }
+      }
+      await supabase.from("task_statuses").delete().eq("project_id", workspaceId);
+
+      // 4. Delete all project children
+      await supabase.from("milestones").delete().eq("project_id", workspaceId);
+      await supabase.from("project_sessions").delete().eq("project_id", workspaceId);
+      await supabase.from("project_artifacts").delete().eq("project_id", workspaceId);
+      await supabase.from("project_context").delete().eq("project_id", workspaceId);
+      await supabase.from("project_updates").delete().eq("project_id", workspaceId);
+      await supabase.from("crm_activities").delete().eq("project_id", workspaceId);
+      await supabase.from("initiative_projects").delete().eq("project_id", workspaceId);
+      await supabase.from("notion_sync_configs").delete().eq("target_project_id", workspaceId);
+
+      // 5. Delete the project
+      const { error } = await supabase.from("projects").delete().eq("id", workspaceId);
+      if (error) throw error;
+
+      toast.success("Project deleted");
+      _onUpdated();
+      onBack();
+    } catch (err: any) {
+      toast.error(`Failed to delete: ${err.message}`);
     }
-    // Delete task statuses
-    await supabase.from("task_statuses").delete().eq("project_id", workspaceId);
-    // Delete project children
-    await supabase.from("project_sessions").delete().eq("project_id", workspaceId);
-    await supabase.from("project_artifacts").delete().eq("project_id", workspaceId);
-    await supabase.from("project_context").delete().eq("project_id", workspaceId);
-    // Delete activities
-    await supabase.from("crm_activities").delete().eq("project_id", workspaceId);
-    // Delete initiative links
-    await supabase.from("initiative_projects").delete().eq("project_id", workspaceId);
-    // Delete project updates
-    await supabase.from("project_updates").delete().eq("project_id", workspaceId);
-    // Delete the project
-    const { error } = await supabase.from("projects").delete().eq("id", workspaceId);
-    if (error) {
-      alert(`Failed to delete: ${error.message}`);
-      return;
-    }
-    _onUpdated();
-    onBack();
   }, [workspaceId, onBack, _onUpdated]);
 
   const projectTasks = allTasks.filter(t => t.project_id === workspaceId);
   const completedTasks = projectTasks.filter(t => t.status?.type === "completed").length;
 
+  // Filter + paginate tasks for large projects
+  const hasColumnFilters = filterPriority !== null || filterAssignee !== null || filterCompany !== null || filterDueDate !== null;
+  const filteredTasks = useMemo(() => {
+    let tasks = projectTasks;
+    if (taskSearch) {
+      const q = taskSearch.toLowerCase();
+      tasks = tasks.filter(t =>
+        t.title.toLowerCase().includes(q)
+        || (t.description || "").toLowerCase().includes(q)
+        || (t.company as any)?.name?.toLowerCase().includes(q)
+        || (t.company as any)?.display_name?.toLowerCase().includes(q)
+      );
+    }
+    if (filterPriority !== null) tasks = tasks.filter(t => (t.priority ?? 0) === filterPriority);
+    if (filterAssignee !== null) {
+      tasks = filterAssignee === "__none__"
+        ? tasks.filter(t => !t.assignee_id)
+        : tasks.filter(t => t.assignee_id === filterAssignee);
+    }
+    if (filterCompany !== null) {
+      tasks = filterCompany === "__none__"
+        ? tasks.filter(t => !t.company_id)
+        : tasks.filter(t => t.company_id === filterCompany);
+    }
+    if (filterDueDate !== null) {
+      const now = new Date();
+      tasks = tasks.filter(t => {
+        if (filterDueDate === "no_date") return !t.due_date;
+        if (filterDueDate === "has_date") return !!t.due_date;
+        if (!t.due_date) return false;
+        if (filterDueDate === "overdue") return new Date(t.due_date) < now && t.status?.type !== "completed" && t.status?.type !== "canceled";
+        if (filterDueDate === "this_week") {
+          const d = new Date(t.due_date);
+          const end = new Date(now); end.setDate(end.getDate() + 7);
+          return d >= now && d <= end;
+        }
+        return true;
+      });
+    }
+    return tasks;
+  }, [projectTasks, taskSearch, filterPriority, filterAssignee, filterCompany, filterDueDate]);
+  const isLargeProject = projectTasks.length > 100;
+  const visibleTasks = isLargeProject ? filteredTasks.slice(0, taskPageSize) : filteredTasks;
+  const hasMoreTasks = isLargeProject && filteredTasks.length > taskPageSize;
+
+  // Derive filter options from all project tasks
+  const priorityFilterOptions = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const t of projectTasks) { const p = t.priority ?? 0; counts.set(p, (counts.get(p) || 0) + 1); }
+    return [1, 2, 3, 4, 0].filter(p => counts.has(p)).map(p => ({ value: p, label: PriorityLabels[p as Priority], count: counts.get(p)! }));
+  }, [projectTasks]);
+
+  const assigneeFilterOptions = useMemo(() => {
+    const counts = new Map<string, { name: string; count: number }>();
+    for (const t of projectTasks) {
+      const id = t.assignee_id || "__none__";
+      const name = t.assignee?.name || "Unassigned";
+      const e = counts.get(id) || { name, count: 0 }; e.count++; counts.set(id, e);
+    }
+    return Array.from(counts.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, v]) => ({ value: id, label: v.name, count: v.count }));
+  }, [projectTasks]);
+
+  const companyFilterOptions = useMemo(() => {
+    const counts = new Map<string, { name: string; count: number }>();
+    for (const t of projectTasks) {
+      if (!t.company_id) continue;
+      const name = (t.company as any)?.display_name || (t.company as any)?.name || t.company_id;
+      const e = counts.get(t.company_id) || { name, count: 0 }; e.count++; counts.set(t.company_id, e);
+    }
+    return Array.from(counts.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, v]) => ({ value: id, label: v.name, count: v.count }));
+  }, [projectTasks]);
+
+  // Sort handler
+  const handleSort = (col: string) => {
+    if (sortColumn === col) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(col);
+      setSortDir("asc");
+    }
+  };
+  const SortIndicator = ({ col }: { col: string }) => sortColumn === col ? <span className="ml-0.5">{sortDir === "asc" ? "↑" : "↓"}</span> : null;
+
   // Config-driven project fields — subscribe to store so changes in settings trigger re-render
   const enabledProjectFields = useProjectFieldsStore((s) => s.getEnabledFields((workspace as any)?.project_type || "work"));
-  const dealFieldKeys = new Set(["deal_stage", "deal_value", "deal_currency", "deal_solution", "deal_expected_close", "deal_actual_close", "deal_proposal_path", "deal_order_form_path", "deal_lost_reason", "deal_won_notes", "deal_notes"]);
-  const configuredFields = getFieldDefsForType((workspace as any)?.project_type || "work")
+  const dealFieldKeys = new Set(["deal_stage", "deal_value", "deal_currency", "deal_solution", "deal_expected_close", "deal_actual_close", "deal_lost_reason", "deal_won_notes", "deal_notes"]);
+  const projectType = (workspace as any)?.project_type || "work";
+  const configuredFields = getFieldDefsForType(projectType)
     .filter(f => enabledProjectFields.includes(f.key))
-    .filter(f => !(!companyId && dealFieldKeys.has(f.key))); // Hide deal fields for projects without a company
+    .filter(f => !(projectType !== "deal" && dealFieldKeys.has(f.key))); // Hide deal fields for non-deal projects
 
   if (isLoading) {
     return <div className="h-full flex items-center justify-center text-zinc-400">Loading...</div>;
@@ -1645,7 +1950,9 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
             >
               {workspaceId.slice(0, 8)}
             </button>
-            <span>{formatDateTime(workspace.updated_at)}</span>
+            <span title={`Created: ${formatDateTime(workspace.created_at)}\nUpdated: ${formatDateTime(workspace.updated_at)}`}>
+              {formatDateTime(workspace.updated_at)}
+            </span>
           </div>
         </div>
       </div>
@@ -1798,8 +2105,6 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                     { label: "Solution", field: "deal_solution", type: "select" as const, options: DEAL_SOLUTIONS.map(s => ({ value: s.value, label: s.label })), displayValue: DEAL_SOLUTIONS.find(s => s.value === ws.deal_solution)?.label },
                     { label: "Expected Close", field: "deal_expected_close", type: "date" as const },
                     { label: "Actual Close", field: "deal_actual_close", type: "date" as const },
-                    { label: "Proposal", field: "deal_proposal_path", type: "text" as const },
-                    { label: "Order Form", field: "deal_order_form_path", type: "text" as const },
                     { label: "Lost Reason", field: "deal_lost_reason", type: "text" as const },
                     { label: "Won Notes", field: "deal_won_notes", type: "text" as const },
                     { label: "Notes", field: "deal_notes", type: "textarea" as const },
@@ -1868,7 +2173,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
         />
 
         {/* RIGHT: File preview, session detail, task detail, or context */}
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col">
           {/* Close bar — shown when viewing a file/session/entity so user can return to project details */}
           {selection && (
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/80 dark:bg-zinc-900/50">
@@ -1903,9 +2208,20 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
             <div className="h-full overflow-y-auto p-6">
               {/* Current State */}
               <div className="mb-6 p-3 bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/50 rounded-lg">
-                <h3 className="text-xs font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <AlertCircle size={12} /> Current State
-                </h3>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-xs font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1">
+                    <AlertCircle size={12} /> Current State
+                  </h3>
+                  <button
+                    onClick={describeCurrentState}
+                    disabled={isDescribing}
+                    className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-md bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 hover:bg-teal-200 dark:hover:bg-teal-800/50 transition-colors disabled:opacity-50"
+                    title="Generate current state description with AI"
+                  >
+                    {isDescribing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                    {isDescribing ? "Thinking..." : "Describe"}
+                  </button>
+                </div>
                 {context?.current_state ? (
                   <p className="text-sm text-teal-800 dark:text-teal-300">{context.current_state}</p>
                 ) : (
@@ -1937,7 +2253,11 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                 {!collapsedSections.details && <div className="space-y-1 text-xs pl-5">
                   <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
                     <span className="text-zinc-400 py-1">Name</span>
-                    <EditableField value={workspace.title} onSave={(v) => updateProjectField("name", v)} />
+                    <EditableField value={ws.raw_name || workspace.title} onSave={(v) => updateProjectField("name", v)} />
+                  </div>
+                  <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                    <span className="text-zinc-400 py-1">Prefix</span>
+                    <EditableField value={ws.identifier_prefix || ""} onSave={(v) => updateProjectField("identifier_prefix", v?.toUpperCase().slice(0, 6) || null)} />
                   </div>
                   <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
                     <span className="text-zinc-400 py-1">Description</span>
@@ -1949,23 +2269,81 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                       value={ws.lead_id || ""}
                       type="select"
                       options={[{ value: "", label: "—" }, ...taskUsers.map(u => ({ value: u.id, label: u.name }))]}
-                      displayValue={taskUsers.find(u => u.id === ws.lead_id)?.name || ws.owner || undefined}
+                      displayValue={taskUsers.find(u => u.id === ws.lead_id)?.name || ws.lead || undefined}
                       onSave={(v) => {
                         const user = taskUsers.find(u => u.id === v);
-                        updateProjectField("lead_id", v || null);
-                        updateProjectField("owner", user?.name || null);
+                        import("../../lib/supabase").then(({ supabase }) => {
+                          supabase.from("projects").update({
+                            lead_id: v || null,
+                            lead: user?.name || null,
+                            updated_at: new Date().toISOString(),
+                          }).eq("id", workspaceId).then(({ error }) => {
+                            if (error) { toast.error(`Failed to update owner: ${error.message}`); }
+                            else { toast.success("Saved"); refetchWorkspace(); }
+                          });
+                        });
                       }}
                     />
                   </div>
 
-                  {/* Company (for deals) */}
-                  {isDeal && (
+                  {/* Created / Updated */}
+                  <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                    <span className="text-zinc-400 py-1">Created</span>
+                    <span className="text-xs text-zinc-500 py-1">{formatDateTime(workspace.created_at)}</span>
+                  </div>
+                  <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                    <span className="text-zinc-400 py-1">Updated</span>
+                    <span className="text-xs text-zinc-500 py-1">{formatDateTime(workspace.updated_at)}</span>
+                  </div>
+
+                  {/* Company */}
+                  <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                    <span className="text-zinc-400 py-1">Company</span>
+                    <EditableField
+                      value={ws.company_id || ""}
+                      type="select"
+                      options={[{ value: "", label: "—" }, ...allCompanies.map(c => ({ value: c.id, label: c.display_name || c.name }))]}
+                      displayValue={ws.company?.display_name || ws.company?.name || undefined}
+                      onSave={(v) => updateProjectField("company_id", v || null)}
+                    />
+                  </div>
+
+                  {/* Initiative */}
+                  <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                    <span className="text-zinc-400 py-1">Initiative</span>
+                    <EditableField
+                      value={allInitiativeLinks.find(l => l.project_id === workspaceId)?.initiative_id || ""}
+                      type="select"
+                      options={[{ value: "", label: "—" }, ...allInitiatives.map(i => ({ value: i.id, label: i.name }))]}
+                      displayValue={projectInitiativeMap.get(workspaceId) || undefined}
+                      onSave={async (v) => {
+                        const { supabase } = await import("../../lib/supabase");
+                        await supabase.from("initiative_projects").delete().eq("project_id", workspaceId);
+                        if (v) {
+                          await supabase.from("initiative_projects").insert({ initiative_id: v, project_id: workspaceId, sort_order: 999 });
+                        }
+                        refetchWorkspace();
+                      }}
+                    />
+                  </div>
+                  {/* Referral (for deals with company) */}
+                  {isDeal && ws.company && (
                     <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
-                      <span className="text-zinc-400 py-1">Company</span>
-                      <span className="text-xs text-zinc-700 dark:text-zinc-300 py-1">
-                        {ws.company?.display_name || ws.company?.name || "—"}
-                        {ws.company?.stage && <span className="text-zinc-400 ml-1">({ws.company.stage})</span>}
-                      </span>
+                      <span className="text-zinc-400 py-1">Referral</span>
+                      <EditableField
+                        value={ws.company?.referred_by || ""}
+                        type="select"
+                        options={[{ value: "", label: "—" }, ...referralContactNames.map(n => ({ value: n, label: n }))]}
+                        displayValue={ws.company?.referred_by || undefined}
+                        onSave={(v) => {
+                          import("../../lib/supabase").then(({ supabase }) => {
+                            supabase.from("crm_companies").update({ referred_by: v || null }).eq("id", ws.company_id).then(({ error }) => {
+                              if (error) toast.error(`Failed to update referral: ${error.message}`);
+                              else { toast.success("Saved"); refetchWorkspace(); }
+                            });
+                          });
+                        }}
+                      />
                     </div>
                   )}
 
@@ -1975,7 +2353,9 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                       <div className="border-t border-zinc-100 dark:border-zinc-800 my-2" />
                       {configuredFields.map((field) => {
                         let displayValue: string | undefined;
-                        if (field.options) {
+                        if (field.type === "multiselect" && field.options) {
+                          // Handled inside EditableField
+                        } else if (field.options) {
                           displayValue = field.options.find((o: { value: string; label: string }) => o.value === String(ws[field.key] ?? ""))?.label;
                         } else if (field.key === "deal_value" && ws[field.key]) {
                           displayValue = `${ws.deal_currency || "SGD"} ${Number(ws[field.key]).toLocaleString()}`;
@@ -2066,6 +2446,91 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                       </div>
                     </div>
                   </div>
+                  {!collapsedSections.tasks && projectTasks.length > 0 && (
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <input
+                        type="text"
+                        value={taskSearch}
+                        onChange={(e) => { setTaskSearch(e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
+                        placeholder="Search tasks..."
+                        className="text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 outline-none max-w-[200px] focus:border-teal-400 dark:focus:border-teal-600 transition-colors"
+                      />
+                      {/* Priority filter */}
+                      <select
+                        value={filterPriority ?? ""}
+                        onChange={(e) => { setFilterPriority(e.target.value === "" ? null : Number(e.target.value)); setTaskPageSize(TASK_PAGE_INCREMENT); }}
+                        className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
+                          filterPriority !== null
+                            ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                            : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                        }`}
+                      >
+                        <option value="">Priority</option>
+                        {priorityFilterOptions.map(o => (
+                          <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
+                        ))}
+                      </select>
+                      {/* Assignee filter */}
+                      <select
+                        value={filterAssignee ?? ""}
+                        onChange={(e) => { setFilterAssignee(e.target.value === "" ? null : e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
+                        className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
+                          filterAssignee !== null
+                            ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                            : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                        }`}
+                      >
+                        <option value="">Assignee</option>
+                        {assigneeFilterOptions.map(o => (
+                          <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
+                        ))}
+                      </select>
+                      {/* Company filter */}
+                      {companyFilterOptions.length > 0 && (
+                        <select
+                          value={filterCompany ?? ""}
+                          onChange={(e) => { setFilterCompany(e.target.value === "" ? null : e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
+                          className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
+                            filterCompany !== null
+                              ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                              : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                          }`}
+                        >
+                          <option value="">Company</option>
+                          {companyFilterOptions.map(o => (
+                            <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
+                          ))}
+                        </select>
+                      )}
+                      {/* Due Date filter */}
+                      <select
+                        value={filterDueDate ?? ""}
+                        onChange={(e) => { setFilterDueDate(e.target.value === "" ? null : e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
+                        className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
+                          filterDueDate !== null
+                            ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                            : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                        }`}
+                      >
+                        <option value="">Due Date</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="this_week">This week</option>
+                        <option value="has_date">Has date</option>
+                        <option value="no_date">No date</option>
+                      </select>
+                      {(taskSearch || hasColumnFilters) && (
+                        <button
+                          onClick={() => { setTaskSearch(""); setFilterPriority(null); setFilterAssignee(null); setFilterCompany(null); setFilterDueDate(null); }}
+                          className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center gap-0.5"
+                        >
+                          <X size={10} /> Clear
+                        </button>
+                      )}
+                      {(taskSearch || hasColumnFilters) && (
+                        <span className="text-[10px] text-zinc-400">{filteredTasks.length}/{projectTasks.length}</span>
+                      )}
+                    </div>
+                  )}
                   {collapsedSections.tasks ? null : projectTasks.length === 0 ? (
                     <p className="text-xs text-zinc-400 italic pl-5">No tasks yet</p>
                   ) : milestones.length > 0 ? (
@@ -2081,25 +2546,66 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                       onDeleteMilestone={(id) => deleteMilestoneMutation.mutate(id)}
                     />
                   ) : (
-                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
-                    <table className="w-full text-xs">
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-x-auto">
+                    <table className="w-full text-xs min-w-[700px]">
                       <thead>
                         <tr className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
+                          <th className="px-2 py-2 w-8" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedTaskIds.size > 0 && visibleTasks.every(t => selectedTaskIds.has(t.id))}
+                              ref={(el) => { if (el) el.indeterminate = selectedTaskIds.size > 0 && !visibleTasks.every(t => selectedTaskIds.has(t.id)); }}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedTaskIds(new Set(visibleTasks.map(t => t.id)));
+                                } else {
+                                  setSelectedTaskIds(new Set());
+                                }
+                              }}
+                              className="w-3.5 h-3.5 rounded border-zinc-300 text-teal-600 cursor-pointer"
+                            />
+                          </th>
                           <th className="text-left px-3 py-2 font-medium text-zinc-400 w-8"></th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16">ID</th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400">Title</th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20">Type</th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400">Company</th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400">Contact</th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16">Days</th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24">Priority</th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28">Assignee</th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28">Due Date</th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("id")}>ID<SortIndicator col="id" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("title")}>Title<SortIndicator col="title" /></th>
+                          {enabledTaskFields.includes("task_type") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("task_type")}>Type<SortIndicator col="task_type" /></th>}
+                          {enabledTaskFields.includes("company") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("company")}>Company<SortIndicator col="company" /></th>}
+                          {enabledTaskFields.includes("contact") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("contact")}>Contact<SortIndicator col="contact" /></th>}
+                          {enabledTaskFields.includes("referral") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("referral")}>Referral<SortIndicator col="referral" /></th>}
+                          {enabledTaskFields.includes("days_in_stage") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("days_in_stage")}>Days<SortIndicator col="days_in_stage" /></th>}
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("priority")}>Priority<SortIndicator col="priority" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("assignee")}>Assignee<SortIndicator col="assignee" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("due_date")}>Due Date<SortIndicator col="due_date" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("created")}>Created<SortIndicator col="created" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("updated")}>Updated<SortIndicator col="updated" /></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {projectTasks
+                        {visibleTasks
                           .sort((a, b) => {
+                            if (sortColumn) {
+                              const dir = sortDir === "asc" ? 1 : -1;
+                              let cmp = 0;
+                              switch (sortColumn) {
+                                case "id": cmp = (a.task_number ?? 0) - (b.task_number ?? 0); break;
+                                case "title": cmp = (a.title || "").localeCompare(b.title || ""); break;
+                                case "task_type": cmp = (a.task_type || "").localeCompare(b.task_type || ""); break;
+                                case "company": cmp = ((a.company as any)?.display_name || (a.company as any)?.name || "").localeCompare((b.company as any)?.display_name || (b.company as any)?.name || ""); break;
+                                case "contact": cmp = ((a.contact as any)?.name || "").localeCompare((b.contact as any)?.name || ""); break;
+                                case "priority": cmp = (a.priority ?? 99) - (b.priority ?? 99); break;
+                                case "assignee": cmp = (a.assignee?.name || "").localeCompare(b.assignee?.name || ""); break;
+                                case "due_date": cmp = (a.due_date || "9999").localeCompare(b.due_date || "9999"); break;
+                                case "created": cmp = (a.created_at || "").localeCompare(b.created_at || ""); break;
+                                case "updated": cmp = (a.updated_at || "").localeCompare(b.updated_at || ""); break;
+                                case "days_in_stage": {
+                                  const daysA = a.task_type_changed_at ? Math.floor((Date.now() - new Date(a.task_type_changed_at).getTime()) / 86400000) : -1;
+                                  const daysB = b.task_type_changed_at ? Math.floor((Date.now() - new Date(b.task_type_changed_at).getTime()) / 86400000) : -1;
+                                  cmp = daysA - daysB; break;
+                                }
+                              }
+                              if (cmp !== 0) return cmp * dir;
+                            }
+                            // Default sort: status order, then task number
                             const order: Record<string, number> = { started: 0, review: 0, unstarted: 1, backlog: 2, completed: 3, canceled: 4 };
                             const statusDiff = (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
                             if (statusDiff !== 0) return statusDiff;
@@ -2107,7 +2613,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                           })
                           .map((task) => {
                             const statusType = (task.status?.type as StatusType) ?? "unstarted";
-                            const statusColor = STATUS_TYPE_COLORS[statusType] || "#6B7280";
+                            const statusColor = task.status?.color || STATUS_TYPE_COLORS[statusType] || "#6B7280";
                             const identifier = getTaskIdentifier(task);
                             const priorityColor = PriorityColors[task.priority as Priority] ?? "#6B7280";
 
@@ -2118,11 +2624,29 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                                 onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY }); setTaskProjectSearch(""); }}
                                 className={cn(
                                   "border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors group",
-                                  taskDetailId === task.id
-                                    ? "bg-teal-50/50 dark:bg-teal-950/20"
-                                    : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
+                                  selectedTaskIds.has(task.id)
+                                    ? "bg-teal-50 dark:bg-teal-950/20"
+                                    : taskDetailId === task.id
+                                      ? "bg-teal-50/50 dark:bg-teal-950/20"
+                                      : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
                                 )}
                               >
+                                {/* Checkbox */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTaskIds.has(task.id)}
+                                    onChange={(e) => {
+                                      setSelectedTaskIds(prev => {
+                                        const next = new Set(prev);
+                                        if (e.target.checked) next.add(task.id);
+                                        else next.delete(task.id);
+                                        return next;
+                                      });
+                                    }}
+                                    className="w-3.5 h-3.5 rounded border-zinc-300 text-teal-600 cursor-pointer"
+                                  />
+                                </td>
                                 {/* Status */}
                                 <td className="px-3 py-1.5 relative" onClick={(e) => e.stopPropagation()}>
                                   <div className="relative w-5 h-5">
@@ -2157,37 +2681,92 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                                   </div>
                                 </td>
                                 {/* ID */}
-                                <td className="px-2 py-1.5 text-zinc-400 font-mono text-[11px] whitespace-nowrap">{identifier}</td>
+                                <td className="px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">
+                                  <span className="text-zinc-400">{identifier}</span>
+                                  {task.notion_page_id && (() => {
+                                    const notionUrl = `https://www.notion.so/thinkval/${task.notion_page_id!.replace(/-/g, "")}`;
+                                    return (
+                                      <span className="ml-1.5 inline-flex items-center gap-1">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigator.clipboard.writeText(notionUrl);
+                                            toast.success("Notion URL copied");
+                                          }}
+                                          className="text-[10px] px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/30 dark:hover:text-teal-400 transition-colors"
+                                          title="Copy Notion URL"
+                                        >
+                                          Copy
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openUrl(notionUrl);
+                                          }}
+                                          className="text-[10px] px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 dark:hover:text-blue-400 transition-colors"
+                                          title="Open in Notion"
+                                        >
+                                          Open
+                                        </button>
+                                      </span>
+                                    );
+                                  })()}
+                                </td>
                                 {/* Title */}
-                                <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-medium truncate max-w-0">
-                                  <span className="truncate block">{task.title}</span>
+                                <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-medium">
+                                  {task.title}
                                 </td>
                                 {/* Type */}
-                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <select
-                                    value={task.task_type || "general"}
-                                    onChange={(e) => {
-                                      updateTaskMutation.mutate({ id: task.id, updates: { task_type: e.target.value } });
-                                    }}
-                                    className={`appearance-none text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer border-0 outline-none ${
-                                      task.task_type === "target" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                                      task.task_type === "prospect" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
-                                      task.task_type === "follow_up" ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" :
-                                      "bg-transparent text-zinc-400"
-                                    }`}
-                                  >
-                                    <option value="general">—</option>
-                                    <option value="target">Target</option>
-                                    <option value="prospect">Prospect</option>
-                                    <option value="follow_up">Follow Up</option>
-                                  </select>
-                                </td>
+                                {enabledTaskFields.includes("task_type") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  {task.task_type === "converted" ? (() => {
+                                    // Extract deal project ID from description
+                                    const match = task.description?.match(/→ Converted to deal project: ([a-f0-9-]+)/);
+                                    const dealProjectId = match?.[1];
+                                    const dealProject = dealProjectId ? allProjectsList.find(p => p.id === dealProjectId) : null;
+                                    return (
+                                      <button
+                                        onClick={() => {
+                                          if (dealProjectId && onNavigateToProject) {
+                                            onNavigateToProject(dealProjectId);
+                                          }
+                                        }}
+                                        className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-800/40 transition-colors"
+                                        title={dealProject ? `Deal: ${dealProject.name}` : "Converted to deal"}
+                                      >
+                                        <ArrowUpRight size={9} />
+                                        Deal
+                                      </button>
+                                    );
+                                  })() : (
+                                    <select
+                                      value={task.task_type || "general"}
+                                      onChange={(e) => {
+                                        updateTaskMutation.mutate({ id: task.id, updates: { task_type: e.target.value } });
+                                      }}
+                                      className={`appearance-none text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer border-0 outline-none ${
+                                        task.task_type === "target" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                                        task.task_type === "prospect" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                                        task.task_type === "follow_up" ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" :
+                                        "bg-transparent text-zinc-400"
+                                      }`}
+                                    >
+                                      <option value="general">—</option>
+                                      <option value="target">Target</option>
+                                      <option value="prospect">Prospect</option>
+                                      <option value="follow_up">Follow Up</option>
+                                    </select>
+                                  )}
+                                </td>}
                                 {/* Company */}
-                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                {enabledTaskFields.includes("company") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                                   <select
-                                    value={(task as any).company_id || ""}
+                                    value={task.company_id || ""}
                                     onChange={(e) => {
-                                      updateTaskMutation.mutate({ id: task.id, updates: { company_id: e.target.value || null, contact_id: null } });
+                                      const val = e.target.value || null;
+                                      updateTaskMutation.mutate(
+                                        { id: task.id, updates: { company_id: val, contact_id: null } },
+                                        { onError: (err) => console.error("Company update failed:", err) }
+                                      );
                                     }}
                                     className="appearance-none bg-transparent text-[11px] cursor-pointer border-0 outline-none text-zinc-500"
                                   >
@@ -2196,32 +2775,59 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                                       <option key={c.id} value={c.id}>{c.display_name || c.name}</option>
                                     ))}
                                   </select>
-                                </td>
+                                </td>}
                                 {/* Contact */}
-                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                {enabledTaskFields.includes("contact") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                                   <select
-                                    value={(task as any).contact_id || ""}
+                                    value={task.contact_id || ""}
                                     onChange={(e) => {
-                                      updateTaskMutation.mutate({ id: task.id, updates: { contact_id: e.target.value || null } });
+                                      const val = e.target.value || null;
+                                      updateTaskMutation.mutate(
+                                        { id: task.id, updates: { contact_id: val } },
+                                        { onError: (err) => console.error("Contact update failed:", err) }
+                                      );
                                     }}
                                     className="appearance-none bg-transparent text-[11px] cursor-pointer border-0 outline-none text-zinc-500"
                                   >
                                     <option value="">—</option>
                                     {allContacts
-                                      .filter((c) => !(task as any).company_id || c.company_id === (task as any).company_id)
+                                      .filter((c) => !task.company_id || c.company_id === task.company_id)
                                       .map((c) => (
                                         <option key={c.id} value={c.id}>{c.name}</option>
                                       ))}
                                   </select>
-                                </td>
+                                </td>}
+                                {/* Referral */}
+                                {enabledTaskFields.includes("referral") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <select
+                                    value={(task as any).company?.referred_by || ""}
+                                    onChange={(e) => {
+                                      const companyId = task.company_id;
+                                      if (!companyId) return;
+                                      const val = e.target.value || null;
+                                      import("../../lib/supabase").then(({ supabase }) => {
+                                        supabase.from("crm_companies").update({ referred_by: val }).eq("id", companyId).then(({ error }) => {
+                                          if (error) toast.error(`Failed to update referral: ${error.message}`);
+                                          else { toast.success("Saved"); refetchWorkspace(); }
+                                        });
+                                      });
+                                    }}
+                                    className="appearance-none bg-transparent text-[11px] cursor-pointer border-0 outline-none text-zinc-500"
+                                  >
+                                    <option value="">—</option>
+                                    {referralContactNames.map((name) => (
+                                      <option key={name} value={name}>{name}</option>
+                                    ))}
+                                  </select>
+                                </td>}
                                 {/* Days in Stage */}
-                                <td className="px-2 py-1.5">
+                                {enabledTaskFields.includes("days_in_stage") && <td className="px-2 py-1.5">
                                   {task.task_type_changed_at && task.task_type && task.task_type !== "general" && (() => {
                                     const days = Math.floor((Date.now() - new Date(task.task_type_changed_at!).getTime()) / (1000 * 60 * 60 * 24));
                                     const color = days > 30 ? "text-red-500" : days > 14 ? "text-amber-500" : "text-zinc-400";
                                     return <span className={`text-[11px] ${color}`}>{days}d</span>;
                                   })()}
-                                </td>
+                                </td>}
                                 {/* Priority */}
                                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                                   <select
@@ -2274,13 +2880,51 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                                     )}
                                   </div>
                                 </td>
+                                {/* Created */}
+                                <td className="px-2 py-1.5">
+                                  <span className="text-[10px] text-zinc-400" title={task.created_at ? new Date(task.created_at).toLocaleString() : ""}>
+                                    {task.created_at ? new Date(task.created_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
+                                  </span>
+                                </td>
+                                {/* Updated */}
+                                <td className="px-2 py-1.5">
+                                  <span className="text-[10px] text-zinc-400" title={task.updated_at ? new Date(task.updated_at).toLocaleString() : ""}>
+                                    {task.updated_at ? new Date(task.updated_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
+                                  </span>
+                                </td>
                               </tr>
                             );
                           })}
                       </tbody>
                     </table>
+                    {hasMoreTasks && (
+                      <div className="flex items-center justify-center py-3 border-t border-zinc-200 dark:border-zinc-800">
+                        <button
+                          onClick={() => setTaskPageSize(s => s + TASK_PAGE_INCREMENT)}
+                          className="text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 font-medium"
+                        >
+                          Load more ({filteredTasks.length - taskPageSize} remaining)
+                        </button>
+                      </div>
+                    )}
                   </div>
                   )}
+              </div>
+
+              {/* Emails */}
+              <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                <button onClick={() => setCollapsedSections(s => ({ ...s, emails: !s.emails }))} className="flex items-center gap-1.5 mb-3 group">
+                  {collapsedSections.emails ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
+                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1">
+                    <Mail size={12} />
+                    Emails ({emailCount ?? 0})
+                  </h3>
+                </button>
+                {!collapsedSections.emails && (
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden" style={{ maxHeight: 400 }}>
+                    <EmailsPanel entityType="project" entityId={workspaceId} />
+                  </div>
+                )}
               </div>
 
               {/* Activities timeline */}
@@ -2368,13 +3012,29 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                 onClick={() => setContextMenuTab("project")}
                 className={cn(
                   "flex-1 px-3 py-2 text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5",
-                  contextMenuTab === "project" || milestones.length === 0
+                  contextMenuTab === "project"
                     ? "text-teal-600 border-b-2 border-teal-500 -mb-px"
                     : "text-zinc-400 hover:text-zinc-600"
                 )}
               >
                 <Folder size={12} /> Project
               </button>
+              {(() => {
+                const task = projectTasks.find(t => t.id === taskContextMenu?.taskId);
+                return task?.company_id ? (
+                  <button
+                    onClick={() => setContextMenuTab("convert")}
+                    className={cn(
+                      "flex-1 px-3 py-2 text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5",
+                      contextMenuTab === "convert"
+                        ? "text-blue-600 border-b-2 border-blue-500 -mb-px"
+                        : "text-zinc-400 hover:text-zinc-600"
+                    )}
+                  >
+                    <ArrowUpRight size={12} /> Deal
+                  </button>
+                ) : null;
+              })()}
             </div>
 
             {/* Milestone tab */}
@@ -2410,8 +3070,87 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
               </div>
             )}
 
+            {/* Convert to Deal tab */}
+            {contextMenuTab === "convert" && (() => {
+              const task = projectTasks.find(t => t.id === taskContextMenu?.taskId);
+              if (!task?.company_id) return null;
+              const company = allCompanies.find(c => c.id === task.company_id);
+              const companyName = company?.display_name || company?.name || "Unknown";
+              // Derive deal name from task title, stripping company prefix if present (e.g., "Tori Q — Analytics" → "Analytics")
+              const titleParts = task.title.split("—").map((s: string) => s.trim());
+              const dealName = titleParts.length > 1 ? titleParts.slice(1).join(" — ") : task.title;
+
+              return (
+                <div className="p-3 space-y-3">
+                  <div className="text-xs text-zinc-500">
+                    Convert <span className="font-medium text-zinc-700 dark:text-zinc-300">{task.title}</span> into a standalone deal project for <span className="font-medium text-zinc-700 dark:text-zinc-300">{companyName}</span>.
+                  </div>
+                  <div className="text-[10px] text-zinc-400 space-y-1">
+                    <div>Stage: <span className="text-zinc-600 dark:text-zinc-300">Lead</span></div>
+                    <div>Deal name: <span className="text-zinc-600 dark:text-zinc-300">{dealName}</span></div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const newDeal = await createDealMutation.mutateAsync({
+                          company_id: task.company_id!,
+                          name: dealName,
+                          description: task.description || `Converted from task: ${task.title}`,
+                          stage: "lead",
+                        });
+                        // Mark original task as completed and link to deal
+                        const { supabase } = await import("../../lib/supabase");
+                        const doneStatus = taskStatuses.find(s => s.type === "completed");
+                        const updates: Record<string, any> = {
+                          task_type: "converted",
+                          description: `${task.description || ""}\n\n→ Converted to deal project: ${newDeal.id}`.trim(),
+                          updated_at: new Date().toISOString(),
+                        };
+                        if (doneStatus) {
+                          updates.status_id = doneStatus.id;
+                          updates.completed_at = new Date().toISOString();
+                        }
+                        await supabase.from("tasks").update(updates).eq("id", task.id);
+                        // Add source task as artifact on the new deal
+                        await supabase.from("project_artifacts").insert({
+                          project_id: newDeal.id,
+                          type: "task",
+                          label: `Source: ${task.title}`,
+                          reference: task.id,
+                          preview_content: `Converted from pipeline task in ${ws?.name || "project"}`,
+                        });
+                        // Link new deal to the same initiative as the source project
+                        const { data: sourceLink } = await supabase
+                          .from("initiative_projects")
+                          .select("initiative_id")
+                          .eq("project_id", workspaceId)
+                          .maybeSingle();
+                        if (sourceLink?.initiative_id) {
+                          await supabase.from("initiative_projects").insert({
+                            initiative_id: sourceLink.initiative_id,
+                            project_id: newDeal.id,
+                            sort_order: 999,
+                          });
+                        }
+                        toast.success(`Deal project created: ${companyName} — ${dealName}`);
+                        setTaskContextMenu(null);
+                        setContextMenuTab("milestone");
+                        refetchWorkspace();
+                      } catch (err: any) {
+                        toast.error(`Failed to create deal: ${err.message}`);
+                      }
+                    }}
+                    disabled={createDealMutation.isPending}
+                    className="w-full px-3 py-2 text-xs font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
+                  >
+                    {createDealMutation.isPending ? "Creating..." : "Convert to Deal Project"}
+                  </button>
+                </div>
+              );
+            })()}
+
             {/* Project tab */}
-            {(contextMenuTab === "project" || milestones.length === 0) && contextMenuTab !== "milestone" && (
+            {(contextMenuTab === "project" || milestones.length === 0) && contextMenuTab !== "milestone" && contextMenuTab !== "convert" && (
               <>
                 <div className="px-2 py-2">
                   <input
@@ -2425,21 +3164,37 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                 </div>
                 <div className="overflow-y-auto flex-1">
                   {allProjectsList
-                    .filter(p => !taskProjectSearch || p.name.toLowerCase().includes(taskProjectSearch.toLowerCase()))
+                    .filter(p => {
+                      if (!taskProjectSearch) return true;
+                      const q = taskProjectSearch.toLowerCase();
+                      return p.name.toLowerCase().includes(q) || (projectInitiativeMap.get(p.id) || "").toLowerCase().includes(q);
+                    })
+                    .sort((a, b) => a.name.localeCompare(b.name))
                     .slice(0, 20)
                     .map(p => {
                       const isCurrent = p.id === workspaceId;
                       return (
                         <button
                           key={p.id}
+                          disabled={contextMenuLoading}
                           onClick={async () => {
-                            await reassignTask(taskContextMenu.taskId, p.id);
-                            setTaskContextMenu(null); setContextMenuTab("milestone");
+                            setContextMenuLoading(true);
+                            try {
+                              await reassignTask(taskContextMenu.taskId, p.id);
+                              toast.success("Task moved");
+                              setTaskContextMenu(null); setContextMenuTab("milestone");
+                            } catch { toast.error("Failed to move task"); }
+                            finally { setContextMenuLoading(false); }
                           }}
-                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${isCurrent ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
+                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${contextMenuLoading ? "opacity-50 cursor-wait" : isCurrent ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
                         >
                           <div className="w-1.5 h-1.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
-                          <span className={`truncate ${isCurrent ? "font-medium text-teal-600" : ""}`}>{p.name}</span>
+                          <span className={`truncate ${isCurrent ? "font-medium text-teal-600" : ""}`}>
+                            {p.name}
+                            {projectInitiativeMap.has(p.id) && (
+                              <span className="text-zinc-400 font-normal"> ({projectInitiativeMap.get(p.id)})</span>
+                            )}
+                          </span>
                           <span className={`text-[8px] px-1 rounded-full uppercase ml-auto flex-shrink-0 ${
                             p.project_type === "deal" ? "bg-blue-50 text-blue-500" : "bg-zinc-100 text-zinc-400"
                           }`}>{p.project_type || "work"}</span>
@@ -2449,6 +3204,92 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
                 </div>
               </>
             )}
+          </div>
+        </>
+      )}
+
+      {/* Bulk selection action bar */}
+      {selectedTaskIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 dark:bg-zinc-800 text-white rounded-xl shadow-2xl px-4 py-2.5 flex items-center gap-3 text-xs">
+          <span className="font-medium">{selectedTaskIds.size} task{selectedTaskIds.size > 1 ? "s" : ""} selected</span>
+          <div className="w-px h-4 bg-zinc-700" />
+          <button
+            onClick={(e) => { setBulkProjectMenu({ x: e.clientX, y: e.clientY - 300 }); setBulkProjectSearch(""); }}
+            className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 transition-colors font-medium flex items-center gap-1.5"
+          >
+            <Folder size={12} /> Move to Project
+          </button>
+          <button
+            onClick={() => setSelectedTaskIds(new Set())}
+            className="px-2 py-1.5 rounded-lg hover:bg-zinc-700 transition-colors text-zinc-400 hover:text-white"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Bulk move project picker */}
+      {bulkProjectMenu && (
+        <>
+          <div className="fixed inset-0 z-50" onClick={() => setBulkProjectMenu(null)} />
+          <div
+            className="fixed z-[60] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl min-w-[280px] max-h-[320px] flex flex-col overflow-hidden"
+            style={{ left: Math.min(bulkProjectMenu.x, window.innerWidth - 300), top: Math.max(40, bulkProjectMenu.y) }}
+          >
+            <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 flex items-center gap-2">
+              <Folder size={12} className="text-teal-600" />
+              <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">Move {selectedTaskIds.size} task{selectedTaskIds.size > 1 ? "s" : ""} to...</span>
+            </div>
+            <div className="px-2 py-2">
+              <input
+                type="text"
+                value={bulkProjectSearch}
+                onChange={(e) => setBulkProjectSearch(e.target.value)}
+                placeholder="Search projects..."
+                className="text-xs w-full border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 bg-zinc-50 dark:bg-zinc-800 outline-none"
+                autoFocus
+              />
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {allProjectsList
+                .filter(p => {
+                  if (!bulkProjectSearch) return true;
+                  const q = bulkProjectSearch.toLowerCase();
+                  return p.name.toLowerCase().includes(q) || (projectInitiativeMap.get(p.id) || "").toLowerCase().includes(q);
+                })
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .slice(0, 20)
+                .map(p => {
+                  const isCurrent = p.id === workspaceId;
+                  return (
+                    <button
+                      key={p.id}
+                      disabled={bulkMoving}
+                      onClick={async () => {
+                        setBulkMoving(true);
+                        try {
+                          await reassignTasks(Array.from(selectedTaskIds), p.id);
+                          toast.success(`${selectedTaskIds.size} task${selectedTaskIds.size > 1 ? "s" : ""} moved`);
+                          setBulkProjectMenu(null);
+                        } catch { toast.error("Failed to move tasks"); }
+                        finally { setBulkMoving(false); }
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${bulkMoving ? "opacity-50 cursor-wait" : isCurrent ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
+                      <span className={`truncate ${isCurrent ? "font-medium text-teal-600" : ""}`}>
+                        {p.name}
+                        {projectInitiativeMap.has(p.id) && (
+                          <span className="text-zinc-400 font-normal"> ({projectInitiativeMap.get(p.id)})</span>
+                        )}
+                      </span>
+                      <span className={`text-[8px] px-1 rounded-full uppercase ml-auto flex-shrink-0 ${
+                        p.project_type === "deal" ? "bg-blue-50 text-blue-500" : "bg-zinc-100 text-zinc-400"
+                      }`}>{p.project_type || "work"}</span>
+                    </button>
+                  );
+                })}
+            </div>
           </div>
         </>
       )}
@@ -2465,7 +3306,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
       {taskDetailId && (
         <>
           <div className="fixed inset-0 z-30 bg-black/10" onClick={() => setTaskDetailId(null)} />
-          <div className="fixed right-0 top-0 bottom-0 z-40 w-[560px] shadow-xl border-l border-zinc-200 dark:border-zinc-800">
+          <div className="fixed right-0 top-0 bottom-0 z-40 w-[600px] shadow-xl border-l border-zinc-200 dark:border-zinc-800">
             <TaskDetailPanel
               taskId={taskDetailId}
               onClose={() => setTaskDetailId(null)}

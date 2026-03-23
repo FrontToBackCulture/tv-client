@@ -84,6 +84,9 @@ pub struct NotionPropertySchema {
     /// For status: available groups
     #[serde(skip_serializing_if = "Option::is_none")]
     pub groups: Option<Vec<NotionStatusGroup>>,
+    /// For relation: the related database ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relation_database_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,4 +200,27 @@ pub struct PreviewCard {
     pub properties: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_edited_time: Option<String>,
+}
+
+// ============================================================================
+// Notion Users
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotionUser {
+    pub id: String,
+    pub name: String,
+    pub email: Option<String>,
+}
+
+// ============================================================================
+// Attachments
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotionAttachment {
+    pub block_id: String,
+    pub file_name: String,
+    pub file_type: Option<String>,
+    pub url: String,
 }

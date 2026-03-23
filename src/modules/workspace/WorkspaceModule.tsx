@@ -43,6 +43,7 @@ export function WorkspaceModule() {
   if (selectedId) {
     return (
       <WorkspaceDetailView
+        key={selectedId}
         workspaceId={selectedId}
         onBack={handleBack}
         onUpdated={handleUpdated}

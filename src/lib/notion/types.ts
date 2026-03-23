@@ -12,6 +12,7 @@ export interface NotionPropertySchema {
   type: string;
   options?: NotionSelectOption[];
   groups?: NotionStatusGroup[];
+  relation_database_id?: string;
 }
 
 export interface NotionSelectOption {
@@ -101,7 +102,10 @@ export const WORK_TASK_FIELDS = [
   { value: "priority", label: "Priority" },
   { value: "due_date", label: "Due Date" },
   { value: "assignee_id", label: "Assignee" },
+  { value: "company_id", label: "Company" },
   { value: "milestone_id", label: "Milestone" },
+  { value: "created_at", label: "Created" },
+  { value: "updated_at", label: "Updated" },
 ] as const;
 
 export type WorkTaskField = (typeof WORK_TASK_FIELDS)[number]["value"];

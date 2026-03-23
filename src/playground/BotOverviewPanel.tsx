@@ -9,7 +9,6 @@ import {
   Zap,
   Loader2,
   ChevronRight,
-  Brain,
   ArrowDownToLine,
   ArrowUpFromLine,
   FolderInput,
@@ -17,10 +16,11 @@ import {
   BadgeCheck,
   Trash2,
   Database,
+  Settings,
 } from "lucide-react";
 import { cn } from "../lib/cn";
-import { MarkdownViewer } from "../modules/library/MarkdownViewer";
 import { SkillAssignmentGrid } from "../components/SkillAssignmentGrid";
+import { BotConfigPanel } from "./BotConfigPanel";
 import { DriftDiffModal, DriftBadge } from "../components/DriftDiffModal";
 import { useSkillRegistry, useSkillDistributeTo, useSkillCheckAll } from "../modules/skills/useSkillRegistry";
 import { useRepository } from "../stores/repositoryStore";
@@ -52,42 +52,7 @@ function StatPill({ icon: Icon, label, count, color, clickable }: { icon: typeof
   );
 }
 
-function InstructionsModal({
-  content,
-  title,
-  onClose,
-}: {
-  content: string;
-  title: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
-      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-4xl max-h-full flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
-        <div className="flex-shrink-0 px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Brain size={14} className="text-purple-500 flex-shrink-0" />
-              <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-6 py-5">
-            <MarkdownViewer content={content} filename={title} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+
 
 export function BotOverview({
   bot,
@@ -106,6 +71,8 @@ export function BotOverview({
   onSessionClick,
   onCommandsClick,
   onMemoryClick,
+  claudeMdPath,
+  availableSkillDirs,
 }: {
   bot: BotEntry;
   profile: BotProfile;
@@ -118,6 +85,8 @@ export function BotOverview({
   skillCategories: { id: string; label: string }[];
   memoryList: MemoryFile[];
   memoryDir: string | undefined;
+  claudeMdPath?: string;
+  availableSkillDirs?: string[];
   onSkillClick: (skill: { name: string; path: string; title: string }) => void;
   onSkillDelete?: (skill: { name: string; path: string; title: string }) => void;
   onSessionClick: (session: { path: string; date: string; title: string | null }) => void;
@@ -126,11 +95,10 @@ export function BotOverview({
 }) {
   const colors = DEPT_COLORS[bot.group] || DEPT_COLORS.personal;
   const initials = getBotInitials(bot.name);
-  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [showAssignSkills, setShowAssignSkills] = useState(false);
   const [assigningSkill, setAssigningSkill] = useState<string | null>(null);
   const [assignFeedback, setAssignFeedback] = useState<{ slug: string; action: "added" | "removed" } | null>(null);
-  const [activeTab, setActiveTab] = useState<"skills" | "sessions" | "memory">("skills");
+  const [activeTab, setActiveTab] = useState<"skills" | "sessions" | "memory" | "config">("config");
   const [skillFilter, setSkillFilter] = useState<"all" | SkillStatus>("active");
   const [skillTab, setSkillTab] = useState<string>("all");
   const [skillSearch, setSkillSearch] = useState("");
@@ -228,14 +196,6 @@ export function BotOverview({
     return list;
   }, [skillList, skillFilter, skillTab, skillSearch]);
 
-  // Truncate CLAUDE.md for preview
-  const instructionsPreview = useMemo(() => {
-    if (!claudeContent) return "";
-    const lines = claudeContent.split("\n");
-    const start = lines.findIndex((l) => l.startsWith("## ") || (l.trim() && !l.startsWith("#") && !l.startsWith("|") && !l.startsWith("---")));
-    const meaningful = lines.slice(Math.max(0, start)).join("\n").trim();
-    return meaningful.length > 300 ? meaningful.slice(0, 300) + "..." : meaningful;
-  }, [claudeContent]);
 
   if (isLoading) {
     return (
@@ -363,6 +323,20 @@ export function BotOverview({
           <div className="flex-1 min-w-0 space-y-6">
             {/* Tab bar */}
             <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800">
+              {claudeMdPath && (
+                <button
+                  onClick={() => setActiveTab("config")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px",
+                    activeTab === "config"
+                      ? "border-teal-500 text-zinc-800 dark:text-zinc-100"
+                      : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  )}
+                >
+                  <Settings size={12} />
+                  CLAUDE.md
+                </button>
+              )}
               <button
                 onClick={() => setActiveTab("skills")}
                 className={cn(
@@ -681,39 +655,21 @@ export function BotOverview({
                 )}
               </section>
             )}
+
+            {/* Config */}
+            {activeTab === "config" && claudeMdPath && (
+              <section>
+                <BotConfigPanel
+                  claudeContent={claudeContent}
+                  claudeMdPath={claudeMdPath}
+                  availableSkillDirs={availableSkillDirs ?? []}
+                />
+              </section>
+            )}
           </div>
 
-          {/* Right column: Instructions + Commands */}
-          <div className="w-[320px] flex-shrink-0 space-y-4">
-            {/* Instructions (CLAUDE.md preview) */}
-            {claudeContent && (
-              <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Instructions</span>
-                  <span className="text-xs text-zinc-400">CLAUDE.md</span>
-                </div>
-                <div className="px-4 py-3">
-                  <pre className="text-xs text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap font-mono leading-relaxed line-clamp-[12]">
-                    {instructionsPreview}
-                  </pre>
-                  {claudeContent.length > 300 && (
-                    <button
-                      onClick={() => setShowInstructionsModal(true)}
-                      className="text-xs text-teal-600 dark:text-teal-400 hover:underline mt-2"
-                    >
-                      Show more
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-            {showInstructionsModal && claudeContent && (
-              <InstructionsModal
-                content={claudeContent}
-                title="CLAUDE.md"
-                onClose={() => setShowInstructionsModal(false)}
-              />
-            )}
+          {/* Right column: Instructions + Commands (hidden in config tab) */}
+          <div className={cn("w-[320px] flex-shrink-0 space-y-4", activeTab === "config" && "hidden")}>
             {driftModal && (
               <DriftDiffModal
                 slug={driftModal.slug}

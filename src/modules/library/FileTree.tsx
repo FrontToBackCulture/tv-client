@@ -162,7 +162,7 @@ function ContextMenu({
     }
 
     addArtifact.mutate(
-      { workspace_id: workspaceId, label, reference, type },
+      { project_id: workspaceId, label, reference, type },
       { onSuccess: onClose }
     );
   };

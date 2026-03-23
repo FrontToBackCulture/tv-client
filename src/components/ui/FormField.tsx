@@ -3,7 +3,7 @@ import { cn } from "../../lib/cn";
 
 // Re-export the class strings for backwards compatibility with existing forms
 export const inputClass =
-  "w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500";
+  "w-full px-3 py-2.5 border-0 bg-zinc-50 dark:bg-zinc-800 rounded-xl text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 transition";
 
 export const labelClass =
   "block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1";

@@ -5,13 +5,15 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import {
   LayoutDashboard, Columns3, Building2, BarChart3,
-  Plus, Target, FolderPlus,
+  Plus, Target, FolderPlus, User as UserIcon, Users,
 } from "lucide-react";
 import { Button } from "../../components/ui";
 import { useProjects, useAllTasks, useInitiatives, useUsers, useUpdateProject } from "../../hooks/work";
+import { useCurrentUserId } from "../../hooks/work/useUsers";
 import { supabase } from "../../lib/supabase";
 import { usePipelineStats, useCRMRealtime } from "../../hooks/crm";
 import { TaskDetailPanel } from "../work/TaskDetailPanel";
+import { ResizablePanel } from "../../components/ResizablePanel";
 import { TaskForm } from "../work/TaskForm";
 import { InitiativeForm } from "../work/InitiativeForm";
 import { ProjectForm } from "../work/ProjectForm";
@@ -23,6 +25,8 @@ import {
   DashboardView,
   BoardView,
   TrackerView,
+  MyTasksView,
+  BandwidthView,
   useInitiativeProjects,
 } from "../work/WorkViews";
 import { ViewTab } from "../../components/ViewTab";
@@ -34,11 +38,12 @@ import { CrmDashboard } from "../crm/CrmDashboard";
 import { DirectoryView } from "../crm/DirectoryView";
 import { ClientsView } from "../crm/ClientsView";
 import { ClosedDealsView } from "../crm/ClosedDealsView";
+import { NotionSyncStatus } from "../notion/NotionSyncStatus";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
 import { useViewContextStore } from "../../stores/viewContextStore";
 
 type ProjectsView =
-  | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project"              // Work views
+  | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project" | "my-tasks" | "team-tasks"  // Work views
   | "crm-dashboard" | "pipeline" | "metadata" | "directory" | "clients" | "closed"  // CRM views
 
 const CRM_DETAIL_PANEL_WIDTH_KEY = "tv-desktop-crm-detail-panel-width";
@@ -77,7 +82,7 @@ export function ProjectsModule() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     const labels: Record<ProjectsView, string> = {
-      all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board",
+      all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board", "my-tasks": "My Tasks", "team-tasks": "Team Bandwidth",
       tracker: "Tracker", project: "Project",
       "crm-dashboard": "CRM Dashboard", pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals",
     };
@@ -97,6 +102,7 @@ export function ProjectsModule() {
   const { data: initiatives = [], refetch: refetchInitiatives } = useInitiatives();
   const { data: initiativeLinks = [], refetch: refetchInitiativeLinks } = useInitiativeProjects();
   const { data: users = [] } = useUsers();
+  const currentUserId = useCurrentUserId();
 
   // Data fetching — CRM
   const pipelineStatsQuery = usePipelineStats();
@@ -215,7 +221,8 @@ export function ProjectsModule() {
     refetchProjects();
     refetchAllProjects();
     refetchTasks();
-  }, [refetchProjects, refetchAllProjects, refetchTasks]);
+    refetchInitiativeLinks();
+  }, [refetchProjects, refetchAllProjects, refetchTasks, refetchInitiativeLinks]);
 
   // Inline update handlers
   const handleUpdateProject = useCallback((id: string, updates: Record<string, any>) => {
@@ -247,7 +254,7 @@ export function ProjectsModule() {
   const handleCloseCompanyDetail = useCallback(() => setSelectedCompanyId(null), []);
 
   // ---- Determine which section is active ----
-  const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project"].includes(view);
+  const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project", "my-tasks", "team-tasks"].includes(view);
   const isCrmView = ["crm-dashboard", "pipeline", "directory", "clients", "closed"].includes(view);
 
   const showProjectView = view === "project" && selectedProject;
@@ -300,6 +307,8 @@ export function ProjectsModule() {
           {/* Work section */}
           <ViewTab label="Browse" icon={LayoutDashboard} active={view === "all" && allSubView === "browse"} onClick={() => { handleViewChange("all"); setAllSubView("browse"); }} />
           <ViewTab label="Manage" icon={Columns3} active={view === "all" && allSubView === "manage"} onClick={() => { handleViewChange("all"); setAllSubView("manage"); }} />
+          <ViewTab label="My Tasks" icon={UserIcon} active={view === "my-tasks"} onClick={() => handleViewChange("my-tasks")} />
+          <ViewTab label="Team" icon={Users} active={view === "team-tasks"} onClick={() => handleViewChange("team-tasks")} />
 
           {/* Separator */}
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
@@ -312,6 +321,7 @@ export function ProjectsModule() {
         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
           {isWorkView && (
             <>
+              <NotionSyncStatus />
               <Button onClick={() => setShowInitiativeForm(true)} icon={Target} variant="ghost">New Initiative</Button>
               <Button onClick={() => setShowProjectForm(true)} icon={FolderPlus} variant="ghost">New Project</Button>
               <Button onClick={handleCreateTask} disabled={projects.length === 0} icon={Plus}>New Task</Button>
@@ -331,6 +341,10 @@ export function ProjectsModule() {
               taskDealLinks={taskDealLinks} onEditInitiative={handleEditInitiative}
               onUpdateProject={handleUpdateProject}
               onInitiativeLinkChanged={handleInitiativeLinkChanged}
+              onCreateTask={(projectId) => {
+                setCreateTaskProjectId(projectId);
+                setShowTaskForm(true);
+              }}
             />
           </div>
         )}
@@ -377,9 +391,14 @@ export function ProjectsModule() {
                 />
                 <div className="flex-shrink-0 overflow-hidden border-l border-zinc-200 dark:border-zinc-800" style={{ width: manageDetailWidth }}>
                   <WorkspaceDetailView
+                    key={manageSelectedId}
                     workspaceId={manageSelectedId}
                     onBack={() => setManageSelectedId(null)}
                     onUpdated={() => { refetchAllProjects(); }}
+                    onCreateTask={() => {
+                      setCreateTaskProjectId(manageSelectedId);
+                      setShowTaskForm(true);
+                    }}
                   />
                 </div>
               </>
@@ -393,9 +412,19 @@ export function ProjectsModule() {
             <InboxView allTasks={allTasks} projects={projects} initiatives={initiatives} initiativeLinks={initiativeLinks} onSelectTask={handleSelectTask} />
           </div>
         )}
+        {view === "my-tasks" && (
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
+            <MyTasksView allTasks={allTasks} users={users} currentUserId={currentUserId} onSelectTask={handleSelectTask} initiatives={initiatives} initiativeLinks={initiativeLinks} />
+          </div>
+        )}
+        {view === "team-tasks" && (
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
+            <BandwidthView allTasks={allTasks} users={users} onSelectTask={handleSelectTask} />
+          </div>
+        )}
         {showProjectView && (
           <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
-            <ProjectView project={selectedProject} allTasks={allTasks} users={users} onSelectTask={handleSelectTask} onBack={handleBackFromProject} />
+            <ProjectView project={selectedProject} allTasks={allTasks} users={users} onSelectTask={handleSelectTask} onBack={handleBackFromProject} onCreateTask={handleCreateTask} />
           </div>
         )}
         {view === "board" && (
@@ -457,9 +486,9 @@ export function ProjectsModule() {
 
         {/* ---- Task detail panel (Work views only) ---- */}
         {selectedTaskId && isWorkView && (
-          <div className="w-[400px] flex-shrink-0">
+          <ResizablePanel>
             <TaskDetailPanel key={selectedTaskId} taskId={selectedTaskId} onClose={handleCloseTaskDetail} onUpdated={handleTaskUpdated} onDeleted={handleTaskDeleted} />
-          </div>
+          </ResizablePanel>
         )}
       </div>
 

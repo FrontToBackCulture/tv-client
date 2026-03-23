@@ -26,6 +26,10 @@ pub struct Company {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_folder_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_folder_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub research_folder_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub domain_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
@@ -77,6 +81,10 @@ pub struct UpdateCompany {
     pub stage: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_folder_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deal_folder_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub research_folder_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

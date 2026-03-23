@@ -202,7 +202,7 @@ export function useSyncStart() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => invoke<number>("outlook_sync_start"),
+    mutationFn: (months?: number) => invoke<number>("outlook_sync_start", { months: months ?? 3 }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outlook"] });
     },

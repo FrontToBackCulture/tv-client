@@ -148,19 +148,58 @@ async fn sync_config(
         }
     }
 
-    // Get existing tasks with notion_page_id (across all projects — unique constraint is table-wide)
-    let existing_tasks: Vec<Value> = client
-        .select(
-            "tasks",
-            "select=id,project_id,notion_page_id,title,status_id,priority,due_date,assignee_id&notion_page_id=not.is.null",
-        )
-        .await?;
+    // Load companies for resolving company names → UUIDs
+    let companies: Vec<Value> = client
+        .select("crm_companies", "select=id,name,display_name")
+        .await
+        .unwrap_or_default();
 
-    // Build lookup map: notion_page_id -> task data
+    let mut company_name_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for c in &companies {
+        if let Some(id) = c["id"].as_str() {
+            if let Some(name) = c["display_name"].as_str().or(c["name"].as_str()) {
+                company_name_map.insert(name.to_lowercase(), id.to_string());
+            }
+            // Also add raw name if display_name differs
+            if let Some(name) = c["name"].as_str() {
+                company_name_map.insert(name.to_lowercase(), id.to_string());
+            }
+        }
+    }
+
+    // Also add value_map entries for company_id so Notion names resolve even if they differ from CRM names
+    if let Some(company_mapping) = config.field_mapping.get("company_id") {
+        if let Some(vmap) = company_mapping.get("value_map").and_then(|v| v.as_object()) {
+            for (notion_name, crm_id) in vmap {
+                if let Some(id) = crm_id.as_str() {
+                    company_name_map.insert(notion_name.to_lowercase(), id.to_string());
+                }
+            }
+        }
+    }
+
+    // Get ALL existing tasks with notion_page_id (across all projects).
+    // Paginate to avoid Supabase default 1000-row limit.
     let mut existing_map: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
-    for task in existing_tasks {
-        if let Some(npid) = task["notion_page_id"].as_str() {
-            existing_map.insert(npid.to_string(), task);
+    {
+        let page_size = 1000;
+        let mut offset = 0;
+        loop {
+            let query = format!(
+                "select=id,project_id,notion_page_id,title,status_id,priority,due_date,assignee_id&notion_page_id=not.is.null&order=id&limit={}&offset={}",
+                page_size, offset
+            );
+            let batch: Vec<Value> = client.select("tasks", &query).await?;
+            let batch_len = batch.len();
+            for task in batch {
+                if let Some(npid) = task["notion_page_id"].as_str() {
+                    existing_map.insert(npid.to_string(), task);
+                }
+            }
+            if batch_len < page_size {
+                break;
+            }
+            offset += page_size;
         }
     }
 
@@ -205,6 +244,41 @@ async fn sync_config(
                 }
             });
 
+        // Resolve company_id: try name match first (covers value_map-resolved names),
+        // then resolve Notion relation page IDs by fetching page titles
+        let resolved_company = if let Some(raw) = mapped.get("company_id").and_then(|v| v.as_str()) {
+            if let Some(id) = company_name_map.get(&raw.to_lowercase()) {
+                // Direct name match against CRM companies
+                Some(id.clone())
+            } else {
+                // Treat as Notion relation page ID(s) — resolve by fetching page title
+                let page_ids: Vec<&str> = raw.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+                let mut found = None;
+                for page_id in page_ids {
+                    if page_id.len() == 36 || page_id.len() == 32 {
+                        let normalized = if page_id.contains('-') { page_id.to_string() } else {
+                            format!("{}-{}-{}-{}-{}", &page_id[..8], &page_id[8..12], &page_id[12..16], &page_id[16..20], &page_id[20..])
+                        };
+                        if let Ok(title) = api::get_page_title(&normalized).await {
+                            if let Some(id) = company_name_map.get(&title.to_lowercase()) {
+                                found = Some(id.clone());
+                                break;
+                            }
+                        }
+                    }
+                }
+                found
+            }
+        } else {
+            None
+        };
+
+        // Fetch page body content (blocks → markdown)
+        let notion_content = match api::get_page_content_as_markdown(&page.id).await {
+            Ok(md) if !md.is_empty() => Some(md),
+            _ => None,
+        };
+
         if let Some(existing_task) = existing_map.get(&page.id) {
             // UPDATE existing task
             let mut update_data = serde_json::Map::new();
@@ -229,6 +303,27 @@ async fn sync_config(
             }
             if let Some(ref aid) = resolved_assignee {
                 update_data.insert("assignee_id".to_string(), Value::String(aid.clone()));
+            }
+            if let Some(ref cid) = resolved_company {
+                update_data.insert("company_id".to_string(), Value::String(cid.clone()));
+            }
+            if let Some(ref content) = notion_content {
+                update_data.insert("notion_content".to_string(), Value::String(content.clone()));
+            }
+            // Map Notion page timestamps as fallback (only if not explicitly mapped via field mapping)
+            if !mapped.get("created_at").is_some() {
+                if let Some(ref ct) = page.created_time {
+                    update_data.insert("created_at".to_string(), Value::String(ct.clone()));
+                }
+            } else if let Some(ca) = mapped.get("created_at") {
+                update_data.insert("created_at".to_string(), ca.clone());
+            }
+            if !mapped.get("updated_at").is_some() {
+                if let Some(ref et) = page.last_edited_time {
+                    update_data.insert("updated_at".to_string(), Value::String(et.clone()));
+                }
+            } else if let Some(ua) = mapped.get("updated_at") {
+                update_data.insert("updated_at".to_string(), ua.clone());
             }
 
             if !update_data.is_empty() && !existing_id.is_empty() {
@@ -274,6 +369,22 @@ async fn sync_config(
             if let Some(ref aid) = resolved_assignee {
                 insert_data["assignee_id"] = Value::String(aid.clone());
             }
+            if let Some(ref cid) = resolved_company {
+                insert_data["company_id"] = Value::String(cid.clone());
+            }
+            if let Some(ref content) = notion_content {
+                insert_data["notion_content"] = Value::String(content.clone());
+            }
+            if let Some(ca) = mapped.get("created_at") {
+                insert_data["created_at"] = ca.clone();
+            } else if let Some(ref ct) = page.created_time {
+                insert_data["created_at"] = Value::String(ct.clone());
+            }
+            if let Some(ua) = mapped.get("updated_at") {
+                insert_data["updated_at"] = ua.clone();
+            } else if let Some(ref et) = page.last_edited_time {
+                insert_data["updated_at"] = Value::String(et.clone());
+            }
 
             match client.insert::<_, Value>("tasks", &insert_data).await {
                 Ok(_) => {
@@ -297,8 +408,14 @@ async fn sync_config(
                         .await?;
                     if let Some(existing) = existing {
                         if let Some(eid) = existing["id"].as_str() {
+                            // Remove project_id so we don't overwrite manual reassignments
+                            let mut update_data = insert_data.clone();
+                            if let Some(obj) = update_data.as_object_mut() {
+                                obj.remove("project_id");
+                                obj.remove("task_number");
+                            }
                             let _: Value = client
-                                .update("tasks", &format!("id=eq.{}", eid), &insert_data)
+                                .update("tasks", &format!("id=eq.{}", eid), &update_data)
                                 .await?;
                             tasks_updated += 1;
                         }

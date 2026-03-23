@@ -16,7 +16,7 @@ export function useProjects(projectType?: string) {
     queryFn: async (): Promise<Project[]> => {
       let query = supabase
         .from("projects")
-        .select("*, company:crm_companies(name)")
+        .select("*, company:crm_companies(name, display_name)")
         .is("archived_at", null)
         .order("sort_order");
 
@@ -38,7 +38,7 @@ export function useProjects(projectType?: string) {
       return (data ?? []).map((p: any) => ({
         ...p,
         name: p.project_type === "deal" && p.company?.name
-          ? `${p.company.name} — ${p.name}`
+          ? `${p.company.display_name || p.company.name} — ${p.name}`
           : p.name,
         company: undefined, // clean up joined data
       }));

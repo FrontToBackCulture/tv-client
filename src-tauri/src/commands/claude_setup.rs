@@ -1,12 +1,11 @@
-// Claude Code MCP setup — download tv-mcp binary + register via `claude mcp add`
+// Claude Code MCP setup — resolve bundled tv-mcp sidecar + register via `claude mcp add`
 
 use crate::commands::error::{CmdResult, CommandError};
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri::command;
 
-const GITHUB_RELEASE_BASE: &str =
-    "https://github.com/FrontToBackCulture/tv-client/releases/latest/download";
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // ── Types ────────────────────────────────────────────────
 
@@ -14,6 +13,9 @@ const GITHUB_RELEASE_BASE: &str =
 pub struct ClaudeMcpStatus {
     pub binary_installed: bool,
     pub binary_path: String,
+    pub binary_version: Option<String>,
+    pub app_version: String,
+    pub version_match: bool,
     pub config_exists: bool,
     pub config_has_tv_mcp: bool,
     pub registered_path: Option<String>,
@@ -21,30 +23,88 @@ pub struct ClaudeMcpStatus {
     pub platform: String,
 }
 
-// ── Helpers ──────────────────────────────────────────────
-
-fn bin_dir() -> CmdResult<PathBuf> {
-    dirs::home_dir()
-        .map(|h| h.join(".tv-desktop").join("bin"))
-        .ok_or_else(|| CommandError::Config("Cannot determine home directory".into()))
+#[derive(Serialize)]
+pub struct ClaudeCliStatus {
+    pub installed: bool,
+    pub version: Option<String>,
+    pub path: Option<String>,
 }
 
-fn binary_path() -> CmdResult<PathBuf> {
-    let name = if cfg!(target_os = "windows") {
+// ── Helpers ──────────────────────────────────────────────
+
+/// Resolve the tv-mcp binary path.
+///
+/// Priority:
+/// 1. Dev mode: cargo build output (target/debug/tv-mcp) — avoids needing sidecar rebuild
+/// 2. Production: next to the main executable (bundled sidecar)
+/// 3. Legacy fallback: ~/.tv-desktop/bin/tv-mcp
+fn resolve_binary_path() -> CmdResult<PathBuf> {
+    let binary_name = if cfg!(target_os = "windows") {
         "tv-mcp.exe"
     } else {
         "tv-mcp"
     };
-    Ok(bin_dir()?.join(name))
+
+    // Dev mode: use cargo build output directly
+    #[cfg(debug_assertions)]
+    {
+        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let dev_path = manifest_dir.join("target").join("debug").join(binary_name);
+        if dev_path.exists() {
+            return Ok(dev_path);
+        }
+    }
+
+    // Production: sidecar lives next to the main executable
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            let sidecar_path = exe_dir.join(binary_name);
+            if sidecar_path.exists() {
+                return Ok(sidecar_path);
+            }
+        }
+    }
+
+    // Legacy fallback: ~/.tv-desktop/bin/tv-mcp
+    if let Some(home) = dirs::home_dir() {
+        let legacy_path = home.join(".tv-desktop").join("bin").join(binary_name);
+        if legacy_path.exists() {
+            return Ok(legacy_path);
+        }
+    }
+
+    Err(CommandError::Config(
+        "tv-mcp binary not found. Try reinstalling TV Client.".into(),
+    ))
 }
 
-fn platform_suffix() -> &'static str {
+/// Get the version string from a tv-mcp binary by running `tv-mcp --version`.
+async fn get_binary_version(path: &PathBuf) -> Option<String> {
+    let output = tokio::process::Command::new(path)
+        .arg("--version")
+        .output()
+        .await
+        .ok()?;
+
+    if output.status.success() {
+        let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        // Output format: "tv-mcp 0.9.11" — extract just the version
+        version_str
+            .strip_prefix("tv-mcp ")
+            .map(|v| v.to_string())
+            .or(Some(version_str))
+    } else {
+        None
+    }
+}
+
+fn platform_label() -> &'static str {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     { "darwin-arm64" }
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     { "darwin-x64" }
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    { "windows-x64.exe" }
+    { "windows-x64" }
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     { "linux-x64" }
     #[cfg(not(any(
@@ -102,38 +162,33 @@ async fn mcp_list_check() -> (bool, Option<String>) {
             if !out.contains("tv-mcp") {
                 return (false, None);
             }
-            // `claude mcp list` output format includes the path after the server name
-            // Try to extract it — look for the line containing tv-mcp and parse the path
-            let registered_path = out.lines()
+            let registered_path = out
+                .lines()
                 .find(|line| line.contains("tv-mcp"))
                 .and_then(|line| {
-                    // The path typically appears after a colon or as the command argument
-                    // Format varies: "tv-mcp: /path/to/binary" or with additional info
-                    // Look for a path-like string (starts with / on unix or drive letter on windows)
                     let parts: Vec<&str> = line.split_whitespace().collect();
-                    parts.iter().find(|p| {
-                        let bytes = p.as_bytes();
-                        let is_win_drive = bytes.len() >= 3
-                            && bytes[0].is_ascii_alphabetic()
-                            && bytes[1] == b':'
-                            && (bytes[2] == b'\\' || bytes[2] == b'/');
-                        p.starts_with('/') || is_win_drive || p.starts_with("~")
-                            || p.contains(".tv-desktop") || p.contains("tv-mcp")
-                    }).map(|s| s.trim_matches(|c: char| c == '\'' || c == '"').to_string())
+                    parts
+                        .iter()
+                        .find(|p| {
+                            let bytes = p.as_bytes();
+                            let is_win_drive = bytes.len() >= 3
+                                && bytes[0].is_ascii_alphabetic()
+                                && bytes[1] == b':'
+                                && (bytes[2] == b'\\' || bytes[2] == b'/');
+                            p.starts_with('/')
+                                || is_win_drive
+                                || p.starts_with("~")
+                                || p.contains("tv-mcp")
+                        })
+                        .map(|s| {
+                            s.trim_matches(|c: char| c == '\'' || c == '"')
+                                .to_string()
+                        })
                 });
             (true, registered_path)
         }
         Err(_) => (false, None),
     }
-}
-
-// ── Types (CLI check) ────────────────────────────────────
-
-#[derive(Serialize)]
-pub struct ClaudeCliStatus {
-    pub installed: bool,
-    pub version: Option<String>,
-    pub path: Option<String>,
 }
 
 // ── Commands ─────────────────────────────────────────────
@@ -146,7 +201,6 @@ pub async fn check_claude_cli() -> CmdResult<ClaudeCliStatus> {
         "which"
     };
 
-    // Check if claude is in PATH
     let path_output = tokio::process::Command::new(which_cmd)
         .arg("claude")
         .output()
@@ -165,9 +219,7 @@ pub async fn check_claude_cli() -> CmdResult<ClaudeCliStatus> {
         .trim()
         .to_string();
 
-    // Get version — use run_claude helper for correct Windows resolution
     let version_output = run_claude(&["--version"]).await.ok();
-
     let version = version_output.and_then(|o| {
         if o.status.success() {
             Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
@@ -185,83 +237,72 @@ pub async fn check_claude_cli() -> CmdResult<ClaudeCliStatus> {
 
 #[command]
 pub async fn claude_mcp_status() -> CmdResult<ClaudeMcpStatus> {
-    let bin = binary_path()?;
-    let bin_str = bin.to_string_lossy().to_string();
+    let bin_path = resolve_binary_path().unwrap_or_default();
+    let bin_str = bin_path.to_string_lossy().to_string();
+    let binary_installed = bin_path.exists();
+    let binary_version = if binary_installed {
+        get_binary_version(&bin_path).await
+    } else {
+        None
+    };
+    let version_match = binary_version.as_deref() == Some(APP_VERSION);
+
     let (has_tv_mcp, registered_path) = mcp_list_check().await;
 
-    // Check if the registered path matches the expected binary path
     let path_matches = match &registered_path {
-        Some(reg) => reg == &bin_str || reg.contains(".tv-desktop"),
+        Some(reg) => reg == &bin_str,
         None => false,
     };
 
     Ok(ClaudeMcpStatus {
-        binary_installed: bin.exists(),
+        binary_installed,
         binary_path: bin_str,
+        binary_version,
+        app_version: APP_VERSION.to_string(),
+        version_match,
         config_exists: has_tv_mcp,
         config_has_tv_mcp: has_tv_mcp,
         registered_path,
         path_matches,
-        platform: platform_suffix().to_string(),
+        platform: platform_label().to_string(),
     })
 }
 
 #[command]
 pub async fn claude_mcp_install() -> CmdResult<ClaudeMcpStatus> {
-    let suffix = platform_suffix();
-    if suffix == "unsupported" {
-        return Err(CommandError::Config("Unsupported platform".into()));
+    // 1. Resolve the bundled sidecar binary
+    let bin = resolve_binary_path()?;
+    let bin_str = bin.to_string_lossy().to_string();
+
+    eprintln!("[claude-setup] Using bundled binary at {bin_str}");
+
+    // 2. Verify the binary works
+    let version = get_binary_version(&bin).await;
+    if let Some(ref v) = version {
+        eprintln!("[claude-setup] Binary version: {v}");
+        if v != APP_VERSION {
+            eprintln!(
+                "[claude-setup] Warning: binary version ({v}) != app version ({APP_VERSION})"
+            );
+        }
     }
 
-    // 1. Download binary
-    let url = format!("{GITHUB_RELEASE_BASE}/tv-mcp-{suffix}");
-    eprintln!("[claude-setup] Downloading {url}");
-
-    let response = reqwest::get(&url).await?;
-
-    if !response.status().is_success() {
-        return Err(CommandError::Http {
-            status: response.status().as_u16(),
-            body: format!("Download failed for tv-mcp-{suffix}"),
-        });
-    }
-
-    let bytes = response.bytes().await?;
-
-    // 2. Write binary
-    let bin = binary_path()?;
-    if let Some(parent) = bin.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&bin, &bytes)?;
-
-    // 3. chmod +x (unix)
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = std::fs::Permissions::from_mode(0o755);
-        std::fs::set_permissions(&bin, perms)?;
-    }
-
-    eprintln!(
-        "[claude-setup] Binary installed at {}",
-        bin.to_string_lossy()
-    );
-
-    // 4. Register via `claude mcp add` (user-level, not project-level)
+    // 3. Register via `claude mcp add` (user-level)
     // Remove first in case it already exists with a stale path
     let _ = run_claude(&["mcp", "remove", "tv-mcp", "-s", "user"]).await;
 
-    let bin_str_arg = bin.to_string_lossy().to_string();
     let add_output = run_claude(&[
-        "mcp", "add", "--transport", "stdio", "-s", "user", "tv-mcp", "--", &bin_str_arg,
-    ]).await
-        .map_err(|e| CommandError::Io(format!("Failed to run claude mcp add: {e}")))?;
+        "mcp", "add", "--transport", "stdio", "-s", "user", "tv-mcp", "--", &bin_str,
+    ])
+    .await
+    .map_err(|e| CommandError::Io(format!("Failed to run claude mcp add: {e}")))?;
 
     if !add_output.status.success() {
         let stderr = String::from_utf8_lossy(&add_output.stderr);
         eprintln!("[claude-setup] claude mcp add failed: {stderr}");
-        return Err(CommandError::Config(format!("claude mcp add failed: {stderr}")));
+        return Err(CommandError::Config(format!(
+            "claude mcp add failed: {stderr}"
+        )));
     }
 
     eprintln!("[claude-setup] tv-mcp registered via claude mcp add");
@@ -272,16 +313,10 @@ pub async fn claude_mcp_install() -> CmdResult<ClaudeMcpStatus> {
 
 #[command]
 pub async fn claude_mcp_uninstall() -> CmdResult<ClaudeMcpStatus> {
-    // 1. Remove binary
-    let bin = binary_path()?;
-    if bin.exists() {
-        std::fs::remove_file(&bin)?;
-        eprintln!("[claude-setup] Binary removed");
-    }
-
-    // 2. Deregister via `claude mcp remove` (user-level)
+    // Deregister via `claude mcp remove` (user-level)
     let _ = run_claude(&["mcp", "remove", "tv-mcp", "-s", "user"]).await;
     eprintln!("[claude-setup] tv-mcp deregistered");
 
+    // Don't delete the binary — it's bundled with the app
     claude_mcp_status().await
 }

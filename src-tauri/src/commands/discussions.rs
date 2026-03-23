@@ -1,7 +1,7 @@
 // Discussions Module - Universal comment/discussion system
-// Attaches comments to any entity: files, deals, companies, tasks, workspaces, campaigns
+// Attaches comments to any entity: files, projects, companies, tasks, campaigns
 
-use crate::commands::error::{CmdResult, CommandError};
+use crate::commands::error::CmdResult;
 use crate::commands::supabase::get_client;
 use serde::{Deserialize, Serialize};
 

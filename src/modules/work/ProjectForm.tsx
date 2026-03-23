@@ -89,8 +89,18 @@ export function ProjectForm({ project, onClose, onSaved }: ProjectFormProps) {
           updates: formData as ProjectUpdate,
         });
       } else {
-        const slug = slugify(formData.name) || `proj-${Date.now().toString(36)}`;
-        const prefix = (formData as ProjectInsert).identifier_prefix?.trim() || prefixFromName(formData.name);
+        const baseSlug = slugify(formData.name) || `proj-${Date.now().toString(36)}`;
+        // Check for existing slug and append suffix if needed
+        const { data: existing } = await supabase.from("projects").select("slug").eq("slug", baseSlug).maybeSingle();
+        const slug = existing ? `${baseSlug}-${Date.now().toString(36).slice(-4)}` : baseSlug;
+        let prefix = (formData as ProjectInsert).identifier_prefix?.trim() || prefixFromName(formData.name);
+        // Ensure prefix is unique — append number if taken
+        const { data: conflictingPrefixes } = await supabase.from("projects").select("identifier_prefix").like("identifier_prefix", `${prefix}%`);
+        if (conflictingPrefixes?.some(p => p.identifier_prefix === prefix)) {
+          let suffix = 2;
+          while (conflictingPrefixes.some(p => p.identifier_prefix === `${prefix}${suffix}`)) suffix++;
+          prefix = `${prefix}${suffix}`;
+        }
         const created = await createMutation.mutateAsync({
           ...formData,
           name: formData.name!,

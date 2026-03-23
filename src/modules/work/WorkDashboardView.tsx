@@ -3,11 +3,21 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "../../stores/toastStore";
+import { useInitiativeEmails } from "../../hooks/email/useEntityEmails";
+import { Mail } from "lucide-react";
 import {
   ChevronDown, ChevronRight, Pencil, Search, ArrowUpDown,
   Target, TrendingUp, CheckCircle2, AlertTriangle, Trash2,
-  PanelLeftClose, PanelLeftOpen, EyeOff, Eye, ArrowUp, ArrowDown,
+  PanelLeftClose, PanelLeftOpen, EyeOff, Eye, GripVertical,
 } from "lucide-react";
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { TaskWithRelations, Project, Initiative } from "../../lib/work/types";
 import {
   ProjectStatusLabels,
@@ -25,6 +35,7 @@ import {
 } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
+import { useUsers } from "../../hooks/work/useUsers";
 
 // Initiative detail pane (right panel)
 function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
@@ -35,6 +46,9 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
 }) {
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const { data: users = [] } = useUsers();
+  const projectIds = useMemo(() => projects.map(p => p.id), [projects]);
+  const { data: initiativeEmails = [], isLoading: emailsLoading } = useInitiativeEmails(initiative?.id ?? null, projectIds);
 
   if (!initiative) return <div className="h-full flex items-center justify-center text-zinc-400">Initiative not found</div>;
 
@@ -53,13 +67,25 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
     onDeleted();
   };
 
+  // Compute status/health/target from projects
+  const activeProjects = projects.filter(p => p.status === "active");
+  const completedProjects = projects.filter(p => p.status === "completed");
+  const computedStatus = projects.length === 0 ? "planned"
+    : completedProjects.length === projects.length ? "completed"
+    : activeProjects.length > 0 ? "active" : "planned";
+  const atRiskProjects = projects.filter(p => p.health === "at_risk" || p.health === "off_track");
+  const computedHealth = atRiskProjects.length > 0 ? (projects.some(p => p.health === "off_track") ? "off_track" : "at_risk") : "on_track";
+  const targetDates = projects.map(p => (p as any).deal_expected_close || (p as any).target_date).filter(Boolean).sort();
+  const latestTarget = targetDates.length > 0 ? targetDates[targetDates.length - 1] : null;
+
+  const healthColors: Record<string, string> = { on_track: "#10B981", at_risk: "#F59E0B", off_track: "#EF4444" };
+  const healthLabels: Record<string, string> = { on_track: "On Track", at_risk: "At Risk", off_track: "Off Track" };
+  const statusLabels: Record<string, string> = { planned: "Planned", active: "Active", completed: "Completed", paused: "Paused" };
+
   const fields = [
     { label: "Name", field: "name", value: initiative.name, type: "text" },
     { label: "Description", field: "description", value: initiative.description, type: "textarea" },
-    { label: "Owner", field: "owner", value: initiative.owner, type: "text" },
-    { label: "Status", field: "status", value: initiative.status, type: "select", options: [{ value: "planned", label: "Planned" }, { value: "active", label: "Active" }, { value: "completed", label: "Completed" }, { value: "paused", label: "Paused" }] },
-    { label: "Health", field: "health", value: initiative.health, type: "select", options: [{ value: "on_track", label: "On Track" }, { value: "at_risk", label: "At Risk" }, { value: "off_track", label: "Off Track" }] },
-    { label: "Target Date", field: "target_date", value: initiative.target_date, type: "date" },
+    { label: "Owner", field: "owner_id", value: initiative.owner_id, type: "select", options: users.map(u => ({ value: u.id, label: u.name })), displayValue: users.find(u => u.id === initiative.owner_id)?.name || initiative.owner },
     { label: "Color", field: "color", value: initiative.color, type: "text" },
   ];
 
@@ -79,7 +105,7 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
 
       <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Initiative Details</h3>
       <div className="space-y-1 text-xs max-w-lg">
-        {fields.map(({ label, field, value, type, options }) => (
+        {fields.map(({ label, field, value, type, options, displayValue }: any) => (
           <div key={field} className="grid grid-cols-[120px,1fr] gap-2 items-start">
             <span className="text-zinc-400 py-1">{label}</span>
             {editing[field] ? (
@@ -87,7 +113,17 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
                 <select
                   autoFocus
                   value={drafts[field] ?? String(value ?? "")}
-                  onChange={(e) => { updateField(field, e.target.value || null); }}
+                  onChange={async (e) => {
+                    if (field === "owner_id") {
+                      const user = users.find((u: any) => u.id === e.target.value);
+                      const { supabase } = await import("../../lib/supabase");
+                      await supabase.from("initiatives").update({ owner_id: e.target.value || null, owner: user?.name || null, updated_at: new Date().toISOString() }).eq("id", initiative!.id);
+                      setEditing({});
+                      onClose();
+                    } else {
+                      updateField(field, e.target.value || null);
+                    }
+                  }}
                   onBlur={() => setEditing({})}
                   className="text-xs border border-teal-400 rounded px-1.5 py-1 bg-white dark:bg-zinc-900 outline-none"
                 >
@@ -120,24 +156,100 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
                 onClick={() => { setDrafts({ [field]: String(value ?? "") }); setEditing({ [field]: true }); }}
                 className="text-left w-full min-h-[20px] cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-950/20 rounded px-1.5 py-0.5 -mx-1 transition-colors border border-transparent hover:border-teal-200 dark:hover:border-teal-800"
               >
-                {value ? <span className="text-zinc-700 dark:text-zinc-300">{String(value)}</span> : <span className="text-zinc-300 dark:text-zinc-600">—</span>}
+                {(displayValue || value) ? <span className="text-zinc-700 dark:text-zinc-300">{displayValue || String(value)}</span> : <span className="text-zinc-300 dark:text-zinc-600">—</span>}
               </button>
             )}
           </div>
         ))}
+
+        {/* Computed fields (read-only) */}
+        <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+          <span className="text-zinc-400 py-1">Status</span>
+          <span className={`py-1 px-2 rounded-full text-[10px] font-medium inline-block w-fit ${
+            computedStatus === "active" ? "bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400"
+            : computedStatus === "completed" ? "bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+            : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+          }`}>{statusLabels[computedStatus] || computedStatus}</span>
+        </div>
+        <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+          <span className="text-zinc-400 py-1">Health</span>
+          <span className="py-1 flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: healthColors[computedHealth] }} />
+            <span className="text-zinc-700 dark:text-zinc-300">{healthLabels[computedHealth]}</span>
+            {atRiskProjects.length > 0 && <span className="text-zinc-400 text-[10px]">({atRiskProjects.length} project{atRiskProjects.length > 1 ? "s" : ""})</span>}
+          </span>
+        </div>
+        <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+          <span className="text-zinc-400 py-1">Target Date</span>
+          <span className="text-zinc-700 dark:text-zinc-300 py-1">{latestTarget ? new Date(latestTarget).toLocaleDateString() : "—"}</span>
+        </div>
       </div>
 
-      {/* Linked projects */}
+      {/* Linked projects — sorted by deal stage, with status badges */}
       <div className="mt-6">
         <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Projects ({projects.length})</h3>
-        <div className="space-y-1">
-          {projects.map(p => (
-            <div key={p.id} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-              <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: p.color || "#6B7280" }} />
-              <span className="truncate">{p.name}</span>
-            </div>
-          ))}
+        <div className="space-y-0.5">
+          {[...projects]
+            .sort((a, b) => {
+              const stageOrder = ["won", "negotiation", "proposal", "pilot", "qualified", "lead", "prospect", "target"];
+              const ai = stageOrder.indexOf((a as any).deal_stage || "");
+              const bi = stageOrder.indexOf((b as any).deal_stage || "");
+              if (ai !== bi) return ai - bi;
+              return (a.name || "").localeCompare(b.name || "");
+            })
+            .map(p => {
+              const stage = (p as any).deal_stage;
+              const stageLabel = DEAL_STAGES.find(s => s.value === stage)?.label;
+              return (
+                <div key={p.id} className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
+                  <div className="w-1.5 h-1.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color || "#6B7280" }} />
+                  <span className="text-zinc-700 dark:text-zinc-300 flex-1 min-w-0 truncate">{p.name}</span>
+                  {stageLabel && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 flex-shrink-0">{stageLabel}</span>
+                  )}
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                    p.status === "active" ? "bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400"
+                    : p.status === "completed" ? "bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+                    : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800"
+                  }`}>{p.status}</span>
+                </div>
+              );
+            })}
         </div>
+      </div>
+
+      {/* Emails — rolled up from all projects */}
+      <div className="mt-6">
+        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <Mail size={12} />
+          Emails ({initiativeEmails.length})
+        </h3>
+        {emailsLoading ? (
+          <p className="text-xs text-zinc-400">Loading emails...</p>
+        ) : initiativeEmails.length === 0 ? (
+          <p className="text-xs text-zinc-400">No emails linked to projects in this initiative.</p>
+        ) : (
+          <div className="space-y-0.5 max-h-[300px] overflow-y-auto">
+            {initiativeEmails.map((email) => {
+              const projectName = projects.find(p => p.id === email.entity_id)?.name;
+              return (
+                <div key={email.id} className="flex items-start gap-2 text-xs py-1.5 px-2 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/30 group">
+                  <Mail size={11} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-zinc-700 dark:text-zinc-300 truncate font-medium">{email.subject || "(no subject)"}</div>
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-400 mt-0.5">
+                      <span>{email.from_name || email.from_email}</span>
+                      {email.received_at && <span>{new Date(email.received_at).toLocaleDateString()}</span>}
+                      {projectName && (
+                        <span className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">{projectName}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Delete */}
@@ -150,6 +262,74 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
           Delete Initiative
         </button>
       </div>
+    </div>
+  );
+}
+
+// Sortable initiative row for drag-and-drop reordering
+function SortableInitiativeRow({
+  init, initIndex, isExpanded, isSelected, derivedStatus, activeCount,
+  onToggle, onSelect, onEdit, children,
+}: {
+  init: Initiative;
+  initIndex: number;
+  isExpanded: boolean;
+  isSelected: boolean;
+  derivedStatus: string;
+  activeCount: number;
+  onToggle: () => void;
+  onSelect: () => void;
+  onEdit?: () => void;
+  children?: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: init.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div
+        className={cn(
+          "w-full flex items-center gap-1.5 pl-1 pr-0 py-2 transition-colors group cursor-pointer",
+          isSelected
+            ? "bg-teal-50 dark:bg-teal-950/30"
+            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
+        )}
+      >
+        <button
+          {...attributes}
+          {...listeners}
+          className="p-0.5 text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-grab active:cursor-grabbing"
+          title="Drag to reorder"
+        >
+          <GripVertical size={12} />
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className="p-0.5 text-zinc-400 hover:text-zinc-600 flex-shrink-0">
+          {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        </button>
+        <div className="flex items-center gap-1.5 min-w-0 flex-1" onClick={onSelect}>
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getInitiativeColor(init, initIndex) }} />
+          <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 truncate">{init.name}</span>
+          <span className="text-[9px] text-zinc-400 ml-0.5">{activeCount}</span>
+        </div>
+        <div className="ml-auto flex items-center flex-shrink-0">
+          {onEdit && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              className="p-0.5 rounded text-zinc-400 hover:text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity mr-1"
+            ><Pencil size={9} /></button>
+          )}
+        </div>
+        <div className="w-[70px] flex justify-end flex-shrink-0 mr-2">
+          <StatusBadge status={derivedStatus} />
+        </div>
+      </div>
+      {children}
     </div>
   );
 }
@@ -222,24 +402,56 @@ export function DashboardView({
   const [searchQuery, setSearchQuery] = useState("");
   const [hideCompleted, setHideCompleted] = useState(false);
   const [sortBy, setSortBy] = useState<"name" | "tasks" | "status" | "target">("name");
-  const [sidebarWidth, setSidebarWidth] = useState(400);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidthRaw] = useState(() => {
+    try { return parseInt(localStorage.getItem("tv-dashboard-sidebar-width") || "400", 10); } catch { return 400; }
+  });
+  const setSidebarWidth = useCallback((w: number | ((prev: number) => number)) => {
+    setSidebarWidthRaw(prev => {
+      const next = typeof w === "function" ? w(prev) : w;
+      try { localStorage.setItem("tv-dashboard-sidebar-width", String(next)); } catch {}
+      return next;
+    });
+  }, []);
+  const [sidebarCollapsed, setSidebarCollapsedRaw] = useState(() => {
+    try { return localStorage.getItem("tv-dashboard-sidebar-collapsed") === "true"; } catch { return false; }
+  });
+  const setSidebarCollapsed = useCallback((v: boolean | ((prev: boolean) => boolean)) => {
+    setSidebarCollapsedRaw(prev => {
+      const next = typeof v === "function" ? v(prev) : v;
+      try { localStorage.setItem("tv-dashboard-sidebar-collapsed", String(next)); } catch {}
+      return next;
+    });
+  }, []);
   const dragging = useRef(false);
 
-  // Initiative reorder
+  // Initiative reorder (drag-and-drop)
   const queryClient = useQueryClient();
 
-  const moveInitiative = useCallback(async (index: number, direction: "up" | "down") => {
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= initiatives.length) return;
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
 
+  const handleInitiativeDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = initiatives.findIndex(i => i.id === active.id);
+    const newIndex = initiatives.findIndex(i => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(initiatives, oldIndex, newIndex);
+
+    // Optimistic update
+    queryClient.setQueryData(["work", "initiatives"], reordered);
+
+    // Persist all sort_order values
     const { supabase } = await import("../../lib/supabase");
-    const a = initiatives[index];
-    const b = initiatives[targetIndex];
-    await Promise.all([
-      supabase.from("initiatives").update({ sort_order: targetIndex }).eq("id", a.id),
-      supabase.from("initiatives").update({ sort_order: index }).eq("id", b.id),
-    ]);
+    await Promise.all(
+      reordered.map((init, idx) =>
+        supabase.from("initiatives").update({ sort_order: idx }).eq("id", init.id)
+      )
+    );
     queryClient.invalidateQueries({ queryKey: ["work", "initiatives"] });
   }, [initiatives, queryClient]);
 
@@ -269,12 +481,20 @@ export function DashboardView({
     document.addEventListener("mouseup", onMouseUp);
   }, [sidebarWidth]);
 
-  const activeProjectCount = projects.filter(p => p.status === "active").length;
-  const totalTasks = allTasks.length;
-  const overdueTasks = allTasks.filter(t =>
+  const activeProjects = projects.filter(p => p.status === "active");
+  const activeProjectIds = new Set(activeProjects.map(p => p.id));
+  const activeProjectCount = activeProjects.length;
+  // Only count tasks from active projects, split by notion vs manual
+  const activeTasks = allTasks.filter(t => activeProjectIds.has(t.project_id));
+  const manualTasks = activeTasks.filter(t => !(t as any).notion_page_id);
+  const notionTasks = activeTasks.filter(t => !!(t as any).notion_page_id);
+  const totalTasks = manualTasks.length;
+  const overdueTasks = manualTasks.filter(t =>
     isOverdue(t.due_date) && t.status?.type !== "completed" && t.status?.type !== "canceled"
   ).length;
-  const completedTasks = allTasks.filter(t => t.status?.type === "completed").length;
+  const completedTasks = manualTasks.filter(t => t.status?.type === "completed").length;
+  const inProgressTasks = manualTasks.filter(t => t.status?.type === "started" || t.status?.type === "review").length;
+  const todoTasks = manualTasks.filter(t => t.status?.type === "unstarted" || t.status?.type === "backlog").length;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   const initProjectMap = useMemo(() => {
@@ -413,7 +633,8 @@ export function DashboardView({
             <div key={`stage-${stage}`}>
               <button
                 onClick={() => toggleGroup(`stage-${stage}`)}
-                className="w-full flex items-center gap-1.5 pl-6 pr-3 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+                className="w-full flex items-center gap-1.5 pr-3 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+                style={{ paddingLeft: "2rem" }}
               >
                 {isStageExpanded ? <ChevronDown size={9} className="text-zinc-400" /> : <ChevronRight size={9} className="text-zinc-400" />}
                 <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">{stageInfo?.label || stage}</span>
@@ -443,7 +664,7 @@ export function DashboardView({
             ? "bg-teal-50 dark:bg-teal-950/30"
             : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
         } ${isDimmed ? "opacity-50" : ""}`}
-        style={{ paddingLeft: indentExtra ? "3.5rem" : "2rem" }}
+        style={{ paddingLeft: indentExtra ? "3rem" : "2.5rem" }}
       >
         {/* Name + Health + Priority */}
         <div className="flex items-center gap-1.5 min-w-0">
@@ -549,12 +770,13 @@ export function DashboardView({
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Stats row */}
-      <div className="flex-shrink-0 grid grid-cols-4 gap-3 p-4 border-b border-zinc-100 dark:border-zinc-800/50">
+      {/* Stats row — scoped to active projects, manual tasks only (excludes Notion-synced) */}
+      <div className="flex-shrink-0 grid grid-cols-5 gap-3 p-4 border-b border-zinc-100 dark:border-zinc-800/50">
         <Stat label="Active Projects" value={activeProjectCount} icon={Target} color="#0D7680" />
-        <Stat label="Total Tasks" value={totalTasks} icon={CheckCircle2} color="#3B82F6" />
-        <Stat label="Overdue" value={overdueTasks} icon={AlertTriangle} color="#EF4444" />
-        <Stat label="Completion" value={`${completionRate}%`} icon={TrendingUp} color="#10B981" />
+        <Stat label={`${todoTasks} todo · ${inProgressTasks} in progress`} value={totalTasks} icon={CheckCircle2} color="#3B82F6" />
+        <Stat label="Overdue" value={overdueTasks} icon={AlertTriangle} color={overdueTasks > 0 ? "#EF4444" : "#9CA3AF"} />
+        <Stat label={`${completedTasks} completed`} value={`${completionRate}%`} icon={TrendingUp} color="#10B981" />
+        <Stat label="Notion Tasks (excluded)" value={notionTasks.length} icon={CheckCircle2} color="#9CA3AF" />
       </div>
 
       {/* Body: tree (left) + detail (right) */}
@@ -628,79 +850,48 @@ export function DashboardView({
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
-          {/* Initiative groups */}
-          {initiatives.map((init, initIndex) => {
-            const linkedProjectIds = initProjectMap.get(init.id) || [];
-            const allLinkedProjects = linkedProjectIds
-              .map(id => projectById.get(id))
-              .filter((p): p is Project => !!p);
-            const linkedProjects = sortProjects(filterProjects(allLinkedProjects));
-            const isExpanded = !collapsedGroups.has(init.id);
+          {/* Initiative groups (drag-and-drop reorderable) */}
+          <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleInitiativeDragEnd}>
+            <SortableContext items={initiatives.map(i => i.id)} strategy={verticalListSortingStrategy}>
+              {initiatives.map((init, initIndex) => {
+                const linkedProjectIds = initProjectMap.get(init.id) || [];
+                const allLinkedProjects = linkedProjectIds
+                  .map(id => projectById.get(id))
+                  .filter((p): p is Project => !!p);
+                const linkedProjects = sortProjects(filterProjects(allLinkedProjects));
+                const isExpanded = !collapsedGroups.has(init.id);
 
-            // Derive initiative status from child projects
-            const derivedStatus = (() => {
-              if (allLinkedProjects.length === 0) return "planned";
-              if (allLinkedProjects.every(p => p.status === "completed")) return "completed";
-              if (allLinkedProjects.some(p => p.status === "active" || p.status === "started")) return "active";
-              if (allLinkedProjects.every(p => p.status === "paused")) return "paused";
-              return "planned";
-            })();
+                // Derive initiative status from child projects
+                const derivedStatus = (() => {
+                  if (allLinkedProjects.length === 0) return "planned";
+                  if (allLinkedProjects.every(p => p.status === "completed")) return "completed";
+                  if (allLinkedProjects.some(p => p.status === "active" || p.status === "started")) return "active";
+                  if (allLinkedProjects.every(p => p.status === "paused")) return "paused";
+                  return "planned";
+                })();
 
-            // Hide initiative when filtering completed and no visible projects remain
-            if (hideCompleted && linkedProjects.length === 0) return null;
+                // Hide initiative when filtering completed and no visible projects remain
+                if (hideCompleted && linkedProjects.length === 0) return null;
 
-            return (
-              <div key={init.id}>
-                <div
-                  className={cn(
-                    "w-full flex items-center gap-1.5 pl-1 pr-0 py-2 transition-colors group cursor-pointer",
-                    selectedInitiativeId === init.id && !selectedProjectId
-                      ? "bg-teal-50 dark:bg-teal-950/30"
-                      : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
-                  )}
-                >
-                  <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); moveInitiative(initIndex, "up"); }}
-                      disabled={initIndex === 0}
-                      className="p-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-20 disabled:cursor-default"
-                      title="Move up"
-                    >
-                      <ArrowUp size={9} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); moveInitiative(initIndex, "down"); }}
-                      disabled={initIndex === initiatives.length - 1}
-                      className="p-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-20 disabled:cursor-default"
-                      title="Move down"
-                    >
-                      <ArrowDown size={9} />
-                    </button>
-                  </div>
-                  <button onClick={(e) => { e.stopPropagation(); toggleGroup(init.id); }} className="p-0.5 text-zinc-400 hover:text-zinc-600 flex-shrink-0">
-                    {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-                  </button>
-                  <div className="flex items-center gap-1.5 min-w-0 flex-1" onClick={() => { setSelectedInitiativeId(init.id); setSelectedProjectId(null); }}>
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getInitiativeColor(init, initIndex) }} />
-                    <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 truncate">{init.name}</span>
-                    <span className="text-[9px] text-zinc-400 ml-0.5">{allLinkedProjects.filter(p => p.status === "active").length}</span>
-                  </div>
-                  <div className="ml-auto flex items-center flex-shrink-0">
-                    {onEditInitiative && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onEditInitiative(init); }}
-                        className="p-0.5 rounded text-zinc-400 hover:text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity mr-1"
-                      ><Pencil size={9} /></button>
-                    )}
-                  </div>
-                  <div className="w-[70px] flex justify-end flex-shrink-0 mr-2">
-                    <StatusBadge status={derivedStatus} />
-                  </div>
-                </div>
-                {isExpanded && renderProjectList(linkedProjects)}
-              </div>
-            );
-          })}
+                return (
+                  <SortableInitiativeRow
+                    key={init.id}
+                    init={init}
+                    initIndex={initIndex}
+                    isExpanded={isExpanded}
+                    isSelected={selectedInitiativeId === init.id && !selectedProjectId}
+                    derivedStatus={derivedStatus}
+                    activeCount={allLinkedProjects.filter(p => p.status === "active").length}
+                    onToggle={() => toggleGroup(init.id)}
+                    onSelect={() => { setSelectedInitiativeId(init.id); setSelectedProjectId(null); }}
+                    onEdit={onEditInitiative ? () => onEditInitiative(init) : undefined}
+                  >
+                    {isExpanded && renderProjectList(linkedProjects)}
+                  </SortableInitiativeRow>
+                );
+              })}
+            </SortableContext>
+          </DndContext>
 
           {/* Unassigned */}
           {unassignedProjects.length > 0 && (
@@ -738,6 +929,7 @@ export function DashboardView({
               onBack={() => setSelectedProjectId(null)}
               onUpdated={() => {}}
               onCreateTask={onCreateTask ? () => onCreateTask(selectedProjectId) : undefined}
+              onNavigateToProject={(id) => setSelectedProjectId(id)}
             />
           ) : selectedInitiativeId ? (
             <InitiativeDetailPane

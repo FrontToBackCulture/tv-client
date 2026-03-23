@@ -249,7 +249,7 @@ export const DealCard = memo(function DealCard({
               <h4 className="text-sm font-medium text-zinc-800 dark:text-zinc-200 leading-tight">
                 {deal.name}
               </h4>
-              <Badge color={stageColorMap[deal.stage] || "blue"} className="px-1.5 text-xs">{stageConfig?.label || deal.stage}</Badge>
+              <Badge color={stageColorMap[deal.stage || ""] || "blue"} className="px-1.5 text-xs">{stageConfig?.label || deal.stage}</Badge>
             </div>
             {deal.description && (
               <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">

@@ -190,11 +190,16 @@ fn parse_database_properties(props: &Value) -> Vec<NotionPropertySchema> {
                 None
             };
 
+            let relation_database_id = prop["relation"]["database_id"]
+                .as_str()
+                .map(|s| s.to_string());
+
             NotionPropertySchema {
                 name: name.clone(),
                 prop_type,
                 options,
                 groups,
+                relation_database_id,
             }
         })
         .collect();
@@ -393,6 +398,443 @@ pub async fn preview_database(
         .collect();
 
     Ok(cards)
+}
+
+/// List all users in the Notion workspace
+pub async fn list_users() -> CmdResult<Vec<NotionUser>> {
+    let api_key = get_api_key()?;
+    let url = format!("{}/users", NOTION_API_BASE);
+
+    let response = HTTP_CLIENT
+        .get(&url)
+        .headers(notion_headers(&api_key))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(CommandError::Http { status, body });
+    }
+
+    let body: Value = response.json().await?;
+    let results = body["results"].as_array().cloned().unwrap_or_default();
+
+    let users: Vec<NotionUser> = results
+        .into_iter()
+        .filter_map(|u| {
+            let id = u["id"].as_str()?.to_string();
+            let name = u["name"].as_str().unwrap_or("").to_string();
+            let user_type = u["type"].as_str().unwrap_or("person").to_string();
+            // Skip bots
+            if user_type == "bot" {
+                return None;
+            }
+            let email = u["person"]["email"].as_str().map(|s| s.to_string());
+            Some(NotionUser { id, name, email })
+        })
+        .collect();
+
+    Ok(users)
+}
+
+/// Fetch all block children for a page and convert to markdown
+pub async fn get_page_content_as_markdown(page_id: &str) -> CmdResult<String> {
+    let api_key = get_api_key()?;
+    let mut all_blocks: Vec<Value> = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    // Paginate through all blocks
+    loop {
+        let mut url = format!("{}/blocks/{}/children?page_size=100", NOTION_API_BASE, page_id);
+        if let Some(ref c) = cursor {
+            url.push_str(&format!("&start_cursor={}", c));
+        }
+
+        let response = HTTP_CLIENT
+            .get(&url)
+            .headers(notion_headers(&api_key))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(CommandError::Http { status, body });
+        }
+
+        let body: Value = response.json().await?;
+        if let Some(results) = body["results"].as_array() {
+            all_blocks.extend(results.clone());
+        }
+
+        if body["has_more"].as_bool() == Some(true) {
+            cursor = body["next_cursor"].as_str().map(|s| s.to_string());
+        } else {
+            break;
+        }
+    }
+
+    Ok(blocks_to_markdown(&all_blocks))
+}
+
+/// Fetch block children and return raw blocks + extracted attachment info
+pub async fn get_page_blocks(page_id: &str) -> CmdResult<(String, Vec<NotionAttachment>)> {
+    let api_key = get_api_key()?;
+    let mut all_blocks: Vec<Value> = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    loop {
+        let mut url = format!("{}/blocks/{}/children?page_size=100", NOTION_API_BASE, page_id);
+        if let Some(ref c) = cursor {
+            url.push_str(&format!("&start_cursor={}", c));
+        }
+
+        let response = HTTP_CLIENT
+            .get(&url)
+            .headers(notion_headers(&api_key))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(CommandError::Http { status, body });
+        }
+
+        let body: Value = response.json().await?;
+        if let Some(results) = body["results"].as_array() {
+            all_blocks.extend(results.clone());
+        }
+
+        if body["has_more"].as_bool() == Some(true) {
+            cursor = body["next_cursor"].as_str().map(|s| s.to_string());
+        } else {
+            break;
+        }
+    }
+
+    let markdown = blocks_to_markdown(&all_blocks);
+    let attachments = extract_attachments(&all_blocks);
+    Ok((markdown, attachments))
+}
+
+/// Convert Notion blocks to markdown
+fn blocks_to_markdown(blocks: &[Value]) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    let mut in_numbered_list = false;
+    let mut list_num = 0;
+
+    for block in blocks {
+        let block_type = block["type"].as_str().unwrap_or("");
+
+        // Reset numbered list tracking
+        if block_type != "numbered_list_item" {
+            in_numbered_list = false;
+            list_num = 0;
+        }
+
+        let line = match block_type {
+            "paragraph" => rich_text_to_md(&block["paragraph"]["rich_text"]),
+            "heading_1" => format!("# {}", rich_text_to_md(&block["heading_1"]["rich_text"])),
+            "heading_2" => format!("## {}", rich_text_to_md(&block["heading_2"]["rich_text"])),
+            "heading_3" => format!("### {}", rich_text_to_md(&block["heading_3"]["rich_text"])),
+            "bulleted_list_item" => format!("- {}", rich_text_to_md(&block["bulleted_list_item"]["rich_text"])),
+            "numbered_list_item" => {
+                if !in_numbered_list { in_numbered_list = true; list_num = 0; }
+                list_num += 1;
+                format!("{}. {}", list_num, rich_text_to_md(&block["numbered_list_item"]["rich_text"]))
+            }
+            "to_do" => {
+                let checked = block["to_do"]["checked"].as_bool().unwrap_or(false);
+                let marker = if checked { "[x]" } else { "[ ]" };
+                format!("- {} {}", marker, rich_text_to_md(&block["to_do"]["rich_text"]))
+            }
+            "toggle" => format!("> {}", rich_text_to_md(&block["toggle"]["rich_text"])),
+            "quote" => format!("> {}", rich_text_to_md(&block["quote"]["rich_text"])),
+            "callout" => {
+                let text = rich_text_to_md(&block["callout"]["rich_text"]);
+                format!("> **Note:** {}", text)
+            }
+            "code" => {
+                let lang = block["code"]["language"].as_str().unwrap_or("");
+                let code = rich_text_to_md(&block["code"]["rich_text"]);
+                format!("```{}\n{}\n```", lang, code)
+            }
+            "divider" => "---".to_string(),
+            "image" => {
+                let url = extract_file_url(&block["image"]);
+                let caption = rich_text_to_md(&block["image"]["caption"]);
+                if caption.is_empty() {
+                    format!("![image]({})", url)
+                } else {
+                    format!("![{}]({})", caption, url)
+                }
+            }
+            "file" => {
+                let url = extract_file_url(&block["file"]);
+                let name = block["file"]["name"].as_str()
+                    .or_else(|| block["file"]["caption"].as_array()
+                        .and_then(|a| a.first())
+                        .and_then(|t| t["plain_text"].as_str()))
+                    .unwrap_or("file");
+                format!("[{}]({})", name, url)
+            }
+            "pdf" => {
+                let url = extract_file_url(&block["pdf"]);
+                format!("[PDF]({})", url)
+            }
+            "bookmark" => {
+                let url = block["bookmark"]["url"].as_str().unwrap_or("");
+                let caption = rich_text_to_md(&block["bookmark"]["caption"]);
+                if caption.is_empty() {
+                    format!("[{}]({})", url, url)
+                } else {
+                    format!("[{}]({})", caption, url)
+                }
+            }
+            "link_preview" => {
+                let url = block["link_preview"]["url"].as_str().unwrap_or("");
+                format!("[{}]({})", url, url)
+            }
+            "table" => {
+                // Basic table support
+                if let Some(rows) = block.get("table") {
+                    if rows["has_column_header"].as_bool() == Some(true) {
+                        "<!-- table -->".to_string()
+                    } else {
+                        "<!-- table -->".to_string()
+                    }
+                } else {
+                    String::new()
+                }
+            }
+            "child_page" => {
+                let title = block["child_page"]["title"].as_str().unwrap_or("Untitled");
+                format!("**[Sub-page: {}]**", title)
+            }
+            "child_database" => {
+                let title = block["child_database"]["title"].as_str().unwrap_or("Untitled");
+                format!("**[Database: {}]**", title)
+            }
+            _ => String::new(),
+        };
+
+        if !line.is_empty() {
+            lines.push(line);
+        } else if block_type == "paragraph" {
+            // Empty paragraph = blank line
+            lines.push(String::new());
+        }
+    }
+
+    // Clean up: collapse multiple blank lines
+    let mut result = String::new();
+    let mut prev_blank = false;
+    for line in &lines {
+        if line.is_empty() {
+            if !prev_blank {
+                result.push('\n');
+                prev_blank = true;
+            }
+        } else {
+            result.push_str(line);
+            result.push('\n');
+            prev_blank = false;
+        }
+    }
+
+    result.trim().to_string()
+}
+
+/// Convert Notion rich_text array to markdown string
+fn rich_text_to_md(rich_text: &Value) -> String {
+    let arr = match rich_text.as_array() {
+        Some(a) => a,
+        None => return String::new(),
+    };
+
+    arr.iter()
+        .map(|rt| {
+            let text = rt["plain_text"].as_str().unwrap_or("");
+            let annotations = &rt["annotations"];
+            let mut s = text.to_string();
+
+            // Apply formatting
+            if annotations["code"].as_bool() == Some(true) {
+                s = format!("`{}`", s);
+            }
+            if annotations["bold"].as_bool() == Some(true) {
+                s = format!("**{}**", s);
+            }
+            if annotations["italic"].as_bool() == Some(true) {
+                s = format!("*{}*", s);
+            }
+            if annotations["strikethrough"].as_bool() == Some(true) {
+                s = format!("~~{}~~", s);
+            }
+
+            // Handle links
+            if let Some(url) = rt["href"].as_str() {
+                s = format!("[{}]({})", s, url);
+            }
+
+            s
+        })
+        .collect()
+}
+
+/// Extract file URL from a Notion file object (handles both "file" and "external" types)
+fn extract_file_url(file_obj: &Value) -> String {
+    // Notion files: { "type": "file", "file": { "url": "..." } }
+    // External files: { "type": "external", "external": { "url": "..." } }
+    if file_obj["type"].as_str() == Some("file") {
+        file_obj["file"]["url"].as_str().unwrap_or("").to_string()
+    } else if file_obj["type"].as_str() == Some("external") {
+        file_obj["external"]["url"].as_str().unwrap_or("").to_string()
+    } else {
+        // Fallback: try both paths
+        file_obj["file"]["url"].as_str()
+            .or_else(|| file_obj["external"]["url"].as_str())
+            .unwrap_or("")
+            .to_string()
+    }
+}
+
+/// Extract attachment info from blocks
+fn extract_attachments(blocks: &[Value]) -> Vec<NotionAttachment> {
+    let mut attachments = Vec::new();
+
+    for block in blocks {
+        let block_type = block["type"].as_str().unwrap_or("");
+        let block_id = block["id"].as_str().unwrap_or("").to_string();
+
+        match block_type {
+            "file" => {
+                let url = extract_file_url(&block["file"]);
+                let name = block["file"]["name"].as_str()
+                    .unwrap_or("attachment")
+                    .to_string();
+                if !url.is_empty() {
+                    attachments.push(NotionAttachment {
+                        block_id,
+                        file_name: name,
+                        file_type: guess_file_type(&url),
+                        url,
+                    });
+                }
+            }
+            "pdf" => {
+                let url = extract_file_url(&block["pdf"]);
+                if !url.is_empty() {
+                    attachments.push(NotionAttachment {
+                        block_id,
+                        file_name: "document.pdf".to_string(),
+                        file_type: Some("application/pdf".to_string()),
+                        url,
+                    });
+                }
+            }
+            "image" => {
+                let url = extract_file_url(&block["image"]);
+                if !url.is_empty() {
+                    attachments.push(NotionAttachment {
+                        block_id,
+                        file_name: "image".to_string(),
+                        file_type: guess_file_type(&url),
+                        url,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    attachments
+}
+
+/// Guess file type from URL
+fn guess_file_type(url: &str) -> Option<String> {
+    let path = url.split('?').next().unwrap_or(url);
+    if path.ends_with(".pdf") { Some("application/pdf".to_string()) }
+    else if path.ends_with(".png") { Some("image/png".to_string()) }
+    else if path.ends_with(".jpg") || path.ends_with(".jpeg") { Some("image/jpeg".to_string()) }
+    else if path.ends_with(".gif") { Some("image/gif".to_string()) }
+    else if path.ends_with(".svg") { Some("image/svg+xml".to_string()) }
+    else if path.ends_with(".webp") { Some("image/webp".to_string()) }
+    else if path.ends_with(".xlsx") || path.ends_with(".xls") { Some("application/vnd.ms-excel".to_string()) }
+    else if path.ends_with(".docx") || path.ends_with(".doc") { Some("application/msword".to_string()) }
+    else if path.ends_with(".csv") { Some("text/csv".to_string()) }
+    else { None }
+}
+
+/// Get a single page's title
+pub async fn get_page_title(page_id: &str) -> CmdResult<String> {
+    let api_key = get_api_key()?;
+    let url = format!("{}/pages/{}", NOTION_API_BASE, page_id);
+
+    let response = HTTP_CLIENT
+        .get(&url)
+        .headers(notion_headers(&api_key))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(CommandError::Http { status, body });
+    }
+
+    let page: Value = response.json().await?;
+    Ok(extract_page_title(&page.get("properties").cloned().unwrap_or_default()))
+}
+
+/// List all pages from a database (titles + IDs) — for relation field value mapping
+pub async fn list_database_pages(database_id: &str) -> CmdResult<Vec<(String, String)>> {
+    let api_key = get_api_key()?;
+    let mut all_pages: Vec<(String, String)> = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    loop {
+        let mut url = format!("{}/databases/{}/query", NOTION_API_BASE, database_id);
+        let mut body = json!({ "page_size": 100 });
+
+        if let Some(ref c) = cursor {
+            body["start_cursor"] = Value::String(c.clone());
+        }
+
+        let response = HTTP_CLIENT
+            .post(&url)
+            .headers(notion_headers(&api_key))
+            .json(&body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(CommandError::Http { status, body });
+        }
+
+        let result: Value = response.json().await?;
+        if let Some(results) = result["results"].as_array() {
+            for page in results {
+                let id = page["id"].as_str().unwrap_or("").to_string();
+                let title = extract_page_title(&page.get("properties").cloned().unwrap_or_default());
+                if !id.is_empty() && title != "Untitled" {
+                    all_pages.push((id, title));
+                }
+            }
+        }
+
+        if result["has_more"].as_bool() == Some(true) {
+            cursor = result["next_cursor"].as_str().map(|s| s.to_string());
+        } else {
+            break;
+        }
+    }
+
+    Ok(all_pages)
 }
 
 /// Extract the title from a page's properties

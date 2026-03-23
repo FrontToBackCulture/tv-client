@@ -225,13 +225,14 @@ export function InitiativeForm({
         <FormField label="Owner" icon={UserIcon}>
           <Select
             value={formData.owner_id || ""}
-            onChange={(e) =>
+            onChange={(e) => {
+              const selectedUser = users.find(u => u.id === e.target.value);
               setFormData({
                 ...formData,
                 owner_id: e.target.value || null,
-                owner: e.target.value || null,
-              })
-            }
+                owner: selectedUser?.name || null,
+              });
+            }}
           >
             <option value="">No owner</option>
             {users.map((u) => (

@@ -26,7 +26,9 @@ import { useActivities } from "../../hooks/crm/useActivities";
 import { useInitiatives, useLabels, useUsers } from "../../hooks/work";
 import { COMPANY_STAGES, ACTIVITY_TYPES } from "../../lib/crm/types";
 import { useAllLookupValues } from "../../hooks/useLookupValues";
-import { Settings } from "lucide-react";
+import { Settings, FolderOpen, ChevronRight, ChevronDown, Folder, RefreshCw } from "lucide-react";
+import { useRepository } from "../../stores/repositoryStore";
+import { useFolderChildren } from "../../hooks/useFiles";
 
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
 if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
@@ -71,16 +73,169 @@ function EditField({ value, onSave, type = "text", options }: {
     className="text-xs border border-teal-400 rounded px-1.5 py-1 bg-white dark:bg-zinc-900 outline-none w-full" />;
 }
 
-function FieldGrid({ fields, onUpdate }: {
-  fields: { label: string; field: string; value: any; type?: "text" | "textarea" | "select"; options?: { value: string; label: string }[] }[];
+// ── Mini folder tree for picker ────────────────────────────────────────────
+
+function MiniTreeNode({ path, name, level, onSelect }: {
+  path: string; name: string; level: number; onSelect: (relativePath: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(level === 0);
+  const { data } = useFolderChildren(path, expanded);
+  const { activeRepository } = useRepository();
+  const basePath = activeRepository?.path ?? "";
+  const dirs = (data ?? []).filter((c: { is_directory: boolean }) => c.is_directory).sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name));
+
+  const relativePath = basePath && path.startsWith(basePath) ? path.slice(basePath.length + 1) : path;
+
+  return (
+    <div>
+      <button
+        className="flex items-center gap-1 w-full text-left px-1 py-0.5 hover:bg-teal-50 dark:hover:bg-teal-950/30 rounded text-xs group"
+        onClick={() => setExpanded(!expanded)}
+        onDoubleClick={() => onSelect(relativePath)}
+      >
+        {dirs.length > 0 || !expanded ? (
+          expanded ? <ChevronDown size={10} className="text-zinc-400 shrink-0" /> : <ChevronRight size={10} className="text-zinc-400 shrink-0" />
+        ) : <span className="w-[10px] shrink-0" />}
+        <Folder size={12} className="text-zinc-400 shrink-0" />
+        <span className="truncate text-zinc-700 dark:text-zinc-300">{name}</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onSelect(relativePath); }}
+          className="ml-auto opacity-0 group-hover:opacity-100 text-[9px] px-1.5 py-0.5 bg-teal-500 text-white rounded transition-opacity shrink-0"
+        >
+          Select
+        </button>
+      </button>
+      {expanded && dirs.map((d: { path: string; name: string }) => (
+        <div key={d.path} style={{ paddingLeft: 12 }}>
+          <MiniTreeNode path={d.path} name={d.name} level={level + 1} onSelect={onSelect} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FolderPickerField({ value, onSave }: { value: string | null | undefined; onSave: (val: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value ?? ""));
+  const ref = useRef<HTMLInputElement>(null);
+  const { activeRepository } = useRepository();
+  const basePath = activeRepository?.path ?? "";
+
+  useEffect(() => { if (editing && ref.current) ref.current.focus(); }, [editing]);
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-1">
+        {editing ? (
+          <input
+            ref={ref}
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => { setEditing(false); if (draft !== String(value ?? "")) onSave(draft); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { setEditing(false); if (draft !== String(value ?? "")) onSave(draft); } if (e.key === "Escape") setEditing(false); }}
+            className="text-xs border border-teal-400 rounded px-1.5 py-1 bg-white dark:bg-zinc-900 outline-none flex-1"
+          />
+        ) : (
+          <button
+            onClick={() => { setDraft(String(value ?? "")); setEditing(true); }}
+            className="text-left flex-1 min-h-[20px] cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-950/20 rounded px-1.5 py-0.5 -mx-1 transition-colors border border-transparent hover:border-teal-200 dark:hover:border-teal-800"
+          >
+            {value ? <span className="text-zinc-700 dark:text-zinc-300 text-xs">{value}</span> : <span className="text-zinc-300 dark:text-zinc-600 text-xs">—</span>}
+          </button>
+        )}
+        <button
+          onClick={() => setOpen(!open)}
+          className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-teal-500 transition-colors shrink-0"
+          title="Browse folders"
+        >
+          <FolderOpen size={13} />
+        </button>
+      </div>
+      {open && basePath && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg max-h-[300px] overflow-auto p-1">
+          <MiniTreeNode path={basePath} name={activeRepository?.name ?? "Library"} level={0} onSelect={(p) => { onSave(p); setOpen(false); }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Email domains field with auto-populate from contacts ──────────────────
+
+function EmailDomainsField({ value, companyId, contacts, onSave }: {
+  value: string | null | undefined;
+  companyId: string;
+  contacts: { email: string; company_id: string }[];
+  onSave: (val: string) => void;
+}) {
+  const [syncing, setSyncing] = useState(false);
+
+  async function autoPopulate() {
+    setSyncing(true);
+    try {
+      const companyContacts = contacts.filter(c => c.company_id === companyId);
+      const domains = new Set<string>();
+      for (const c of companyContacts) {
+        if (c.email) {
+          const domain = c.email.split("@")[1]?.toLowerCase();
+          if (domain && !domain.includes("gmail.com") && !domain.includes("yahoo.") && !domain.includes("hotmail.") && !domain.includes("outlook.com") && !domain.includes("icloud.com")) {
+            domains.add(domain);
+          }
+        }
+      }
+      if (domains.size === 0) {
+        toast.error("No corporate email domains found in contacts");
+        return;
+      }
+      const domainArray = Array.from(domains).sort();
+      await supabase.from("crm_companies").update({
+        email_domains: domainArray,
+        updated_at: new Date().toISOString(),
+      }).eq("id", companyId);
+      onSave(domainArray.join(", "));
+      toast.success(`Updated: ${domainArray.join(", ")}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <EditField value={value} onSave={onSave} />
+      <button
+        onClick={autoPopulate}
+        disabled={syncing}
+        className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-teal-500 transition-colors shrink-0 disabled:opacity-50"
+        title="Auto-populate from contacts' emails"
+      >
+        <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
+      </button>
+    </div>
+  );
+}
+
+type FieldType = "text" | "textarea" | "select" | "folder_picker" | "email_domains";
+
+function FieldGrid({ fields, onUpdate, companyId, contacts }: {
+  fields: { label: string; field: string; value: any; type?: FieldType; options?: { value: string; label: string }[] }[];
   onUpdate: (field: string, value: any) => void;
+  companyId?: string;
+  contacts?: { email: string; company_id: string }[];
 }) {
   return (
     <div className="space-y-1 text-xs max-w-lg">
       {fields.map(({ label, field, value, type, options }) => (
         <div key={field} className="grid grid-cols-[120px,1fr] gap-2 items-start">
           <span className="text-zinc-400 py-1">{label}</span>
-          <EditField value={value} type={type} options={options} onSave={(v) => onUpdate(field, v || null)} />
+          {type === "folder_picker" ? (
+            <FolderPickerField value={value} onSave={(v) => onUpdate(field, v || null)} />
+          ) : type === "email_domains" && companyId && contacts ? (
+            <EmailDomainsField value={value} companyId={companyId} contacts={contacts as any} onSave={(v) => onUpdate(field, v || null)} />
+          ) : (
+            <EditField value={value} type={type as any} options={options} onSave={(v) => onUpdate(field, v || null)} />
+          )}
         </div>
       ))}
     </div>
@@ -239,6 +394,14 @@ export function MetadataView() {
     { field: "industry", headerName: "Industry", width: 120, editable: true, filter: "agSetColumnFilter" },
     { field: "website", headerName: "Website", width: 180, editable: true },
     { field: "domain_id", headerName: "Domain", width: 120, editable: true },
+    { field: "email_domains", headerName: "Email Domains", width: 180, editable: true,
+      valueFormatter: (p: any) => p.value ? (Array.isArray(p.value) ? p.value.join(", ") : p.value) : "",
+      valueSetter: (p: any) => {
+        const val = p.newValue ? p.newValue.split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean) : [];
+        p.data.email_domains = val;
+        return true;
+      },
+    },
     { field: "contact_count", headerName: "Contacts", width: 80, type: "numericColumn" },
     { field: "notes", headerName: "Notes", width: 200, editable: true, hide: true },
     { field: "updated_at", headerName: "Updated", width: 100, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "" },
@@ -252,7 +415,15 @@ export function MetadataView() {
   const contactColumns: ColDef[] = useMemo(() => [
     { field: "name", headerName: "Name", flex: 1, filter: "agTextColumnFilter", editable: true, pinned: "left" },
     { field: "email", headerName: "Email", width: 200, editable: true, filter: "agTextColumnFilter" },
-    { field: "company_name", headerName: "Company", width: 150, filter: "agTextColumnFilter" },
+    { field: "company_id", headerName: "Company", width: 150, editable: true, filter: "agTextColumnFilter",
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: {
+        values: companies.map(c => c.id),
+        valueListGap: 0,
+      },
+      refData: Object.fromEntries(companies.map(c => [c.id, c.display_name || c.name])),
+      filterValueGetter: (p: any) => p.data?.company_name || "",
+    },
     { field: "role", headerName: "Role", width: 130, editable: true, filter: "agSetColumnFilter" },
     { field: "department", headerName: "Department", width: 120, editable: true, filter: "agSetColumnFilter" },
     { field: "phone", headerName: "Phone", width: 120, editable: true },
@@ -264,7 +435,7 @@ export function MetadataView() {
     },
     { field: "linkedin_url", headerName: "LinkedIn", width: 180, editable: true, hide: true },
     { field: "notes", headerName: "Notes", width: 200, editable: true, hide: true },
-  ], []);
+  ], [companies]);
 
   const contactRows = useMemo(() => contacts.map(c => ({
     ...c,
@@ -529,7 +700,16 @@ export function MetadataView() {
                 {/* Company */}
                 {selectedCompany && (
                   <div>
-                    <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">{selectedCompany.display_name || selectedCompany.name}</h2>
+                    <div className="flex items-center gap-2 mb-3">
+                      <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedCompany.display_name || selectedCompany.name}</h2>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(selectedCompany.id); toast.success("Company ID copied"); }}
+                        className="font-mono text-[10px] text-zinc-300 dark:text-zinc-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors cursor-pointer"
+                        title={selectedCompany.id}
+                      >
+                        {selectedCompany.id.slice(0, 8)}
+                      </button>
+                    </div>
                     <FieldGrid fields={[
                       { label: "Name", field: "name", value: selectedCompany.name },
                       { label: "Display Name", field: "display_name", value: selectedCompany.display_name },
@@ -537,19 +717,45 @@ export function MetadataView() {
                       { label: "Website", field: "website", value: selectedCompany.website },
                       { label: "Stage", field: "stage", value: selectedCompany.stage, type: "select", options: COMPANY_STAGES.map(s => ({ value: s.value, label: s.label })) },
                       { label: "Domain ID", field: "domain_id", value: selectedCompany.domain_id },
-                      { label: "Folder", field: "client_folder_path", value: selectedCompany.client_folder_path },
+                      { label: "Email Domains", field: "email_domains", value: Array.isArray((selectedCompany as any).email_domains) ? (selectedCompany as any).email_domains.join(", ") : (selectedCompany as any).email_domains, type: "email_domains" as any },
+                      { label: "Client Folder", field: "client_folder_path", value: selectedCompany.client_folder_path, type: "folder_picker" },
+                      { label: "Deal Folder", field: "deal_folder_path", value: selectedCompany.deal_folder_path, type: "folder_picker" },
+                      { label: "Research Folder", field: "research_folder_path", value: selectedCompany.research_folder_path, type: "folder_picker" },
                       { label: "Notes", field: "notes", value: selectedCompany.notes, type: "textarea" },
-                    ]} onUpdate={(f, v) => updateEntity("crm_companies", selectedCompany.id, f, v)} />
+                    ]} onUpdate={(f, v) => updateEntity("crm_companies", selectedCompany.id, f, v)} companyId={selectedCompany.id} contacts={contacts} />
                     {/* Contacts */}
                     <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                       <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Contacts</h3>
-                      {contacts.filter(c => c.company_id === selectedCompany.id).map(c => (
-                        <div key={c.id} onClick={() => setSelection({ type: "contact", id: c.id })}
-                          className="flex items-center gap-1.5 text-xs text-zinc-600 hover:bg-zinc-50 rounded px-1 py-0.5 cursor-pointer">
-                          <User size={10} className="text-zinc-400" />{c.name}
-                          {c.is_primary && <span className="text-[8px] px-1 rounded bg-teal-50 text-teal-500">Primary</span>}
-                        </div>
-                      ))}
+                      {(() => {
+                        const engagedContactIds = new Set(activities.map(a => a.contact_id).filter(Boolean));
+                        const companyContacts = contacts.filter(c => c.company_id === selectedCompany.id);
+                        // Sort: engaged first, then primary, then alphabetical
+                        const sorted = [...companyContacts].sort((a, b) => {
+                          const aEngaged = engagedContactIds.has(a.id) ? 1 : 0;
+                          const bEngaged = engagedContactIds.has(b.id) ? 1 : 0;
+                          if (aEngaged !== bEngaged) return bEngaged - aEngaged;
+                          if (a.is_primary && !b.is_primary) return -1;
+                          if (!a.is_primary && b.is_primary) return 1;
+                          return a.name.localeCompare(b.name);
+                        });
+                        return sorted.map(c => {
+                          const engaged = engagedContactIds.has(c.id);
+                          const activityCount = activities.filter(a => a.contact_id === c.id).length;
+                          return (
+                            <div key={c.id} onClick={() => setSelection({ type: "contact", id: c.id })}
+                              className={`flex items-center gap-1.5 text-xs rounded px-1 py-0.5 cursor-pointer ${
+                                engaged
+                                  ? "text-zinc-800 dark:text-zinc-200 hover:bg-teal-50 dark:hover:bg-teal-950/20"
+                                  : "text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                              }`}>
+                              <User size={10} className={engaged ? "text-teal-500" : "text-zinc-300 dark:text-zinc-600"} />
+                              <span className={engaged ? "font-medium" : ""}>{c.name}</span>
+                              {c.is_primary && <span className="text-[8px] px-1 rounded bg-teal-50 dark:bg-teal-950/30 text-teal-500">Primary</span>}
+                              {engaged && <span className="text-[8px] px-1 rounded bg-blue-50 dark:bg-blue-950/30 text-blue-500">{activityCount} {activityCount === 1 ? "activity" : "activities"}</span>}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                     {/* Activities */}
                     {activities.length > 0 && (
@@ -575,7 +781,16 @@ export function MetadataView() {
                 {/* Contact */}
                 {selectedContact && (
                   <div>
-                    <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">{selectedContact.name}</h2>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedContact.name}</h2>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(selectedContact.id); toast.success("Contact ID copied"); }}
+                        className="font-mono text-[10px] text-zinc-300 dark:text-zinc-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors cursor-pointer"
+                        title={selectedContact.id}
+                      >
+                        {selectedContact.id.slice(0, 8)}
+                      </button>
+                    </div>
                     {selectedContact.role && <p className="text-[11px] text-zinc-500 mb-3">{selectedContact.role}</p>}
                     <FieldGrid fields={[
                       { label: "Name", field: "name", value: selectedContact.name },
@@ -587,7 +802,30 @@ export function MetadataView() {
                       { label: "Primary", field: "is_primary", value: selectedContact.is_primary ? "Yes" : "No", type: "select", options: [{ value: "true", label: "Yes" }, { value: "false", label: "No" }] },
                       { label: "Notes", field: "notes", value: selectedContact.notes, type: "textarea" },
                     ]} onUpdate={(f, v) => { updateEntity("crm_contacts", selectedContact.id, f, f === "is_primary" ? v === "true" : v); }} />
-                    <div className="mt-3 text-xs text-zinc-400">Company: <button onClick={() => setSelection({ type: "company", id: selectedContact.company_id })} className="text-teal-600 hover:underline">{companies.find(c => c.id === selectedContact.company_id)?.name || "?"}</button></div>
+                    <div className="mt-3 text-xs text-zinc-400 flex items-center gap-1">
+                      Company:
+                      <select
+                        value={selectedContact.company_id}
+                        onChange={(e) => updateEntity("crm_contacts", selectedContact.id, "company_id", e.target.value)}
+                        className="text-xs bg-transparent text-teal-600 dark:text-teal-400 border-none cursor-pointer hover:underline focus:outline-none"
+                      >
+                        {companies.map(c => (
+                          <option key={c.id} value={c.id}>{c.display_name || c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Activities */}
+                    {activities.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                        <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Activities</h3>
+                        {activities.slice(0, 8).map(a => (
+                          <div key={a.id} className="text-[11px] mb-1">
+                            <span className="text-[9px] px-1 rounded bg-zinc-100 text-zinc-500 mr-1">{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</span>
+                            {a.subject && <span className="text-zinc-600">{a.subject}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                       <button onClick={() => deleteEntity("crm_contacts", selectedContact.id, selectedContact.name)} className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700"><Trash2 size={11} /> Delete</button>
                     </div>

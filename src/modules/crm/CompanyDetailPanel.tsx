@@ -21,9 +21,12 @@ import {
   FolderOpen,
   Globe,
   MessageSquare,
+  Mail,
 } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
+import { EmailsPanel } from "../../components/emails/EmailsPanel";
+import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
 import { DetailLoading, DetailNotFound, DeleteConfirm, IconButton, Badge, Button } from "../../components/ui";
 import { toast } from "../../stores/toastStore";
 
@@ -34,7 +37,7 @@ interface CompanyDetailPanelProps {
   onCompanyDeleted?: () => void;
 }
 
-type TabId = "timeline" | "contacts" | "deals" | "discussion";
+type TabId = "timeline" | "contacts" | "deals" | "emails" | "discussion";
 
 export function CompanyDetailPanel({
   companyId,
@@ -51,22 +54,22 @@ export function CompanyDetailPanel({
   const { data: company, isLoading, refetch } = useCompanyWithRelations(companyId);
   const deleteMutation = useDeleteCompany();
   const { data: discussionCount } = useDiscussionCount("crm_company", companyId);
+  const { data: emailCount } = useLinkedEmailCount("company", companyId);
 
   // Report company + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<TabId, string> = { timeline: "Timeline", contacts: "Contacts", deals: "Deals", discussion: "Discussion" };
+    const tabLabels: Record<TabId, string> = { timeline: "Timeline", contacts: "Contacts", deals: "Deals", emails: "Emails", discussion: "Discussion" };
     const name = company?.display_name || company?.name;
     if (name) setViewDetail(`${name} → ${tabLabels[activeTab]}`);
   }, [company, activeTab, setViewDetail]);
   const openPanel = useSidePanelStore((s) => s.openPanel);
   const sidePanelOpen = useSidePanelStore((s) => s.isOpen);
 
-  // Open client folder in side panel
-  function handleOpenFolder() {
-    if (!company?.client_folder_path) return;
-    // If it's a file path, open it directly; if folder, open with picker
-    const path = company.client_folder_path;
+  // Open folder in side panel
+  function handleOpenFolder(field: "client_folder_path" | "deal_folder_path" | "research_folder_path") {
+    const path = company?.[field];
+    if (!path) return;
     const name = path.split("/").pop() || "Client Folder";
     // Check if it looks like a file (has extension) or folder
     const hasExtension = /\.[^/]+$/.test(path);
@@ -142,11 +145,21 @@ export function CompanyDetailPanel({
         </div>
 
         {/* Quick links */}
-        {(company.client_folder_path || company.domain_id || company.website) && (
+        {(company.client_folder_path || company.deal_folder_path || company.research_folder_path || company.domain_id || company.website) && (
           <div className="flex gap-2">
             {company.client_folder_path && (
-              <Button variant="link" size="sm" icon={FolderOpen} onClick={handleOpenFolder} className="text-xs py-1">
-                Folder
+              <Button variant="link" size="sm" icon={FolderOpen} onClick={() => handleOpenFolder("client_folder_path")} className="text-xs py-1">
+                Client
+              </Button>
+            )}
+            {company.deal_folder_path && (
+              <Button variant="link" size="sm" icon={FolderOpen} onClick={() => handleOpenFolder("deal_folder_path")} className="text-xs py-1">
+                Deal
+              </Button>
+            )}
+            {company.research_folder_path && (
+              <Button variant="link" size="sm" icon={FolderOpen} onClick={() => handleOpenFolder("research_folder_path")} className="text-xs py-1">
+                Research
               </Button>
             )}
             {company.domain_id && (
@@ -171,7 +184,7 @@ export function CompanyDetailPanel({
 
       {/* Tabs */}
       <div className="flex border-b border-zinc-200 dark:border-zinc-800">
-        {(["timeline", "contacts", "deals", "discussion"] as const).map((tab) => (
+        {(["timeline", "contacts", "deals", "emails", "discussion"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -188,6 +201,16 @@ export function CompanyDetailPanel({
                 {(discussionCount ?? 0) > 0 && (
                   <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
                     {discussionCount}
+                  </span>
+                )}
+              </>
+            ) : tab === "emails" ? (
+              <>
+                <Mail size={13} />
+                Emails
+                {(emailCount ?? 0) > 0 && (
+                  <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
+                    {emailCount}
                   </span>
                 )}
               </>
@@ -252,6 +275,9 @@ export function CompanyDetailPanel({
               )}
             </div>
           </div>
+        )}
+        {activeTab === "emails" && (
+          <EmailsPanel entityType="company" entityId={companyId} />
         )}
         {activeTab === "discussion" && (
           <DiscussionPanel

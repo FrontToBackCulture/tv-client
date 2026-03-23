@@ -118,12 +118,17 @@ pub async fn outlook_send_email(
 // ============================================================================
 
 #[tauri::command]
-pub async fn outlook_sync_start(app_handle: tauri::AppHandle) -> CmdResult<i64> {
-    eprintln!("[outlook] sync_start called");
+pub async fn outlook_sync_start(app_handle: tauri::AppHandle, months: Option<i64>) -> CmdResult<i64> {
+    eprintln!("[outlook] sync_start called, months={:?}", months);
     let db = EmailDb::open().map_err(|e| {
         eprintln!("[outlook] Failed to open DB: {}", e);
         e
     })?;
+
+    // Store sync months preference
+    if let Some(m) = months {
+        let _ = db.set_sync_state("sync_months", &m.to_string());
+    }
 
     let initial_done = db
         .get_sync_state("initial_sync_done")?
@@ -135,7 +140,7 @@ pub async fn outlook_sync_start(app_handle: tauri::AppHandle) -> CmdResult<i64> 
     let result = if initial_done {
         sync::run_incremental_sync(&db, &app_handle).await
     } else {
-        sync::run_initial_sync(&db, &app_handle).await
+        sync::run_initial_sync(&db, &app_handle, months.unwrap_or(6)).await
     };
 
     match &result {
@@ -174,6 +179,20 @@ pub async fn outlook_get_folders() -> CmdResult<Vec<EmailFolder>> {
             unread_count: f.unread_item_count.unwrap_or(0),
         })
         .collect())
+}
+
+// ============================================================================
+// Email scan (matches local SQLite emails against CRM domains/contacts)
+// ============================================================================
+
+#[tauri::command]
+pub async fn outlook_scan_emails(
+    domains: Vec<String>,
+    contact_emails: Vec<String>,
+    since: Option<String>,
+) -> CmdResult<Vec<super::types::EmailScanCandidate>> {
+    let db = EmailDb::open()?;
+    db.scan_emails_for_entity(&domains, &contact_emails, since.as_deref())
 }
 
 #[tauri::command]

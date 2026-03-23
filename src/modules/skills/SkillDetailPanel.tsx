@@ -6,7 +6,7 @@ import {
   X, FileText, FolderOpen, ArrowDownToLine, ArrowUpFromLine,
   CheckCircle2, AlertTriangle, Circle, Loader2, ExternalLink,
   Send, Bot, Boxes, ChevronDown,
-  Tag, Terminal, Globe, PenTool, Eye, Copy, GitBranch,
+  Tag, Terminal, Globe, PenTool, Eye, Copy, GitBranch, History,
 } from "lucide-react";
 import { Button, IconButton } from "../../components/ui";
 import { SectionLoading } from "../../components/ui/DetailStates";
@@ -25,6 +25,7 @@ import {
   useSkillListBots,
 } from "./useSkillRegistry";
 import { useUpdateSkill } from "../../hooks/skills/useSkills";
+import { useSkillActivityLog } from "../../hooks/skills/useSkillActivity";
 import { SKILL_STATUS_CONFIG, type SkillStatus } from "../../playground/botPlaygroundTypes";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -53,8 +54,10 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
   const skillPath = paths ? `${paths.skills}/${slug}` : undefined;
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showDistPanel, setShowDistPanel] = useState(false);
+  const [showActivityView, setShowActivityView] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState(false);
   const updateSkill = useUpdateSkill();
+  const { data: activityLog, isLoading: activityLoading } = useSkillActivityLog(showActivityView ? slug : undefined);
 
   // Read recursive file tree
   const { data: tree } = useFileTree(skillPath, 3);
@@ -196,6 +199,12 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
               onClick={() => setShowDistPanel(!showDistPanel)}
               className={showDistPanel ? "text-teal-600 bg-teal-50 dark:bg-teal-900/30" : ""}
             />
+            <IconButton
+              icon={History}
+              label="Activity log"
+              onClick={() => setShowActivityView(!showActivityView)}
+              className={showActivityView ? "text-teal-600 bg-teal-50 dark:bg-teal-900/30" : ""}
+            />
             {onOpenFile && selectedPath && (
               <IconButton icon={ExternalLink} label="Open in editor" onClick={() => onOpenFile(selectedPath)} />
             )}
@@ -229,83 +238,91 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
         </div>
       )}
 
-      {/* ── Body: tree sidebar + content pane ── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: file tree */}
-        <div
-          className="flex-shrink-0 overflow-y-auto border-r border-zinc-100 dark:border-zinc-800/50 py-1"
-          style={{ width: sidebarWidth }}
-        >
-          {tree?.children ? (
-            tree.children.map((node) => (
-              <FileTreeRow
-                key={node.path}
-                node={node}
-                depth={0}
-                skillPath={skillPath}
-                selectedPath={selectedPath ?? undefined}
-                onSelect={(file) => setSelectedPath(file.path)}
-              />
-            ))
-          ) : (
-            <SectionLoading className="py-4" />
-          )}
+      {/* ── Body ── */}
+      {showActivityView ? (
+        /* ── Activity log view (replaces file tree + content) ── */
+        <div className="flex-1 overflow-auto">
+          <ActivityView activities={activityLog ?? []} isLoading={activityLoading} />
         </div>
-
-        {/* Resize handle */}
-        <div
-          onPointerDown={handleResizePointerDown}
-          className="w-1.5 flex-shrink-0 cursor-col-resize hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
-        />
-
-        {/* Right: content viewer */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          {/* Breadcrumb bar */}
-          {selectedNode && (
-            <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30">
-              <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate">
-                {selectedRelPath}
-              </span>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {onOpenFile && selectedPath && (
-                  <>
-                    <IconButton icon={Eye} label="Preview" size={14} onClick={() => {}} className="text-zinc-400" />
-                    <IconButton icon={PenTool} label="Edit" size={14} onClick={() => onOpenFile(selectedPath)} className="text-zinc-400" />
-                    <IconButton
-                      icon={Copy}
-                      label="Copy path"
-                      size={14}
-                      onClick={() => navigator.clipboard.writeText(selectedPath)}
-                      className="text-zinc-400"
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Content area */}
-          <div className="flex-1 overflow-auto">
-            {!selectedNode && (
-              <div className="h-full flex items-center justify-center text-xs text-zinc-400">
-                Select a file to preview
-              </div>
-            )}
-
-            {selectedNode && !fileContent && (
-              <SectionLoading className="py-6" />
-            )}
-
-            {selectedNode && fileContent && (
-              <FileContentViewer
-                node={selectedNode}
-                content={fileContent}
-                basePath={skillPath}
-              />
+      ) : (
+        /* ── File tree + content pane ── */
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left: file tree */}
+          <div
+            className="flex-shrink-0 overflow-y-auto border-r border-zinc-100 dark:border-zinc-800/50 py-1"
+            style={{ width: sidebarWidth }}
+          >
+            {tree?.children ? (
+              tree.children.map((node) => (
+                <FileTreeRow
+                  key={node.path}
+                  node={node}
+                  depth={0}
+                  skillPath={skillPath}
+                  selectedPath={selectedPath ?? undefined}
+                  onSelect={(file) => setSelectedPath(file.path)}
+                />
+              ))
+            ) : (
+              <SectionLoading className="py-4" />
             )}
           </div>
+
+          {/* Resize handle */}
+          <div
+            onPointerDown={handleResizePointerDown}
+            className="w-1.5 flex-shrink-0 cursor-col-resize hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
+          />
+
+          {/* Right: content viewer */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            {/* Breadcrumb bar */}
+            {selectedNode && (
+              <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30">
+                <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate">
+                  {selectedRelPath}
+                </span>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {onOpenFile && selectedPath && (
+                    <>
+                      <IconButton icon={Eye} label="Preview" size={14} onClick={() => {}} className="text-zinc-400" />
+                      <IconButton icon={PenTool} label="Edit" size={14} onClick={() => onOpenFile(selectedPath)} className="text-zinc-400" />
+                      <IconButton
+                        icon={Copy}
+                        label="Copy path"
+                        size={14}
+                        onClick={() => navigator.clipboard.writeText(selectedPath)}
+                        className="text-zinc-400"
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Content area */}
+            <div className="flex-1 overflow-auto flex flex-col">
+              {!selectedNode && (
+                <div className="h-full flex items-center justify-center text-xs text-zinc-400">
+                  Select a file to preview
+                </div>
+              )}
+
+              {selectedNode && !fileContent && (
+                <SectionLoading className="py-6" />
+              )}
+
+              {selectedNode && fileContent && (
+                <FileContentViewer
+                  node={selectedNode}
+                  content={fileContent}
+                  basePath={skillPath}
+                />
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -329,13 +346,18 @@ function FileContentViewer({ node, content, basePath }: {
     return overrideStyle + content;
   }, [content, name]);
 
-  const [iframeHeight, setIframeHeight] = useState(500);
+  const [iframeHeight, setIframeHeight] = useState<number | undefined>(undefined);
   const iframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
     if (!iframe) return;
     const handleLoad = () => {
       try {
         const doc = iframe.contentDocument;
-        if (doc?.body) setIframeHeight(doc.body.scrollHeight + 20);
+        if (doc?.body) {
+          const h = doc.body.scrollHeight + 20;
+          // Only set explicit height if content is taller than a reasonable min
+          // (pages using 100vh will report the iframe viewport height — keep them flex-filled)
+          if (h > 600) setIframeHeight(h);
+        }
       } catch { /* cross-origin safety */ }
     };
     iframe.addEventListener("load", handleLoad);
@@ -346,10 +368,10 @@ function FileContentViewer({ node, content, basePath }: {
       <iframe
         ref={iframeRef}
         srcDoc={iframeSrcDoc}
-        className="w-full border-0"
+        className="w-full border-0 flex-1"
         sandbox="allow-same-origin allow-scripts"
         title={name}
-        style={{ height: iframeHeight }}
+        style={iframeHeight ? { height: iframeHeight, flex: "none" } : { minHeight: 500 }}
       />
     );
   }
@@ -645,6 +667,122 @@ function DistributeMenu({
         {bots.length === 0 && <p className="px-3 py-2 text-xs text-zinc-400">No bots found</p>}
       </div>
     </>
+  );
+}
+
+// ─── Activity View ───────────────────────────────────────────────────────────
+
+interface ActivityEntry {
+  id: string;
+  file_path: string;
+  action: string;
+  actor: string | null;
+  machine: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  created_at: string;
+}
+
+function ActivityView({ activities, isLoading }: { activities: ActivityEntry[]; isLoading: boolean }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  if (isLoading) return <SectionLoading className="py-6" />;
+
+  if (activities.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-xs text-zinc-400">
+        No changes recorded yet
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+      {activities.map((a) => {
+        const d = new Date(a.created_at);
+        const timeStr = d.toLocaleDateString("en-SG", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", hour12: false });
+        const isExpanded = expandedId === a.id;
+        const hasDiff = a.old_value || a.new_value;
+        const actionColor = a.action === "create"
+          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+          : "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+
+        return (
+          <div key={a.id}>
+            <button
+              onClick={() => hasDiff && setExpandedId(isExpanded ? null : a.id)}
+              className={cn(
+                "w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors",
+                hasDiff ? "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer" : "cursor-default",
+              )}
+            >
+              <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0", actionColor)}>
+                {a.action}
+              </span>
+              <span className="text-xs text-zinc-600 dark:text-zinc-400 font-mono truncate flex-1" title={a.file_path}>
+                {a.file_path}
+              </span>
+              <span className="text-xs text-zinc-400 flex-shrink-0">{a.actor ?? "unknown"}</span>
+              <span className="text-[11px] text-zinc-300 dark:text-zinc-600 flex-shrink-0 tabular-nums">{timeStr}</span>
+              {hasDiff && (
+                <ChevronDown size={12} className={cn("text-zinc-400 flex-shrink-0 transition-transform", isExpanded && "rotate-180")} />
+              )}
+            </button>
+
+            {isExpanded && hasDiff && (
+              <div className="px-4 pb-3">
+                <DiffView oldValue={a.old_value} newValue={a.new_value} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DiffView({ oldValue, newValue }: { oldValue: string | null; newValue: string | null }) {
+  const oldLines = (oldValue ?? "").split("\n");
+  const newLines = (newValue ?? "").split("\n");
+  const maxLines = Math.max(oldLines.length, newLines.length);
+
+  return (
+    <div className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden text-xs font-mono">
+      {/* Header */}
+      <div className="flex border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
+        <div className="flex-1 px-2 py-1 text-zinc-500 font-medium border-r border-zinc-200 dark:border-zinc-700">Removed</div>
+        <div className="flex-1 px-2 py-1 text-zinc-500 font-medium">Added</div>
+      </div>
+      {/* Side-by-side lines */}
+      <div className="flex">
+        {/* Left: old */}
+        <div className="flex-1 min-w-0 border-r border-zinc-200 dark:border-zinc-700">
+          {Array.from({ length: maxLines }, (_, i) => {
+            const line = oldLines[i];
+            const hasLine = i < oldLines.length && oldValue;
+            return (
+              <div key={`old-${i}`} className={cn("flex min-h-[20px]", hasLine ? "bg-red-50/60 dark:bg-red-900/10" : "")}>
+                <span className="w-6 flex-shrink-0 text-right pr-1 text-red-300 dark:text-red-700 select-none border-r border-zinc-200 dark:border-zinc-700 bg-red-50/40 dark:bg-red-900/15">{hasLine ? "−" : ""}</span>
+                <span className="px-2 py-px text-red-700 dark:text-red-400 whitespace-pre-wrap break-all">{line ?? ""}</span>
+              </div>
+            );
+          })}
+        </div>
+        {/* Right: new */}
+        <div className="flex-1 min-w-0">
+          {Array.from({ length: maxLines }, (_, i) => {
+            const line = newLines[i];
+            const hasLine = i < newLines.length && newValue;
+            return (
+              <div key={`new-${i}`} className={cn("flex min-h-[20px]", hasLine ? "bg-emerald-50/60 dark:bg-emerald-900/10" : "")}>
+                <span className="w-6 flex-shrink-0 text-right pr-1 text-emerald-300 dark:text-emerald-700 select-none border-r border-zinc-200 dark:border-zinc-700 bg-emerald-50/40 dark:bg-emerald-900/15">{hasLine ? "+" : ""}</span>
+                <span className="px-2 py-px text-emerald-700 dark:text-emerald-400 whitespace-pre-wrap break-all">{line ?? ""}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 

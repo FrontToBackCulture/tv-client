@@ -90,10 +90,10 @@ export function useCreateActivity() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: crmKeys.activities() });
       queryClient.invalidateQueries({
-        queryKey: crmKeys.activitiesByCompany(data.company_id),
+        queryKey: crmKeys.activitiesByCompany(data.company_id || ""),
       });
       queryClient.invalidateQueries({
-        queryKey: crmKeys.company(data.company_id),
+        queryKey: crmKeys.company(data.company_id || ""),
       });
     },
   });

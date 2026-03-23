@@ -32,8 +32,10 @@ interface InboxSidebarProps {
     actionRequired: number;
     byCategory: Record<string, number>;
   };
-  onRefresh?: () => void;
+  onRefresh?: (months?: number) => void;
   isRefreshing?: boolean;
+  syncMonths?: number;
+  onSyncMonthsChange?: (months: number) => void;
 }
 
 export function InboxSidebar({
@@ -46,6 +48,8 @@ export function InboxSidebar({
   stats,
   onRefresh,
   isRefreshing,
+  syncMonths = 3,
+  onSyncMonthsChange,
 }: InboxSidebarProps) {
   const folders = [
     { id: "Inbox", icon: Inbox, count: stats.inbox },
@@ -68,17 +72,31 @@ export function InboxSidebar({
       <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">Inbox</h2>
-          {onRefresh && (
-            <IconButton
-              icon={RefreshCw}
-              size={14}
-              label="Refresh emails"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              data-help-id="inbox-refresh"
-              className={isRefreshing ? "[&>svg]:animate-spin" : ""}
-            />
-          )}
+          <div className="flex items-center gap-1">
+            <select
+              value={syncMonths}
+              onChange={(e) => onSyncMonthsChange?.(parseInt(e.target.value))}
+              className="text-[10px] pl-1.5 pr-0.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 appearance-none cursor-pointer hover:border-teal-400 dark:hover:border-teal-600 transition-colors"
+              title="Sync period"
+            >
+              <option value={1}>1m</option>
+              <option value={3}>3m</option>
+              <option value={6}>6m</option>
+              <option value={12}>1y</option>
+              <option value={24}>2y</option>
+            </select>
+            {onRefresh && (
+              <IconButton
+                icon={RefreshCw}
+                size={14}
+                label="Sync emails"
+                onClick={() => onRefresh(syncMonths)}
+                disabled={isRefreshing}
+                data-help-id="inbox-refresh"
+                className={isRefreshing ? "[&>svg]:animate-spin" : ""}
+              />
+            )}
+          </div>
         </div>
         {stats.unread > 0 && (
           <p className="text-xs text-zinc-500 mt-1">{stats.unread} unread</p>

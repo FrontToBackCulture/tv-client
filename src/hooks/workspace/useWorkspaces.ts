@@ -91,7 +91,7 @@ export function useWorkspace(id: string | null) {
       // Fetch project with company join
       const { data: project, error } = await supabase
         .from("projects")
-        .select("*, company:crm_companies(id, name, display_name, stage)")
+        .select("*, company:crm_companies(id, name, display_name, stage, referred_by)")
         .eq("id", id)
         .single();
 
@@ -120,7 +120,10 @@ export function useWorkspace(id: string | null) {
       // Map project to workspace shape, preserving project-level metadata
       return {
         id: project.id,
-        title: project.name,
+        raw_name: project.name,
+        title: project.project_type === "deal" && project.company?.name
+          ? `${(project.company as any).display_name || project.company.name} — ${project.name}`
+          : project.name,
         description: project.description,
         status: projectToWsStatus[project.status || "planned"] || "open",
         owner: project.owner || "",

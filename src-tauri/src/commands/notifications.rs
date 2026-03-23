@@ -18,6 +18,7 @@ pub struct Notification {
     pub created_at: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateNotification {
     pub recipient: String,
@@ -80,7 +81,7 @@ pub async fn notifications_mark_read(id: String) -> CmdResult<()> {
 /// Mark all notifications as read for a recipient
 #[tauri::command]
 pub async fn notifications_mark_all_read(recipient: String) -> CmdResult<()> {
-    let client = get_client().await?;
+    let _client = get_client().await?;
 
     let query = format!("recipient=eq.{}&read=eq.false", recipient);
     let update = serde_json::json!({ "read": true });

@@ -9,6 +9,7 @@ import type {
   TaskWithRelations,
 } from "../../lib/work/types";
 import { workKeys } from "./keys";
+import { toast } from "../../stores/toastStore";
 
 export function useTasks(projectId: string | null) {
   return useQuery({
@@ -23,11 +24,11 @@ export function useTasks(projectId: string | null) {
           *,
           status:task_statuses(*),
           labels:task_labels(label:labels(*)),
-          project:projects(identifier_prefix, name, color),
+          project:projects(identifier_prefix, name, color, project_type),
           milestone:milestones(*),
           assignee:users!tasks_assignee_id_fkey(*),
           creator:users!tasks_created_by_fkey(*),
-          company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage),
+          company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage, referred_by),
           contact:crm_contacts!tasks_contact_id_fkey(id, name, email)
         `
         )
@@ -58,10 +59,12 @@ export function useAllTasks() {
             *,
             status:task_statuses(*),
             labels:task_labels(label:labels(*)),
-            project:projects(identifier_prefix, name, color),
+            project:projects(identifier_prefix, name, color, project_type),
             milestone:milestones(*),
             assignee:users!tasks_assignee_id_fkey(*),
-            creator:users!tasks_created_by_fkey(*)
+            creator:users!tasks_created_by_fkey(*),
+            company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage, referred_by),
+            contact:crm_contacts!tasks_contact_id_fkey(id, name, email)
           `
           )
           .order("updated_at", { ascending: false })
@@ -93,11 +96,11 @@ export function useTask(id: string | null) {
           status:task_statuses(*),
           labels:task_labels(label:labels(*)),
           activity:task_activity(*),
-          project:projects(identifier_prefix, name, color),
+          project:projects(identifier_prefix, name, color, project_type),
           milestone:milestones(*),
           assignee:users!tasks_assignee_id_fkey(*),
           creator:users!tasks_created_by_fkey(*),
-          company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage),
+          company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage, referred_by),
           contact:crm_contacts!tasks_contact_id_fkey(id, name, email)
         `
         )
@@ -204,13 +207,6 @@ export function useUpdateTask() {
       id: string;
       updates: TaskUpdate;
     }): Promise<Task> => {
-      // Fetch current values for changed fields (for activity log)
-      const { data: current } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("id", id)
-        .single();
-
       const { data, error } = await supabase
         .from("tasks")
         .update(updates)
@@ -220,50 +216,43 @@ export function useUpdateTask() {
 
       if (error) throw new Error(`Failed to update task: ${error.message}`);
 
-      // Log activity for each changed field (fire-and-forget)
-      if (current) {
-        const activities = Object.entries(updates)
-          .filter(([field, value]) => {
-            const label = FIELD_LABELS[field];
-            if (label === "") return false; // explicitly skipped
-            return current[field] !== value;
-          })
-          .map(([field, value]) => ({
-            task_id: id,
-            action: `Changed ${FIELD_LABELS[field] || field}`,
-            old_value: current[field] ?? null,
-            new_value: value ?? null,
-          }));
-
-        if (activities.length > 0) {
-          supabase.from("task_activity").insert(activities).then();
-        }
+      // Log activity (fire-and-forget, non-blocking)
+      const activities = Object.entries(updates)
+        .filter(([field]) => {
+          const label = FIELD_LABELS[field];
+          return label !== "" && label !== undefined;
+        })
+        .map(([field, value]) => ({
+          task_id: id,
+          action: `Changed ${FIELD_LABELS[field] || field}`,
+          new_value: value ?? null,
+        }));
+      if (activities.length > 0) {
+        supabase.from("task_activity").insert(activities).then();
       }
 
       return data;
     },
-    // Optimistic update: patch all task caches (all-tasks + per-project) immediately
-    onMutate: async ({ id, updates }) => {
-      // Cancel any outgoing refetches so they don't overwrite our optimistic update
-      await queryClient.cancelQueries({ queryKey: workKeys.tasks() });
+    onMutate: ({ id, updates }) => {
+      // Synchronous — no await, instant optimistic update
+      queryClient.cancelQueries({ queryKey: workKeys.tasks() });
 
       const patcher = (old: TaskWithRelations[] | undefined) =>
-        old?.map(t => t.id === id ? { ...t, ...updates } as TaskWithRelations : t);
+        Array.isArray(old) ? old.map(t => t.id === id ? { ...t, ...updates } as TaskWithRelations : t) : old;
 
-      // Patch ALL task list caches (matches ["work","tasks"], ["work","tasks","project",id], etc.)
       queryClient.setQueriesData<TaskWithRelations[]>(
         { queryKey: workKeys.tasks() },
         patcher,
       );
     },
     onSuccess: (data) => {
-      // Invalidate the single-task detail cache (refetch so detail panel is fresh)
+      toast.success("Saved");
       queryClient.invalidateQueries({ queryKey: workKeys.task(data.id) });
-      // Mark all task-list caches as stale but don't refetch immediately — optimistic update is in place
-      queryClient.invalidateQueries({ queryKey: workKeys.tasks(), refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: workKeys.tasks() });
     },
-    onError: () => {
-      // On error, refetch to restore correct state
+    onError: (err) => {
+      toast.error(`Failed to update task: ${err.message}`);
+      // Refetch to restore correct state
       queryClient.invalidateQueries({ queryKey: workKeys.tasks() });
     },
   });

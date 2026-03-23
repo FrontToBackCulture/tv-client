@@ -25,14 +25,14 @@ export function FormModal({
   isSaving,
   error,
   children,
-  maxWidth = "max-w-lg",
+  maxWidth = "max-w-xl",
 }: FormModalProps) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
       <div
-        className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl w-full ${maxWidth} max-h-[90vh] overflow-hidden animate-modal-in`}
+        className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-hidden animate-modal-in`}
       >
-        <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
             {title}
           </h2>
@@ -41,13 +41,13 @@ export function FormModal({
 
         <form
           onSubmit={onSubmit}
-          className="p-4 space-y-4 overflow-y-auto max-h-[calc(90vh-130px)]"
+          className="px-5 py-5 space-y-5 overflow-y-auto max-h-[calc(90vh-130px)]"
         >
           {error && <FormError message={error} />}
           {children}
         </form>
 
-        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-2">
+        <div className="px-5 py-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-3">
           <Button variant="ghost" size="md" onClick={onClose} type="button">
             Cancel
           </Button>

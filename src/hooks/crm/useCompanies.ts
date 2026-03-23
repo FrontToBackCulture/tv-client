@@ -95,7 +95,7 @@ export function useCompanyWithRelations(id: string | null) {
           contactsQuery.data?.[0] ||
           null,
         activeDealCount:
-          dealsQuery.data?.filter((d) => !["won", "lost"].includes(d.stage))
+          dealsQuery.data?.filter((d) => !["won", "lost"].includes(d.stage || ""))
             .length || 0,
         totalDealValue:
           dealsQuery.data

@@ -27,7 +27,7 @@ export function ActivityForm({
 }: ActivityFormProps) {
   const [formData, setFormData] = useState<ActivityInsert>({
     company_id: companyId,
-    deal_id: dealId || null,
+    project_id: dealId || null,
     contact_id: contactId || null,
     type: initialType,
     subject: "",

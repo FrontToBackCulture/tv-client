@@ -1,6 +1,6 @@
 // src/modules/skills/SkillReviewGrid.tsx
 // AG Grid Enterprise review table for skill audit tracking
-// Data source: Supabase `skills` table + `report_skill_library` table
+// Data source: Supabase `skills` table + `skill_library` table
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { AgGridReact } from "ag-grid-react";
@@ -47,10 +47,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { useSkillInit, useSkillExamples } from "./useSkillRegistry";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSkills, useUpdateSkill } from "../../hooks/skills/useSkills";
+import { useSkillActivitySummaries } from "../../hooks/skills/useSkillActivity";
 import { supabase } from "../../lib/supabase";
-import { useReportSkillMap, useUpsertReportSkill } from "../../hooks/gallery/useReportSkills";
-import type { ReportSkill } from "../../lib/gallery/types";
+import { useSkillLibraryMap } from "../../hooks/gallery/useSkillLibrary";
 import type { Skill } from "../../hooks/skills/types";
+import { useSkillTypesStore } from "../../stores/skillTypesStore";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
@@ -67,6 +68,7 @@ interface SkillReviewRow {
   description: string;
   category: string;
   subcategory: string;
+  skillType: string;
   target: string;
   status: string;
   domain: string;
@@ -82,20 +84,14 @@ interface SkillReviewRow {
   demoUploaded: boolean;
   demoUrl: string;
   hasCards: boolean;
-  // Website library fields (from Supabase report_skill_library)
-  webTitle: string;
-  webDescription: string;
-  webWriteup: string;
-  webSolution: string;
-  webCategory: string;
-  webSubcategory: string;
-  webMetrics: string;
-  webSources: string;
-  webPublished: boolean;
-  webFeatured: boolean;
-  // Internal: Supabase entry ref
-  _webSkillSlug: string;
-  _webFileName: string;
+  // Website library summary (from Supabase skill_library)
+  webEntries: number;
+  webPublished: number;
+  webFeatured: number;
+  // Activity tracking (from skill_activity table)
+  lastChanged: string;
+  lastChangedBy: string;
+  changeCount: number;
 }
 
 
@@ -194,6 +190,25 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
       width: 130,
       filter: "agSetColumnFilter",
       editable: true,
+    },
+    {
+      field: "skillType",
+      headerName: "Skill Type",
+      width: 110,
+      filter: "agSetColumnFilter",
+      editable: true,
+      cellEditor: "agTextCellEditor",
+      cellRenderer: (params: { value: string }) => {
+        if (!params.value) return null;
+        const types = useSkillTypesStore.getState().types;
+        const match = types.find((t) => t.value === params.value);
+        const color = match?.color ?? "bg-gray-500 text-white";
+        return (
+          <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", color)}>
+            {params.value}
+          </span>
+        );
+      },
     },
     {
       field: "target",
@@ -312,6 +327,44 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
       enableRowGroup: true,
     },
     {
+      field: "lastChanged",
+      headerName: "Last Changed",
+      width: 130,
+      filter: "agTextColumnFilter",
+      cellRenderer: (params: { value: string }) => {
+        if (!params.value) return <span className="text-zinc-300 text-xs">—</span>;
+        const d = new Date(params.value);
+        const now = Date.now();
+        const diffMs = now - d.getTime();
+        const diffDays = Math.floor(diffMs / 86400000);
+        let label: string;
+        if (diffDays === 0) label = "today";
+        else if (diffDays === 1) label = "yesterday";
+        else if (diffDays < 7) label = `${diffDays}d ago`;
+        else label = d.toISOString().slice(0, 10);
+        const color = diffDays <= 1 ? "text-teal-600 dark:text-teal-400" : diffDays <= 7 ? "text-zinc-600 dark:text-zinc-400" : "text-zinc-400 dark:text-zinc-500";
+        return <span className={`text-xs ${color}`}>{label}</span>;
+      },
+    },
+    {
+      field: "lastChangedBy",
+      headerName: "Changed By",
+      width: 110,
+      filter: "agSetColumnFilter",
+      cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
+      enableRowGroup: true,
+    },
+    {
+      field: "changeCount",
+      headerName: "Changes",
+      width: 80,
+      filter: "agNumberColumnFilter",
+      cellRenderer: (params: { value: number }) => {
+        if (!params.value) return <span className="text-zinc-300 text-xs">—</span>;
+        return <span className="text-xs text-zinc-500">{params.value}</span>;
+      },
+    },
+    {
       field: "hasDemo",
       headerName: "Demo",
       width: 75,
@@ -407,115 +460,38 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
           : <span className="text-zinc-400 text-xs">No</span>;
       },
     },
-    // ── Website Library columns ──
+    // ── Website Library summary ──
     {
       headerName: "WEBSITE",
       children: [
         {
-          field: "webTitle",
-          headerName: "Web Title",
-          width: 180,
-          filter: "agTextColumnFilter",
-          editable: true,
-          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-          enableRowGroup: false,
-        },
-        {
-          field: "webDescription",
-          headerName: "Web Description",
-          minWidth: 200,
-          flex: 1,
-          filter: "agTextColumnFilter",
-          editable: true,
-          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-          enableRowGroup: false,
-          wrapText: wrapNotes,
-          autoHeight: wrapNotes,
-        },
-        {
-          field: "webWriteup",
-          headerName: "Web Writeup",
-          minWidth: 200,
-          flex: 1,
-          filter: "agTextColumnFilter",
-          editable: true,
-          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-          enableRowGroup: false,
-          wrapText: wrapNotes,
-          autoHeight: wrapNotes,
-        },
-        {
-          field: "webSolution",
-          headerName: "Solution",
-          width: 130,
-          filter: "agSetColumnFilter",
-          editable: true,
-          cellEditor: "agSelectCellEditor",
-          cellEditorParams: { values: ["analytics", "ar-automation", "ap-automation"] },
-          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-        },
-        {
-          field: "webCategory",
-          headerName: "Web Category",
-          width: 120,
-          filter: "agSetColumnFilter",
-          editable: true,
-          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-        },
-        {
-          field: "webSubcategory",
-          headerName: "Web Subcategory",
-          width: 120,
-          filter: "agSetColumnFilter",
-          editable: true,
-          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-        },
-        {
-          field: "webMetrics",
-          headerName: "Metrics",
-          width: 200,
-          filter: "agTextColumnFilter",
-          editable: true,
-          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-          enableRowGroup: false,
-        },
-        {
-          field: "webSources",
-          headerName: "Sources",
-          width: 200,
-          filter: "agTextColumnFilter",
-          editable: true,
-          cellClass: "text-xs text-zinc-600 dark:text-zinc-400",
-          enableRowGroup: false,
+          field: "webEntries",
+          headerName: "Entries",
+          width: 80,
+          filter: "agNumberColumnFilter",
+          cellRenderer: (params: { value: number }) => {
+            if (!params.value) return <span className="text-zinc-300 text-xs">—</span>;
+            return <span className="text-xs font-medium">{params.value}</span>;
+          },
         },
         {
           field: "webPublished",
           headerName: "Published",
           width: 90,
-          filter: "agSetColumnFilter",
-          editable: true,
-          cellEditor: "agSelectCellEditor",
-          cellEditorParams: { values: [true, false] },
-          cellRenderer: (params: { value: boolean }) => {
-            if (params.value === undefined || params.value === null) return <span className="text-zinc-300 text-xs">—</span>;
-            return params.value
-              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">Live</span>
-              : <span className="text-zinc-400 text-xs">No</span>;
+          filter: "agNumberColumnFilter",
+          cellRenderer: (params: { value: number }) => {
+            if (!params.value) return <span className="text-zinc-300 text-xs">—</span>;
+            return <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">{params.value} live</span>;
           },
         },
         {
           field: "webFeatured",
           headerName: "Featured",
           width: 90,
-          filter: "agSetColumnFilter",
-          editable: true,
-          cellEditor: "agSelectCellEditor",
-          cellEditorParams: { values: [true, false] },
-          cellRenderer: (params: { value: boolean }) => {
-            if (params.value === undefined || params.value === null) return <span className="text-zinc-300 text-xs">—</span>;
-            return params.value
-              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Yes</span>
-              : <span className="text-zinc-400 text-xs">No</span>;
+          filter: "agNumberColumnFilter",
+          cellRenderer: (params: { value: number }) => {
+            if (!params.value) return <span className="text-zinc-300 text-xs">—</span>;
+            return <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{params.value}</span>;
           },
         },
       ],
@@ -560,22 +536,25 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
     },
     staleTime: 60_000,
   });
-  const { data: reportSkillMap } = useReportSkillMap();
-  const upsertReportSkill = useUpsertReportSkill();
+  const { data: reportSkillMap } = useSkillLibraryMap();
   const { data: skillExamples } = useSkillExamples();
+  const { data: activitySummaries } = useSkillActivitySummaries();
 
   const [quickFilter, setQuickFilter] = useState("");
   const [hideDeleted, setHideDeleted] = useState(true);
+  const [hideDraft, setHideDraft] = useState(true);
+  const [typeFilter, setTypeFilter] = useState<"all" | "report" | "diagnostic" | "chat">("all");
   const [wrapNotes, setWrapNotes] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
 
   const handleSkillInit = useCallback(async () => {
+    const syncId = toast.loading("Step 1/5 — Scanning filesystem...");
     try {
       // Step 1: Scan filesystem — returns skills data directly (no file write)
       const result = await skillInit.mutateAsync(undefined);
-      toast.info(`Filesystem scanned: ${result.skills_created} skills found. Pushing to database...`);
+      toast.update(syncId, { message: `Step 2/5 — Pushing ${result.skills_created} skills to database...` });
 
       // Step 2: Push scanned skills to Supabase (only filesystem-derived fields)
       const rows = Object.entries(result.skills as Record<string, {
@@ -599,6 +578,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
       if (upsertError) throw new Error(`Failed to bulk upsert skills: ${upsertError.message}`);
 
       // Step 3: Mark DB skills not found on filesystem as "deleted", restore found ones
+      toast.update(syncId, { message: "Step 3/5 — Cleaning up deleted skills..." });
       const filesystemSlugs = new Set(rows.map((r) => r.slug));
       const { data: allDbSkills } = await supabase
         .from("skills")
@@ -622,13 +602,34 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
           if (error) console.error(`[Sync] Failed to restore ${s.slug}:`, error);
         }
 
-        if (toDelete.length) toast.info(`${toDelete.length} skill(s) marked as deleted (not found on filesystem)`);
-        if (toRestore.length) toast.info(`${toRestore.length} skill(s) restored to active`);
+        if (toDelete.length) console.log(`[Sync] ${toDelete.length} skill(s) marked as deleted`);
+        if (toRestore.length) console.log(`[Sync] ${toRestore.length} skill(s) restored to active`);
+
+        // Step 3b: Prune orphaned skill_library entries for deleted skills
+        if (toDelete.length) {
+          toast.update(syncId, { message: `Step 3/5 — Pruning ${toDelete.length} orphaned gallery items...` });
+          const deletedSlugs = toDelete.map((s) => s.slug);
+          const { data: orphanedLibrary } = await supabase
+            .from("skill_library")
+            .select("id, skill_slug")
+            .in("skill_slug", deletedSlugs);
+
+          if (orphanedLibrary?.length) {
+            const orphanIds = orphanedLibrary.map((o) => o.id);
+            const { error: pruneError } = await supabase
+              .from("skill_library")
+              .delete()
+              .in("id", orphanIds);
+            if (pruneError) console.error("[Sync] Failed to prune skill_library:", pruneError);
+            else console.log(`[Sync] Pruned ${orphanedLibrary.length} orphaned skill_library entries`);
+          }
+        }
       }
 
-      // Step 4: Cross-reference report_skill_library for S3 demo URLs
+      // Step 4: Cross-reference skill_library for S3 demo URLs
+      toast.update(syncId, { message: "Step 4/5 — Linking demo URLs..." });
       const { data: reports } = await supabase
-        .from("report_skill_library")
+        .from("skill_library")
         .select("skill_slug, report_url")
         .not("report_url", "is", null);
 
@@ -645,12 +646,13 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         }
       }
 
-      // Final refresh to pick up all status changes (await to ensure data is loaded)
+      // Step 5: Final refresh
+      toast.update(syncId, { message: "Step 5/5 — Refreshing..." });
       await queryClient.refetchQueries({ queryKey: ["skills"] });
 
-      toast.success(`${rows.length} skills synced to database`);
+      toast.update(syncId, { type: "success", message: `Synced ${rows.length} skills`, duration: 3000 });
     } catch (err) {
-      toast.error(`Skill sync failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.update(syncId, { type: "error", message: `Sync failed: ${err instanceof Error ? err.message : String(err)}`, duration: 5000 });
     }
   }, [skillInit, queryClient]);
 
@@ -663,8 +665,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         body: JSON.stringify({
           paths: [
             "/solutions/analytics",
-            "/solutions/analytics/report-skills",
-            "/solutions/analytics/questions",
+            "/solutions/analytics/ai-skills",
             "/solutions/ar-automation",
             "/solutions/ap-automation",
           ],
@@ -701,14 +702,17 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isFullscreen]);
 
-  // Build row data from Supabase skills + report_skill_library
-  const webLookup = useMemo(() => {
-    const map: Record<string, ReportSkill> = {};
+  // Build row data from Supabase skills + skill_library
+  const webSummary = useMemo(() => {
+    const map: Record<string, { entries: number; published: number; featured: number }> = {};
     if (reportSkillMap) {
       for (const [, entry] of reportSkillMap) {
         if (!map[entry.skill_slug]) {
-          map[entry.skill_slug] = entry;
+          map[entry.skill_slug] = { entries: 0, published: 0, featured: 0 };
         }
+        map[entry.skill_slug].entries++;
+        if (entry.published) map[entry.skill_slug].published++;
+        if (entry.featured) map[entry.skill_slug].featured++;
       }
     }
     return map;
@@ -716,13 +720,15 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
 
   const rowData = useMemo(() => {
     return skills.map((skill: Skill) => {
-      const web = webLookup[skill.slug];
+      const web = webSummary[skill.slug];
+      const activity = activitySummaries?.[skill.slug];
       return {
         slug: skill.slug,
         name: skill.name,
         description: skill.description ?? "",
         category: skill.category ?? "",
         subcategory: skill.subcategory ?? "",
+        skillType: skill.skill_type ?? "report",
         target: skill.target,
         status: skill.status,
         domain: skill.domain ?? "",
@@ -738,26 +744,24 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         demoUploaded: skill.demo_uploaded,
         demoUrl: skill.demo_url ?? "",
         hasCards: feedCardSlugs?.has(skill.slug) ?? false,
-        webTitle: web?.title ?? "",
-        webDescription: web?.description ?? "",
-        webWriteup: web?.writeup ?? "",
-        webSolution: web?.solution ?? "analytics",
-        webCategory: web?.category ?? "",
-        webSubcategory: web?.subcategory ?? "",
-        webMetrics: (web?.metrics ?? []).join(", "),
-        webSources: (web?.sources ?? []).join(", "),
-        webPublished: web?.published ?? false,
-        webFeatured: web?.featured ?? false,
-        _webSkillSlug: web?.skill_slug ?? skill.slug,
-        _webFileName: web?.file_name ?? "",
+        lastChanged: activity?.lastChanged ?? "",
+        lastChangedBy: activity?.lastActor ?? "",
+        changeCount: activity?.changeCount ?? 0,
+        webEntries: web?.entries ?? 0,
+        webPublished: web?.published ?? 0,
+        webFeatured: web?.featured ?? 0,
       } satisfies SkillReviewRow;
     });
-  }, [skills, webLookup, feedCardSlugs]);
+  }, [skills, webSummary, feedCardSlugs, activitySummaries]);
 
   const filteredRowData = useMemo(() => {
-    if (!hideDeleted) return rowData;
-    return rowData.filter((r) => r.status !== "deleted");
-  }, [rowData, hideDeleted]);
+    return rowData.filter((r) => {
+      if (hideDeleted && r.status === "deleted") return false;
+      if (hideDraft && (r.status === "draft" || r.status === "inactive")) return false;
+      if (typeFilter !== "all" && r.skillType !== typeFilter) return false;
+      return true;
+    });
+  }, [rowData, hideDeleted, hideDraft, typeFilter]);
 
   const columnDefs = useMemo(() => buildColumns(wrapNotes, users ?? []), [wrapNotes, users]);
 
@@ -788,7 +792,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
     return params.node.group ? 44 : 36;
   }, []);
 
-  // Persist edits — skill fields go to Supabase `skills`, web fields go to Supabase `report_skill_library`
+  // Persist edits — skill fields go to Supabase `skills`, web fields go to Supabase `skill_library`
   const handleCellValueChanged = useCallback(
     (event: CellValueChangedEvent<SkillReviewRow>) => {
       const { data, colDef } = event;
@@ -796,29 +800,6 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
 
       const field = colDef.field as keyof SkillReviewRow;
       const slug = data.slug;
-
-      // ── Website library fields → Supabase report_skill_library ──
-      const webFields = ["webTitle", "webDescription", "webWriteup", "webSolution", "webCategory", "webSubcategory", "webMetrics", "webSources", "webPublished", "webFeatured"] as const;
-      if ((webFields as readonly string[]).includes(field)) {
-        const fileName = data._webFileName;
-        if (!fileName) return;
-
-        upsertReportSkill.mutate({
-          skill_slug: data._webSkillSlug || slug,
-          file_name: fileName,
-          title: data.webTitle || data.name,
-          description: data.webDescription || null,
-          writeup: data.webWriteup || null,
-          solution: data.webSolution || "analytics",
-          category: data.webCategory || "uncategorized",
-          subcategory: data.webSubcategory || null,
-          metrics: data.webMetrics ? data.webMetrics.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
-          sources: data.webSources ? data.webSources.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
-          published: data.webPublished,
-          featured: data.webFeatured,
-        });
-        return;
-      }
 
       // ── Skill fields → Supabase skills table ──
       // Map camelCase row fields to snake_case DB columns
@@ -829,23 +810,45 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         hasGuide: "has_guide",
         demoUploaded: "demo_uploaded",
         demoUrl: "demo_url",
+        skillType: "skill_type",
       };
       const dbField = fieldMap[field] ?? field;
 
       const editableFields = [
-        "name", "description", "category", "subcategory", "target", "status",
+        "name", "description", "category", "subcategory", "skill_type", "target", "status",
         "domain", "command", "verified", "last_audited", "rating", "owner",
         "has_demo", "has_examples", "has_deck", "has_guide",
         "demo_uploaded", "demo_url",
       ];
       if (!editableFields.includes(dbField)) return;
 
+      // Auto-register new skill types
+      if (dbField === "skill_type" && data[field]) {
+        const val = String(data[field]).trim().toLowerCase();
+        const store = useSkillTypesStore.getState();
+        if (val && !store.types.some((t) => t.value === val)) {
+          // Rotate through a set of distinct colors for new types
+          const palette = [
+            "bg-emerald-600 text-white",
+            "bg-rose-600 text-white",
+            "bg-cyan-600 text-white",
+            "bg-orange-600 text-white",
+            "bg-indigo-600 text-white",
+            "bg-pink-600 text-white",
+            "bg-teal-600 text-white",
+            "bg-lime-600 text-white",
+          ];
+          const colorIdx = store.types.length % palette.length;
+          store.addType({ value: val, label: val, color: palette[colorIdx] });
+        }
+      }
+
       updateSkill.mutate({
         slug,
         updates: { [dbField]: data[field] },
       });
     },
-    [updateSkill, upsertReportSkill],
+    [updateSkill],
   );
 
   // ─── Layout actions ─────────────────────────────────────────────────────────
@@ -1030,9 +1033,9 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         .update({ demo_uploaded: true, demo_url: result.url })
         .eq("slug", slug);
 
-      // Update report_skill_library
+      // Update skill_library
       await supabase
-        .from("report_skill_library")
+        .from("skill_library")
         .upsert({
           skill_slug: slug,
           file_name: fileName,
@@ -1075,7 +1078,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
           fileName: file_name,
         });
         await supabase.from("skills").update({ demo_uploaded: true, demo_url: result.url }).eq("slug", slug);
-        await supabase.from("report_skill_library").upsert({
+        await supabase.from("skill_library").upsert({
           skill_slug: slug,
           file_name: file_name,
           title: slug,
@@ -1184,6 +1187,47 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
             <Trash2 size={14} />
             {hideDeleted ? "Show Deleted" : "Showing Deleted"}
           </button>
+
+          <button
+            onClick={() => setHideDraft(!hideDraft)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap",
+              hideDraft
+                ? "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                : "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+            )}
+            title={hideDraft ? "Show draft & inactive skills" : "Hide draft & inactive skills"}
+          >
+            <FileSpreadsheet size={14} />
+            {hideDraft ? "Show Draft" : "Showing Draft"}
+          </button>
+
+          {/* Skill type filter */}
+          <div className="flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+            {(["all", "report", "diagnostic", "chat"] as const).map((type) => {
+              const active = typeFilter === type;
+              const colors: Record<string, string> = {
+                all: active ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900" : "",
+                report: active ? "bg-blue-600 text-white" : "",
+                diagnostic: active ? "bg-amber-600 text-white" : "",
+                chat: active ? "bg-violet-600 text-white" : "",
+              };
+              return (
+                <button
+                  key={type}
+                  onClick={() => setTypeFilter(type)}
+                  className={cn(
+                    "px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap",
+                    active
+                      ? colors[type]
+                      : "bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                  )}
+                >
+                  {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
+                </button>
+              );
+            })}
+          </div>
 
         </div>
 

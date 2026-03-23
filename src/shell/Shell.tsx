@@ -31,7 +31,9 @@ const moduleLabels: Record<ModuleId, string> = {
   portal: "Portal",
   scheduler: "Scheduler",
   repos: "Repos",
-  email: "Email",
+  email: "EDM",
+  blog: "Blog",
+  s3browser: "S3 Browser",
 };
 
 interface ShellProps {

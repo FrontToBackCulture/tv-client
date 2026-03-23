@@ -517,6 +517,7 @@ fn main() {
             commands::outlook::commands::outlook_sync_status,
             commands::outlook::commands::outlook_get_folders,
             commands::outlook::commands::outlook_bootstrap_contacts,
+            commands::outlook::commands::outlook_scan_emails,
             // Email (SES campaign sending)
             commands::email::email_send_campaign,
             commands::email::email_send_test,
@@ -537,12 +538,22 @@ fn main() {
             commands::notion::commands::notion_list_databases,
             commands::notion::commands::notion_get_database_schema,
             commands::notion::commands::notion_preview_cards,
+            commands::notion::commands::notion_list_users,
+            commands::notion::commands::notion_list_database_pages,
+            commands::notion::commands::notion_get_page_content,
             commands::notion::commands::notion_list_sync_configs,
             commands::notion::commands::notion_save_sync_config,
             commands::notion::commands::notion_update_sync_config,
             commands::notion::commands::notion_delete_sync_config,
             commands::notion::commands::notion_sync_start,
             commands::notion::commands::notion_sync_status,
+            // S3 Browser
+            commands::s3_browser::s3_browse_buckets,
+            commands::s3_browser::s3_browse_list,
+            commands::s3_browser::s3_browse_delete,
+            commands::s3_browser::s3_browse_list_all_keys,
+            commands::s3_browser::s3_browse_presign,
+            commands::s3_browser::s3_browse_get_text,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

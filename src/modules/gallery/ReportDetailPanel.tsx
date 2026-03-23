@@ -2,11 +2,10 @@
 // Shows alongside the report preview iframe when a report is selected
 
 import { useState, useEffect, useCallback } from "react";
-import { Globe, Star, Sparkles, Save, Loader2, Check, Trash2, Tags, Upload, ExternalLink, FileText } from "lucide-react";
+import { Globe, Star, Sparkles, Save, Loader2, Check, Trash2, Upload, ExternalLink, FileText } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { Button } from "../../components/ui";
 import { cn } from "../../lib/cn";
-import { useReportSkillByFile, useUpsertReportSkill, useDeleteReportSkill } from "../../hooks/gallery/useReportSkills";
+import { useSkillLibraryByFile, useUpsertSkillLibraryEntry, useDeleteSkillLibraryEntry } from "../../hooks/gallery/useSkillLibrary";
 import { useGenerateReportContent } from "../../hooks/gallery/useGenerateReportContent";
 import type { SkillExample } from "./useGallery";
 
@@ -16,9 +15,9 @@ interface ReportDetailPanelProps {
 }
 
 export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelProps) {
-  const { data: existing, isLoading } = useReportSkillByFile(example.slug, example.file_name);
-  const upsert = useUpsertReportSkill();
-  const remove = useDeleteReportSkill();
+  const { data: existing, isLoading } = useSkillLibraryByFile(example.slug, example.file_name);
+  const upsert = useUpsertSkillLibraryEntry();
+  const remove = useDeleteSkillLibraryEntry();
   const { generate, isGenerating, error: generateError } = useGenerateReportContent();
 
   // Form state
@@ -36,6 +35,7 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
 
   // Sync from DB when loaded
   useEffect(() => {
@@ -148,214 +148,230 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
 
   const hasEntry = !!existing;
 
-  return (
-    <div className="space-y-4">
-      {/* Publish toggles */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => { setPublished(!published); markDirty(); }}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
-            published
-              ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/30"
-              : "bg-zinc-50 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-teal-300"
-          )}
-        >
-          <Globe size={12} />
-          {published ? "Published" : "Unpublished"}
-        </button>
-        <button
-          onClick={() => { setFeatured(!featured); markDirty(); }}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
-            featured
-              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
-              : "bg-zinc-50 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
-          )}
-        >
-          <Star size={12} />
-          {featured ? "Featured" : "Not Featured"}
-        </button>
-      </div>
-
-      {/* Title */}
-      <div>
-        <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">Title</label>
+  // Editable field — shows as text, click to edit
+  const EditableText = ({ field, value, onChange, placeholder, multiline }: {
+    field: string; value: string; onChange: (v: string) => void; placeholder: string; multiline?: boolean;
+  }) => {
+    if (editingField === field) {
+      const inputClass = "w-full px-3 py-2 text-sm rounded-xl border-0 bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500/30 transition";
+      return multiline ? (
+        <textarea
+          autoFocus
+          value={value}
+          onChange={e => { onChange(e.target.value); markDirty(); }}
+          onBlur={() => setEditingField(null)}
+          placeholder={placeholder}
+          rows={6}
+          className={cn(inputClass, "resize-y")}
+        />
+      ) : (
         <input
-          value={title}
-          onChange={e => { setTitle(e.target.value); markDirty(); }}
-          placeholder={example.skill_name}
-          className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          autoFocus
+          value={value}
+          onChange={e => { onChange(e.target.value); markDirty(); }}
+          onBlur={() => setEditingField(null)}
+          onKeyDown={e => { if (e.key === "Enter") setEditingField(null); }}
+          placeholder={placeholder}
+          className={inputClass}
         />
+      );
+    }
+    return (
+      <div
+        onClick={() => setEditingField(field)}
+        className={cn(
+          "text-sm leading-relaxed cursor-text rounded-lg px-1 -mx-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition",
+          value ? "text-zinc-800 dark:text-zinc-200" : "text-zinc-400 italic"
+        )}
+      >
+        {value || placeholder}
       </div>
+    );
+  };
 
-      {/* Generate error */}
-      {generateError && (
-        <p className="text-[11px] text-red-500">{generateError}</p>
-      )}
-
-      {/* Description */}
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Description</label>
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || !htmlContent}
-            className="flex items-center gap-1 text-[10px] text-violet-500 hover:text-violet-600 transition disabled:opacity-40"
-            title="Generate all fields with AI"
+  return (
+    <div className="space-y-1">
+      {/* Title — large, like task title */}
+      <div className="mb-4">
+        {editingField === "title" ? (
+          <input
+            autoFocus
+            value={title}
+            onChange={e => { setTitle(e.target.value); markDirty(); }}
+            onBlur={() => setEditingField(null)}
+            onKeyDown={e => { if (e.key === "Enter") setEditingField(null); }}
+            className="w-full text-lg font-semibold text-zinc-900 dark:text-zinc-100 bg-transparent border-b-2 border-teal-400 focus:outline-none pb-1"
+          />
+        ) : (
+          <h2
+            onClick={() => setEditingField("title")}
+            className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 cursor-text hover:text-teal-600 transition pb-1"
           >
-            {isGenerating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-            {isGenerating ? "Generating..." : "AI Generate All"}
-          </button>
-        </div>
-        <textarea
-          value={description}
-          onChange={e => { setDescription(e.target.value); markDirty(); }}
-          placeholder="1-2 line summary of what this report shows..."
-          rows={2}
-          className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
-        />
+            {title || example.skill_name}
+          </h2>
+        )}
       </div>
 
-      {/* Writeup */}
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Writeup</label>
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || !htmlContent}
-            className="flex items-center gap-1 text-[10px] text-violet-500 hover:text-violet-600 transition disabled:opacity-40"
-            title="Generate all fields with AI"
-          >
-            {isGenerating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-            {isGenerating ? "Generating..." : "AI Generate All"}
-          </button>
+      {/* Status row — like task metadata */}
+      <div className="space-y-2.5 pb-4 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center">
+          <span className="text-xs text-zinc-400 w-24 shrink-0">Status</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setPublished(!published); markDirty(); }}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition",
+                published ? "bg-teal-500 text-white" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
+              )}
+            >
+              <Globe size={11} />
+              {published ? "Published" : "Draft"}
+            </button>
+            <button
+              onClick={() => { setFeatured(!featured); markDirty(); }}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition",
+                featured ? "bg-amber-500 text-white" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
+              )}
+            >
+              <Star size={11} />
+              {featured ? "Featured" : "Not Featured"}
+            </button>
+          </div>
         </div>
-        <textarea
-          value={writeup}
-          onChange={e => { setWriteup(e.target.value); markDirty(); }}
-          placeholder="2-3 paragraph writeup for the website library page..."
-          rows={5}
-          className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-y"
-        />
-      </div>
 
-      {/* Solution + Category + Subcategory */}
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">Solution</label>
+        <div className="flex items-center">
+          <span className="text-xs text-zinc-400 w-24 shrink-0">Solution</span>
           <select
             value={solution}
             onChange={e => { setSolution(e.target.value); markDirty(); }}
-            className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="text-sm text-zinc-800 dark:text-zinc-200 bg-transparent border-0 focus:outline-none cursor-pointer hover:text-teal-600"
           >
             <option value="analytics">Analytics</option>
             <option value="ar-automation">AR Automation</option>
             <option value="ap-automation">AP Automation</option>
           </select>
         </div>
-        <div>
-          <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-            <Tags size={10} className="inline mr-1" />
-            Category
-          </label>
-          <input
-            value={category}
-            onChange={e => { setCategory(e.target.value); markDirty(); }}
-            placeholder="e.g. delivery, analytics"
-            className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
-          />
+
+        <div className="flex items-center">
+          <span className="text-xs text-zinc-400 w-24 shrink-0">Category</span>
+          <EditableText field="category" value={category} onChange={setCategory} placeholder="Set category" />
         </div>
-        <div>
-          <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">Subcategory</label>
-          <input
-            value={subcategory}
-            onChange={e => { setSubcategory(e.target.value); markDirty(); }}
-            placeholder="e.g. grab, seg"
-            className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
-          />
+
+        <div className="flex items-center">
+          <span className="text-xs text-zinc-400 w-24 shrink-0">Subcategory</span>
+          <EditableText field="subcategory" value={subcategory} onChange={setSubcategory} placeholder="Set subcategory" />
+        </div>
+
+        <div className="flex items-center">
+          <span className="text-xs text-zinc-400 w-24 shrink-0">Metrics</span>
+          <EditableText field="metrics" value={metrics} onChange={setMetrics} placeholder="Revenue, Growth %, AOV" />
+        </div>
+
+        <div className="flex items-center">
+          <span className="text-xs text-zinc-400 w-24 shrink-0">Sources</span>
+          <EditableText field="sources" value={sources} onChange={setSources} placeholder="POS, GrabFood" />
+        </div>
+
+        <div className="flex items-center">
+          <span className="text-xs text-zinc-400 w-24 shrink-0">Demo File</span>
+          <div className="flex items-center gap-2">
+            <FileText size={12} className="text-zinc-400" />
+            <span className="text-xs font-mono text-zinc-600 dark:text-zinc-400">{example.file_name}</span>
+            {typeof existing?.report_url === "string" && existing.report_url && (
+              <a href={existing.report_url} target="_blank" rel="noopener noreferrer" className="text-teal-500 hover:text-teal-600">
+                <ExternalLink size={12} />
+              </a>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Metrics + Sources (comma-separated) */}
-      <div>
-        <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">Metrics (comma-separated)</label>
-        <input
-          value={metrics}
-          onChange={e => { setMetrics(e.target.value); markDirty(); }}
-          placeholder="Revenue, Growth %, AOV, Order Count"
-          className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
-        />
-      </div>
-      <div>
-        <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">Sources (comma-separated)</label>
-        <input
-          value={sources}
-          onChange={e => { setSources(e.target.value); markDirty(); }}
-          placeholder="POS, GrabFood, Deliveroo"
-          className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
-        />
+      {generateError && (
+        <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950 px-3 py-2 rounded-lg">{generateError}</p>
+      )}
+
+      {/* Description — full text display */}
+      <div className="py-4 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Description</span>
+          {htmlContent && (
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="flex items-center gap-1.5 text-xs text-violet-500 hover:text-violet-600 font-medium transition disabled:opacity-40"
+            >
+              {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              AI Generate
+            </button>
+          )}
+        </div>
+        <EditableText field="description" value={description} onChange={setDescription} placeholder="Click to add description..." multiline />
       </div>
 
-      {/* Demo File + S3 Upload */}
-      <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2">
-        <div className="flex items-center gap-2">
-          <FileText size={12} className="text-zinc-400" />
-          <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Demo File</span>
+      {/* Writeup — full text display */}
+      <div className="py-4 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Writeup</span>
+          {htmlContent && (
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="flex items-center gap-1.5 text-xs text-violet-500 hover:text-violet-600 font-medium transition disabled:opacity-40"
+            >
+              {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              AI Generate
+            </button>
+          )}
         </div>
-        <p className="text-[11px] text-zinc-600 dark:text-zinc-300 font-mono truncate" title={example.file_name}>
-          {example.file_name}
-        </p>
-        {typeof existing?.report_url === "string" && existing.report_url && (
-          <a
-            href={existing.report_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[10px] text-teal-500 hover:text-teal-600 transition truncate"
-          >
-            <ExternalLink size={10} className="shrink-0" />
-            {existing.report_url.replace(/^https?:\/\/[^/]+\//, "")}
-          </a>
-        )}
-        {uploadError && (
-          <p className="text-[10px] text-red-500">{uploadError}</p>
-        )}
-        <Button
-          size="sm"
-          icon={uploading ? Loader2 : Upload}
-          onClick={handleUploadToS3}
-          disabled={uploading}
-          className={cn(uploading && "[&_svg]:animate-spin")}
-        >
-          {uploading ? "Uploading..." : (typeof existing?.report_url === "string" && existing.report_url) ? "Re-upload to S3" : "Upload to S3"}
-        </Button>
+        <EditableText field="writeup" value={writeup} onChange={setWriteup} placeholder="Click to add writeup..." multiline />
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-        <Button
-          size="sm"
-          icon={saved ? Check : Save}
+      <div className="pt-4 space-y-3">
+        {/* S3 Upload */}
+        {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
+        <button
+          onClick={handleUploadToS3}
+          disabled={uploading}
+          className={cn(
+            "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all",
+            uploading
+              ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
+              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+          )}
+        >
+          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+          {uploading ? "Uploading..." : (typeof existing?.report_url === "string" && existing.report_url) ? "Re-upload to S3" : "Upload to S3"}
+        </button>
+
+        {/* Save */}
+        <button
           onClick={handleSave}
           disabled={!dirty && hasEntry}
           className={cn(
-            saved && "!bg-emerald-500 !text-white !border-emerald-500",
+            "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all",
+            saved
+              ? "bg-emerald-500 text-white"
+              : dirty
+                ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100"
+                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
           )}
         >
-          {saved ? "Saved" : dirty ? "Save" : hasEntry ? "Saved" : "Save"}
-        </Button>
+          {saved ? <Check size={14} /> : <Save size={14} />}
+          {saved ? "Saved" : dirty ? "Save Changes" : hasEntry ? "Saved" : "Save"}
+        </button>
+
         {hasEntry && (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={Trash2}
+          <button
             onClick={handleDelete}
-            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition"
           >
+            <Trash2 size={13} />
             Remove
-          </Button>
+          </button>
         )}
-        {upsert.isPending && <Loader2 size={12} className="animate-spin text-zinc-400" />}
+        {upsert.isPending && <div className="flex justify-center"><Loader2 size={14} className="animate-spin text-zinc-400" /></div>}
       </div>
     </div>
   );

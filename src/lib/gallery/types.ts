@@ -1,13 +1,15 @@
-// Gallery module types — report skill library + question library
+// Skill library types — unified table for reports, diagnostics, and chat skills
 
 import type { Database } from "../supabase-types";
 
-// Report Skill Library
-export type ReportSkill = Database["public"]["Tables"]["report_skill_library"]["Row"];
-export type ReportSkillInsert = Database["public"]["Tables"]["report_skill_library"]["Insert"];
-export type ReportSkillUpdate = Database["public"]["Tables"]["report_skill_library"]["Update"];
+// Skill Library (unified: report, diagnostic, chat)
+export type SkillLibraryItem = Database["public"]["Tables"]["skill_library"]["Row"];
+export type SkillLibraryInsert = Database["public"]["Tables"]["skill_library"]["Insert"];
+export type SkillLibraryUpdate = Database["public"]["Tables"]["skill_library"]["Update"];
 
-// Question Library
-export type Question = Database["public"]["Tables"]["question_library"]["Row"];
-export type QuestionInsert = Database["public"]["Tables"]["question_library"]["Insert"];
-export type QuestionUpdate = Database["public"]["Tables"]["question_library"]["Update"];
+export type SkillLibraryType = "report" | "diagnostic" | "chat";
+
+// Legacy aliases for gradual migration (remove once all consumers are updated)
+export type ReportSkill = SkillLibraryItem;
+export type ReportSkillInsert = SkillLibraryInsert;
+export type ReportSkillUpdate = SkillLibraryUpdate;

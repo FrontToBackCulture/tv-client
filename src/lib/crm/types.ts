@@ -14,9 +14,32 @@ export type ContactInsert =
 export type ContactUpdate =
   Database["public"]["Tables"]["crm_contacts"]["Update"];
 
-export type Deal = Database["public"]["Tables"]["crm_deals"]["Row"];
-export type DealInsert = Database["public"]["Tables"]["crm_deals"]["Insert"];
-export type DealUpdate = Database["public"]["Tables"]["crm_deals"]["Update"];
+// Deals are stored in the projects table — this is the mapped legacy shape
+export interface Deal {
+  id: string;
+  name: string;
+  description: string | null;
+  company_id: string;
+  stage: string | null;
+  solution: string | null;
+  value: number | null;
+  currency: string | null;
+  expected_close_date: string | null;
+  actual_close_date?: string | null;
+  lost_reason?: string | null;
+  won_notes?: string | null;
+  proposal_path?: string | null;
+  order_form_path?: string | null;
+  contact_ids?: string[] | null;
+  notes: string | null;
+  tags?: string[] | null;
+  stage_changed_at?: string | null;
+  stale_snoozed_until?: string | null;
+  created_at: string | null;
+  updated_at?: string | null;
+}
+export type DealInsert = Partial<Deal> & { name: string; company_id: string };
+export type DealUpdate = Partial<Deal>;
 
 export type Activity = Database["public"]["Tables"]["crm_activities"]["Row"];
 export type ActivityInsert =

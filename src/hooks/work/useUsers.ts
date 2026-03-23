@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import type { User } from "../../lib/work/types";
 import { workKeys } from "./keys";
+import { useAuth } from "../../stores/authStore";
 
 export function useUsers(type?: "human" | "bot") {
   return useQuery({
@@ -21,4 +22,11 @@ export function useUsers(type?: "human" | "bot") {
       return data ?? [];
     },
   });
+}
+
+export function useCurrentUserId(): string | null {
+  const login = useAuth((s) => s.user?.login ?? null);
+  const { data: users = [] } = useUsers();
+  if (!login) return null;
+  return users.find(u => u.github_username === login)?.id ?? null;
 }

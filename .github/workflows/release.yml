@@ -99,6 +99,7 @@ jobs:
 
       - name: Build Tauri
         env:
+          TAURI_TARGET_TRIPLE: ${{ matrix.target }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -159,9 +160,8 @@ jobs:
         if: matrix.platform == 'macos-latest' && always()
         run: security delete-keychain $RUNNER_TEMP/app-signing.keychain-db 2>/dev/null || true
 
-      - name: Build tv-mcp binary
-        run: cargo build --release --bin tv-mcp --target ${{ matrix.target }}
-        working-directory: src-tauri
+      # tv-mcp sidecar is already built by beforeBuildCommand (npm run build:sidecar)
+      # and bundled inside the app by Tauri. Extract it for standalone download too.
 
       # Collect platform-specific artifacts into a flat folder
       - name: Collect artifacts (macOS)
@@ -198,8 +198,8 @@ jobs:
           find "$BUNDLE/macos" -name "*.tar.gz" -exec cp {} collected/ \;
           find "$BUNDLE/macos" -name "*.tar.gz.sig" -exec cp {} collected/ \;
 
-          # tv-mcp binary
-          cp "src-tauri/target/${{ matrix.target }}/release/tv-mcp" collected/tv-mcp
+          # tv-mcp binary (from sidecar build)
+          cp "src-tauri/binaries/tv-mcp-${{ matrix.target }}" collected/tv-mcp
 
           echo "Collected artifacts:"
           ls -la collected/
@@ -217,8 +217,8 @@ jobs:
           # .exe.sig for auto-update signature verification
           find "$BUNDLE/nsis" -name "*.exe.sig" -exec cp {} collected/ \;
 
-          # tv-mcp binary
-          cp "src-tauri/target/${{ matrix.target }}/release/tv-mcp.exe" collected/tv-mcp.exe
+          # tv-mcp binary (from sidecar build)
+          cp "src-tauri/binaries/tv-mcp-${{ matrix.target }}.exe" collected/tv-mcp.exe
 
           echo "Collected artifacts:"
           ls -la collected/

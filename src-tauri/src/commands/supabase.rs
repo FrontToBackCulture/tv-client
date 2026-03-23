@@ -133,6 +133,7 @@ impl SupabaseClient {
     }
 
     /// POST request with upsert - insert or update on conflict
+    #[allow(dead_code)]
     pub async fn upsert<T: Serialize, R: DeserializeOwned>(
         &self,
         table: &str,

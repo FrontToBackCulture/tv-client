@@ -160,6 +160,7 @@ export type Database = {
         Row: {
           client_folder_path: string | null
           created_at: string | null
+          deal_folder_path: string | null
           display_name: string | null
           domain_id: string | null
           id: string
@@ -167,6 +168,7 @@ export type Database = {
           name: string
           notes: string | null
           referred_by: string | null
+          research_folder_path: string | null
           source: string | null
           source_id: string | null
           stage: string
@@ -177,6 +179,7 @@ export type Database = {
         Insert: {
           client_folder_path?: string | null
           created_at?: string | null
+          deal_folder_path?: string | null
           display_name?: string | null
           domain_id?: string | null
           id?: string
@@ -184,6 +187,7 @@ export type Database = {
           name: string
           notes?: string | null
           referred_by?: string | null
+          research_folder_path?: string | null
           source?: string | null
           source_id?: string | null
           stage?: string
@@ -194,6 +198,7 @@ export type Database = {
         Update: {
           client_folder_path?: string | null
           created_at?: string | null
+          deal_folder_path?: string | null
           display_name?: string | null
           domain_id?: string | null
           id?: string
@@ -201,6 +206,7 @@ export type Database = {
           name?: string
           notes?: string | null
           referred_by?: string | null
+          research_folder_path?: string | null
           source?: string | null
           source_id?: string | null
           stage?: string

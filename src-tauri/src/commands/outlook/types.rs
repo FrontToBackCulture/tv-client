@@ -122,6 +122,23 @@ pub struct ContactRule {
 }
 
 // ============================================================================
+// Email scan types
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmailScanCandidate {
+    pub email_id: String,
+    pub subject: String,
+    pub from_email: String,
+    pub from_name: String,
+    pub received_at: String,
+    pub folder_name: String,
+    pub match_method: String, // "auto_contact" | "auto_domain"
+    pub relevance_score: f64,
+}
+
+// ============================================================================
 // Graph API response types
 // ============================================================================
 

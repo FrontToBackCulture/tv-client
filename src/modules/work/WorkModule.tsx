@@ -11,6 +11,7 @@ import {
   useProjects, useAllTasks, useInitiatives, useUsers,
 } from "../../hooks/work";
 import { TaskDetailPanel } from "./TaskDetailPanel";
+import { ResizablePanel } from "../../components/ResizablePanel";
 import { TaskForm } from "./TaskForm";
 import { InitiativeForm } from "./InitiativeForm";
 import { ProjectForm } from "./ProjectForm";
@@ -131,7 +132,8 @@ export function WorkModule() {
     setEditingProject(null);
     refetchProjects();
     refetchTasks();
-  }, [refetchProjects, refetchTasks]);
+    refetchInitiativeLinks();
+  }, [refetchProjects, refetchTasks, refetchInitiativeLinks]);
 
   // Don't show the "Project" tab in the tab bar — it's navigated to contextually
   const showProjectView = view === "project" && selectedProject;
@@ -197,6 +199,10 @@ export function WorkModule() {
               initiatives={initiatives}
               initiativeLinks={initiativeLinks}
               onEditInitiative={handleEditInitiative}
+              onCreateTask={(projectId) => {
+                setCreateTaskProjectId(projectId);
+                setShowTaskForm(true);
+              }}
             />
           )}
           {showProjectView && (
@@ -206,6 +212,7 @@ export function WorkModule() {
               users={users}
               onSelectTask={handleSelectTask}
               onBack={handleBackFromProject}
+              onCreateTask={handleCreateTask}
             />
           )}
           {view === "board" && (
@@ -230,9 +237,9 @@ export function WorkModule() {
           )}
         </div>
 
-        {/* Right: task detail panel (production version with full editing) */}
+        {/* Right: task detail panel (resizable) */}
         {selectedTaskId && (
-          <div className="w-[400px] flex-shrink-0">
+          <ResizablePanel minWidth={380} maxWidth={800} defaultWidth={520}>
             <TaskDetailPanel
               key={selectedTaskId}
               taskId={selectedTaskId}
@@ -240,7 +247,7 @@ export function WorkModule() {
               onUpdated={handleTaskUpdated}
               onDeleted={handleTaskDeleted}
             />
-          </div>
+          </ResizablePanel>
         )}
       </div>
 

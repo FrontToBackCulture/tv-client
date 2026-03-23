@@ -21,10 +21,11 @@ const allModules: ModuleInfo[] = [
   { id: "gallery", label: "Gallery", description: "Media gallery" },
   { id: "bot", label: "Bots", description: "Bot management" },
   { id: "skills", label: "Skills", description: "Skill registry, catalog, and prompt builder" },
-  { id: "questions", label: "Questions", description: "Questions and answers" },
   { id: "scheduler", label: "Scheduler", description: "Task scheduler" },
   { id: "repos", label: "Repos", description: "Repository management" },
-  { id: "email", label: "Email", description: "Email campaigns" },
+  { id: "email", label: "EDM", description: "Email campaigns" },
+  { id: "blog", label: "Blog", description: "Blog article management" },
+  { id: "s3browser", label: "S3 Browser", description: "Browse and manage S3 buckets" },
   { id: "inbox", label: "Inbox", description: "Email inbox" },
   { id: "portal", label: "Portal", description: "Client portal management" },
 ];

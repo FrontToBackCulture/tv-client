@@ -23,4 +23,5 @@ npm-debug.log*
 
 # Tauri
 src-tauri/Cargo.lock
+src-tauri/binaries/
 .vercel

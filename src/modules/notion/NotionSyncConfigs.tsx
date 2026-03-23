@@ -12,6 +12,7 @@ import {
   X,
   Check,
   Filter,
+  ArrowLeftRight,
 } from "lucide-react";
 import { Button, IconButton } from "../../components/ui";
 import {
@@ -20,11 +21,14 @@ import {
   useDeleteSyncConfig,
   useNotionSyncStart,
   useNotionPreview,
+  useNotionDatabaseSchema,
 } from "../../hooks/useNotion";
 import { useNotionSync } from "../../hooks/useNotionSync";
-import { useProjects } from "../../hooks/work";
+import { useProjects, useStatuses, useUsers } from "../../hooks/work";
+import { useCompanies } from "../../hooks/crm/useCompanies";
 import { NotionSyncSetup } from "./NotionSyncSetup";
-import type { SyncConfig } from "../../lib/notion/types";
+import { NotionFieldMapper } from "./NotionFieldMapper";
+import type { SyncConfig, FieldMappingEntry } from "../../lib/notion/types";
 
 export function NotionSyncConfigs() {
   const [showSetup, setShowSetup] = useState(false);
@@ -179,10 +183,10 @@ export function NotionSyncConfigs() {
                   </div>
                 </div>
                 {isEditing && (
-                  <FilterEditor
+                  <ConfigEditor
                     config={config}
-                    onSave={(filter) => {
-                      updateConfig.mutate({ configId: config.id, data: { filter } });
+                    onSave={(data) => {
+                      updateConfig.mutate({ configId: config.id, data });
                       setEditingConfigId(null);
                     }}
                     onCancel={() => setEditingConfigId(null)}
@@ -198,20 +202,45 @@ export function NotionSyncConfigs() {
   );
 }
 
-// Inline filter editor panel
-function FilterEditor({
+// Inline config editor — tabs for field mapping + filter
+function ConfigEditor({
   config,
   onSave,
   onCancel,
   isSaving,
 }: {
   config: SyncConfig;
-  onSave: (filter: Record<string, unknown> | undefined) => void;
+  onSave: (data: { field_mapping?: Record<string, FieldMappingEntry | string>; filter?: Record<string, unknown> }) => void;
   onCancel: () => void;
   isSaving: boolean;
 }) {
+  const [tab, setTab] = useState<"mapping" | "filter">("mapping");
+  const [fieldMapping, setFieldMapping] = useState<Record<string, FieldMappingEntry | string>>(
+    config.field_mapping || {}
+  );
   const [filterJson, setFilterJson] = useState(
     config.filter ? JSON.stringify(config.filter, null, 2) : ""
+  );
+
+  // Load Notion database schema for field mapper
+  const { data: schema, isLoading: schemaLoading } = useNotionDatabaseSchema(config.notion_database_id);
+
+  // Project statuses + users + companies for value mapping
+  const { data: statuses = [] } = useStatuses(config.target_project_id ?? null);
+  const { data: users = [] } = useUsers();
+  const { data: companies = [] } = useCompanies();
+
+  const workStatuses = useMemo(
+    () => statuses.map((s: any) => ({ id: s.id, name: s.name })),
+    [statuses]
+  );
+  const workUsers = useMemo(
+    () => users.map((u: any) => ({ id: u.id, name: u.name || u.full_name || u.email })),
+    [users]
+  );
+  const workCompanies = useMemo(
+    () => companies.map((c: any) => ({ id: c.id, name: c.display_name || c.name })),
+    [companies]
   );
 
   const parsedFilter = useMemo(() => {
@@ -223,81 +252,144 @@ function FilterEditor({
     }
   }, [filterJson]);
 
-  // Preview with current filter
+  // Preview cards — used for both filter preview and extracting people names for mapping
   const { data: preview = [], isFetching: previewLoading } = useNotionPreview(
-    parsedFilter.valid ? config.notion_database_id : null,
-    parsedFilter.value
+    config.notion_database_id,
+    parsedFilter.valid ? parsedFilter.value : undefined
   );
 
-  const hasChanged = filterJson.trim() !== (config.filter ? JSON.stringify(config.filter, null, 2) : "");
+  const mappingChanged = JSON.stringify(fieldMapping) !== JSON.stringify(config.field_mapping || {});
+  const filterChanged = filterJson.trim() !== (config.filter ? JSON.stringify(config.filter, null, 2) : "");
+  const hasChanges = mappingChanged || filterChanged;
+
+  const handleSave = () => {
+    const data: { field_mapping?: Record<string, FieldMappingEntry | string>; filter?: Record<string, unknown> } = {};
+    if (mappingChanged) data.field_mapping = fieldMapping;
+    if (filterChanged) data.filter = parsedFilter.value;
+    onSave(data);
+  };
 
   return (
-    <div className="border border-t-0 border-zinc-200 dark:border-zinc-700 rounded-b-lg bg-zinc-50 dark:bg-zinc-900 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-          Notion API Filter
-        </label>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={X}
-            onClick={onCancel}
+    <div className="border border-t-0 border-zinc-200 dark:border-zinc-700 rounded-b-lg bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
+      {/* Tab bar + actions */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-700">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setTab("mapping")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
+              tab === "mapping"
+                ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            }`}
           >
+            <span className="flex items-center gap-1.5">
+              <ArrowLeftRight size={12} />
+              Field Mapping
+              {mappingChanged && <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />}
+            </span>
+          </button>
+          <button
+            onClick={() => setTab("filter")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
+              tab === "filter"
+                ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <Filter size={12} />
+              Filter
+              {filterChanged && <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />}
+            </span>
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" icon={X} onClick={onCancel}>
             Cancel
           </Button>
           <Button
             size="sm"
             icon={Check}
-            onClick={() => onSave(parsedFilter.value)}
-            disabled={!parsedFilter.valid || !hasChanged}
+            onClick={handleSave}
+            disabled={!hasChanges || (tab === "filter" && !parsedFilter.valid)}
             loading={isSaving}
           >
-            Save Filter
+            Save
           </Button>
         </div>
       </div>
 
-      {/* Human-readable summary */}
-      {parsedFilter.valid && parsedFilter.value && (
-        <FilterSummary filter={parsedFilter.value} />
-      )}
-
-      <textarea
-        value={filterJson}
-        onChange={(e) => setFilterJson(e.target.value)}
-        rows={12}
-        spellCheck={false}
-        className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
-        placeholder='{"property": "Status", "status": {"does_not_equal": "Done"}}'
-      />
-
-      {filterJson.trim() && !parsedFilter.valid && (
-        <p className="text-xs text-red-500">Invalid JSON</p>
-      )}
-
-      {/* Preview */}
-      {parsedFilter.valid && (
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500">
-              Preview: {previewLoading ? "loading..." : `${preview.length} most recent matching cards`}
-            </span>
+      {/* Tab content */}
+      <div className="p-4">
+        {tab === "mapping" && (
+          <div className="space-y-3">
+            <p className="text-xs text-zinc-500">
+              Map Notion properties to Work task fields. Only mapped fields will sync.
+            </p>
+            {schemaLoading ? (
+              <div className="text-center py-8 text-zinc-500 text-sm">Loading schema...</div>
+            ) : schema ? (
+              <NotionFieldMapper
+                notionProperties={schema.properties}
+                initialMapping={fieldMapping}
+                workStatuses={workStatuses}
+                workUsers={workUsers}
+                workCompanies={workCompanies}
+                onChange={setFieldMapping}
+              />
+            ) : (
+              <div className="text-center py-8 text-zinc-500 text-sm">
+                Could not load Notion database schema. Check your Notion API connection.
+              </div>
+            )}
           </div>
-          {!previewLoading && preview.length > 0 && (
-            <div className="max-h-40 overflow-y-auto space-y-0.5">
-              {preview.map((card) => (
-                <div
-                  key={card.notion_page_id}
-                  className="px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-800 rounded border border-zinc-100 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 truncate"
-                >
-                  {card.title}
+        )}
+
+        {tab === "filter" && (
+          <div className="space-y-3">
+            {/* Human-readable summary */}
+            {parsedFilter.valid && parsedFilter.value && (
+              <FilterSummary filter={parsedFilter.value} />
+            )}
+
+            <textarea
+              value={filterJson}
+              onChange={(e) => setFilterJson(e.target.value)}
+              rows={12}
+              spellCheck={false}
+              className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              placeholder='{"property": "Status", "status": {"does_not_equal": "Done"}}'
+            />
+
+            {filterJson.trim() && !parsedFilter.valid && (
+              <p className="text-xs text-red-500">Invalid JSON</p>
+            )}
+
+            {/* Preview */}
+            {parsedFilter.valid && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">
+                    Preview: {previewLoading ? "loading..." : `${preview.length} most recent matching cards`}
+                  </span>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                {!previewLoading && preview.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto space-y-0.5">
+                    {preview.map((card) => (
+                      <div
+                        key={card.notion_page_id}
+                        className="px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-800 rounded border border-zinc-100 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 truncate"
+                      >
+                        {card.title}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

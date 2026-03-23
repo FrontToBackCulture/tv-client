@@ -12,6 +12,8 @@ import {
   useUsers,
   useMilestones,
 } from "../../hooks/work";
+import { useCompanies } from "../../hooks/crm/useCompanies";
+import { useContacts } from "../../hooks/crm/useContacts";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { formatDateFull as formatDate } from "../../lib/date";
 import {
@@ -32,13 +34,17 @@ import {
   MessageSquare,
   Building2,
   Target,
+  Mail,
 } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
+import { EmailsPanel } from "../../components/emails/EmailsPanel";
+import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
 import { Button, IconButton } from "../../components/ui";
 import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
 import { toast } from "../../stores/toastStore";
+import { useTaskFieldsStore } from "../../stores/taskFieldsStore";
 
 function AutoResizeTextarea({ minRows = 4, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { minRows?: number }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -79,14 +85,19 @@ export function TaskDetailPanel({
   const { data: statuses = [] } = useStatuses(projectId);
   const { data: users = [] } = useUsers();
   const { data: milestones = [] } = useMilestones(projectId);
+  const { data: companies = [] } = useCompanies();
+  const { data: contacts = [] } = useContacts();
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState("");
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionValue, setDescriptionValue] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<"details" | "discussion">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "emails" | "discussion">("details");
   const { data: discussionCount } = useDiscussionCount("task", taskId);
+  const { data: emailCount } = useLinkedEmailCount("task", taskId);
+  const projectType = (task as any)?.project?.project_type || "work";
+  const enabledTaskFields = useTaskFieldsStore((s) => s.getEnabledFields(projectType));
 
   if (isLoading) return <DetailLoading />;
 
@@ -178,6 +189,21 @@ export function TaskDetailPanel({
           Details
         </button>
         <button
+          onClick={() => setActiveTab("emails")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
+            activeTab === "emails"
+              ? "border-teal-500 text-teal-600 dark:text-teal-400"
+              : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          }`}
+        >
+          <Mail size={13} />
+          {(emailCount ?? 0) > 0 && (
+            <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
+              {emailCount}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setActiveTab("discussion")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
             activeTab === "discussion"
@@ -195,7 +221,9 @@ export function TaskDetailPanel({
       </div>
 
       {/* Content */}
-      {activeTab === "discussion" ? (
+      {activeTab === "emails" ? (
+        <EmailsPanel entityType="task" entityId={taskId} />
+      ) : activeTab === "discussion" ? (
         <DiscussionPanel entityType="task" entityId={taskId} />
       ) : (
       <div className="flex-1 overflow-y-auto">
@@ -248,7 +276,7 @@ export function TaskDetailPanel({
 
             {/* Priority */}
             <div className="flex items-center gap-3">
-              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
                 <Flag size={12} />
                 Priority
               </span>
@@ -267,7 +295,7 @@ export function TaskDetailPanel({
 
             {/* Assignee */}
             <div className="flex items-center gap-3">
-              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
                 <User size={12} />
                 Assignee
               </span>
@@ -289,7 +317,7 @@ export function TaskDetailPanel({
 
             {/* Milestone */}
             <div className="flex items-center gap-3">
-              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
                 <MilestoneIcon size={12} />
                 Milestone
               </span>
@@ -311,7 +339,7 @@ export function TaskDetailPanel({
 
             {/* Due Date */}
             <div className="flex items-center gap-3">
-              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
                 <Calendar size={12} />
                 Due Date
               </span>
@@ -340,30 +368,32 @@ export function TaskDetailPanel({
             </div>
 
             {/* Task Type */}
-            <div className="flex items-center gap-3">
-              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
-                <Target size={12} />
-                Type
-              </span>
-              <select
-                value={task.task_type || "general"}
-                onChange={(e) => handleUpdateField("task_type", e.target.value)}
-                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
-              >
-                <option value="general">General</option>
-                <option value="target">Target</option>
-                <option value="prospect">Prospect</option>
-                <option value="follow_up">Follow Up</option>
-              </select>
-            </div>
+            {enabledTaskFields.includes("task_type") && (
+              <div className="flex items-center gap-3">
+                <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
+                  <Target size={12} />
+                  Type
+                </span>
+                <select
+                  value={task.task_type || "general"}
+                  onChange={(e) => handleUpdateField("task_type", e.target.value)}
+                  className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                >
+                  <option value="general">General</option>
+                  <option value="target">Target</option>
+                  <option value="prospect">Prospect</option>
+                  <option value="follow_up">Follow Up</option>
+                </select>
+              </div>
+            )}
 
             {/* Days in Stage */}
-            {task.task_type_changed_at && task.task_type && task.task_type !== "general" && (() => {
+            {enabledTaskFields.includes("days_in_stage") && task.task_type_changed_at && task.task_type && task.task_type !== "general" && (() => {
               const days = Math.floor((Date.now() - new Date(task.task_type_changed_at).getTime()) / (1000 * 60 * 60 * 24));
               const color = days > 30 ? "text-red-500" : days > 14 ? "text-amber-500" : "text-zinc-600 dark:text-zinc-300";
               return (
                 <div className="flex items-center gap-3">
-                  <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                  <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
                     <Clock size={12} />
                     In Stage
                   </span>
@@ -375,38 +405,58 @@ export function TaskDetailPanel({
             })()}
 
             {/* Company */}
-            <div className="flex items-center gap-3">
-              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
-                <Building2 size={12} />
-                Company
-              </span>
-              <span className="flex-1 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100">
-                {task.company
-                  ? (task.company.display_name || task.company.name)
-                  : <span className="text-zinc-400 dark:text-zinc-500">No company</span>
-                }
-              </span>
-            </div>
+            {enabledTaskFields.includes("company") && (
+              <div className="flex items-center gap-3">
+                <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
+                  <Building2 size={12} />
+                  Company
+                </span>
+                <select
+                  value={(task as any).company_id || ""}
+                  onChange={async (e) => {
+                    const val = e.target.value || null;
+                    try {
+                      await updateMutation.mutateAsync({
+                        id: taskId,
+                        updates: { company_id: val, contact_id: null },
+                      });
+                      refetch();
+                      onUpdated?.();
+                    } catch (error) {
+                      console.error("Failed to update company:", error);
+                    }
+                  }}
+                  className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                >
+                  <option value="">No company</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.display_name || c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Contact */}
-            <div className="flex items-center gap-3">
-              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
-                <User size={12} />
-                Contact
-              </span>
-              <span className="flex-1 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100">
-                {task.contact ? (
-                  <>
-                    {task.contact.name}
-                    {task.contact.email && (
-                      <span className="text-zinc-400 ml-1">({task.contact.email})</span>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-zinc-400 dark:text-zinc-500">No contact</span>
-                )}
-              </span>
-            </div>
+            {enabledTaskFields.includes("contact") && (
+              <div className="flex items-center gap-3">
+                <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
+                  <User size={12} />
+                  Contact
+                </span>
+                <select
+                  value={(task as any).contact_id || ""}
+                  onChange={(e) => handleUpdateField("contact_id", e.target.value || null)}
+                  className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                >
+                  <option value="">No contact</option>
+                  {contacts
+                    .filter((c) => !(task as any).company_id || c.company_id === (task as any).company_id)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                </select>
+              </div>
+            )}
 
             {/* Labels */}
             {task.labels && task.labels.length > 0 && (
@@ -431,6 +481,25 @@ export function TaskDetailPanel({
                 </div>
               </div>
             )}
+            {/* Created / Updated */}
+            <div className="flex items-center gap-3">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
+                <Calendar size={12} />
+                Created
+              </span>
+              <span className="flex-1 px-2 py-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+                {task.created_at ? formatDate(task.created_at) : "—"}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
+                <Calendar size={12} />
+                Updated
+              </span>
+              <span className="flex-1 px-2 py-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+                {task.updated_at ? formatDate(task.updated_at) : "—"}
+              </span>
+            </div>
           </div>
 
           {/* Description */}
@@ -472,6 +541,30 @@ export function TaskDetailPanel({
               </div>
             )}
           </div>
+
+          {/* Notion Content */}
+          {task.notion_content && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Notion Page Content</h3>
+                {task.notion_page_id && (
+                  <a
+                    href={`https://notion.so/${task.notion_page_id.replace(/-/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-teal-500 hover:text-teal-600 font-medium"
+                  >
+                    Open in Notion →
+                  </a>
+                )}
+              </div>
+              <div className="px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
+                <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-li:my-0 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.notion_content}</ReactMarkdown>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Activity */}
           <div>

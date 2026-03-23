@@ -41,6 +41,45 @@ export function useNotionDatabaseSchema(databaseId: string | null) {
   });
 }
 
+export interface NotionUser {
+  id: string;
+  name: string;
+  email: string | null;
+}
+
+export function useNotionUsers() {
+  return useQuery({
+    queryKey: [...notionKeys.all, "users"],
+    queryFn: () => invoke<NotionUser[]>("notion_list_users"),
+    staleTime: 1000 * 60 * 10, // 10 min
+  });
+}
+
+export function useNotionDatabasePages(databaseId: string | null) {
+  return useQuery({
+    queryKey: [...notionKeys.all, "database-pages", databaseId],
+    queryFn: () =>
+      invoke<[string, string][]>("notion_list_database_pages", {
+        databaseId: databaseId!,
+      }),
+    staleTime: 1000 * 60 * 10, // 10 min
+    enabled: !!databaseId,
+  });
+}
+
+export function useNotionPageContent(pageId: string | null) {
+  return useQuery({
+    queryKey: [...notionKeys.all, "page-content", pageId],
+    queryFn: () =>
+      invoke<[string, { block_id: string; file_name: string; file_type: string | null; url: string }[]]>(
+        "notion_get_page_content",
+        { pageId: pageId! }
+      ),
+    staleTime: 1000 * 60 * 5, // 5 min — URLs expire after ~1 hour so this is safe
+    enabled: !!pageId,
+  });
+}
+
 export function useNotionPreview(
   databaseId: string | null,
   filter?: Record<string, unknown>

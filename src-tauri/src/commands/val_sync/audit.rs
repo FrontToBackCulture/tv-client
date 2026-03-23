@@ -4,19 +4,18 @@
 use super::api::val_api_fetch;
 use super::auth;
 use super::config::get_domain_config;
-use super::sync::write_json;
 use crate::commands::error::CmdResult;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
-use tauri::command;
 
 // ============================================================================
 // Types
 // ============================================================================
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StaleArtifact {
     pub id: String,
@@ -26,6 +25,7 @@ pub struct StaleArtifact {
     pub last_modified: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArtifactTypeResult {
     pub artifact_type: String,
@@ -37,6 +37,7 @@ pub struct ArtifactTypeResult {
     pub error: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditSummary {
     pub total_local: usize,
@@ -45,6 +46,7 @@ pub struct AuditSummary {
     pub total_current: usize,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditResult {
     pub domain: String,
@@ -142,6 +144,7 @@ fn extract_remote_ids(data: &serde_json::Value, artifact_type: &str) -> HashSet<
 }
 
 /// Scan local artifacts in a folder
+#[allow(dead_code)]
 fn scan_local_artifacts(global_path: &str, config: &ArtifactTypeConfig) -> Vec<StaleArtifact> {
     let scan_path = Path::new(global_path).join(config.subfolder);
 
@@ -203,6 +206,7 @@ fn scan_local_artifacts(global_path: &str, config: &ArtifactTypeConfig) -> Vec<S
 }
 
 /// Audit a single artifact type
+#[allow(dead_code)]
 async fn audit_artifact_type(
     _domain: &str,
     global_path: &str,

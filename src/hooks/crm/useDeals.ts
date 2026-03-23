@@ -152,10 +152,12 @@ export function useCreateDeal() {
       expected_close_date?: string | null;
       notes?: string | null;
     }) => {
+      const slug = deal.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `deal-${Date.now()}`;
       const { data, error } = await supabase
         .from("projects")
         .insert({
           name: deal.name,
+          slug,
           description: deal.description,
           project_type: "deal",
           company_id: deal.company_id,
@@ -173,6 +175,14 @@ export function useCreateDeal() {
         .single();
 
       if (error) throw new Error(`Failed to create deal: ${error.message}`);
+
+      // Create default task statuses for the deal project
+      await supabase.from("task_statuses").insert([
+        { project_id: data.id, name: "Backlog", type: "backlog", color: "#6B7280", icon: "inbox", sort_order: 0 },
+        { project_id: data.id, name: "Todo", type: "unstarted", color: "#3B82F6", icon: "circle", sort_order: 1 },
+        { project_id: data.id, name: "In Progress", type: "started", color: "#0D7680", icon: "play", sort_order: 2 },
+        { project_id: data.id, name: "Done", type: "completed", color: "#10B981", icon: "check", sort_order: 3 },
+      ]);
 
       // Update company stage if prospect
       const { data: company } = await supabase

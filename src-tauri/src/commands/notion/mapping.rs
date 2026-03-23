@@ -124,6 +124,7 @@ pub fn map_page_to_task(
     let work_fields = [
         "title", "description", "status_id", "priority",
         "due_date", "assignee_id", "milestone_id",
+        "company_id", "created_at", "updated_at",
     ];
 
     for (key, mapping) in mapping_obj {

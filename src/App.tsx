@@ -21,6 +21,8 @@ import { SkillsModule } from "./modules/skills/SkillsModule";
 import { EmailModule } from "./modules/email/EmailModule";
 import { GalleryModule } from "./modules/gallery";
 import { HomeModule } from "./modules/home/HomeModule";
+import { BlogModule } from "./modules/blog";
+import { S3BrowserModule } from "./modules/s3-browser";
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { invoke } from "@tauri-apps/api/core";
@@ -52,6 +54,8 @@ const modules: Record<ModuleId, React.ComponentType> = {
   scheduler: SchedulerModule,
   repos: ReposModule,
   email: EmailModule,
+  blog: BlogModule,
+  s3browser: S3BrowserModule,
 };
 
 export default function App() {
@@ -80,7 +84,7 @@ export default function App() {
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeModule)) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id));
       if (firstVisible) {
         setActiveModule(firstVisible);
@@ -106,16 +110,15 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "9") {
         e.preventDefault();
         const moduleKeys: ModuleId[] = [
-          "library",
           "projects",
-          "metadata",
+          "library",
           "domains",
           "product",
+          "metadata",
           "gallery",
           "bot",
           "skills",
           "scheduler",
-          "repos",
         ];
         setActiveModule(moduleKeys[parseInt(e.key) - 1]);
       }

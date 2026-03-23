@@ -29,6 +29,8 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
     stage: company?.stage || "prospect",
     source: company?.source || "manual",
     client_folder_path: company?.client_folder_path || "",
+    deal_folder_path: company?.deal_folder_path || "",
+    research_folder_path: company?.research_folder_path || "",
     domain_id: company?.domain_id || "",
     notes: company?.notes || "",
     tags: company?.tags || [],
@@ -170,14 +172,14 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
       </FormField>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Client Folder Path">
+        <FormField label="Client Folder">
           <Input
             type="text"
             value={formData.client_folder_path || ""}
             onChange={(e) =>
               setFormData({ ...formData, client_folder_path: e.target.value })
             }
-            placeholder="3_Clients/by_industry/fnb/..."
+            placeholder="3_Clients/lag"
           />
         </FormField>
 
@@ -189,6 +191,30 @@ export function CompanyForm({ company, onClose, onSaved }: CompanyFormProps) {
               setFormData({ ...formData, domain_id: e.target.value })
             }
             placeholder="e.g., koi, suntec"
+          />
+        </FormField>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Deal Folder">
+          <Input
+            type="text"
+            value={formData.deal_folder_path || ""}
+            onChange={(e) =>
+              setFormData({ ...formData, deal_folder_path: e.target.value })
+            }
+            placeholder="4_Sales/deals/les-amis"
+          />
+        </FormField>
+
+        <FormField label="Research Folder">
+          <Input
+            type="text"
+            value={formData.research_folder_path || ""}
+            onChange={(e) =>
+              setFormData({ ...formData, research_folder_path: e.target.value })
+            }
+            placeholder="4_Sales/research/companies/les-amis-group"
           />
         </FormField>
       </div>

@@ -54,6 +54,9 @@ interface McpStatus {
 interface ClaudeMcpStatus {
   binary_installed: boolean;
   binary_path: string;
+  binary_version: string | null;
+  app_version: string;
+  version_match: boolean;
   config_exists: boolean;
   config_has_tv_mcp: boolean;
   registered_path: string | null;
@@ -202,7 +205,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
     setInstallingClaude(true);
     try {
       const status = await invoke<ClaudeMcpStatus>("claude_mcp_install");
-      toast.success("Claude Code binary installed and registered");
+      toast.success("Claude Code MCP registered");
       setResults((prev) =>
         prev.map((r) => {
           if (r.id === "claude-binary") {
@@ -211,6 +214,13 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
           if (r.id === "claude-config") {
             const ok = status.config_has_tv_mcp && status.path_matches;
             return { ...r, status: ok ? "pass" : "warn", detail: ok ? `Registered at ${status.binary_path}` : "Config not updated — restart Claude Code and try again" };
+          }
+          if (r.id === "claude-version") {
+            if (status.version_match) {
+              return { ...r, status: "pass", detail: `v${status.binary_version} (matches app)`, fix: undefined };
+            } else {
+              return { ...r, status: "fail", detail: `Version mismatch: binary v${status.binary_version ?? "?"}, app v${status.app_version}` };
+            }
           }
           return r;
         }),
@@ -295,7 +305,6 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
     // 1d. Claude MCP Binary + Config + Common Issues
     try {
       const claude = await invoke<ClaudeMcpStatus>("claude_mcp_status");
-      const appVersion = (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__ ?? "unknown";
 
       add({
         id: "claude-binary",
@@ -303,8 +312,8 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
         group: "Infrastructure",
         status: claude.binary_installed ? "pass" : "warn",
         detail: claude.binary_installed
-          ? `Installed at ${claude.binary_path}`
-          : "Not installed — click Install to download and register with Claude Code",
+          ? `${claude.binary_path}${claude.binary_version ? ` (v${claude.binary_version})` : ""}`
+          : "Not found — click Install to register the bundled MCP server with Claude Code",
         fix: claude.binary_installed ? undefined : { kind: "install-claude" },
       });
 
@@ -336,15 +345,37 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
           });
         }
 
-        // Version check: binary should match app version
-        if (claude.config_has_tv_mcp && !hasPathMismatch) {
-          add({
-            id: "claude-version",
-            label: "tv-mcp Version",
-            group: "Infrastructure",
-            status: "pass",
-            detail: `App v${appVersion} — click Reinstall in Claude Code settings if MCP tools seem outdated`,
-          });
+        // Version check: binary version should match app version
+        if (claude.binary_installed) {
+          const binVer = claude.binary_version;
+          const appVer = claude.app_version;
+          if (!binVer) {
+            add({
+              id: "claude-version",
+              label: "tv-mcp Version",
+              group: "Infrastructure",
+              status: "warn",
+              detail: "Could not determine binary version — binary may be too old. Click Reinstall to update.",
+              fix: { kind: "install-claude" },
+            });
+          } else if (!claude.version_match) {
+            add({
+              id: "claude-version",
+              label: "tv-mcp Version",
+              group: "Infrastructure",
+              status: "fail",
+              detail: `Version mismatch: binary is v${binVer}, app is v${appVer}. MCP tools may behave unexpectedly. Click Reinstall to fix, then restart Claude Code.`,
+              fix: { kind: "install-claude" },
+            });
+          } else {
+            add({
+              id: "claude-version",
+              label: "tv-mcp Version",
+              group: "Infrastructure",
+              status: "pass",
+              detail: `v${binVer} (matches app)`,
+            });
+          }
         }
       } else if (claude.binary_installed && !claudeCliInstalled) {
         add({
@@ -368,16 +399,19 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
       add({ id: "claude-binary", label: "tv-mcp Binary", group: "Infrastructure", status: "warn", detail: `Could not check: ${errStr(e)}`, fix: { kind: "navigate", view: "claude", label: "Go to Claude Code" } });
     }
 
-    // 1e. MCP Troubleshooting — detect common problems
-    // Check if there's a stale project-level .mcp.json that could cause issues
-    // (This is what caused the bug where Gloria's Windows path overrode the correct path)
-    add({
-      id: "mcp-tip",
-      label: "MCP Troubleshooting",
-      group: "Infrastructure",
-      status: "pass",
-      detail: "If Claude Code shows tv-mcp as Failed: (1) Go to Settings → Claude Code → Reinstall (2) Restart Claude Code. If still broken, run `claude mcp list` in terminal to see the actual path.",
-    });
+    // 1e. MCP Troubleshooting — only show if there are issues
+    {
+      const infraFails = checks.filter((c) => c.group === "Infrastructure" && (c.status === "fail" || c.status === "warn"));
+      if (infraFails.length > 0) {
+        add({
+          id: "mcp-tip",
+          label: "Troubleshooting Guide",
+          group: "Infrastructure",
+          status: "warn",
+          detail: "Fix steps: (1) Click Install/Reinstall above (2) Restart Claude Code. If still broken: run `claude mcp list` in terminal to check the registered path, or `tv-mcp --version` to verify the binary.",
+        });
+      }
+    }
 
     // ─────────────────────────────────────────────────────────────────────
     // 2. CREDENTIALS

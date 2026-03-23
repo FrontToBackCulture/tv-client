@@ -198,8 +198,16 @@ export function BotPlayground() {
     });
   }, [skillFolders, skillContentQueries, skillSubfolderQueries, skillCategoriesData, registry]);
 
-  // Skill Usage Tracking
+  // Root _skills/ directory — for config panel "available skills" cross-reference
   const tvKnowledgeRoot = botsPath ? botsPath.replace(/\/_team\/?$/, "") : null;
+  const rootSkillsDir = tvKnowledgeRoot ? `${tvKnowledgeRoot}/_skills` : undefined;
+  const { data: rootSkillEntries = [] } = useListDirectory(rootSkillsDir);
+  const availableSkillDirs = useMemo(
+    () => rootSkillEntries.filter((e) => e.is_directory).map((e) => e.name),
+    [rootSkillEntries]
+  );
+
+  // Skill Usage Tracking
   const skillUsageDir = tvKnowledgeRoot ? `${tvKnowledgeRoot}/.claude/skill-usage` : undefined;
   const { data: usageLogFiles = [] } = useListDirectory(skillUsageDir);
   const jsonlFiles = usageLogFiles.filter((f) => f.name.endsWith(".jsonl"));
@@ -423,6 +431,8 @@ export function BotPlayground() {
           skillCategories={skillCategoriesData.categories}
           memoryList={memoryList}
           memoryDir={memoryDir}
+          claudeMdPath={claudeMdPath}
+          availableSkillDirs={availableSkillDirs}
           onSkillClick={(skill) => setDetailView({ type: "skill", skillName: skill.name, skillPath: skill.path, title: skill.title })}
           onSkillDelete={handleSkillDelete}
           onSessionClick={(session) => setDetailView({ type: "session", sessionPath: session.path, date: session.date, title: session.title })}

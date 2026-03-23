@@ -34,6 +34,24 @@ pub async fn notion_preview_cards(
     api::preview_database(&database_id, filter.as_ref()).await
 }
 
+/// List all users in the Notion workspace
+#[tauri::command]
+pub async fn notion_list_users() -> CmdResult<Vec<NotionUser>> {
+    api::list_users().await
+}
+
+/// List all pages from a Notion database (for relation field value mapping)
+#[tauri::command]
+pub async fn notion_list_database_pages(database_id: String) -> CmdResult<Vec<(String, String)>> {
+    api::list_database_pages(&database_id).await
+}
+
+/// Fetch page content (blocks → markdown) and attachments with fresh URLs
+#[tauri::command]
+pub async fn notion_get_page_content(page_id: String) -> CmdResult<(String, Vec<NotionAttachment>)> {
+    api::get_page_blocks(&page_id).await
+}
+
 // ============================================================================
 // Sync Configuration (CRUD via Supabase)
 // ============================================================================
