@@ -10,6 +10,7 @@ import { WorkModule } from "./modules/work/WorkModule";
 import { ProjectsModule } from "./modules/projects";
 import { MetadataModule } from "./modules/metadata";
 import { InboxModule } from "./modules/inbox/InboxModule";
+import { CalendarModule } from "./modules/calendar";
 import { CrmModule } from "./modules/crm/CrmModule";
 import { BotModule } from "./modules/bot/BotModule";
 import { DomainsModule } from "./modules/domains";
@@ -44,6 +45,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   metadata: MetadataModule,
   work: WorkModule,
   inbox: InboxModule,
+  calendar: CalendarModule,
   crm: CrmModule,
   domains: DomainsModule,
   product: ProductModule,
@@ -84,7 +86,7 @@ export default function App() {
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeModule)) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id));
       if (firstVisible) {
         setActiveModule(firstVisible);

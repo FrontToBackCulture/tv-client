@@ -182,6 +182,101 @@ pub async fn outlook_get_folders() -> CmdResult<Vec<EmailFolder>> {
 }
 
 // ============================================================================
+// Calendar commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn outlook_list_calendars() -> CmdResult<Vec<super::types::CalendarEntry>> {
+    let graph = super::graph::GraphClient::new();
+    let calendars = graph.list_calendars().await?;
+
+    Ok(calendars
+        .into_iter()
+        .map(|c| super::types::CalendarEntry {
+            id: c.id,
+            name: c.name.unwrap_or_else(|| "Calendar".to_string()),
+            is_default: c.is_default_calendar.unwrap_or(false),
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub async fn outlook_list_events(
+    start_time: String,
+    end_time: String,
+    limit: Option<i64>,
+) -> CmdResult<Vec<super::types::CalendarEvent>> {
+    eprintln!("[outlook:calendar] list_events called: start={}, end={}", start_time, end_time);
+    let db = EmailDb::open()?;
+    let max = limit.unwrap_or(200);
+
+    // Fetch fresh from Graph API
+    let graph = super::graph::GraphClient::new();
+    match graph.fetch_events(max as usize, &start_time, &end_time).await {
+        Ok(api_events) => {
+            eprintln!("[outlook:calendar] Got {} events from API", api_events.len());
+            // Clear old events in this range and replace with fresh data
+            let _ = db.delete_events_in_range(&start_time, &end_time);
+            let converted: Vec<super::types::CalendarEvent> = api_events
+                .into_iter()
+                .map(graph_event_to_calendar_event)
+                .collect();
+            for event in &converted {
+                let _ = db.upsert_event(event);
+            }
+            Ok(converted)
+        }
+        Err(e) => {
+            // API failed — fall back to cached events from SQLite
+            eprintln!("[outlook:calendar] API fetch failed, falling back to cache: {}", e);
+            db.list_events(&start_time, &end_time, max)
+        }
+    }
+}
+
+fn graph_event_to_calendar_event(e: super::types::GraphEvent) -> super::types::CalendarEvent {
+    let start = e.start.as_ref();
+    let end = e.end.as_ref();
+
+    let organizer_addr = e.organizer.as_ref().map(|o| &o.email_address);
+    let attendees: Vec<super::types::EventAttendee> = e
+        .attendees
+        .unwrap_or_default()
+        .into_iter()
+        .map(|a| super::types::EventAttendee {
+            name: a.email_address.name.unwrap_or_default(),
+            email: a.email_address.address.unwrap_or_default(),
+            response_status: a.status.and_then(|s| s.response).unwrap_or_else(|| "none".to_string()),
+            attendee_type: a.attendee_type.unwrap_or_else(|| "required".to_string()),
+        })
+        .collect();
+
+    super::types::CalendarEvent {
+        id: e.id,
+        subject: e.subject.unwrap_or_default(),
+        body_preview: e.body_preview.unwrap_or_default(),
+        start_at: start.and_then(|s| s.date_time.clone()).unwrap_or_default(),
+        start_timezone: start.and_then(|s| s.time_zone.clone()).unwrap_or_default(),
+        end_at: end.and_then(|s| s.date_time.clone()).unwrap_or_default(),
+        end_timezone: end.and_then(|s| s.time_zone.clone()).unwrap_or_default(),
+        is_all_day: e.is_all_day.unwrap_or(false),
+        location: e.location.and_then(|l| l.display_name).unwrap_or_default(),
+        organizer_name: organizer_addr.and_then(|a| a.name.clone()).unwrap_or_default(),
+        organizer_email: organizer_addr.and_then(|a| a.address.clone()).unwrap_or_default(),
+        attendees,
+        is_online_meeting: e.is_online_meeting.unwrap_or(false),
+        online_meeting_url: e.online_meeting.and_then(|m| m.join_url),
+        show_as: e.show_as.unwrap_or_else(|| "busy".to_string()),
+        importance: e.importance.unwrap_or_else(|| "normal".to_string()),
+        is_cancelled: e.is_cancelled.unwrap_or(false),
+        web_link: e.web_link.unwrap_or_default(),
+        created_at: e.created_date_time.unwrap_or_default(),
+        last_modified_at: e.last_modified_date_time.unwrap_or_default(),
+        categories: e.categories.unwrap_or_default(),
+    }
+}
+
+// ============================================================================
 // Email scan (matches local SQLite emails against CRM domains/contacts)
 // ============================================================================
 

@@ -76,8 +76,8 @@ pub async fn run_initial_sync(
     let cutoff = chrono::Utc::now() - chrono::Duration::days(sync_months * 30);
     let date_filter = format!("receivedDateTime ge {}", cutoff.format("%Y-%m-%dT%H:%M:%SZ"));
     emit_progress(app_handle, "messages", 0, 0, &format!("Fetching messages (last {} months)...", sync_months));
-    eprintln!("[outlook:sync] Fetching messages (last {} months, up to 10000)...", sync_months);
-    let messages = graph.fetch_messages(10000, Some(&date_filter)).await.map_err(|e| {
+    eprintln!("[outlook:sync] Fetching messages (last {} months, up to 50000)...", sync_months);
+    let messages = graph.fetch_messages(50000, Some(&date_filter)).await.map_err(|e| {
         eprintln!("[outlook:sync] Failed to fetch messages: {}", e);
         e
     })?;

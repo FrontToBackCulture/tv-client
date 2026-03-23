@@ -282,6 +282,92 @@ impl GraphClient {
         Ok(())
     }
 
+    // ========================================================================
+    // Calendar
+    // ========================================================================
+
+    /// List user's calendars
+    pub async fn list_calendars(&self) -> CmdResult<Vec<GraphCalendar>> {
+        let token = self.get_token().await?;
+        let url = format!("{}/me/calendars?$top=100", GRAPH_BASE);
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", token))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(CommandError::Http { status: status.as_u16(), body });
+        }
+
+        let data: GraphCalendarList = response
+            .json()
+            .await
+            .map_err(|e| CommandError::Parse(format!("Failed to parse calendars: {}", e)))?;
+
+        Ok(data.value)
+    }
+
+    /// Fetch calendar events via calendarView endpoint (handles recurring events + date ranges)
+    pub async fn fetch_events(
+        &self,
+        max_count: usize,
+        start_time: &str,
+        end_time: &str,
+    ) -> CmdResult<Vec<GraphEvent>> {
+        let token = self.get_token().await?;
+
+        let select = "id,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,isOnlineMeeting,onlineMeeting,showAs,importance,isCancelled,webLink,createdDateTime,lastModifiedDateTime,categories";
+        let mut url = format!(
+            "{}/me/calendarView?startDateTime={}&endDateTime={}&$top=100&$orderby=start/dateTime&$select={}",
+            GRAPH_BASE,
+            urlencoding::encode(start_time),
+            urlencoding::encode(end_time),
+            select,
+        );
+
+        let mut all_events = Vec::new();
+
+        loop {
+            let response = self
+                .client
+                .get(&url)
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Prefer", "outlook.timezone=\"Asia/Singapore\"")
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().await.unwrap_or_default();
+                return Err(CommandError::Http { status: status.as_u16(), body });
+            }
+
+            let data: GraphEventList = response
+                .json()
+                .await
+                .map_err(|e| CommandError::Parse(format!("Failed to parse events: {}", e)))?;
+
+            all_events.extend(data.value);
+
+            if all_events.len() >= max_count {
+                all_events.truncate(max_count);
+                break;
+            }
+
+            match data.next_link {
+                Some(next) => url = next,
+                None => break,
+            }
+        }
+
+        Ok(all_events)
+    }
+
     /// Reply to email
     pub async fn reply_to_email(
         &self,

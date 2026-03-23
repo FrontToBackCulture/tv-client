@@ -29,3 +29,4 @@ pub mod discussions;
 pub mod notifications;
 pub mod blog;
 pub mod s3_browser;
+pub mod apollo;

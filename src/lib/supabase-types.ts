@@ -212,11 +212,13 @@ export type Database = {
       }
       crm_companies: {
         Row: {
+          annual_revenue: number | null
           client_folder_path: string | null
           created_at: string | null
           deal_folder_path: string | null
           display_name: string | null
           domain_id: string | null
+          employee_count: number | null
           id: string
           industry: string | null
           name: string
@@ -231,11 +233,13 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          annual_revenue?: number | null
           client_folder_path?: string | null
           created_at?: string | null
           deal_folder_path?: string | null
           display_name?: string | null
           domain_id?: string | null
+          employee_count?: number | null
           id?: string
           industry?: string | null
           name: string
@@ -250,11 +254,13 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          annual_revenue?: number | null
           client_folder_path?: string | null
           created_at?: string | null
           deal_folder_path?: string | null
           display_name?: string | null
           domain_id?: string | null
+          employee_count?: number | null
           id?: string
           industry?: string | null
           name?: string
@@ -284,6 +290,9 @@ export type Database = {
           notes: string | null
           phone: string | null
           role: string | null
+          seniority: string | null
+          source: string | null
+          source_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -299,6 +308,9 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           role?: string | null
+          seniority?: string | null
+          source?: string | null
+          source_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -314,6 +326,9 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           role?: string | null
+          seniority?: string | null
+          source?: string | null
+          source_id?: string | null
           updated_at?: string | null
         }
         Relationships: [

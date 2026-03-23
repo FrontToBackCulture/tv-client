@@ -364,6 +364,11 @@ fn main() {
             commands::crm::crm_list_activities,
             commands::crm::crm_log_activity,
             commands::crm::crm_delete_activity,
+            // Apollo Module - Prospect Search & Import
+            commands::apollo::apollo_search_people,
+            commands::apollo::apollo_enrich_person,
+            commands::apollo::apollo_check_existing,
+            commands::apollo::apollo_import_prospects,
             // CRM Module - Email Links
             commands::crm::crm_get_email_link,
             commands::crm::crm_link_email,
@@ -518,6 +523,9 @@ fn main() {
             commands::outlook::commands::outlook_get_folders,
             commands::outlook::commands::outlook_bootstrap_contacts,
             commands::outlook::commands::outlook_scan_emails,
+            // Outlook - Calendar
+            commands::outlook::commands::outlook_list_calendars,
+            commands::outlook::commands::outlook_list_events,
             // Email (SES campaign sending)
             commands::email::email_send_campaign,
             commands::email::email_send_test,

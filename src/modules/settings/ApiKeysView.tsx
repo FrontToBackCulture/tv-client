@@ -326,7 +326,7 @@ export function ApiKeysView() {
       k.name === API_KEYS.SUPABASE_URL || k.name === API_KEYS.SUPABASE_ANON_KEY
   );
   const integrationKeys = keys.filter(
-    (k) => k.name === API_KEYS.INTERCOM || k.name === API_KEYS.NOTION
+    (k) => k.name === API_KEYS.INTERCOM || k.name === API_KEYS.NOTION || k.name === API_KEYS.APOLLO
   );
   const awsKeys = keys.filter(
     (k) =>

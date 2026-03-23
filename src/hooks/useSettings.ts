@@ -19,6 +19,7 @@ export const API_KEYS = {
   GA4_PROPERTY_ID: "ga4_property_id",
   EMAIL_API_BASE_URL: "email_api_base_url",
   NOTION: "notion_api_key",
+  APOLLO: "apollo_api_key",
 } as const;
 
 export type ApiKeyName = (typeof API_KEYS)[keyof typeof API_KEYS];

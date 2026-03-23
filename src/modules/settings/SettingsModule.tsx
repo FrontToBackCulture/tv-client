@@ -18,6 +18,7 @@ import {
   Cloud,
   SlidersHorizontal,
   ListChecks,
+  Mail,
 } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -39,8 +40,9 @@ import { FolderPathsView } from "./FolderPathsView";
 import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
 import { ProjectFieldsView } from "./ProjectFieldsView";
 import { TaskFieldsView } from "./TaskFieldsView";
+import { OutlookConnectionView } from "./OutlookConnectionView";
 
-type SettingsViewId = "keys" | "val" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics" | "project-fields" | "task-fields";
+type SettingsViewId = "keys" | "val" | "outlook" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics" | "project-fields" | "task-fields";
 
 interface SidebarItem {
   id: SettingsViewId;
@@ -60,6 +62,7 @@ const baseSidebarGroups: SidebarGroup[] = [
       { id: "keys", label: "API Keys", icon: Key },
       { id: "val", label: "VAL Credentials", icon: Database },
       { id: "mcp", label: "MCP Endpoints", icon: Globe },
+      { id: "outlook", label: "Outlook", icon: Mail },
     ],
   },
   {
@@ -143,7 +146,7 @@ export function SettingsModal() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     if (!settingsOpen) return;
-    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", "project-fields": "Project Fields", "task-fields": "Task Fields", portal: "Portal", notion: "Notion Sync", team: "Team", diagnostics: "Diagnostics" };
+    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", outlook: "Outlook", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", "project-fields": "Project Fields", "task-fields": "Task Fields", portal: "Portal", notion: "Notion Sync", team: "Team", diagnostics: "Diagnostics" };
     setViewContext(activeView, labels[activeView]);
   }, [activeView, setViewContext, settingsOpen]);
 
@@ -212,6 +215,7 @@ export function SettingsModal() {
             <div className={cn("mx-auto p-6", activeView === "notion" ? "max-w-4xl" : "max-w-2xl")}>
               {activeView === "keys" && <ApiKeysView />}
               {activeView === "val" && <ValCredentialsView />}
+              {activeView === "outlook" && <OutlookConnectionView />}
               {activeView === "sync" && <SyncPathsView />}
               {activeView === "folders" && <FolderPathsView />}
               {activeView === "mcp" && <McpEndpointsView />}

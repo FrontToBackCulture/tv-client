@@ -5,7 +5,7 @@ use rusqlite::{params, Connection};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use super::types::{ContactRule, EmailEntry, EmailStats};
+use super::types::{CalendarEvent, ContactRule, EmailEntry, EmailStats, EventAttendee};
 use crate::commands::error::{CmdResult, CommandError};
 
 // ============================================================================
@@ -99,6 +99,34 @@ impl EmailDb {
                 folder_id TEXT PRIMARY KEY,
                 display_name TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS events (
+                id TEXT PRIMARY KEY,
+                subject TEXT NOT NULL DEFAULT '',
+                body_preview TEXT NOT NULL DEFAULT '',
+                start_at TEXT NOT NULL,
+                start_timezone TEXT NOT NULL DEFAULT '',
+                end_at TEXT NOT NULL,
+                end_timezone TEXT NOT NULL DEFAULT '',
+                is_all_day INTEGER NOT NULL DEFAULT 0,
+                location TEXT NOT NULL DEFAULT '',
+                organizer_name TEXT NOT NULL DEFAULT '',
+                organizer_email TEXT NOT NULL DEFAULT '',
+                attendees TEXT NOT NULL DEFAULT '[]',
+                is_online_meeting INTEGER NOT NULL DEFAULT 0,
+                online_meeting_url TEXT,
+                show_as TEXT NOT NULL DEFAULT 'busy',
+                importance TEXT NOT NULL DEFAULT 'normal',
+                is_cancelled INTEGER NOT NULL DEFAULT 0,
+                web_link TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT '',
+                last_modified_at TEXT NOT NULL DEFAULT '',
+                categories TEXT NOT NULL DEFAULT '[]',
+                synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_events_start ON events(start_at);
+            CREATE INDEX IF NOT EXISTS idx_events_end ON events(end_at);
             ",
         )
         .map_err(|e| CommandError::Internal(format!("DB: {}", e)))
@@ -553,6 +581,99 @@ impl EmailDb {
             .map_err(|e| CommandError::Internal(format!("DB: {}", e)))
     }
 
+    // ========================================================================
+    // Calendar events
+    // ========================================================================
+
+    pub fn upsert_event(&self, event: &CalendarEvent) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
+        conn.execute(
+            "INSERT INTO events (
+                id, subject, body_preview, start_at, start_timezone, end_at, end_timezone,
+                is_all_day, location, organizer_name, organizer_email, attendees,
+                is_online_meeting, online_meeting_url, show_as, importance, is_cancelled,
+                web_link, created_at, last_modified_at, categories, synced_at
+            ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21, datetime('now'))
+            ON CONFLICT(id) DO UPDATE SET
+                subject=excluded.subject, body_preview=excluded.body_preview,
+                start_at=excluded.start_at, start_timezone=excluded.start_timezone,
+                end_at=excluded.end_at, end_timezone=excluded.end_timezone,
+                is_all_day=excluded.is_all_day, location=excluded.location,
+                organizer_name=excluded.organizer_name, organizer_email=excluded.organizer_email,
+                attendees=excluded.attendees, is_online_meeting=excluded.is_online_meeting,
+                online_meeting_url=excluded.online_meeting_url, show_as=excluded.show_as,
+                importance=excluded.importance, is_cancelled=excluded.is_cancelled,
+                web_link=excluded.web_link, created_at=excluded.created_at,
+                last_modified_at=excluded.last_modified_at, categories=excluded.categories,
+                synced_at=datetime('now')",
+            params![
+                event.id,
+                event.subject,
+                event.body_preview,
+                event.start_at,
+                event.start_timezone,
+                event.end_at,
+                event.end_timezone,
+                event.is_all_day as i32,
+                event.location,
+                event.organizer_name,
+                event.organizer_email,
+                serde_json::to_string(&event.attendees).unwrap_or_default(),
+                event.is_online_meeting as i32,
+                event.online_meeting_url,
+                event.show_as,
+                event.importance,
+                event.is_cancelled as i32,
+                event.web_link,
+                event.created_at,
+                event.last_modified_at,
+                serde_json::to_string(&event.categories).unwrap_or_default(),
+            ],
+        )
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+        Ok(())
+    }
+
+    pub fn list_events(&self, start_after: &str, end_before: &str, limit: i64) -> CmdResult<Vec<CalendarEvent>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, subject, body_preview, start_at, start_timezone, end_at, end_timezone,
+                        is_all_day, location, organizer_name, organizer_email, attendees,
+                        is_online_meeting, online_meeting_url, show_as, importance, is_cancelled,
+                        web_link, created_at, last_modified_at, categories
+                 FROM events
+                 WHERE start_at >= ?1 AND end_at <= ?2
+                 ORDER BY start_at ASC
+                 LIMIT ?3",
+            )
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+
+        let rows = stmt
+            .query_map(params![start_after, end_before, limit], |row| Ok(row_to_event(row)))
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+
+        let mut events = Vec::new();
+        for row in rows {
+            match row {
+                Ok(Ok(event)) => events.push(event),
+                Ok(Err(e)) => return Err(e),
+                Err(e) => return Err(CommandError::Internal(format!("DB: {}", e))),
+            }
+        }
+        Ok(events)
+    }
+
+    pub fn delete_events_in_range(&self, start_after: &str, end_before: &str) -> CmdResult<()> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
+        conn.execute(
+            "DELETE FROM events WHERE start_at >= ?1 AND end_at <= ?2",
+            params![start_after, end_before],
+        )
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+        Ok(())
+    }
+
     /// Scan emails matching company domains or contact emails
     pub fn scan_emails_for_entity(
         &self,
@@ -727,6 +848,35 @@ fn row_to_email(row: &rusqlite::Row) -> CmdResult<EmailEntry> {
         status: row.get(19).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
         linked_company_id: row.get(20).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
         linked_company_name: row.get(21).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+    })
+}
+
+fn row_to_event(row: &rusqlite::Row) -> CmdResult<CalendarEvent> {
+    let attendees_json: String = row.get(11).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+    let categories_json: String = row.get(20).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+
+    Ok(CalendarEvent {
+        id: row.get(0).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        subject: row.get(1).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        body_preview: row.get(2).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        start_at: row.get(3).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        start_timezone: row.get(4).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        end_at: row.get(5).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        end_timezone: row.get(6).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        is_all_day: row.get::<_, i32>(7).map_err(|e| CommandError::Internal(format!("DB: {}", e)))? != 0,
+        location: row.get(8).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        organizer_name: row.get(9).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        organizer_email: row.get(10).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        attendees: serde_json::from_str(&attendees_json).unwrap_or_default(),
+        is_online_meeting: row.get::<_, i32>(12).map_err(|e| CommandError::Internal(format!("DB: {}", e)))? != 0,
+        online_meeting_url: row.get(13).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        show_as: row.get(14).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        importance: row.get(15).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        is_cancelled: row.get::<_, i32>(16).map_err(|e| CommandError::Internal(format!("DB: {}", e)))? != 0,
+        web_link: row.get(17).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        created_at: row.get(18).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        last_modified_at: row.get(19).map_err(|e| CommandError::Internal(format!("DB: {}", e)))?,
+        categories: serde_json::from_str(&categories_json).unwrap_or_default(),
     })
 }
 

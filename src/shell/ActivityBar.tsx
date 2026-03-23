@@ -24,6 +24,7 @@ import {
   FileText,
   ChevronRight,
   Cloud,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId, useAppStore } from "../stores/appStore";
@@ -60,6 +61,7 @@ const navSections: NavSection[] = [
       { id: "library", icon: Library, label: "Library", shortcut: "⌘2" },
       { id: "domains", icon: Globe, label: "Domains", shortcut: "⌘3" },
       { id: "inbox", icon: Mail, label: "Inbox", shortcut: "" },
+      { id: "calendar", icon: CalendarDays, label: "Calendar", shortcut: "" },
     ],
   },
   {

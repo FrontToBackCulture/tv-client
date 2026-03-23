@@ -92,7 +92,7 @@ async fn refresh_access_token(refresh_token: &str) -> CmdResult<OutlookTokens> {
             ("client_secret", client_secret.as_str()),
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh_token),
-            ("scope", "offline_access Mail.Read Mail.ReadWrite Mail.Send User.Read"),
+            ("scope", "offline_access Mail.Read Mail.ReadWrite Mail.Send User.Read Calendars.Read"),
         ])
         .send()
         .await?;
@@ -137,7 +137,7 @@ pub async fn outlook_auth_start(
         .map_err(|e| CommandError::Io(format!("Failed to bind on port {}: {}", port, e)))?;
 
     let redirect_uri = format!("http://localhost:{}/callback", port);
-    let scopes = "offline_access Mail.Read Mail.ReadWrite Mail.Send User.Read";
+    let scopes = "offline_access Mail.Read Mail.ReadWrite Mail.Send User.Read Calendars.Read";
     let auth_url = format!(
         "https://login.microsoftonline.com/{}/oauth2/v2.0/authorize?client_id={}&response_type=code&redirect_uri={}&scope={}&response_mode=query",
         tenant_id,
@@ -337,7 +337,7 @@ pub async fn outlook_auth_import(token_file_path: String) -> CmdResult<OutlookAu
         access_token: access_token.to_string(),
         refresh_token,
         expires_at,
-        scope: Some("offline_access Mail.Read Mail.ReadWrite Mail.Send User.Read".to_string()),
+        scope: Some("offline_access Mail.Read Mail.ReadWrite Mail.Send User.Read Calendars.Read".to_string()),
     };
 
     save_tokens(&tokens)?;

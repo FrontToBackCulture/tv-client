@@ -242,3 +242,140 @@ pub struct GraphUserProfile {
     #[allow(dead_code)]
     pub display_name: Option<String>,
 }
+
+// ============================================================================
+// Calendar types
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarEntry {
+    pub id: String,
+    pub name: String,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarEvent {
+    pub id: String,
+    pub subject: String,
+    pub body_preview: String,
+    pub start_at: String,
+    pub start_timezone: String,
+    pub end_at: String,
+    pub end_timezone: String,
+    pub is_all_day: bool,
+    pub location: String,
+    pub organizer_name: String,
+    pub organizer_email: String,
+    pub attendees: Vec<EventAttendee>,
+    pub is_online_meeting: bool,
+    pub online_meeting_url: Option<String>,
+    pub show_as: String,
+    pub importance: String,
+    pub is_cancelled: bool,
+    pub web_link: String,
+    pub created_at: String,
+    pub last_modified_at: String,
+    pub categories: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventAttendee {
+    pub name: String,
+    pub email: String,
+    pub response_status: String,
+    pub attendee_type: String,
+}
+
+// Graph API calendar response types
+
+#[derive(Debug, Deserialize)]
+pub struct GraphCalendarList {
+    pub value: Vec<GraphCalendar>,
+    #[serde(rename = "@odata.nextLink")]
+    #[allow(dead_code)]
+    pub next_link: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphCalendar {
+    pub id: String,
+    pub name: Option<String>,
+    #[serde(rename = "isDefaultCalendar")]
+    pub is_default_calendar: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphEventList {
+    pub value: Vec<GraphEvent>,
+    #[serde(rename = "@odata.nextLink")]
+    pub next_link: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphEvent {
+    pub id: String,
+    pub subject: Option<String>,
+    #[serde(rename = "bodyPreview")]
+    pub body_preview: Option<String>,
+    pub start: Option<GraphDateTimeZone>,
+    pub end: Option<GraphDateTimeZone>,
+    #[serde(rename = "isAllDay")]
+    pub is_all_day: Option<bool>,
+    pub location: Option<GraphLocation>,
+    pub organizer: Option<GraphRecipient>,
+    pub attendees: Option<Vec<GraphAttendee>>,
+    #[serde(rename = "isOnlineMeeting")]
+    pub is_online_meeting: Option<bool>,
+    #[serde(rename = "onlineMeeting")]
+    pub online_meeting: Option<GraphOnlineMeeting>,
+    #[serde(rename = "showAs")]
+    pub show_as: Option<String>,
+    pub importance: Option<String>,
+    #[serde(rename = "isCancelled")]
+    pub is_cancelled: Option<bool>,
+    #[serde(rename = "webLink")]
+    pub web_link: Option<String>,
+    #[serde(rename = "createdDateTime")]
+    pub created_date_time: Option<String>,
+    #[serde(rename = "lastModifiedDateTime")]
+    pub last_modified_date_time: Option<String>,
+    pub categories: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphDateTimeZone {
+    #[serde(rename = "dateTime")]
+    pub date_time: Option<String>,
+    #[serde(rename = "timeZone")]
+    pub time_zone: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphLocation {
+    #[serde(rename = "displayName")]
+    pub display_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphAttendee {
+    #[serde(rename = "emailAddress")]
+    pub email_address: GraphEmailAddress,
+    pub status: Option<GraphResponseStatus>,
+    #[serde(rename = "type")]
+    pub attendee_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphResponseStatus {
+    pub response: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphOnlineMeeting {
+    #[serde(rename = "joinUrl")]
+    pub join_url: Option<String>,
+}

@@ -29,6 +29,7 @@ pub const KEY_GA4_PROPERTY_ID: &str = "ga4_property_id";
 pub const KEY_EMAIL_API_BASE_URL: &str = "email_api_base_url";
 pub const KEY_NOTION_API: &str = "notion_api_key";
 pub const KEY_KNOWLEDGE_PATH: &str = "knowledge_path";
+pub const KEY_APOLLO_API: &str = "apollo_api_key";
 
 // ============================================================================
 // Types
@@ -192,6 +193,7 @@ pub fn settings_list_keys() -> CmdResult<Vec<ApiKeyInfo>> {
         (KEY_GA4_PROPERTY_ID, "GA4 Property ID", "GA4 numeric property ID for analytics"),
         (KEY_EMAIL_API_BASE_URL, "Email API Base URL", "Tracking endpoint URL for email open/click/unsubscribe (e.g. https://your-domain.ngrok-free.dev)"),
         (KEY_NOTION_API, "Notion API Key", "For syncing Notion databases to Work Module"),
+        (KEY_APOLLO_API, "Apollo API Key", "For prospect search and enrichment"),
     ];
 
     let mut result = Vec::new();

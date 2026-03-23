@@ -38,6 +38,10 @@ pub struct Company {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub referred_by: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub employee_count: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annual_revenue: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
@@ -117,6 +121,12 @@ pub struct Contact {
     pub notes: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linkedin_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seniority: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

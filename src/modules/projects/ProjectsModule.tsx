@@ -38,13 +38,14 @@ import { CrmDashboard } from "../crm/CrmDashboard";
 import { DirectoryView } from "../crm/DirectoryView";
 import { ClientsView } from "../crm/ClientsView";
 import { ClosedDealsView } from "../crm/ClosedDealsView";
+import { ProspectsView } from "../crm/ProspectsView";
 import { NotionSyncStatus } from "../notion/NotionSyncStatus";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
 import { useViewContextStore } from "../../stores/viewContextStore";
 
 type ProjectsView =
   | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project" | "my-tasks" | "team-tasks"  // Work views
-  | "crm-dashboard" | "pipeline" | "metadata" | "directory" | "clients" | "closed"  // CRM views
+  | "crm-dashboard" | "pipeline" | "metadata" | "directory" | "clients" | "closed" | "prospects"  // CRM views
 
 const CRM_DETAIL_PANEL_WIDTH_KEY = "tv-desktop-crm-detail-panel-width";
 
@@ -84,7 +85,7 @@ export function ProjectsModule() {
     const labels: Record<ProjectsView, string> = {
       all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board", "my-tasks": "My Tasks", "team-tasks": "Team Bandwidth",
       tracker: "Tracker", project: "Project",
-      "crm-dashboard": "CRM Dashboard", pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals",
+      "crm-dashboard": "CRM Dashboard", pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals", prospects: "Prospects",
     };
     setViewContext(view, labels[view]);
   }, [view, setViewContext]);
@@ -255,7 +256,7 @@ export function ProjectsModule() {
 
   // ---- Determine which section is active ----
   const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project", "my-tasks", "team-tasks"].includes(view);
-  const isCrmView = ["crm-dashboard", "pipeline", "directory", "clients", "closed"].includes(view);
+  const isCrmView = ["crm-dashboard", "pipeline", "directory", "clients", "closed", "prospects"].includes(view);
 
   const showProjectView = view === "project" && selectedProject;
 
@@ -315,6 +316,7 @@ export function ProjectsModule() {
 
           <ViewTab label="CRM Dashboard" icon={BarChart3} active={view === "crm-dashboard"} onClick={() => handleViewChange("crm-dashboard")} />
           <ViewTab label="CRM Pipeline" icon={Building2} active={view === "pipeline"} onClick={() => handleViewChange("pipeline")} />
+          <ViewTab label="Prospects" icon={Target} active={view === "prospects"} onClick={() => handleViewChange("prospects")} />
         </div>
 
         {/* Actions */}
@@ -479,6 +481,14 @@ export function ProjectsModule() {
           <>
             <div className="flex flex-col overflow-hidden" style={{ flex: selectedCompanyId ? `0 0 ${100 - detailPanelWidth}%` : "1 1 auto", transition: isResizingDetail ? "none" : "flex 200ms" }}>
               <ClosedDealsView selectedId={selectedCompanyId} onSelect={handleSelectCompany} />
+            </div>
+            {companyDetailPanel}
+          </>
+        )}
+        {view === "prospects" && (
+          <>
+            <div className="flex flex-col overflow-hidden" style={{ flex: selectedCompanyId ? `0 0 ${100 - detailPanelWidth}%` : "1 1 auto", transition: isResizingDetail ? "none" : "flex 200ms" }}>
+              <ProspectsView selectedId={selectedCompanyId} onSelect={handleSelectCompany} onNewCompany={handleNewCompany} />
             </div>
             {companyDetailPanel}
           </>

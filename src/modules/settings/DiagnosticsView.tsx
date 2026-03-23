@@ -116,10 +116,9 @@ const KEY_FEATURE_MAP: Record<string, { features: string; howToGet: string; requ
 };
 
 const EXPECTED_TOOL_GROUPS: Record<string, string[]> = {
-  "Work Module": ["list-work-projects", "create-work-project", "list-work-tasks", "create-work-task"],
+  "Work Module": ["list-projects", "create-project", "list-tasks", "create-task"],
   "CRM": ["list-crm-companies", "list-crm-deals", "list-crm-contacts", "log-crm-activity"],
   "VAL Sync": ["execute-val-sql", "sync-val-status", "sync-val-all"],
-  "Workspaces": ["list-workspaces", "create-workspace"],
   "Content Generation": ["gamma-generate", "nanobanana-generate", "generate-proposal", "generate-order-form"],
   "Publishing": ["publish-to-intercom", "list-intercom-collections"],
   "Drive": ["list-drive-files", "check-all-domain-drive-files"],
@@ -453,7 +452,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
     // 3a. Supabase / VAL / Work / CRM — via MCP tool calls
     const liveTests: Array<[string, string, string, string[]]> = [
       ["live-val", "sync-val-list-domains", "VAL Connection", ["supabase_url", "supabase_anon_key"]],
-      ["live-work", "list-work-projects", "Work Module", ["supabase_url", "supabase_anon_key"]],
+      ["live-work", "list-projects", "Work Module", ["supabase_url", "supabase_anon_key"]],
       ["live-crm", "list-crm-companies", "CRM Module", ["supabase_url", "supabase_anon_key"]],
     ];
 
