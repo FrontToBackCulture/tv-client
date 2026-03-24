@@ -20,6 +20,13 @@ export {
 } from "./useContactGroups";
 export { useImportContacts } from "./useImport";
 export {
+  useEmailDrafts,
+  useSendDraft,
+  useDeleteDraft,
+  useUpdateDraft,
+  useDraftTracking,
+} from "./useDrafts";
+export {
   useEmailCampaigns,
   useEmailCampaign,
   useCampaignStats,

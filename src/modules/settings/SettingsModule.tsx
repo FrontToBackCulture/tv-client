@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   ListChecks,
   Mail,
+  Linkedin,
 } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -41,8 +42,9 @@ import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
 import { ProjectFieldsView } from "./ProjectFieldsView";
 import { TaskFieldsView } from "./TaskFieldsView";
 import { OutlookConnectionView } from "./OutlookConnectionView";
+import { LinkedInConnectionView } from "./LinkedInConnectionView";
 
-type SettingsViewId = "keys" | "val" | "outlook" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics" | "project-fields" | "task-fields";
+type SettingsViewId = "keys" | "val" | "outlook" | "linkedin" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics" | "project-fields" | "task-fields";
 
 interface SidebarItem {
   id: SettingsViewId;
@@ -63,6 +65,7 @@ const baseSidebarGroups: SidebarGroup[] = [
       { id: "val", label: "VAL Credentials", icon: Database },
       { id: "mcp", label: "MCP Endpoints", icon: Globe },
       { id: "outlook", label: "Outlook", icon: Mail },
+      { id: "linkedin", label: "LinkedIn", icon: Linkedin },
     ],
   },
   {
@@ -146,7 +149,7 @@ export function SettingsModal() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     if (!settingsOpen) return;
-    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", outlook: "Outlook", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", "project-fields": "Project Fields", "task-fields": "Task Fields", portal: "Portal", notion: "Notion Sync", team: "Team", diagnostics: "Diagnostics" };
+    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", outlook: "Outlook", linkedin: "LinkedIn", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", "project-fields": "Project Fields", "task-fields": "Task Fields", portal: "Portal", notion: "Notion Sync", team: "Team", diagnostics: "Diagnostics" };
     setViewContext(activeView, labels[activeView]);
   }, [activeView, setViewContext, settingsOpen]);
 
@@ -216,6 +219,7 @@ export function SettingsModal() {
               {activeView === "keys" && <ApiKeysView />}
               {activeView === "val" && <ValCredentialsView />}
               {activeView === "outlook" && <OutlookConnectionView />}
+              {activeView === "linkedin" && <LinkedInConnectionView />}
               {activeView === "sync" && <SyncPathsView />}
               {activeView === "folders" && <FolderPathsView />}
               {activeView === "mcp" && <McpEndpointsView />}

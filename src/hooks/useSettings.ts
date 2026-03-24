@@ -20,6 +20,8 @@ export const API_KEYS = {
   EMAIL_API_BASE_URL: "email_api_base_url",
   NOTION: "notion_api_key",
   APOLLO: "apollo_api_key",
+  LINKEDIN_CLIENT_ID: "linkedin_client_id",
+  LINKEDIN_CLIENT_SECRET: "linkedin_client_secret",
 } as const;
 
 export type ApiKeyName = (typeof API_KEYS)[keyof typeof API_KEYS];

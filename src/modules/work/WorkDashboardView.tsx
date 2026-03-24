@@ -634,7 +634,7 @@ export function DashboardView({
               <button
                 onClick={() => toggleGroup(`stage-${stage}`)}
                 className="w-full flex items-center gap-1.5 pr-3 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
-                style={{ paddingLeft: "3rem" }}
+                style={{ paddingLeft: "3.75rem" }}
               >
                 {isStageExpanded ? <ChevronDown size={9} className="text-zinc-400" /> : <ChevronRight size={9} className="text-zinc-400" />}
                 <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">{stageInfo?.label || stage}</span>
@@ -664,7 +664,7 @@ export function DashboardView({
             ? "bg-teal-50 dark:bg-teal-950/30"
             : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
         } ${isDimmed ? "opacity-50" : ""}`}
-        style={{ paddingLeft: indentExtra ? "4rem" : "3rem" }}
+        style={{ paddingLeft: indentExtra ? "4.75rem" : "3.75rem" }}
       >
         {/* Name + Health + Priority */}
         <div className="flex items-center gap-1.5 min-w-0">

@@ -24,6 +24,8 @@ import { GalleryModule } from "./modules/gallery";
 import { HomeModule } from "./modules/home/HomeModule";
 import { BlogModule } from "./modules/blog";
 import { S3BrowserModule } from "./modules/s3-browser";
+import { LinkedInModule } from "./modules/linkedin/LinkedInModule";
+import { ProspectingModule } from "./modules/prospecting";
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { invoke } from "@tauri-apps/api/core";
@@ -58,6 +60,8 @@ const modules: Record<ModuleId, React.ComponentType> = {
   email: EmailModule,
   blog: BlogModule,
   s3browser: S3BrowserModule,
+  linkedin: LinkedInModule,
+  prospecting: ProspectingModule,
 };
 
 export default function App() {
@@ -86,7 +90,7 @@ export default function App() {
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeModule)) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser", "linkedin"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id));
       if (firstVisible) {
         setActiveModule(firstVisible);

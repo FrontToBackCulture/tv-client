@@ -24,6 +24,8 @@ import {
   Cloud,
   CalendarDays,
   MoreHorizontal,
+  Linkedin,
+  Target,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -65,6 +67,7 @@ const navSections: NavSection[] = [
   {
     label: "Outreach",
     items: [
+      { id: "prospecting", icon: Target, label: "Outbound", shortcut: "" },
       { id: "email", icon: MailPlus, label: "EDM", shortcut: "" },
       { id: "blog", icon: FileText, label: "Blog", shortcut: "" },
       { id: "gallery", icon: GalleryHorizontalEnd, label: "Gallery", shortcut: "⌘6" },
@@ -82,6 +85,7 @@ const navSections: NavSection[] = [
 
 // Items hidden behind "More" flyout in Platform section
 const moreItems: NavItem[] = [
+  { id: "linkedin", icon: Linkedin, label: "LinkedIn", shortcut: "" },
   { id: "product", icon: Boxes, label: "Product", shortcut: "⌘4" },
   { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "⌘9" },
   { id: "repos", icon: GitBranch, label: "Repos", shortcut: "" },

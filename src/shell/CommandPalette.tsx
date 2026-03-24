@@ -30,6 +30,8 @@ import {
   Loader2,
   Sparkles,
   FileText,
+  Linkedin,
+  Target,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { useAppStore, ModuleId } from "../stores/appStore";
@@ -63,6 +65,8 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   email: MailPlus,
   blog: FileText,
   s3browser: Globe,
+  linkedin: Linkedin,
+  prospecting: Target,
 };
 
 const moduleLabels: Record<ModuleId, string> = {
@@ -86,6 +90,8 @@ const moduleLabels: Record<ModuleId, string> = {
   email: "EDM",
   blog: "Blog",
   s3browser: "S3 Browser",
+  linkedin: "LinkedIn",
+  prospecting: "Outbound",
 };
 
 const MODULE_LABELS: Record<string, string> = {

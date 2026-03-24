@@ -19,6 +19,8 @@ const STATUS_TYPE_LABELS: Record<StatusType, string> = {
   review: "In Review", completed: "Done", canceled: "Canceled",
 };
 
+type SortCol = "id" | "title" | "priority" | "assignee" | "milestone" | "due_date" | null;
+
 interface Props {
   milestones: MilestoneWithProgress[];
   tasks: TaskWithRelations[];
@@ -29,6 +31,31 @@ interface Props {
   onContextMenu: (taskId: string, x: number, y: number) => void;
   onUpdateTask: (id: string, updates: Record<string, unknown>) => void;
   onDeleteMilestone?: (id: string) => void;
+}
+
+function sortTasks(tasks: TaskWithRelations[], col: SortCol, dir: "asc" | "desc"): TaskWithRelations[] {
+  if (!col) {
+    // Default sort: status order, then task number
+    const order: Record<string, number> = { started: 0, review: 0, unstarted: 1, backlog: 2, completed: 3, canceled: 4 };
+    return [...tasks].sort((a, b) => {
+      const statusDiff = (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
+      if (statusDiff !== 0) return statusDiff;
+      return (a.task_number ?? 0) - (b.task_number ?? 0);
+    });
+  }
+  const d = dir === "asc" ? 1 : -1;
+  return [...tasks].sort((a, b) => {
+    let cmp = 0;
+    switch (col) {
+      case "id": cmp = (a.task_number ?? 0) - (b.task_number ?? 0); break;
+      case "title": cmp = (a.title || "").localeCompare(b.title || ""); break;
+      case "priority": cmp = (a.priority ?? 99) - (b.priority ?? 99); break;
+      case "assignee": cmp = (a.assignee?.name || "").localeCompare(b.assignee?.name || ""); break;
+      case "milestone": cmp = (a.milestone_id || "").localeCompare(b.milestone_id || ""); break;
+      case "due_date": cmp = (a.due_date || "9999").localeCompare(b.due_date || "9999"); break;
+    }
+    return cmp !== 0 ? cmp * d : (a.task_number ?? 0) - (b.task_number ?? 0);
+  });
 }
 
 export function MilestoneTaskGroups({
@@ -43,6 +70,23 @@ export function MilestoneTaskGroups({
   });
   const toggle = (id: string) => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
 
+  const [sortCol, setSortCol] = useState<SortCol>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIndicator = ({ col }: { col: SortCol }) =>
+    sortCol === col ? <span className="ml-0.5">{sortDir === "asc" ? "↑" : "↓"}</span> : null;
+
+  const thClass = "text-left px-2 py-1.5 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none text-[11px]";
+
   // Group tasks by milestone_id
   const tasksByMilestone = new Map<string | null, TaskWithRelations[]>();
   for (const t of tasks) {
@@ -51,8 +95,21 @@ export function MilestoneTaskGroups({
     g.push(t);
     tasksByMilestone.set(key, g);
   }
-  for (const [, g] of tasksByMilestone) g.sort((a, b) => (a.task_number ?? 0) - (b.task_number ?? 0));
   const unassigned = tasksByMilestone.get(null) ?? [];
+
+  const renderHeader = () => (
+    <thead>
+      <tr className="border-b border-zinc-100 dark:border-zinc-800/50">
+        <th style={{ width: 36 }} />
+        <th className={thClass} style={{ width: 72 }} onClick={() => handleSort("id")}>ID<SortIndicator col="id" /></th>
+        <th className={thClass} onClick={() => handleSort("title")}>Title<SortIndicator col="title" /></th>
+        <th className={thClass} style={{ width: 96 }} onClick={() => handleSort("priority")}>Priority<SortIndicator col="priority" /></th>
+        <th className={thClass} style={{ width: 100 }} onClick={() => handleSort("assignee")}>Assignee<SortIndicator col="assignee" /></th>
+        <th className={thClass} style={{ width: 120 }} onClick={() => handleSort("milestone")}>Milestone<SortIndicator col="milestone" /></th>
+        <th className={thClass} style={{ width: 112 }} onClick={() => handleSort("due_date")}>Due Date<SortIndicator col="due_date" /></th>
+      </tr>
+    </thead>
+  );
 
   const renderRow = (task: TaskWithRelations) => {
     const st = (task.status?.type as StatusType) ?? "unstarted";
@@ -140,7 +197,7 @@ export function MilestoneTaskGroups({
   return (
     <div className="space-y-2">
       {milestones.map((m) => {
-        const mt = tasksByMilestone.get(m.id) ?? [];
+        const mt = sortTasks(tasksByMilestone.get(m.id) ?? [], sortCol, sortDir);
         const isC = collapsed[m.id] ?? false;
         const isCur = m.id === currentMilestoneId;
         const done = m.taskCount > 0 && m.completedCount === m.taskCount;
@@ -179,7 +236,11 @@ export function MilestoneTaskGroups({
               </div>
             </button>
             {!isC && mt.length > 0 && (
-              <table className="w-full text-xs table-fixed"><colgroup><col style={{width:36}}/><col style={{width:72}}/><col/><col style={{width:96}}/><col style={{width:100}}/><col style={{width:120}}/><col style={{width:112}}/></colgroup><tbody>{mt.map(renderRow)}</tbody></table>
+              <table className="w-full text-xs table-fixed">
+                <colgroup><col style={{width:36}}/><col style={{width:72}}/><col/><col style={{width:96}}/><col style={{width:100}}/><col style={{width:120}}/><col style={{width:112}}/></colgroup>
+                {renderHeader()}
+                <tbody>{mt.map(renderRow)}</tbody>
+              </table>
             )}
             {!isC && mt.length === 0 && (
               <div className="px-3 py-3 text-xs text-zinc-400 italic">No tasks in this phase</div>
@@ -192,7 +253,11 @@ export function MilestoneTaskGroups({
           <div className="px-3 py-2 text-xs font-medium bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 dark:text-zinc-400">
             Unassigned ({unassigned.length})
           </div>
-          <table className="w-full text-xs table-fixed"><colgroup><col style={{width:36}}/><col style={{width:72}}/><col/><col style={{width:96}}/><col style={{width:100}}/><col style={{width:120}}/><col style={{width:112}}/></colgroup><tbody>{unassigned.map(renderRow)}</tbody></table>
+          <table className="w-full text-xs table-fixed">
+            <colgroup><col style={{width:36}}/><col style={{width:72}}/><col/><col style={{width:96}}/><col style={{width:100}}/><col style={{width:120}}/><col style={{width:112}}/></colgroup>
+            {renderHeader()}
+            <tbody>{sortTasks(unassigned, sortCol, sortDir).map(renderRow)}</tbody>
+          </table>
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@
 // Campaign list with tree sidebar for grouping + inline category picker + actions
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { Plus, Pencil, Copy, Trash2, Tag, Check, X } from "lucide-react";
+import { Plus, Pencil, Copy, Trash2, Tag, Check, X, ChevronRight } from "lucide-react";
 import { useEmailCampaigns, useDeleteEmailCampaign, useCloneEmailCampaign, useUpdateEmailCampaign } from "../../hooks/email";
 import { CAMPAIGN_STATUSES } from "../../lib/email/types";
 import type { EmailCampaignWithStats } from "../../lib/email/types";
@@ -69,6 +69,7 @@ export function CampaignsView({ selectedId, onSelect, onNewCampaign }: Campaigns
   const cloneCampaign = useCloneEmailCampaign();
   const updateCampaign = useUpdateEmailCampaign();
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Collect existing categories for the inline picker
   const existingCategories = useMemo(() => {
@@ -89,6 +90,38 @@ export function CampaignsView({ selectedId, onSelect, onNewCampaign }: Campaigns
       return keys.includes(treeSelection.groupValue!);
     });
   }, [campaigns, treeSelection.groupValue, activeOption]);
+
+  // Group campaigns by the active groupBy option
+  const groupedCampaigns = useMemo(() => {
+    const groups = new Map<string, EmailCampaignWithStats[]>();
+    for (const c of filtered) {
+      const val = activeOption.getGroup(c);
+      const keys = Array.isArray(val) ? val : [val];
+      for (const key of keys) {
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(c);
+      }
+    }
+    const entries = Array.from(groups.entries());
+    if (activeOption.sortGroups) {
+      entries.sort(([a], [b]) => activeOption.sortGroups!(a, b));
+    } else {
+      entries.sort(([a], [b]) => a.localeCompare(b));
+    }
+    return entries;
+  }, [filtered, activeOption]);
+
+  const toggleGroup = useCallback((groupKey: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  }, []);
+
+  // Show grouped view when no specific group is selected in the sidebar
+  const showGrouped = !treeSelection.groupValue && groupedCampaigns.length > 1;
 
   const handleDelete = async (id: string) => {
     await deleteCampaign.mutateAsync(id);
@@ -144,24 +177,75 @@ export function CampaignsView({ selectedId, onSelect, onNewCampaign }: Campaigns
             </div>
           ) : (
             <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
-              {filtered.map((campaign) => (
-                <CampaignRow
-                  key={campaign.id}
-                  campaign={campaign}
-                  categories={existingCategories}
-                  isSelected={campaign.id === selectedId}
-                  isDeleteConfirm={campaign.id === deleteConfirmId}
-                  onClick={() => onSelect(campaign.id === selectedId ? null : campaign.id)}
-                  onEdit={() => onSelect(campaign.id)}
-                  onClone={() => handleClone(campaign.id)}
-                  onDeleteClick={() => setDeleteConfirmId(campaign.id)}
-                  onDeleteConfirm={() => handleDelete(campaign.id)}
-                  onDeleteCancel={() => setDeleteConfirmId(null)}
-                  onCategoryChange={(cat) => handleCategoryChange(campaign.id, cat)}
-                  isDeleting={deleteCampaign.isPending}
-                  isCloning={cloneCampaign.isPending}
-                />
-              ))}
+              {showGrouped ? (
+                groupedCampaigns.map(([groupKey, groupCampaigns]) => {
+                  const isCollapsed = collapsedGroups.has(groupKey);
+                  const label = activeOption.getLabel?.(groupKey) ?? groupKey;
+                  return (
+                    <div key={groupKey}>
+                      <button
+                        onClick={() => toggleGroup(groupKey)}
+                        className="w-full flex items-center gap-2 px-4 py-2 bg-zinc-50/80 dark:bg-zinc-900/40 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors sticky top-0 z-10"
+                      >
+                        <ChevronRight
+                          size={12}
+                          className={cn(
+                            "text-zinc-400 transition-transform duration-150",
+                            !isCollapsed && "rotate-90",
+                          )}
+                        />
+                        <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300">
+                          {label}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                          {groupCampaigns.length}
+                        </span>
+                      </button>
+                      {!isCollapsed && (
+                        <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+                          {groupCampaigns.map((campaign) => (
+                            <CampaignRow
+                              key={campaign.id}
+                              campaign={campaign}
+                              categories={existingCategories}
+                              isSelected={campaign.id === selectedId}
+                              isDeleteConfirm={campaign.id === deleteConfirmId}
+                              onClick={() => onSelect(campaign.id === selectedId ? null : campaign.id)}
+                              onEdit={() => onSelect(campaign.id)}
+                              onClone={() => handleClone(campaign.id)}
+                              onDeleteClick={() => setDeleteConfirmId(campaign.id)}
+                              onDeleteConfirm={() => handleDelete(campaign.id)}
+                              onDeleteCancel={() => setDeleteConfirmId(null)}
+                              onCategoryChange={(cat) => handleCategoryChange(campaign.id, cat)}
+                              isDeleting={deleteCampaign.isPending}
+                              isCloning={cloneCampaign.isPending}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                filtered.map((campaign) => (
+                  <CampaignRow
+                    key={campaign.id}
+                    campaign={campaign}
+                    categories={existingCategories}
+                    isSelected={campaign.id === selectedId}
+                    isDeleteConfirm={campaign.id === deleteConfirmId}
+                    onClick={() => onSelect(campaign.id === selectedId ? null : campaign.id)}
+                    onEdit={() => onSelect(campaign.id)}
+                    onClone={() => handleClone(campaign.id)}
+                    onDeleteClick={() => setDeleteConfirmId(campaign.id)}
+                    onDeleteConfirm={() => handleDelete(campaign.id)}
+                    onDeleteCancel={() => setDeleteConfirmId(null)}
+                    onCategoryChange={(cat) => handleCategoryChange(campaign.id, cat)}
+                    isDeleting={deleteCampaign.isPending}
+                    isCloning={cloneCampaign.isPending}
+                  />
+                ))
+              )}
             </div>
           )}
         </div>

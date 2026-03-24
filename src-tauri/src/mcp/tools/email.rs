@@ -1,7 +1,10 @@
 // Email Campaign MCP Tools
 // Campaign and group management for the email module
 
+use crate::commands::crm::{self as crm_commands, CreateActivity};
 use crate::commands::email::campaigns::{self, CreateCampaign, UpdateCampaign};
+use crate::commands::email::send::send_transactional_email;
+use crate::commands::supabase::get_client;
 use crate::mcp::protocol::{InputSchema, Tool, ToolResult};
 use serde_json::{json, Value};
 
@@ -85,6 +88,42 @@ pub fn tools() -> Vec<Tool> {
                     "description": { "type": "string", "description": "Group description" }
                 }),
                 vec!["name".to_string()],
+            ),
+        },
+        // Transactional send (direct, no UI review)
+        Tool {
+            name: "send-email".to_string(),
+            description: "Send a single 1-to-1 email immediately via AWS SES. Skips UI review. Use create-email-draft instead if the user should review before sending.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "to": { "type": "string", "description": "Recipient email address" },
+                    "subject": { "type": "string", "description": "Email subject line" },
+                    "html_body": { "type": "string", "description": "HTML email body" },
+                    "from_name": { "type": "string", "description": "Sender display name (default: ThinkVAL)" },
+                    "from_email": { "type": "string", "description": "Sender email address (default: hello@thinkval.com)" },
+                    "log_crm_activity": { "type": "boolean", "description": "Log this send as a CRM email activity (default: false)" },
+                    "crm_company_id": { "type": "string", "description": "Company UUID for CRM activity log (required if log_crm_activity is true)" },
+                    "crm_contact_id": { "type": "string", "description": "Contact UUID for CRM activity log" },
+                    "crm_project_id": { "type": "string", "description": "Deal/project UUID for CRM activity log" }
+                }),
+                vec!["to".to_string(), "subject".to_string(), "html_body".to_string()],
+            ),
+        },
+        // Email draft (for UI review before sending)
+        Tool {
+            name: "create-email-draft".to_string(),
+            description: "Create an email draft for a contact. The draft appears in the contact's detail panel in tv-client where the user can preview and send it. Use this for prospecting emails that need human review before sending.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "contact_id": { "type": "string", "description": "CRM contact UUID (required)" },
+                    "company_id": { "type": "string", "description": "CRM company UUID" },
+                    "to_email": { "type": "string", "description": "Recipient email address (required)" },
+                    "subject": { "type": "string", "description": "Email subject line (required)" },
+                    "html_body": { "type": "string", "description": "HTML email body (required)" },
+                    "from_name": { "type": "string", "description": "Sender display name (default: ThinkVAL)" },
+                    "from_email": { "type": "string", "description": "Sender email address (default: hello@thinkval.com)" }
+                }),
+                vec!["contact_id".to_string(), "to_email".to_string(), "subject".to_string(), "html_body".to_string()],
             ),
         },
     ]
@@ -196,6 +235,140 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             match campaigns::create_group(name, description).await {
                 Ok(group) => ToolResult::json(&group),
                 Err(e) => ToolResult::error(e.to_string()),
+            }
+        }
+
+        "send-email" => {
+            let to = match args.get("to").and_then(|v| v.as_str()) {
+                Some(v) => v.to_string(),
+                None => return ToolResult::error("to is required".to_string()),
+            };
+            let subject = match args.get("subject").and_then(|v| v.as_str()) {
+                Some(v) => v.to_string(),
+                None => return ToolResult::error("subject is required".to_string()),
+            };
+            let html_body = match args.get("html_body").and_then(|v| v.as_str()) {
+                Some(v) => v.to_string(),
+                None => return ToolResult::error("html_body is required".to_string()),
+            };
+            let from_name = args.get("from_name").and_then(|v| v.as_str()).map(String::from);
+            let from_email = args.get("from_email").and_then(|v| v.as_str()).map(String::from);
+
+            let result = match send_transactional_email(
+                &to,
+                &subject,
+                &html_body,
+                from_name.as_deref(),
+                from_email.as_deref(),
+            )
+            .await
+            {
+                Ok(r) => r,
+                Err(e) => return ToolResult::error(format!("{}", e)),
+            };
+
+            if !result.success {
+                return ToolResult::error(
+                    result.error.unwrap_or_else(|| "Send failed".to_string()),
+                );
+            }
+
+            // Optional CRM activity logging
+            let log_crm = args
+                .get("log_crm_activity")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if log_crm {
+                let company_id = args
+                    .get("crm_company_id")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                if company_id.is_none() {
+                    return ToolResult::json(&json!({
+                        "success": true,
+                        "message_id": result.message_id,
+                        "warning": "log_crm_activity was true but crm_company_id was not provided — activity not logged"
+                    }));
+                }
+                let activity = CreateActivity {
+                    company_id,
+                    activity_type: "email".to_string(),
+                    contact_id: args
+                        .get("crm_contact_id")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    project_id: args
+                        .get("crm_project_id")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    email_id: None,
+                    subject: Some(subject.clone()),
+                    content: Some(format!("Sent to: {}", to)),
+                    activity_date: None,
+                };
+                if let Err(e) = crm_commands::crm_log_activity(activity).await {
+                    return ToolResult::json(&json!({
+                        "success": true,
+                        "message_id": result.message_id,
+                        "warning": format!("Email sent but CRM activity log failed: {}", e)
+                    }));
+                }
+            }
+
+            ToolResult::json(&json!({
+                "success": true,
+                "message_id": result.message_id
+            }))
+        }
+
+        "create-email-draft" => {
+            let contact_id = match args.get("contact_id").and_then(|v| v.as_str()) {
+                Some(v) => v.to_string(),
+                None => return ToolResult::error("contact_id is required".to_string()),
+            };
+            let to_email = match args.get("to_email").and_then(|v| v.as_str()) {
+                Some(v) => v.to_string(),
+                None => return ToolResult::error("to_email is required".to_string()),
+            };
+            let subject = match args.get("subject").and_then(|v| v.as_str()) {
+                Some(v) => v.to_string(),
+                None => return ToolResult::error("subject is required".to_string()),
+            };
+            let html_body = match args.get("html_body").and_then(|v| v.as_str()) {
+                Some(v) => v.to_string(),
+                None => return ToolResult::error("html_body is required".to_string()),
+            };
+            let from_name = args
+                .get("from_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("ThinkVAL");
+            let from_email = args
+                .get("from_email")
+                .and_then(|v| v.as_str())
+                .unwrap_or("hello@thinkval.com");
+            let company_id = args.get("company_id").and_then(|v| v.as_str());
+
+            let client = match get_client().await {
+                Ok(c) => c,
+                Err(e) => return ToolResult::error(format!("{}", e)),
+            };
+
+            let mut insert = json!({
+                "contact_id": contact_id,
+                "to_email": to_email,
+                "subject": subject,
+                "html_body": html_body,
+                "from_name": from_name,
+                "from_email": from_email,
+                "status": "draft"
+            });
+            if let Some(cid) = company_id {
+                insert["company_id"] = json!(cid);
+            }
+
+            match client.insert::<_, serde_json::Value>("email_drafts", &insert).await {
+                Ok(row) => ToolResult::json(&row),
+                Err(e) => ToolResult::error(format!("Failed to create draft: {}", e)),
             }
         }
 

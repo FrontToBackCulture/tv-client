@@ -369,6 +369,7 @@ pub async fn apollo_import_prospects(
                 "source": "apollo",
                 "source_id": person.id,
                 "is_primary": i == 0,
+                "prospect_stage": "new",
             });
 
             if let Some(ref title) = person.title {

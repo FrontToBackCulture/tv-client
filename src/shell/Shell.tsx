@@ -35,6 +35,8 @@ const moduleLabels: Record<ModuleId, string> = {
   email: "EDM",
   blog: "Blog",
   s3browser: "S3 Browser",
+  linkedin: "LinkedIn",
+  prospecting: "Outbound",
 };
 
 interface ShellProps {

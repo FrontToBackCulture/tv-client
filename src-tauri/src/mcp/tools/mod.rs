@@ -85,9 +85,10 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
         return crm::call(name, arguments).await;
     }
 
-    // Email campaign tools
+    // Email campaign + transactional tools
     if name.starts_with("list-email-") || name.starts_with("create-email-") ||
-       name.starts_with("update-email-") || name.starts_with("delete-email-") {
+       name.starts_with("update-email-") || name.starts_with("delete-email-") ||
+       name == "send-email" {
         return email::call(name, arguments).await;
     }
 

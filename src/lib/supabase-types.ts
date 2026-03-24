@@ -290,6 +290,7 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
+          prospect_stage: string | null
           role: string | null
           seniority: string | null
           source: string | null
@@ -309,6 +310,7 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
+          prospect_stage?: string | null
           role?: string | null
           seniority?: string | null
           source?: string | null
@@ -328,6 +330,7 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
+          prospect_stage?: string | null
           role?: string | null
           seniority?: string | null
           source?: string | null

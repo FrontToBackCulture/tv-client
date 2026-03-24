@@ -8,9 +8,52 @@ import {
   EyeOff,
   Star,
   ExternalLink,
+  Pencil,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { readTextFile } from "@tauri-apps/plugin-fs";
+import { homeDir } from "@tauri-apps/api/path";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
 import type { BlogArticle } from "./types";
+
+/** Resolve a /images/... path to a displayable URL using Tauri asset protocol or inline SVG */
+function resolveImageUrl(src: string, websitePublicPath: string): string {
+  if (!src.startsWith("/") || !websitePublicPath) return src;
+  return convertFileSrc(`${websitePublicPath}${src}`);
+}
+
+/** Cache for SVG data URLs */
+const svgCache = new Map<string, string>();
+
+/** Component that renders website images — uses inline data URL for SVGs, asset protocol for others */
+function WebsiteImage({ src, alt, className, websitePublicPath }: { src: string; alt: string; className?: string; websitePublicPath: string }) {
+  const [url, setUrl] = useState("");
+
+  useEffect(() => {
+    if (!src || !src.startsWith("/") || !websitePublicPath) { setUrl(src); return; }
+
+    const fullPath = `${websitePublicPath}${src}`;
+    const isSvg = src.toLowerCase().endsWith(".svg");
+
+    if (isSvg) {
+      // SVGs: read as text and create data URL (avoids asset protocol scope issues)
+      if (svgCache.has(fullPath)) { setUrl(svgCache.get(fullPath)!); return; }
+      readTextFile(fullPath).then((text) => {
+        const dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(text)))}`;
+        svgCache.set(fullPath, dataUrl);
+        setUrl(dataUrl);
+      }).catch(() => setUrl(src));
+    } else {
+      // Binary images: use Tauri asset protocol (with cache-bust)
+      setUrl(convertFileSrc(fullPath) + "?t=" + Date.now());
+    }
+  }, [src, websitePublicPath]);
+
+  if (!url) return null;
+  return <img src={url} alt={alt} className={className} />;
+}
 
 interface BlogEditorProps {
   article: BlogArticle;
@@ -31,6 +74,15 @@ export function BlogEditor({ article, onBack, onSave }: BlogEditorProps) {
   const [featured, setFeatured] = useState(article.featured);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [websitePublicPath, setWebsitePublicPath] = useState("");
+
+  useEffect(() => {
+    homeDir().then((home) => {
+      const base = home.endsWith("/") ? home : `${home}/`;
+      setWebsitePublicPath(`${base}Code/SkyNet/tv-website/public`);
+    });
+  }, []);
 
   // Track changes
   useEffect(() => {
@@ -106,6 +158,17 @@ export function BlogEditor({ article, onBack, onSave }: BlogEditorProps) {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPreviewing(!previewing)}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors",
+              previewing
+                ? "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400"
+                : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+            )}
+          >
+            {previewing ? <><Pencil size={12} /> Edit</> : <><Eye size={12} /> Preview</>}
+          </button>
           {article.status === "published" && (
             <a
               href={`https://thinkval.co/news/${article.slug}`}
@@ -150,107 +213,201 @@ export function BlogEditor({ article, onBack, onSave }: BlogEditorProps) {
 
       {/* Editor body */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
-          {/* Metadata grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Title" span={2}>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="input-field"
-              />
-            </Field>
-            <Field label="Slug">
-              <input
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                className="input-field font-mono text-xs"
-              />
-            </Field>
-            <Field label="Category">
-              <input
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="e.g. Product, Company"
-                className="input-field"
-              />
-            </Field>
-            <Field label="Author">
-              <input
-                value={author}
-                onChange={(e) => setAuthor(e.target.value)}
-                className="input-field"
-              />
-            </Field>
-            <Field label="Read Time">
-              <input
-                value={readTime}
-                onChange={(e) => setReadTime(e.target.value)}
-                placeholder="e.g. 5 min read"
-                className="input-field"
-              />
-            </Field>
-            <Field label="Illustration Path">
-              <input
-                value={illustration}
-                onChange={(e) => setIllustration(e.target.value)}
-                placeholder="/images/article-illustrations/..."
-                className="input-field font-mono text-xs"
-              />
-            </Field>
-            <Field label="Card Color">
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-700 cursor-pointer"
-                />
-                <input
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  className="input-field font-mono text-xs flex-1"
-                />
-              </div>
-            </Field>
-            <Field label="Featured" span={2}>
-              <button
-                onClick={() => setFeatured(!featured)}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
-                  featured
-                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                    : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+        {previewing ? (
+          /* Preview mode — mirrors tv-website article layout */
+          <div className="bg-white dark:bg-zinc-950">
+            <div className="py-16 md:py-20">
+              {/* Header */}
+              <div className="max-w-5xl mx-auto px-6 mb-12 text-center">
+                {category && (
+                  <div className="mb-6 flex justify-center">
+                    <span className="inline-block px-4 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-sm font-semibold rounded-full uppercase tracking-wide">
+                      {category}
+                    </span>
+                  </div>
                 )}
-              >
-                <Star size={12} className={featured ? "fill-amber-500" : ""} />
-                {featured ? "Featured" : "Not featured"}
-              </button>
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6 text-zinc-900 dark:text-zinc-100">
+                  {title}
+                </h1>
+                <div className="flex items-center justify-center gap-2 mb-12">
+                  <span className="text-base text-zinc-500 dark:text-zinc-400">{author}</span>
+                  {readTime && (
+                    <>
+                      <span className="text-base text-zinc-400 dark:text-zinc-500">·</span>
+                      <span className="text-base text-zinc-500 dark:text-zinc-400">{readTime}</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Illustration */}
+                {illustration && (
+                  <div
+                    className="relative w-full aspect-[2/1] rounded-3xl overflow-hidden flex items-center justify-center"
+                    style={{ backgroundColor: color }}
+                  >
+                    <WebsiteImage
+                      src={illustration}
+                      alt={title}
+                      className="object-contain w-full h-full"
+                      websitePublicPath={websitePublicPath}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Article content */}
+              <div className="max-w-3xl mx-auto px-6">
+                <div className="prose prose-lg max-w-none">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h2: ({ node, ...props }) => <h2 className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-zinc-100 mt-16 mb-6" {...props} />,
+                      h3: ({ node, ...props }) => <h3 className="text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-100 mt-12 mb-4" {...props} />,
+                      p: ({ node, ...props }) => <p className="text-lg text-zinc-800 dark:text-zinc-200 leading-[1.7] mb-6" {...props} />,
+                      ul: ({ node, ...props }) => <ul className="space-y-2 mb-6 ml-6 list-disc marker:text-zinc-400" {...props} />,
+                      ol: ({ node, ...props }) => <ol className="space-y-2 mb-6 ml-6 list-decimal marker:text-zinc-400" {...props} />,
+                      li: ({ node, ...props }) => <li className="text-lg text-zinc-800 dark:text-zinc-200 leading-[1.7] pl-2" {...props} />,
+                      strong: ({ node, ...props }) => <strong className="font-bold text-zinc-900 dark:text-zinc-100" {...props} />,
+                      a: ({ node, href, children, ...props }) => (
+                        <a href={href} className="text-teal-600 hover:text-teal-700 underline" target="_blank" rel="noopener noreferrer" {...props}>
+                          {children}
+                        </a>
+                      ),
+                      blockquote: ({ node, ...props }) => (
+                        <div className="my-10 pl-6 border-l-4 border-zinc-300 dark:border-zinc-600">
+                          <blockquote className="text-xl text-zinc-500 dark:text-zinc-400 leading-[1.7] italic" {...props} />
+                        </div>
+                      ),
+                      code: (props) => {
+                        const { node, className, children, ...rest } = props as React.ComponentPropsWithoutRef<"code"> & { node?: unknown };
+                        const isInline = !className;
+                        return isInline ? (
+                          <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-sm font-mono text-zinc-800 dark:text-zinc-200" {...rest}>{children}</code>
+                        ) : (
+                          <code className="block bg-zinc-100 dark:bg-zinc-800 p-4 rounded-lg text-sm overflow-x-auto font-mono text-zinc-800 dark:text-zinc-200" {...rest}>{children}</code>
+                        );
+                      },
+                      hr: () => <hr className="my-10 border-zinc-200 dark:border-zinc-700" />,
+                      img: (props) => {
+                        const { node, src, alt } = props as { node?: unknown; src?: string; alt?: string };
+                        return (
+                          <span className="block relative w-full my-8">
+                            <WebsiteImage src={src || ""} alt={alt || ""} className="rounded-lg w-full h-auto" websitePublicPath={websitePublicPath} />
+                          </span>
+                        );
+                      },
+                    }}
+                  >
+                    {content}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Edit mode */
+          <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+            {/* Metadata grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Title" span={2}>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="input-field"
+                />
+              </Field>
+              <Field label="Slug">
+                <input
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  className="input-field font-mono text-xs"
+                />
+              </Field>
+              <Field label="Category">
+                <input
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="e.g. Product, Company"
+                  className="input-field"
+                />
+              </Field>
+              <Field label="Author">
+                <input
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  className="input-field"
+                />
+              </Field>
+              <Field label="Read Time">
+                <input
+                  value={readTime}
+                  onChange={(e) => setReadTime(e.target.value)}
+                  placeholder="e.g. 5 min read"
+                  className="input-field"
+                />
+              </Field>
+              <Field label="Illustration Path">
+                <input
+                  value={illustration}
+                  onChange={(e) => setIllustration(e.target.value)}
+                  placeholder="/images/article-illustrations/..."
+                  className="input-field font-mono text-xs"
+                />
+              </Field>
+              <Field label="Card Color">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-700 cursor-pointer"
+                  />
+                  <input
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="input-field font-mono text-xs flex-1"
+                  />
+                </div>
+              </Field>
+              <Field label="Featured" span={2}>
+                <button
+                  onClick={() => setFeatured(!featured)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                    featured
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                      : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                  )}
+                >
+                  <Star size={12} className={featured ? "fill-amber-500" : ""} />
+                  {featured ? "Featured" : "Not featured"}
+                </button>
+              </Field>
+            </div>
+
+            {/* Description */}
+            <Field label="Description">
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="Short description for cards and SEO..."
+                className="input-field resize-y"
+              />
+            </Field>
+
+            {/* Content */}
+            <Field label="Content (Markdown)">
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={24}
+                placeholder="Write your article in Markdown..."
+                className="input-field resize-y font-mono text-xs leading-relaxed"
+              />
             </Field>
           </div>
-
-          {/* Description */}
-          <Field label="Description">
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="Short description for cards and SEO..."
-              className="input-field resize-y"
-            />
-          </Field>
-
-          {/* Content */}
-          <Field label="Content (Markdown)">
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={24}
-              placeholder="Write your article in Markdown..."
-              className="input-field resize-y font-mono text-xs leading-relaxed"
-            />
-          </Field>
-        </div>
+        )}
       </div>
 
       {/* Inline styles for input fields */}

@@ -531,6 +531,7 @@ fn main() {
             // Email (SES campaign sending)
             commands::email::email_send_campaign,
             commands::email::email_send_test,
+            commands::email::email_send_draft,
             commands::email::email_upload_report,
             commands::email::email_test_ses_connection,
             // Discussions
@@ -564,6 +565,15 @@ fn main() {
             commands::s3_browser::s3_browse_list_all_keys,
             commands::s3_browser::s3_browse_presign,
             commands::s3_browser::s3_browse_get_text,
+            // LinkedIn - Auth
+            commands::linkedin::auth::linkedin_auth_start,
+            commands::linkedin::auth::linkedin_auth_check,
+            commands::linkedin::auth::linkedin_auth_logout,
+            // LinkedIn - Posts API
+            commands::linkedin::api::linkedin_create_post,
+            commands::linkedin::api::linkedin_get_posts,
+            commands::linkedin::api::linkedin_delete_post,
+            commands::linkedin::api::linkedin_get_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

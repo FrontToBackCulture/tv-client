@@ -30,6 +30,8 @@ pub const KEY_EMAIL_API_BASE_URL: &str = "email_api_base_url";
 pub const KEY_NOTION_API: &str = "notion_api_key";
 pub const KEY_KNOWLEDGE_PATH: &str = "knowledge_path";
 pub const KEY_APOLLO_API: &str = "apollo_api_key";
+pub const KEY_LINKEDIN_CLIENT_ID: &str = "linkedin_client_id";
+pub const KEY_LINKEDIN_CLIENT_SECRET: &str = "linkedin_client_secret";
 
 // ============================================================================
 // Types
@@ -194,6 +196,8 @@ pub fn settings_list_keys() -> CmdResult<Vec<ApiKeyInfo>> {
         (KEY_EMAIL_API_BASE_URL, "Email API Base URL", "Tracking endpoint URL for email open/click/unsubscribe (e.g. https://your-domain.ngrok-free.dev)"),
         (KEY_NOTION_API, "Notion API Key", "For syncing Notion databases to Work Module"),
         (KEY_APOLLO_API, "Apollo API Key", "For prospect search and enrichment"),
+        (KEY_LINKEDIN_CLIENT_ID, "LinkedIn Client ID", "For LinkedIn social media integration"),
+        (KEY_LINKEDIN_CLIENT_SECRET, "LinkedIn Client Secret", "For LinkedIn social media integration"),
     ];
 
     let mut result = Vec::new();
@@ -410,6 +414,8 @@ pub fn settings_import_from_file(file_path: String) -> CmdResult<Vec<String>> {
                     "ANTHROPIC_API_KEY" => Some(KEY_ANTHROPIC_API),
                     "AWS_ACCESS_KEY_ID" => Some(KEY_AWS_ACCESS_KEY_ID),
                     "AWS_SECRET_ACCESS_KEY" => Some(KEY_AWS_SECRET_ACCESS_KEY),
+                    "LINKEDIN_CLIENT_ID" => Some(KEY_LINKEDIN_CLIENT_ID),
+                    "LINKEDIN_CLIENT_SECRET" => Some(KEY_LINKEDIN_CLIENT_SECRET),
                     _ => None,
                 };
 

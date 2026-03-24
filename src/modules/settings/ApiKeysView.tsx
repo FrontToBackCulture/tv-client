@@ -328,6 +328,9 @@ export function ApiKeysView() {
   const integrationKeys = keys.filter(
     (k) => k.name === API_KEYS.INTERCOM || k.name === API_KEYS.NOTION || k.name === API_KEYS.APOLLO
   );
+  const linkedinKeys = keys.filter(
+    (k) => k.name === API_KEYS.LINKEDIN_CLIENT_ID || k.name === API_KEYS.LINKEDIN_CLIENT_SECRET
+  );
   const awsKeys = keys.filter(
     (k) =>
       k.name === API_KEYS.AWS_ACCESS_KEY_ID ||
@@ -493,6 +496,22 @@ export function ApiKeysView() {
         </h3>
         <div className="space-y-3">
           {analyticsKeys.map((keyInfo) => (
+            <KeyEditor
+              key={keyInfo.name}
+              keyInfo={keyInfo}
+              onSave={(value) => setKey(keyInfo.name as any, value)}
+              onDelete={() => deleteKey(keyInfo.name as any)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3 uppercase tracking-wide">
+          LinkedIn
+        </h3>
+        <div className="space-y-3">
+          {linkedinKeys.map((keyInfo) => (
             <KeyEditor
               key={keyInfo.name}
               keyInfo={keyInfo}
