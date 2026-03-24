@@ -222,7 +222,7 @@ fn collect_local_files(base: &std::path::Path, dir: &std::path::Path, out: &mut 
             collect_local_files(base, &path, out);
         } else {
             let rel = path.strip_prefix(base)
-                .map(|p| p.to_string_lossy().to_string())
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
                 .unwrap_or_default();
             let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
             if !rel.is_empty() {
