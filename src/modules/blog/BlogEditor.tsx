@@ -18,12 +18,6 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
 import type { BlogArticle } from "./types";
 
-/** Resolve a /images/... path to a displayable URL using Tauri asset protocol or inline SVG */
-function resolveImageUrl(src: string, websitePublicPath: string): string {
-  if (!src.startsWith("/") || !websitePublicPath) return src;
-  return convertFileSrc(`${websitePublicPath}${src}`);
-}
-
 /** Cache for SVG data URLs */
 const svgCache = new Map<string, string>();
 
@@ -289,7 +283,7 @@ export function BlogEditor({ article, onBack, onSave }: BlogEditorProps) {
                       },
                       hr: () => <hr className="my-10 border-zinc-200 dark:border-zinc-700" />,
                       img: (props) => {
-                        const { node, src, alt } = props as { node?: unknown; src?: string; alt?: string };
+                        const { src, alt } = props as { node?: unknown; src?: string; alt?: string };
                         return (
                           <span className="block relative w-full my-8">
                             <WebsiteImage src={src || ""} alt={alt || ""} className="rounded-lg w-full h-auto" websitePublicPath={websitePublicPath} />
