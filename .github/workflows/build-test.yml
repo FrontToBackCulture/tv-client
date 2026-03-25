@@ -43,10 +43,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Rust tests
-        working-directory: src-tauri
-        run: cargo test
-
       - name: Build tv-mcp sidecar (macOS)
         if: matrix.platform == 'macos-latest'
         env:
@@ -64,6 +60,10 @@ jobs:
           cargo build --release --bin tv-mcp --target $env:TAURI_TARGET_TRIPLE
           Copy-Item "target/$env:TAURI_TARGET_TRIPLE/release/tv-mcp.exe" "binaries/tv-mcp-$env:TAURI_TARGET_TRIPLE.exe"
           Write-Host "[build-sidecar] Built binaries/tv-mcp-$env:TAURI_TARGET_TRIPLE.exe"
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test
 
       - name: Build Tauri (test compile only)
         env:
