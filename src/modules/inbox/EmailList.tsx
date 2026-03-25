@@ -13,6 +13,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { IconButton } from "../../components/ui";
+import { staggerStyle } from "../../hooks/useStaggeredList";
 import type { OutlookEmail } from "../../hooks/useOutlook";
 import { formatDateRelative as formatDate } from "../../lib/date";
 
@@ -92,14 +93,15 @@ export function EmailList({
             <p>No emails found</p>
           </div>
         ) : (
-          filteredEmails.map((email) => (
+          filteredEmails.map((email, i) => (
             <div
               key={email.id}
               onClick={() => onSelect(email.id)}
               onMouseEnter={() => setHoveredId(email.id)}
               onMouseLeave={() => setHoveredId(null)}
+              style={staggerStyle(i)}
               className={cn(
-                "px-3 py-3 border-b border-zinc-100 dark:border-zinc-900 cursor-pointer transition-colors",
+                "px-3 py-3 border-b border-zinc-100 dark:border-zinc-900 cursor-pointer transition-colors animate-fade-slide-in",
                 selectedId === email.id
                   ? "bg-teal-50 dark:bg-teal-900/20"
                   : "hover:bg-zinc-50 dark:hover:bg-zinc-900",

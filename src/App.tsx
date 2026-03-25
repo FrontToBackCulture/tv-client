@@ -1,31 +1,36 @@
 // src/App.tsx
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Shell } from "./shell/Shell";
-import { LibraryModule } from "./modules/library/LibraryModule";
-import { WorkModule } from "./modules/work/WorkModule";
+import { useAutoBriefing } from "./hooks/feed";
 
-import { ProjectsModule } from "./modules/projects";
-import { MetadataModule } from "./modules/metadata";
-import { InboxModule } from "./modules/inbox/InboxModule";
-import { CalendarModule } from "./modules/calendar";
-import { CrmModule } from "./modules/crm/CrmModule";
-import { BotModule } from "./modules/bot/BotModule";
-import { DomainsModule } from "./modules/domains";
-import { ProductModule } from "./modules/product/ProductModule";
-import { PortalModule } from "./modules/portal";
-import { SchedulerModule } from "./modules/scheduler";
-import { ReposModule } from "./modules/repos";
-import { SkillsModule } from "./modules/skills/SkillsModule";
-import { EmailModule } from "./modules/email/EmailModule";
-import { GalleryModule } from "./modules/gallery";
+// Core modules (loaded eagerly — most likely first screen)
 import { HomeModule } from "./modules/home/HomeModule";
-import { BlogModule } from "./modules/blog";
-import { S3BrowserModule } from "./modules/s3-browser";
-import { LinkedInModule } from "./modules/linkedin/LinkedInModule";
-import { ProspectingModule } from "./modules/prospecting";
+import { ProjectsModule } from "./modules/projects";
+import { WorkModule } from "./modules/work/WorkModule";
+import { CrmModule } from "./modules/crm/CrmModule";
+import { InboxModule } from "./modules/inbox/InboxModule";
+
+// Lazy-loaded modules (loaded on first navigate — keeps initial bundle small)
+const LibraryModule = lazy(() => import("./modules/library/LibraryModule").then(m => ({ default: m.LibraryModule })));
+const MetadataModule = lazy(() => import("./modules/metadata").then(m => ({ default: m.MetadataModule })));
+const CalendarModule = lazy(() => import("./modules/calendar").then(m => ({ default: m.CalendarModule })));
+const BotModule = lazy(() => import("./modules/bot/BotModule").then(m => ({ default: m.BotModule })));
+const DomainsModule = lazy(() => import("./modules/domains").then(m => ({ default: m.DomainsModule })));
+const ProductModule = lazy(() => import("./modules/product/ProductModule").then(m => ({ default: m.ProductModule })));
+const PortalModule = lazy(() => import("./modules/portal").then(m => ({ default: m.PortalModule })));
+const SchedulerModule = lazy(() => import("./modules/scheduler").then(m => ({ default: m.SchedulerModule })));
+const ReposModule = lazy(() => import("./modules/repos").then(m => ({ default: m.ReposModule })));
+const SkillsModule = lazy(() => import("./modules/skills/SkillsModule").then(m => ({ default: m.SkillsModule })));
+const EmailModule = lazy(() => import("./modules/email/EmailModule").then(m => ({ default: m.EmailModule })));
+const GalleryModule = lazy(() => import("./modules/gallery").then(m => ({ default: m.GalleryModule })));
+const BlogModule = lazy(() => import("./modules/blog").then(m => ({ default: m.BlogModule })));
+const S3BrowserModule = lazy(() => import("./modules/s3-browser").then(m => ({ default: m.S3BrowserModule })));
+const LinkedInModule = lazy(() => import("./modules/linkedin/LinkedInModule").then(m => ({ default: m.LinkedInModule })));
+const ProspectingModule = lazy(() => import("./modules/prospecting").then(m => ({ default: m.ProspectingModule })));
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { invoke } from "@tauri-apps/api/core";
@@ -39,6 +44,7 @@ import { useTeamConfigStore } from "./stores/teamConfigStore";
 import { useRealtimeSync } from "./hooks/useRealtimeSync";
 import { openModuleInNewWindow } from "./lib/windowManager";
 import { Loader2 } from "lucide-react";
+import { ListSkeleton } from "./components/ui/Skeleton";
 
 const modules: Record<ModuleId, React.ComponentType> = {
   home: HomeModule,
@@ -83,6 +89,9 @@ export default function App() {
       loadTeamConfig().then(() => registerCurrentUser());
     }
   }, [user, loadTeamConfig, registerCurrentUser]);
+
+  // Auto-briefing: generate feed cards from system activity on load + interval
+  useAutoBriefing();
 
   // Redirect to first visible module if active module is hidden
   const isModuleVisible = useModuleVisibilityStore((s) => s.isModuleVisible);
@@ -256,7 +265,24 @@ export default function App() {
 
   return (
     <Shell activeModule={activeModule} onModuleChange={setActiveModule}>
-      <ActiveModule />
+      <Suspense fallback={
+        <div className="flex-1 flex items-center justify-center">
+          <ListSkeleton rows={8} />
+        </div>
+      }>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeModule}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="h-full"
+          >
+            <ActiveModule />
+          </motion.div>
+        </AnimatePresence>
+      </Suspense>
     </Shell>
   );
 }

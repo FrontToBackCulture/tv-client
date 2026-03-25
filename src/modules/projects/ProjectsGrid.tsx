@@ -15,6 +15,7 @@ import {
   ChevronsLeftRight, Bookmark, Star, Save, WrapText,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { toSGTDateString } from "../../lib/date";
 import { Button } from "../../components/ui";
 import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
@@ -259,11 +260,11 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
   const autoSizeAllColumns = useCallback(() => { gridRef.current?.api.autoSizeAllColumns(); }, []);
 
   const exportToExcel = useCallback(() => {
-    gridRef.current?.api.exportDataAsExcel({ fileName: `projects-${new Date().toISOString().slice(0, 10)}.xlsx`, sheetName: "Projects", allColumns: true, skipRowGroups: true });
+    gridRef.current?.api.exportDataAsExcel({ fileName: `projects-${toSGTDateString()}.xlsx`, sheetName: "Projects", allColumns: true, skipRowGroups: true });
   }, []);
 
   const exportToCsv = useCallback(() => {
-    gridRef.current?.api.exportDataAsCsv({ fileName: `projects-${new Date().toISOString().slice(0, 10)}.csv`, allColumns: true, skipRowGroups: true });
+    gridRef.current?.api.exportDataAsCsv({ fileName: `projects-${toSGTDateString()}.csv`, allColumns: true, skipRowGroups: true });
   }, []);
 
   const saveCurrentLayout = useCallback((name: string) => {

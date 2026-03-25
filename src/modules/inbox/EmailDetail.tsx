@@ -53,7 +53,7 @@ interface EmailDetailProps {
 
 function formatFullDate(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString([], {
+  return date.toLocaleDateString("en-SG", {
     weekday: "long",
     year: "numeric",
     month: "long",

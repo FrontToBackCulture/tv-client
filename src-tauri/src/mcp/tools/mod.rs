@@ -134,3 +134,145 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
 
     ToolResult::error(format!("Unknown tool: {}", name))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    // -------------------------------------------------------
+    // Tool registry completeness
+    // -------------------------------------------------------
+
+    #[test]
+    fn list_tools_returns_non_empty() {
+        let tools = list_tools();
+        assert!(!tools.is_empty(), "Tool registry should not be empty");
+    }
+
+    #[test]
+    fn all_tool_names_are_unique() {
+        let tools = list_tools();
+        let mut seen = HashSet::new();
+        for tool in &tools {
+            assert!(
+                seen.insert(&tool.name),
+                "Duplicate tool name: {}",
+                tool.name
+            );
+        }
+    }
+
+    #[test]
+    fn all_tools_have_descriptions() {
+        let tools = list_tools();
+        for tool in &tools {
+            assert!(
+                !tool.description.is_empty(),
+                "Tool '{}' has empty description",
+                tool.name
+            );
+        }
+    }
+
+    #[test]
+    fn all_tools_have_object_schema_type() {
+        let tools = list_tools();
+        for tool in &tools {
+            assert_eq!(
+                tool.input_schema.schema_type, "object",
+                "Tool '{}' schema type should be 'object'",
+                tool.name
+            );
+        }
+    }
+
+    #[test]
+    fn required_fields_exist_in_properties() {
+        let tools = list_tools();
+        for tool in &tools {
+            if let (Some(props), Some(required)) =
+                (&tool.input_schema.properties, &tool.input_schema.required)
+            {
+                let props_obj = props.as_object().expect("properties should be an object");
+                for req_field in required {
+                    assert!(
+                        props_obj.contains_key(req_field),
+                        "Tool '{}': required field '{}' not found in properties",
+                        tool.name,
+                        req_field
+                    );
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------
+    // Expected tools exist in registry
+    // -------------------------------------------------------
+
+    fn tool_names() -> HashSet<String> {
+        list_tools().into_iter().map(|t| t.name).collect()
+    }
+
+    #[test]
+    fn crm_tools_registered() {
+        let names = tool_names();
+        let expected = [
+            "list-crm-companies", "find-crm-company", "get-crm-company",
+            "create-crm-company", "update-crm-company", "delete-crm-company",
+            "list-crm-contacts", "find-crm-contact", "create-crm-contact",
+            "update-crm-contact", "log-crm-activity", "list-crm-activities",
+        ];
+        for name in expected {
+            assert!(names.contains(name), "Missing CRM tool: {}", name);
+        }
+    }
+
+    #[test]
+    fn work_tools_registered() {
+        let names = tool_names();
+        let expected = [
+            "list-projects", "get-project", "create-project", "update-project",
+            "list-tasks", "get-task", "create-task", "update-task",
+            "list-milestones", "create-milestone",
+            "list-initiatives", "create-initiative",
+            "list-labels", "create-label", "list-users",
+        ];
+        for name in expected {
+            assert!(names.contains(name), "Missing work tool: {}", name);
+        }
+    }
+
+    #[test]
+    fn email_tools_registered() {
+        let names = tool_names();
+        let expected = [
+            "list-email-campaigns", "create-email-campaign",
+            "update-email-campaign", "delete-email-campaign",
+            "list-email-groups", "create-email-group",
+        ];
+        for name in expected {
+            assert!(names.contains(name), "Missing email tool: {}", name);
+        }
+    }
+
+    // -------------------------------------------------------
+    // Dispatch routing — verify tool names route to correct module
+    // -------------------------------------------------------
+    // We can't call the actual handlers (they hit Supabase), but we can
+    // verify that unknown tools produce the right error.
+
+    #[tokio::test]
+    async fn unknown_tool_returns_error() {
+        let result = call_tool("nonexistent-tool", serde_json::json!({})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("Unknown tool"));
+    }
+
+    #[tokio::test]
+    async fn unknown_tool_includes_name_in_error() {
+        let result = call_tool("foo-bar-baz", serde_json::json!({})).await;
+        assert!(result.content[0].text.contains("foo-bar-baz"));
+    }
+}

@@ -1,9 +1,11 @@
 // src/modules/crm/ClientsView.tsx
 // Enhanced clients list with engagement health bar, health-based sorting, and tier filters
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowUpDown } from "lucide-react";
 import { useCompanies } from "../../hooks/crm";
+import type { Company } from "../../lib/crm/types";
 import { useClientEngagement } from "../../hooks/useClientEngagement";
 import { SearchInput, HEALTH_TIER_CONFIG, type HealthLevel } from "./CrmComponents";
 import { ClientRow } from "./ClientRow";
@@ -186,57 +188,123 @@ export function ClientsView({ selectedId, onSelect }: ClientsViewProps) {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-xs text-zinc-400">Loading...</p>
-          </div>
-        ) : sortedCompanies.length === 0 ? (
-          <p className="text-xs text-zinc-400 text-center py-8">
-            {healthFilter ? "No clients in this tier" : "No clients yet"}
-          </p>
-        ) : groups ? (
-          // Grouped by health tier with sticky headers
-          <div>
-            {groups.map((group) => (
-              <div key={group.level}>
-                <div className="sticky top-0 z-10 px-3 py-1.5 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800/50">
-                  <div className="flex items-center gap-1.5">
-                    <div className={`w-1.5 h-1.5 rounded-full ${group.dotColor}`} />
-                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                      {group.label}
-                    </span>
-                    <span className="text-xs text-zinc-400 dark:text-zinc-600 tabular-nums">
-                      {group.items.length}
-                    </span>
-                  </div>
+      <ClientList
+        isLoading={isLoading}
+        sortedCompanies={sortedCompanies}
+        groups={groups}
+        engagementMap={engagementMap}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        healthFilter={healthFilter}
+      />
+    </div>
+  );
+}
+
+import type { ClientEngagementData } from "../../hooks/useClientEngagement";
+
+const CLIENT_HEADER_HEIGHT = 30;
+const CLIENT_ROW_HEIGHT = 60;
+
+function ClientList({
+  isLoading, sortedCompanies, groups, engagementMap, selectedId, onSelect, healthFilter,
+}: {
+  isLoading: boolean;
+  sortedCompanies: Company[];
+  groups: { level: HealthLevel; label: string; dotColor: string; items: Company[] }[] | null;
+  engagementMap: Map<string, ClientEngagementData> | undefined;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  healthFilter: HealthLevel | null;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const flatItems = useMemo(() => {
+    if (groups) {
+      const items: ({ type: "header"; level: HealthLevel; label: string; dotColor: string; count: number } | { type: "company"; company: Company })[] = [];
+      for (const group of groups) {
+        items.push({ type: "header", level: group.level, label: group.label, dotColor: group.dotColor, count: group.items.length });
+        for (const c of group.items) items.push({ type: "company", company: c });
+      }
+      return items;
+    }
+    return sortedCompanies.map((c) => ({ type: "company" as const, company: c }));
+  }, [groups, sortedCompanies]);
+
+  const virtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (i) => flatItems[i].type === "header" ? CLIENT_HEADER_HEIGHT : CLIENT_ROW_HEIGHT,
+    overscan: 15,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center h-32">
+        <p className="text-xs text-zinc-400">Loading...</p>
+      </div>
+    );
+  }
+
+  if (sortedCompanies.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-xs text-zinc-400 text-center py-8">
+          {healthFilter ? "No clients in this tier" : "No clients yet"}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={parentRef} className="flex-1 overflow-y-auto">
+      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const item = flatItems[virtualRow.index];
+          if (item.type === "header") {
+            return (
+              <div
+                key={`header-${item.level}`}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: CLIENT_HEADER_HEIGHT,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+                className="px-3 py-1.5 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800/50 z-10"
+              >
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-1.5 h-1.5 rounded-full ${item.dotColor}`} />
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{item.label}</span>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-600 tabular-nums">{item.count}</span>
                 </div>
-                {group.items.map((c) => (
-                  <ClientRow
-                    key={c.id}
-                    company={c}
-                    engagement={engagementMap?.get(c.id)}
-                    isSelected={c.id === selectedId}
-                    onSelect={() => onSelect(c.id === selectedId ? null : c.id)}
-                  />
-                ))}
               </div>
-            ))}
-          </div>
-        ) : (
-          // Flat list (A-Z or Recent sort)
-          <div className="py-1">
-            {sortedCompanies.map((c) => (
+            );
+          }
+          const c = item.company;
+          return (
+            <div
+              key={c.id}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: CLIENT_ROW_HEIGHT,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
               <ClientRow
-                key={c.id}
                 company={c}
                 engagement={engagementMap?.get(c.id)}
                 isSelected={c.id === selectedId}
                 onSelect={() => onSelect(c.id === selectedId ? null : c.id)}
               />
-            ))}
-          </div>
-        )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

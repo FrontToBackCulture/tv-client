@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useRef, useState } from "react";
 import { useJobsStore } from "../../stores/jobsStore";
 import { valSyncKeys, type SyncAllDomainsProgress, type SyncResult, type SyncAllResult } from "./types";
+import { toSGTDateString } from "../../lib/date";
 
 // ============================================================
 // S3 Types
@@ -39,19 +40,21 @@ export interface S3SyncResult {
 // Helpers
 // ============================================================
 
-/** Get default monitoring time window (yesterday 23:00 → now) */
+/** Get default monitoring time window (yesterday 23:00 → now) in SGT */
 function getDefaultMonitoringWindow() {
   const now = new Date();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  yesterday.setHours(23, 0, 0, 0);
-  const fmt = (d: Date) => d.toISOString().replace("Z", "");
-  return { from: fmt(yesterday), to: fmt(now) };
+  // Build yesterday 23:00 SGT by getting today's SGT date and subtracting
+  const todaySGT = toSGTDateString(now);
+  const [y, m, d] = todaySGT.split("-").map(Number);
+  // Yesterday 23:00 SGT = UTC 15:00 the day before
+  const yesterdaySGT23 = new Date(Date.UTC(y, m - 1, d - 1, 23 - 8, 0, 0));
+  const fmt = (dt: Date) => dt.toISOString().replace("Z", "");
+  return { from: fmt(yesterdaySGT23), to: fmt(now) };
 }
 
-/** Get today's date as YYYY-MM-DD */
+/** Get today's date as YYYY-MM-DD in SGT */
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return toSGTDateString();
 }
 
 // ============================================================

@@ -510,6 +510,7 @@ fn main() {
             commands::skill_registry::skill_list_bots,
             commands::skill_registry::skill_distribute_to,
             commands::skill_registry::skill_summary,
+            commands::skill_registry::skill_inspect,
             commands::skill_registry::skill_list_examples,
             commands::skill_registry::ai_summarize_diff,
             // Gallery
@@ -558,6 +559,7 @@ fn main() {
             commands::notion::commands::notion_delete_sync_config,
             commands::notion::commands::notion_sync_start,
             commands::notion::commands::notion_sync_status,
+            commands::notion::commands::notion_push_task,
             // S3 Browser
             commands::s3_browser::s3_browse_buckets,
             commands::s3_browser::s3_browse_list,

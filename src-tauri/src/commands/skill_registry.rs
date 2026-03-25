@@ -1483,3 +1483,167 @@ pub async fn ai_summarize_diff(
 
     Ok(summary)
 }
+
+// ─── Skill Inspect ───────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct SkillInspectResult {
+    pub success: bool,
+    pub output_path: Option<String>,
+    pub output_text: String,
+    pub error: Option<String>,
+    pub cost_usd: Option<f64>,
+}
+
+#[command]
+pub async fn skill_inspect(
+    state: State<'_, AppState>,
+    slug: String,
+    skills_folder: String,
+    model: Option<String>,
+) -> CmdResult<SkillInspectResult> {
+    use std::process::Stdio;
+    use tokio::io::AsyncWriteExt;
+    use tokio::process::Command;
+
+    let kb = &state.knowledge_path;
+    let skills_dir = resolve_skills_dir(kb, &skills_folder);
+    let skill_path = skills_dir.join(&slug);
+
+    // Verify skill exists
+    let skill_md = skill_path.join("SKILL.md");
+    if !skill_md.exists() {
+        return Ok(SkillInspectResult {
+            success: false,
+            output_path: None,
+            output_text: String::new(),
+            error: Some(format!("SKILL.md not found at {}", skill_md.display())),
+            cost_usd: None,
+        });
+    }
+
+    // Build the prompt
+    let prompt = format!(
+        "Run auditing-skills in inspect mode for skill {}. \
+         Read _skills/{}/SKILL.md, analyze its content composition, \
+         generate the self-contained HTML inspection report, \
+         and save it to _skills/{}/docs/inspection.html. \
+         Follow the Workflow — Inspect steps (I1 through I6) exactly.",
+        slug, slug, slug
+    );
+
+    let model_str = model.unwrap_or_else(|| "sonnet".to_string());
+
+    // Spawn claude -p
+    let mut cmd = Command::new("claude");
+    cmd.arg("-p");
+    cmd.arg("--model").arg(&model_str);
+    cmd.arg("--output-format").arg("json");
+
+    // Allow file read/write tools
+    #[cfg(unix)]
+    cmd.arg("--allowedTools")
+        .arg("Read,Write,Edit,Glob,Grep,Bash(ls),Bash(mkdir)");
+    #[cfg(windows)]
+    cmd.arg("--allowedTools")
+        .arg("Read,Write,Edit,Glob,Grep,Bash(dir),Bash(mkdir)");
+
+    // Load MCP config for tv-mcp access
+    let home = dirs::home_dir().unwrap_or_default();
+    let mcp_config = home.join(".claude/mcp.json");
+    if mcp_config.exists() {
+        cmd.arg("--mcp-config").arg(&mcp_config);
+    }
+
+    // Run from knowledge base root so CLAUDE.md context is picked up
+    cmd.current_dir(kb);
+    cmd.stdin(Stdio::piped());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let expected_output = skill_path.join("docs/inspection.html");
+    eprintln!("[skill_inspect] Spawning claude for slug: {} in dir: {}", slug, kb);
+    eprintln!("[skill_inspect] Expected output: {}", expected_output.display());
+
+    let mut child = cmd.spawn().map_err(|e| {
+        CommandError::Io(format!(
+            "Failed to spawn claude: {}. Is claude CLI installed?",
+            e
+        ))
+    })?;
+
+    // Send prompt to stdin
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(prompt.as_bytes()).await;
+        let _ = stdin.shutdown().await;
+    }
+
+    let output = child
+        .wait_with_output()
+        .await
+        .map_err(|e| CommandError::Io(format!("Failed to wait for claude: {}", e)))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    if !output.status.success() {
+        return Ok(SkillInspectResult {
+            success: false,
+            output_path: None,
+            output_text: stderr.clone(),
+            error: Some(format!("Claude exited with code {:?}: {}", output.status.code(), stderr)),
+            cost_usd: None,
+        });
+    }
+
+    // Parse JSON output
+    let (text, cost_usd) = match serde_json::from_str::<serde_json::Value>(&stdout) {
+        Ok(json) => {
+            let text = json
+                .get("result")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&stdout)
+                .to_string();
+            let cost = json
+                .get("cost_usd")
+                .and_then(|v| v.as_f64())
+                .or_else(|| json.get("total_cost_usd").and_then(|v| v.as_f64()));
+            (text, cost)
+        }
+        Err(_) => (stdout, None),
+    };
+
+    // Check if the HTML file was created — try multiple paths
+    let output_path = skill_path.join("docs/inspection.html");
+    let file_exists = output_path.exists();
+
+    eprintln!("[skill_inspect] Claude finished. Exit: {:?}, output_path exists: {}, path: {}",
+        output.status.code(), file_exists, output_path.display());
+
+    // If our expected path doesn't exist, search for it — Claude might have used
+    // a slightly different path resolution
+    let (final_exists, final_path) = if file_exists {
+        (true, output_path.to_string_lossy().to_string())
+    } else {
+        // Try finding it by searching the skill directory
+        let docs_dir = skill_path.join("docs");
+        if docs_dir.join("inspection.html").exists() {
+            (true, docs_dir.join("inspection.html").to_string_lossy().to_string())
+        } else {
+            eprintln!("[skill_inspect] inspection.html NOT found at {}", output_path.display());
+            (false, String::new())
+        }
+    };
+
+    Ok(SkillInspectResult {
+        success: final_exists,
+        output_path: if final_exists { Some(final_path) } else { None },
+        output_text: text,
+        error: if !final_exists {
+            Some("Claude completed but inspection.html was not generated".to_string())
+        } else {
+            None
+        },
+        cost_usd,
+    })
+}

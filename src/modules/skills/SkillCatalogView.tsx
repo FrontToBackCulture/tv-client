@@ -5,6 +5,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Search, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown, ChevronsDownUp, ShieldCheck, LayoutDashboard, Table2, Zap } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { cn } from "../../lib/cn";
+import { toSGTDateString } from "../../lib/date";
 import {
   type SkillEntry,
   type SkillDriftStatus,
@@ -317,26 +318,27 @@ export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewPr
   }, [sidebarWidth]);
 
 
-  // Review panel resize handle
-  const handleReviewPanelResizePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  // Review panel resize handle — uses document-level mouse events for reliability in Tauri webview
+  const handleReviewPanelResizeDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    const target = e.currentTarget;
-    target.setPointerCapture(e.pointerId);
     const startX = e.clientX;
     const startWidth = reviewPanelWidth;
 
-    const onMove = (ev: PointerEvent) => {
+    const onMove = (ev: MouseEvent) => {
       const delta = startX - ev.clientX;
       setReviewPanelWidth(Math.max(400, Math.min(1000, startWidth + delta)));
     };
     const onUp = () => {
-      target.releasePointerCapture(e.pointerId);
-      target.removeEventListener("pointermove", onMove);
-      target.removeEventListener("pointerup", onUp);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     };
-    target.addEventListener("pointermove", onMove);
-    target.addEventListener("pointerup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   }, [reviewPanelWidth]);
 
   // Build level-aware key sets for collapse controls
@@ -663,7 +665,7 @@ export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewPr
             {reviewSelectedSlug && reviewSkill && (
               <div className="flex flex-shrink-0 animate-slide-in" style={{ width: reviewPanelWidth }}>
                 <div
-                  onPointerDown={handleReviewPanelResizePointerDown}
+                  onMouseDown={handleReviewPanelResizeDown}
                   className="w-2 flex-shrink-0 cursor-col-resize group flex items-center justify-center border-l border-zinc-200 dark:border-zinc-700 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
                 >
                   <GripVertical size={10} className="text-zinc-300 dark:text-zinc-600 group-hover:text-teal-500 transition-colors" />
@@ -1316,7 +1318,7 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return toSGTDateString(d);
 }
 
 function SkillFilterBar({
@@ -1337,7 +1339,7 @@ function SkillFilterBar({
   // Derive which date preset is active
   const datePreset: DatePreset = useMemo(() => {
     if (!modFrom && !modTo) return "all";
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toSGTDateString();
     if (modFrom === today && !modTo) return "today";
     if (modFrom === daysAgo(7) && !modTo) return "7d";
     if (modFrom === daysAgo(30) && !modTo) return "30d";
@@ -1348,7 +1350,7 @@ function SkillFilterBar({
   const handleDatePreset = (preset: DatePreset) => {
     switch (preset) {
       case "all": onModFromChange(""); onModToChange(""); break;
-      case "today": onModFromChange(new Date().toISOString().slice(0, 10)); onModToChange(""); break;
+      case "today": onModFromChange(toSGTDateString()); onModToChange(""); break;
       case "7d": onModFromChange(daysAgo(7)); onModToChange(""); break;
       case "30d": onModFromChange(daysAgo(30)); onModToChange(""); break;
       case "90d": onModFromChange(daysAgo(90)); onModToChange(""); break;

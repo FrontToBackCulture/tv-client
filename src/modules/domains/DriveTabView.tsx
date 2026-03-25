@@ -1141,7 +1141,7 @@ function ScanAllView({
           Drive Scan — All Domains
         </span>
         {lastScanAt && (
-          <span className="text-xs text-zinc-400" title={new Date(lastScanAt).toLocaleString()}>
+          <span className="text-xs text-zinc-400" title={new Date(lastScanAt).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}>
             Last scanned {formatRelativeTime(lastScanAt)}
           </span>
         )}

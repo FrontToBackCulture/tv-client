@@ -329,3 +329,234 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         _ => ToolResult::error(format!("Unknown CRM tool: {}", name)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // -------------------------------------------------------
+    // Tool definitions
+    // -------------------------------------------------------
+
+    #[test]
+    fn crm_tools_count() {
+        let t = tools();
+        // Companies (6) + Contacts (4) + Activities (2) = 12
+        assert_eq!(t.len(), 12);
+    }
+
+    #[test]
+    fn create_company_requires_name() {
+        let t = tools();
+        let tool = t.iter().find(|t| t.name == "create-crm-company").unwrap();
+        assert_eq!(tool.input_schema.required, Some(vec!["name".to_string()]));
+    }
+
+    #[test]
+    fn get_company_requires_company_id() {
+        let t = tools();
+        let tool = t.iter().find(|t| t.name == "get-crm-company").unwrap();
+        assert_eq!(
+            tool.input_schema.required,
+            Some(vec!["company_id".to_string()])
+        );
+    }
+
+    #[test]
+    fn create_contact_requires_three_fields() {
+        let t = tools();
+        let tool = t.iter().find(|t| t.name == "create-crm-contact").unwrap();
+        let req = tool.input_schema.required.as_ref().unwrap();
+        assert!(req.contains(&"company_id".to_string()));
+        assert!(req.contains(&"name".to_string()));
+        assert!(req.contains(&"email".to_string()));
+    }
+
+    #[test]
+    fn log_activity_requires_type() {
+        let t = tools();
+        let tool = t.iter().find(|t| t.name == "log-crm-activity").unwrap();
+        assert_eq!(
+            tool.input_schema.required,
+            Some(vec!["type".to_string()])
+        );
+    }
+
+    #[test]
+    fn list_companies_has_no_required_fields() {
+        let t = tools();
+        let tool = t.iter().find(|t| t.name == "list-crm-companies").unwrap();
+        assert!(tool.input_schema.required.is_none());
+    }
+
+    // -------------------------------------------------------
+    // Argument parsing — CreateCompany deserialization
+    // -------------------------------------------------------
+
+    #[test]
+    fn create_company_parses_minimal_args() {
+        let args = json!({"name": "Acme Corp"});
+        let data: CreateCompany = serde_json::from_value(args).unwrap();
+        assert_eq!(data.name, "Acme Corp");
+        assert!(data.stage.is_none());
+        assert!(data.tags.is_none());
+    }
+
+    #[test]
+    fn create_company_parses_full_args() {
+        let args = json!({
+            "name": "Acme Corp",
+            "display_name": "ACME",
+            "industry": "F&B",
+            "website": "https://acme.com",
+            "stage": "prospect",
+            "source": "apollo",
+            "notes": "Good lead",
+            "tags": ["enterprise", "f&b"]
+        });
+        let data: CreateCompany = serde_json::from_value(args).unwrap();
+        assert_eq!(data.display_name, Some("ACME".to_string()));
+        assert_eq!(data.tags, Some(vec!["enterprise".to_string(), "f&b".to_string()]));
+    }
+
+    #[test]
+    fn create_company_fails_without_name() {
+        let args = json!({"industry": "Tech"});
+        let result: Result<CreateCompany, _> = serde_json::from_value(args);
+        assert!(result.is_err());
+    }
+
+    // -------------------------------------------------------
+    // Argument parsing — UpdateCompany deserialization
+    // -------------------------------------------------------
+
+    #[test]
+    fn update_company_parses_partial_fields() {
+        let args = json!({"stage": "client", "domain_id": "abc-123"});
+        let data: UpdateCompany = serde_json::from_value(args).unwrap();
+        assert_eq!(data.stage, Some("client".to_string()));
+        assert_eq!(data.domain_id, Some("abc-123".to_string()));
+        assert!(data.name.is_none());
+    }
+
+    #[test]
+    fn update_company_parses_empty_object() {
+        let args = json!({});
+        let data: UpdateCompany = serde_json::from_value(args).unwrap();
+        assert!(data.name.is_none());
+        assert!(data.stage.is_none());
+    }
+
+    // -------------------------------------------------------
+    // Argument parsing — CreateContact deserialization
+    // -------------------------------------------------------
+
+    #[test]
+    fn create_contact_parses_required_fields() {
+        let args = json!({
+            "company_id": "comp-1",
+            "name": "John Doe",
+            "email": "john@example.com"
+        });
+        let data: CreateContact = serde_json::from_value(args).unwrap();
+        assert_eq!(data.company_id, "comp-1");
+        assert_eq!(data.email, "john@example.com");
+        assert!(data.phone.is_none());
+    }
+
+    #[test]
+    fn create_contact_fails_without_email() {
+        let args = json!({"company_id": "comp-1", "name": "John"});
+        let result: Result<CreateContact, _> = serde_json::from_value(args);
+        assert!(result.is_err());
+    }
+
+    // -------------------------------------------------------
+    // Argument parsing — CreateActivity deserialization
+    // -------------------------------------------------------
+
+    #[test]
+    fn create_activity_parses_with_type_field() {
+        // 'type' is a reserved word in Rust — verify serde rename works
+        let args = json!({
+            "company_id": "comp-1",
+            "type": "meeting",
+            "subject": "Q1 Review",
+            "content": "Discussed roadmap"
+        });
+        let data: CreateActivity = serde_json::from_value(args).unwrap();
+        assert_eq!(data.activity_type, "meeting");
+        assert_eq!(data.subject, Some("Q1 Review".to_string()));
+    }
+
+    #[test]
+    fn create_activity_fails_without_type() {
+        let args = json!({"company_id": "comp-1", "subject": "Hello"});
+        let result: Result<CreateActivity, _> = serde_json::from_value(args);
+        assert!(result.is_err());
+    }
+
+    // -------------------------------------------------------
+    // Argument extraction patterns (from call function)
+    // -------------------------------------------------------
+
+    #[test]
+    fn extract_optional_string_from_args() {
+        let args = json!({"search": "koi", "limit": 10});
+        let search = args.get("search").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let missing = args.get("stage").and_then(|v| v.as_str()).map(|s| s.to_string());
+        assert_eq!(search, Some("koi".to_string()));
+        assert_eq!(missing, None);
+    }
+
+    #[test]
+    fn extract_limit_as_i32() {
+        let args = json!({"limit": 25});
+        let limit = args.get("limit").and_then(|v| v.as_i64()).map(|n| n as i32);
+        assert_eq!(limit, Some(25));
+    }
+
+    #[test]
+    fn extract_limit_from_string_returns_none() {
+        // If Claude sends limit as string "25" instead of number, as_i64 returns None
+        let args = json!({"limit": "25"});
+        let limit = args.get("limit").and_then(|v| v.as_i64()).map(|n| n as i32);
+        assert_eq!(limit, None); // This is a known edge case
+    }
+
+    #[test]
+    fn extract_bool_from_args() {
+        let args = json!({"include_relations": true});
+        let val = args.get("include_relations").and_then(|v| v.as_bool());
+        assert_eq!(val, Some(true));
+    }
+
+    #[test]
+    fn required_field_extraction_pattern() {
+        // Pattern used in get-crm-company, update-crm-company, etc.
+        let args = json!({"company_id": "abc-123"});
+        let id = args.get("company_id").and_then(|v| v.as_str());
+        assert_eq!(id, Some("abc-123"));
+
+        let missing_args = json!({});
+        let id = missing_args.get("company_id").and_then(|v| v.as_str());
+        assert!(id.is_none());
+    }
+
+    #[test]
+    fn update_company_strips_company_id_before_deser() {
+        // Simulates the pattern in call() for update-crm-company
+        let mut args = json!({
+            "company_id": "abc",
+            "name": "New Name",
+            "stage": "client"
+        });
+        if let Some(obj) = args.as_object_mut() {
+            obj.remove("company_id");
+        }
+        let data: UpdateCompany = serde_json::from_value(args).unwrap();
+        assert_eq!(data.name, Some("New Name".to_string()));
+        assert_eq!(data.stage, Some("client".to_string()));
+    }
+}

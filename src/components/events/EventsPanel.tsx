@@ -40,7 +40,7 @@ function formatTime(dateStr: string | null): string {
       parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]),
       parseInt(match[4]), parseInt(match[5])
     );
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+    return d.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", hour12: true });
   }
   return "";
 }

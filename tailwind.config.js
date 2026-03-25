@@ -123,6 +123,7 @@ export default {
       },
       fontFamily: {
         sans: ['Inter Variable', 'Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        heading: ['Instrument Serif', 'Georgia', 'Times New Roman', 'serif'],
         mono: ['JetBrains Mono Variable', 'JetBrains Mono', 'SF Mono', 'Fira Code', 'monospace'],
       },
       keyframes: {
@@ -130,9 +131,14 @@ export default {
           '0%': { transform: 'translateX(100%)', opacity: '0' },
           '100%': { transform: 'translateX(0)', opacity: '1' },
         },
+        'fade-slide-in': {
+          '0%': { opacity: '0', transform: 'translateY(6px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         'slide-in': 'slide-in 0.3s ease-out',
+        'fade-slide-in': 'fade-slide-in 0.2s ease-out backwards',
       },
     },
   },

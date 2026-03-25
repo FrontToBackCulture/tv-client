@@ -69,7 +69,7 @@ export function ProductActivityTimeline({ entityType, entityId }: ProductActivit
               </div>
             )}
             <time className="text-xs text-zinc-400 mt-1 block">
-              {new Date(activity.created_at).toLocaleString()}
+              {new Date(activity.created_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
             </time>
           </div>
         </div>

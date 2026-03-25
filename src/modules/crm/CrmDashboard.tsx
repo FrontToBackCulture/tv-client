@@ -6,7 +6,7 @@ import { useDealsWithTasks, useActivities } from "../../hooks/crm";
 import { DealWithTaskInfo, DEAL_STAGES, DEAL_SOLUTIONS } from "../../lib/crm/types";
 import { AlertTriangle, TrendingUp, Clock, Calendar, ClipboardList, DollarSign } from "lucide-react";
 import { DetailLoading } from "../../components/ui/DetailStates";
-import { formatDateShort as formatDate } from "../../lib/date";
+import { formatDateShort as formatDate, toSGTDateString } from "../../lib/date";
 
 interface CrmDashboardProps {
   onDealClick?: (deal: DealWithTaskInfo) => void;
@@ -47,18 +47,16 @@ function getUrgencyReason(deal: DealWithTaskInfo): {
   color: string;
 } | null {
   const stale = getStaleInfo(deal);
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+  const todaySGT = toSGTDateString();
 
   // Skip dormant deals
   if (stale.level === "dormant") return null;
 
   // 1. Overdue expected close
   if (deal.expected_close_date) {
-    const closeDate = new Date(deal.expected_close_date);
-    closeDate.setHours(0, 0, 0, 0);
-    if (closeDate < now) {
-      const overdueDays = Math.floor((now.getTime() - closeDate.getTime()) / (1000 * 60 * 60 * 24));
+    const closeDateStr = deal.expected_close_date.slice(0, 10);
+    if (closeDateStr < todaySGT) {
+      const overdueDays = Math.floor((Date.now() - new Date(deal.expected_close_date).getTime()) / (1000 * 60 * 60 * 24));
       return {
         priority: 1,
         reason: `Close date ${overdueDays}d overdue`,
@@ -87,9 +85,8 @@ function getUrgencyReason(deal: DealWithTaskInfo): {
 
   // 4. Task overdue
   if (deal.nextTask?.due_date) {
-    const taskDate = new Date(deal.nextTask.due_date);
-    taskDate.setHours(0, 0, 0, 0);
-    if (taskDate < now) {
+    const taskDateStr = deal.nextTask.due_date.slice(0, 10);
+    if (taskDateStr < todaySGT) {
       return {
         priority: 4,
         reason: `Task overdue: ${deal.nextTask.title}`,

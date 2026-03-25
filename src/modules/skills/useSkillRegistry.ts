@@ -296,6 +296,37 @@ export function useSkillSummary() {
   });
 }
 
+// ─── Skill inspection ────────────────────────────────────────────────────────
+
+export interface SkillInspectResult {
+  success: boolean;
+  output_path: string | null;
+  output_text: string;
+  error: string | null;
+  cost_usd: number | null;
+}
+
+export function useSkillInspect() {
+  const queryClient = useQueryClient();
+  const folderConfig = useFolderConfig();
+
+  return useMutation({
+    mutationFn: async ({ slug, model }: { slug: string; model?: string }) => {
+      console.log("[skill_inspect] Invoking for:", slug);
+      const result = await invoke<SkillInspectResult>("skill_inspect", {
+        slug,
+        skillsFolder: folderConfig.skills,
+        model: model ?? "sonnet",
+      });
+      console.log("[skill_inspect] Result:", result);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fileTree"] });
+    },
+  });
+}
+
 // ─── Skill examples (report gallery) ────────────────────────────────────────
 
 export interface SkillExample {

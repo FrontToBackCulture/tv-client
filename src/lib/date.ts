@@ -1,7 +1,34 @@
 // Shared date formatting utilities
-// All dates display in Singapore locale by default
+// All dates display in Singapore locale and timezone by default
 
 const LOCALE = "en-SG";
+const SGT_TZ = "Asia/Singapore";
+
+/**
+ * Format a Date or epoch (seconds) as a locale string in SGT
+ * e.g. "24 Mar 2026, 3:45:00 pm"
+ */
+export function formatDateTimeSGT(date: Date | number): string {
+  const d = typeof date === "number" ? new Date(date * 1000) : date;
+  return d.toLocaleString(LOCALE, { timeZone: SGT_TZ });
+}
+
+/**
+ * Get today's date as YYYY-MM-DD in SGT (safe across all machine timezones)
+ */
+export function toSGTDateString(date: Date = new Date()): string {
+  return date.toLocaleDateString("en-CA", { timeZone: SGT_TZ }); // en-CA gives YYYY-MM-DD
+}
+
+/**
+ * Get start of today (midnight) in SGT as a UTC timestamp for comparisons
+ */
+export function sgtMidnightToday(): number {
+  const sgtDate = toSGTDateString();
+  // Parse YYYY-MM-DD as SGT midnight → convert to UTC ms
+  const [y, m, d] = sgtDate.split("-").map(Number);
+  return Date.UTC(y, m - 1, d) - 8 * 60 * 60 * 1000; // SGT = UTC+8
+}
 
 /**
  * General-purpose date format — "5 Jan 2025"
@@ -118,9 +145,10 @@ export function daysSince(dateStr: string): number {
 }
 
 /**
- * Whether a due date is before today (midnight comparison)
+ * Whether a due date is before today (midnight SGT comparison)
  */
 export function isOverdue(dueDate: string | null): boolean {
   if (!dueDate) return false;
-  return new Date(dueDate) < new Date(new Date().toDateString());
+  const todaySGT = toSGTDateString();
+  return dueDate.slice(0, 10) < todaySGT;
 }

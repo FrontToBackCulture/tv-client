@@ -681,7 +681,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                   {auth?.expires_at && (
                     <div className="flex items-center gap-2 text-xs text-zinc-400">
                       <Clock size={12} />
-                      Expires: {new Date(auth.expires_at).toLocaleString()}
+                      Expires: {new Date(auth.expires_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
                     </div>
                   )}
                   {!auth?.authenticated && creds?.has_credentials && (
@@ -822,7 +822,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                 {auth?.expires_at && (
                   <div className="flex items-center gap-2 text-xs text-zinc-400">
                     <Clock size={12} />
-                    Expires: {new Date(auth.expires_at).toLocaleString()}
+                    Expires: {new Date(auth.expires_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
                   </div>
                 )}
                 {!auth?.authenticated && creds?.has_credentials && (

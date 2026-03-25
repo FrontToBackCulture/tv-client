@@ -35,11 +35,14 @@ import {
   Building2,
   Target,
   Mail,
+  Upload,
+  ExternalLink,
 } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { EmailsPanel } from "../../components/emails/EmailsPanel";
 import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
+import { useNotionPushTask } from "../../hooks/useNotion";
 import { Button, IconButton } from "../../components/ui";
 import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
@@ -74,6 +77,7 @@ export function TaskDetailPanel({
   const { data: task, isLoading, refetch } = useTask(taskId);
   const updateMutation = useUpdateTask();
   const deleteMutation = useDeleteTask();
+  const pushMutation = useNotionPushTask();
 
   // Report task to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
@@ -171,6 +175,17 @@ export function TaskDetailPanel({
             >
               {task.project.name}
             </span>
+          )}
+          {task.notion_page_id && (
+            <a
+              href={`https://notion.so/${task.notion_page_id.replace(/-/g, "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`hover:opacity-75 transition-opacity ${(task as any).source === "notion" ? "text-zinc-800 dark:text-zinc-200" : "text-teal-500 dark:text-teal-400"}`}
+              title={(task as any).source === "notion" ? "From Notion — click to open" : "Synced to Notion — click to open"}
+            >
+              <svg width="14" height="14" viewBox="0 0 100 100" fill="currentColor"><path d="M6.6 12.6c5.1 4.1 7 3.8 16.5 3.1l59.7-3.6c2 0 .3-2-.3-2.2L73.2 3.5c-2.7-2.2-6.5-4.6-13.5-4L8 3.2C4 3.5 3.1 5.6 4.8 7.3zm17.1 14.3v62.7c0 3.4 1.7 4.7 5.5 4.5l65.7-3.8c3.8-.2 4.3-2.6 4.3-5.4V22.6c0-2.8-1.1-4.3-3.5-4l-68.6 4c-2.7.2-3.4 1.5-3.4 4.3zM82 29c.4 1.8 0 3.5-1.8 3.7l-3.2.6v46.3c-2.8 1.5-5.3 2.3-7.5 2.3-3.4 0-4.3-1.1-6.8-4.1L42.3 46.2v30.7l6.6 1.5s0 3.5-4.8 3.5l-13.3.8c-.4-.8 0-2.7 1.3-3l3.5-1V38.3l-4.8-.4c-.4-1.8.6-4.4 3.5-4.6l14.3-.9 21.2 32.5V37l-5.5-.6c-.4-2.2 1.2-3.7 3.2-3.9z"/></svg>
+            </a>
           )}
         </div>
         <IconButton icon={X} size={18} label="Close" onClick={onClose} />
@@ -542,30 +557,6 @@ export function TaskDetailPanel({
             )}
           </div>
 
-          {/* Notion Content */}
-          {task.notion_content && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Notion Page Content</h3>
-                {task.notion_page_id && (
-                  <a
-                    href={`https://notion.so/${task.notion_page_id.replace(/-/g, "")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[10px] text-teal-500 hover:text-teal-600 font-medium"
-                  >
-                    Open in Notion →
-                  </a>
-                )}
-              </div>
-              <div className="px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
-                <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-li:my-0 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.notion_content}</ReactMarkdown>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Activity */}
           <div>
             <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Activity</h3>
@@ -618,9 +609,38 @@ export function TaskDetailPanel({
         >
           Delete
         </Button>
-        <Button variant="ghost" onClick={onClose}>
-          Close
-        </Button>
+        <div className="flex items-center gap-2">
+          {task.notion_page_id && (
+            <a
+              href={`https://notion.so/${task.notion_page_id.replace(/-/g, "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+            >
+              <ExternalLink size={14} />
+              Notion
+            </a>
+          )}
+          <Button
+            variant="ghost"
+            icon={Upload}
+            onClick={async () => {
+              try {
+                const result = await pushMutation.mutateAsync(taskId);
+                toast.success(result.action === "created" ? "Synced to Notion (new page)" : "Synced to Notion");
+                refetch();
+              } catch (error: any) {
+                toast.error(error?.message || "Failed to sync to Notion");
+              }
+            }}
+            disabled={pushMutation.isPending}
+          >
+            {pushMutation.isPending ? "Syncing..." : "Sync to Notion"}
+          </Button>
+          <Button variant="ghost" onClick={onClose}>
+            Close
+          </Button>
+        </div>
       </div>
 
       {showDeleteConfirm && (

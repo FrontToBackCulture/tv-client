@@ -31,7 +31,7 @@ export function useConversations(filters?: ConversationFilters) {
       if (error) throw new Error(`Failed to fetch conversations: ${error.message}`);
       return (data ?? []) as Conversation[];
     },
-    refetchInterval: 10000,
+    // Realtime (usePortalRealtime) handles live updates — no polling needed
   });
 }
 

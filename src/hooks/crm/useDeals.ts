@@ -448,23 +448,11 @@ export function useDealTasks(dealId: string | null) {
     queryFn: async (): Promise<DealTaskFull[]> => {
       if (!dealId) return [];
 
-      // Deal is a project — tasks link via project_id
-      const { data: projectTasks } = await supabase
-        .from("tasks")
-        .select("id")
-        .eq("project_id", dealId);
-
-      const allTaskIds = (projectTasks ?? []).map((t) => t.id);
-
-      if (allTaskIds.length === 0) {
-        return [];
-      }
-
-      // Fetch full task details with embedded relations
+      // Deal is a project — fetch tasks directly by project_id (single query)
       const { data, error } = await supabase
         .from("tasks")
         .select("id, title, description, priority, due_date, status_id, task_number, project_id, task_statuses(type), projects(identifier_prefix)")
-        .in("id", allTaskIds)
+        .eq("project_id", dealId)
         .order("due_date", { ascending: true });
 
       if (error) {

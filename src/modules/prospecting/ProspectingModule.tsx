@@ -1,6 +1,6 @@
 // Prospecting Module — find, research, email, and track prospects
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, ListFilter } from "lucide-react";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -69,10 +69,10 @@ export function ProspectingModule() {
     };
   }, [isResizing]);
 
-  const handleViewChange = useCallback((view: ProspectingView) => {
+  function handleViewChange(view: ProspectingView) {
     setActiveView(view);
     setSelectedContactId(null);
-  }, []);
+  }
 
   return (
     <div ref={containerRef} className="h-full flex flex-col bg-white dark:bg-zinc-950">

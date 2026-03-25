@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useListDirectory, useReadFile, useWriteFile } from "../hooks/useFiles";
 import { cn } from "../lib/cn";
+import { toSGTDateString } from "../lib/date";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
 import { useSkillRegistry } from "../modules/skills/useSkillRegistry";
 import { useUpdateSkill } from "../hooks/skills/useSkills";
@@ -106,7 +107,7 @@ export function SkillModal({
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const handleStatusChange = (newStatus: SkillStatus) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toSGTDateString();
     updateSkill.mutate({ slug: skillName, updates: { status: newStatus, last_audited: today } });
     setShowStatusMenu(false);
   };

@@ -135,38 +135,26 @@ export function useSettings() {
   };
 }
 
-/**
- * Hook for getting Gamma API key
- */
-export function useGammaKey() {
+function useApiKey(command: string) {
   const [key, setKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    invoke<string | null>("settings_get_gamma_key")
+    invoke<string | null>(command)
       .then(setKey)
       .catch(() => setKey(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [command]);
 
   return { key, loading, hasKey: key !== null };
 }
 
-/**
- * Hook for getting Gemini API key
- */
+export function useGammaKey() {
+  return useApiKey("settings_get_gamma_key");
+}
+
 export function useGeminiKey() {
-  const [key, setKey] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    invoke<string | null>("settings_get_gemini_key")
-      .then(setKey)
-      .catch(() => setKey(null))
-      .finally(() => setLoading(false));
-  }, []);
-
-  return { key, loading, hasKey: key !== null };
+  return useApiKey("settings_get_gemini_key");
 }
 
 /**

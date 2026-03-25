@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      _task_audit: {
+        Row: {
+          changed_at: string | null
+          id: number
+          new_project_id: string | null
+          new_task_number: number | null
+          old_project_id: string | null
+          old_task_number: number | null
+          query_source: string | null
+          task_id: string | null
+        }
+        Insert: {
+          changed_at?: string | null
+          id?: number
+          new_project_id?: string | null
+          new_task_number?: number | null
+          old_project_id?: string | null
+          old_task_number?: number | null
+          query_source?: string | null
+          task_id?: string | null
+        }
+        Update: {
+          changed_at?: string | null
+          id?: number
+          new_project_id?: string | null
+          new_task_number?: number | null
+          old_project_id?: string | null
+          old_task_number?: number | null
+          query_source?: string | null
+          task_id?: string | null
+        }
+        Relationships: []
+      }
       analytics_page_views: {
         Row: {
           created_at: string | null
@@ -218,6 +251,7 @@ export type Database = {
           deal_folder_path: string | null
           display_name: string | null
           domain_id: string | null
+          email_domains: string[] | null
           employee_count: number | null
           id: string
           industry: string | null
@@ -239,6 +273,7 @@ export type Database = {
           deal_folder_path?: string | null
           display_name?: string | null
           domain_id?: string | null
+          email_domains?: string[] | null
           employee_count?: number | null
           id?: string
           industry?: string | null
@@ -260,6 +295,7 @@ export type Database = {
           deal_folder_path?: string | null
           display_name?: string | null
           domain_id?: string | null
+          email_domains?: string[] | null
           employee_count?: number | null
           id?: string
           industry?: string | null
@@ -631,6 +667,47 @@ export type Database = {
         }
         Relationships: []
       }
+      email_cache: {
+        Row: {
+          body_preview: string | null
+          cached_at: string | null
+          cached_by: string | null
+          from_email: string
+          from_name: string | null
+          id: string
+          received_at: string | null
+          subject: string | null
+        }
+        Insert: {
+          body_preview?: string | null
+          cached_at?: string | null
+          cached_by?: string | null
+          from_email: string
+          from_name?: string | null
+          id: string
+          received_at?: string | null
+          subject?: string | null
+        }
+        Update: {
+          body_preview?: string | null
+          cached_at?: string | null
+          cached_by?: string | null
+          from_email?: string
+          from_name?: string | null
+          id?: string
+          received_at?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_cache_cached_by_fkey"
+            columns: ["cached_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_campaigns: {
         Row: {
           bcc_email: string | null
@@ -774,6 +851,73 @@ export type Database = {
         }
         Relationships: []
       }
+      email_drafts: {
+        Row: {
+          company_id: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          from_email: string
+          from_name: string
+          html_body: string
+          id: string
+          sent_at: string | null
+          status: string
+          subject: string
+          to_email: string
+        }
+        Insert: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          from_email?: string
+          from_name?: string
+          html_body: string
+          id?: string
+          sent_at?: string | null
+          status?: string
+          subject: string
+          to_email: string
+        }
+        Update: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          from_email?: string
+          from_name?: string
+          html_body?: string
+          id?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          to_email?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_drafts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_drafts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_drafts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_entity_links: {
         Row: {
           created_at: string | null
@@ -809,8 +953,10 @@ export type Database = {
       }
       email_events: {
         Row: {
-          campaign_id: string
-          contact_id: string
+          campaign_id: string | null
+          contact_id: string | null
+          crm_contact_id: string | null
+          draft_id: string | null
           event_type: string
           id: string
           ip_address: string | null
@@ -819,8 +965,10 @@ export type Database = {
           user_agent: string | null
         }
         Insert: {
-          campaign_id: string
-          contact_id: string
+          campaign_id?: string | null
+          contact_id?: string | null
+          crm_contact_id?: string | null
+          draft_id?: string | null
           event_type: string
           id?: string
           ip_address?: string | null
@@ -829,8 +977,10 @@ export type Database = {
           user_agent?: string | null
         }
         Update: {
-          campaign_id?: string
-          contact_id?: string
+          campaign_id?: string | null
+          contact_id?: string | null
+          crm_contact_id?: string | null
+          draft_id?: string | null
           event_type?: string
           id?: string
           ip_address?: string | null
@@ -851,6 +1001,20 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "email_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_crm_contact_id_fkey"
+            columns: ["crm_contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "email_drafts"
             referencedColumns: ["id"]
           },
         ]
@@ -882,10 +1046,13 @@ export type Database = {
       emails: {
         Row: {
           action_required: boolean | null
+          action_type: string | null
+          analysis_summary: string | null
           body_preview: string | null
           cc_emails: Json | null
           classification_category: string | null
           classification_confidence: number | null
+          classification_entity: string | null
           company_id: string | null
           contact_id: string | null
           conversation_id: string | null
@@ -897,7 +1064,9 @@ export type Database = {
           has_attachments: boolean | null
           id: string
           is_read: boolean | null
+          message_id: string | null
           outlook_id: string | null
+          priority_score: number | null
           received_at: string | null
           subject: string | null
           to_emails: Json | null
@@ -906,10 +1075,13 @@ export type Database = {
         }
         Insert: {
           action_required?: boolean | null
+          action_type?: string | null
+          analysis_summary?: string | null
           body_preview?: string | null
           cc_emails?: Json | null
           classification_category?: string | null
           classification_confidence?: number | null
+          classification_entity?: string | null
           company_id?: string | null
           contact_id?: string | null
           conversation_id?: string | null
@@ -921,7 +1093,9 @@ export type Database = {
           has_attachments?: boolean | null
           id?: string
           is_read?: boolean | null
+          message_id?: string | null
           outlook_id?: string | null
+          priority_score?: number | null
           received_at?: string | null
           subject?: string | null
           to_emails?: Json | null
@@ -930,10 +1104,13 @@ export type Database = {
         }
         Update: {
           action_required?: boolean | null
+          action_type?: string | null
+          analysis_summary?: string | null
           body_preview?: string | null
           cc_emails?: Json | null
           classification_category?: string | null
           classification_confidence?: number | null
+          classification_entity?: string | null
           company_id?: string | null
           contact_id?: string | null
           conversation_id?: string | null
@@ -945,7 +1122,9 @@ export type Database = {
           has_attachments?: boolean | null
           id?: string
           is_read?: boolean | null
+          message_id?: string | null
           outlook_id?: string | null
+          priority_score?: number | null
           received_at?: string | null
           subject?: string | null
           to_emails?: Json | null
@@ -968,6 +1147,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      event_entity_links: {
+        Row: {
+          created_at: string
+          end_at: string | null
+          entity_id: string
+          entity_type: string
+          event_id: string
+          id: string
+          location: string | null
+          match_method: string | null
+          organizer_email: string | null
+          organizer_name: string | null
+          relevance_score: number | null
+          start_at: string | null
+          subject: string | null
+        }
+        Insert: {
+          created_at?: string
+          end_at?: string | null
+          entity_id: string
+          entity_type: string
+          event_id: string
+          id?: string
+          location?: string | null
+          match_method?: string | null
+          organizer_email?: string | null
+          organizer_name?: string | null
+          relevance_score?: number | null
+          start_at?: string | null
+          subject?: string | null
+        }
+        Update: {
+          created_at?: string
+          end_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          event_id?: string
+          id?: string
+          location?: string | null
+          match_method?: string | null
+          organizer_email?: string | null
+          organizer_name?: string | null
+          relevance_score?: number | null
+          start_at?: string | null
+          subject?: string | null
+        }
+        Relationships: []
       }
       feed_cards: {
         Row: {
@@ -3274,6 +3501,47 @@ export type Database = {
           },
         ]
       }
+      task_attachments: {
+        Row: {
+          created_at: string | null
+          file_name: string
+          file_type: string | null
+          id: string
+          notion_block_id: string | null
+          size_bytes: number | null
+          source: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_name: string
+          file_type?: string | null
+          id?: string
+          notion_block_id?: string | null
+          size_bytes?: number | null
+          source?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string
+          file_type?: string | null
+          id?: string
+          notion_block_id?: string | null
+          size_bytes?: number | null
+          source?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_labels: {
         Row: {
           created_at: string | null
@@ -3365,16 +3633,17 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          last_pushed_at: string | null
           linked_document_path: string | null
           linked_document_repo: string | null
           milestone_id: string | null
-          notion_content: string | null
           notion_page_id: string | null
           priority: number | null
           project_id: string
           requires_review: boolean | null
           session_ref: string | null
           sort_order: number | null
+          source: string
           status_id: string
           task_number: number | null
           task_type: string | null
@@ -3395,16 +3664,17 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          last_pushed_at?: string | null
           linked_document_path?: string | null
           linked_document_repo?: string | null
           milestone_id?: string | null
-          notion_content?: string | null
           notion_page_id?: string | null
           priority?: number | null
           project_id: string
           requires_review?: boolean | null
           session_ref?: string | null
           sort_order?: number | null
+          source?: string
           status_id: string
           task_number?: number | null
           task_type?: string | null
@@ -3425,16 +3695,17 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          last_pushed_at?: string | null
           linked_document_path?: string | null
           linked_document_repo?: string | null
           milestone_id?: string | null
-          notion_content?: string | null
           notion_page_id?: string | null
           priority?: number | null
           project_id?: string
           requires_review?: boolean | null
           session_ref?: string | null
           sort_order?: number | null
+          source?: string
           status_id?: string
           task_number?: number | null
           task_type?: string | null
@@ -3563,6 +3834,23 @@ export type Database = {
           relevance_score: number
           subject: string
         }[]
+      }
+      sync_notion_task: {
+        Args: {
+          p_assignee_id?: string
+          p_company_id?: string
+          p_created_at?: string
+          p_description?: string
+          p_due_date?: string
+          p_notion_content?: string
+          p_notion_page_id: string
+          p_priority?: number
+          p_status_id?: string
+          p_target_project_id: string
+          p_title: string
+          p_updated_at?: string
+        }
+        Returns: Json
       }
     }
     Enums: {

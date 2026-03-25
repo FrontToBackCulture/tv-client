@@ -62,7 +62,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
   }, [activeModule, secondary]);
 
   return (
-    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 bg-noise text-zinc-900 dark:text-zinc-100">
       {/* Draggable title bar region for macOS */}
       <div
         onMouseDown={() => getCurrentWindow().startDragging()}

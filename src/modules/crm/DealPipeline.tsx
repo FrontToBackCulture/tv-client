@@ -5,8 +5,10 @@ import { useState, useMemo } from "react";
 import { useDealsWithTasks, useUpdateDeal } from "../../hooks/crm";
 import { Deal, DealWithTaskInfo, DEAL_STAGES, DEAL_SOLUTIONS } from "../../lib/crm/types";
 import { DealCard } from "./DealCard";
-import { ArrowUpDown, RefreshCw, Filter } from "lucide-react";
+import { ArrowUpDown, RefreshCw, Filter, ChevronDown, GripVertical } from "lucide-react";
 import { DetailLoading } from "../../components/ui/DetailStates";
+import { staggerStyle } from "../../hooks/useStaggeredList";
+import { cn } from "../../lib/cn";
 
 // Storage key for solution filter
 const SOLUTION_FILTER_KEY = "tv-desktop-crm-solution-filter";
@@ -51,10 +53,65 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: "close_date", label: "Close Date" },
 ];
 
+// Stage color → Tailwind classes mapping
+const stageColors: Record<string, { dot: string; bar: string; barBg: string; dropzone: string }> = {
+  zinc: {
+    dot: "bg-slate-400",
+    bar: "bg-slate-400",
+    barBg: "bg-slate-200 dark:bg-slate-700",
+    dropzone: "border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-800/30",
+  },
+  gray: {
+    dot: "bg-gray-500",
+    bar: "bg-gray-500",
+    barBg: "bg-gray-200 dark:bg-gray-700",
+    dropzone: "border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30",
+  },
+  blue: {
+    dot: "bg-blue-500",
+    bar: "bg-blue-500",
+    barBg: "bg-blue-100 dark:bg-blue-900/30",
+    dropzone: "border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/20",
+  },
+  purple: {
+    dot: "bg-purple-500",
+    bar: "bg-purple-500",
+    barBg: "bg-purple-100 dark:bg-purple-900/30",
+    dropzone: "border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/20",
+  },
+  cyan: {
+    dot: "bg-cyan-500",
+    bar: "bg-cyan-500",
+    barBg: "bg-cyan-100 dark:bg-cyan-900/30",
+    dropzone: "border-cyan-300 dark:border-cyan-700 bg-cyan-50/50 dark:bg-cyan-900/20",
+  },
+  yellow: {
+    dot: "bg-yellow-500",
+    bar: "bg-yellow-500",
+    barBg: "bg-yellow-100 dark:bg-yellow-900/30",
+    dropzone: "border-yellow-300 dark:border-yellow-700 bg-yellow-50/50 dark:bg-yellow-900/20",
+  },
+  green: {
+    dot: "bg-green-500",
+    bar: "bg-green-500",
+    barBg: "bg-green-100 dark:bg-green-900/30",
+    dropzone: "border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-900/20",
+  },
+  red: {
+    dot: "bg-red-500",
+    bar: "bg-red-500",
+    barBg: "bg-red-100 dark:bg-red-900/30",
+    dropzone: "border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/20",
+  },
+};
+
+const defaultStageColor = stageColors.gray;
+
 export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
   const [sortField, setSortField] = useState<SortField>("company");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [solutionFilter, setSolutionFilter] = useState<string>(getSavedSolutionFilter);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
   // Fetch active deals with tasks (not won/lost)
   const { data: deals = [], isLoading, refetch } = useDealsWithTasks({
@@ -80,6 +137,12 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
     return DEAL_SOLUTIONS.filter((s) => solutionSet.has(s.value));
   }, [deals]);
 
+  // Pipeline totals for progress bars
+  const totalPipelineValue = useMemo(
+    () => filteredDeals.reduce((sum, d) => sum + (d.value || 0), 0),
+    [filteredDeals]
+  );
+
   // Handle filter change
   const handleFilterChange = (value: string) => {
     setSolutionFilter(value);
@@ -90,6 +153,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
 
   // Handle drag and drop stage change
   async function handleStageDrop(dealId: string, newStage: string) {
+    setDragOverStage(null);
     try {
       await updateMutation.mutateAsync({
         id: dealId,
@@ -138,44 +202,90 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
 
   if (isLoading) return <DetailLoading />;
 
+  // Compute per-stage data for headers and footer
+  const stageData = activeStages.map((stage) => {
+    const stageDeals = filteredDeals.filter((d) => d.stage === stage.value);
+    const totalValue = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+    const valuePct = totalPipelineValue > 0 ? (totalValue / totalPipelineValue) * 100 : 0;
+    return { ...stage, deals: stageDeals, totalValue, valuePct };
+  });
+
+  const weightedTotal = filteredDeals.reduce((sum, d) => {
+    const stage = DEAL_STAGES.find((s) => s.value === d.stage);
+    return sum + (d.value || 0) * (stage?.weight ?? 0);
+  }, 0);
+
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+    <div className="h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Controls bar */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <Filter size={12} className="text-zinc-400" />
-        <select
-          value={solutionFilter}
-          onChange={(e) => handleFilterChange(e.target.value)}
-          className="text-xs px-1.5 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-        >
-          <option value="all">All Solutions</option>
-          {availableSolutions.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
+      <div className="flex-shrink-0 flex items-center gap-2.5 px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        {/* Solution filter */}
+        <div className="flex items-center gap-1.5">
+          <Filter size={11} className="text-slate-400" />
+          <div className="relative">
+            <select
+              value={solutionFilter}
+              onChange={(e) => handleFilterChange(e.target.value)}
+              className={cn(
+                "text-[11px] pl-2 pr-6 py-1 rounded-md border appearance-none cursor-pointer",
+                "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800",
+                "text-slate-600 dark:text-slate-400",
+                "hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+              )}
+            >
+              <option value="all">All Solutions</option>
+              {availableSolutions.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
 
-        <span className="text-zinc-300 dark:text-zinc-700">|</span>
+        <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
 
-        <span className="text-xs text-zinc-400">Sort</span>
-        <select
-          value={sortField}
-          onChange={(e) => setSortField(e.target.value as SortField)}
-          className="text-xs px-1.5 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-        >
-          {SORT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
-        <button
-          onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
-          className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded"
-        >
-          <ArrowUpDown size={12} />
-        </button>
+        {/* Sort controls */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-slate-400">Sort</span>
+          <div className="relative">
+            <select
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value as SortField)}
+              className={cn(
+                "text-[11px] pl-2 pr-6 py-1 rounded-md border appearance-none cursor-pointer",
+                "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800",
+                "text-slate-600 dark:text-slate-400",
+                "hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+              )}
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+          <button
+            onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
+            className={cn(
+              "p-1 rounded-md transition-colors",
+              "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300",
+              "hover:bg-slate-100 dark:hover:bg-slate-800"
+            )}
+            title={`Sort ${sortDirection === "asc" ? "ascending" : "descending"}`}
+          >
+            <ArrowUpDown size={12} className={sortDirection === "desc" ? "rotate-180" : ""} />
+          </button>
+        </div>
+
         <div className="flex-1" />
+
         <button
           onClick={() => { refetch(); onRefresh?.(); }}
-          className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded"
+          className={cn(
+            "p-1 rounded-md transition-colors",
+            "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300",
+            "hover:bg-slate-100 dark:hover:bg-slate-800"
+          )}
           title="Refresh pipeline"
         >
           <RefreshCw size={12} />
@@ -183,117 +293,188 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
       </div>
 
       {/* Stage column headers */}
-      <div className="flex-shrink-0 flex border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-20">
-        {activeStages.map((stage) => {
-          const stageDeals = filteredDeals.filter((d) => d.stage === stage.value);
-          const stageValue = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+      <div className="flex-shrink-0 flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-20">
+        {stageData.map((stage) => {
+          const colors = stageColors[stage.color] || defaultStageColor;
           const weightPct = Math.round(stage.weight * 100);
           return (
-            <div key={stage.value}
-              className="flex-1 min-w-[140px] px-3 py-2 border-r border-zinc-200 dark:border-zinc-800 last:border-r-0">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <StageIndicator color={stage.color} />
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{stage.label}</span>
-                  <span className="text-xs text-zinc-400">{weightPct}%</span>
-                  <span className="text-xs text-zinc-500">{stageDeals.length}</span>
+            <div
+              key={stage.value}
+              className="flex-1 min-w-[140px] border-r border-slate-200 dark:border-slate-800 last:border-r-0"
+            >
+              <div className="px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-2.5 h-2.5 rounded-full", colors.dot)} />
+                    <span className="text-[13px] font-medium text-slate-800 dark:text-slate-200">
+                      {stage.label}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                      {weightPct}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                      {stage.deals.length}
+                    </span>
+                    {stage.totalValue > 0 && (
+                      <span className="text-[11px] tabular-nums font-medium text-slate-600 dark:text-slate-300">
+                        ${(stage.totalValue / 1000).toFixed(0)}K
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {stageValue > 0 && (
-                  <span className="text-xs text-zinc-500">${(stageValue / 1000).toFixed(0)}K</span>
-                )}
+              </div>
+              {/* Value progress bar */}
+              <div className={cn("h-[3px] mx-3 mb-1 rounded-full overflow-hidden", colors.barBg)}>
+                <div
+                  className={cn("h-full rounded-full transition-all duration-500", colors.bar)}
+                  style={{ width: `${Math.max(stage.valuePct, stage.deals.length > 0 ? 4 : 0)}%` }}
+                />
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Flat kanban — one row of stage columns */}
+      {/* Kanban columns */}
       <div className="flex-1 flex overflow-y-auto">
         {filteredDeals.length === 0 ? (
-          <div className="flex items-center justify-center w-full h-full text-zinc-500">
+          <div className="flex items-center justify-center w-full h-full text-[13px] text-slate-400 dark:text-slate-500">
             {solutionFilter !== "all" ? "No deals for this solution" : "No active deals in pipeline"}
           </div>
         ) : (
-          activeStages.map((stage) => {
-            const stageDeals = sortDeals(
-              filteredDeals.filter((d) => d.stage === stage.value)
-            );
+          stageData.map((stage) => {
+            const sorted = sortDeals(stage.deals);
+            const colors = stageColors[stage.color] || defaultStageColor;
+            const isDragTarget = dragOverStage === stage.value;
+
             return (
               <div
                 key={stage.value}
-                className="flex-1 min-w-[140px] p-2 border-r border-zinc-200 dark:border-zinc-800 last:border-r-0 overflow-y-auto"
-                onDragOver={(e) => e.preventDefault()}
+                className={cn(
+                  "flex-1 min-w-[140px] p-2 border-r border-slate-200 dark:border-slate-800 last:border-r-0 overflow-y-auto scrollbar-auto-hide transition-colors duration-150",
+                  isDragTarget && "bg-slate-100/60 dark:bg-slate-800/40"
+                )}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (dragOverStage !== stage.value) setDragOverStage(stage.value);
+                }}
+                onDragLeave={(e) => {
+                  // Only clear if we're actually leaving this column
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setDragOverStage(null);
+                  }
+                }}
                 onDrop={(e) => {
                   const dealId = e.dataTransfer.getData("dealId");
                   if (dealId) handleStageDrop(dealId, stage.value);
                 }}
               >
-                <div className="space-y-2">
-                  {stageDeals.map((deal) => (
-                    <div
-                      key={deal.id}
-                      draggable
-                      onDragStart={(e) => e.dataTransfer.setData("dealId", deal.id)}
-                      className="cursor-grab active:cursor-grabbing"
-                    >
-                      <DealCard
-                        deal={deal}
-                        compact
-                        onClick={() => onDealClick?.(deal)}
-                        onDealUpdated={() => { refetch(); onRefresh?.(); }}
-                      />
-                    </div>
-                  ))}
-                </div>
+                {sorted.length === 0 ? (
+                  // Empty column placeholder
+                  <div
+                    className={cn(
+                      "flex items-center justify-center h-20 rounded-lg border-2 border-dashed transition-colors duration-150",
+                      isDragTarget
+                        ? colors.dropzone
+                        : "border-slate-200 dark:border-slate-800"
+                    )}
+                  >
+                    {isDragTarget ? (
+                      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        Drop here
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 dark:text-slate-600">
+                        No deals
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {sorted.map((deal, i) => (
+                      <div
+                        key={deal.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("dealId", deal.id);
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        className="cursor-grab active:cursor-grabbing active:opacity-60 animate-fade-slide-in"
+                        style={staggerStyle(i)}
+                      >
+                        <DealCard
+                          deal={deal}
+                          compact
+                          onClick={() => onDealClick?.(deal)}
+                          onDealUpdated={() => { refetch(); onRefresh?.(); }}
+                        />
+                      </div>
+                    ))}
+                    {/* Drop zone at bottom when dragging */}
+                    {isDragTarget && sorted.length > 0 && (
+                      <div
+                        className={cn(
+                          "h-10 rounded-lg border-2 border-dashed flex items-center justify-center transition-colors",
+                          colors.dropzone
+                        )}
+                      >
+                        <GripVertical size={12} className="text-slate-400 dark:text-slate-500" />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })
         )}
       </div>
 
-      {/* Summary footer */}
-      <div className="flex-shrink-0 flex justify-between items-center border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-2">
-        <div className="flex items-center gap-4 text-xs text-zinc-500">
-          <span>
-            <strong className="text-zinc-700 dark:text-zinc-300">{filteredDeals.length}</strong> deals
-            {solutionFilter !== "all" && (
-              <span className="text-zinc-400"> (of {deals.length})</span>
-            )}
-          </span>
-          <span>
-            <strong className="text-zinc-700 dark:text-zinc-300">
-              ${(filteredDeals.reduce((sum, d) => sum + (d.value || 0), 0) / 1000).toFixed(0)}K
-            </strong>{" "}
-            total
-          </span>
-          <span>
-            <strong className="text-teal-600 dark:text-teal-400">
-              ${(filteredDeals.reduce((sum, d) => {
-                const stage = DEAL_STAGES.find((s) => s.value === d.stage);
-                return sum + (d.value || 0) * (stage?.weight ?? 0);
-              }, 0) / 1000).toFixed(0)}K
-            </strong>{" "}
-            weighted
-          </span>
+      {/* Summary footer with pipeline bar */}
+      <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        {/* Mini pipeline bar */}
+        {totalPipelineValue > 0 && (
+          <div className="flex h-[4px]">
+            {stageData.map((stage) => {
+              if (stage.valuePct <= 0) return null;
+              const colors = stageColors[stage.color] || defaultStageColor;
+              return (
+                <div
+                  key={stage.value}
+                  className={cn("transition-all duration-500", colors.bar)}
+                  style={{ width: `${stage.valuePct}%` }}
+                  title={`${stage.label}: $${(stage.totalValue / 1000).toFixed(0)}K (${stage.valuePct.toFixed(0)}%)`}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Stats */}
+        <div className="flex justify-between items-center px-4 py-2">
+          <div className="flex items-center gap-4 text-[11px] text-slate-500 dark:text-slate-400">
+            <span>
+              <strong className="font-semibold text-slate-700 dark:text-slate-300">{filteredDeals.length}</strong> deals
+              {solutionFilter !== "all" && (
+                <span className="text-slate-400 dark:text-slate-500"> of {deals.length}</span>
+              )}
+            </span>
+            <span>
+              <strong className="font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
+                ${(totalPipelineValue / 1000).toFixed(0)}K
+              </strong>{" "}
+              total
+            </span>
+            <span>
+              <strong className="font-semibold text-teal-600 dark:text-teal-400 tabular-nums">
+                ${(weightedTotal / 1000).toFixed(0)}K
+              </strong>{" "}
+              weighted
+            </span>
+          </div>
         </div>
       </div>
     </div>
-  );
-}
-
-function StageIndicator({ color }: { color: string }) {
-  const colors: Record<string, string> = {
-    zinc: "bg-zinc-400",
-    gray: "bg-gray-500",
-    purple: "bg-purple-500",
-    blue: "bg-blue-500",
-    cyan: "bg-cyan-500",
-    yellow: "bg-yellow-500",
-    green: "bg-green-500",
-    red: "bg-red-500",
-  };
-
-  return (
-    <div className={`w-2 h-2 rounded-full ${colors[color] || colors.gray}`} />
   );
 }

@@ -18,16 +18,17 @@ CREATE OR REPLACE FUNCTION sync_notion_task(
 ) RETURNS JSONB AS $$
 DECLARE
   v_existing_id UUID;
+  v_existing_project_id UUID;
   v_task_number INT;
   v_action TEXT;
 BEGIN
-  -- Check if task already exists
-  SELECT id INTO v_existing_id
+  -- Check if task already exists by notion_page_id (globally, regardless of project)
+  SELECT id, project_id INTO v_existing_id, v_existing_project_id
   FROM tasks
   WHERE notion_page_id = p_notion_page_id;
 
   IF v_existing_id IS NOT NULL THEN
-    -- UPDATE existing task — never touch project_id or task_number
+    -- UPDATE existing task — sync all Notion fields, never touch project_id
     UPDATE tasks SET
       title = COALESCE(p_title, title),
       status_id = COALESCE(p_status_id, status_id),

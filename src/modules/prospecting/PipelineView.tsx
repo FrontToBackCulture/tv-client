@@ -4,9 +4,8 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Users, Plus, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import { useProspects } from "../../hooks/prospecting";
-import { useUpdateProspectStage } from "../../hooks/prospecting";
-import { PROSPECT_STAGES, STAGE_ORDER, type ProspectStage } from "./ProspectingComponents";
+import { useProspects, useUpdateProspectStage } from "../../hooks/prospecting";
+import { PROSPECT_STAGES, STAGE_ORDER, getStageConfig, type ProspectStage } from "./ProspectingComponents";
 import { ProspectRow } from "./ProspectRow";
 import { cn } from "../../lib/cn";
 import { EmptyState } from "../../components/EmptyState";
@@ -70,15 +69,14 @@ export function PipelineView({ selectedId, onSelect }: PipelineViewProps) {
     return groups;
   }, [prospects]);
 
-  // Stage counts for filter chips
+  // Stage counts for filter chips (derived from grouped)
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const p of prospects) {
-      const s = p.prospect_stage || "new";
-      counts[s] = (counts[s] || 0) + 1;
+    for (const [stage, contacts] of Object.entries(grouped)) {
+      counts[stage] = contacts.length;
     }
     return counts;
-  }, [prospects]);
+  }, [grouped]);
 
   return (
     <div className="h-full flex flex-col">
@@ -198,7 +196,7 @@ export function PipelineView({ selectedId, onSelect }: PipelineViewProps) {
         ) : (
           // Grouped by stage
           Object.entries(grouped).map(([stage, contacts]) => {
-            const config = PROSPECT_STAGES.find(s => s.value === stage);
+            const config = getStageConfig(stage);
             return (
               <div key={stage}>
                 <div className="sticky top-0 z-10 px-3 py-1 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800">

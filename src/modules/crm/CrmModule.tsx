@@ -2,7 +2,7 @@
 // Main CRM module with 4-tab layout: Pipeline, Directory, Clients, Closed
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { usePipelineStats, useCRMRealtime } from "../../hooks/crm";
+import { usePipelineStats } from "../../hooks/crm";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { Company, DealWithTaskInfo } from "../../lib/crm/types";
 import { CompanyDetailPanel } from "./CompanyDetailPanel";
@@ -43,8 +43,7 @@ export function CrmModule() {
   const [showCompanyForm, setShowCompanyForm] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | undefined>(undefined);
 
-  // Enable real-time updates from Supabase
-  useCRMRealtime();
+  // CRM real-time handled by global useRealtimeSync() in App.tsx
 
   // Handle notification navigation — open company when navigated from notification bell
   const navTarget = useNotificationNavStore((s) => s.target);

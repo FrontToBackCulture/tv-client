@@ -235,7 +235,7 @@ function MessageBubble({ message }: { message: Message }) {
                 : "text-white/50"
           )}
         >
-          {new Date(message.created_at).toLocaleTimeString([], {
+          {new Date(message.created_at).toLocaleTimeString("en-SG", {
             hour: "2-digit",
             minute: "2-digit",
           })}

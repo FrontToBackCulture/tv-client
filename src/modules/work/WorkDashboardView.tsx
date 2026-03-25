@@ -4,11 +4,10 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "../../stores/toastStore";
 import { useInitiativeEmails } from "../../hooks/email/useEntityEmails";
-import { Mail } from "lucide-react";
 import {
   ChevronDown, ChevronRight, Pencil, Search, ArrowUpDown,
   Target, TrendingUp, CheckCircle2, AlertTriangle, Trash2,
-  PanelLeftClose, PanelLeftOpen, EyeOff, Eye, GripVertical,
+  PanelLeftClose, PanelLeftOpen, EyeOff, Eye, GripVertical, Mail,
 } from "lucide-react";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
@@ -18,15 +17,13 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { TaskWithRelations, Project, Initiative } from "../../lib/work/types";
 import {
   ProjectStatusLabels,
   ProjectStatusColors,
   PriorityColors,
   Priority,
 } from "../../lib/work/types";
-import type { ProjectStatus } from "../../lib/work/types";
-import { ProjectHealthColors } from "../../lib/work/types";
+import type { TaskWithRelations, Project, Initiative, ProjectStatus } from "../../lib/work/types";
 import { isOverdue } from "../../lib/date";
 import { cn } from "../../lib/cn";
 import { DEAL_STAGES } from "../../lib/crm/types";
@@ -266,9 +263,19 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
   );
 }
 
+// Derive dot color from task completion/overdue status
+function getTaskUrgencyDot(counts: { total: number; completed: number; overdue: number } | undefined): { color: string; title: string } {
+  if (!counts || counts.total === 0) return { color: "#6B7280", title: "No tasks" };
+  if (counts.completed === counts.total) return { color: "#10B981", title: "All tasks completed" };
+  if (counts.overdue > 0) return { color: "#EF4444", title: `${counts.overdue} overdue task${counts.overdue > 1 ? "s" : ""}` };
+  if (counts.completed > 0) return { color: "#0D7680", title: `${counts.completed}/${counts.total} completed` };
+  return { color: "#6B7280", title: `${counts.total} task${counts.total > 1 ? "s" : ""} to do` };
+}
+
 // Sortable initiative row for drag-and-drop reordering
 function SortableInitiativeRow({
-  init, initIndex, isExpanded, isSelected, derivedStatus, activeCount,
+  init, initIndex: _initIndex, isExpanded, isSelected, derivedStatus, activeCount,
+  taskCounts,
   onToggle, onSelect, onEdit, children,
 }: {
   init: Initiative;
@@ -277,6 +284,7 @@ function SortableInitiativeRow({
   isSelected: boolean;
   derivedStatus: string;
   activeCount: number;
+  taskCounts?: { total: number; completed: number; overdue: number };
   onToggle: () => void;
   onSelect: () => void;
   onEdit?: () => void;
@@ -313,7 +321,7 @@ function SortableInitiativeRow({
           {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
         </button>
         <div className="flex items-center gap-1.5 min-w-0 flex-1" onClick={onSelect}>
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getInitiativeColor(init, initIndex) }} />
+          {(() => { const dot = getTaskUrgencyDot(taskCounts); return <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dot.color }} title={dot.title} />; })()}
           <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 truncate">{init.name}</span>
           <span className="text-[9px] text-zinc-400 ml-0.5">{activeCount}</span>
         </div>
@@ -668,20 +676,21 @@ export function DashboardView({
       >
         {/* Name + Health + Priority */}
         <div className="flex items-center gap-1.5 min-w-0">
-          <div className="w-3 flex items-center justify-center flex-shrink-0">
-            {p.health && p.health !== "on_track" ? (
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{
-                  backgroundColor: (ProjectHealthColors as any)[p.health],
-                  boxShadow: `0 0 0 2px white, 0 0 0 3px ${(ProjectHealthColors as any)[p.health]}`,
-                }}
-                title={p.health.replace("_", " ")}
-              />
-            ) : (
-              <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: p.color || "#6B7280" }} />
-            )}
-          </div>
+          {(() => {
+            const dot = getTaskUrgencyDot(counts);
+            return (
+              <div className="w-3 flex items-center justify-center flex-shrink-0">
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{
+                    backgroundColor: dot.color,
+                    ...(counts.overdue > 0 ? { boxShadow: `0 0 0 2px white, 0 0 0 3px ${dot.color}` } : {}),
+                  }}
+                  title={dot.title}
+                />
+              </div>
+            );
+          })()}
           <span className={`text-[11px] truncate ${isSelected ? "text-teal-700 dark:text-teal-300 font-medium" : "text-zinc-700 dark:text-zinc-300"}`}>
             {p.name}
           </span>
@@ -882,6 +891,11 @@ export function DashboardView({
                     isSelected={selectedInitiativeId === init.id && !selectedProjectId}
                     derivedStatus={derivedStatus}
                     activeCount={allLinkedProjects.filter(p => p.status === "active").length}
+                    taskCounts={allLinkedProjects.reduce((acc, proj) => {
+                      const c = projectTaskCounts.get(proj.id);
+                      if (c) { acc.total += c.total; acc.completed += c.completed; acc.overdue += c.overdue; }
+                      return acc;
+                    }, { total: 0, completed: 0, overdue: 0 })}
                     onToggle={() => toggleGroup(init.id)}
                     onSelect={() => { setSelectedInitiativeId(init.id); setSelectedProjectId(null); }}
                     onEdit={onEditInitiative ? () => onEditInitiative(init) : undefined}

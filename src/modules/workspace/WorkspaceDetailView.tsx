@@ -2719,7 +2719,17 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 </td>
                                 {/* Title */}
                                 <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-medium">
-                                  {task.title}
+                                  <span className="flex items-center gap-1.5">
+                                    {task.notion_page_id && (
+                                      <span
+                                        className={`flex-shrink-0 ${(task as any).source === "notion" ? "text-zinc-800 dark:text-zinc-200" : "text-teal-500 dark:text-teal-400"}`}
+                                        title={(task as any).source === "notion" ? "From Notion" : "Synced to Notion"}
+                                      >
+                                        <svg width="12" height="12" viewBox="0 0 100 100" fill="currentColor"><path d="M6.6 12.6c5.1 4.1 7 3.8 16.5 3.1l59.7-3.6c2 0 .3-2-.3-2.2L73.2 3.5c-2.7-2.2-6.5-4.6-13.5-4L8 3.2C4 3.5 3.1 5.6 4.8 7.3zm17.1 14.3v62.7c0 3.4 1.7 4.7 5.5 4.5l65.7-3.8c3.8-.2 4.3-2.6 4.3-5.4V22.6c0-2.8-1.1-4.3-3.5-4l-68.6 4c-2.7.2-3.4 1.5-3.4 4.3zM82 29c.4 1.8 0 3.5-1.8 3.7l-3.2.6v46.3c-2.8 1.5-5.3 2.3-7.5 2.3-3.4 0-4.3-1.1-6.8-4.1L42.3 46.2v30.7l6.6 1.5s0 3.5-4.8 3.5l-13.3.8c-.4-.8 0-2.7 1.3-3l3.5-1V38.3l-4.8-.4c-.4-1.8.6-4.4 3.5-4.6l14.3-.9 21.2 32.5V37l-5.5-.6c-.4-2.2 1.2-3.7 3.2-3.9z"/></svg>
+                                      </span>
+                                    )}
+                                    {task.title}
+                                  </span>
                                 </td>
                                 {/* Type */}
                                 {enabledTaskFields.includes("task_type") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
@@ -2887,13 +2897,13 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 </td>
                                 {/* Created */}
                                 <td className="px-2 py-1.5">
-                                  <span className="text-[10px] text-zinc-400" title={task.created_at ? new Date(task.created_at).toLocaleString() : ""}>
+                                  <span className="text-[10px] text-zinc-400" title={task.created_at ? new Date(task.created_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" }) : ""}>
                                     {task.created_at ? new Date(task.created_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
                                   </span>
                                 </td>
                                 {/* Updated */}
                                 <td className="px-2 py-1.5">
-                                  <span className="text-[10px] text-zinc-400" title={task.updated_at ? new Date(task.updated_at).toLocaleString() : ""}>
+                                  <span className="text-[10px] text-zinc-400" title={task.updated_at ? new Date(task.updated_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" }) : ""}>
                                     {task.updated_at ? new Date(task.updated_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
                                   </span>
                                 </td>

@@ -39,7 +39,7 @@ export function ApiTaskLogs() {
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
                       <span className="text-xs text-zinc-400">
-                        {new Date(log.started_at).toLocaleString()}
+                        {new Date(log.started_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
                       </span>
                       {log.duration_secs != null && (
                         <span className="text-xs text-zinc-400">

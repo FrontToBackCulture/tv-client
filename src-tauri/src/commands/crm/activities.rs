@@ -235,3 +235,34 @@ pub async fn crm_auto_link_email(
 fn extract_domain(email: &str) -> Option<String> {
     email.split('@').nth(1).map(|d| d.to_lowercase())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_domain_normal_email() {
+        assert_eq!(extract_domain("john@acme.com"), Some("acme.com".to_string()));
+    }
+
+    #[test]
+    fn extract_domain_uppercase() {
+        assert_eq!(extract_domain("John@ACME.COM"), Some("acme.com".to_string()));
+    }
+
+    #[test]
+    fn extract_domain_no_at_sign() {
+        assert_eq!(extract_domain("invalid"), None);
+    }
+
+    #[test]
+    fn extract_domain_empty_string() {
+        assert_eq!(extract_domain(""), None);
+    }
+
+    #[test]
+    fn extract_domain_multiple_at_signs() {
+        // edge case: takes part after first @
+        assert_eq!(extract_domain("a@b@c.com"), Some("b".to_string()));
+    }
+}

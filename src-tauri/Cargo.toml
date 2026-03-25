@@ -1,6 +1,6 @@
 [package]
 name = "tv-client"
-version = "0.10.5"
+version = "0.10.6"
 edition = "2021"
 default-run = "tv-client"
 
@@ -92,6 +92,10 @@ jsonwebtoken = "9"
 aws-sdk-s3 = "1"
 aws-sdk-ses = "1"
 aws-types = "1"
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { version = "1", features = ["test-util", "macros", "rt-multi-thread"] }
 
 [profile.dev]
 debug = 0  # No debug symbols - faster builds, smaller target/debug folder

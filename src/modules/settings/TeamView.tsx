@@ -73,7 +73,7 @@ function MemberAvatar({ member }: { member: TeamMember }) {
   );
 }
 
-const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["library", "domains", "skills"];
+const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "projects", "domains", "skills"];
 
 function MemberModuleToggles({
   login,

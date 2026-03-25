@@ -39,6 +39,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { toSGTDateString } from "../../lib/date";
 import { Button } from "../../components/ui";
 import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
@@ -341,7 +342,7 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
         if (diffDays === 0) label = "today";
         else if (diffDays === 1) label = "yesterday";
         else if (diffDays < 7) label = `${diffDays}d ago`;
-        else label = d.toISOString().slice(0, 10);
+        else label = toSGTDateString(d);
         const color = diffDays <= 1 ? "text-teal-600 dark:text-teal-400" : diffDays <= 7 ? "text-zinc-600 dark:text-zinc-400" : "text-zinc-400 dark:text-zinc-500";
         return <span className={`text-xs ${color}`}>{label}</span>;
       },
@@ -891,7 +892,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
 
   const exportToExcel = useCallback(() => {
     gridRef.current?.api.exportDataAsExcel({
-      fileName: `skill-review-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      fileName: `skill-review-${toSGTDateString()}.xlsx`,
       sheetName: "Skills Review",
       allColumns: true,
       skipRowGroups: true,
@@ -900,7 +901,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
 
   const exportToCsv = useCallback(() => {
     gridRef.current?.api.exportDataAsCsv({
-      fileName: `skill-review-${new Date().toISOString().slice(0, 10)}.csv`,
+      fileName: `skill-review-${toSGTDateString()}.csv`,
       allColumns: true,
       skipRowGroups: true,
     });

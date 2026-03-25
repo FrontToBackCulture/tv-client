@@ -837,6 +837,338 @@ pub async fn list_database_pages(database_id: &str) -> CmdResult<Vec<(String, St
     Ok(all_pages)
 }
 
+// ============================================================================
+// Push: tv-client → Notion
+// ============================================================================
+
+/// Convert markdown text to Notion block objects
+pub fn markdown_to_blocks(markdown: &str) -> Vec<Value> {
+    let mut blocks: Vec<Value> = Vec::new();
+
+    for line in markdown.lines() {
+        let trimmed = line.trim_end();
+
+        if trimmed.is_empty() {
+            // Empty paragraph
+            blocks.push(json!({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": { "rich_text": [] }
+            }));
+            continue;
+        }
+
+        // Headings
+        if let Some(text) = trimmed.strip_prefix("### ") {
+            blocks.push(json!({
+                "object": "block",
+                "type": "heading_3",
+                "heading_3": { "rich_text": md_inline_to_rich_text(text) }
+            }));
+        } else if let Some(text) = trimmed.strip_prefix("## ") {
+            blocks.push(json!({
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": { "rich_text": md_inline_to_rich_text(text) }
+            }));
+        } else if let Some(text) = trimmed.strip_prefix("# ") {
+            blocks.push(json!({
+                "object": "block",
+                "type": "heading_1",
+                "heading_1": { "rich_text": md_inline_to_rich_text(text) }
+            }));
+        }
+        // Bulleted list
+        else if let Some(text) = trimmed.strip_prefix("- [ ] ") {
+            blocks.push(json!({
+                "object": "block",
+                "type": "to_do",
+                "to_do": { "rich_text": md_inline_to_rich_text(text), "checked": false }
+            }));
+        } else if let Some(text) = trimmed.strip_prefix("- [x] ") {
+            blocks.push(json!({
+                "object": "block",
+                "type": "to_do",
+                "to_do": { "rich_text": md_inline_to_rich_text(text), "checked": true }
+            }));
+        } else if let Some(text) = trimmed.strip_prefix("- ") {
+            blocks.push(json!({
+                "object": "block",
+                "type": "bulleted_list_item",
+                "bulleted_list_item": { "rich_text": md_inline_to_rich_text(text) }
+            }));
+        }
+        // Numbered list (e.g., "1. text")
+        else if trimmed.len() > 2 && trimmed.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            if let Some(pos) = trimmed.find(". ") {
+                if trimmed[..pos].chars().all(|c| c.is_ascii_digit()) {
+                    let text = &trimmed[pos + 2..];
+                    blocks.push(json!({
+                        "object": "block",
+                        "type": "numbered_list_item",
+                        "numbered_list_item": { "rich_text": md_inline_to_rich_text(text) }
+                    }));
+                    continue;
+                }
+            }
+            // Not a numbered list, fall through to paragraph
+            blocks.push(json!({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": { "rich_text": md_inline_to_rich_text(trimmed) }
+            }));
+        }
+        // Blockquote
+        else if let Some(text) = trimmed.strip_prefix("> ") {
+            blocks.push(json!({
+                "object": "block",
+                "type": "quote",
+                "quote": { "rich_text": md_inline_to_rich_text(text) }
+            }));
+        }
+        // Divider
+        else if trimmed == "---" || trimmed == "***" || trimmed == "___" {
+            blocks.push(json!({
+                "object": "block",
+                "type": "divider",
+                "divider": {}
+            }));
+        }
+        // Regular paragraph
+        else {
+            blocks.push(json!({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": { "rich_text": md_inline_to_rich_text(trimmed) }
+            }));
+        }
+    }
+
+    blocks
+}
+
+/// Convert inline markdown to Notion rich_text array
+/// Handles **bold**, *italic*, `code`, ~~strikethrough~~, and [links](url)
+fn md_inline_to_rich_text(text: &str) -> Vec<Value> {
+    // Simple approach: parse inline formatting segments
+    let mut result: Vec<Value> = Vec::new();
+    let mut remaining = text;
+
+    while !remaining.is_empty() {
+        // Bold
+        if remaining.starts_with("**") {
+            if let Some(end) = remaining[2..].find("**") {
+                let content = &remaining[2..2 + end];
+                result.push(json!({
+                    "type": "text",
+                    "text": { "content": content },
+                    "annotations": { "bold": true }
+                }));
+                remaining = &remaining[4 + end..];
+                continue;
+            }
+        }
+        // Italic
+        if remaining.starts_with('*') && !remaining.starts_with("**") {
+            if let Some(end) = remaining[1..].find('*') {
+                let content = &remaining[1..1 + end];
+                result.push(json!({
+                    "type": "text",
+                    "text": { "content": content },
+                    "annotations": { "italic": true }
+                }));
+                remaining = &remaining[2 + end..];
+                continue;
+            }
+        }
+        // Code
+        if remaining.starts_with('`') && !remaining.starts_with("```") {
+            if let Some(end) = remaining[1..].find('`') {
+                let content = &remaining[1..1 + end];
+                result.push(json!({
+                    "type": "text",
+                    "text": { "content": content },
+                    "annotations": { "code": true }
+                }));
+                remaining = &remaining[2 + end..];
+                continue;
+            }
+        }
+        // Strikethrough
+        if remaining.starts_with("~~") {
+            if let Some(end) = remaining[2..].find("~~") {
+                let content = &remaining[2..2 + end];
+                result.push(json!({
+                    "type": "text",
+                    "text": { "content": content },
+                    "annotations": { "strikethrough": true }
+                }));
+                remaining = &remaining[4 + end..];
+                continue;
+            }
+        }
+        // Link [text](url)
+        if remaining.starts_with('[') {
+            if let Some(bracket_end) = remaining.find("](") {
+                if let Some(paren_end) = remaining[bracket_end + 2..].find(')') {
+                    let link_text = &remaining[1..bracket_end];
+                    let url = &remaining[bracket_end + 2..bracket_end + 2 + paren_end];
+                    result.push(json!({
+                        "type": "text",
+                        "text": { "content": link_text, "link": { "url": url } }
+                    }));
+                    remaining = &remaining[bracket_end + 3 + paren_end..];
+                    continue;
+                }
+            }
+        }
+
+        // Plain text: consume until next special char
+        let next_special = remaining
+            .find(|c: char| c == '*' || c == '`' || c == '~' || c == '[')
+            .unwrap_or(remaining.len());
+        let plain = if next_special == 0 {
+            // Special char that didn't match a pattern — consume one char
+            &remaining[..1]
+        } else {
+            &remaining[..next_special]
+        };
+        result.push(json!({
+            "type": "text",
+            "text": { "content": plain }
+        }));
+        remaining = &remaining[plain.len()..];
+    }
+
+    if result.is_empty() {
+        result.push(json!({
+            "type": "text",
+            "text": { "content": "" }
+        }));
+    }
+
+    result
+}
+
+/// Create a new page in a Notion database
+pub async fn create_page(
+    database_id: &str,
+    properties: &Value,
+    children: &[Value],
+) -> CmdResult<String> {
+    let api_key = get_api_key()?;
+    let url = format!("{}/pages", NOTION_API_BASE);
+
+    let mut body = json!({
+        "parent": { "database_id": database_id },
+        "properties": properties,
+    });
+
+    if !children.is_empty() {
+        body["children"] = Value::Array(children.to_vec());
+    }
+
+    let response = HTTP_CLIENT
+        .post(&url)
+        .headers(notion_headers(&api_key))
+        .json(&body)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(CommandError::Http { status, body });
+    }
+
+    let page: Value = response.json().await?;
+    let page_id = page["id"].as_str().unwrap_or("").to_string();
+    Ok(page_id)
+}
+
+/// Update properties on an existing Notion page
+pub async fn update_page_properties(
+    page_id: &str,
+    properties: &Value,
+) -> CmdResult<()> {
+    let api_key = get_api_key()?;
+    let url = format!("{}/pages/{}", NOTION_API_BASE, page_id);
+
+    let body = json!({ "properties": properties });
+
+    let response = HTTP_CLIENT
+        .patch(&url)
+        .headers(notion_headers(&api_key))
+        .json(&body)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(CommandError::Http { status, body });
+    }
+
+    Ok(())
+}
+
+/// Delete all blocks from a page, then append new ones
+pub async fn replace_page_blocks(
+    page_id: &str,
+    new_blocks: &[Value],
+) -> CmdResult<()> {
+    let api_key = get_api_key()?;
+
+    // 1. Get existing block children
+    let list_url = format!("{}/blocks/{}/children?page_size=100", NOTION_API_BASE, page_id);
+    let response = HTTP_CLIENT
+        .get(&list_url)
+        .headers(notion_headers(&api_key))
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let body: Value = response.json().await?;
+        if let Some(results) = body["results"].as_array() {
+            // Delete each existing block
+            for block in results {
+                if let Some(block_id) = block["id"].as_str() {
+                    let delete_url = format!("{}/blocks/{}", NOTION_API_BASE, block_id);
+                    let _ = HTTP_CLIENT
+                        .delete(&delete_url)
+                        .headers(notion_headers(&api_key))
+                        .send()
+                        .await;
+                    // Small delay to avoid rate limits
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                }
+            }
+        }
+    }
+
+    // 2. Append new blocks (Notion allows max 100 blocks per request)
+    if !new_blocks.is_empty() {
+        let append_url = format!("{}/blocks/{}/children", NOTION_API_BASE, page_id);
+        for chunk in new_blocks.chunks(100) {
+            let body = json!({ "children": chunk });
+            let response = HTTP_CLIENT
+                .patch(&append_url)
+                .headers(notion_headers(&api_key))
+                .json(&body)
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                let status = response.status().as_u16();
+                let body = response.text().await.unwrap_or_default();
+                return Err(CommandError::Http { status, body });
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Extract the title from a page's properties
 pub fn extract_page_title(properties: &Value) -> String {
     if let Some(props) = properties.as_object() {

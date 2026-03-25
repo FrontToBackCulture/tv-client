@@ -1,6 +1,7 @@
 // WorkViews: Inbox View
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { StatusIcon, PriorityBars } from "./StatusIcon";
 import type { TaskWithRelations, Project, Initiative } from "../../lib/work/types";
 import { getTaskIdentifier } from "../../lib/work/types";
@@ -101,51 +102,84 @@ export function InboxView({
         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">What needs your attention</div>
         <div className="text-xs text-zinc-500 mt-0.5">{inboxTasks.length} items ranked by urgency</div>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        {inboxTasks.length > 0 ? (
-          <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
-            {inboxTasks.map((task, idx) => {
-              const urgency = urgencyLabel(task);
-              return (
-                <button
-                  key={task.id}
-                  onClick={() => onSelectTask(task.id)}
-                  className="w-full flex items-center gap-3 px-6 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+      <InboxList inboxTasks={inboxTasks} urgencyLabel={urgencyLabel} onSelectTask={onSelectTask} />
+    </div>
+  );
+}
+
+const ROW_HEIGHT = 40;
+
+function InboxList({
+  inboxTasks, urgencyLabel, onSelectTask,
+}: {
+  inboxTasks: TaskWithRelations[];
+  urgencyLabel: (task: TaskWithRelations) => { text: string; color: string };
+  onSelectTask: (id: string) => void;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: inboxTasks.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 20,
+  });
+
+  if (inboxTasks.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center py-12 text-zinc-400 text-sm">All clear — nothing urgent</div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={parentRef} className="flex-1 overflow-y-auto">
+      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const task = inboxTasks[virtualRow.index];
+          const urgency = urgencyLabel(task);
+          return (
+            <button
+              key={task.id}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: ROW_HEIGHT,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+              onClick={() => onSelectTask(task.id)}
+              className="flex items-center gap-3 px-6 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors border-b border-zinc-100 dark:border-zinc-800/50"
+            >
+              <span className="text-xs text-zinc-300 dark:text-zinc-600 tabular-nums w-5 text-right flex-shrink-0">
+                {virtualRow.index + 1}
+              </span>
+              {task.status && (
+                <StatusIcon type={task.status.type as StatusType} color={task.status.color || "#6B7280"} size={14} />
+              )}
+              <PriorityBars priority={task.priority || 0} size={11} />
+              <span
+                className="w-2 h-2 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: task.project?.color || "#6B7280" }}
+                title={task.project?.name || ""}
+              />
+              <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
+              <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
+              {task.assignee?.name && (
+                <div
+                  className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
+                  title={task.assignee.name}
                 >
-                  <span className="text-xs text-zinc-300 dark:text-zinc-600 tabular-nums w-5 text-right flex-shrink-0">
-                    {idx + 1}
-                  </span>
-                  {task.status && (
-                    <StatusIcon type={task.status.type as StatusType} color={task.status.color || "#6B7280"} size={14} />
-                  )}
-                  <PriorityBars priority={task.priority || 0} size={11} />
-                  <span
-                    className="w-2 h-2 rounded-sm flex-shrink-0"
-                    style={{ backgroundColor: task.project?.color || "#6B7280" }}
-                    title={task.project?.name || ""}
-                  />
-                  <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
-                  <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
-                  {task.assignee?.name && (
-                    <div
-                      className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
-                      title={task.assignee.name}
-                    >
-                      {initials(task.assignee.name)}
-                    </div>
-                  )}
-                  <span className={`text-xs flex-shrink-0 tabular-nums ${urgency.color}`}>
-                    {urgency.text}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-12 text-zinc-400 text-sm">
-            All clear — nothing urgent
-          </div>
-        )}
+                  {initials(task.assignee.name)}
+                </div>
+              )}
+              <span className={`text-xs flex-shrink-0 tabular-nums ${urgency.color}`}>
+                {urgency.text}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

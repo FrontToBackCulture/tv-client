@@ -3,6 +3,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { sgtMidnightToday } from "../lib/date";
 
 const MAX_RECENT_FILES = 20;
 
@@ -79,7 +80,7 @@ export function useRecentFiles() {
       earlier: [],
     };
 
-    const todayStart = new Date().setHours(0, 0, 0, 0);
+    const todayStart = sgtMidnightToday();
     const yesterdayStart = todayStart - oneDay;
     const weekStart = todayStart - oneWeek;
 

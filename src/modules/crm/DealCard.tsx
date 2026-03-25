@@ -5,13 +5,14 @@ import { useState, memo } from "react";
 import { useUpdateDeal, useDeleteDeal } from "../../hooks/crm";
 import { Deal, DealTask, DEAL_STAGES } from "../../lib/crm/types";
 import { DealForm } from "./DealForm";
-import { Pencil, Trash2, User, Calendar, ClipboardList, Circle, CheckCircle2, MessageSquare } from "lucide-react";
+import { Pencil, Trash2, User, Calendar, ClipboardList, Circle, CheckCircle2, MessageSquare, Moon, Sun } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { IconButton, Badge } from "../../components/ui";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
 import { toast } from "../../stores/toastStore";
 import { formatDateShort as formatDate } from "../../lib/date";
+import { cn } from "../../lib/cn";
 
 const stageColorMap: Record<string, "zinc" | "blue" | "purple" | "teal" | "orange" | "green" | "red"> = {
   prospect: "zinc",
@@ -68,6 +69,15 @@ function getStaleStatus(deal: Deal): {
   return { level: "fresh", days, isDormant: false };
 }
 
+// Stale pill styling
+const stalePillStyles = {
+  fresh: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400",
+  warning: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
+  attention: "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400",
+  critical: "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400",
+  dormant: "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500",
+};
+
 export const DealCard = memo(function DealCard({
   deal,
   compact = false,
@@ -110,7 +120,7 @@ export const DealCard = memo(function DealCard({
 
   // Get date pill styles — neutral by default, red only when overdue
   const getDatePillStyle = (dateStr: string | null) => {
-    if (!dateStr) return "text-zinc-500 dark:text-zinc-400";
+    if (!dateStr) return "text-slate-500 dark:text-slate-400";
     const date = new Date(dateStr);
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -118,110 +128,124 @@ export const DealCard = memo(function DealCard({
     const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) return "text-red-600 dark:text-red-400 font-semibold"; // Past due
-    return "text-zinc-500 dark:text-zinc-400"; // Normal
+    return "text-slate-500 dark:text-slate-400"; // Normal
   };
 
+  // ---------------------------------------------------------------------------
+  // COMPACT MODE — redesigned
+  // ---------------------------------------------------------------------------
   if (compact) {
-    const staleBorderColor = {
-      fresh: "border-l-emerald-500",
-      warning: "border-l-amber-400",
-      attention: "border-l-orange-500",
-      critical: "border-l-red-500",
-      dormant: "border-l-zinc-500",
-    }[staleStatus.level];
-
-    const staleDaysColor = {
-      fresh: "text-zinc-400 dark:text-zinc-500",
-      warning: "text-amber-600 dark:text-amber-400",
-      attention: "text-orange-600 dark:text-orange-400",
-      critical: "text-red-600 dark:text-red-400",
-      dormant: "text-zinc-400 dark:text-zinc-500",
-    }[staleStatus.level];
-
     return (
       <>
         <div
           onClick={onClick}
-          className={`relative group/card px-3 py-2 rounded border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors cursor-pointer border-l-2 ${staleBorderColor} ${
-            staleStatus.isDormant ? "bg-zinc-100 dark:bg-zinc-900 opacity-60" : "bg-white dark:bg-zinc-800"
-          }`}
+          className={cn(
+            "relative group/card rounded-lg border transition-all duration-150 cursor-pointer",
+            "hover:-translate-y-[1px] hover:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.3)]",
+            staleStatus.isDormant
+              ? "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700/60 opacity-55"
+              : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600"
+          )}
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              {deal.company?.name && (
-                <p className="text-xs text-teal-600 dark:text-teal-400/80 leading-tight">
-                  {deal.company.name}
-                  {deal.company.referred_by && (
-                    <span className="text-blue-500/70 dark:text-blue-400/60"> (via {deal.company.referred_by})</span>
-                  )}
-                </p>
-              )}
-              <h4 className="text-sm font-medium text-zinc-800 dark:text-zinc-200 line-clamp-1 leading-tight">
-                {deal.name}
-              </h4>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {deal.value && (
-                <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
-                  ${deal.value.toLocaleString()}
-                </span>
-              )}
+          {/* Card content */}
+          <div className="px-3 py-2.5">
+            {/* Top row: company + stale pill */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                {deal.company?.name && (
+                  <p className="text-[11px] font-medium text-teal-600 dark:text-teal-400 leading-tight truncate">
+                    {deal.company.name}
+                    {deal.company.referred_by && (
+                      <span className="font-normal text-blue-500/60 dark:text-blue-400/50"> via {deal.company.referred_by}</span>
+                    )}
+                  </p>
+                )}
+                <h4 className="text-[13px] text-slate-700 dark:text-slate-200 line-clamp-1 leading-snug mt-0.5">
+                  {deal.name}
+                </h4>
+              </div>
+
+              {/* Stale days pill */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowSnoozeMenu(!showSnoozeMenu);
                 }}
-                className={`text-xs tabular-nums ${staleDaysColor}`}
-                title={staleStatus.isDormant ? "Dormant - click to reactivate" : `${staleStatus.days} days in stage`}
+                className={cn(
+                  "flex-shrink-0 text-[10px] font-medium tabular-nums px-1.5 py-0.5 rounded-md leading-none mt-0.5",
+                  stalePillStyles[staleStatus.level]
+                )}
+                title={staleStatus.isDormant ? "Dormant — click to reactivate" : `${staleStatus.days} days in stage`}
               >
                 {staleStatus.isDormant ? "zzz" : `${staleStatus.days}d`}
               </button>
             </div>
+
+            {/* Value row */}
+            {deal.value != null && deal.value > 0 && (
+              <p className="text-[12px] font-semibold text-teal-600 dark:text-teal-400 mt-1.5 tabular-nums">
+                ${deal.value.toLocaleString()}
+              </p>
+            )}
+
+            {/* Meta row */}
+            <div className="flex items-center gap-2.5 mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+              {deal.primaryContact?.name && (
+                <span className="flex items-center gap-1 min-w-0">
+                  <User size={10} className="flex-shrink-0 text-slate-400 dark:text-slate-500" />
+                  <span className="truncate max-w-[72px]">{deal.primaryContact.name}</span>
+                </span>
+              )}
+
+              {deal.expected_close_date && (
+                <span className={cn("flex items-center gap-1 flex-shrink-0", getDatePillStyle(deal.expected_close_date))}>
+                  <Calendar size={10} className="flex-shrink-0" />
+                  {formatDate(deal.expected_close_date)}
+                </span>
+              )}
+
+              {(deal.openTaskCount ?? 0) > 0 && deal.nextTask?.due_date && (
+                <span className="relative group/task flex-shrink-0">
+                  <span className={cn("flex items-center gap-1", getDatePillStyle(deal.nextTask.due_date))}>
+                    <ClipboardList size={10} className="flex-shrink-0" />
+                    {formatDate(deal.nextTask.due_date)}
+                  </span>
+                  {deal.nextTask?.title && (
+                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 invisible group-hover/task:opacity-100 group-hover/task:visible transition-opacity z-50 pointer-events-none">
+                      {deal.nextTask.title}
+                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800 dark:border-t-slate-700" />
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Hover-only dormant toggle */}
+          {!showSnoozeMenu && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleDormant();
+              }}
+              className="absolute top-1.5 right-8 p-1 rounded opacity-0 group-hover/card:opacity-100 transition-opacity text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+              title={staleStatus.isDormant ? "Reactivate" : "Mark dormant"}
+            >
+              {staleStatus.isDormant ? <Sun size={11} /> : <Moon size={11} />}
+            </button>
+          )}
 
           {/* Snooze menu */}
           {showSnoozeMenu && (
-            <div className="absolute top-1 right-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded shadow-lg py-1 min-w-[120px] z-20">
+            <div className="absolute top-1 right-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-[120px] z-20">
               <button
                 onClick={(e) => { e.stopPropagation(); handleToggleDormant(); }}
-                className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                className="w-full text-left px-3 py-1.5 text-[11px] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
               >
                 {staleStatus.isDormant ? "Reactivate" : "Mark Dormant"}
               </button>
             </div>
           )}
-
-          {/* Meta row */}
-          <div className="flex items-center gap-2 mt-1.5 text-xs">
-            {deal.primaryContact?.name && (
-              <span className="flex items-center gap-1 text-zinc-500">
-                <User size={10} />
-                <span className="truncate max-w-[80px]">{deal.primaryContact.name}</span>
-              </span>
-            )}
-
-            {deal.expected_close_date && (
-              <span className={`flex items-center gap-1 ${getDatePillStyle(deal.expected_close_date)}`}>
-                <Calendar size={10} />
-                {formatDate(deal.expected_close_date)}
-              </span>
-            )}
-
-            {(deal.openTaskCount ?? 0) > 0 && deal.nextTask?.due_date && (
-              <span className="relative group/task">
-                <span className={`flex items-center gap-1 ${getDatePillStyle(deal.nextTask.due_date)}`}>
-                  <ClipboardList size={10} />
-                  {formatDate(deal.nextTask.due_date)}
-                </span>
-                {deal.nextTask?.title && (
-                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-xs font-medium text-white bg-zinc-800 rounded shadow-lg whitespace-nowrap opacity-0 invisible group-hover/task:opacity-100 group-hover/task:visible transition-opacity z-50 pointer-events-none">
-                    {deal.nextTask.title}
-                    <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
-                  </span>
-                )}
-              </span>
-            )}
-          </div>
         </div>
 
         {showEditForm && (
@@ -239,10 +263,12 @@ export const DealCard = memo(function DealCard({
     );
   }
 
-  // Full card view
+  // ---------------------------------------------------------------------------
+  // FULL CARD VIEW — unchanged
+  // ---------------------------------------------------------------------------
   return (
     <>
-      <div className="px-3 py-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg group">
+      <div className="px-3 py-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg group transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-600">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -374,4 +400,3 @@ export const DealCard = memo(function DealCard({
     </>
   );
 });
-

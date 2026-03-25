@@ -556,7 +556,7 @@ export function FieldMasterGrid({ entitiesPath }: FieldMasterGridProps) {
           {masterData.generated && (
             <span className="ml-2">
               &middot; last built{" "}
-              {new Date(masterData.generated).toLocaleString()}
+              {new Date(masterData.generated).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
             </span>
           )}
         </div>

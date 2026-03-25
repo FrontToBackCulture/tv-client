@@ -1,8 +1,9 @@
 // LinkedIn post composer with preview and publish
 
 import { useState } from "react";
-import { Send, Eye, Edit3, Globe, Users, Loader2, CheckCircle } from "lucide-react";
+import { Send, Eye, Edit3, Globe, Users, CheckCircle } from "lucide-react";
 import { Button } from "../../components/ui";
+import { cn } from "../../lib/cn";
 import { useCreateLinkedInPost } from "../../hooks/useLinkedIn";
 
 type Visibility = "PUBLIC" | "CONNECTIONS";
@@ -90,13 +91,10 @@ export function ComposeView() {
 
             {/* Char count */}
             <span
-              className={`text-xs ${
-                isOverLimit
-                  ? "text-red-500"
-                  : charCount > maxChars * 0.9
-                  ? "text-amber-500"
-                  : "text-zinc-400"
-              }`}
+              className={cn(
+                "text-xs",
+                isOverLimit ? "text-red-500" : charCount > maxChars * 0.9 ? "text-amber-500" : "text-zinc-400",
+              )}
             >
               {charCount.toLocaleString()} / {maxChars.toLocaleString()}
             </span>
@@ -122,11 +120,7 @@ export function ComposeView() {
               loading={createPost.isPending}
               className="rounded-lg"
             >
-              {createPost.isPending ? (
-                <Loader2 size={14} className="animate-spin mr-1" />
-              ) : (
-                <Send size={14} className="mr-1" />
-              )}
+              <Send size={14} className="mr-1" />
               Publish
             </Button>
           </div>

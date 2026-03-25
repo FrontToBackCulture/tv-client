@@ -11,7 +11,7 @@ import { Button } from "../../components/ui";
 import { useProjects, useAllTasks, useInitiatives, useUsers, useUpdateProject } from "../../hooks/work";
 import { useCurrentUserId } from "../../hooks/work/useUsers";
 import { supabase } from "../../lib/supabase";
-import { usePipelineStats, useCRMRealtime } from "../../hooks/crm";
+import { usePipelineStats } from "../../hooks/crm";
 import { TaskDetailPanel } from "../work/TaskDetailPanel";
 import { ResizablePanel } from "../../components/ResizablePanel";
 import { TaskForm } from "../work/TaskForm";
@@ -38,14 +38,14 @@ import { CrmDashboard } from "../crm/CrmDashboard";
 import { DirectoryView } from "../crm/DirectoryView";
 import { ClientsView } from "../crm/ClientsView";
 import { ClosedDealsView } from "../crm/ClosedDealsView";
-import { ProspectsView } from "../crm/ProspectsView";
+
 import { NotionSyncStatus } from "../notion/NotionSyncStatus";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
 import { useViewContextStore } from "../../stores/viewContextStore";
 
 type ProjectsView =
   | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project" | "my-tasks" | "team-tasks"  // Work views
-  | "crm-dashboard" | "pipeline" | "metadata" | "directory" | "clients" | "closed" | "prospects"  // CRM views
+  | "crm-dashboard" | "pipeline" | "metadata" | "directory" | "clients" | "closed"  // CRM views
 
 const CRM_DETAIL_PANEL_WIDTH_KEY = "tv-desktop-crm-detail-panel-width";
 
@@ -85,13 +85,12 @@ export function ProjectsModule() {
     const labels: Record<ProjectsView, string> = {
       all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board", "my-tasks": "My Tasks", "team-tasks": "Team Bandwidth",
       tracker: "Tracker", project: "Project",
-      "crm-dashboard": "CRM Dashboard", pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals", prospects: "Prospects",
+      "crm-dashboard": "CRM Dashboard", pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals",
     };
     setViewContext(view, labels[view]);
   }, [view, setViewContext]);
 
-  // Enable CRM real-time updates
-  useCRMRealtime();
+  // CRM real-time handled by global useRealtimeSync() in App.tsx
 
   const updateProjectMutation = useUpdateProject();
 
@@ -256,7 +255,7 @@ export function ProjectsModule() {
 
   // ---- Determine which section is active ----
   const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project", "my-tasks", "team-tasks"].includes(view);
-  const isCrmView = ["crm-dashboard", "pipeline", "directory", "clients", "closed", "prospects"].includes(view);
+  const isCrmView = ["crm-dashboard", "pipeline", "directory", "clients", "closed"].includes(view);
 
   const showProjectView = view === "project" && selectedProject;
 
@@ -308,6 +307,10 @@ export function ProjectsModule() {
           {/* Work section */}
           <ViewTab label="Browse" icon={LayoutDashboard} active={view === "all" && allSubView === "browse"} onClick={() => { handleViewChange("all"); setAllSubView("browse"); }} />
           <ViewTab label="Manage" icon={Columns3} active={view === "all" && allSubView === "manage"} onClick={() => { handleViewChange("all"); setAllSubView("manage"); }} />
+
+          {/* Separator */}
+          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
           <ViewTab label="My Tasks" icon={UserIcon} active={view === "my-tasks"} onClick={() => handleViewChange("my-tasks")} />
           <ViewTab label="Team" icon={Users} active={view === "team-tasks"} onClick={() => handleViewChange("team-tasks")} />
 
@@ -316,7 +319,6 @@ export function ProjectsModule() {
 
           <ViewTab label="CRM Dashboard" icon={BarChart3} active={view === "crm-dashboard"} onClick={() => handleViewChange("crm-dashboard")} />
           <ViewTab label="CRM Pipeline" icon={Building2} active={view === "pipeline"} onClick={() => handleViewChange("pipeline")} />
-          <ViewTab label="Prospects" icon={Target} active={view === "prospects"} onClick={() => handleViewChange("prospects")} />
         </div>
 
         {/* Actions */}
@@ -485,14 +487,7 @@ export function ProjectsModule() {
             {companyDetailPanel}
           </>
         )}
-        {view === "prospects" && (
-          <>
-            <div className="flex flex-col overflow-hidden" style={{ flex: selectedCompanyId ? `0 0 ${100 - detailPanelWidth}%` : "1 1 auto", transition: isResizingDetail ? "none" : "flex 200ms" }}>
-              <ProspectsView selectedId={selectedCompanyId} onSelect={handleSelectCompany} onNewCompany={handleNewCompany} />
-            </div>
-            {companyDetailPanel}
-          </>
-        )}
+
 
         {/* ---- Task detail panel (Work views only) ---- */}
         {selectedTaskId && isWorkView && (

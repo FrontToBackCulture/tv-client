@@ -65,7 +65,7 @@ export function RunHistory({ runs, isLoading, onBack, title }: RunHistoryProps) 
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
                       <span className="text-xs text-zinc-400">
-                        {new Date(run.startedAt).toLocaleString()}
+                        {new Date(run.startedAt).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
                       </span>
                       {run.durationSecs != null && (
                         <span className="text-xs text-zinc-400">

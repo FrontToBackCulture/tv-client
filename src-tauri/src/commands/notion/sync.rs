@@ -243,8 +243,8 @@ async fn sync_config(
             None
         };
 
-        // Fetch page body content (blocks → markdown)
-        let notion_content = match api::get_page_content_as_markdown(&page.id).await {
+        // Fetch page body content (blocks → markdown) → stored in description
+        let page_body_md = match api::get_page_content_as_markdown(&page.id).await {
             Ok(md) if !md.is_empty() => Some(md),
             _ => None,
         };
@@ -271,7 +271,7 @@ async fn sync_config(
             "p_due_date": mapped.get("due_date"),
             "p_assignee_id": resolved_assignee,
             "p_company_id": resolved_company,
-            "p_notion_content": notion_content,
+            "p_notion_content": page_body_md,
             "p_created_at": created_at,
             "p_updated_at": updated_at,
         });

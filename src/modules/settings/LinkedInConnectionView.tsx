@@ -82,7 +82,7 @@ export function LinkedInConnectionView() {
               )}
               {isConnected && auth?.expiresAt && (
                 <p className="text-xs text-zinc-400">
-                  Token expires: {new Date(auth.expiresAt * 1000).toLocaleString()}
+                  Token expires: {new Date(auth.expiresAt * 1000).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
                 </p>
               )}
             </div>

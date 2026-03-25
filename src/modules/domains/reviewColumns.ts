@@ -17,7 +17,7 @@ function dateTimeFormatter(params: ValueFormatterParams): string {
   if (!params.value) return "-";
   try {
     const date = new Date(params.value);
-    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleDateString("en-SG", { timeZone: "Asia/Singapore" }) + " " + date.toLocaleTimeString("en-SG", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" });
   } catch {
     return params.value;
   }

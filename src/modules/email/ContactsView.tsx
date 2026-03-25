@@ -1,7 +1,8 @@
 // src/modules/email/ContactsView.tsx
 // Contact list with tree sidebar for grouping, search, inline edit/delete actions
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Upload, Pencil, Trash2 } from "lucide-react";
 import { useEmailContacts, useEmailGroups, useDeleteEmailContact } from "../../hooks/email";
@@ -182,32 +183,96 @@ export function ContactsView({ selectedId, onSelect, onNewContact, onImport }: C
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12 text-xs text-zinc-400">Loading...</div>
-          ) : sorted.length === 0 ? (
-            <div className="flex items-center justify-center py-12 text-xs text-zinc-400">
-              {search ? "No contacts found" : "No contacts yet. Import a CSV or add one manually."}
+        <ContactList
+          isLoading={isLoading}
+          sorted={sorted}
+          selectedId={selectedId}
+          deleteConfirmId={deleteConfirmId}
+          onSelect={onSelect}
+          onDeleteClick={setDeleteConfirmId}
+          onDeleteConfirm={handleDelete}
+          onDeleteCancel={() => setDeleteConfirmId(null)}
+          isDeleting={deleteContact.isPending}
+          search={search}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Virtualized List ─────────────────────────────────────────────────────────
+
+const CONTACT_ROW_HEIGHT = 52;
+
+function ContactList({
+  isLoading, sorted, selectedId, deleteConfirmId, onSelect,
+  onDeleteClick, onDeleteConfirm, onDeleteCancel, isDeleting, search,
+}: {
+  isLoading: boolean;
+  sorted: EmailContact[];
+  selectedId: string | null;
+  deleteConfirmId: string | null;
+  onSelect: (id: string | null) => void;
+  onDeleteClick: (id: string) => void;
+  onDeleteConfirm: (id: string) => void;
+  onDeleteCancel: () => void;
+  isDeleting: boolean;
+  search: string;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: sorted.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => CONTACT_ROW_HEIGHT,
+    overscan: 15,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-12 text-xs text-zinc-400">Loading...</div>
+    );
+  }
+
+  if (sorted.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-12 text-xs text-zinc-400">
+        {search ? "No contacts found" : "No contacts yet. Import a CSV or add one manually."}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={parentRef} className="flex-1 overflow-auto">
+      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const contact = sorted[virtualRow.index];
+          return (
+            <div
+              key={contact.id}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: CONTACT_ROW_HEIGHT,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+              className="border-b border-zinc-100 dark:border-zinc-800/50"
+            >
+              <ContactRow
+                contact={contact}
+                isSelected={contact.id === selectedId}
+                isDeleteConfirm={contact.id === deleteConfirmId}
+                onClick={() => onSelect(contact.id === selectedId ? null : contact.id)}
+                onEdit={() => onSelect(contact.id)}
+                onDeleteClick={() => onDeleteClick(contact.id)}
+                onDeleteConfirm={() => onDeleteConfirm(contact.id)}
+                onDeleteCancel={onDeleteCancel}
+                isDeleting={isDeleting}
+              />
             </div>
-          ) : (
-            <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
-              {sorted.map((contact) => (
-                <ContactRow
-                  key={contact.id}
-                  contact={contact}
-                  isSelected={contact.id === selectedId}
-                  isDeleteConfirm={contact.id === deleteConfirmId}
-                  onClick={() => onSelect(contact.id === selectedId ? null : contact.id)}
-                  onEdit={() => onSelect(contact.id)}
-                  onDeleteClick={() => setDeleteConfirmId(contact.id)}
-                  onDeleteConfirm={() => handleDelete(contact.id)}
-                  onDeleteCancel={() => setDeleteConfirmId(null)}
-                  isDeleting={deleteContact.isPending}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+          );
+        })}
       </div>
     </div>
   );

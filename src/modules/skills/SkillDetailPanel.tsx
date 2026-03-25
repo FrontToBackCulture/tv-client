@@ -1,11 +1,12 @@
 // src/modules/skills/SkillDetailPanel.tsx
 // Right panel — tree sidebar + content viewer (replaces tabbed layout)
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   X, FileText, FolderOpen, ArrowDownToLine, ArrowUpFromLine,
   CheckCircle2, AlertTriangle, Circle, Loader2, ExternalLink,
-  Send, Bot, Boxes, ChevronDown,
+  Send, Bot, Boxes, ChevronDown, Microscope,
   Tag, Terminal, Globe, PenTool, Eye, Copy, GitBranch, History,
 } from "lucide-react";
 import { Button, IconButton } from "../../components/ui";
@@ -23,7 +24,10 @@ import {
   useSkillPull,
   useSkillDistributeTo,
   useSkillListBots,
+  useSkillInspect,
 } from "./useSkillRegistry";
+import { useJobsStore } from "../../stores/jobsStore";
+import { toast } from "../../stores/toastStore";
 import { useUpdateSkill } from "../../hooks/skills/useSkills";
 import { useSkillActivityLog } from "../../hooks/skills/useSkillActivity";
 import { SKILL_STATUS_CONFIG, type SkillStatus } from "../../playground/botPlaygroundTypes";
@@ -58,6 +62,44 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
   const [copiedSlug, setCopiedSlug] = useState(false);
   const updateSkill = useUpdateSkill();
   const { data: activityLog, isLoading: activityLoading } = useSkillActivityLog(showActivityView ? slug : undefined);
+  const inspectMutation = useSkillInspect();
+  const queryClient = useQueryClient();
+  const { addJob, updateJob } = useJobsStore();
+  const inspectJobId = useRef<string | null>(null);
+
+  const handleInspect = useCallback(() => {
+    const jobId = `inspect-${slug}-${Date.now()}`;
+    inspectJobId.current = jobId;
+
+    // Register in jobs store (shows in status bar)
+    addJob({ id: jobId, name: `Inspect: ${slug}`, status: "running", message: "Claude is analyzing..." });
+
+    // Show loading toast
+    const toastId = toast.loading(`Inspecting ${slug}...`);
+
+    inspectMutation.mutate(
+      { slug },
+      {
+        onSuccess: (result) => {
+          if (result.success && result.output_path) {
+            updateJob(jobId, { status: "completed", message: "Report generated" });
+            toast.update(toastId, { type: "success", message: `Inspection complete — ${slug}`, duration: 4000 });
+            // Refresh file tree and auto-select the report
+            queryClient.invalidateQueries({ queryKey: ["fileTree"] }).then(() => {
+              setSelectedPath(result.output_path);
+            });
+          } else {
+            updateJob(jobId, { status: "failed", message: result.error || "Report not generated" });
+            toast.update(toastId, { type: "error", message: result.error || "Inspection failed", duration: 5000 });
+          }
+        },
+        onError: (err) => {
+          updateJob(jobId, { status: "failed", message: String(err) });
+          toast.update(toastId, { type: "error", message: `Inspection failed: ${err}`, duration: 5000 });
+        },
+      }
+    );
+  }, [slug, inspectMutation, queryClient, addJob, updateJob]);
 
   // Read recursive file tree
   const { data: tree } = useFileTree(skillPath, 3);
@@ -193,6 +235,22 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
             )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              title={inspectMutation.isPending ? "Inspecting... (Claude is running)" : "Inspect skill"}
+              onClick={inspectMutation.isPending ? undefined : handleInspect}
+              disabled={inspectMutation.isPending}
+              className={cn(
+                "p-1 rounded transition-colors",
+                inspectMutation.isPending
+                  ? "text-teal-500 cursor-wait"
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+              )}
+            >
+              {inspectMutation.isPending
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Microscope size={16} />
+              }
+            </button>
             <IconButton
               icon={GitBranch}
               label="Distribution"

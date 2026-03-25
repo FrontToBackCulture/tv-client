@@ -172,3 +172,24 @@ export function useNotionSyncStart() {
     },
   });
 }
+
+// ============================================================================
+// Push (tv-client → Notion)
+// ============================================================================
+
+interface PushResult {
+  action: string; // "created" | "updated"
+  notion_page_id: string;
+}
+
+export function useNotionPushTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) =>
+      invoke<PushResult>("notion_push_task", { taskId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["work"] });
+      queryClient.invalidateQueries({ queryKey: notionKeys.all });
+    },
+  });
+}

@@ -71,8 +71,6 @@ export function useRealtimeSync() {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["work", "tasks"] });
-          queryClient.invalidateQueries({ queryKey: ["work", "projects"] }); // Task counts in projects
-          queryClient.invalidateQueries({ queryKey: ["crm", "deals"] }); // Tasks shown in deal cards
           queryClient.invalidateQueries({ queryKey: ["crm", "deal-tasks"] });
         }
       )

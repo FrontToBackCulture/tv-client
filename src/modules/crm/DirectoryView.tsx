@@ -1,7 +1,8 @@
 // src/modules/crm/DirectoryView.tsx
 // Unified company + contact search with alphabetical grouping
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowUpDown, Plus } from "lucide-react";
 import { useCompanies, useContacts } from "../../hooks/crm";
 import type { Company } from "../../lib/crm/types";
@@ -87,40 +88,119 @@ export function DirectoryView({ selectedId, onSelect, onNewCompany }: DirectoryV
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        {companiesLoading ? (
-          <div className="flex items-center justify-center h-32"><p className="text-xs text-zinc-400">Loading...</p></div>
-        ) : sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 gap-1">
-            <p className="text-xs text-zinc-400">No results</p>
-            {search && <p className="text-xs text-zinc-400">Try a different search term</p>}
-          </div>
-        ) : grouped ? (
-          // Alphabetical grouping
-          <div className="py-1">
-            {Object.entries(grouped).map(([letter, comps]) => (
-              <div key={letter}>
-                <div className="px-3 py-1.5 sticky top-0 bg-white dark:bg-zinc-950 z-10">
-                  <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500">{letter}</span>
-                </div>
-                {comps.map((c) => (
-                  <CompanyRow key={c.id} company={c} isSelected={c.id === selectedId}
-                    onSelect={() => onSelect(c.id === selectedId ? null : c.id)}
-                    matchedContact={contactMatchMap.get(c.id)} />
-                ))}
+      <DirectoryList
+        companiesLoading={companiesLoading}
+        sorted={sorted}
+        grouped={grouped}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        contactMatchMap={contactMatchMap}
+        search={search}
+      />
+    </div>
+  );
+}
+
+type FlatItem = { type: "header"; letter: string } | { type: "company"; company: Company };
+
+const HEADER_HEIGHT = 28;
+const COMPANY_ROW_HEIGHT = 56;
+
+function DirectoryList({
+  companiesLoading, sorted, grouped, selectedId, onSelect, contactMatchMap, search,
+}: {
+  companiesLoading: boolean;
+  sorted: Company[];
+  grouped: Record<string, Company[]> | null;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  contactMatchMap: Map<string, string>;
+  search: string;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // Flatten grouped data into a single list with header items
+  const flatItems = useMemo<FlatItem[]>(() => {
+    if (grouped) {
+      const items: FlatItem[] = [];
+      for (const [letter, comps] of Object.entries(grouped)) {
+        items.push({ type: "header", letter });
+        for (const c of comps) items.push({ type: "company", company: c });
+      }
+      return items;
+    }
+    return sorted.map((c) => ({ type: "company" as const, company: c }));
+  }, [grouped, sorted]);
+
+  const virtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (i) => flatItems[i].type === "header" ? HEADER_HEIGHT : COMPANY_ROW_HEIGHT,
+    overscan: 15,
+  });
+
+  if (companiesLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center h-32">
+        <p className="text-xs text-zinc-400">Loading...</p>
+      </div>
+    );
+  }
+
+  if (sorted.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center h-32 gap-1">
+        <p className="text-xs text-zinc-400">No results</p>
+        {search && <p className="text-xs text-zinc-400">Try a different search term</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={parentRef} className="flex-1 overflow-y-auto">
+      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }} className="py-1">
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const item = flatItems[virtualRow.index];
+          if (item.type === "header") {
+            return (
+              <div
+                key={`header-${item.letter}`}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: HEADER_HEIGHT,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+                className="px-3 py-1.5 bg-white dark:bg-zinc-950 z-10"
+              >
+                <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500">{item.letter}</span>
               </div>
-            ))}
-          </div>
-        ) : (
-          // Recent sort - flat list
-          <div className="py-1">
-            {sorted.map((c) => (
-              <CompanyRow key={c.id} company={c} isSelected={c.id === selectedId}
+            );
+          }
+          const c = item.company;
+          return (
+            <div
+              key={c.id}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: COMPANY_ROW_HEIGHT,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <CompanyRow
+                company={c}
+                isSelected={c.id === selectedId}
                 onSelect={() => onSelect(c.id === selectedId ? null : c.id)}
-                matchedContact={contactMatchMap.get(c.id)} />
-            ))}
-          </div>
-        )}
+                matchedContact={contactMatchMap.get(c.id)}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

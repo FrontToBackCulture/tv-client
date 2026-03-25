@@ -1,14 +1,12 @@
 import { Loader2 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { DetailSkeleton } from "./Skeleton";
 
-/** Full-height centered spinner for detail panels and full-page loading. */
+/** Full-height skeleton loading for detail panels and full-page loading. */
 export function DetailLoading() {
   return (
-    <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-      <Loader2
-        size={24}
-        className="text-zinc-400 animate-spin"
-      />
+    <div className="h-full bg-zinc-50 dark:bg-zinc-950">
+      <DetailSkeleton />
     </div>
   );
 }

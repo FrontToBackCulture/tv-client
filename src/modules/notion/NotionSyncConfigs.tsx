@@ -46,7 +46,7 @@ export function NotionSyncConfigs() {
   const formatTime = (ts?: string) => {
     if (!ts) return "Never";
     const d = new Date(ts);
-    return d.toLocaleString();
+    return d.toLocaleString("en-SG", { timeZone: "Asia/Singapore" });
   };
 
   const handleToggle = (configId: string, enabled: boolean) => {

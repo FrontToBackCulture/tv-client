@@ -47,6 +47,7 @@ export function useAllTasks() {
     queryKey: workKeys.tasks(),
     queryFn: async (): Promise<TaskWithRelations[]> => {
       // Fetch all tasks in batches (Supabase default limit is 1000)
+      // Only select fields needed for list/dashboard views — detail panel uses useTask()
       const allTasks: TaskWithRelations[] = [];
       let offset = 0;
       const batchSize = 1000;
@@ -57,13 +58,10 @@ export function useAllTasks() {
           .select(
             `
             *,
-            status:task_statuses(*),
-            labels:task_labels(label:labels(*)),
+            status:task_statuses(id, type, color),
             project:projects(identifier_prefix, name, color, project_type),
-            milestone:milestones(*),
-            assignee:users!tasks_assignee_id_fkey(*),
-            creator:users!tasks_created_by_fkey(*),
-            company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage, referred_by),
+            assignee:users!tasks_assignee_id_fkey(id, name),
+            company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage),
             contact:crm_contacts!tasks_contact_id_fkey(id, name, email)
           `
           )

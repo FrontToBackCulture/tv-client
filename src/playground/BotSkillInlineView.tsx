@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useFileTree, useReadFile, useWriteFile, type TreeNode } from "../hooks/useFiles";
 import { cn } from "../lib/cn";
+import { toSGTDateString } from "../lib/date";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
 import { ExcalidrawViewer } from "../modules/library/viewers/ExcalidrawViewer";
 import { IconButton } from "../components/ui";
@@ -66,7 +67,7 @@ export function BotSkillInlineView({ skillPath, skillName, title, usage, onBack 
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const handleStatusChange = (newStatus: SkillStatus) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toSGTDateString();
     updateSkill.mutate({ slug: skillName, updates: { status: newStatus, last_audited: today } });
     setShowStatusMenu(false);
   };

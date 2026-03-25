@@ -26,6 +26,7 @@ import {
   MoreHorizontal,
   Linkedin,
   Target,
+  SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -56,10 +57,14 @@ const navSections: NavSection[] = [
   {
     label: "Work",
     items: [
-      { id: "projects", icon: FolderOpen, label: "Projects", shortcut: "⌘1" },
-      { id: "library", icon: Library, label: "Library", shortcut: "⌘2" },
-      { id: "domains", icon: Globe, label: "Domains", shortcut: "⌘3" },
-      { id: "metadata", icon: Library, label: "Metadata", shortcut: "⌘5" },
+      { id: "projects", icon: FolderOpen, label: "Projects", shortcut: "\u23181" },
+      { id: "library", icon: Library, label: "Library", shortcut: "\u23182" },
+      { id: "metadata", icon: SlidersHorizontal, label: "Metadata", shortcut: "\u23185" },
+    ],
+  },
+  {
+    label: "Comms",
+    items: [
       { id: "inbox", icon: Mail, label: "Inbox", shortcut: "" },
       { id: "calendar", icon: CalendarDays, label: "Calendar", shortcut: "" },
     ],
@@ -70,24 +75,25 @@ const navSections: NavSection[] = [
       { id: "prospecting", icon: Target, label: "Outbound", shortcut: "" },
       { id: "email", icon: MailPlus, label: "EDM", shortcut: "" },
       { id: "blog", icon: FileText, label: "Blog", shortcut: "" },
-      { id: "gallery", icon: GalleryHorizontalEnd, label: "Gallery", shortcut: "⌘6" },
+      { id: "gallery", icon: GalleryHorizontalEnd, label: "Gallery", shortcut: "\u23186" },
       { id: "portal", icon: Headset, label: "Portal", shortcut: "" },
     ],
   },
   {
     label: "Platform",
     items: [
-      { id: "bot", icon: Bot, label: "Bots", shortcut: "⌘7" },
-      { id: "skills", icon: Puzzle, label: "Skills", shortcut: "⌘8" },
+      { id: "domains", icon: Globe, label: "Domains", shortcut: "\u23183" },
+      { id: "skills", icon: Puzzle, label: "Skills", shortcut: "\u23188" },
     ],
   },
 ];
 
 // Items hidden behind "More" flyout in Platform section
 const moreItems: NavItem[] = [
+  { id: "bot", icon: Bot, label: "Bots", shortcut: "\u23187" },
   { id: "linkedin", icon: Linkedin, label: "LinkedIn", shortcut: "" },
-  { id: "product", icon: Boxes, label: "Product", shortcut: "⌘4" },
-  { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "⌘9" },
+  { id: "product", icon: Boxes, label: "Product", shortcut: "\u23184" },
+  { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "\u23189" },
   { id: "repos", icon: GitBranch, label: "Repos", shortcut: "" },
   { id: "s3browser", icon: Cloud, label: "S3 Browser", shortcut: "" },
 ];
@@ -99,6 +105,47 @@ interface ContextMenuState {
   x: number;
   y: number;
 }
+
+// ---------------------------------------------------------------------------
+// Tooltip — positioned right of the icon in collapsed mode
+// ---------------------------------------------------------------------------
+
+function Tooltip({ children, label, shortcut, show }: {
+  children: React.ReactNode;
+  label: string;
+  shortcut?: string;
+  show: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  if (!show) return <>{children}</>;
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {children}
+      {hovered && (
+        <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 z-50 pointer-events-none">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-800 dark:bg-slate-700 shadow-lg whitespace-nowrap">
+            <span className="text-[12px] font-medium text-white">{label}</span>
+            {shortcut && (
+              <span className="text-[10px] font-mono text-slate-400">{shortcut}</span>
+            )}
+          </div>
+          {/* Arrow */}
+          <div className="absolute top-1/2 -translate-y-1/2 -left-1 w-2 h-2 bg-slate-800 dark:bg-slate-700 rotate-45" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Context menu
+// ---------------------------------------------------------------------------
 
 function ActivityBarContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -114,7 +161,7 @@ function ActivityBarContextMenu({ menu, onClose }: { menu: ContextMenuState; onC
   return (
     <div
       ref={ref}
-      className="fixed z-50 min-w-[200px] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl py-1"
+      className="fixed z-50 min-w-[200px] bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xl py-1"
       style={{ top: menu.y, left: menu.x }}
     >
       <button
@@ -122,7 +169,7 @@ function ActivityBarContextMenu({ menu, onClose }: { menu: ContextMenuState; onC
           openModuleInNewWindow(menu.moduleId);
           onClose();
         }}
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
       >
         <ExternalLink size={14} />
         Open {menu.label} in New Window
@@ -131,25 +178,33 @@ function ActivityBarContextMenu({ menu, onClose }: { menu: ContextMenuState; onC
   );
 }
 
+// ---------------------------------------------------------------------------
+// Section header (expanded mode)
+// ---------------------------------------------------------------------------
+
 function SectionHeader({ label, collapsed, onToggle }: { label: string; collapsed: boolean; onToggle: () => void }) {
   return (
     <button
       onClick={onToggle}
-      className="w-full px-3 pt-2 pb-1 flex items-center gap-1 group cursor-pointer"
+      className="w-full px-3 pt-3 pb-1 flex items-center gap-1.5 group cursor-pointer"
     >
       <ChevronRight
         size={10}
         className={cn(
-          "text-zinc-400 dark:text-zinc-500 transition-transform shrink-0",
+          "text-slate-400 dark:text-slate-500 transition-transform duration-150 shrink-0",
           !collapsed && "rotate-90"
         )}
       />
-      <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
         {label}
       </span>
     </button>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Nav button
+// ---------------------------------------------------------------------------
 
 function NavButton({
   item,
@@ -168,22 +223,22 @@ function NavButton({
 
   if (!isExpanded) {
     return (
-      <button
-        key={item.id}
-        data-help-id={`activity-bar-${item.id}`}
-        onClick={() => onModuleChange(item.id)}
-        onContextMenu={(e) => onContextMenu(e, item)}
-        className={cn(
-          "w-10 h-10 flex items-center justify-center rounded-lg transition-colors",
-          "hover:bg-zinc-200 dark:hover:bg-zinc-800",
-          isActive
-            ? "bg-zinc-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
-            : "text-zinc-600 dark:text-zinc-400"
-        )}
-        title={`${item.label}${item.shortcut ? ` (${item.shortcut})` : ""}`}
-      >
-        <Icon size={20} />
-      </button>
+      <Tooltip label={item.label} shortcut={item.shortcut} show>
+        <button
+          key={item.id}
+          data-help-id={`activity-bar-${item.id}`}
+          onClick={() => onModuleChange(item.id)}
+          onContextMenu={(e) => onContextMenu(e, item)}
+          className={cn(
+            "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150",
+            isActive
+              ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20 dark:shadow-teal-500/15"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
+          )}
+        >
+          <Icon size={18} strokeWidth={isActive ? 2.25 : 1.75} />
+        </button>
+      </Tooltip>
     );
   }
 
@@ -194,22 +249,29 @@ function NavButton({
       onClick={() => onModuleChange(item.id)}
       onContextMenu={(e) => onContextMenu(e, item)}
       className={cn(
-        "w-full h-9 flex items-center gap-2.5 px-3 rounded-lg transition-colors",
-        "hover:bg-zinc-200 dark:hover:bg-zinc-800",
+        "w-full h-8 flex items-center gap-2.5 px-2.5 rounded-lg transition-all duration-150",
         isActive
-          ? "bg-zinc-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
-          : "text-zinc-600 dark:text-zinc-400"
+          ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20 dark:shadow-teal-500/15"
+          : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
       )}
-      title={`${item.label}${item.shortcut ? ` (${item.shortcut})` : ""}`}
     >
-      <Icon size={18} className="shrink-0" />
-      <span className="text-sm truncate flex-1 text-left">{item.label}</span>
+      <Icon size={16} strokeWidth={isActive ? 2.25 : 1.75} className="shrink-0" />
+      <span className="text-[13px] truncate flex-1 text-left">{item.label}</span>
       {item.shortcut && (
-        <span className="text-xs text-zinc-400 dark:text-zinc-600 shrink-0">{item.shortcut}</span>
+        <span className={cn(
+          "text-[10px] font-mono shrink-0",
+          isActive ? "text-teal-200" : "text-slate-400 dark:text-slate-600"
+        )}>
+          {item.shortcut}
+        </span>
       )}
     </button>
   );
 }
+
+// ---------------------------------------------------------------------------
+// More flyout
+// ---------------------------------------------------------------------------
 
 function MoreFlyout({
   items,
@@ -244,42 +306,42 @@ function MoreFlyout({
         <button
           onClick={() => setOpen(!open)}
           className={cn(
-            "w-full h-9 flex items-center gap-2.5 px-3 rounded-lg transition-colors",
-            "hover:bg-zinc-200 dark:hover:bg-zinc-800",
+            "w-full h-8 flex items-center gap-2.5 px-2.5 rounded-lg transition-colors",
+            "hover:bg-slate-200/60 dark:hover:bg-slate-800/60",
             hasActiveItem
               ? "text-teal-600 dark:text-teal-400"
-              : "text-zinc-600 dark:text-zinc-400"
+              : "text-slate-500 dark:text-slate-400"
           )}
-          title="More modules"
         >
-          <MoreHorizontal size={18} className="shrink-0" />
-          <span className="text-sm truncate flex-1 text-left">More</span>
+          <MoreHorizontal size={16} className="shrink-0" />
+          <span className="text-[13px] truncate flex-1 text-left">More</span>
           <ChevronRight
-            size={12}
-            className={cn("shrink-0 transition-transform", open && "rotate-90")}
+            size={11}
+            className={cn("shrink-0 transition-transform text-slate-400", open && "rotate-90")}
           />
         </button>
       ) : (
-        <button
-          onClick={() => setOpen(!open)}
-          className={cn(
-            "w-10 h-10 flex items-center justify-center rounded-lg transition-colors",
-            "hover:bg-zinc-200 dark:hover:bg-zinc-800",
-            hasActiveItem
-              ? "bg-zinc-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
-              : "text-zinc-600 dark:text-zinc-400"
-          )}
-          title="More modules"
-        >
-          <MoreHorizontal size={20} />
-        </button>
+        <Tooltip label="More modules" show>
+          <button
+            onClick={() => setOpen(!open)}
+            className={cn(
+              "w-9 h-9 flex items-center justify-center rounded-lg transition-colors",
+              "hover:bg-slate-200/60 dark:hover:bg-slate-800/60",
+              hasActiveItem
+                ? "text-teal-600 dark:text-teal-400"
+                : "text-slate-500 dark:text-slate-400"
+            )}
+          >
+            <MoreHorizontal size={18} />
+          </button>
+        </Tooltip>
       )}
 
       {open && (
         <div
-          className="fixed z-50 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl py-1 min-w-[200px]"
+          className="fixed z-50 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xl py-1 min-w-[200px]"
           style={{
-            left: ref.current ? ref.current.getBoundingClientRect().right + 4 : 0,
+            left: ref.current ? ref.current.getBoundingClientRect().right + 6 : 0,
             bottom: ref.current
               ? window.innerHeight - ref.current.getBoundingClientRect().bottom
               : 0,
@@ -300,17 +362,17 @@ function MoreFlyout({
                   setOpen(false);
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
-                  "hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                  "w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors",
+                  "hover:bg-slate-100 dark:hover:bg-slate-800",
                   isActive
-                    ? "text-teal-600 dark:text-teal-400 bg-zinc-50 dark:bg-zinc-800/50"
-                    : "text-zinc-700 dark:text-zinc-300"
+                    ? "text-teal-600 dark:text-teal-400 bg-slate-50 dark:bg-slate-800/50"
+                    : "text-slate-700 dark:text-slate-300"
                 )}
               >
-                <Icon size={16} className="shrink-0" />
+                <Icon size={15} className="shrink-0" />
                 <span className="flex-1 text-left">{item.label}</span>
                 {item.shortcut && (
-                  <span className="text-xs text-zinc-400 dark:text-zinc-600 shrink-0">
+                  <span className="text-[10px] font-mono text-slate-400 dark:text-slate-600 shrink-0">
                     {item.shortcut}
                   </span>
                 )}
@@ -322,6 +384,10 @@ function MoreFlyout({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// ActivityBar
+// ---------------------------------------------------------------------------
 
 export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) {
   const isExpanded = useActivityBarStore((s) => s.isExpanded);
@@ -349,8 +415,7 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
     });
   }, []);
 
-  // Filter sections to exclude hidden modules (team config takes precedence over local storage)
-  // hiddenModules and teamConfig are deps to trigger re-render when either changes
+  // Filter sections to exclude hidden modules
   const filteredSections = useMemo(() => {
     return navSections
       .map((section) => ({
@@ -375,30 +440,29 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
     <div
       data-help-id="activity-bar"
       className={cn(
-        "bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col py-2 gap-0.5 transition-all duration-200 overflow-hidden select-none",
-        isExpanded ? "w-48 items-stretch px-1.5" : "w-12 items-center"
+        "bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col py-2 gap-0.5 transition-all duration-200 overflow-hidden select-none",
+        isExpanded ? "w-48 items-stretch px-1.5" : "w-[52px] items-center px-1.5"
       )}
     >
-      {/* Title / Home button + collapse toggle */}
+      {/* Home + collapse toggle */}
       {isExpanded ? (
         <div className="flex items-center gap-0.5 mb-1">
           <button
             onClick={() => onModuleChange("home")}
             className={cn(
-              "flex-1 h-9 flex items-center gap-2.5 px-3 rounded-lg transition-colors",
-              "hover:bg-zinc-200 dark:hover:bg-zinc-800",
+              "flex-1 h-8 flex items-center gap-2.5 px-2.5 rounded-lg transition-all duration-150",
               activeModule === "home"
-                ? "text-teal-600 dark:text-teal-400"
-                : "text-zinc-600 dark:text-zinc-400"
+                ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
             )}
             title="Home"
           >
-            <Home size={18} className="shrink-0" />
-            <span className="text-sm font-medium truncate">TV Desktop</span>
+            <Home size={16} strokeWidth={activeModule === "home" ? 2.25 : 1.75} className="shrink-0" />
+            <span className="text-[13px] font-medium truncate">TV Desktop</span>
           </button>
           <button
             onClick={toggleExpanded}
-            className="h-9 w-8 flex items-center justify-center rounded-lg transition-colors text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 shrink-0"
+            className="h-8 w-7 flex items-center justify-center rounded-lg transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 shrink-0"
             title="Collapse sidebar"
           >
             <PanelLeftClose size={14} />
@@ -406,25 +470,26 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
         </div>
       ) : (
         <div className="flex flex-col items-center gap-0.5 mb-1">
-          <button
-            onClick={() => onModuleChange("home")}
-            className={cn(
-              "w-10 h-10 flex items-center justify-center rounded-lg transition-colors",
-              "hover:bg-zinc-200 dark:hover:bg-zinc-800",
-              activeModule === "home"
-                ? "text-teal-600 dark:text-teal-400"
-                : "text-zinc-600 dark:text-zinc-400"
-            )}
-            title="Home"
-          >
-            <Home size={20} />
-          </button>
+          <Tooltip label="Home" show>
+            <button
+              onClick={() => onModuleChange("home")}
+              className={cn(
+                "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150",
+                activeModule === "home"
+                  ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
+              )}
+              title="Home"
+            >
+              <Home size={18} strokeWidth={activeModule === "home" ? 2.25 : 1.75} />
+            </button>
+          </Tooltip>
           <button
             onClick={toggleExpanded}
-            className="w-10 h-6 flex items-center justify-center rounded-lg transition-colors text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800"
+            className="w-9 h-5 flex items-center justify-center rounded transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
             title="Expand sidebar"
           >
-            <PanelLeft size={14} />
+            <PanelLeft size={13} />
           </button>
         </div>
       )}
@@ -432,7 +497,6 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
       {/* Module sections */}
       {filteredSections.map((section, i) => {
         const isCollapsed = !!collapsedSections[section.label];
-        // Always show section if it contains the active module (even if collapsed)
         const containsActive = section.items.some((item) => item.id === activeModule);
         const showItems = !isCollapsed || containsActive;
 
@@ -445,36 +509,47 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
                 onToggle={() => toggleSection(section.label)}
               />
             ) : (
-              i > 0 && <div className="w-6 border-t border-zinc-300 dark:border-zinc-700 my-1 mx-auto" />
+              i > 0 && (
+                <div className="py-1.5 flex justify-center">
+                  <div className="w-5 h-px bg-slate-200 dark:bg-slate-700" />
+                </div>
+              )
             )}
-            {showItems && section.items.map((item) => (
-              <NavButton
-                key={item.id}
-                item={item}
-                isActive={activeModule === item.id}
-                isExpanded={isExpanded}
-                onModuleChange={onModuleChange}
-                onContextMenu={handleContextMenu}
-              />
-            ))}
-            {/* More flyout — shown at the end of Platform section */}
-            {section.label === "Platform" && showItems && filteredMoreItems.length > 0 && (
-              <MoreFlyout
-                items={filteredMoreItems}
-                activeModule={activeModule}
-                isExpanded={isExpanded}
-                onModuleChange={onModuleChange}
-                onContextMenu={handleContextMenu}
-              />
+            {showItems && (
+              <div className={cn(
+                "flex flex-col",
+                isExpanded ? "gap-0.5" : "gap-0.5 items-center"
+              )}>
+                {section.items.map((item) => (
+                  <NavButton
+                    key={item.id}
+                    item={item}
+                    isActive={activeModule === item.id}
+                    isExpanded={isExpanded}
+                    onModuleChange={onModuleChange}
+                    onContextMenu={handleContextMenu}
+                  />
+                ))}
+                {/* More flyout — at the end of Platform section */}
+                {section.label === "Platform" && filteredMoreItems.length > 0 && (
+                  <MoreFlyout
+                    items={filteredMoreItems}
+                    activeModule={activeModule}
+                    isExpanded={isExpanded}
+                    onModuleChange={onModuleChange}
+                    onContextMenu={handleContextMenu}
+                  />
+                )}
+              </div>
             )}
           </div>
         );
       })}
 
-      {/* Spacer to push bottom items down */}
+      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* User profile (includes Settings in dropdown) */}
+      {/* User profile */}
       <UserProfile collapsed={!isExpanded} />
 
       {/* Context menu overlay */}

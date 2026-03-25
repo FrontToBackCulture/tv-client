@@ -15,6 +15,7 @@ import {
   Bookmark, ChevronsLeftRight, Columns, Star, Save, WrapText,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { toSGTDateString } from "../../lib/date";
 import { Button } from "../../components/ui";
 import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
@@ -664,11 +665,11 @@ export function MetadataView() {
   }, [subTab]);
 
   const exportToCsv = useCallback(() => {
-    gridRef.current?.api.exportDataAsCsv({ fileName: `${subTab}-${new Date().toISOString().slice(0, 10)}.csv` });
+    gridRef.current?.api.exportDataAsCsv({ fileName: `${subTab}-${toSGTDateString()}.csv` });
   }, [subTab]);
 
   const exportToExcel = useCallback(() => {
-    gridRef.current?.api.exportDataAsExcel({ fileName: `${subTab}-${new Date().toISOString().slice(0, 10)}.xlsx`, sheetName: subTab });
+    gridRef.current?.api.exportDataAsExcel({ fileName: `${subTab}-${toSGTDateString()}.xlsx`, sheetName: subTab });
   }, [subTab]);
 
   const themeClass = theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine";

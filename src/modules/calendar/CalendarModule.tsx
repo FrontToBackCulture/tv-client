@@ -47,7 +47,7 @@ function parseLocalDate(dateStr: string): Date {
 
 function formatTime(dateStr: string): string {
   const d = parseLocalDate(dateStr);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+  return d.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
 function formatDateRange(start: string, end: string, isAllDay: boolean): string {
@@ -114,8 +114,8 @@ export function CalendarModule() {
   const goToToday = () => setCurrentDate(new Date());
 
   const headerLabel = view === "week"
-    ? `${weekStart.toLocaleDateString([], { month: "short", day: "numeric" })} – ${addDays(weekStart, 6).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`
-    : currentDate.toLocaleDateString([], { month: "long", year: "numeric" });
+    ? `${weekStart.toLocaleDateString("en-SG", { month: "short", day: "numeric" })} – ${addDays(weekStart, 6).toLocaleDateString("en-SG", { month: "short", day: "numeric", year: "numeric" })}`
+    : currentDate.toLocaleDateString("en-SG", { month: "long", year: "numeric" });
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
@@ -300,7 +300,7 @@ function WeekView({
               )}
             >
               <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                {day.toLocaleDateString([], { weekday: "short" })}
+                {day.toLocaleDateString("en-SG", { weekday: "short" })}
               </div>
               <div className={cn(
                 "text-sm font-semibold mt-0.5",
@@ -585,7 +585,7 @@ function EventDetailPanel({ event, onClose }: { event: CalendarEvent; onClose: (
         <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
           <Clock size={14} className="flex-shrink-0" />
           <div>
-            <div>{parseLocalDate(event.startAt).toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</div>
+            <div>{parseLocalDate(event.startAt).toLocaleDateString("en-SG", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</div>
             <div className="text-zinc-500">{formatDateRange(event.startAt, event.endAt, event.isAllDay)}</div>
           </div>
         </div>

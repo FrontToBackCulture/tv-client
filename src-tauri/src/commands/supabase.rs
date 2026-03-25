@@ -213,6 +213,11 @@ impl SupabaseClient {
     }
 }
 
+/// Create a SupabaseClient from explicit URL and key (for testing and direct usage)
+pub fn client_from(url: &str, anon_key: &str) -> SupabaseClient {
+    SupabaseClient::new(url, anon_key)
+}
+
 /// Helper to get Supabase client from settings
 pub async fn get_client() -> CmdResult<SupabaseClient> {
     use crate::commands::settings::{settings_get_key, KEY_SUPABASE_ANON_KEY, KEY_SUPABASE_URL};
@@ -223,4 +228,321 @@ pub async fn get_client() -> CmdResult<SupabaseClient> {
         .ok_or_else(|| CommandError::Config("Supabase anon key not configured. Go to Settings to add it.".into()))?;
 
     Ok(SupabaseClient::new(&url, &anon_key))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::{Deserialize, Serialize};
+    use serde_json::json;
+    use wiremock::matchers::{method, path, query_param, header};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    struct TestRow {
+        id: String,
+        name: String,
+    }
+
+    async fn setup() -> (MockServer, SupabaseClient) {
+        let server = MockServer::start().await;
+        let client = SupabaseClient::new(&server.uri(), "test-key");
+        (server, client)
+    }
+
+    // -------------------------------------------------------
+    // Headers
+    // -------------------------------------------------------
+
+    #[tokio::test]
+    async fn select_sends_correct_auth_headers() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("GET"))
+            .and(path("/rest/v1/items"))
+            .and(header("apikey", "test-key"))
+            .and(header("authorization", "Bearer test-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let result: Vec<TestRow> = client.select("items", "").await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    // -------------------------------------------------------
+    // SELECT
+    // -------------------------------------------------------
+
+    #[tokio::test]
+    async fn select_returns_parsed_rows() {
+        let (server, client) = setup().await;
+
+        let body = json!([
+            {"id": "1", "name": "Alice"},
+            {"id": "2", "name": "Bob"}
+        ]);
+
+        Mock::given(method("GET"))
+            .and(path("/rest/v1/users"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&body))
+            .mount(&server)
+            .await;
+
+        let rows: Vec<TestRow> = client.select("users", "").await.unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].name, "Alice");
+        assert_eq!(rows[1].name, "Bob");
+    }
+
+    #[tokio::test]
+    async fn select_with_query_appends_params() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("GET"))
+            .and(path("/rest/v1/users"))
+            .and(query_param("stage", "eq.client"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let _: Vec<TestRow> = client.select("users", "stage=eq.client").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn select_empty_query_has_no_question_mark() {
+        let (server, client) = setup().await;
+
+        // Path must match exactly (no trailing ?)
+        Mock::given(method("GET"))
+            .and(path("/rest/v1/items"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&server)
+            .await;
+
+        let _: Vec<TestRow> = client.select("items", "").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn select_single_returns_first_row() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!([{"id": "1", "name": "Only"}])),
+            )
+            .mount(&server)
+            .await;
+
+        let row: Option<TestRow> = client.select_single("users", "id=eq.1").await.unwrap();
+        assert_eq!(row.unwrap().name, "Only");
+    }
+
+    #[tokio::test]
+    async fn select_single_returns_none_for_empty() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&server)
+            .await;
+
+        let row: Option<TestRow> = client.select_single("users", "id=eq.999").await.unwrap();
+        assert!(row.is_none());
+    }
+
+    // -------------------------------------------------------
+    // INSERT
+    // -------------------------------------------------------
+
+    #[tokio::test]
+    async fn insert_sends_post_and_returns_result() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("POST"))
+            .and(path("/rest/v1/users"))
+            .respond_with(
+                ResponseTemplate::new(201)
+                    .set_body_json(json!([{"id": "new-1", "name": "Charlie"}])),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let data = json!({"name": "Charlie"});
+        let result: TestRow = client.insert("users", &data).await.unwrap();
+        assert_eq!(result.id, "new-1");
+        assert_eq!(result.name, "Charlie");
+    }
+
+    #[tokio::test]
+    async fn insert_errors_on_empty_response() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!([])))
+            .mount(&server)
+            .await;
+
+        let data = json!({"name": "Ghost"});
+        let result: Result<TestRow, _> = client.insert("users", &data).await;
+        assert!(result.is_err());
+    }
+
+    // -------------------------------------------------------
+    // UPDATE
+    // -------------------------------------------------------
+
+    #[tokio::test]
+    async fn update_sends_patch() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("PATCH"))
+            .and(path("/rest/v1/users"))
+            .and(query_param("id", "eq.1"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!([{"id": "1", "name": "Updated"}])),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let data = json!({"name": "Updated"});
+        let result: TestRow = client.update("users", "id=eq.1", &data).await.unwrap();
+        assert_eq!(result.name, "Updated");
+    }
+
+    // -------------------------------------------------------
+    // DELETE
+    // -------------------------------------------------------
+
+    #[tokio::test]
+    async fn delete_sends_delete_request() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("DELETE"))
+            .and(path("/rest/v1/users"))
+            .and(query_param("id", "eq.1"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        client.delete("users", "id=eq.1").await.unwrap();
+    }
+
+    // -------------------------------------------------------
+    // UPSERT
+    // -------------------------------------------------------
+
+    #[tokio::test]
+    async fn upsert_on_includes_conflict_param() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("POST"))
+            .and(path("/rest/v1/users"))
+            .and(query_param("on_conflict", "email"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!([{"id": "1", "name": "Upserted"}])),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let data = json!({"name": "Upserted", "email": "a@b.com"});
+        let result: TestRow = client.upsert_on("users", &data, Some("email")).await.unwrap();
+        assert_eq!(result.name, "Upserted");
+    }
+
+    // -------------------------------------------------------
+    // RPC
+    // -------------------------------------------------------
+
+    #[tokio::test]
+    async fn rpc_calls_function_endpoint() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("POST"))
+            .and(path("/rest/v1/rpc/my_function"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"result": 42})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let result: serde_json::Value = client.rpc("my_function", &json!({"x": 1})).await.unwrap();
+        assert_eq!(result["result"], 42);
+    }
+
+    // -------------------------------------------------------
+    // Error handling
+    // -------------------------------------------------------
+
+    #[tokio::test]
+    async fn http_404_returns_command_error() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+            .mount(&server)
+            .await;
+
+        let result: Result<Vec<TestRow>, _> = client.select("missing", "").await;
+        match result {
+            Err(CommandError::Http { status, body }) => {
+                assert_eq!(status, 404);
+                assert_eq!(body, "not found");
+            }
+            other => panic!("Expected Http error, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn http_500_returns_command_error() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("internal error"))
+            .mount(&server)
+            .await;
+
+        let result: Result<Vec<TestRow>, _> = client.select("broken", "").await;
+        assert!(matches!(result, Err(CommandError::Http { status: 500, .. })));
+    }
+
+    #[tokio::test]
+    async fn malformed_json_returns_error() {
+        let (server, client) = setup().await;
+
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("not json"))
+            .mount(&server)
+            .await;
+
+        let result: Result<Vec<TestRow>, _> = client.select("bad", "").await;
+        assert!(result.is_err());
+    }
+
+    // -------------------------------------------------------
+    // client_from helper
+    // -------------------------------------------------------
+
+    #[test]
+    fn client_from_creates_client() {
+        let client = client_from("https://example.supabase.co", "key123");
+        assert_eq!(client.base_url, "https://example.supabase.co");
+        assert_eq!(client.anon_key, "key123");
+    }
+
+    #[test]
+    fn client_strips_trailing_slash() {
+        let client = SupabaseClient::new("https://example.supabase.co/", "key");
+        assert_eq!(client.base_url, "https://example.supabase.co");
+    }
 }
