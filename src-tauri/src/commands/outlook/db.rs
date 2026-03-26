@@ -129,7 +129,19 @@ impl EmailDb {
             CREATE INDEX IF NOT EXISTS idx_events_end ON events(end_at);
             ",
         )
-        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))
+        .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+
+        // Migrations for existing databases — add columns that may not exist
+        let migrations = [
+            "ALTER TABLE emails ADD COLUMN to_addresses TEXT NOT NULL DEFAULT '[]'",
+            "ALTER TABLE emails ADD COLUMN cc_addresses TEXT NOT NULL DEFAULT '[]'",
+        ];
+        for sql in &migrations {
+            // Ignore "duplicate column" errors — means column already exists
+            let _ = conn.execute_batch(sql);
+        }
+
+        Ok(())
     }
 
     // ========================================================================
