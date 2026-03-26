@@ -2,7 +2,6 @@
 // Main Email module with 4-tab layout: Contacts, Groups, Campaigns, Analytics
 
 import { useState, useEffect } from "react";
-import { useEmailRealtime } from "../../hooks/email";
 import type { EmailCampaignWithStats } from "../../lib/email/types";
 import { ContactsView } from "./ContactsView";
 import { GroupsView } from "./GroupsView";
@@ -33,9 +32,6 @@ export function EmailModule() {
   const [showCampaignForm, setShowCampaignForm] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<EmailCampaignWithStats | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
-
-  // Enable real-time updates
-  useEmailRealtime();
 
   // Handle notification navigation
   const navTarget = useNotificationNavStore((s) => s.target);

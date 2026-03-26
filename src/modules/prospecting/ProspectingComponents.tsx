@@ -21,6 +21,32 @@ export function getStageConfig(stage: ProspectStage | string | null) {
   return PROSPECT_STAGES.find(s => s.value === stage) || PROSPECT_STAGES[0];
 }
 
+export const PROSPECT_TYPES = [
+  { value: "prospect",     label: "Prospect",     textColor: "text-blue-600 dark:text-blue-400",     bgColor: "bg-blue-50 dark:bg-blue-950/30" },
+  { value: "influencer",   label: "Influencer",   textColor: "text-purple-600 dark:text-purple-400", bgColor: "bg-purple-50 dark:bg-purple-950/30" },
+  { value: "peer",         label: "Peer",         textColor: "text-amber-600 dark:text-amber-400",   bgColor: "bg-amber-50 dark:bg-amber-950/30" },
+  { value: "customer",     label: "Customer",     textColor: "text-emerald-600 dark:text-emerald-400", bgColor: "bg-emerald-50 dark:bg-emerald-950/30" },
+  { value: "door_opener",  label: "Door Opener",  textColor: "text-rose-600 dark:text-rose-400",     bgColor: "bg-rose-50 dark:bg-rose-950/30" },
+] as const;
+
+export type ProspectType = (typeof PROSPECT_TYPES)[number]["value"];
+
+export function getProspectTypeConfig(type: string) {
+  return PROSPECT_TYPES.find(t => t.value === type) || PROSPECT_TYPES[0];
+}
+
+export function ProspectTypeBadge({ type }: { type: string }) {
+  const config = getProspectTypeConfig(type);
+  return (
+    <span className={cn(
+      "inline-flex items-center rounded-full font-medium text-[8px] px-1.5 py-0.5",
+      config.textColor, config.bgColor,
+    )}>
+      {config.label}
+    </span>
+  );
+}
+
 export function StageBadge({ stage, size = "sm" }: { stage: ProspectStage | string | null; size?: "sm" | "xs" }) {
   const config = getStageConfig(stage);
   return (

@@ -59,12 +59,12 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
   const currentUserFromAuth = user?.name || user?.login || "unknown";
   // Find matching user in the users table to get the canonical name
   const matchedUser = allUsers.find(
-    (u) => u.github_username === user?.login || u.name === currentUserFromAuth
+    (u) => u.github_username === user?.login || u.microsoft_email === user?.login || u.name === currentUserFromAuth
   );
   const currentUser = matchedUser?.name || currentUserFromAuth;
   // Collect all possible names for ownership matching
   const currentUserAliases = [
-    user?.login, user?.name, matchedUser?.name, matchedUser?.github_username
+    user?.login, user?.name, matchedUser?.name, matchedUser?.github_username, matchedUser?.microsoft_email
   ].filter((n): n is string => !!n && n !== currentUser);
 
   // Reply state

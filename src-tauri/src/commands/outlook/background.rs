@@ -28,6 +28,7 @@ pub fn start_background_sync(app_handle: tauri::AppHandle) {
                 .unwrap_or(false);
 
             if initial_done {
+                // Email incremental sync
                 match sync::run_incremental_sync(&db, &app_handle).await {
                     Ok(count) => {
                         eprintln!("[outlook:bg] Sync done: {} new emails", count);
@@ -39,6 +40,25 @@ pub fn start_background_sync(app_handle: tauri::AppHandle) {
                             "outlook:sync-error",
                             serde_json::json!({ "error": e }),
                         );
+                    }
+                }
+
+                // Calendar sync — refresh last 1 month + next 2 months
+                let calendar_initial_done = db
+                    .get_sync_state("calendar_initial_sync_done")
+                    .ok()
+                    .flatten()
+                    .map(|v| v == "true")
+                    .unwrap_or(false);
+
+                if calendar_initial_done {
+                    match sync::run_calendar_sync(&db, &app_handle, 1).await {
+                        Ok(count) => {
+                            eprintln!("[outlook:bg] Calendar sync done: {} events", count);
+                        }
+                        Err(e) => {
+                            eprintln!("[outlook:bg] Calendar sync error: {}", e);
+                        }
                     }
                 }
             }

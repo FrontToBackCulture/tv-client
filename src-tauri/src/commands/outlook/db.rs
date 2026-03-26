@@ -664,6 +664,12 @@ impl EmailDb {
         Ok(events)
     }
 
+    pub fn get_event_count(&self) -> CmdResult<i64> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
+        conn.query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))
+    }
+
     /// Scan calendar events matching attendee emails or organizer domains
     pub fn scan_events_for_entity(
         &self,

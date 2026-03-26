@@ -1,6 +1,5 @@
 // Portal Conversations + Messages hooks
 
-import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import type {
@@ -31,7 +30,7 @@ export function useConversations(filters?: ConversationFilters) {
       if (error) throw new Error(`Failed to fetch conversations: ${error.message}`);
       return (data ?? []) as Conversation[];
     },
-    // Realtime (usePortalRealtime) handles live updates — no polling needed
+    // Realtime (useRealtimeSync) handles live updates — no polling needed
   });
 }
 
@@ -149,42 +148,4 @@ export function useUpdateConversation() {
       queryClient.invalidateQueries({ queryKey: portalKeys.conversations() });
     },
   });
-}
-
-export function usePortalRealtime() {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("portal-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "portal_messages" },
-        (payload) => {
-          const msg = payload.new as Message;
-          if (msg?.conversation_id) {
-            queryClient.invalidateQueries({
-              queryKey: portalKeys.messages(msg.conversation_id),
-            });
-          }
-          queryClient.invalidateQueries({
-            queryKey: portalKeys.conversations(),
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "portal_conversations" },
-        () => {
-          queryClient.invalidateQueries({
-            queryKey: portalKeys.conversations(),
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
 }

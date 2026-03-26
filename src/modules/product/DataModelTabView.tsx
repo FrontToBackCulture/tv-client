@@ -2,6 +2,7 @@
 // Data Model tab: browse entity schemas, scan domains for table presence,
 // view structural conformance (columns + order) against lab reference.
 
+import { formatError } from "@/lib/formatError";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Search,
@@ -501,7 +502,7 @@ export function DataModelTabView() {
 
               {scanMutation.isError && (
                 <span className="text-sm text-red-600 dark:text-red-400">
-                  Scan failed: {String(scanMutation.error)}
+                  Scan failed: {formatError(scanMutation.error)}
                 </span>
               )}
 

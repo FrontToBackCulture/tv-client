@@ -1,6 +1,7 @@
 // src/modules/product/DriveTabView.tsx
 // Drive tab — browse VAL Drive files per domain with folder navigation
 
+import { formatError } from "@/lib/formatError";
 import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   Search,
@@ -792,12 +793,12 @@ export function DriveTabView() {
                   {/* Error states */}
                   {foldersQuery.error && (
                     <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded">
-                      Folders error: {String(foldersQuery.error)}
+                      Folders error: {formatError(foldersQuery.error)}
                     </div>
                   )}
                   {filesQuery.error && (
                     <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded">
-                      Files error: {String(filesQuery.error)}
+                      Files error: {formatError(filesQuery.error)}
                     </div>
                   )}
                 </>

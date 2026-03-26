@@ -127,7 +127,14 @@ pub fn tools() -> Vec<Tool> {
                     "department": { "type": "string" },
                     "is_primary": { "type": "boolean", "description": "Set as primary contact for company" },
                     "notes": { "type": "string" },
-                    "linkedin_url": { "type": "string" }
+                    "linkedin_url": { "type": "string" },
+                    "prospect_stage": { "type": "string", "enum": ["new", "researched", "drafted", "sent", "opened", "replied"], "description": "Outbound prospect pipeline stage. Set to 'new' to add contact to outbound pipeline." },
+                    "prospect_type": { "type": "array", "items": { "type": "string", "enum": ["prospect", "influencer", "peer", "customer", "door_opener"] }, "description": "Classification tags: prospect, influencer, peer, customer, door_opener. Can have multiple." },
+                    "prospect_type_reason": { "type": "string", "description": "Justification for the prospect_type classification — why these tags were assigned" },
+                    "linkedin_connect_msg": { "type": "string", "description": "Message to send with LinkedIn connection request" },
+                    "linkedin_dm_msg": { "type": "string", "description": "Message to send if already connected on LinkedIn" },
+                    "email_outreach_msg": { "type": "string", "description": "Draft email outreach message" },
+                    "linkedin_connected": { "type": "boolean", "description": "Whether already connected on LinkedIn" }
                 }),
                 vec!["company_id".to_string(), "name".to_string(), "email".to_string()],
             ),
@@ -146,7 +153,14 @@ pub fn tools() -> Vec<Tool> {
                     "is_primary": { "type": "boolean" },
                     "is_active": { "type": "boolean" },
                     "notes": { "type": "string" },
-                    "linkedin_url": { "type": "string" }
+                    "linkedin_url": { "type": "string" },
+                    "prospect_stage": { "type": "string", "enum": ["new", "researched", "drafted", "sent", "opened", "replied"], "description": "Outbound prospect pipeline stage. Set to 'new' to add contact to outbound pipeline." },
+                    "prospect_type": { "type": "array", "items": { "type": "string", "enum": ["prospect", "influencer", "peer", "customer", "door_opener"] }, "description": "Classification tags: prospect, influencer, peer, customer, door_opener. Can have multiple." },
+                    "prospect_type_reason": { "type": "string", "description": "Justification for the prospect_type classification — why these tags were assigned" },
+                    "linkedin_connect_msg": { "type": "string", "description": "Message to send with LinkedIn connection request" },
+                    "linkedin_dm_msg": { "type": "string", "description": "Message to send if already connected on LinkedIn" },
+                    "email_outreach_msg": { "type": "string", "description": "Draft email outreach message" },
+                    "linkedin_connected": { "type": "boolean", "description": "Whether already connected on LinkedIn" }
                 }),
                 vec!["contact_id".to_string()],
             ),
@@ -276,7 +290,18 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             }
         }
         "create-crm-contact" => {
-            let data: CreateContact = match serde_json::from_value(args) {
+            let mut create_args = args.clone();
+            if let Some(obj) = create_args.as_object_mut() {
+                // Fix prospect_type if passed as JSON string instead of array
+                if let Some(val) = obj.get("prospect_type").cloned() {
+                    if let Some(s) = val.as_str() {
+                        if let Ok(parsed) = serde_json::from_str::<Vec<String>>(s) {
+                            obj.insert("prospect_type".to_string(), serde_json::json!(parsed));
+                        }
+                    }
+                }
+            }
+            let data: CreateContact = match serde_json::from_value(create_args) {
                 Ok(d) => d,
                 Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
             };
@@ -293,6 +318,14 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let mut data_args = args.clone();
             if let Some(obj) = data_args.as_object_mut() {
                 obj.remove("contact_id");
+                // Fix prospect_type if passed as JSON string instead of array
+                if let Some(val) = obj.get("prospect_type").cloned() {
+                    if let Some(s) = val.as_str() {
+                        if let Ok(parsed) = serde_json::from_str::<Vec<String>>(s) {
+                            obj.insert("prospect_type".to_string(), serde_json::json!(parsed));
+                        }
+                    }
+                }
             }
             let data: UpdateContact = match serde_json::from_value(data_args) {
                 Ok(d) => d,

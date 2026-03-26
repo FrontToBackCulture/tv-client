@@ -55,6 +55,11 @@ export interface TaskWithRelations extends Task {
   creator?: User | null;
   company?: Pick<CrmCompany, "id" | "name" | "display_name" | "stage"> | null;
   contact?: Pick<CrmContact, "id" | "name" | "email"> | null;
+  // Triage fields (from DB, may not be in generated types yet)
+  triage_score?: number | null;
+  triage_action?: "do_now" | "do_this_week" | "defer" | "delegate" | "kill" | null;
+  triage_reason?: string | null;
+  last_triaged_at?: string | null;
 }
 
 export interface ProjectWithStatuses extends Project {

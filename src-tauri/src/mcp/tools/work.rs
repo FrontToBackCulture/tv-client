@@ -173,7 +173,11 @@ pub fn tools() -> Vec<Tool> {
                     "requires_review": { "type": "boolean" },
                     "company_id": { "type": "string", "description": "CRM company UUID" },
                     "contact_id": { "type": "string", "description": "CRM contact UUID" },
-                    "task_type": { "type": "string", "enum": ["general", "target", "prospect", "follow_up"], "description": "Task type" }
+                    "task_type": { "type": "string", "enum": ["general", "target", "prospect", "follow_up"], "description": "Task type" },
+                    "triage_score": { "type": "integer", "description": "AI triage priority score 0-100 (higher = more urgent)" },
+                    "triage_action": { "type": "string", "enum": ["do_now", "do_this_week", "defer", "delegate", "kill"], "description": "Recommended triage action" },
+                    "triage_reason": { "type": "string", "description": "Justification for the triage score and action" },
+                    "last_triaged_at": { "type": "string", "description": "ISO timestamp of when task was last triaged" }
                 }),
                 vec!["task_id".to_string()],
             ),

@@ -177,6 +177,63 @@ pub async fn run_incremental_sync(
 }
 
 // ============================================================================
+// Calendar sync
+// ============================================================================
+
+/// Run calendar sync - fetches events for a sliding window and caches in SQLite
+/// Initial: past N months + next 2 months
+/// Incremental: past 1 month + next 2 months (refresh window)
+pub async fn run_calendar_sync(
+    db: &EmailDb,
+    app_handle: &tauri::AppHandle,
+    months_back: i64,
+) -> CmdResult<i64> {
+    use tauri::Emitter;
+
+    let graph = GraphClient::new();
+    let now = chrono::Utc::now();
+
+    let start = (now - chrono::Duration::days(months_back * 30)).format("%Y-%m-%dT00:00:00Z").to_string();
+    let end = (now + chrono::Duration::days(60)).format("%Y-%m-%dT23:59:59Z").to_string();
+
+    eprintln!(
+        "[outlook:calendar] Syncing events from {} to {} ({} months back)",
+        start, end, months_back
+    );
+
+    let events = match graph.fetch_events(5000, &start, &end).await {
+        Ok(events) => events,
+        Err(e) => {
+            eprintln!("[outlook:calendar] API fetch failed: {}", e);
+            return Err(e);
+        }
+    };
+
+    eprintln!("[outlook:calendar] Got {} events from API", events.len());
+
+    // Clear old events in the sync range and upsert fresh data
+    let _ = db.delete_events_in_range(&start, &end);
+
+    let mut synced = 0i64;
+    for event in &events {
+        let cal_event = super::commands::graph_event_to_calendar_event_from_ref(event);
+        let _ = db.upsert_event(&cal_event);
+        synced += 1;
+    }
+
+    let now_str = chrono::Utc::now().to_rfc3339();
+    db.set_sync_state("calendar_last_sync", &now_str)?;
+    db.set_sync_state("calendar_initial_sync_done", "true")?;
+
+    let _ = app_handle.emit("outlook:calendar-sync-complete", serde_json::json!({
+        "eventsSynced": synced,
+        "timestamp": now_str,
+    }));
+
+    Ok(synced)
+}
+
+// ============================================================================
 // Lazy body fetch
 // ============================================================================
 

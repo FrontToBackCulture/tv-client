@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Send, Eye, Edit3, Globe, Users, CheckCircle } from "lucide-react";
+import { formatError } from "@/lib/formatError";
 import { Button } from "../../components/ui";
 import { cn } from "../../lib/cn";
 import { useCreateLinkedInPost } from "../../hooks/useLinkedIn";
@@ -109,7 +110,7 @@ export function ComposeView() {
 
             {createPost.error && (
               <span className="text-xs text-red-500">
-                {String(createPost.error)}
+                {formatError(createPost.error)}
               </span>
             )}
 

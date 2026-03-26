@@ -36,6 +36,8 @@ pub struct OrderFormData {
     pub subscription_end_date: String,
     pub subscription_fee: String,
     pub service_term: String,
+    pub billing_cycle: String,
+    pub annual_subscription_fee: String,
 
     // Entitlement
     pub feature_plan: String,
@@ -138,6 +140,13 @@ pub fn parse_order_form_markdown(markdown: &str) -> CmdResult<OrderFormData> {
         .trim_matches('"')
         .to_string();
     data.service_term = yaml_values.get("serviceTerm").cloned().unwrap_or_default();
+    data.billing_cycle = yaml_values.get("billingCycle").cloned().unwrap_or_default();
+    data.annual_subscription_fee = yaml_values
+        .get("annualSubscriptionFee")
+        .cloned()
+        .unwrap_or_default()
+        .trim_matches('"')
+        .to_string();
 
     // Entitlement
     data.feature_plan = yaml_values.get("featurePlan").cloned().unwrap_or_default();
@@ -540,6 +549,21 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         String::new()
     };
 
+    // Build subscription fee description (dynamic based on billing cycle)
+    let subscription_fee_desc = if !data.billing_cycle.is_empty() && !data.annual_subscription_fee.is_empty() {
+        format!(
+            "SGD${fee} per annum ({cycle} billing, exclusive of any GST imposed in Singapore), payable in advance before the start of each period. Details of the payment schedule is attached in the order form hereto (&quot;Subscription Fee Payment Schedule&quot;). Customer may opt for annual billing at SGD${annual}/year by notifying VAL at least 1 month before the current quarter ends, effective from the following quarter.",
+            fee = data.subscription_fee,
+            cycle = data.billing_cycle.to_lowercase(),
+            annual = data.annual_subscription_fee,
+        )
+    } else {
+        format!(
+            "SGD${fee} per annum (exclusive of any GST imposed in Singapore), payable in advance before the start of each period. Details of the payment schedule is attached in the order form hereto (&quot;Subscription Fee Payment Schedule&quot;)",
+            fee = data.subscription_fee,
+        )
+    };
+
     // Conditionally render outlets line
     let outlets_line = if data.number_of_outlets.is_empty() {
         String::new()
@@ -938,7 +962,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
     <table class="details-table">
       <tr>
         <td class="details-left">
-          <strong>Subscription Fee:</strong> SGD${subscription_fee} per annum (exclusive of any GST imposed in Singapore), payable in advance before the start of each period, subject to the terms of Section 4 herein. Details of the payment schedule is attached in the order form hereto ("Subscription Fee Payment Schedule")
+          <strong>Subscription Fee:</strong> {subscription_fee_desc}
         </td>
         <td class="details-right">
           <strong>Service Term:</strong> {service_term}
@@ -1042,7 +1066,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
         contact_email = data.contact_email,
         subscription_start_date = data.subscription_start_date,
         subscription_end_date = data.subscription_end_date,
-        subscription_fee = data.subscription_fee,
+        subscription_fee_desc = subscription_fee_desc,
         service_term = data.service_term,
         solutions = data.solutions,
         outlets_line = outlets_line,

@@ -1,6 +1,7 @@
 // src/modules/inbox/InboxModule.tsx
 
 import { useState, useEffect, useMemo } from "react";
+import { formatError } from "@/lib/formatError";
 import {
   useEmails,
   useEmail,
@@ -161,7 +162,7 @@ export function InboxModule() {
         <EmptyInbox
           onRefresh={() => handleRefresh()}
           isSyncing={isSyncing || syncStart.isPending}
-          syncError={emailsError ? String(emailsError) : syncEventError || (syncStart.error ? String(syncStart.error) : null)}
+          syncError={emailsError ? formatError(emailsError) : syncEventError || (syncStart.error ? formatError(syncStart.error) : null)}
           syncProgress={syncProgress}
         />
       </div>
@@ -192,7 +193,7 @@ export function InboxModule() {
     : undefined;
 
   const isAnySyncing = isSyncing || syncStart.isPending;
-  const syncErrorMsg = syncEventError || (syncStart.error ? String(syncStart.error) : null);
+  const syncErrorMsg = syncEventError || (syncStart.error ? formatError(syncStart.error) : null);
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">

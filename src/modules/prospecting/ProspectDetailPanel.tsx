@@ -1,20 +1,36 @@
 // Prospect detail panel — contact info, stage, drafts, sent history + tracking
 
 import { useState, useEffect } from "react";
-import { X, Send, FlaskConical, Trash2, Mail, ChevronRight, ExternalLink, UserMinus } from "lucide-react";
+import { X, Send, FlaskConical, Trash2, Mail, ChevronRight, ExternalLink, UserMinus, Copy, Check } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { toast } from "../../stores/toastStore";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import { crmKeys } from "../../hooks/crm/keys";
 import { useEmailDrafts, useSendDraft, useDeleteDraft, useUpdateDraft, useDraftTracking } from "../../hooks/email/useDrafts";
 import { useUpdateProspectStage } from "../../hooks/prospecting";
-import { PROSPECT_STAGES, StageBadge, type ProspectStage } from "./ProspectingComponents";
+import { prospectKeys } from "../../hooks/prospecting";
+import { PROSPECT_STAGES, PROSPECT_TYPES, StageBadge, type ProspectStage } from "./ProspectingComponents";
 import type { EmailDraft } from "../../hooks/email/useDrafts";
 
 interface ProspectDetailPanelProps {
   contactId: string;
   onClose: () => void;
+}
+
+// ── Copy button ──────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); toast.success("Copied"); setTimeout(() => setCopied(false), 1500); }}
+      className="flex-shrink-0 p-1 rounded text-zinc-400 hover:text-teal-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+      title="Copy to clipboard"
+    >
+      {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+    </button>
+  );
 }
 
 // ── Sent email row with tracking ──────────────────────────
@@ -109,9 +125,22 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
   const updateDraft = useUpdateDraft();
   const updateStage = useUpdateProspectStage();
 
+  const queryClient = useQueryClient();
+
   const [draftTestEmail, setDraftTestEmail] = useState("");
   const [draftTestOpen, setDraftTestOpen] = useState<string | null>(null);
   const [expandedSent, setExpandedSent] = useState<string | null>(null);
+
+  // Inline contact field updater
+  const updateContactField = async (field: string, value: any) => {
+    const { error } = await supabase
+      .from("crm_contacts")
+      .update({ [field]: value, updated_at: new Date().toISOString() })
+      .eq("id", contactId);
+    if (error) { toast.error(`Failed to update: ${error.message}`); return; }
+    queryClient.invalidateQueries({ queryKey: crmKeys.contact(contactId) });
+    queryClient.invalidateQueries({ queryKey: prospectKeys.all });
+  };
 
   const pendingDrafts = allDrafts.filter(d => d.status === "draft");
   const sentEmails = allDrafts.filter(d => d.status === "sent" || d.status === "failed");
@@ -207,6 +236,136 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
                 "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
               )}>{contact.email_status}</span>
             </>}
+          </div>
+        </div>
+
+        {/* Prospect Type */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Type</div>
+          <div className="flex flex-wrap gap-1">
+            {PROSPECT_TYPES.map(pt => {
+              const active = (contact.prospect_type || []).includes(pt.value);
+              return (
+                <button
+                  key={pt.value}
+                  onClick={() => {
+                    const current: string[] = contact.prospect_type || [];
+                    const next = active ? current.filter(t => t !== pt.value) : [...current, pt.value];
+                    updateContactField("prospect_type", next);
+                  }}
+                  className={cn(
+                    "text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors border",
+                    active
+                      ? `${pt.bgColor} ${pt.textColor} border-current`
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-transparent hover:border-zinc-300 dark:hover:border-zinc-600",
+                  )}
+                >
+                  {pt.label}
+                </button>
+              );
+            })}
+          </div>
+          {/* Type Reason */}
+          {contact.prospect_type_reason && (
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 italic">
+              {contact.prospect_type_reason}
+            </p>
+          )}
+          <textarea
+            placeholder="Why this classification..."
+            defaultValue={contact.prospect_type_reason || ""}
+            onBlur={(e) => {
+              if (e.target.value !== (contact.prospect_type_reason || "")) {
+                updateContactField("prospect_type_reason", e.target.value);
+              }
+            }}
+            className="w-full text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1.5 mt-1 resize-none"
+            rows={2}
+          />
+        </div>
+
+        {/* LinkedIn Connected Toggle */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">LinkedIn</div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <button
+              onClick={() => updateContactField("linkedin_connected", !contact.linkedin_connected)}
+              className={cn(
+                "relative inline-flex h-4 w-7 items-center rounded-full transition-colors",
+                contact.linkedin_connected ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-600",
+              )}
+            >
+              <span className={cn(
+                "inline-block h-3 w-3 rounded-full bg-white transition-transform",
+                contact.linkedin_connected ? "translate-x-3.5" : "translate-x-0.5",
+              )} />
+            </button>
+            <span className="text-[11px] text-zinc-600 dark:text-zinc-300">
+              {contact.linkedin_connected ? "Connected" : "Not connected"}
+            </span>
+          </label>
+        </div>
+
+        {/* Outreach Messages */}
+        <div className="space-y-3">
+          <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Outreach Messages</div>
+
+          {/* LinkedIn Connect Message — shown when NOT connected */}
+          {!contact.linkedin_connected && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-zinc-500">LinkedIn Connect Message</span>
+                {contact.linkedin_connect_msg && <CopyButton text={contact.linkedin_connect_msg} />}
+              </div>
+              <textarea
+                defaultValue={contact.linkedin_connect_msg || ""}
+                onBlur={(e) => {
+                  if (e.target.value !== (contact.linkedin_connect_msg || ""))
+                    updateContactField("linkedin_connect_msg", e.target.value || null);
+                }}
+                rows={3}
+                placeholder="Message to send with connection request..."
+                className="w-full px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+              />
+            </div>
+          )}
+
+          {/* LinkedIn DM Message — shown when connected */}
+          {contact.linkedin_connected && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-zinc-500">LinkedIn DM Message</span>
+                {contact.linkedin_dm_msg && <CopyButton text={contact.linkedin_dm_msg} />}
+              </div>
+              <textarea
+                defaultValue={contact.linkedin_dm_msg || ""}
+                onBlur={(e) => {
+                  if (e.target.value !== (contact.linkedin_dm_msg || ""))
+                    updateContactField("linkedin_dm_msg", e.target.value || null);
+                }}
+                rows={3}
+                placeholder="Message to send via LinkedIn DM..."
+                className="w-full px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+              />
+            </div>
+          )}
+
+          {/* Email Outreach Message */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-zinc-500">Email Outreach Message</span>
+              {contact.email_outreach_msg && <CopyButton text={contact.email_outreach_msg} />}
+            </div>
+            <textarea
+              defaultValue={contact.email_outreach_msg || ""}
+              onBlur={(e) => {
+                if (e.target.value !== (contact.email_outreach_msg || ""))
+                  updateContactField("email_outreach_msg", e.target.value || null);
+              }}
+              rows={4}
+              placeholder="Draft email outreach message..."
+              className="w-full px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+            />
           </div>
         </div>
 

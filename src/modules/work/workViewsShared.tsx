@@ -315,6 +315,24 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel }: {
         </span>
       )}
       <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
+      {task.triage_action && (
+        <span
+          className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${
+            task.triage_action === "do_now" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+            task.triage_action === "do_this_week" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+            task.triage_action === "defer" ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" :
+            task.triage_action === "delegate" ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400" :
+            "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500 line-through"
+          }`}
+          title={task.triage_reason || `Score: ${task.triage_score}`}
+        >
+          {task.triage_action === "do_now" ? "Now" :
+           task.triage_action === "do_this_week" ? "This Week" :
+           task.triage_action === "defer" ? "Defer" :
+           task.triage_action === "delegate" ? "Delegate" : "Kill"}
+          {task.triage_score != null && <span className="ml-1 opacity-60">{task.triage_score}</span>}
+        </span>
+      )}
       {task.task_type && task.task_type !== "general" && (
         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${
           task.task_type === "target" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :

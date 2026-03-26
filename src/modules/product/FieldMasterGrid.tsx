@@ -1,6 +1,7 @@
 // src/modules/product/FieldMasterGrid.tsx
 // AG Grid for viewing/editing the cross-entity field master with auto-save + propagation
 
+import { formatError } from "@/lib/formatError";
 import {
   useState,
   useCallback,
@@ -474,7 +475,7 @@ export function FieldMasterGrid({ entitiesPath }: FieldMasterGridProps) {
           </button>
           {buildMutation.isError && (
             <p className="mt-2 text-sm text-red-600">
-              {String(buildMutation.error)}
+              {formatError(buildMutation.error)}
             </p>
           )}
         </div>

@@ -66,7 +66,7 @@ export function NotificationBell({ collapsed = false, variant = "sidebar" }: Not
   const user = useAuth((s) => s.user);
   const { data: allUsers = [] } = useUsers();
   const matchedUser = allUsers.find(
-    (u) => u.github_username === user?.login || u.name === (user?.name || user?.login)
+    (u) => u.github_username === user?.login || u.microsoft_email === user?.login || u.name === (user?.name || user?.login)
   );
   const currentUser = matchedUser?.name || user?.name || user?.login || "";
 

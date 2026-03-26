@@ -2,6 +2,7 @@
 // Dialog for adding a domain table to the Data Model (generates schema.json)
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import { formatError } from "@/lib/formatError";
 import { Database, X, CheckCircle } from "lucide-react";
 import { Button, IconButton } from "../../components/ui";
 import type { ReviewRow as TableInfo } from "./reviewTypes";
@@ -194,9 +195,7 @@ export function AddToDataModelDialog({
           {createSchema.isError && (
             <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
               <p className="text-xs text-red-600 dark:text-red-400">
-                {createSchema.error instanceof Error
-                  ? createSchema.error.message
-                  : String(createSchema.error)}
+                {formatError(createSchema.error)}
               </p>
             </div>
           )}

@@ -275,6 +275,15 @@ pub struct Task {
     pub task_type: Option<String>, // general, target, prospect, follow_up
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_type_changed_at: Option<String>,
+    // Triage fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triage_score: Option<i32>, // 0-100 priority score
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triage_action: Option<String>, // do_now, do_this_week, defer, delegate, kill
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triage_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_triaged_at: Option<String>,
     // Notion sync
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notion_page_id: Option<String>,
@@ -348,6 +357,15 @@ pub struct UpdateTask {
     pub contact_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_type: Option<String>,
+    // Triage fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triage_score: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triage_action: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triage_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_triaged_at: Option<String>,
 }
 
 // ============================================================================

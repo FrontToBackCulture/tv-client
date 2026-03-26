@@ -25,8 +25,20 @@ export function useUsers(type?: "human" | "bot") {
 }
 
 export function useCurrentUserId(): string | null {
-  const login = useAuth((s) => s.user?.login ?? null);
+  const appUser = useAuth((s) => s.user);
   const { data: users = [] } = useUsers();
-  if (!login) return null;
-  return users.find(u => u.github_username === login)?.id ?? null;
+  if (!appUser) return null;
+  const login = appUser.login;
+  const email = appUser.email;
+  const name = appUser.name;
+  const match =
+    users.find(u => u.github_username === login) ||
+    users.find(u => u.microsoft_email === login) ||
+    users.find(u => u.microsoft_email === email) ||
+    users.find(u => u.email === email && email) ||
+    users.find(u => u.name === name);
+  if (!match && users.length > 0) {
+    console.warn("[useCurrentUserId] No match found.", { login, email, name, usersCount: users.length, sampleUser: users[0] ? { gh: users[0].github_username, ms: users[0].microsoft_email, email: users[0].email, name: users[0].name } : null });
+  }
+  return match?.id ?? null;
 }

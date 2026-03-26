@@ -1,4 +1,4 @@
-export { emailKeys, useEmailRealtime } from "./keys";
+export { emailKeys } from "./keys";
 export {
   useEmailContacts,
   useEmailContact,

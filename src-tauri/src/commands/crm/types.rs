@@ -130,6 +130,20 @@ pub struct Contact {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email_status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub prospect_stage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prospect_type: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prospect_type_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linkedin_connect_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linkedin_dm_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email_outreach_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linkedin_connected: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
@@ -155,6 +169,20 @@ pub struct CreateContact {
     pub notes: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linkedin_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prospect_stage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prospect_type: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prospect_type_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linkedin_connect_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linkedin_dm_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email_outreach_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linkedin_connected: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -177,6 +205,20 @@ pub struct UpdateContact {
     pub notes: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linkedin_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prospect_stage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prospect_type: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prospect_type_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linkedin_connect_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linkedin_dm_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email_outreach_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linkedin_connected: Option<bool>,
 }
 
 // ============================================================================

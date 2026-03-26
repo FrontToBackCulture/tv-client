@@ -8,7 +8,9 @@ import {
   CheckCircle2, AlertTriangle, Circle, Loader2, ExternalLink,
   Send, Bot, Boxes, ChevronDown, Microscope,
   Tag, Terminal, Globe, PenTool, Eye, Copy, GitBranch, History,
+  AppWindow,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { Button, IconButton } from "../../components/ui";
 import { SectionLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
@@ -146,6 +148,9 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
     if (!selectedPath || !skillPath) return selectedNode?.name ?? "";
     return selectedPath.replace(skillPath + "/", "");
   }, [selectedPath, skillPath, selectedNode]);
+
+  // File tree context menu
+  const [fileCtxMenu, setFileCtxMenu] = useState<{ x: number; y: number; path: string; isDirectory: boolean } | null>(null);
 
   // Sidebar width (resizable)
   const [sidebarWidth, setSidebarWidth] = useState(180);
@@ -319,10 +324,23 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
                   skillPath={skillPath}
                   selectedPath={selectedPath ?? undefined}
                   onSelect={(file) => setSelectedPath(file.path)}
+                  onContextMenu={(e, path, isDirectory) => {
+                    e.preventDefault();
+                    setFileCtxMenu({ x: e.clientX, y: e.clientY, path, isDirectory });
+                  }}
                 />
               ))
             ) : (
               <SectionLoading className="py-4" />
+            )}
+            {fileCtxMenu && (
+              <FileTreeContextMenu
+                x={fileCtxMenu.x}
+                y={fileCtxMenu.y}
+                path={fileCtxMenu.path}
+                isDirectory={fileCtxMenu.isDirectory}
+                onClose={() => setFileCtxMenu(null)}
+              />
             )}
           </div>
 
@@ -341,10 +359,21 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
                   {selectedRelPath}
                 </span>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {onOpenFile && selectedPath && (
+                  {selectedPath && (
                     <>
-                      <IconButton icon={Eye} label="Preview" size={14} onClick={() => {}} className="text-zinc-400" />
-                      <IconButton icon={PenTool} label="Edit" size={14} onClick={() => onOpenFile(selectedPath)} className="text-zinc-400" />
+                      {onOpenFile && (
+                        <>
+                          <IconButton icon={Eye} label="Preview" size={14} onClick={() => {}} className="text-zinc-400" />
+                          <IconButton icon={PenTool} label="Edit" size={14} onClick={() => onOpenFile(selectedPath)} className="text-zinc-400" />
+                        </>
+                      )}
+                      <IconButton
+                        icon={AppWindow}
+                        label="Open with default app"
+                        size={14}
+                        onClick={() => invoke("open_with_default_app", { path: selectedPath })}
+                        className="text-zinc-400"
+                      />
                       <IconButton
                         icon={Copy}
                         label="Copy path"
@@ -467,12 +496,13 @@ function MetaChip({ icon: Icon, label, mono }: { icon: typeof Tag; label: string
 
 // ─── File Tree ───────────────────────────────────────────────────────────────
 
-function FileTreeRow({ node, depth, skillPath, selectedPath, onSelect }: {
+function FileTreeRow({ node, depth, skillPath, selectedPath, onSelect, onContextMenu }: {
   node: TreeNode;
   depth: number;
   skillPath: string | undefined;
   selectedPath?: string;
   onSelect: (file: TreeNode) => void;
+  onContextMenu?: (e: React.MouseEvent, path: string, isDirectory: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState(depth < 1);
   const hasChildren = node.is_directory && node.children && node.children.length > 0;
@@ -485,6 +515,7 @@ function FileTreeRow({ node, depth, skillPath, selectedPath, onSelect }: {
           if (node.is_directory) setExpanded(!expanded);
           else onSelect(node);
         }}
+        onContextMenu={(e) => onContextMenu?.(e, node.path, node.is_directory)}
         className={cn(
           "w-full flex items-center gap-1.5 py-1 text-left transition-colors",
           isSelected
@@ -518,8 +549,66 @@ function FileTreeRow({ node, depth, skillPath, selectedPath, onSelect }: {
         </span>
       </button>
       {expanded && hasChildren && node.children!.map((child) => (
-        <FileTreeRow key={child.path} node={child} depth={depth + 1} skillPath={skillPath} selectedPath={selectedPath} onSelect={onSelect} />
+        <FileTreeRow key={child.path} node={child} depth={depth + 1} skillPath={skillPath} selectedPath={selectedPath} onSelect={onSelect} onContextMenu={onContextMenu} />
       ))}
+    </>
+  );
+}
+
+// ─── File Tree Context Menu ──────────────────────────────────────────────────
+
+function FileTreeContextMenu({ x, y, path, isDirectory, onClose }: {
+  x: number;
+  y: number;
+  path: string;
+  isDirectory: boolean;
+  onClose: () => void;
+}) {
+  const handleOpenWithDefault = async () => {
+    try { await invoke("open_with_default_app", { path }); } catch (err) { console.error("Failed to open:", err); }
+    onClose();
+  };
+  const handleShowInFinder = async () => {
+    try { await invoke("open_in_finder", { path }); } catch (err) { console.error("Failed to show in Finder:", err); }
+    onClose();
+  };
+  const handleCopyPath = async () => {
+    await navigator.clipboard.writeText(path);
+    onClose();
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div
+        className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px]"
+        style={{ left: x, top: y }}
+      >
+        {!isDirectory && (
+          <button
+            onClick={handleOpenWithDefault}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <AppWindow size={14} />
+            Open with Default App
+          </button>
+        )}
+        <button
+          onClick={handleShowInFinder}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <FolderOpen size={14} />
+          Show in Finder
+        </button>
+        <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+        <button
+          onClick={handleCopyPath}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <Copy size={14} />
+          Copy Path
+        </button>
+      </div>
     </>
   );
 }

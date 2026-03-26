@@ -5,7 +5,6 @@ import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { MessageSquare, AlertTriangle, Megaphone, BookOpen } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
-import { usePortalRealtime } from "../../hooks/portal";
 import { ConversationsView } from "./ConversationsView";
 import { AnnouncementsView } from "./AnnouncementsView";
 import { HelpCenterView } from "./HelpCenterView";
@@ -26,9 +25,6 @@ export function PortalModule() {
   const containerRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(50);
-
-  // Realtime subscriptions
-  usePortalRealtime();
 
   // View context for help bot
   const setViewContext = useViewContextStore((s) => s.setView);

@@ -20,6 +20,12 @@ export interface ProspectContact {
   prospect_stage: ProspectStage;
   notes: string | null;
   is_primary: boolean | null;
+  prospect_type: string[] | null;
+  prospect_type_reason: string | null;
+  linkedin_connect_msg: string | null;
+  linkedin_dm_msg: string | null;
+  email_outreach_msg: string | null;
+  linkedin_connected: boolean | null;
   created_at: string;
   updated_at: string | null;
   company_name?: string;

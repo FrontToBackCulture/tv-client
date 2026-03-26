@@ -34,7 +34,8 @@ import { GitHubSyncConfigEditor } from "./GitHubSyncConfigEditor";
 import { Button } from "../../components/ui";
 
 export function GitHubSyncPanel() {
-  const { accessToken } = useAuth();
+  const { accessToken, provider } = useAuth();
+  const githubToken = provider === "github" ? accessToken : null;
   const { data: config, isLoading: configLoading } = useGitHubSyncConfig();
   const importConfig = useGitHubSyncImportConfig();
   const initDefault = useGitHubSyncInitDefault();
@@ -53,7 +54,7 @@ export function GitHubSyncPanel() {
 
   const hasConfig = config && config.repositories.length > 0;
 
-  if (!accessToken) {
+  if (!githubToken) {
     return (
       <div className="max-w-3xl mx-auto p-6 space-y-4">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
@@ -192,7 +193,7 @@ export function GitHubSyncPanel() {
             branch={repo.branch}
             mappingCount={repo.mappings.length}
             ruleCount={repo.rules.length}
-            token={accessToken}
+            token={githubToken!}
           />
         ))}
     </div>

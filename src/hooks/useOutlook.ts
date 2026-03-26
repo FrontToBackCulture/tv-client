@@ -209,3 +209,34 @@ export function useSyncStart() {
   });
 }
 
+// ============================================================================
+// Calendar sync hooks
+// ============================================================================
+
+export interface CalendarSyncStatus {
+  isSyncing: boolean;
+  lastSync: string | null;
+  eventsSynced: number;
+  error: string | null;
+}
+
+export function useCalendarSyncStatus() {
+  return useQuery({
+    queryKey: ["outlook", "calendar-sync-status"],
+    queryFn: () => invoke<CalendarSyncStatus>("outlook_calendar_sync_status"),
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useCalendarSyncStart() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (months?: number) => invoke<number>("outlook_calendar_sync_start", { months: months ?? 6 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["outlook", "calendar-sync-status"] });
+      queryClient.invalidateQueries({ queryKey: ["outlook", "events"] });
+    },
+  });
+}
+

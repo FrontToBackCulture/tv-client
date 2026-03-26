@@ -104,6 +104,7 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
 
   const [showScan, setShowScan] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [lookbackMonths, setLookbackMonths] = useState(3);
 
   async function handleScan() {
     setShowScan(true);
@@ -158,7 +159,14 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
     });
   }
 
-  const newCandidates = (scanResults ?? []).filter((c) => !c.already_linked);
+  // Filter scan results by lookback period and exclude already-linked
+  const cutoffDate = new Date();
+  cutoffDate.setMonth(cutoffDate.getMonth() - lookbackMonths);
+  const newCandidates = (scanResults ?? []).filter(
+    (c) =>
+      !c.already_linked &&
+      (!c.startAt || new Date(c.startAt) >= cutoffDate)
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -167,14 +175,27 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
         <span className="text-xs text-zinc-400 dark:text-zinc-500">
           {linkedEvents?.length ?? 0} linked events
         </span>
-        <button
-          onClick={handleScan}
-          disabled={isScanning}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-teal-50 text-teal-700 hover:bg-teal-100 dark:bg-teal-900/30 dark:text-teal-400 dark:hover:bg-teal-900/50 transition-colors disabled:opacity-50"
-        >
-          {isScanning ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
-          Scan
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={lookbackMonths}
+            onChange={(e) => setLookbackMonths(parseInt(e.target.value))}
+            className="text-[10px] px-1.5 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+          >
+            <option value={1}>Last 1 month</option>
+            <option value={3}>Last 3 months</option>
+            <option value={6}>Last 6 months</option>
+            <option value={12}>Last 12 months</option>
+            <option value={999}>All time</option>
+          </select>
+          <button
+            onClick={handleScan}
+            disabled={isScanning}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-teal-50 text-teal-700 hover:bg-teal-100 dark:bg-teal-900/30 dark:text-teal-400 dark:hover:bg-teal-900/50 transition-colors disabled:opacity-50"
+          >
+            {isScanning ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
+            Scan
+          </button>
+        </div>
       </div>
 
       {/* Scan results overlay */}

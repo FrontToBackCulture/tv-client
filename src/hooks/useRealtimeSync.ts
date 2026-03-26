@@ -1,15 +1,12 @@
 // src/hooks/useRealtimeSync.ts
 // Subscribe to Supabase Realtime for automatic UI updates when data changes
+// All Supabase-backed tables are subscribed here at app level so updates
+// are received regardless of which module is currently mounted.
 
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-
-// Tables to watch and their corresponding query keys (reference for documentation)
-const _CRM_TABLES = ["crm_companies", "crm_contacts", "crm_activities"];
-const _WORK_TABLES = ["tasks", "projects", "initiatives", "milestones", "project_updates"];
-void _CRM_TABLES; void _WORK_TABLES; // Suppress unused warnings
 
 export function useRealtimeSync() {
   const queryClient = useQueryClient();
@@ -17,239 +14,209 @@ export function useRealtimeSync() {
   useEffect(() => {
     const channels: RealtimeChannel[] = [];
 
-    // Subscribe to CRM tables
+    // Helper to reduce boilerplate
+    const pg = (table: string) =>
+      ({ event: "*", schema: "public", table } as const);
+
+    // ── CRM ──────────────────────────────────────────────────────────
     const crmChannel = supabase
       .channel("crm-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "crm_companies",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["crm", "companies"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "crm_contacts",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["crm", "contacts"] });
-          queryClient.invalidateQueries({ queryKey: ["crm", "companies"] }); // Contacts affect company details
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "crm_activities",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["crm", "activities"] });
-          queryClient.invalidateQueries({ queryKey: ["crm", "companies"] }); // Activities shown in company detail
-        }
-      )
+      .on("postgres_changes", pg("crm_companies"), () => {
+        queryClient.invalidateQueries({ queryKey: ["crm", "companies"] });
+      })
+      .on("postgres_changes", pg("crm_contacts"), () => {
+        queryClient.invalidateQueries({ queryKey: ["crm", "contacts"] });
+        queryClient.invalidateQueries({ queryKey: ["crm", "companies"] });
+      })
+      .on("postgres_changes", pg("crm_activities"), () => {
+        queryClient.invalidateQueries({ queryKey: ["crm", "activities"] });
+        queryClient.invalidateQueries({ queryKey: ["crm", "companies"] });
+      })
       .subscribe();
-
     channels.push(crmChannel);
 
-    // Subscribe to Work tables
+    // ── Work ─────────────────────────────────────────────────────────
     const workChannel = supabase
       .channel("work-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "tasks",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["work", "tasks"] });
-          queryClient.invalidateQueries({ queryKey: ["crm", "deal-tasks"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "projects",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["work", "projects"] });
-          // Projects table now contains deals and workspaces too
-          queryClient.invalidateQueries({ queryKey: ["crm", "deals"] });
-          queryClient.invalidateQueries({ queryKey: ["crm", "pipeline"] });
-          queryClient.invalidateQueries({ queryKey: ["crm", "companies"] });
-          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "initiatives",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["work", "initiatives"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "milestones",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["work", "milestones"] });
-          queryClient.invalidateQueries({ queryKey: ["work", "projects"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "project_updates",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["work", "project-updates"] });
-          queryClient.invalidateQueries({ queryKey: ["work", "projects"] });
-        }
-      )
+      .on("postgres_changes", pg("tasks"), () => {
+        queryClient.invalidateQueries({ queryKey: ["work", "tasks"] });
+        queryClient.invalidateQueries({ queryKey: ["crm", "deal-tasks"] });
+      })
+      .on("postgres_changes", pg("projects"), () => {
+        queryClient.invalidateQueries({ queryKey: ["work", "projects"] });
+        queryClient.invalidateQueries({ queryKey: ["crm", "deals"] });
+        queryClient.invalidateQueries({ queryKey: ["crm", "pipeline"] });
+        queryClient.invalidateQueries({ queryKey: ["crm", "companies"] });
+        queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      })
+      .on("postgres_changes", pg("initiatives"), () => {
+        queryClient.invalidateQueries({ queryKey: ["work", "initiatives"] });
+      })
+      .on("postgres_changes", pg("milestones"), () => {
+        queryClient.invalidateQueries({ queryKey: ["work", "milestones"] });
+        queryClient.invalidateQueries({ queryKey: ["work", "projects"] });
+      })
+      .on("postgres_changes", pg("project_updates"), () => {
+        queryClient.invalidateQueries({ queryKey: ["work", "project-updates"] });
+        queryClient.invalidateQueries({ queryKey: ["work", "projects"] });
+      })
       .subscribe();
-
     channels.push(workChannel);
 
-    // Subscribe to API task logs (Slack-triggered skills)
+    // ── Email ────────────────────────────────────────────────────────
+    const emailChannel = supabase
+      .channel("email-changes")
+      .on("postgres_changes", pg("email_contacts"), () => {
+        queryClient.invalidateQueries({ queryKey: ["email", "contacts"] });
+      })
+      .on("postgres_changes", pg("email_groups"), () => {
+        queryClient.invalidateQueries({ queryKey: ["email", "groups"] });
+      })
+      .on("postgres_changes", pg("email_contact_groups"), () => {
+        queryClient.invalidateQueries({ queryKey: ["email", "contacts"] });
+        queryClient.invalidateQueries({ queryKey: ["email", "groups"] });
+      })
+      .on("postgres_changes", pg("email_campaigns"), () => {
+        queryClient.invalidateQueries({ queryKey: ["email", "campaigns"] });
+      })
+      .on("postgres_changes", pg("email_events"), () => {
+        queryClient.invalidateQueries({ queryKey: ["email", "events"] });
+        queryClient.invalidateQueries({ queryKey: ["email", "campaigns"] });
+      })
+      .on("postgres_changes", pg("email_drafts"), () => {
+        queryClient.invalidateQueries({ queryKey: ["email", "drafts"] });
+      })
+      .subscribe();
+    channels.push(emailChannel);
+
+    // ── Portal ───────────────────────────────────────────────────────
+    const portalChannel = supabase
+      .channel("portal-changes")
+      .on("postgres_changes", pg("portal_conversations"), () => {
+        queryClient.invalidateQueries({ queryKey: ["portal", "conversations"] });
+      })
+      .on("postgres_changes", pg("portal_messages"), () => {
+        queryClient.invalidateQueries({ queryKey: ["portal", "messages"] });
+        queryClient.invalidateQueries({ queryKey: ["portal", "conversations"] });
+      })
+      .on("postgres_changes", pg("portal_sites"), () => {
+        queryClient.invalidateQueries({ queryKey: ["portal", "sites"] });
+      })
+      .on("postgres_changes", pg("portal_banners"), () => {
+        queryClient.invalidateQueries({ queryKey: ["portal", "banners"] });
+      })
+      .on("postgres_changes", pg("portal_popups"), () => {
+        queryClient.invalidateQueries({ queryKey: ["portal", "popups"] });
+      })
+      .on("postgres_changes", pg("portal_changelog"), () => {
+        queryClient.invalidateQueries({ queryKey: ["portal", "changelog"] });
+      })
+      .on("postgres_changes", pg("portal_docs"), () => {
+        queryClient.invalidateQueries({ queryKey: ["portal", "docs"] });
+      })
+      .subscribe();
+    channels.push(portalChannel);
+
+    // ── Product ──────────────────────────────────────────────────────
+    const productChannel = supabase
+      .channel("product-changes")
+      .on("postgres_changes", pg("product_modules"), () => {
+        queryClient.invalidateQueries({ queryKey: ["product", "modules"] });
+      })
+      .on("postgres_changes", pg("product_features"), () => {
+        queryClient.invalidateQueries({ queryKey: ["product", "features"] });
+      })
+      .on("postgres_changes", pg("product_connectors"), () => {
+        queryClient.invalidateQueries({ queryKey: ["product", "connectors"] });
+      })
+      .on("postgres_changes", pg("product_solutions"), () => {
+        queryClient.invalidateQueries({ queryKey: ["product", "solutions"] });
+      })
+      .on("postgres_changes", pg("product_releases"), () => {
+        queryClient.invalidateQueries({ queryKey: ["product", "releases"] });
+      })
+      .on("postgres_changes", pg("product_release_items"), () => {
+        queryClient.invalidateQueries({ queryKey: ["product", "releases"] });
+      })
+      .on("postgres_changes", pg("product_deployments"), () => {
+        queryClient.invalidateQueries({ queryKey: ["product", "deployments"] });
+      })
+      .on("postgres_changes", pg("product_activity"), () => {
+        queryClient.invalidateQueries({ queryKey: ["product", "activity"] });
+      })
+      .on("postgres_changes", pg("product_task_links"), () => {
+        queryClient.invalidateQueries({ queryKey: ["product", "task-links"] });
+      })
+      .subscribe();
+    channels.push(productChannel);
+
+    // ── Skills ───────────────────────────────────────────────────────
+    const skillsChannel = supabase
+      .channel("skills-changes")
+      .on("postgres_changes", pg("skills"), () => {
+        queryClient.invalidateQueries({ queryKey: ["skills"] });
+      })
+      .on("postgres_changes", pg("skill_activity"), () => {
+        queryClient.invalidateQueries({ queryKey: ["skill-activity"] });
+      })
+      .on("postgres_changes", pg("skill_library"), () => {
+        queryClient.invalidateQueries({ queryKey: ["skill-library"] });
+      })
+      .subscribe();
+    channels.push(skillsChannel);
+
+    // ── Scheduler ────────────────────────────────────────────────────
     const schedulerChannel = supabase
       .channel("scheduler-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "api_task_logs",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["api-task-logs"] });
-        }
-      )
+      .on("postgres_changes", pg("api_task_logs"), () => {
+        queryClient.invalidateQueries({ queryKey: ["api-task-logs"] });
+      })
       .subscribe();
-
     channels.push(schedulerChannel);
 
-    // Subscribe to Workspace child tables (sessions/artifacts/context — still their own tables)
+    // ── Workspaces ───────────────────────────────────────────────────
     const workspaceChannel = supabase
       .channel("workspace-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "workspace_sessions",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "workspace_artifacts",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "workspace_context",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-        }
-      )
+      .on("postgres_changes", pg("workspace_sessions"), () => {
+        queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      })
+      .on("postgres_changes", pg("workspace_artifacts"), () => {
+        queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      })
+      .on("postgres_changes", pg("workspace_context"), () => {
+        queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      })
       .subscribe();
-
     channels.push(workspaceChannel);
 
-    // Subscribe to Feed tables
+    // ── Feed ─────────────────────────────────────────────────────────
     const feedChannel = supabase
       .channel("feed-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "feed_cards",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["feed"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "feed_interactions",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["feed"] });
-        }
-      )
+      .on("postgres_changes", pg("feed_cards"), () => {
+        queryClient.invalidateQueries({ queryKey: ["feed"] });
+      })
+      .on("postgres_changes", pg("feed_interactions"), () => {
+        queryClient.invalidateQueries({ queryKey: ["feed"] });
+      })
       .subscribe();
-
     channels.push(feedChannel);
 
-    // Subscribe to Discussions table
+    // ── Discussions ──────────────────────────────────────────────────
     const discussionsChannel = supabase
       .channel("discussions-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "discussions",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["discussions"] });
-        }
-      )
+      .on("postgres_changes", pg("discussions"), () => {
+        queryClient.invalidateQueries({ queryKey: ["discussions"] });
+      })
       .subscribe();
-
     channels.push(discussionsChannel);
 
-    // Subscribe to Notifications table
+    // ── Notifications ────────────────────────────────────────────────
     const notificationsChannel = supabase
       .channel("notifications-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        }
-      )
+      .on("postgres_changes", pg("notifications"), () => {
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      })
       .subscribe();
-
     channels.push(notificationsChannel);
 
     // Cleanup on unmount

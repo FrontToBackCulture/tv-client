@@ -1,5 +1,6 @@
 // src/stores/teamConfigStore.ts
 // Team configuration store — backed by Supabase users table
+// Supports identity lookup by github_username OR microsoft_email
 
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
@@ -23,6 +24,7 @@ export interface TeamConfig {
   defaults: {
     visibleModules: ModuleId[];
   };
+  /** Keyed by canonical login (github_username or microsoft_email) */
   members: Record<string, TeamMember>;
 }
 
@@ -41,6 +43,9 @@ interface TeamConfigState {
 }
 
 const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "projects", "domains", "skills"];
+
+// Admin identifiers — GitHub usernames or Microsoft emails
+const ADMIN_LOGINS = new Set(["melvinFTBC", "melvinwang", "melvin@thinkval.co"]);
 
 // Legacy module IDs that were consolidated into "projects"
 const LEGACY_PROJECT_MODULES = new Set(["work", "workspace", "crm"]);
@@ -82,7 +87,7 @@ export const useTeamConfigStore = create<TeamConfigState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("github_username, name, email, avatar_url, role, last_active_at, visible_modules")
+        .select("github_username, microsoft_email, name, email, avatar_url, role, last_active_at, visible_modules")
         .eq("type", "human")
         .order("name");
 
@@ -91,13 +96,21 @@ export const useTeamConfigStore = create<TeamConfigState>((set, get) => ({
       const members: Record<string, TeamMember> = {};
       const migrateUpdates: Array<{ username: string; modules: ModuleId[] }> = [];
       for (const row of data ?? []) {
-        if (row.github_username) {
-          members[row.github_username] = mapRowToMember(row);
+        // Key by github_username if available, otherwise microsoft_email
+        const key = row.github_username || row.microsoft_email;
+        if (key) {
+          members[key] = mapRowToMember(row);
+          // Also index by the other identity if both exist
+          if (row.github_username && row.microsoft_email) {
+            members[row.microsoft_email] = mapRowToMember(row);
+          }
           // Queue Supabase update if migration changed the modules
           const migrated = migrateVisibleModules(row.visible_modules);
           if (row.visible_modules && migrated &&
               JSON.stringify(row.visible_modules.sort()) !== JSON.stringify([...migrated].sort())) {
-            migrateUpdates.push({ username: row.github_username, modules: migrated });
+            if (row.github_username) {
+              migrateUpdates.push({ username: row.github_username, modules: migrated });
+            }
           }
         }
       }
@@ -126,28 +139,81 @@ export const useTeamConfigStore = create<TeamConfigState>((set, get) => ({
   },
 
   registerCurrentUser: async () => {
-    const user = useAuth.getState().user;
-    if (!user) return;
+    const appUser = useAuth.getState().user;
+    if (!appUser) return;
 
-    const login = user.login;
     const now = new Date().toISOString();
 
     try {
-      const { error } = await supabase.from("users").upsert(
-        {
-          github_username: login,
-          github_id: user.id,
-          name: user.name || user.login,
-          email: user.email || null,
-          avatar_url: user.avatar_url,
-          role: (login === "melvinFTBC" || login === "melvinwang") ? "admin" : "member",
-          type: "human",
-          last_active_at: now,
-        },
-        { onConflict: "github_username" }
-      );
+      if (appUser.provider === "github") {
+        // GitHub login — upsert on github_username
+        const { error } = await supabase.from("users").upsert(
+          {
+            github_username: appUser.login,
+            github_id: Number(appUser.providerId),
+            name: appUser.name,
+            email: appUser.email || null,
+            avatar_url: appUser.avatarUrl,
+            role: ADMIN_LOGINS.has(appUser.login) ? "admin" : "member",
+            type: "human",
+            last_active_at: now,
+          },
+          { onConflict: "github_username" }
+        );
+        if (error) throw error;
+      } else if (appUser.provider === "microsoft") {
+        // Microsoft login — resolve to existing user row
+        const msEmail = appUser.email!;
 
-      if (error) throw error;
+        // Try matching by: microsoft_email → email → name (in priority order)
+        const { data: allHumans } = await supabase
+          .from("users")
+          .select("id, github_username, email, microsoft_email, name")
+          .eq("type", "human");
+
+        const candidates = allHumans ?? [];
+        console.log("[teamConfig] Microsoft login matching:", { msEmail, appUserName: appUser.name, candidateCount: candidates.length, candidates: candidates.map(c => ({ name: c.name, ms: c.microsoft_email, email: c.email, gh: c.github_username })) });
+        const existing =
+          candidates.find((u) => u.microsoft_email === msEmail) ||
+          candidates.find((u) => u.email === msEmail) ||
+          candidates.find((u) => u.name === appUser.name);
+
+        if (existing) {
+          // Link Microsoft identity to existing user row
+          const { error } = await supabase.from("users")
+            .update({
+              microsoft_email: msEmail,
+              microsoft_id: appUser.providerId,
+              last_active_at: now,
+            })
+            .eq("id", existing.id);
+          if (error) throw error;
+
+          // Patch auth store login to the canonical team key so the rest
+          // of the app (visible modules, tasks, notifications) resolves
+          // to the same identity regardless of login provider.
+          const canonicalLogin = existing.github_username || msEmail;
+          if (canonicalLogin !== appUser.login) {
+            useAuth.setState((s) => ({
+              user: s.user ? { ...s.user, login: canonicalLogin, name: existing.name || s.user.name } : null,
+            }));
+          }
+        } else {
+          // No existing user found — create new row
+          // (genuinely new team member, not an unlinked existing one)
+          const { error } = await supabase.from("users").insert({
+            microsoft_email: msEmail,
+            microsoft_id: appUser.providerId,
+            name: appUser.name,
+            email: msEmail,
+            avatar_url: appUser.avatarUrl || null,
+            role: ADMIN_LOGINS.has(msEmail) ? "admin" : "member",
+            type: "human",
+            last_active_at: now,
+          });
+          if (error) throw error;
+        }
+      }
 
       // Refresh config to pick up the upserted row
       await get().loadConfig();
@@ -174,12 +240,21 @@ export const useTeamConfigStore = create<TeamConfigState>((set, get) => ({
 
   setMemberModules: async (login: string, modules: ModuleId[]) => {
     try {
-      const { error } = await supabase
+      // Try github_username first, then microsoft_email
+      let result = await supabase
         .from("users")
         .update({ visible_modules: modules })
         .eq("github_username", login);
 
-      if (error) throw error;
+      // If no rows matched, try microsoft_email
+      if (!result.error && result.count === 0) {
+        result = await supabase
+          .from("users")
+          .update({ visible_modules: modules })
+          .eq("microsoft_email", login);
+      }
+
+      if (result.error) throw result.error;
 
       // Update in-memory cache
       const { config } = get();
@@ -208,6 +283,6 @@ export const useTeamConfigStore = create<TeamConfigState>((set, get) => ({
   },
 
   isAdmin: (login: string) => {
-    return login === "melvinFTBC" || login === "melvinwang";
+    return ADMIN_LOGINS.has(login);
   },
 }));

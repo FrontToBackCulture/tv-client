@@ -202,6 +202,7 @@ pub async fn outlook_list_calendars() -> CmdResult<Vec<super::types::CalendarEnt
 
 #[tauri::command]
 pub async fn outlook_list_events(
+    app_handle: tauri::AppHandle,
     start_time: String,
     end_time: String,
     limit: Option<i64>,
@@ -209,6 +210,25 @@ pub async fn outlook_list_events(
     eprintln!("[outlook:calendar] list_events called: start={}, end={}", start_time, end_time);
     let db = EmailDb::open()?;
     let max = limit.unwrap_or(200);
+
+    // Auto-trigger initial calendar sync if not done yet (backfills 6 months)
+    let calendar_initial_done = db
+        .get_sync_state("calendar_initial_sync_done")
+        .ok()
+        .flatten()
+        .map(|v| v == "true")
+        .unwrap_or(false);
+    if !calendar_initial_done {
+        let ah = app_handle.clone();
+        tokio::spawn(async move {
+            let db2 = match EmailDb::open() {
+                Ok(db) => db,
+                Err(_) => return,
+            };
+            eprintln!("[outlook:calendar] Triggering initial calendar sync (6 months)");
+            let _ = sync::run_calendar_sync(&db2, &ah, 6).await;
+        });
+    }
 
     // Fetch fresh from Graph API
     let graph = super::graph::GraphClient::new();
@@ -231,6 +251,48 @@ pub async fn outlook_list_events(
             eprintln!("[outlook:calendar] API fetch failed, falling back to cache: {}", e);
             db.list_events(&start_time, &end_time, max)
         }
+    }
+}
+
+/// Convert GraphEvent reference to CalendarEvent (for sync, where we borrow)
+pub fn graph_event_to_calendar_event_from_ref(e: &super::types::GraphEvent) -> super::types::CalendarEvent {
+    let start = e.start.as_ref();
+    let end = e.end.as_ref();
+
+    let organizer_addr = e.organizer.as_ref().map(|o| &o.email_address);
+    let attendees: Vec<super::types::EventAttendee> = e
+        .attendees
+        .as_ref()
+        .map(|atts| atts.iter().map(|a| super::types::EventAttendee {
+            name: a.email_address.name.clone().unwrap_or_default(),
+            email: a.email_address.address.clone().unwrap_or_default(),
+            response_status: a.status.as_ref().and_then(|s| s.response.clone()).unwrap_or_else(|| "none".to_string()),
+            attendee_type: a.attendee_type.clone().unwrap_or_else(|| "required".to_string()),
+        }).collect())
+        .unwrap_or_default();
+
+    super::types::CalendarEvent {
+        id: e.id.clone(),
+        subject: e.subject.clone().unwrap_or_default(),
+        body_preview: e.body_preview.clone().unwrap_or_default(),
+        start_at: start.and_then(|s| s.date_time.clone()).unwrap_or_default(),
+        start_timezone: start.and_then(|s| s.time_zone.clone()).unwrap_or_default(),
+        end_at: end.and_then(|s| s.date_time.clone()).unwrap_or_default(),
+        end_timezone: end.and_then(|s| s.time_zone.clone()).unwrap_or_default(),
+        is_all_day: e.is_all_day.unwrap_or(false),
+        location: e.location.as_ref().and_then(|l| l.display_name.clone()).unwrap_or_default(),
+        organizer_name: organizer_addr.and_then(|a| a.name.clone()).unwrap_or_default(),
+        organizer_email: organizer_addr.and_then(|a| a.address.clone()).unwrap_or_default(),
+        attendees,
+        is_online_meeting: e.is_online_meeting.unwrap_or(false),
+        online_meeting_url: e.online_meeting.as_ref().and_then(|m| m.join_url.clone()),
+        show_as: e.show_as.clone().unwrap_or_else(|| "busy".to_string()),
+        importance: e.importance.clone().unwrap_or_else(|| "normal".to_string()),
+        is_cancelled: e.is_cancelled.unwrap_or(false),
+        web_link: e.web_link.clone().unwrap_or_default(),
+        created_at: e.created_date_time.clone().unwrap_or_default(),
+        last_modified_at: e.last_modified_date_time.clone().unwrap_or_default(),
+        categories: e.categories.clone().unwrap_or_default(),
     }
 }
 
@@ -274,6 +336,40 @@ fn graph_event_to_calendar_event(e: super::types::GraphEvent) -> super::types::C
         last_modified_at: e.last_modified_date_time.unwrap_or_default(),
         categories: e.categories.unwrap_or_default(),
     }
+}
+
+// ============================================================================
+// Calendar sync commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn outlook_calendar_sync_start(app_handle: tauri::AppHandle, months: Option<i64>) -> CmdResult<i64> {
+    eprintln!("[outlook:calendar] sync_start called, months={:?}", months);
+    let db = EmailDb::open()?;
+
+    let initial_done = db
+        .get_sync_state("calendar_initial_sync_done")?
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
+    // Initial sync: use provided months (default 6), incremental: just 1 month back
+    let months_back = if initial_done { 1 } else { months.unwrap_or(6) };
+
+    sync::run_calendar_sync(&db, &app_handle, months_back).await
+}
+
+#[tauri::command]
+pub async fn outlook_calendar_sync_status() -> CmdResult<super::types::CalendarSyncStatus> {
+    let db = EmailDb::open()?;
+    let last_sync = db.get_sync_state("calendar_last_sync")?;
+    let events_synced = db.get_event_count()?;
+
+    Ok(super::types::CalendarSyncStatus {
+        is_syncing: false,
+        last_sync,
+        events_synced,
+        error: None,
+    })
 }
 
 // ============================================================================

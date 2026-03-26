@@ -251,9 +251,11 @@ fn main() {
             // Search operations (Rust native)
             commands::search::search_files,
             commands::search::search_content,
-            // Auth operations (GitHub OAuth)
+            // Auth operations (GitHub OAuth + Microsoft 365)
             commands::auth::github_oauth_start,
             commands::auth::github_get_user,
+            commands::auth::microsoft_oauth_start,
+            commands::auth::microsoft_get_user,
             // Settings (secure key storage)
             commands::settings::settings_set_key,
             commands::settings::settings_get_key,
@@ -317,6 +319,8 @@ fn main() {
             commands::work::work_delete_task,
             commands::work::work_add_task_labels,
             commands::work::work_remove_task_labels,
+            commands::work::work_task_triage,
+            commands::work::work_apply_triage,
             // Work Module - Milestones
             commands::work::work_list_milestones,
             commands::work::work_get_milestone,
@@ -529,6 +533,8 @@ fn main() {
             commands::outlook::commands::outlook_list_calendars,
             commands::outlook::commands::outlook_list_events,
             commands::outlook::commands::outlook_scan_events,
+            commands::outlook::commands::outlook_calendar_sync_start,
+            commands::outlook::commands::outlook_calendar_sync_status,
             // Email (SES campaign sending)
             commands::email::email_send_campaign,
             commands::email::email_send_test,

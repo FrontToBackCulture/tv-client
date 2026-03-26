@@ -1,6 +1,7 @@
 // DomainAiTab — Tree + detail pane for AI context management
 // Left: instructions.md + skill list. Right: content preview or management panel.
 
+import { formatError } from "@/lib/formatError";
 import { useState, useMemo, useCallback } from "react";
 import {
   Brain,
@@ -526,7 +527,7 @@ function ManagePanel({
             </span>
           )}
           {generateMutation.isError && (
-            <span className="text-xs text-red-600">{String(generateMutation.error)}</span>
+            <span className="text-xs text-red-600">{formatError(generateMutation.error)}</span>
           )}
         </div>
         {selectedSkills.length === 0 && (

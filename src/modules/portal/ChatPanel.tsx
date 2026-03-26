@@ -51,7 +51,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
       await sendMessage.mutateAsync({
         conversation_id: conversationId,
         sender_type: "agent",
-        sender_id: user?.id?.toString(),
+        sender_id: user?.providerId,
         sender_name: user?.name || user?.login || "Agent",
         content,
         content_type: isInternal ? "internal_note" : "text",

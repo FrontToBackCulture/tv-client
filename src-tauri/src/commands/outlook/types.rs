@@ -290,6 +290,15 @@ pub struct EventAttendee {
     pub attendee_type: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarSyncStatus {
+    pub is_syncing: bool,
+    pub last_sync: Option<String>,
+    pub events_synced: i64,
+    pub error: Option<String>,
+}
+
 // Calendar scan types
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

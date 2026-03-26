@@ -11,6 +11,20 @@ use serde_json::{json, Value};
 /// Define email module tools
 pub fn tools() -> Vec<Tool> {
     vec![
+        // Entity email links (linked correspondence/campaigns on projects, tasks, companies, contacts)
+        Tool {
+            name: "list-entity-emails".to_string(),
+            description: "List emails linked to a project, task, company, or contact. Returns email metadata (subject, from, date) from the email cache. Use this to see what correspondence is associated with an entity.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "entity_type": { "type": "string", "enum": ["project", "task", "company", "contact"], "description": "Type of entity to list emails for" },
+                    "entity_id": { "type": "string", "description": "UUID of the entity" },
+                    "email_type": { "type": "string", "enum": ["correspondence", "campaign"], "description": "Filter by email type (default: all)" },
+                    "limit": { "type": "integer", "description": "Max results (default: 50)" }
+                }),
+                vec!["entity_type".to_string(), "entity_id".to_string()],
+            ),
+        },
         // Campaigns
         Tool {
             name: "list-email-campaigns".to_string(),
@@ -132,6 +146,113 @@ pub fn tools() -> Vec<Tool> {
 /// Handle email tool calls
 pub async fn call(name: &str, args: Value) -> ToolResult {
     match name {
+        "list-entity-emails" => {
+            let entity_type = match args.get("entity_type").and_then(|v| v.as_str()) {
+                Some(v) => v,
+                None => return ToolResult::error("entity_type is required".to_string()),
+            };
+            let entity_id = match args.get("entity_id").and_then(|v| v.as_str()) {
+                Some(v) => v,
+                None => return ToolResult::error("entity_id is required".to_string()),
+            };
+            let email_type = args.get("email_type").and_then(|v| v.as_str());
+            let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(50);
+
+            let client = match get_client().await {
+                Ok(c) => c,
+                Err(e) => return ToolResult::error(format!("{}", e)),
+            };
+
+            // Step 1: Get linked email IDs from email_entity_links
+            let mut link_query = format!(
+                "entity_type=eq.{}&entity_id=eq.{}&order=created_at.desc&limit={}",
+                entity_type, entity_id, limit
+            );
+            if let Some(et) = email_type {
+                link_query.push_str(&format!("&email_type=eq.{}", et));
+            }
+
+            let links: Vec<serde_json::Value> = match client.select("email_entity_links", &link_query).await {
+                Ok(v) => v,
+                Err(e) => return ToolResult::error(format!("Failed to fetch links: {}", e)),
+            };
+
+            if links.is_empty() {
+                return ToolResult::json(&json!([]));
+            }
+
+            // Step 2: Collect correspondence email IDs to look up in email_cache
+            let email_ids: Vec<&str> = links.iter()
+                .filter(|l| l.get("email_type").and_then(|v| v.as_str()) == Some("correspondence"))
+                .filter_map(|l| l.get("email_id").and_then(|v| v.as_str()))
+                .collect();
+
+            // Step 3: Fetch metadata from email_cache
+            let mut cache_map: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
+            if !email_ids.is_empty() {
+                // PostgREST in filter: id=in.(val1,val2,...)
+                let ids_csv: String = email_ids.iter()
+                    .map(|id| format!("\"{}\"", id))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let cache_query = format!("id=in.({})", ids_csv);
+                let cached: Vec<serde_json::Value> = match client.select("email_cache", &cache_query).await {
+                    Ok(v) => v,
+                    Err(_) => vec![], // Graceful fallback — cache may not have all entries
+                };
+                for entry in cached {
+                    if let Some(id) = entry.get("id").and_then(|v| v.as_str()) {
+                        cache_map.insert(id.to_string(), entry);
+                    }
+                }
+            }
+
+            // Step 4: Merge link data with cached metadata
+            let results: Vec<serde_json::Value> = links.iter().map(|link| {
+                let email_id = link.get("email_id").and_then(|v| v.as_str()).unwrap_or("");
+                let email_type_val = link.get("email_type").and_then(|v| v.as_str()).unwrap_or("");
+                let match_method = link.get("match_method").and_then(|v| v.as_str());
+                let relevance_score = link.get("relevance_score").and_then(|v| v.as_f64());
+                let linked_at = link.get("created_at").and_then(|v| v.as_str());
+
+                let mut result = json!({
+                    "email_id": email_id,
+                    "email_type": email_type_val,
+                    "linked_at": linked_at,
+                });
+
+                if let Some(m) = match_method {
+                    result["match_method"] = json!(m);
+                }
+                if let Some(s) = relevance_score {
+                    result["relevance_score"] = json!(s);
+                }
+
+                // Merge cached metadata if available
+                if let Some(cached) = cache_map.get(email_id) {
+                    if let Some(s) = cached.get("subject").and_then(|v| v.as_str()) {
+                        result["subject"] = json!(s);
+                    }
+                    if let Some(s) = cached.get("from_email").and_then(|v| v.as_str()) {
+                        result["from_email"] = json!(s);
+                    }
+                    if let Some(s) = cached.get("from_name").and_then(|v| v.as_str()) {
+                        result["from_name"] = json!(s);
+                    }
+                    if let Some(s) = cached.get("received_at").and_then(|v| v.as_str()) {
+                        result["received_at"] = json!(s);
+                    }
+                    if let Some(s) = cached.get("body_preview").and_then(|v| v.as_str()) {
+                        result["body_preview"] = json!(s);
+                    }
+                }
+
+                result
+            }).collect();
+
+            ToolResult::json(&results)
+        }
+
         "list-email-campaigns" => {
             let status = args.get("status").and_then(|v| v.as_str()).map(String::from);
             let group_id = args.get("group_id").and_then(|v| v.as_str()).map(String::from);

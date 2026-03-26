@@ -42,7 +42,7 @@ export interface WorkflowRun {
 }
 
 export function useCommits(owner: string, repo: string, enabled = true) {
-  const token = useAuth((s) => s.accessToken);
+  const token = useAuth((s) => s.provider === "github" ? s.accessToken : null);
   return useQuery({
     queryKey: repoKeys.commits(owner, repo),
     queryFn: () =>
@@ -58,7 +58,7 @@ export function useCommits(owner: string, repo: string, enabled = true) {
 }
 
 export function useReleases(owner: string, repo: string, enabled = true) {
-  const token = useAuth((s) => s.accessToken);
+  const token = useAuth((s) => s.provider === "github" ? s.accessToken : null);
   return useQuery({
     queryKey: repoKeys.releases(owner, repo),
     queryFn: () =>
@@ -74,7 +74,7 @@ export function useReleases(owner: string, repo: string, enabled = true) {
 }
 
 export function useWorkflowRuns(owner: string, repo: string, enabled = true) {
-  const token = useAuth((s) => s.accessToken);
+  const token = useAuth((s) => s.provider === "github" ? s.accessToken : null);
   return useQuery({
     queryKey: repoKeys.workflowRuns(owner, repo),
     queryFn: () =>
@@ -99,7 +99,7 @@ export interface RepoSummary {
 
 export function useRepoSummaries() {
   const repos = useRepoSettings((s) => s.repos);
-  const token = useAuth((s) => s.accessToken);
+  const token = useAuth((s) => s.provider === "github" ? s.accessToken : null);
 
   return useQuery({
     queryKey: [...repoKeys.all, "summaries"],

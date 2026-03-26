@@ -2,6 +2,7 @@
 // Right panel showing campaign details, token-replaced preview, and test send
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { formatError } from "@/lib/formatError";
 import { X, Send, Loader2, Copy, Pencil, FlaskConical, User, Maximize2, FileText, Tag, Upload, Check, ChevronRight, ChevronDown, Folder, FolderOpen, MessageSquare } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
@@ -427,7 +428,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
             )}
             {sendTest.isError && !testResult && (
               <p className="text-[10px] text-red-600">
-                {(sendTest.error as any)?.message || String(sendTest.error)}
+                {formatError(sendTest.error)}
               </p>
             )}
           </div>

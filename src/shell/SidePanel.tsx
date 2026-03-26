@@ -2,7 +2,8 @@
 // Side document panel — read-only file viewer alongside Work/CRM/Inbox modules
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, X, FileText, FileCode, AlertCircle, File, Folder, FolderOpen, Loader2, Clock, ChevronRight, Replace } from "lucide-react";
+import { Search, X, FileText, FileCode, AlertCircle, File, Folder, FolderOpen, Loader2, Clock, ChevronRight, Replace, AppWindow } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSidePanelStore } from "../stores/sidePanelStore";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useRecentFilesStore } from "../stores/recentFilesStore";
@@ -102,13 +103,22 @@ export function SidePanel() {
             {fileName || "No file selected"}
           </button>
           {filePath && (
-            <button
-              onClick={openPicker}
-              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              title="Change document"
-            >
-              <Replace size={14} className="text-zinc-500" />
-            </button>
+            <>
+              <button
+                onClick={() => invoke("open_with_default_app", { path: filePath })}
+                className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="Open with default app"
+              >
+                <AppWindow size={14} className="text-zinc-500" />
+              </button>
+              <button
+                onClick={openPicker}
+                className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="Change document"
+              >
+                <Replace size={14} className="text-zinc-500" />
+              </button>
+            </>
           )}
           <button
             onClick={closePanel}

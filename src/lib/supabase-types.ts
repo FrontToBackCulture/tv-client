@@ -3776,6 +3776,8 @@ export type Database = {
           github_username: string | null
           id: string
           last_active_at: string | null
+          microsoft_email: string | null
+          microsoft_id: string | null
           name: string
           role: string
           type: string
@@ -3792,6 +3794,8 @@ export type Database = {
           github_username?: string | null
           id?: string
           last_active_at?: string | null
+          microsoft_email?: string | null
+          microsoft_id?: string | null
           name: string
           role?: string
           type?: string
@@ -3808,6 +3812,8 @@ export type Database = {
           github_username?: string | null
           id?: string
           last_active_at?: string | null
+          microsoft_email?: string | null
+          microsoft_id?: string | null
           name?: string
           role?: string
           type?: string

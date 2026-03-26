@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { Mail, CheckCircle, Loader2, AlertTriangle } from "lucide-react";
+import { formatError } from "@/lib/formatError";
 import { Button } from "../../components/ui";
 import { useOutlookLogin, useOutlookAuth } from "../../hooks/useOutlook";
 import { invoke } from "@tauri-apps/api/core";
@@ -170,7 +171,7 @@ export function OutlookSetup() {
           {(state === "error" || login.error) && (
             <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-sm text-red-600 dark:text-red-400">
               <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
-              <span>{errorMsg || String(login.error)}</span>
+              <span>{errorMsg || formatError(login.error)}</span>
             </div>
           )}
 
