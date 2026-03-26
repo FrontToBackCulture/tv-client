@@ -8,6 +8,11 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="crash-screen" style="display:none;padding:2rem;font-family:monospace;background:#1a1a1a;color:#ef4444;height:100vh;overflow:auto">
+      <h2 style="margin:0 0 1rem">App Crashed</h2>
+      <p style="color:#aaa;margin-bottom:1rem">Please screenshot this and send to the team:</p>
+      <pre id="crash-log" style="font-size:11px;white-space:pre-wrap;color:#f87171;background:#111;padding:1rem;border-radius:8px;max-height:80vh;overflow:auto"></pre>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
