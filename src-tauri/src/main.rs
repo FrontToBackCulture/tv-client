@@ -319,6 +319,8 @@ fn main() {
             commands::work::work_delete_task,
             commands::work::work_add_task_labels,
             commands::work::work_remove_task_labels,
+            commands::work::work_add_task_assignees,
+            commands::work::work_remove_task_assignees,
             commands::work::work_task_triage,
             commands::work::work_apply_triage,
             // Work Module - Milestones
@@ -530,6 +532,7 @@ fn main() {
             commands::outlook::commands::outlook_bootstrap_contacts,
             commands::outlook::commands::outlook_scan_emails,
             // Outlook - Calendar
+            commands::outlook::commands::outlook_get_event,
             commands::outlook::commands::outlook_list_calendars,
             commands::outlook::commands::outlook_list_events,
             commands::outlook::commands::outlook_scan_events,

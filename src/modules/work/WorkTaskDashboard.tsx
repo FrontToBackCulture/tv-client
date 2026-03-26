@@ -279,7 +279,7 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
   const myTasks = useMemo(() => {
     if (!currentUserId) return [];
     return allTasks
-      .filter(t => t.assignee_id === currentUserId)
+      .filter(t => (t.assignees || []).some(a => a.user?.id === currentUserId))
       .filter(t => includeNotion || !(t as any).notion_page_id);
   }, [allTasks, currentUserId, includeNotion]);
 
@@ -638,10 +638,13 @@ export function TeamTasksView({ allTasks, users, onSelectTask }: {
   const grouped = useMemo(() => {
     const map = new Map<string | null, TaskWithRelations[]>();
     for (const t of tasks) {
-      const key = t.assignee_id || null;
-      const arr = map.get(key) || [];
-      arr.push(t);
-      map.set(key, arr);
+      const assignees = t.assignees?.length ? t.assignees : [{ user: null as any }];
+      for (const a of assignees) {
+        const key = a.user?.id || null;
+        const arr = map.get(key) || [];
+        arr.push(t);
+        map.set(key, arr);
+      }
     }
     // Sort by task count descending
     return [...map.entries()].sort((a, b) => {

@@ -237,20 +237,40 @@ pub async fn run_calendar_sync(
 // Lazy body fetch
 // ============================================================================
 
-/// Fetch email body from Graph API if not cached locally
+/// Fetch email body from Graph API if not cached locally.
+/// Also fetches inline attachments and replaces cid: references with base64 data URIs.
 pub async fn ensure_body_cached(
     db: &EmailDb,
     message_id: &str,
 ) -> CmdResult<String> {
     // Check if already on disk
     if let Some(html) = read_body_file(message_id) {
-        return Ok(html);
+        // Re-fetch if cached body still has unresolved cid: references (stale cache)
+        if !html.contains("cid:") {
+            return Ok(html);
+        }
+        // Fall through to re-fetch with inline attachments
     }
 
     // Fetch from Graph
     let graph = GraphClient::new();
     let body = graph.fetch_message_body(message_id).await?;
-    let html = body.content.unwrap_or_default();
+    let mut html = body.content.unwrap_or_default();
+
+    // Replace cid: references with base64 data URIs for inline images
+    if html.contains("cid:") {
+        if let Ok(attachments) = graph.fetch_inline_attachments(message_id).await {
+            for att in attachments {
+                if let (Some(content_id), Some(content_type), Some(content_bytes)) =
+                    (att.content_id, att.content_type, att.content_bytes)
+                {
+                    let cid_ref = format!("cid:{}", content_id);
+                    let data_uri = format!("data:{};base64,{}", content_type, content_bytes);
+                    html = html.replace(&cid_ref, &data_uri);
+                }
+            }
+        }
+    }
 
     // Write to disk
     let path = write_body_file(message_id, &html)?;

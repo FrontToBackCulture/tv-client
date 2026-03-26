@@ -232,7 +232,7 @@ export function useCalendarSyncStart() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (months?: number) => invoke<number>("outlook_calendar_sync_start", { months: months ?? 6 }),
+    mutationFn: (months?: number) => invoke<number>("outlook_calendar_sync_start", { months: months ?? 24 }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outlook", "calendar-sync-status"] });
       queryClient.invalidateQueries({ queryKey: ["outlook", "events"] });

@@ -2,15 +2,16 @@
 // Universal calendar events panel — attach to any entity (project, task, company, contact)
 // Same pattern as EmailsPanel.tsx
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { CalendarDays, Search, X, Unlink, Loader2, MapPin } from "lucide-react";
 import {
   useLinkedEvents,
   useScanEvents,
   useLinkEvents,
   useUnlinkEvent,
-  type EventEntityLink,
+  type LinkedEvent,
 } from "../../hooks/useEntityEvents";
+import { EventDetailPanel } from "./EventDetailPanel";
 import { toast } from "../../stores/toastStore";
 
 interface EventsPanelProps {
@@ -20,7 +21,6 @@ interface EventsPanelProps {
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "";
-  // Parse as local time (Graph API returns SGT via Prefer header)
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
   if (match) {
     const d = new Date(
@@ -60,9 +60,12 @@ function MatchBadge({ method }: { method: string | null }) {
   );
 }
 
-function EventRow({ event, onUnlink }: { event: EventEntityLink; onUnlink: (id: string) => void }) {
+function EventRow({ event, onUnlink, onClick }: { event: LinkedEvent; onUnlink: (id: string) => void; onClick: () => void }) {
   return (
-    <div className="group flex items-start gap-3 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors">
+    <div
+      className="group flex items-start gap-3 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors cursor-pointer"
+      onClick={onClick}
+    >
       <div className="mt-0.5">
         <CalendarDays size={13} className="text-teal-400" />
       </div>
@@ -86,7 +89,7 @@ function EventRow({ event, onUnlink }: { event: EventEntityLink; onUnlink: (id: 
         )}
       </div>
       <button
-        onClick={() => onUnlink(event.id)}
+        onClick={(e) => { e.stopPropagation(); onUnlink(event.id); }}
         className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-zinc-300 hover:text-red-500 transition-all"
         title="Unlink event"
       >
@@ -105,6 +108,22 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
   const [showScan, setShowScan] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lookbackMonths, setLookbackMonths] = useState(3);
+  const [selectedEvent, setSelectedEvent] = useState<LinkedEvent | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Filter linked events by search query
+  const filteredEvents = useMemo(() => {
+    if (!linkedEvents) return [];
+    if (!searchQuery.trim()) return linkedEvents;
+    const q = searchQuery.toLowerCase();
+    return linkedEvents.filter(
+      (e) =>
+        (e.subject || "").toLowerCase().includes(q) ||
+        (e.organizer_name || "").toLowerCase().includes(q) ||
+        (e.organizer_email || "").toLowerCase().includes(q) ||
+        (e.location || "").toLowerCase().includes(q)
+    );
+  }, [linkedEvents, searchQuery]);
 
   async function handleScan() {
     setShowScan(true);
@@ -169,11 +188,12 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header bar */}
-      <div className="px-4 py-2 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800">
+      <div className="px-4 py-2 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 shrink-0">
         <span className="text-xs text-zinc-400 dark:text-zinc-500">
           {linkedEvents?.length ?? 0} linked events
+          {searchQuery && ` (${filteredEvents.length} shown)`}
         </span>
         <div className="flex items-center gap-2">
           <select
@@ -198,9 +218,33 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
         </div>
       </div>
 
+      {/* Search bar — only show when there are enough events */}
+      {(linkedEvents?.length ?? 0) > 0 && (
+        <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search events..."
+              className="w-full pl-8 pr-8 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Scan results overlay */}
       {showScan && (
-        <div className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+        <div className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
           <div className="px-4 py-2 flex items-center justify-between">
             <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
               {isScanning ? "Scanning..." : `${newCandidates.length} new matches found`}
@@ -282,23 +326,35 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
       )}
 
       {/* Linked events list */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 size={20} className="animate-spin text-zinc-400" />
           </div>
-        ) : !linkedEvents?.length ? (
+        ) : !filteredEvents.length ? (
           <div className="flex flex-col items-center justify-center py-12 text-zinc-400 dark:text-zinc-500">
             <CalendarDays size={32} className="mb-2 opacity-40" />
-            <p className="text-sm">No events linked</p>
-            <p className="text-xs mt-1">Click "Scan" to find matches</p>
+            {searchQuery ? (
+              <p className="text-sm">No events matching "{searchQuery}"</p>
+            ) : (
+              <>
+                <p className="text-sm">No events linked</p>
+                <p className="text-xs mt-1">Click "Scan" to find matches</p>
+              </>
+            )}
           </div>
         ) : (
-          linkedEvents.map((event) => (
-            <EventRow key={event.id} event={event} onUnlink={handleUnlink} />
+          filteredEvents.map((event) => (
+            <EventRow key={event.id} event={event} onUnlink={handleUnlink} onClick={() => setSelectedEvent(event)} />
           ))
         )}
       </div>
+
+      {/* Detail slide-over */}
+      <EventDetailPanel
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+      />
     </div>
   );
 }

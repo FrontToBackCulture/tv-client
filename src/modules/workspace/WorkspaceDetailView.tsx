@@ -1773,8 +1773,8 @@ Write a brief current state summary. No bullet points, just a natural sentence o
     if (filterPriority !== null) tasks = tasks.filter(t => (t.priority ?? 0) === filterPriority);
     if (filterAssignee !== null) {
       tasks = filterAssignee === "__none__"
-        ? tasks.filter(t => !t.assignee_id)
-        : tasks.filter(t => t.assignee_id === filterAssignee);
+        ? tasks.filter(t => !t.assignees || t.assignees.length === 0)
+        : tasks.filter(t => (t.assignees || []).some(a => a.user?.id === filterAssignee));
     }
     if (filterCompany !== null) {
       tasks = filterCompany === "__none__"
@@ -1812,9 +1812,15 @@ Write a brief current state summary. No bullet points, just a natural sentence o
   const assigneeFilterOptions = useMemo(() => {
     const counts = new Map<string, { name: string; count: number }>();
     for (const t of projectTasks) {
-      const id = t.assignee_id || "__none__";
-      const name = t.assignee?.name || "Unassigned";
-      const e = counts.get(id) || { name, count: 0 }; e.count++; counts.set(id, e);
+      if (!t.assignees || t.assignees.length === 0) {
+        const e = counts.get("__none__") || { name: "Unassigned", count: 0 }; e.count++; counts.set("__none__", e);
+      } else {
+        for (const a of t.assignees) {
+          const id = a.user?.id || "__none__";
+          const name = a.user?.name || "Unassigned";
+          const e = counts.get(id) || { name, count: 0 }; e.count++; counts.set(id, e);
+        }
+      }
     }
     return Array.from(counts.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, v]) => ({ value: id, label: v.name, count: v.count }));
   }, [projectTasks]);
@@ -2547,7 +2553,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                       taskDetailId={taskDetailId}
                       onSelectTask={setTaskDetailId}
                       onContextMenu={(taskId, x, y) => { setTaskContextMenu({ taskId, x, y }); setTaskProjectSearch(""); }}
-                      onUpdateTask={(id, updates) => updateTaskMutation.mutate({ id, updates })}
+                      onUpdateTask={(id, updates, assignee_ids) => updateTaskMutation.mutate({ id, updates, assignee_ids })}
                       onDeleteMilestone={(id) => deleteMilestoneMutation.mutate(id)}
                     />
                   ) : (
@@ -2598,7 +2604,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 case "company": cmp = ((a.company as any)?.display_name || (a.company as any)?.name || "").localeCompare((b.company as any)?.display_name || (b.company as any)?.name || ""); break;
                                 case "contact": cmp = ((a.contact as any)?.name || "").localeCompare((b.contact as any)?.name || ""); break;
                                 case "priority": cmp = (a.priority ?? 99) - (b.priority ?? 99); break;
-                                case "assignee": cmp = (a.assignee?.name || "").localeCompare(b.assignee?.name || ""); break;
+                                case "assignee": cmp = (a.assignees?.[0]?.user?.name || "").localeCompare(b.assignees?.[0]?.user?.name || ""); break;
                                 case "due_date": cmp = (a.due_date || "9999").localeCompare(b.due_date || "9999"); break;
                                 case "created": cmp = (a.created_at || "").localeCompare(b.created_at || ""); break;
                                 case "updated": cmp = (a.updated_at || "").localeCompare(b.updated_at || ""); break;
@@ -2861,9 +2867,9 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 {/* Assignee */}
                                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                                   <select
-                                    value={task.assignee_id || ""}
+                                    value={task.assignees?.[0]?.user?.id || ""}
                                     onChange={(e) => {
-                                      updateTaskMutation.mutate({ id: task.id, updates: { assignee_id: e.target.value || null } });
+                                      updateTaskMutation.mutate({ id: task.id, updates: {}, assignee_ids: e.target.value ? [e.target.value] : [] });
                                     }}
                                     className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 w-full truncate"
                                   >
@@ -2936,7 +2942,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                   </h3>
                 </button>
                 {!collapsedSections.emails && (
-                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden" style={{ maxHeight: 400 }}>
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg flex flex-col" style={{ maxHeight: 600 }}>
                     <EmailsPanel entityType="project" entityId={workspaceId} />
                   </div>
                 )}
@@ -2952,7 +2958,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                   </h3>
                 </button>
                 {!collapsedSections.events && (
-                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden" style={{ maxHeight: 400 }}>
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg flex flex-col" style={{ maxHeight: 600 }}>
                     <EventsPanel entityType="project" entityId={workspaceId} />
                   </div>
                 )}

@@ -196,6 +196,38 @@ impl GraphClient {
             .ok_or_else(|| CommandError::NotFound("No body in message".to_string()))
     }
 
+    /// Fetch inline attachments for a message (images embedded via cid:)
+    pub async fn fetch_inline_attachments(&self, message_id: &str) -> CmdResult<Vec<GraphAttachment>> {
+        let token = self.get_token().await?;
+        // Fetch all attachments — $filter on isInline is not supported on all mailbox types
+        let url = format!(
+            "{}/me/messages/{}/attachments",
+            GRAPH_BASE, message_id
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", token))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            // Non-fatal — return empty if attachments can't be fetched
+            return Ok(vec![]);
+        }
+
+        let list: GraphAttachmentList = response
+            .json()
+            .await
+            .map_err(|e| CommandError::Parse(format!("Failed to parse attachments: {}", e)))?;
+
+        // Filter to inline attachments only (those with a contentId)
+        Ok(list.value.into_iter().filter(|a| {
+            a.is_inline.unwrap_or(false) && a.content_id.is_some()
+        }).collect())
+    }
+
     // ========================================================================
     // Actions
     // ========================================================================

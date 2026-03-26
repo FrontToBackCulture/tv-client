@@ -120,12 +120,12 @@ export function BoardView({
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-2">
-                      {task.assignee?.name ? (
+                      {task.assignees?.[0]?.user?.name ? (
                         <div
                           className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400"
-                          title={task.assignee.name}
+                          title={task.assignees.map(a => a.user?.name).filter(Boolean).join(", ")}
                         >
-                          {initials(task.assignee.name)}
+                          {initials(task.assignees[0].user.name)}
                         </div>
                       ) : (
                         <div />

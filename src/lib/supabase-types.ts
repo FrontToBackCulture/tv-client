@@ -318,15 +318,21 @@ export type Database = {
           created_at: string | null
           department: string | null
           email: string
+          email_outreach_msg: string | null
           email_status: string | null
           id: string
           is_active: boolean | null
           is_primary: boolean | null
+          linkedin_connect_msg: string | null
+          linkedin_connected: boolean | null
+          linkedin_dm_msg: string | null
           linkedin_url: string | null
           name: string
           notes: string | null
           phone: string | null
           prospect_stage: string | null
+          prospect_type: string[] | null
+          prospect_type_reason: string | null
           role: string | null
           seniority: string | null
           source: string | null
@@ -338,15 +344,21 @@ export type Database = {
           created_at?: string | null
           department?: string | null
           email: string
+          email_outreach_msg?: string | null
           email_status?: string | null
           id?: string
           is_active?: boolean | null
           is_primary?: boolean | null
+          linkedin_connect_msg?: string | null
+          linkedin_connected?: boolean | null
+          linkedin_dm_msg?: string | null
           linkedin_url?: string | null
           name: string
           notes?: string | null
           phone?: string | null
           prospect_stage?: string | null
+          prospect_type?: string[] | null
+          prospect_type_reason?: string | null
           role?: string | null
           seniority?: string | null
           source?: string | null
@@ -358,15 +370,21 @@ export type Database = {
           created_at?: string | null
           department?: string | null
           email?: string
+          email_outreach_msg?: string | null
           email_status?: string | null
           id?: string
           is_active?: boolean | null
           is_primary?: boolean | null
+          linkedin_connect_msg?: string | null
+          linkedin_connected?: boolean | null
+          linkedin_dm_msg?: string | null
           linkedin_url?: string | null
           name?: string
           notes?: string | null
           phone?: string | null
           prospect_stage?: string | null
+          prospect_type?: string[] | null
+          prospect_type_reason?: string | null
           role?: string | null
           seniority?: string | null
           source?: string | null
@@ -672,31 +690,37 @@ export type Database = {
           body_preview: string | null
           cached_at: string | null
           cached_by: string | null
+          cc_emails: Json | null
           from_email: string
           from_name: string | null
           id: string
           received_at: string | null
           subject: string | null
+          to_emails: Json | null
         }
         Insert: {
           body_preview?: string | null
           cached_at?: string | null
           cached_by?: string | null
+          cc_emails?: Json | null
           from_email: string
           from_name?: string | null
           id: string
           received_at?: string | null
           subject?: string | null
+          to_emails?: Json | null
         }
         Update: {
           body_preview?: string | null
           cached_at?: string | null
           cached_by?: string | null
+          cc_emails?: Json | null
           from_email?: string
           from_name?: string | null
           id?: string
           received_at?: string | null
           subject?: string | null
+          to_emails?: Json | null
         }
         Relationships: [
           {
@@ -3501,6 +3525,39 @@ export type Database = {
           },
         ]
       }
+      task_assignees: {
+        Row: {
+          created_at: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_assignees_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_attachments: {
         Row: {
           created_at: string | null
@@ -3623,7 +3680,6 @@ export type Database = {
         Row: {
           ai_generated: boolean | null
           ai_suggestion_source: string | null
-          assignee_id: string | null
           company_id: string | null
           completed_at: string | null
           contact_id: string | null
@@ -3634,6 +3690,7 @@ export type Database = {
           due_date: string | null
           id: string
           last_pushed_at: string | null
+          last_triaged_at: string | null
           linked_document_path: string | null
           linked_document_repo: string | null
           milestone_id: string | null
@@ -3649,12 +3706,14 @@ export type Database = {
           task_type: string | null
           task_type_changed_at: string | null
           title: string
+          triage_action: string | null
+          triage_reason: string | null
+          triage_score: number | null
           updated_at: string | null
         }
         Insert: {
           ai_generated?: boolean | null
           ai_suggestion_source?: string | null
-          assignee_id?: string | null
           company_id?: string | null
           completed_at?: string | null
           contact_id?: string | null
@@ -3665,6 +3724,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           last_pushed_at?: string | null
+          last_triaged_at?: string | null
           linked_document_path?: string | null
           linked_document_repo?: string | null
           milestone_id?: string | null
@@ -3680,12 +3740,14 @@ export type Database = {
           task_type?: string | null
           task_type_changed_at?: string | null
           title: string
+          triage_action?: string | null
+          triage_reason?: string | null
+          triage_score?: number | null
           updated_at?: string | null
         }
         Update: {
           ai_generated?: boolean | null
           ai_suggestion_source?: string | null
-          assignee_id?: string | null
           company_id?: string | null
           completed_at?: string | null
           contact_id?: string | null
@@ -3696,6 +3758,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           last_pushed_at?: string | null
+          last_triaged_at?: string | null
           linked_document_path?: string | null
           linked_document_repo?: string | null
           milestone_id?: string | null
@@ -3711,16 +3774,12 @@ export type Database = {
           task_type?: string | null
           task_type_changed_at?: string | null
           title?: string
+          triage_action?: string | null
+          triage_reason?: string | null
+          triage_score?: number | null
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "tasks_assignee_id_fkey"
-            columns: ["assignee_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "tasks_company_id_fkey"
             columns: ["company_id"]

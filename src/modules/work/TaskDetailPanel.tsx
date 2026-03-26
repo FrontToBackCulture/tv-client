@@ -308,26 +308,46 @@ export function TaskDetailPanel({
               </select>
             </div>
 
-            {/* Assignee */}
-            <div className="flex items-center gap-3">
-              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0">
+            {/* Assignees */}
+            <div className="flex items-start gap-3">
+              <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1 flex-shrink-0 pt-1">
                 <User size={12} />
-                Assignee
+                Assignees
               </span>
-              <select
-                value={task.assignee_id || ""}
-                onChange={(e) =>
-                  handleUpdateField("assignee_id", e.target.value || null)
-                }
-                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
-              >
-                <option value="">Unassigned</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-wrap gap-1">
+                {users.map((u) => {
+                  const selected = (task.assignees || []).some(a => a.user?.id === u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={async () => {
+                        const currentIds = (task.assignees || []).map(a => a.user?.id).filter(Boolean) as string[];
+                        const newIds = selected
+                          ? currentIds.filter(id => id !== u.id)
+                          : [...currentIds, u.id];
+                        try {
+                          await updateMutation.mutateAsync({
+                            id: taskId,
+                            updates: {},
+                            assignee_ids: newIds,
+                          });
+                          refetch();
+                          onUpdated?.();
+                        } catch (err) {
+                          console.error("Failed to update assignees:", err);
+                        }
+                      }}
+                      className={`text-xs px-2 py-0.5 rounded-full border transition ${
+                        selected
+                          ? "bg-teal-50 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300"
+                          : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300"
+                      }`}
+                    >
+                      {u.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Milestone */}

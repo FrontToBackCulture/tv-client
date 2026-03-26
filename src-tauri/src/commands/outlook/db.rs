@@ -664,6 +664,24 @@ impl EmailDb {
         Ok(events)
     }
 
+    pub fn get_event(&self, id: &str) -> CmdResult<Option<CalendarEvent>> {
+        let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, subject, body_preview, start_at, start_timezone, end_at, end_timezone,
+                        is_all_day, location, organizer_name, organizer_email, attendees,
+                        is_online_meeting, online_meeting_url, show_as, importance, is_cancelled,
+                        web_link, created_at, last_modified_at, categories
+                 FROM events WHERE id = ?1",
+            )
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?;
+
+        stmt.query_row(params![id], |row| Ok(row_to_event(row)))
+            .optional()
+            .map_err(|e| CommandError::Internal(format!("DB: {}", e)))?
+            .transpose()
+    }
+
     pub fn get_event_count(&self) -> CmdResult<i64> {
         let conn = self.conn.lock().map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
         conn.query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))

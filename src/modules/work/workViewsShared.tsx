@@ -352,12 +352,12 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel }: {
         const color = days > 30 ? "text-red-500" : days > 14 ? "text-amber-500" : "text-zinc-400";
         return <span className={`text-[10px] ${color} flex-shrink-0`} title="Days in stage">{days}d</span>;
       })()}
-      {task.assignee?.name && (
+      {task.assignees?.[0]?.user?.name && (
         <div
           className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
-          title={task.assignee.name}
+          title={task.assignees.map(a => a.user?.name).filter(Boolean).join(", ")}
         >
-          {initials(task.assignee.name)}
+          {initials(task.assignees[0].user.name)}
         </div>
       )}
       {task.due_date && (

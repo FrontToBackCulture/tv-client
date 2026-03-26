@@ -101,7 +101,7 @@ export const WORK_TASK_FIELDS = [
   { value: "status_id", label: "Status" },
   { value: "priority", label: "Priority" },
   { value: "due_date", label: "Due Date" },
-  { value: "assignee_id", label: "Assignee" },
+  { value: "assignees", label: "Assignee" },
   { value: "company_id", label: "Company" },
   { value: "milestone_id", label: "Milestone" },
   { value: "created_at", label: "Created" },

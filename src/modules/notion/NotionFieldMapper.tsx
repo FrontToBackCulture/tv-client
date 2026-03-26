@@ -80,7 +80,7 @@ export function NotionFieldMapper({
       (workField === "status_id" &&
         (notionPropType === "status" || notionPropType === "select")) ||
       (workField === "priority" && notionPropType === "select") ||
-      (workField === "assignee_id" && notionPropType === "people") ||
+      (workField === "assignees" && notionPropType === "people") ||
       (workField === "company_id" &&
         (notionPropType === "select" || notionPropType === "relation" || notionPropType === "rich_text"))
     );
@@ -214,7 +214,7 @@ function ValueMapper({
   const options =
     workField === "status_id"
       ? workStatuses
-      : workField === "assignee_id"
+      : workField === "assignees"
       ? workUsers
       : workField === "company_id"
       ? workCompanies
@@ -260,7 +260,7 @@ function ValueMapper({
       if (bestOption && bestScore >= 40) {
         next[entry.name] = bestOption.id;
         // For fields where each value should map to a unique option (company, assignee), mark as used
-        if (workField === "company_id" || workField === "assignee_id") {
+        if (workField === "company_id" || workField === "assignees") {
           usedIds.add(bestOption.id);
         }
       }

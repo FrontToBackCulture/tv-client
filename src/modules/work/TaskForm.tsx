@@ -32,11 +32,13 @@ export function TaskForm({
     description: task?.description || "",
     status_id: task?.status_id || defaultStatusId || statuses[0]?.id || "",
     priority: task?.priority ?? Priority.None,
-    assignee_id: task?.assignee_id || null,
     milestone_id: task?.milestone_id || null,
     due_date: task?.due_date || null,
     requires_review: task?.requires_review || false,
   });
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(
+    (task as any)?.assignees?.map((a: any) => a.user?.id).filter(Boolean) || []
+  );
   const [error, setError] = useState<string | null>(null);
 
   const createMutation = useCreateTask();
@@ -59,13 +61,15 @@ export function TaskForm({
         await updateMutation.mutateAsync({
           id: task.id,
           updates: formData as TaskUpdate,
+          assignee_ids: assigneeIds,
         });
       } else {
         await createMutation.mutateAsync({
           ...formData,
           project_id: projectId,
           status_id: formData.status_id || statuses[0]?.id,
-        } as Omit<TaskInsert, "task_number">);
+          assignee_ids: assigneeIds,
+        } as any);
       }
       toast.success(isEditing ? "Task updated" : "Task created");
       onSaved();
@@ -142,21 +146,32 @@ export function TaskForm({
               </select>
             </div>
 
-            {/* Assignee */}
-            <div className="flex items-center py-2">
-              <span className="text-xs text-zinc-400 w-28 shrink-0 flex items-center gap-1.5">
-                <UserIcon size={11} /> Assignee
+            {/* Assignees */}
+            <div className="flex items-start py-2">
+              <span className="text-xs text-zinc-400 w-28 shrink-0 flex items-center gap-1.5 pt-1">
+                <UserIcon size={11} /> Assignees
               </span>
-              <select
-                value={formData.assignee_id || ""}
-                onChange={e => setFormData({ ...formData, assignee_id: e.target.value || null })}
-                className="text-sm text-zinc-800 dark:text-zinc-200 bg-transparent border-0 focus:outline-none cursor-pointer hover:text-teal-600 transition"
-              >
-                <option value="">Unassigned</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
+              <div className="flex flex-wrap gap-1">
+                {users.map(u => {
+                  const selected = assigneeIds.includes(u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => setAssigneeIds(
+                        selected ? assigneeIds.filter(id => id !== u.id) : [...assigneeIds, u.id]
+                      )}
+                      className={`text-xs px-2 py-0.5 rounded-full border transition ${
+                        selected
+                          ? "bg-teal-50 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300"
+                          : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300"
+                      }`}
+                    >
+                      {u.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Milestone */}

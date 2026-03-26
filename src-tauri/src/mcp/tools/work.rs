@@ -114,7 +114,6 @@ pub fn tools() -> Vec<Tool> {
                     "project_id": { "type": "string", "description": "Filter by project UUID" },
                     "status_id": { "type": "string", "description": "Filter by status UUID" },
                     "status_type": { "type": "string", "enum": ["backlog", "unstarted", "started", "review", "completed", "canceled"] },
-                    "assignee_id": { "type": "string", "description": "Filter by assignee UUID" },
                     "milestone_id": { "type": "string", "description": "Filter by milestone UUID" },
                     "company_id": { "type": "string", "description": "Filter by CRM company UUID" },
                     "task_type": { "type": "string", "enum": ["general", "target", "prospect", "follow_up"], "description": "Filter by task type" }
@@ -143,7 +142,7 @@ pub fn tools() -> Vec<Tool> {
                     "description": { "type": "string", "description": "Task description" },
                     "priority": { "type": "integer", "description": "Priority: 0=None, 1=Urgent, 2=High, 3=Medium, 4=Low" },
                     "due_date": { "type": "string", "description": "Due date (YYYY-MM-DD)" },
-                    "assignee_id": { "type": "string", "description": "Assignee UUID" },
+                    "assignee_ids": { "type": "array", "items": { "type": "string" }, "description": "Array of user UUIDs to assign" },
                     "milestone_id": { "type": "string", "description": "Milestone UUID" },
                     "depends_on": { "type": "array", "items": { "type": "string" }, "description": "Task IDs this depends on" },
                     "session_ref": { "type": "string", "description": "Session folder path" },
@@ -166,7 +165,7 @@ pub fn tools() -> Vec<Tool> {
                     "status_id": { "type": "string" },
                     "priority": { "type": "integer" },
                     "due_date": { "type": "string" },
-                    "assignee_id": { "type": "string" },
+                    "assignee_ids": { "type": "array", "items": { "type": "string" }, "description": "Replaces all current assignees" },
                     "milestone_id": { "type": "string" },
                     "depends_on": { "type": "array", "items": { "type": "string" } },
                     "session_ref": { "type": "string" },
@@ -508,11 +507,10 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let project_id = args.get("project_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let status_id = args.get("status_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let status_type = args.get("status_type").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let assignee_id = args.get("assignee_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let milestone_id = args.get("milestone_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let company_id = args.get("company_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let task_type = args.get("task_type").and_then(|v| v.as_str()).map(|s| s.to_string());
-            match work::work_list_tasks(project_id, status_id, status_type, assignee_id, milestone_id, company_id, task_type).await {
+            match work::work_list_tasks(project_id, status_id, status_type, milestone_id, company_id, task_type).await {
                 Ok(tasks) => ToolResult::json(&tasks),
                 Err(e) => ToolResult::error(e.to_string()),
             }

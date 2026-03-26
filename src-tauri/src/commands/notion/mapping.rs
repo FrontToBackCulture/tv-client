@@ -123,7 +123,7 @@ pub fn map_page_to_task(
     // Known work fields — used to detect new vs legacy format
     let work_fields = [
         "title", "description", "status_id", "priority",
-        "due_date", "assignee_id", "milestone_id",
+        "due_date", "assignee_id", "assignees", "milestone_id",
         "company_id", "created_at", "updated_at",
     ];
 
@@ -202,7 +202,7 @@ pub fn map_page_to_task(
             "due_date" => {
                 task.insert("due_date".to_string(), Value::String(mapped_value));
             }
-            "assignee_id" => {
+            "assignee_id" | "assignees" => {
                 task.insert("assignee_id".to_string(), Value::String(mapped_value));
             }
             "milestone_id" => {
@@ -240,7 +240,7 @@ pub fn map_task_to_page(
 
     let work_fields = [
         "title", "description", "status_id", "priority",
-        "due_date", "assignee_id", "milestone_id",
+        "due_date", "assignee_id", "assignees", "milestone_id",
         "company_id", "created_at", "updated_at",
     ];
 
@@ -296,7 +296,7 @@ pub fn map_task_to_page(
         // Resolve UUIDs to human-readable values first, then reverse value_map
         let resolved_value = match task_field.as_str() {
             "status_id" => status_id_to_name.get(&raw_value).cloned().unwrap_or(raw_value.clone()),
-            "assignee_id" => user_id_to_notion.get(&raw_value).cloned().unwrap_or(raw_value.clone()),
+            "assignee_id" | "assignees" => user_id_to_notion.get(&raw_value).cloned().unwrap_or(raw_value.clone()),
             "company_id" => company_id_to_name.get(&raw_value).cloned().unwrap_or(raw_value.clone()),
             _ => raw_value.clone(),
         };

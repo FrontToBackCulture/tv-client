@@ -246,8 +246,6 @@ pub struct Task {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub assignee_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_by: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub milestone_id: Option<String>,
@@ -293,9 +291,16 @@ pub struct Task {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<TaskStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub assignee: Option<User>,
+    pub assignees: Option<Vec<TaskAssignee>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub labels: Option<Vec<Label>>,
+}
+
+// Junction table wrapper for task_assignees join
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskAssignee {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<User>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -309,8 +314,8 @@ pub struct CreateTask {
     pub priority: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub assignee_id: Option<String>,
+    #[serde(skip_serializing)]
+    pub assignee_ids: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub milestone_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -339,8 +344,8 @@ pub struct UpdateTask {
     pub priority: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub assignee_id: Option<String>,
+    #[serde(skip_serializing)]
+    pub assignee_ids: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub milestone_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

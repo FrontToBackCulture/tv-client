@@ -26,7 +26,7 @@ export function useTasks(projectId: string | null) {
           labels:task_labels(label:labels(*)),
           project:projects(identifier_prefix, name, color, project_type),
           milestone:milestones(*),
-          assignee:users!tasks_assignee_id_fkey(*),
+          assignees:task_assignees(user:users(*)),
           creator:users!tasks_created_by_fkey(*),
           company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage, referred_by),
           contact:crm_contacts!tasks_contact_id_fkey(id, name, email)
@@ -60,7 +60,7 @@ export function useAllTasks() {
             *,
             status:task_statuses(id, type, color),
             project:projects(identifier_prefix, name, color, project_type),
-            assignee:users!tasks_assignee_id_fkey(id, name),
+            assignees:task_assignees(user:users(id, name)),
             company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage),
             contact:crm_contacts!tasks_contact_id_fkey(id, name, email)
           `
@@ -96,7 +96,7 @@ export function useTask(id: string | null) {
           activity:task_activity(*),
           project:projects(identifier_prefix, name, color, project_type),
           milestone:milestones(*),
-          assignee:users!tasks_assignee_id_fkey(*),
+          assignees:task_assignees(user:users(*)),
           creator:users!tasks_created_by_fkey(*),
           company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage, referred_by),
           contact:crm_contacts!tasks_contact_id_fkey(id, name, email)
@@ -119,13 +119,15 @@ export function useCreateTask() {
 
   return useMutation({
     mutationFn: async (
-      task: Omit<TaskInsert, "task_number">
+      task: Omit<TaskInsert, "task_number"> & { assignee_ids?: string[] }
     ): Promise<Task> => {
+      const { assignee_ids, ...taskData } = task;
+
       // Get project to get next task number
       const { data: project, error: projectError } = await supabase
         .from("projects")
         .select("next_task_number")
-        .eq("id", task.project_id)
+        .eq("id", taskData.project_id)
         .single();
 
       if (projectError)
@@ -137,7 +139,7 @@ export function useCreateTask() {
       const { data: existingTasks } = await supabase
         .from("tasks")
         .select("sort_order")
-        .eq("status_id", task.status_id)
+        .eq("status_id", taskData.status_id)
         .order("sort_order", { ascending: false })
         .limit(1);
 
@@ -147,7 +149,7 @@ export function useCreateTask() {
       const { data, error } = await supabase
         .from("tasks")
         .insert({
-          ...task,
+          ...taskData,
           task_number: taskNumber,
           sort_order: maxOrder + 1,
         })
@@ -155,6 +157,13 @@ export function useCreateTask() {
         .single();
 
       if (error) throw new Error(`Failed to create task: ${error.message}`);
+
+      // Insert assignees
+      if (assignee_ids && assignee_ids.length > 0) {
+        await supabase.from("task_assignees").insert(
+          assignee_ids.map(user_id => ({ task_id: data.id, user_id }))
+        );
+      }
 
       // Increment project's next_task_number
       await supabase
@@ -182,7 +191,6 @@ export function useCreateTask() {
 // Human-readable field labels for activity logging
 const FIELD_LABELS: Record<string, string> = {
   status_id: "status",
-  assignee_id: "assignee",
   milestone_id: "milestone",
   priority: "priority",
   due_date: "due date",
@@ -201,9 +209,11 @@ export function useUpdateTask() {
     mutationFn: async ({
       id,
       updates,
+      assignee_ids,
     }: {
       id: string;
       updates: TaskUpdate;
+      assignee_ids?: string[];
     }): Promise<Task> => {
       const { data, error } = await supabase
         .from("tasks")
@@ -213,6 +223,16 @@ export function useUpdateTask() {
         .single();
 
       if (error) throw new Error(`Failed to update task: ${error.message}`);
+
+      // Replace assignees if provided
+      if (assignee_ids !== undefined) {
+        await supabase.from("task_assignees").delete().eq("task_id", id);
+        if (assignee_ids.length > 0) {
+          await supabase.from("task_assignees").insert(
+            assignee_ids.map(user_id => ({ task_id: id, user_id }))
+          );
+        }
+      }
 
       // Log activity (fire-and-forget, non-blocking)
       const activities = Object.entries(updates)

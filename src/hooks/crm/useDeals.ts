@@ -346,7 +346,7 @@ export function useDealsWithTasks(filters?: DealFilters) {
       // Tasks link to deal-projects via project_id
       const { data: tasks } = await supabase
         .from("tasks")
-        .select("id, title, priority, due_date, project_id, status_id, assignee_id")
+        .select("id, title, priority, due_date, project_id, status_id, assignees:task_assignees(user:users(id, name))")
         .in("project_id", dealIds);
 
       if (!tasks?.length) return new Map();
@@ -362,27 +362,16 @@ export function useDealsWithTasks(filters?: DealFilters) {
         statusMap = new Map((statuses ?? []).map(s => [s.id, s.type]));
       }
 
-      // Fetch assignee names
-      const assigneeIds = [...new Set(tasks.map(t => t.assignee_id).filter(Boolean))];
-      let assigneeMap = new Map<string, string>();
-      if (assigneeIds.length > 0) {
-        const { data: users } = await supabase
-          .from("users")
-          .select("id, name")
-          .in("id", assigneeIds);
-        assigneeMap = new Map((users ?? []).map(u => [u.id, u.name]));
-      }
-
       // Build deal-to-tasks mapping
       const tasksByDeal = new Map<string, DealTask[]>();
-      tasks.forEach((task) => {
+      tasks.forEach((task: any) => {
         const dealTask: DealTask = {
           id: task.id,
           title: task.title,
           status_type: statusMap.get(task.status_id) || "unstarted",
           priority: task.priority,
           due_date: task.due_date,
-          assignee_name: assigneeMap.get(task.assignee_id) || null,
+          assignee_name: task.assignees?.[0]?.user?.name || null,
         };
         const dealId = task.project_id;
         const dealTasks = tasksByDeal.get(dealId) || [];

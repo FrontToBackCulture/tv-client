@@ -186,6 +186,12 @@ pub async fn outlook_get_folders() -> CmdResult<Vec<EmailFolder>> {
 // ============================================================================
 
 #[tauri::command]
+pub async fn outlook_get_event(id: String) -> CmdResult<Option<super::types::CalendarEvent>> {
+    let db = EmailDb::open()?;
+    db.get_event(&id)
+}
+
+#[tauri::command]
 pub async fn outlook_list_calendars() -> CmdResult<Vec<super::types::CalendarEntry>> {
     let graph = super::graph::GraphClient::new();
     let calendars = graph.list_calendars().await?;

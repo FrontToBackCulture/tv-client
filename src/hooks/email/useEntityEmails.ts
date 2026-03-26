@@ -16,11 +16,18 @@ export interface EmailEntityLink {
   created_at: string;
 }
 
+export interface EmailRecipient {
+  name: string;
+  email: string;
+}
+
 export interface LinkedEmail extends EmailEntityLink {
   subject: string | null;
   from_email: string;
   from_name: string | null;
   received_at: string | null;
+  to_emails: EmailRecipient[];
+  cc_emails: EmailRecipient[];
 }
 
 export interface ScanCandidate {
@@ -89,7 +96,7 @@ export function useLinkedEmails(entityType: string, entityId: string) {
         // 1. Check shared cache in Supabase
         const { data: cached } = await supabase
           .from("email_cache")
-          .select("id, subject, from_email, from_name, received_at")
+          .select("id, subject, from_email, from_name, received_at, to_emails, cc_emails")
           .in("id", correspondenceIds);
 
         const cacheMap = new Map(
@@ -98,13 +105,13 @@ export function useLinkedEmails(entityType: string, entityId: string) {
 
         // 2. Find IDs not in cache — try local SQLite for those
         const uncachedIds = correspondenceIds.filter((id) => !cacheMap.has(id));
-        const localMap = new Map<string, { id: string; subject: string; fromEmail: string; fromName: string; receivedAt: string }>();
+        const localMap = new Map<string, { id: string; subject: string; fromEmail: string; fromName: string; receivedAt: string; toAddresses: EmailRecipient[]; ccAddresses: EmailRecipient[] }>();
 
         if (uncachedIds.length > 0) {
           try {
             const emails = await Promise.all(
               uncachedIds.map((id) =>
-                invoke<{ id: string; subject: string; fromEmail: string; fromName: string; receivedAt: string } | null>(
+                invoke<{ id: string; subject: string; fromEmail: string; fromName: string; receivedAt: string; toAddresses: EmailRecipient[]; ccAddresses: EmailRecipient[] } | null>(
                   "outlook_get_email",
                   { id }
                 )
@@ -129,6 +136,8 @@ export function useLinkedEmails(entityType: string, entityId: string) {
               from_email: cached.from_email,
               from_name: cached.from_name,
               received_at: cached.received_at,
+              to_emails: (cached.to_emails as EmailRecipient[]) || [],
+              cc_emails: (cached.cc_emails as EmailRecipient[]) || [],
             });
           } else if (local) {
             results.push({
@@ -137,6 +146,8 @@ export function useLinkedEmails(entityType: string, entityId: string) {
               from_email: local.fromEmail,
               from_name: local.fromName,
               received_at: local.receivedAt,
+              to_emails: local.toAddresses || [],
+              cc_emails: local.ccAddresses || [],
             });
           }
         }
@@ -159,6 +170,8 @@ export function useLinkedEmails(entityType: string, entityId: string) {
               from_email: camp.from_email,
               from_name: camp.from_name,
               received_at: camp.sent_at,
+              to_emails: [],
+              cc_emails: [],
             });
           }
         }
@@ -209,7 +222,7 @@ export function useInitiativeEmails(initiativeId: string | null, projectIds: str
       if (correspondenceIds.length) {
         const { data: cached } = await supabase
           .from("email_cache")
-          .select("id, subject, from_email, from_name, received_at")
+          .select("id, subject, from_email, from_name, received_at, to_emails, cc_emails")
           .in("id", correspondenceIds);
 
         const cacheMap = new Map((cached || []).map(c => [c.id, c]));
@@ -233,9 +246,9 @@ export function useInitiativeEmails(initiativeId: string | null, projectIds: str
           const c = cacheMap.get(link.email_id);
           const l = localMap.get(link.email_id);
           if (c) {
-            results.push({ ...link, subject: c.subject, from_email: c.from_email, from_name: c.from_name, received_at: c.received_at });
+            results.push({ ...link, subject: c.subject, from_email: c.from_email, from_name: c.from_name, received_at: c.received_at, to_emails: (c.to_emails as EmailRecipient[]) || [], cc_emails: (c.cc_emails as EmailRecipient[]) || [] });
           } else if (l) {
-            results.push({ ...link, subject: l.subject, from_email: l.fromEmail, from_name: l.fromName, received_at: l.receivedAt });
+            results.push({ ...link, subject: l.subject, from_email: l.fromEmail, from_name: l.fromName, received_at: l.receivedAt, to_emails: [], cc_emails: [] });
           }
         }
       }
@@ -257,6 +270,8 @@ export function useInitiativeEmails(initiativeId: string | null, projectIds: str
               from_email: camp.from_email,
               from_name: camp.from_name,
               received_at: camp.sent_at,
+              to_emails: [],
+              cc_emails: [],
             });
           }
         }
@@ -422,12 +437,16 @@ export function useLinkEmails() {
         const cacheRows = await Promise.all(
           correspondenceEmails.map(async (e) => {
             let bodyPreview: string | null = null;
+            let toEmails: EmailRecipient[] = [];
+            let ccEmails: EmailRecipient[] = [];
             try {
-              const detail = await invoke<{ body?: string } | null>("outlook_get_email", { id: e.email_id });
+              const detail = await invoke<{ body?: string; toAddresses?: EmailRecipient[]; ccAddresses?: EmailRecipient[] } | null>("outlook_get_email", { id: e.email_id });
               if (detail?.body) {
                 // Strip HTML tags and take first 500 chars
                 bodyPreview = detail.body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
               }
+              toEmails = detail?.toAddresses || [];
+              ccEmails = detail?.ccAddresses || [];
             } catch { /* local SQLite not available */ }
 
             return {
@@ -437,6 +456,8 @@ export function useLinkEmails() {
               from_name: e.from_name || null,
               received_at: e.received_at || null,
               body_preview: bodyPreview,
+              to_emails: toEmails,
+              cc_emails: ccEmails,
             };
           })
         );

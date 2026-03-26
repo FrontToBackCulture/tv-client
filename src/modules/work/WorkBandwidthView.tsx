@@ -79,7 +79,11 @@ function computePersonStats(
   weekAgoMs: number,
   twoWeeksAgoMs: number,
 ): PersonStats {
-  const userTasks = allTasks.filter(t => t.assignee_id === userId);
+  const userTasks = allTasks.filter(t =>
+    userId === null
+      ? (!t.assignees || t.assignees.length === 0)
+      : (t.assignees || []).some(a => a.user?.id === userId)
+  );
   const active = userTasks.filter(isActive);
 
   return {
@@ -328,7 +332,13 @@ export function BandwidthView({ allTasks, users, onSelectTask }: {
   const personStats = useMemo(() => {
     const assigneeIds = new Set<string | null>();
     for (const t of tasks) {
-      assigneeIds.add(t.assignee_id || null);
+      if (!t.assignees || t.assignees.length === 0) {
+        assigneeIds.add(null);
+      } else {
+        for (const a of t.assignees) {
+          assigneeIds.add(a.user?.id || null);
+        }
+      }
     }
 
     const stats: PersonStats[] = [];

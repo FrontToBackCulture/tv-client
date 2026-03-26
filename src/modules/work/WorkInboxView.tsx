@@ -166,12 +166,12 @@ function InboxList({
               />
               <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
               <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">{task.title}</span>
-              {task.assignee?.name && (
+              {task.assignees?.[0]?.user?.name && (
                 <div
                   className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400 flex-shrink-0"
-                  title={task.assignee.name}
+                  title={task.assignees.map(a => a.user?.name).filter(Boolean).join(", ")}
                 >
-                  {initials(task.assignee.name)}
+                  {initials(task.assignees[0].user.name)}
                 </div>
               )}
               <span className={`text-xs flex-shrink-0 tabular-nums ${urgency.color}`}>

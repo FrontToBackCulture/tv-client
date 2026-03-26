@@ -61,8 +61,8 @@ export function ProjectView({
         key = String(p);
         label = labels[p] || "None";
       } else {
-        key = t.assignee?.id || "unassigned";
-        label = t.assignee?.name || "Unassigned";
+        key = t.assignees?.[0]?.user?.id || "unassigned";
+        label = t.assignees?.[0]?.user?.name || "Unassigned";
       }
 
       const group = map.get(key) || { label, color, statusType, tasks: [] };

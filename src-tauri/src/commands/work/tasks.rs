@@ -12,14 +12,13 @@ pub async fn work_list_tasks(
     project_id: Option<String>,
     status_id: Option<String>,
     status_type: Option<String>,
-    assignee_id: Option<String>,
     milestone_id: Option<String>,
     company_id: Option<String>,
     task_type: Option<String>,
 ) -> CmdResult<Vec<Task>> {
     let client = get_client().await?;
 
-    let mut filters = vec!["select=*,project:projects(*),status:task_statuses(*),assignee:users!tasks_assignee_id_fkey(*)".to_string()];
+    let mut filters = vec!["select=*,project:projects(*),status:task_statuses(*),assignees:task_assignees(user:users(*))".to_string()];
 
     if let Some(pid) = project_id {
         filters.push(format!("project_id=eq.{}", pid));
@@ -29,9 +28,6 @@ pub async fn work_list_tasks(
     }
     if let Some(st) = status_type {
         filters.push(format!("status.type=eq.{}", st));
-    }
-    if let Some(aid) = assignee_id {
-        filters.push(format!("assignee_id=eq.{}", aid));
     }
     if let Some(mid) = milestone_id {
         filters.push(format!("milestone_id=eq.{}", mid));
@@ -55,7 +51,7 @@ pub async fn work_get_task(task_id: String) -> CmdResult<Task> {
     let client = get_client().await?;
 
     let query = format!(
-        "select=*,project:projects(*),status:task_statuses(*),assignee:users!tasks_assignee_id_fkey(*)&id=eq.{}",
+        "select=*,project:projects(*),status:task_statuses(*),assignees:task_assignees(user:users(*))&id=eq.{}",
         task_id
     );
 
@@ -89,7 +85,6 @@ pub async fn work_create_task(data: CreateTask) -> CmdResult<Task> {
         "description": data.description,
         "priority": data.priority.unwrap_or(0),
         "due_date": data.due_date,
-        "assignee_id": data.assignee_id,
         "milestone_id": data.milestone_id,
         "depends_on": data.depends_on,
         "session_ref": data.session_ref,
@@ -110,6 +105,20 @@ pub async fn work_create_task(data: CreateTask) -> CmdResult<Task> {
         .update("projects", &format!("id=eq.{}", data.project_id), &update_data)
         .await?;
 
+    // Insert assignees into junction table
+    if let Some(assignee_ids) = &data.assignee_ids {
+        for user_id in assignee_ids {
+            let row = serde_json::json!({ "task_id": task.id, "user_id": user_id });
+            let result: Result<serde_json::Value, _> = client.insert("task_assignees", &row).await;
+            if let Err(e) = result {
+                let msg = e.to_string();
+                if !msg.contains("duplicate") && !msg.contains("23505") {
+                    return Err(e);
+                }
+            }
+        }
+    }
+
     // Return task with joins
     work_get_task(task.id).await
 }
@@ -118,6 +127,21 @@ pub async fn work_create_task(data: CreateTask) -> CmdResult<Task> {
 #[tauri::command]
 pub async fn work_update_task(task_id: String, data: UpdateTask) -> CmdResult<Task> {
     let client = get_client().await?;
+
+    // Handle assignee replacement first (independent of other fields)
+    if let Some(assignee_ids) = &data.assignee_ids {
+        client.delete("task_assignees", &format!("task_id=eq.{}", task_id)).await?;
+        for user_id in assignee_ids {
+            let row = serde_json::json!({ "task_id": task_id, "user_id": user_id });
+            let result: Result<serde_json::Value, _> = client.insert("task_assignees", &row).await;
+            if let Err(e) = result {
+                let msg = e.to_string();
+                if !msg.contains("duplicate") && !msg.contains("23505") {
+                    return Err(e);
+                }
+            }
+        }
+    }
 
     // If task_type is changing, update task_type_changed_at
     if data.task_type.is_some() {
@@ -210,6 +234,34 @@ pub async fn work_remove_task_labels(task_id: String, label_ids: Vec<String>) ->
         client.delete("task_labels", &query).await?;
     }
 
+    Ok(())
+}
+
+/// Add assignees to a task
+#[tauri::command]
+pub async fn work_add_task_assignees(task_id: String, user_ids: Vec<String>) -> CmdResult<()> {
+    let client = get_client().await?;
+    for user_id in user_ids {
+        let data = serde_json::json!({ "task_id": task_id, "user_id": user_id });
+        let result: Result<serde_json::Value, _> = client.insert("task_assignees", &data).await;
+        if let Err(e) = result {
+            let msg = e.to_string();
+            if !msg.contains("duplicate") && !msg.contains("23505") {
+                return Err(e);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Remove assignees from a task
+#[tauri::command]
+pub async fn work_remove_task_assignees(task_id: String, user_ids: Vec<String>) -> CmdResult<()> {
+    let client = get_client().await?;
+    for user_id in user_ids {
+        let query = format!("task_id=eq.{}&user_id=eq.{}", task_id, user_id);
+        client.delete("task_assignees", &query).await?;
+    }
     Ok(())
 }
 

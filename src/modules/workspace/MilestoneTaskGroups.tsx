@@ -29,7 +29,7 @@ interface Props {
   taskDetailId: string | null;
   onSelectTask: (id: string) => void;
   onContextMenu: (taskId: string, x: number, y: number) => void;
-  onUpdateTask: (id: string, updates: Record<string, unknown>) => void;
+  onUpdateTask: (id: string, updates: Record<string, unknown>, assignee_ids?: string[]) => void;
   onDeleteMilestone?: (id: string) => void;
 }
 
@@ -50,7 +50,7 @@ function sortTasks(tasks: TaskWithRelations[], col: SortCol, dir: "asc" | "desc"
       case "id": cmp = (a.task_number ?? 0) - (b.task_number ?? 0); break;
       case "title": cmp = (a.title || "").localeCompare(b.title || ""); break;
       case "priority": cmp = (a.priority ?? 99) - (b.priority ?? 99); break;
-      case "assignee": cmp = (a.assignee?.name || "").localeCompare(b.assignee?.name || ""); break;
+      case "assignee": cmp = (a.assignees?.[0]?.user?.name || "").localeCompare(b.assignees?.[0]?.user?.name || ""); break;
       case "milestone": cmp = (a.milestone_id || "").localeCompare(b.milestone_id || ""); break;
       case "due_date": cmp = (a.due_date || "9999").localeCompare(b.due_date || "9999"); break;
     }
@@ -164,8 +164,8 @@ export function MilestoneTaskGroups({
         </td>
         <td className="px-2 py-1.5" style={{ width: 100 }} onClick={(e) => e.stopPropagation()}>
           <select
-            value={task.assignee_id || ""}
-            onChange={(e) => onUpdateTask(task.id, { assignee_id: e.target.value || null })}
+            value={task.assignees?.[0]?.user?.id || ""}
+            onChange={(e) => onUpdateTask(task.id, {}, e.target.value ? [e.target.value] : [])}
             className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 w-full truncate"
           >
             <option value="">—</option>

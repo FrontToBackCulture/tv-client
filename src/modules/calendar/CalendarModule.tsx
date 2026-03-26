@@ -1,10 +1,10 @@
 // src/modules/calendar/CalendarModule.tsx
 
 import { useState, useEffect, useMemo } from "react";
-import { ChevronLeft, ChevronRight, RefreshCw, Video, MapPin, Users, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, Download, Video, MapPin, Users, Clock } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useCalendarEvents, type CalendarEvent } from "../../hooks/useCalendar";
-import { useOutlookAuth } from "../../hooks/useOutlook";
+import { useOutlookAuth, useCalendarSyncStart, useCalendarSyncStatus } from "../../hooks/useOutlook";
 import { OutlookSetup } from "../inbox/OutlookSetup";
 import { DetailLoading } from "../../components/ui/DetailStates";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -98,6 +98,10 @@ export function CalendarModule() {
     limit: 500,
   });
 
+  const syncStart = useCalendarSyncStart();
+  const { data: syncStatus } = useCalendarSyncStatus();
+  const isSyncing = syncStatus?.isSyncing || syncStart.isPending;
+
   if (isLoadingAuth) return <DetailLoading />;
   if (!auth?.isAuthenticated) return <OutlookSetup />;
 
@@ -141,11 +145,16 @@ export function CalendarModule() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => refetch()}
-            disabled={isLoading}
-            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
+            onClick={() => syncStart.mutate(24)}
+            disabled={isSyncing}
+            title="Sync calendar (last 2 years)"
+            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 disabled:opacity-50"
           >
-            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            {isSyncing ? (
+              <RefreshCw size={14} className="animate-spin" />
+            ) : (
+              <Download size={14} />
+            )}
           </button>
           <div className="flex rounded-lg border border-zinc-300 dark:border-zinc-600 overflow-hidden">
             {(["week", "month"] as CalendarView[]).map((v) => (

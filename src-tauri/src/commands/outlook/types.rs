@@ -215,6 +215,24 @@ pub struct GraphBody {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct GraphAttachmentList {
+    pub value: Vec<GraphAttachment>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphAttachment {
+    pub id: String,
+    #[serde(rename = "contentId")]
+    pub content_id: Option<String>,
+    #[serde(rename = "contentType")]
+    pub content_type: Option<String>,
+    #[serde(rename = "isInline")]
+    pub is_inline: Option<bool>,
+    #[serde(rename = "contentBytes")]
+    pub content_bytes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct GraphFolder {
     pub id: String,
     #[serde(rename = "displayName")]
