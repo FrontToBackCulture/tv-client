@@ -12,6 +12,7 @@ pub mod feed;
 pub mod discussions;
 pub mod notifications;
 pub mod blog;
+pub mod whatsapp;
 
 use super::protocol::{Tool, ToolResult};
 use serde_json::Value;
@@ -52,6 +53,9 @@ pub fn list_tools() -> Vec<Tool> {
 
     // Blog tools
     tools.extend(blog::tools());
+
+    // WhatsApp summary tools
+    tools.extend(whatsapp::tools());
 
     tools
 }
@@ -130,6 +134,12 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
     // Blog tools
     if name.ends_with("-blog-article") || name.ends_with("-blog-articles") {
         return blog::call(name, arguments).await;
+    }
+
+    // WhatsApp summary tools
+    if name.ends_with("-whatsapp-summary") || name.ends_with("-whatsapp-summaries") ||
+       name == "whatsapp-latest-date" {
+        return whatsapp::call(name, arguments).await;
     }
 
     ToolResult::error(format!("Unknown tool: {}", name))

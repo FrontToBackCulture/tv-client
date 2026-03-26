@@ -217,7 +217,7 @@ pub async fn outlook_list_events(
     let db = EmailDb::open()?;
     let max = limit.unwrap_or(200);
 
-    // Auto-trigger initial calendar sync if not done yet (backfills 6 months)
+    // Auto-trigger initial calendar sync if not done yet (backfills 24 months)
     let calendar_initial_done = db
         .get_sync_state("calendar_initial_sync_done")
         .ok()
@@ -231,8 +231,8 @@ pub async fn outlook_list_events(
                 Ok(db) => db,
                 Err(_) => return,
             };
-            eprintln!("[outlook:calendar] Triggering initial calendar sync (6 months)");
-            let _ = sync::run_calendar_sync(&db2, &ah, 6).await;
+            eprintln!("[outlook:calendar] Triggering initial calendar sync (24 months)");
+            let _ = sync::run_calendar_sync(&db2, &ah, 24).await;
         });
     }
 

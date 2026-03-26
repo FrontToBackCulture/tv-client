@@ -4,10 +4,13 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "../../stores/toastStore";
 import { useInitiativeEmails } from "../../hooks/email/useEntityEmails";
+import { useWhatsAppSummaries } from "../../hooks/work/useWhatsAppSummaries";
+import { EmailDetailPanel } from "../../components/emails/EmailDetailPanel";
+import type { LinkedEmail } from "../../hooks/email/useEntityEmails";
 import {
   ChevronDown, ChevronRight, Pencil, Search, ArrowUpDown,
   Target, TrendingUp, CheckCircle2, AlertTriangle, Trash2,
-  PanelLeftClose, PanelLeftOpen, EyeOff, Eye, GripVertical, Mail,
+  PanelLeftClose, PanelLeftOpen, EyeOff, Eye, GripVertical, Mail, MessageCircle, Tag, CircleAlert, Users,
 } from "lucide-react";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
@@ -46,6 +49,31 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
   const { data: users = [] } = useUsers();
   const projectIds = useMemo(() => projects.map(p => p.id), [projects]);
   const { data: initiativeEmails = [], isLoading: emailsLoading } = useInitiativeEmails(initiative?.id ?? null, projectIds);
+  const { data: whatsappSummaries = [], isLoading: whatsappLoading } = useWhatsAppSummaries(initiative?.id ?? null);
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const [commsFilter, setCommsFilter] = useState("");
+  const [selectedEmail, setSelectedEmail] = useState<LinkedEmail | null>(null);
+
+  const filteredEmails = useMemo(() => {
+    if (!commsFilter) return initiativeEmails;
+    const q = commsFilter.toLowerCase();
+    return initiativeEmails.filter(e =>
+      (e.subject || "").toLowerCase().includes(q) ||
+      (e.from_name || "").toLowerCase().includes(q) ||
+      (e.from_email || "").toLowerCase().includes(q)
+    );
+  }, [initiativeEmails, commsFilter]);
+
+  const filteredWhatsapp = useMemo(() => {
+    if (!commsFilter) return whatsappSummaries;
+    const q = commsFilter.toLowerCase();
+    return whatsappSummaries.filter(ws =>
+      ws.summary.toLowerCase().includes(q) ||
+      (ws.key_topics || []).some(t => t.toLowerCase().includes(q)) ||
+      (ws.participants || []).some(p => p.toLowerCase().includes(q)) ||
+      (ws.action_items || []).some(a => a.toLowerCase().includes(q))
+    );
+  }, [whatsappSummaries, commsFilter]);
 
   if (!initiative) return <div className="h-full flex items-center justify-center text-zinc-400">Initiative not found</div>;
 
@@ -215,22 +243,43 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
         </div>
       </div>
 
+      {/* Communications filter */}
+      {(initiativeEmails.length > 0 || whatsappSummaries.length > 0) && (
+        <div className="mt-6 mb-3">
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={commsFilter}
+              onChange={(e) => setCommsFilter(e.target.value)}
+              placeholder="Filter emails & WhatsApp..."
+              className="w-full text-xs pl-7 pr-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 outline-none focus:border-teal-400 dark:focus:border-teal-500 transition-colors"
+            />
+            {commsFilter && (
+              <button onClick={() => setCommsFilter("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 text-[10px]">
+                clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Emails — rolled up from all projects */}
-      <div className="mt-6">
+      <div className="mt-3">
         <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
           <Mail size={12} />
-          Emails ({initiativeEmails.length})
+          Emails ({filteredEmails.length}{commsFilter ? ` / ${initiativeEmails.length}` : ""})
         </h3>
         {emailsLoading ? (
           <p className="text-xs text-zinc-400">Loading emails...</p>
-        ) : initiativeEmails.length === 0 ? (
-          <p className="text-xs text-zinc-400">No emails linked to projects in this initiative.</p>
+        ) : filteredEmails.length === 0 ? (
+          <p className="text-xs text-zinc-400">{commsFilter ? "No matching emails." : "No emails linked to projects in this initiative."}</p>
         ) : (
           <div className="space-y-0.5 max-h-[300px] overflow-y-auto">
-            {initiativeEmails.map((email) => {
+            {filteredEmails.map((email) => {
               const projectName = projects.find(p => p.id === email.entity_id)?.name;
               return (
-                <div key={email.id} className="flex items-start gap-2 text-xs py-1.5 px-2 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/30 group">
+                <button key={email.id} onClick={() => setSelectedEmail(email)} className="w-full flex items-start gap-2 text-xs py-1.5 px-2 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/30 group cursor-pointer text-left">
                   <Mail size={11} className="text-zinc-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="text-zinc-700 dark:text-zinc-300 truncate font-medium">{email.subject || "(no subject)"}</div>
@@ -242,12 +291,90 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
                       )}
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* Email detail slide-over */}
+      <EmailDetailPanel email={selectedEmail} onClose={() => setSelectedEmail(null)} />
+
+      {/* WhatsApp Summaries */}
+      {(whatsappLoading || whatsappSummaries.length > 0) && (
+        <div className="mt-4">
+          <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <MessageCircle size={12} />
+            WhatsApp ({filteredWhatsapp.length}{commsFilter ? ` / ${whatsappSummaries.length}` : ""})
+          </h3>
+          {whatsappLoading ? (
+            <p className="text-xs text-zinc-400">Loading summaries...</p>
+          ) : filteredWhatsapp.length === 0 ? (
+            <p className="text-xs text-zinc-400">{commsFilter ? "No matching summaries." : "No WhatsApp summaries."}</p>
+          ) : (
+            <div className="space-y-1 max-h-[400px] overflow-y-auto">
+              {filteredWhatsapp.map((ws) => {
+                const isExpanded = expandedDates.has(ws.date);
+                const dateLabel = new Date(ws.date + "T00:00:00").toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+                return (
+                  <div key={ws.id} className="rounded border border-zinc-100 dark:border-zinc-800">
+                    <button
+                      onClick={() => {
+                        const next = new Set(expandedDates);
+                        isExpanded ? next.delete(ws.date) : next.add(ws.date);
+                        setExpandedDates(next);
+                      }}
+                      className="w-full flex items-center gap-2 text-xs py-2 px-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 rounded transition-colors"
+                    >
+                      <ChevronRight size={12} className={`text-zinc-400 transition-transform flex-shrink-0 ${isExpanded ? "rotate-90" : ""}`} />
+                      <span className="text-zinc-500 flex-shrink-0 w-[110px] text-left">{dateLabel}</span>
+                      <span className="text-zinc-700 dark:text-zinc-300 flex-1 min-w-0 truncate text-left">{ws.summary.split(".")[0]}</span>
+                      {ws.message_count && (
+                        <span className="text-[10px] text-zinc-400 flex-shrink-0">{ws.message_count} msg</span>
+                      )}
+                    </button>
+                    {isExpanded && (
+                      <div className="px-3 pb-3 pt-1 text-xs space-y-2 border-t border-zinc-50 dark:border-zinc-800/50">
+                        <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">{ws.summary}</p>
+                        {ws.key_topics && ws.key_topics.length > 0 && (
+                          <div className="flex items-start gap-1.5">
+                            <Tag size={10} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex flex-wrap gap-1">
+                              {ws.key_topics.map((topic, i) => (
+                                <span key={i} className="px-1.5 py-0.5 rounded-full bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400 text-[10px]">{topic}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {ws.action_items && ws.action_items.length > 0 && (
+                          <div className="flex items-start gap-1.5">
+                            <CircleAlert size={10} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                            <ul className="text-zinc-600 dark:text-zinc-400 space-y-0.5">
+                              {ws.action_items.map((item, i) => (
+                                <li key={i}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {ws.participants && ws.participants.length > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <Users size={10} className="text-zinc-400 flex-shrink-0" />
+                            <span className="text-[10px] text-zinc-400">{ws.participants.join(", ")}</span>
+                          </div>
+                        )}
+                        {ws.media_notes && (
+                          <p className="text-[10px] text-zinc-400 italic">{ws.media_notes}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Delete */}
       <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">

@@ -76,9 +76,7 @@ pub async fn val_sync_ai_to_s3(domain: String, global_path: String) -> CmdResult
             .await
             .map_err(|e| CommandError::Io(format!("Failed to read {}: {}", rel_path, e)))?;
 
-        // Strip "skills/" prefix so each skill folder sits directly under the domain
-        let s3_rel = rel_path.strip_prefix("skills/").unwrap_or(rel_path);
-        let s3_key = format!("{}{}", s3_prefix, s3_rel);
+        let s3_key = format!("{}{}", s3_prefix, rel_path);
         client
             .put_object()
             .bucket(S3_BUCKET)
@@ -145,18 +143,11 @@ pub async fn val_s3_ai_status(domain: String, global_path: String) -> CmdResult<
     let ai_path = std::path::Path::new(&global_path).join("ai");
     let has_ai_folder = ai_path.exists();
 
-    // Collect local files (relative paths), then strip skills/ prefix to match S3 layout
-    let mut raw_local: HashMap<String, u64> = HashMap::new();
+    // Collect local files (relative paths) to match S3 layout
+    let mut local_files: HashMap<String, u64> = HashMap::new();
     if has_ai_folder {
-        collect_local_files(&ai_path, &ai_path, &mut raw_local);
+        collect_local_files(&ai_path, &ai_path, &mut local_files);
     }
-    let local_files: HashMap<String, u64> = raw_local
-        .into_iter()
-        .map(|(path, size)| {
-            let normalized = path.strip_prefix("skills/").unwrap_or(&path).to_string();
-            (normalized, size)
-        })
-        .collect();
 
     // List S3 files
     let client = build_s3_client(access_key, secret_key);

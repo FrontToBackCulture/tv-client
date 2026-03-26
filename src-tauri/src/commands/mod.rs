@@ -28,6 +28,7 @@ pub mod feed;
 pub mod discussions;
 pub mod notifications;
 pub mod blog;
+pub mod whatsapp;
 pub mod s3_browser;
 pub mod apollo;
 #[allow(dead_code)]

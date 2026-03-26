@@ -19,4 +19,6 @@ export const workKeys = {
     [...workKeys.all, "milestones", projectId] as const,
   projectUpdates: (projectId: string) =>
     [...workKeys.all, "projectUpdates", projectId] as const,
+  whatsappSummaries: (initiativeId: string) =>
+    [...workKeys.all, "whatsapp_summaries", initiativeId] as const,
 };
