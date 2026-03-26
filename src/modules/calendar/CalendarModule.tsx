@@ -92,7 +92,7 @@ export function CalendarModule() {
     };
   }, [currentDate, view]);
 
-  const { data: events = [], isLoading, refetch } = useCalendarEvents({
+  const { data: events = [] } = useCalendarEvents({
     startTime,
     endTime,
     limit: 500,
