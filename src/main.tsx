@@ -7,6 +7,16 @@ import '@fontsource/instrument-serif/latin.css';
 import App from './App';
 import './styles/globals.css';
 
+// Global error handler — shows errors on screen instead of blank white page
+window.onerror = (msg, src, line, col, err) => {
+  const el = document.getElementById('root');
+  if (el) el.innerHTML = `<pre style="padding:2rem;color:red;font-size:12px;white-space:pre-wrap">CRASH: ${msg}\n\nSource: ${src}:${line}:${col}\n\nStack: ${err?.stack || 'N/A'}</pre>`;
+};
+window.addEventListener('unhandledrejection', (e) => {
+  const el = document.getElementById('root');
+  if (el) el.innerHTML = `<pre style="padding:2rem;color:red;font-size:12px;white-space:pre-wrap">UNHANDLED PROMISE: ${e.reason?.message || e.reason}\n\nStack: ${e.reason?.stack || 'N/A'}</pre>`;
+});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
