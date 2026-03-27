@@ -663,13 +663,15 @@ function DistributionPanel({ slug, skill, driftStatuses }: {
     try { await distributeTo.mutateAsync({ slug, targetPath, distType }); } finally { setActionSlug(null); }
   };
 
-  const registeredPaths = new Set(safeDistributions.map(d => d.path));
+  const safeDistributions = Array.isArray(skill.distributions) ? skill.distributions : [];
+
+  const registeredPaths = new Set(safeDistributions.map((d: { path: string }) => d.path));
   const discoveredDrifts = driftStatuses.filter(
     d => d.slug === slug && !registeredPaths.has(d.distribution_path)
   );
 
   const allDistributions = useMemo(() => {
-    const registered = safeDistributions.map(d => ({
+    const registered = safeDistributions.map((d: { path: string; type: string }) => ({
       path: d.path,
       type: d.type,
       isRegistered: true,
