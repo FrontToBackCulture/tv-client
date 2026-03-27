@@ -10,8 +10,10 @@ import {
   useSyncAllDomainsImporterErrors,
   useSyncAllDomainsIntegrationErrors,
   useSyncAllDomainsAiToS3,
+  useComputeAllDependencies,
   type DiscoveredDomain,
 } from "../../hooks/val-sync";
+import { useDomainHealthCheckRunner } from "../../hooks/val-sync/useDomainHealthChecks";
 import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useDomainArtifactsRebuild } from "../../hooks/useDomainArtifactsRebuild";
@@ -28,6 +30,7 @@ import {
   ChevronRight,
   FolderOpen,
   Check,
+  HeartPulse,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
@@ -243,7 +246,9 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const { trigger: syncImporterErrors, progress: importerProgress } = useSyncAllDomainsImporterErrors();
   const { trigger: syncIntegrationErrors, progress: integrationProgress } = useSyncAllDomainsIntegrationErrors();
   const { trigger: syncAiToS3, progress: s3Progress } = useSyncAllDomainsAiToS3();
+  const { trigger: computeDeps, progress: depsProgress } = useComputeAllDependencies();
   const { progress: rebuildProgress, rebuild: rebuildIndex } = useDomainArtifactsRebuild();
+  const { trigger: runHealthChecks, progress: healthProgress } = useDomainHealthCheckRunner();
 
   const [fullAnalysisRunning, setFullAnalysisRunning] = useState(false);
 
@@ -255,6 +260,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const isIntegrationSyncing = integrationProgress?.isRunning ?? false;
   const isS3Syncing = s3Progress?.isRunning ?? false;
   const isRebuildRunning = rebuildProgress.running;
+  const isHealthChecking = healthProgress?.isRunning ?? false;
   const [isGa4Syncing, setIsGa4Syncing] = useState(false);
 
   const handleSyncGa4 = useCallback(async () => {
@@ -282,7 +288,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const anyRunning =
     isSyncing || isMonitoringSyncing || isSodSyncing || isImporterSyncing ||
     isIntegrationSyncing || isS3Syncing ||
-    fullAnalysisRunning || isGa4Syncing || isRebuildRunning;
+    fullAnalysisRunning || isGa4Syncing || isRebuildRunning || isHealthChecking;
 
   const getCurrentOperation = () => {
     if (isSyncing) return syncProgress?.currentDomain ? `Syncing ${syncProgress.currentDomain}` : "Syncing...";
@@ -364,6 +370,8 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
     { label: "Integration Errors", onClick: () => syncIntegrationErrors(domainNames), isRunning: isIntegrationSyncing, tooltip: "Fetch recent integration errors" },
     { label: "Push AI to S3", onClick: () => syncAiToS3(all.map(d => ({ domain: d.domain, global_path: d.global_path }))), isRunning: isS3Syncing, tooltip: "Sync all domain AI folders to S3" },
     { label: "Rebuild Index", onClick: () => rebuildIndex(all), isRunning: isRebuildRunning, tooltip: "Rebuild cross-domain artifacts index in Supabase from filesystem" },
+    { label: "Health Checks", onClick: () => runHealthChecks(all.filter(d => d.domain_type === "production").map(d => d.domain)), isRunning: isHealthChecking, tooltip: "Run data health checks across all production domains" },
+    { label: "Compute Dependencies", onClick: () => computeDeps(domainNames), isRunning: depsProgress?.isRunning ?? false, tooltip: "Compute resource dependencies + table recency for cleanup analysis" },
   ];
 
   // Command palette commands
@@ -376,7 +384,9 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
     { id: "domain-sync-s3", label: "Push AI to S3", description: "Upload all domain AI folders to S3 storage", icon: <RefreshCw size={15} />, action: () => syncAiToS3(all.map(d => ({ domain: d.domain, global_path: d.global_path }))) },
     { id: "domain-sync-ga4", label: "Sync GA4 Analytics", description: "Fetch dashboard page views from Google Analytics", icon: <BarChart3 size={15} />, action: handleSyncGa4 },
     { id: "domain-rebuild-index", label: "Rebuild Cross-Domain Index", description: "Rebuild Supabase domain_artifacts from filesystem data", icon: <Database size={15} />, action: () => rebuildIndex(all) },
+    { id: "domain-compute-deps", label: "Compute Dependencies", description: "Compute resource dependencies + table recency for all domains", icon: <RefreshCw size={15} />, action: () => computeDeps(domainNames) },
     { id: "domain-full-sync", label: "Full Sync Pipeline", description: "Sync All domains sequentially", icon: <Zap size={15} />, action: handleFullAnalysis },
+    { id: "domain-health-checks", label: "Run Health Checks", description: "Check workflow failures, mapping duplicates, and stale jobs across production domains", icon: <HeartPulse size={15} />, action: () => runHealthChecks(all.filter(d => d.domain_type === "production").map(d => d.domain)) },
     ...(anyRunning ? [{ id: "domain-stop", label: "Stop Running Operation", description: "Abort the currently running batch operation", icon: <Square size={15} />, action: handleStop }] : []),
   ], [domainNames, anyRunning, all]);
 

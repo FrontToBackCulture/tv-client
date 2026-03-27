@@ -13,6 +13,7 @@ import {
   Search,
   BarChart3,
   Workflow,
+  HeartPulse,
 } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -25,8 +26,9 @@ import { DomainsOverview } from "./DomainsOverview";
 import { DomainDetailPanel } from "./DomainDetailPanel";
 import { DriveTabView } from "./DriveTabView";
 import { CrossDomainReportsView } from "./CrossDomainReportsView";
+import { HealthDashboard } from "./HealthDashboard";
 
-type Level1Tab = "overview" | "data-models" | "queries" | "workflows" | "dashboards" | "drive" | "reports";
+type Level1Tab = "overview" | "data-models" | "queries" | "workflows" | "dashboards" | "drive" | "reports" | "health";
 type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
 
 export function DomainsModule() {
@@ -58,6 +60,7 @@ export function DomainsModule() {
         dashboards: "Dashboards (cross-domain)",
         drive: "Drive (cross-domain)",
         reports: "Reports (cross-domain)",
+        health: "Health Checks (cross-domain)",
       };
       setViewDetail(tabLabels[activeTab]);
     }
@@ -231,6 +234,7 @@ export function DomainsModule() {
             : activeTab === "dashboards" ? "Cross-domain view of all dashboards — review widgets, linked queries, and portal visibility."
             : activeTab === "drive" ? "Browse VAL Drive folders across domains — view uploaded files and workflow file processing."
             : activeTab === "reports" ? "Generated reports across all domains — HTML reports, analysis outputs, and documentation."
+            : activeTab === "health" ? "Domain health scoreboard — workflow failures, stale jobs, mapping duplicates, and error patterns across all production domains."
             : ""}
         </p>
       </div>
@@ -286,6 +290,13 @@ export function DomainsModule() {
           onClick={() => setActiveTab("reports")}
           data-help-id="domains-tab-reports"
         />
+        <ViewTab
+          label="Health"
+          icon={HeartPulse}
+          active={activeTab === "health"}
+          onClick={() => setActiveTab("health")}
+          data-help-id="domains-tab-health"
+        />
       </div>
 
       {/* Tab content */}
@@ -323,6 +334,12 @@ export function DomainsModule() {
         {activeTab === "reports" && (
           <div className="flex-1 overflow-hidden">
             <CrossDomainReportsView />
+          </div>
+        )}
+
+        {activeTab === "health" && (
+          <div className="flex-1 overflow-hidden">
+            <HealthDashboard />
           </div>
         )}
       </div>

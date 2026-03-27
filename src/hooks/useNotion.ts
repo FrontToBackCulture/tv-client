@@ -193,3 +193,37 @@ export function useNotionPushTask() {
     },
   });
 }
+
+// ============================================================================
+// Pull (Notion → tv-client)
+// ============================================================================
+
+export function useNotionBlockChildren(blockId: string | null) {
+  return useQuery({
+    queryKey: [...notionKeys.all, "block-children", blockId],
+    queryFn: () =>
+      invoke<NotionBlock[]>("notion_get_block_children", { blockId: blockId! }),
+    staleTime: 1000 * 60 * 5,
+    enabled: !!blockId,
+  });
+}
+
+export interface NotionBlock {
+  id: string;
+  type: string;
+  has_children?: boolean;
+  _children?: NotionBlock[];
+  [key: string]: unknown;
+}
+
+export function useNotionPullTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) =>
+      invoke<PushResult>("notion_pull_task", { taskId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["work"] });
+      queryClient.invalidateQueries({ queryKey: notionKeys.all });
+    },
+  });
+}

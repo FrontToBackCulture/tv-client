@@ -42,7 +42,7 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
   };
 
   // Get initials for avatar fallback
-  const initials = userInfo.name
+  const initials = (userInfo.name || "U")
     .split(" ")
     .map((n: string) => n[0])
     .join("")
@@ -195,7 +195,7 @@ export function UserAvatar() {
     );
   }
 
-  const initials = userInfo.name
+  const initials = (userInfo.name || "U")
     .split(" ")
     .map((n: string) => n[0])
     .join("")

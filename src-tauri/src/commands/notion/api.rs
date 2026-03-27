@@ -438,15 +438,61 @@ pub async fn list_users() -> CmdResult<Vec<NotionUser>> {
     Ok(users)
 }
 
+/// Fetch block children with 2 levels of recursion for UI rendering.
+/// Children are nested inside the block type content (e.g., toggle.children)
+/// so they're compatible with react-notion-render.
+pub async fn fetch_block_children(block_id: &str) -> CmdResult<Vec<Value>> {
+    let mut blocks = fetch_blocks_recursive(block_id, 0, 2).await?;
+    // Move _children into the block type content (e.g., toggle.children)
+    // so react-notion-render can find them
+    nest_children(&mut blocks);
+    Ok(blocks)
+}
+
+/// Recursively move `_children` into `block[type].children` for react-notion-render compatibility
+fn nest_children(blocks: &mut [Value]) {
+    for block in blocks.iter_mut() {
+        if let Some(children) = block.get("_children").cloned() {
+            if let Some(block_type) = block.get("type").and_then(|t| t.as_str()).map(|s| s.to_string()) {
+                // Move children into the type-specific content
+                if let Some(type_content) = block.get_mut(&block_type) {
+                    type_content["children"] = children.clone();
+                }
+                // Also recursively nest for deeper levels
+                if let Some(kids) = block.get_mut(&block_type)
+                    .and_then(|tc| tc.get_mut("children"))
+                    .and_then(|c| c.as_array_mut())
+                {
+                    nest_children(kids);
+                }
+            }
+            // Remove _children to keep response clean
+            if let Some(obj) = block.as_object_mut() {
+                obj.remove("_children");
+            }
+        }
+    }
+}
+
 /// Fetch all block children for a page and convert to markdown
 pub async fn get_page_content_as_markdown(page_id: &str) -> CmdResult<String> {
+    let blocks = fetch_blocks_recursive(page_id, 0, 5).await?;
+    Ok(blocks_to_markdown(&blocks, 0))
+}
+
+/// Fetch block children with pagination, recursively fetching nested children
+/// up to `max_depth` levels deep. Each block with children gets a "_children" key added.
+fn fetch_blocks_recursive(block_id: &str, depth: u32, max_depth: u32) -> std::pin::Pin<Box<dyn std::future::Future<Output = CmdResult<Vec<Value>>> + Send + '_>> {
+    Box::pin(async move { fetch_blocks_inner(block_id, depth, max_depth).await })
+}
+
+async fn fetch_blocks_inner(block_id: &str, depth: u32, max_depth: u32) -> CmdResult<Vec<Value>> {
     let api_key = get_api_key()?;
     let mut all_blocks: Vec<Value> = Vec::new();
     let mut cursor: Option<String> = None;
 
-    // Paginate through all blocks
     loop {
-        let mut url = format!("{}/blocks/{}/children?page_size=100", NOTION_API_BASE, page_id);
+        let mut url = format!("{}/blocks/{}/children?page_size=100", NOTION_API_BASE, block_id);
         if let Some(ref c) = cursor {
             url.push_str(&format!("&start_cursor={}", c));
         }
@@ -475,7 +521,29 @@ pub async fn get_page_content_as_markdown(page_id: &str) -> CmdResult<String> {
         }
     }
 
-    Ok(blocks_to_markdown(&all_blocks))
+    // Recursively fetch children for blocks that have them
+    if depth < max_depth {
+        for block in &mut all_blocks {
+            if block["has_children"].as_bool() == Some(true) {
+                let block_id = match block["id"].as_str() {
+                    Some(id) => id.to_string(),
+                    None => continue,
+                };
+                // Skip child_page and child_database — those are separate pages
+                let block_type = block["type"].as_str().unwrap_or("");
+                if block_type == "child_page" || block_type == "child_database" {
+                    continue;
+                }
+                if let Ok(children) = fetch_blocks_recursive(&block_id, depth + 1, max_depth).await {
+                    block["_children"] = Value::Array(children);
+                }
+                // Rate limit
+                tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            }
+        }
+    }
+
+    Ok(all_blocks)
 }
 
 /// Fetch block children and return raw blocks + extracted attachment info
@@ -514,137 +582,178 @@ pub async fn get_page_blocks(page_id: &str) -> CmdResult<(String, Vec<NotionAtta
         }
     }
 
-    let markdown = blocks_to_markdown(&all_blocks);
+    let markdown = blocks_to_markdown(&all_blocks, 0);
     let attachments = extract_attachments(&all_blocks);
     Ok((markdown, attachments))
 }
 
-/// Convert Notion blocks to markdown
-fn blocks_to_markdown(blocks: &[Value]) -> String {
-    let mut lines: Vec<String> = Vec::new();
-    let mut in_numbered_list = false;
-    let mut list_num = 0;
+/// Convert Notion blocks to clean, simple markdown.
+/// Uses bullet points for all list types with 4-space indentation for nesting.
+fn blocks_to_markdown(blocks: &[Value], depth: usize) -> String {
+    let mut out = String::new();
+    let indent = "    ".repeat(depth); // 4 spaces per level — standard markdown nesting
 
     for block in blocks {
-        let block_type = block["type"].as_str().unwrap_or("");
+        let bt = block["type"].as_str().unwrap_or("");
+        let children = block.get("_children").and_then(|c| c.as_array());
 
-        // Reset numbered list tracking
-        if block_type != "numbered_list_item" {
-            in_numbered_list = false;
-            list_num = 0;
-        }
-
-        let line = match block_type {
-            "paragraph" => rich_text_to_md(&block["paragraph"]["rich_text"]),
-            "heading_1" => format!("# {}", rich_text_to_md(&block["heading_1"]["rich_text"])),
-            "heading_2" => format!("## {}", rich_text_to_md(&block["heading_2"]["rich_text"])),
-            "heading_3" => format!("### {}", rich_text_to_md(&block["heading_3"]["rich_text"])),
-            "bulleted_list_item" => format!("- {}", rich_text_to_md(&block["bulleted_list_item"]["rich_text"])),
-            "numbered_list_item" => {
-                if !in_numbered_list { in_numbered_list = true; list_num = 0; }
-                list_num += 1;
-                format!("{}. {}", list_num, rich_text_to_md(&block["numbered_list_item"]["rich_text"]))
+        match bt {
+            "paragraph" => {
+                let text = rich_text_to_md(&block["paragraph"]["rich_text"]);
+                if text.is_empty() {
+                    out.push('\n');
+                } else {
+                    out.push_str(&format!("{}{}\n", indent, text));
+                }
             }
+            "heading_1" => out.push_str(&format!("# {}\n", rich_text_to_md(&block["heading_1"]["rich_text"]))),
+            "heading_2" => out.push_str(&format!("## {}\n", rich_text_to_md(&block["heading_2"]["rich_text"]))),
+            "heading_3" => out.push_str(&format!("### {}\n", rich_text_to_md(&block["heading_3"]["rich_text"]))),
+
+            "bulleted_list_item" | "numbered_list_item" => {
+                let key = if bt == "bulleted_list_item" { "bulleted_list_item" } else { "numbered_list_item" };
+                let text = rich_text_to_md(&block[key]["rich_text"]);
+                out.push_str(&format!("{}- {}\n", indent, text));
+                if let Some(kids) = children {
+                    out.push_str(&blocks_to_markdown(kids, depth + 1));
+                }
+            }
+
             "to_do" => {
                 let checked = block["to_do"]["checked"].as_bool().unwrap_or(false);
                 let marker = if checked { "[x]" } else { "[ ]" };
-                format!("- {} {}", marker, rich_text_to_md(&block["to_do"]["rich_text"]))
+                out.push_str(&format!("{}- {} {}\n", indent, marker, rich_text_to_md(&block["to_do"]["rich_text"])));
             }
-            "toggle" => format!("> {}", rich_text_to_md(&block["toggle"]["rich_text"])),
-            "quote" => format!("> {}", rich_text_to_md(&block["quote"]["rich_text"])),
-            "callout" => {
-                let text = rich_text_to_md(&block["callout"]["rich_text"]);
-                format!("> **Note:** {}", text)
+
+            "toggle" => {
+                let text = rich_text_to_md(&block["toggle"]["rich_text"]);
+                out.push_str(&format!("\n{}**{}**\n", indent, text));
+                if let Some(kids) = children {
+                    out.push_str(&blocks_to_markdown(kids, depth + 1));
+                }
+                out.push('\n');
             }
+
+            "quote" => out.push_str(&format!("{}> {}\n", indent, rich_text_to_md(&block["quote"]["rich_text"]))),
+            "callout" => out.push_str(&format!("{}> {}\n", indent, rich_text_to_md(&block["callout"]["rich_text"]))),
+
             "code" => {
                 let lang = block["code"]["language"].as_str().unwrap_or("");
                 let code = rich_text_to_md(&block["code"]["rich_text"]);
-                format!("```{}\n{}\n```", lang, code)
+                out.push_str(&format!("```{}\n{}\n```\n", lang, code));
             }
-            "divider" => "---".to_string(),
+
+            "divider" => out.push_str("\n---\n\n"),
+
             "image" => {
                 let url = extract_file_url(&block["image"]);
                 let caption = rich_text_to_md(&block["image"]["caption"]);
-                if caption.is_empty() {
-                    format!("![image]({})", url)
-                } else {
-                    format!("![{}]({})", caption, url)
-                }
+                let label = if caption.is_empty() { "image".to_string() } else { caption };
+                out.push_str(&format!("{}![{}]({})\n", indent, label, url));
             }
+
             "file" => {
-                let url = extract_file_url(&block["file"]);
+                // Show filename only — Notion file URLs are temporary signed URLs
                 let name = block["file"]["name"].as_str()
                     .or_else(|| block["file"]["caption"].as_array()
                         .and_then(|a| a.first())
                         .and_then(|t| t["plain_text"].as_str()))
                     .unwrap_or("file");
-                format!("[{}]({})", name, url)
+                out.push_str(&format!("{}- {}\n", indent, name));
             }
             "pdf" => {
-                let url = extract_file_url(&block["pdf"]);
-                format!("[PDF]({})", url)
+                out.push_str(&format!("{}- PDF attachment\n", indent));
             }
-            "bookmark" => {
-                let url = block["bookmark"]["url"].as_str().unwrap_or("");
-                let caption = rich_text_to_md(&block["bookmark"]["caption"]);
+
+            "bookmark" | "link_preview" => {
+                let url_key = if bt == "bookmark" { "bookmark" } else { "link_preview" };
+                let url = block[url_key]["url"].as_str().unwrap_or("");
+                let caption = if bt == "bookmark" {
+                    rich_text_to_md(&block["bookmark"]["caption"])
+                } else { String::new() };
                 if caption.is_empty() {
-                    format!("[{}]({})", url, url)
+                    out.push_str(&format!("{}{}\n", indent, url));
                 } else {
-                    format!("[{}]({})", caption, url)
+                    out.push_str(&format!("{}[{}]({})\n", indent, caption, url));
                 }
             }
-            "link_preview" => {
-                let url = block["link_preview"]["url"].as_str().unwrap_or("");
-                format!("[{}]({})", url, url)
-            }
+
             "table" => {
-                // Basic table support
-                if let Some(rows) = block.get("table") {
-                    if rows["has_column_header"].as_bool() == Some(true) {
-                        "<!-- table -->".to_string()
-                    } else {
-                        "<!-- table -->".to_string()
+                if let Some(rows) = children {
+                    out.push('\n');
+                    for (i, row) in rows.iter().enumerate() {
+                        if let Some(cells) = row.get("table_row")
+                            .and_then(|tr| tr.get("cells"))
+                            .and_then(|c| c.as_array())
+                        {
+                            let cell_texts: Vec<String> = cells.iter()
+                                .map(|cell| rich_text_to_md(cell).replace('|', "/"))
+                                .collect();
+                            out.push_str(&format!("| {} |\n", cell_texts.join(" | ")));
+                            if i == 0 {
+                                let sep = cell_texts.iter().map(|_| "---").collect::<Vec<_>>().join(" | ");
+                                out.push_str(&format!("| {} |\n", sep));
+                            }
+                        }
                     }
-                } else {
-                    String::new()
+                    out.push('\n');
                 }
+                // table handles its own children — skip the generic handler below
+                continue;
             }
+
             "child_page" => {
                 let title = block["child_page"]["title"].as_str().unwrap_or("Untitled");
-                format!("**[Sub-page: {}]**", title)
+                out.push_str(&format!("{}- **{}**\n", indent, title));
             }
             "child_database" => {
                 let title = block["child_database"]["title"].as_str().unwrap_or("Untitled");
-                format!("**[Database: {}]**", title)
+                out.push_str(&format!("{}- **{}**\n", indent, title));
             }
-            _ => String::new(),
-        };
 
-        if !line.is_empty() {
-            lines.push(line);
-        } else if block_type == "paragraph" {
-            // Empty paragraph = blank line
-            lines.push(String::new());
+            "column_list" => {
+                if let Some(cols) = children {
+                    for col in cols {
+                        if let Some(col_kids) = col.get("_children").and_then(|c| c.as_array()) {
+                            out.push_str(&blocks_to_markdown(col_kids, depth));
+                        }
+                    }
+                }
+                continue; // already handled children
+            }
+            "column" => continue,
+
+            _ => {}
+        }
+
+        // Generic child handler for block types that don't handle their own children
+        let self_handled = matches!(bt,
+            "bulleted_list_item" | "numbered_list_item" | "toggle" | "table" |
+            "column_list" | "column" | "child_page" | "child_database"
+        );
+        if !self_handled {
+            if let Some(kids) = children {
+                out.push_str(&blocks_to_markdown(kids, depth + 1));
+            }
         }
     }
 
-    // Clean up: collapse multiple blank lines
+    // Collapse 3+ consecutive newlines into 2
     let mut result = String::new();
-    let mut prev_blank = false;
-    for line in &lines {
-        if line.is_empty() {
-            if !prev_blank {
-                result.push('\n');
-                prev_blank = true;
+    let mut newline_count = 0;
+    for ch in out.chars() {
+        if ch == '\n' {
+            newline_count += 1;
+            if newline_count <= 2 {
+                result.push(ch);
             }
         } else {
-            result.push_str(line);
-            result.push('\n');
-            prev_blank = false;
+            newline_count = 0;
+            result.push(ch);
         }
     }
 
-    result.trim().to_string()
+    result
 }
 
 /// Convert Notion rich_text array to markdown string
@@ -766,6 +875,33 @@ fn guess_file_type(url: &str) -> Option<String> {
     else if path.ends_with(".docx") || path.ends_with(".doc") { Some("application/msword".to_string()) }
     else if path.ends_with(".csv") { Some("text/csv".to_string()) }
     else { None }
+}
+
+/// Get a full Notion page (properties + metadata)
+pub async fn get_page(page_id: &str) -> CmdResult<NotionPage> {
+    let api_key = get_api_key()?;
+    let url = format!("{}/pages/{}", NOTION_API_BASE, page_id);
+
+    let response = HTTP_CLIENT
+        .get(&url)
+        .headers(notion_headers(&api_key))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(CommandError::Http { status, body });
+    }
+
+    let page: Value = response.json().await?;
+    Ok(NotionPage {
+        id: page["id"].as_str().unwrap_or(page_id).to_string(),
+        properties: page.get("properties").cloned().unwrap_or_default(),
+        last_edited_time: page["last_edited_time"].as_str().map(|s| s.to_string()),
+        created_time: page["created_time"].as_str().map(|s| s.to_string()),
+        url: page["url"].as_str().map(|s| s.to_string()),
+    })
 }
 
 /// Get a single page's title

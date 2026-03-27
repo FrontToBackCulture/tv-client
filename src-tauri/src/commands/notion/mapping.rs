@@ -72,11 +72,19 @@ pub fn extract_property_value(property: &Value) -> Option<String> {
 }
 
 /// Apply value mapping (e.g., Notion "Upnext" → Work status UUID)
-/// Returns the mapped value, or the original if no mapping found
+/// Returns the mapped value, or the original if no mapping found.
+/// Uses case-insensitive key matching to handle Notion status name variations.
 pub fn apply_value_map(raw_value: &str, value_map: Option<&Value>) -> String {
     if let Some(map) = value_map {
         if let Some(obj) = map.as_object() {
-            if let Some(mapped) = obj.get(raw_value) {
+            // Try exact match first, then case-insensitive
+            let matched = obj.get(raw_value).or_else(|| {
+                let lower = raw_value.to_lowercase();
+                obj.iter()
+                    .find(|(k, _)| k.to_lowercase() == lower)
+                    .map(|(_, v)| v)
+            });
+            if let Some(mapped) = matched {
                 if let Some(s) = mapped.as_str() {
                     return s.to_string();
                 }

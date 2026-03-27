@@ -565,3 +565,76 @@ export function useSyncAllDomainsAiToS3() {
   const abort = useCallback(() => { abortRef.current = true; }, []);
   return { trigger, abort, progress };
 }
+
+/** Compute dependencies + recency for all domains (no full sync needed) */
+export function useComputeAllDependencies() {
+  const addJob = useJobsStore((s) => s.addJob);
+  const updateJob = useJobsStore((s) => s.updateJob);
+  const [progress, setProgress] = useState<SyncAllDomainsProgress | null>(null);
+  const abortRef = useRef(false);
+
+  const trigger = useCallback(
+    async (domains: string[]) => {
+      if (progress?.isRunning) return;
+      abortRef.current = false;
+
+      const jobId = `val-compute-deps-all-${Date.now()}`;
+      const total = domains.length;
+      const completed: string[] = [];
+      const failed: string[] = [];
+
+      addJob({
+        id: jobId,
+        name: `Compute Dependencies (${total} domains)`,
+        status: "running",
+        progress: 0,
+        message: `Starting for ${total} domains...`,
+      });
+
+      setProgress({ current: 0, total, currentDomain: "", completed: [], failed: [], isRunning: true });
+
+      for (let i = 0; i < domains.length; i++) {
+        if (abortRef.current) {
+          updateJob(jobId, {
+            status: "failed",
+            progress: Math.round((i / total) * 100),
+            message: `Aborted after ${completed.length} completed, ${failed.length} failed`,
+          });
+          setProgress((p) => p ? { ...p, isRunning: false } : null);
+          return;
+        }
+
+        const domain = domains[i];
+        const pct = Math.round((i / total) * 100);
+
+        updateJob(jobId, { progress: pct, message: `[${i + 1}/${total}] ${domain}: computing dependencies...` });
+        setProgress({ current: i + 1, total, currentDomain: domain, completed: [...completed], failed: [...failed], isRunning: true });
+
+        try {
+          await invoke("val_compute_dependencies", { domain });
+          updateJob(jobId, { message: `[${i + 1}/${total}] ${domain}: collecting recency...` });
+          await invoke("val_collect_recency", { domain });
+          completed.push(domain);
+        } catch {
+          failed.push(domain);
+        }
+      }
+
+      const finalMsg = failed.length > 0
+        ? `Done: ${completed.length} computed, ${failed.length} failed (${failed.join(", ")})`
+        : `Done: ${completed.length}/${total} domains analyzed`;
+
+      updateJob(jobId, {
+        status: failed.length === total ? "failed" : "completed",
+        progress: 100,
+        message: finalMsg,
+      });
+
+      setProgress({ current: total, total, currentDomain: "", completed, failed, isRunning: false });
+    },
+    [addJob, updateJob, progress?.isRunning]
+  );
+
+  const abort = useCallback(() => { abortRef.current = true; }, []);
+  return { trigger, abort, progress };
+}

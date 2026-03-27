@@ -13,6 +13,7 @@ pub mod discussions;
 pub mod notifications;
 pub mod blog;
 pub mod whatsapp;
+pub mod apollo;
 
 use super::protocol::{Tool, ToolResult};
 use serde_json::Value;
@@ -56,6 +57,9 @@ pub fn list_tools() -> Vec<Tool> {
 
     // WhatsApp summary tools
     tools.extend(whatsapp::tools());
+
+    // Apollo prospect search tools
+    tools.extend(apollo::tools());
 
     tools
 }
@@ -140,6 +144,11 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
     if name.ends_with("-whatsapp-summary") || name.ends_with("-whatsapp-summaries") ||
        name == "whatsapp-latest-date" {
         return whatsapp::call(name, arguments).await;
+    }
+
+    // Apollo prospect search tools
+    if name.starts_with("apollo-") {
+        return apollo::call(name, arguments).await;
     }
 
     ToolResult::error(format!("Unknown tool: {}", name))
@@ -251,6 +260,15 @@ mod tests {
         ];
         for name in expected {
             assert!(names.contains(name), "Missing work tool: {}", name);
+        }
+    }
+
+    #[test]
+    fn apollo_tools_registered() {
+        let names = tool_names();
+        let expected = ["apollo-search-people"];
+        for name in expected {
+            assert!(names.contains(name), "Missing Apollo tool: {}", name);
         }
     }
 

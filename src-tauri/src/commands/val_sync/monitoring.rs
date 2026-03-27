@@ -246,6 +246,76 @@ pub async fn val_sync_sod_tables_status(
     })
 }
 
+/// Fetch notifications for a domain from the VAL notification system.
+/// Returns error/system notifications stored in Redis.
+#[command]
+pub async fn val_fetch_notifications(
+    domain: String,
+    max: Option<u32>,
+) -> CmdResult<serde_json::Value> {
+    let domain_config = get_domain_config(&domain)?;
+    let api_domain = domain_config.api_domain();
+    let base_url = format!("https://{}.thinkval.io", api_domain);
+
+    // Ensure auth
+    let (token, _) = auth::ensure_auth(&domain).await?;
+
+    // Fetch with auth retry
+    let data = match fetch_notifications(&base_url, &token, max.unwrap_or(50)).await {
+        Ok(data) => data,
+        Err(e) if e.contains("auth") || e.contains("401") || e.contains("403") => {
+            let (new_token, _) = auth::reauth(&domain).await?;
+            fetch_notifications(&base_url, &new_token, max.unwrap_or(50))
+                .await
+                .map_err(|e| CommandError::Network(format!("Notifications failed after reauth: {}", e)))?
+        }
+        Err(e) => return Err(CommandError::Network(format!("Notifications failed: {}", e))),
+    };
+
+    Ok(data)
+}
+
+/// Fetch notifications from VAL Workspace API (notifications:stream)
+/// This endpoint returns both activity and error notifications.
+/// Errors have fail=true and status="fail".
+async fn fetch_notifications(
+    base_url: &str,
+    token: &str,
+    max: u32,
+) -> Result<serde_json::Value, String> {
+    let client = crate::HTTP_CLIENT.clone();
+
+    // Use workspace API endpoint which reads from notifications:stream (includes errors)
+    let url = format!("{}/api/v1/notifications/notifications", base_url);
+
+    let response = client
+        .get(&url)
+        .query(&[
+            ("token", token),
+            ("max", &max.to_string()),
+        ])
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {}", e))?;
+
+    let status = response.status().as_u16();
+    if is_auth_status(status) {
+        return Err(format!("auth error (HTTP {})", status));
+    }
+    if !response.status().is_success() {
+        let body = response.text().await.unwrap_or_default();
+        if is_auth_body(&body) {
+            return Err(format!("auth error: {}", body));
+        }
+        return Err(format!("HTTP {}: {}", status, body));
+    }
+
+    response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse notifications response: {}", e))
+}
+
 /// Fetch SOD tables status (single request, no pagination)
 async fn fetch_sod_tables_status(
     base_url: &str,

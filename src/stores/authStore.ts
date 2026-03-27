@@ -86,7 +86,7 @@ function microsoftUserToAppUser(user: MicrosoftUser): AppUser {
     provider: "microsoft",
     providerId: user.id,
     login: user.email, // Use email as the login identifier
-    name: user.name,
+    name: user.name || user.email || "User",
     email: user.email,
     avatarUrl: user.avatar_url || "",
   };

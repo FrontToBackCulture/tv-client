@@ -403,6 +403,7 @@ fn main() {
             // VAL Sync - Monitoring operations
             commands::val_sync::monitoring::val_sync_workflow_executions,
             commands::val_sync::monitoring::val_sync_sod_tables_status,
+            commands::val_sync::monitoring::val_fetch_notifications,
             // VAL Sync - Error sync operations
             commands::val_sync::errors::val_sync_importer_errors,
             commands::val_sync::errors::val_sync_integration_errors,
@@ -413,6 +414,12 @@ fn main() {
             commands::val_sync::extract::val_extract_tables,
             commands::val_sync::extract::val_extract_sql,
             commands::val_sync::extract::val_extract_calc_fields,
+            // VAL Sync - Dependencies & Recency
+            commands::val_sync::dependencies::val_compute_dependencies,
+            commands::val_sync::recency::val_collect_recency,
+            // VAL Sync - Claude Runner
+            commands::val_sync::claude_runner::claude_run,
+            commands::val_sync::claude_runner::claude_run_cancel,
             // VAL Sync - Metadata
             commands::val_sync::metadata::val_sync_get_status,
             commands::val_sync::metadata::val_get_output_status,
@@ -569,6 +576,9 @@ fn main() {
             commands::notion::commands::notion_sync_start,
             commands::notion::commands::notion_sync_status,
             commands::notion::commands::notion_push_task,
+            commands::notion::commands::notion_pull_task,
+            commands::notion::commands::notion_get_block_children,
+            commands::notion::commands::notion_page_to_markdown,
             // S3 Browser
             commands::s3_browser::s3_browse_buckets,
             commands::s3_browser::s3_browse_list,

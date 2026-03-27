@@ -59,7 +59,7 @@ function MemberAvatar({ member }: { member: TeamMember }) {
     );
   }
 
-  const initials = member.name
+  const initials = (member.name || "U")
     .split(" ")
     .map((n) => n[0])
     .join("")

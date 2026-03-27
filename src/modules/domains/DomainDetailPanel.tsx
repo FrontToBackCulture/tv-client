@@ -48,6 +48,7 @@ import { DomainAiTab } from "./DomainAiTab";
 import { DomainReportsTab } from "./DomainReportsTab";
 
 import { UnifiedReviewView } from "./UnifiedReviewView";
+import { DomainCleanupTab } from "./DomainCleanupTab";
 import type { ReviewResourceType } from "./reviewTypes";
 import {
   ARTIFACT_LABELS, TYPE_COLORS, ARTIFACT_META, OUTPUT_FILE_DESCRIPTIONS,
@@ -61,7 +62,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   // Report domain + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", reports: "Reports", ai: "AI", discussion: "Discussion" };
+    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", cleanup: "Cleanup", reports: "Reports", ai: "AI", discussion: "Discussion" };
     setViewDetail(`${domain} → ${tabLabels[activeTab]}`);
   }, [domain, activeTab, setViewDetail]);
 
@@ -222,6 +223,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
     { id: "queries", label: "Queries" },
     { id: "workflows", label: "Workflows" },
     { id: "dashboards", label: "Dashboards" },
+    { id: "cleanup", label: "Cleanup" },
     { id: "reports", label: "Reports" },
     { id: "discussion", label: "Discussion" },
   ];
@@ -388,6 +390,13 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         </div>
       )}
 
+      {/* Cleanup tab — dependency analysis and resource cleanup */}
+      {activeTab === "cleanup" && discoveredDomain && (
+        <div className="flex-1 overflow-hidden">
+          <DomainCleanupTab domainName={domain} globalPath={discoveredDomain.global_path} />
+        </div>
+      )}
+
       {/* Reports tab — full-height tree+detail pane */}
       {activeTab === "reports" && discoveredDomain && (
         <div className="flex-1 overflow-hidden">
@@ -422,7 +431,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
       )}
 
       {/* Tab content */}
-      <div className={cn("flex-1 overflow-auto p-4", (REVIEW_TABS[activeTab] || activeTab === "ai" || activeTab === "reports") && "hidden")}>
+      <div className={cn("flex-1 overflow-auto p-4", (REVIEW_TABS[activeTab] || activeTab === "ai" || activeTab === "reports" || activeTab === "cleanup") && "hidden")}>
         {activeTab === "overview" && discoveredDomain && (
           /* Two-column overview when discoveredDomain is provided */
           <div className="flex gap-6">

@@ -33,6 +33,8 @@ pub struct SyncAllResult {
     pub results: Vec<SyncResult>,
     pub extract_results: Vec<super::extract::ExtractResult>,
     pub stale_result: Option<super::audit::MarkStaleResult>,
+    pub dependency_result: Option<super::dependencies::DependencyResult>,
+    pub recency_result: Option<super::recency::RecencyResult>,
     pub total_duration_ms: u64,
     pub status: String,
 }
@@ -226,6 +228,17 @@ pub async fn val_sync_all(domain: String) -> CmdResult<SyncAllResult> {
         Err(_) => None, // Non-fatal: don't fail sync if stale marking fails
     };
 
+    // Phase 4: Compute dependencies and collect recency data
+    let dependency_result = match super::dependencies::val_compute_dependencies(domain.clone()).await {
+        Ok(result) => Some(result),
+        Err(_) => None, // Non-fatal
+    };
+
+    let recency_result = match super::recency::val_collect_recency(domain.clone()).await {
+        Ok(result) => Some(result),
+        Err(_) => None, // Non-fatal: requires VAL SQL access
+    };
+
     let total_duration_ms = start.elapsed().as_millis() as u64;
 
     Ok(SyncAllResult {
@@ -233,6 +246,8 @@ pub async fn val_sync_all(domain: String) -> CmdResult<SyncAllResult> {
         results,
         extract_results,
         stale_result,
+        dependency_result,
+        recency_result,
         total_duration_ms,
         status: if has_error {
             "partial".to_string()

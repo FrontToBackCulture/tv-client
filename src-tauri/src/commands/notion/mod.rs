@@ -4,6 +4,7 @@
 pub mod api;
 pub mod background;
 pub mod commands;
+pub mod export;
 pub mod mapping;
 pub mod sync;
 pub mod types;

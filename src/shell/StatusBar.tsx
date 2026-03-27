@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
+import { useClaudeRunStore } from "../stores/claudeRunStore";
 import { cn } from "../lib/cn";
-import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, PanelRight } from "lucide-react";
+import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, PanelRight, Code, ChevronDown, Wrench, Activity } from "lucide-react";
 import { useSidePanelStore } from "../stores/sidePanelStore";
 import { NotificationBell } from "../components/notifications/NotificationBell";
 import { useAppUpdate } from "../hooks/useAppUpdate";
@@ -56,6 +57,8 @@ export function StatusBar() {
   const [showUpdatePreview, setShowUpdatePreview] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const updatePanelRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const { runs, expandedRunId, expandRun } = useClaudeRunStore();
 
   // Close panels on outside click
   useEffect(() => {
@@ -214,10 +217,22 @@ export function StatusBar() {
                       No recent jobs
                     </div>
                   ) : (
-                    recentJobs.map((job) => (
+                    recentJobs.map((job) => {
+                      const isClaudeRun = runs[job.id] != null;
+                      return (
                       <div
                         key={job.id}
-                        className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                        className={cn(
+                          "px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
+                          isClaudeRun && "cursor-pointer",
+                          isClaudeRun && expandedRunId === job.id && "bg-purple-50/50 dark:bg-purple-900/10"
+                        )}
+                        onClick={() => {
+                          if (isClaudeRun) {
+                            expandRun(expandedRunId === job.id ? null : job.id);
+                            setShowJobsPanel(false);
+                          }
+                        }}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
@@ -267,8 +282,14 @@ export function StatusBar() {
                             </div>
                           </div>
                         )}
+                        {isClaudeRun && (
+                          <div className="mt-1 pl-6 flex items-center gap-1 text-[10px] text-purple-500">
+                            <Code size={10} />
+                            <span>Click to {expandedRunId === job.id ? "collapse" : "expand"} output</span>
+                          </div>
+                        )}
                       </div>
-                    ))
+                    );})
                   )}
                 </div>
               </div>
@@ -317,6 +338,78 @@ export function StatusBar() {
           )}
         </button>
       </div>
+
+      {/* Claude Output Drawer — slides up from status bar */}
+      {expandedRunId && runs[expandedRunId] && (() => {
+        const run = runs[expandedRunId];
+        const eventIcon = (type: string) => {
+          switch (type) {
+            case "init": return <Loader2 size={11} className="text-blue-500" />;
+            case "text": return <Code size={11} className="text-zinc-500" />;
+            case "tool_use": return <Wrench size={11} className="text-orange-500" />;
+            case "tool_result": return <CheckCircle2 size={11} className="text-green-500" />;
+            case "error": return <XCircle size={11} className="text-red-500" />;
+            default: return <Activity size={11} className="text-zinc-400" />;
+          }
+        };
+        return (
+          <div
+            ref={drawerRef}
+            className="absolute bottom-6 right-0 left-0 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-700 shadow-lg flex flex-col"
+            style={{ height: "320px" }}
+          >
+            {/* Drawer header */}
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
+              <Code size={14} className="text-purple-500" />
+              <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 flex-1 truncate">{run.name}</span>
+              {run.isComplete && (
+                <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium", run.isError ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300")}>
+                  {run.isError ? "Failed" : "Completed"} — {(run.durationMs / 1000).toFixed(0)}s
+                </span>
+              )}
+              {!run.isComplete && (
+                <span className="flex items-center gap-1 text-[10px] text-teal-600">
+                  <Loader2 size={10} className="animate-spin" /> Running...
+                </span>
+              )}
+              {run.result && (
+                <button
+                  onClick={() => navigator.clipboard.writeText(run.result!)}
+                  className="text-[10px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                >
+                  Copy Result
+                </button>
+              )}
+              <button onClick={() => expandRun(null)} className="text-zinc-400 hover:text-zinc-600">
+                <ChevronDown size={14} />
+              </button>
+            </div>
+            {/* Scrollable output */}
+            <div className="flex-1 overflow-auto px-3 py-2 font-mono text-[11px] space-y-1">
+              {run.events.map((ev, i) => (
+                <div key={i} className="flex items-start gap-1.5">
+                  <span className="mt-0.5 flex-shrink-0">{eventIcon(ev.type)}</span>
+                  <span className={cn(
+                    "whitespace-pre-wrap break-words",
+                    ev.type === "text" ? "text-zinc-700 dark:text-zinc-300" :
+                    ev.type === "tool_use" ? "text-orange-600 dark:text-orange-400" :
+                    ev.type === "tool_result" ? "text-green-700 dark:text-green-400" :
+                    ev.type === "error" ? "text-red-600" :
+                    "text-zinc-500"
+                  )}>
+                    {ev.content}
+                  </span>
+                </div>
+              ))}
+              {!run.isComplete && (
+                <div className="flex items-center gap-1.5 text-zinc-400">
+                  <Loader2 size={11} className="animate-spin" /> Working...
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -329,7 +329,7 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
                     >
                       <ChevronRight size={12} className={`text-zinc-400 transition-transform flex-shrink-0 ${isExpanded ? "rotate-90" : ""}`} />
                       <span className="text-zinc-500 flex-shrink-0 w-[110px] text-left">{dateLabel}</span>
-                      <span className="text-zinc-700 dark:text-zinc-300 flex-1 min-w-0 truncate text-left">{ws.summary.split(".")[0]}</span>
+                      <span className="text-zinc-700 dark:text-zinc-300 flex-1 min-w-0 truncate text-left">{(ws.summary || "").split(".")[0]}</span>
                       {ws.message_count && (
                         <span className="text-[10px] text-zinc-400 flex-shrink-0">{ws.message_count} msg</span>
                       )}

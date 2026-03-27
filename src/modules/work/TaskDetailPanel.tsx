@@ -36,13 +36,15 @@ import {
   Target,
   Mail,
   Upload,
+  Download,
   ExternalLink,
 } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { EmailsPanel } from "../../components/emails/EmailsPanel";
 import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
-import { useNotionPushTask } from "../../hooks/useNotion";
+import { useNotionPushTask, useNotionPullTask } from "../../hooks/useNotion";
+import { NotionContent } from "./NotionContent";
 import { Button, IconButton } from "../../components/ui";
 import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
@@ -78,6 +80,7 @@ export function TaskDetailPanel({
   const updateMutation = useUpdateTask();
   const deleteMutation = useDeleteTask();
   const pushMutation = useNotionPushTask();
+  const pullMutation = useNotionPullTask();
 
   // Report task to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
@@ -558,6 +561,10 @@ export function TaskDetailPanel({
                   </Button>
                 </div>
               </div>
+            ) : task.notion_page_id ? (
+              <div className="px-1 py-1 text-sm text-zinc-700 dark:text-zinc-300">
+                <NotionContent description={task.description} />
+              </div>
             ) : (
               <div
                 onClick={() => {
@@ -640,6 +647,24 @@ export function TaskDetailPanel({
               <ExternalLink size={14} />
               Notion
             </a>
+          )}
+          {task.notion_page_id && (
+            <Button
+              variant="ghost"
+              icon={Download}
+              onClick={async () => {
+                try {
+                  await pullMutation.mutateAsync(taskId);
+                  toast.success("Synced from Notion");
+                  refetch();
+                } catch (error: any) {
+                  toast.error(error?.message || "Failed to sync from Notion");
+                }
+              }}
+              disabled={pullMutation.isPending}
+            >
+              {pullMutation.isPending ? "Syncing..." : "Sync from Notion"}
+            </Button>
           )}
           <Button
             variant="ghost"

@@ -133,7 +133,7 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
   }, [allFiles, selectedPath]);
 
   // Mentioned count (distributions that are in bots)
-  const mentionedCount = skill.distributions.filter(d => d.type === "bot").length;
+  const mentionedCount = (skill.distributions ?? []).filter(d => d.type === "bot").length;
 
   const handleStatusChange = (newStatus: SkillStatus) => {
     updateSkill.mutate({ slug, updates: { status: newStatus } });
