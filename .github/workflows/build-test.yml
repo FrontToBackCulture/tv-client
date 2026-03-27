@@ -38,6 +38,20 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.7
 
+      - name: Check sccache health
+        id: sccache-check
+        shell: bash
+        run: |
+          if sccache --start-server 2>/dev/null && sccache --show-stats 2>/dev/null; then
+            echo "available=true" >> $GITHUB_OUTPUT
+            echo "sccache is healthy"
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "::warning::sccache unavailable, building without cache"
+          fi
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -82,8 +96,8 @@ jobs:
 
       - name: Build Tauri (test compile only)
         env:
-          RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: ${{ steps.sccache-check.outputs.available == 'true' && 'sccache' || '' }}
+          SCCACHE_GHA_ENABLED: ${{ steps.sccache-check.outputs.available == 'true' && 'true' || 'false' }}
           TAURI_TARGET_TRIPLE: ${{ matrix.target }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
