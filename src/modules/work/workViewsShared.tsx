@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import { workKeys } from "../../hooks/work/keys";
 import { StatusIcon, PriorityBars } from "./StatusIcon";
+import { toast } from "../../stores/toastStore";
 import type {
   TaskWithRelations, Project, Initiative, User as WorkUser,
 } from "../../lib/work/types";
@@ -300,9 +301,13 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel }: {
         <StatusIcon type={task.status.type as StatusType} color={task.status.color || "#6B7280"} size={14} />
       )}
       <PriorityBars priority={task.priority || 0} size={11} />
-      <span className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14">{getTaskIdentifier(task)}</span>
+      <span
+        className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14 cursor-pointer hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+        title={`Click to copy: ${task.id}`}
+        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(task.id); toast.success("Task ID copied"); }}
+      >{getTaskIdentifier(task)}</span>
       {contextLabel && (
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 min-w-[180px] max-w-[320px] truncate" title={contextLabel}>
+        <span className="text-[11px] text-zinc-500 dark:text-zinc-400 flex-shrink-0 min-w-[180px] max-w-[320px] truncate font-medium" title={contextLabel}>
           {contextLabel}
         </span>
       )}

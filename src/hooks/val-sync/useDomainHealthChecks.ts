@@ -1,7 +1,7 @@
 // Domain health check runner + query hooks
 //
 // Workflow checks: sync via VAL API → read JSON file → score
-// Mapping checks: execute-val-sql → score
+// Notification checks: fetch from VAL notification stream → score
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
@@ -10,14 +10,12 @@ import { useJobsStore } from "../../stores/jobsStore";
 import { supabase } from "../../lib/supabase";
 import { toSGTDateString } from "../../lib/date";
 import type { SyncAllDomainsProgress, SyncResult } from "./types";
-import type { SqlExecuteResult } from "./useValSql";
 import {
   API_CHECKS,
-  SQL_CHECKS,
+  NOTIFICATION_CHECKS,
   type HealthCheckResult,
-  type HealthCheckDefinition,
-  type HealthStatus,
   type DomainWorkflowContext,
+  type ValNotification,
   type WorkflowExecution,
   type WorkflowDefinition,
 } from "./healthChecks";
@@ -99,71 +97,17 @@ async function loadWorkflowContext(domain: string): Promise<DomainWorkflowContex
 }
 
 // ============================================================
-// SQL-based check runner (mapping duplicates)
+// Notification-based check runner (platform errors)
 // ============================================================
 
-async function runSql(domain: string, sql: string, limit = 500): Promise<SqlExecuteResult> {
-  return invoke<SqlExecuteResult>("val_execute_sql", { domain, sql, limit });
-}
-
-async function runSqlCheck(
-  domain: string,
-  check: HealthCheckDefinition
-): Promise<HealthCheckResult> {
-  const now = new Date().toISOString();
-
-  try {
-    // Multi-step check (mapping duplicates)
-    if (check.preSql && check.getFollowUpQueries && check.scoreMulti) {
-      const preResult = await runSql(domain, check.preSql);
-      if (preResult.error) {
-        return {
-          domain,
-          check_type: check.type,
-          status: "pass",
-          details: { note: "Pre-query failed", error: preResult.error },
-          checked_at: now,
-        };
-      }
-
-      const followUpQueries = check.getFollowUpQueries(preResult.data);
-      const followUpResults: {
-        rows: Record<string, unknown>[];
-        meta: Record<string, unknown>;
-        error: string | null;
-      }[] = [];
-
-      for (const fq of followUpQueries) {
-        try {
-          const result = await runSql(domain, fq.sql);
-          followUpResults.push({ rows: result.data, meta: fq.meta, error: result.error });
-        } catch (err) {
-          followUpResults.push({
-            rows: [],
-            meta: fq.meta,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-
-      const scored = check.scoreMulti(preResult.data, followUpResults);
-      return { domain, check_type: check.type, ...scored, checked_at: now };
-    }
-
-    // Simple single-query
-    const sql = check.getSql!();
-    const result = await runSql(domain, sql);
-    const scored = check.score!(result.data, result.error);
-    return { domain, check_type: check.type, ...scored, checked_at: now };
-  } catch (err) {
-    return {
-      domain,
-      check_type: check.type,
-      status: "error" as HealthStatus,
-      details: { error: err instanceof Error ? err.message : String(err) },
-      checked_at: now,
-    };
-  }
+/** Fetch notifications from VAL notification stream */
+async function fetchNotifications(domain: string): Promise<ValNotification[]> {
+  const result = await invoke<{ data?: ValNotification[] } | ValNotification[]>(
+    "val_fetch_notifications",
+    { domain, max: 2000 }
+  );
+  const items = Array.isArray(result) ? result : (result?.data ?? []);
+  return items;
 }
 
 // ============================================================
@@ -270,10 +214,35 @@ export function useDomainHealthCheckRunner() {
             }
           }
 
-          // 3. Run SQL-based checks (mapping duplicates)
-          for (const check of SQL_CHECKS) {
-            const result = await runSqlCheck(domain, check);
-            results.push(result);
+          // 3. Run notification-based checks (platform errors)
+          if (NOTIFICATION_CHECKS.length > 0) {
+            try {
+              const notifications = await fetchNotifications(domain);
+              for (const check of NOTIFICATION_CHECKS) {
+                try {
+                  const scored = check.scoreFromNotifications!(notifications);
+                  results.push({ domain, check_type: check.type, ...scored, checked_at: now });
+                } catch (err) {
+                  results.push({
+                    domain,
+                    check_type: check.type,
+                    status: "error",
+                    details: { error: err instanceof Error ? err.message : String(err) },
+                    checked_at: now,
+                  });
+                }
+              }
+            } catch (err) {
+              for (const check of NOTIFICATION_CHECKS) {
+                results.push({
+                  domain,
+                  check_type: check.type,
+                  status: "error",
+                  details: { error: err instanceof Error ? err.message : String(err) },
+                  checked_at: now,
+                });
+              }
+            }
           }
 
           // 4. Upsert results to Supabase

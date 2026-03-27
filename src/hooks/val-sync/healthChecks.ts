@@ -46,6 +46,26 @@ export interface WorkflowDefinition {
   run_completed_at: string | null;
 }
 
+/** A notification entry from the VAL notification stream */
+export interface ValNotification {
+  updated: number | string;
+  user: string | number;
+  uuid: string;
+  message: string;
+  created: string;
+  status?: string;
+  action?: string;
+  table?: string;
+  tableName?: string;
+  origin?: string;
+  identifier?: string;
+  progress?: number;
+  topic?: string;
+  userName?: string;
+  fail?: boolean;
+  errorMessage?: string;
+}
+
 /** Preloaded context for API-based checks (fetched once per domain) */
 export interface DomainWorkflowContext {
   executions: WorkflowExecution[];
@@ -63,10 +83,12 @@ export interface HealthCheckDefinition {
   criteria: { pass: string; warn: string; fail: string };
   whatItChecks: string;
   howItWorks: string;
-  /** Check mode: "api" uses VAL workflow API data, "sql" uses execute-val-sql */
-  mode: "api" | "sql";
+  /** Check mode: "api" uses VAL workflow API data, "notifications" uses VAL notification stream */
+  mode: "api" | "notifications";
   /** For "api" mode: score from preloaded workflow context */
   scoreFromApi?: (ctx: DomainWorkflowContext) => CheckScoreResult;
+  /** For "notifications" mode: score from notification stream data */
+  scoreFromNotifications?: (notifications: ValNotification[]) => CheckScoreResult;
   /** For "sql" mode: primary SQL query */
   getSql?: () => string;
   /** For "sql" mode: optional pre-query */
@@ -249,6 +271,67 @@ const errorPatterns: HealthCheckDefinition = {
 };
 
 // ============================================================
+// Notification-based Check Definitions (use VAL notification stream)
+// ============================================================
+
+const platformErrors: HealthCheckDefinition = {
+  type: "platform_errors",
+  label: "Platform Errors",
+  description: "Failed operations reported in the VAL notification stream",
+  criteria: { pass: "0 failed operations", warn: "1–3 failures", fail: "4+ failures" },
+  whatItChecks: "Checks the VAL notification stream for any operations that failed — workflow imports, data uploads, inline edits, AI extractions. These are errors that users or automated processes encountered.",
+  howItWorks: "Fetches the last 2000 notifications from the VAL workspace API and filters for entries with status 'failed'. Groups failures by table/origin to identify patterns.",
+  mode: "notifications",
+  scoreFromNotifications: (notifications) => {
+    const failed = notifications.filter(
+      (n) => n.status === "failed" || n.status === "fail"
+    );
+
+    // Group by table for summary
+    const byTable = new Map<string, { count: number; latest: string; origin: string; message: string }>();
+    for (const n of failed) {
+      const key = n.tableName || n.table || "unknown";
+      const existing = byTable.get(key);
+      if (existing) {
+        existing.count++;
+        if (n.created > existing.latest) {
+          existing.latest = n.created;
+          existing.message = n.message;
+        }
+      } else {
+        byTable.set(key, {
+          count: 1,
+          latest: n.created,
+          origin: n.origin || "",
+          message: n.message,
+        });
+      }
+    }
+
+    const count = failed.length;
+    const status: HealthStatus = count === 0 ? "pass" : count <= 3 ? "warn" : "fail";
+
+    return {
+      status,
+      details: {
+        count,
+        tables_affected: byTable.size,
+        failures: Array.from(byTable.entries())
+          .sort((a, b) => b[1].count - a[1].count)
+          .slice(0, 15)
+          .map(([table, info]) => ({
+            table,
+            count: info.count,
+            origin: info.origin,
+            latest: info.latest,
+            message: info.message,
+          })),
+      },
+    };
+  },
+};
+
+// ============================================================
 // Exports
 // ============================================================
 
@@ -256,6 +339,7 @@ export const HEALTH_CHECKS: HealthCheckDefinition[] = [
   workflowFailures,
   staleScheduledJobs,
   errorPatterns,
+  platformErrors,
 ];
 
 export const HEALTH_CHECK_LABELS: Record<string, string> = Object.fromEntries(
@@ -265,5 +349,5 @@ export const HEALTH_CHECK_LABELS: Record<string, string> = Object.fromEntries(
 /** Checks that use the VAL workflow API */
 export const API_CHECKS = HEALTH_CHECKS.filter((c) => c.mode === "api");
 
-/** Checks that use execute-val-sql */
-export const SQL_CHECKS = HEALTH_CHECKS.filter((c) => c.mode === "sql");
+/** Checks that use the VAL notification stream */
+export const NOTIFICATION_CHECKS = HEALTH_CHECKS.filter((c) => c.mode === "notifications");

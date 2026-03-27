@@ -323,6 +323,8 @@ fn main() {
             commands::work::work_remove_task_assignees,
             commands::work::work_task_triage,
             commands::work::work_apply_triage,
+            commands::work::work_get_priorities,
+            commands::work::work_reprioritise,
             // Work Module - Milestones
             commands::work::work_list_milestones,
             commands::work::work_get_milestone,

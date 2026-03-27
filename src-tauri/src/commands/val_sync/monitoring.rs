@@ -286,7 +286,7 @@ async fn fetch_notifications(
     let client = crate::HTTP_CLIENT.clone();
 
     // Use workspace API endpoint which reads from notifications:stream (includes errors)
-    let url = format!("{}/api/v1/notifications/notifications", base_url);
+    let url = format!("{}/api/v1/workspace/notifications/notifications", base_url);
 
     let response = client
         .get(&url)

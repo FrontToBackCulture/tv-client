@@ -127,7 +127,23 @@ pub struct CriticalResource {
 // Internal: Resource name registry
 // ============================================================================
 
+/// Check if a resource folder is stale (.stale marker exists)
+fn is_stale(folder_path: &Path) -> bool {
+    folder_path.join(".stale").exists()
+}
+
+/// Check if a resource is soft-deleted by reading definition.json
+fn is_deleted(def_path: &str) -> bool {
+    if let Ok(content) = fs::read_to_string(def_path) {
+        if let Ok(data) = serde_json::from_str::<Value>(&content) {
+            return data.get("deleted").and_then(|d| d.as_bool()).unwrap_or(false);
+        }
+    }
+    false
+}
+
 /// Builds a map of resource_id -> display_name from all definition files
+/// Skips resources that are deleted or stale
 fn build_name_registry(global_path: &str) -> HashMap<String, (String, String)> {
     let mut registry: HashMap<String, (String, String)> = HashMap::new(); // id -> (type, name)
 
@@ -139,11 +155,17 @@ fn build_name_registry(global_path: &str) -> HashMap<String, (String, String)> {
             if !fname.starts_with("table_") {
                 continue;
             }
+            // Skip stale or deleted
+            if is_stale(&entry.path()) {
+                continue;
+            }
             let table_id = fname.trim_start_matches("table_").to_string();
             let def_path = format!("{}/{}/definition.json", dm_dir, fname);
+            if is_deleted(&def_path) {
+                continue;
+            }
             let name = read_json_field(&def_path, &["table_name"])
                 .or_else(|| {
-                    // Try definition_analysis for display name
                     let analysis_path = format!("{}/{}/definition_analysis.json", dm_dir, fname);
                     read_json_field(&analysis_path, &["meta", "displayName"])
                 })
@@ -160,8 +182,14 @@ fn build_name_registry(global_path: &str) -> HashMap<String, (String, String)> {
             if !fname.starts_with("query_") {
                 continue;
             }
-            let query_id = fname.clone(); // keep as "query_123"
+            if is_stale(&entry.path()) {
+                continue;
+            }
+            let query_id = fname.clone();
             let def_path = format!("{}/{}/definition.json", q_dir, fname);
+            if is_deleted(&def_path) {
+                continue;
+            }
             let name = read_json_field(&def_path, &["name"]).unwrap_or_else(|| query_id.clone());
             registry.insert(query_id, ("query".to_string(), name));
         }
@@ -175,8 +203,14 @@ fn build_name_registry(global_path: &str) -> HashMap<String, (String, String)> {
             if !fname.starts_with("dashboard_") {
                 continue;
             }
+            if is_stale(&entry.path()) {
+                continue;
+            }
             let dashboard_id = fname.clone();
             let def_path = format!("{}/{}/definition.json", d_dir, fname);
+            if is_deleted(&def_path) {
+                continue;
+            }
             let name =
                 read_json_field(&def_path, &["name"]).unwrap_or_else(|| dashboard_id.clone());
             registry.insert(dashboard_id, ("dashboard".to_string(), name));
@@ -191,8 +225,14 @@ fn build_name_registry(global_path: &str) -> HashMap<String, (String, String)> {
             if !fname.starts_with("workflow_") {
                 continue;
             }
+            if is_stale(&entry.path()) {
+                continue;
+            }
             let workflow_id = fname.clone();
             let def_path = format!("{}/{}/definition.json", w_dir, fname);
+            if is_deleted(&def_path) {
+                continue;
+            }
             let name =
                 read_json_field(&def_path, &["name"]).unwrap_or_else(|| workflow_id.clone());
             registry.insert(workflow_id, ("workflow".to_string(), name));

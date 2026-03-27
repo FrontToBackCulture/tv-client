@@ -103,9 +103,10 @@ export function useTask(id: string | null) {
         `
         )
         .eq("id", id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
+      if (error) {
+        console.error(`[useTask] Failed to fetch task ${id}:`, error.code, error.message);
         throw new Error(`Failed to fetch task: ${error.message}`);
       }
       return data as TaskWithRelations | null;

@@ -133,7 +133,9 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
   }, [allFiles, selectedPath]);
 
   // Mentioned count (distributions that are in bots)
-  const mentionedCount = (skill.distributions ?? []).filter(d => d.type === "bot").length;
+  const safeDistributions = Array.isArray(skill.distributions) ? skill.distributions : [];
+
+  const mentionedCount = safeDistributions.filter(d => d.type === "bot").length;
 
   const handleStatusChange = (newStatus: SkillStatus) => {
     updateSkill.mutate({ slug, updates: { status: newStatus } });
@@ -661,13 +663,13 @@ function DistributionPanel({ slug, skill, driftStatuses }: {
     try { await distributeTo.mutateAsync({ slug, targetPath, distType }); } finally { setActionSlug(null); }
   };
 
-  const registeredPaths = new Set(skill.distributions.map(d => d.path));
+  const registeredPaths = new Set(safeDistributions.map(d => d.path));
   const discoveredDrifts = driftStatuses.filter(
     d => d.slug === slug && !registeredPaths.has(d.distribution_path)
   );
 
   const allDistributions = useMemo(() => {
-    const registered = skill.distributions.map(d => ({
+    const registered = safeDistributions.map(d => ({
       path: d.path,
       type: d.type,
       isRegistered: true,
@@ -678,7 +680,7 @@ function DistributionPanel({ slug, skill, driftStatuses }: {
       isRegistered: false,
     }));
     return [...registered, ...discovered];
-  }, [skill.distributions, discoveredDrifts]);
+  }, [safeDistributions, discoveredDrifts]);
 
   const distributedBotPaths = new Set(
     allDistributions

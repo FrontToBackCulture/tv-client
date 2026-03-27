@@ -336,7 +336,7 @@ pub async fn work_task_triage(
         project:projects(name,project_type),\
         status:task_statuses!inner(type),\
         company:crm_companies(name)\
-        &status.type=eq.started\
+        &status.type=in.(backlog,unstarted,started,review)\
         &due_date=lte.{}\
         &order=due_date.asc",
         cutoff
@@ -614,6 +614,11 @@ pub async fn work_task_triage(
 
     // ── 7. Background: Claude enriches reasons with strategic thinking ──
     let proposals_for_claude = proposals.clone();
+    // Build set of deal IDs so enrichment doesn't write deal (project) UUIDs to tasks table
+    let deal_ids: std::collections::HashSet<String> = proposals_for_claude.iter()
+        .filter(|p| p.item_type == "deal")
+        .map(|p| p.task_id.clone())
+        .collect();
     let app_bg = app.clone();
     let kb_clone = _state.knowledge_path.clone();
     tokio::spawn(async move {
@@ -698,6 +703,8 @@ pub async fn work_task_triage(
                                 let score = r.get("score").and_then(|v| v.as_i64());
                                 let action = r.get("action").and_then(|v| v.as_str());
                                 if let (Some(id), Some(reason)) = (id, reason) {
+                                    // Skip deal proposals — their IDs are project UUIDs, not task UUIDs
+                                    if deal_ids.contains(id) { continue; }
                                     let mut update = serde_json::json!({ "triage_reason": reason });
                                     if let Some(s) = score { update["triage_score"] = serde_json::json!(s); }
                                     if let Some(a) = action { update["triage_action"] = serde_json::json!(a); }
@@ -755,4 +762,117 @@ pub async fn work_apply_triage(
         .await?;
 
     work_get_task(task_id).await
+}
+
+/// Read today's task sequence (list of task IDs)
+#[tauri::command]
+pub async fn work_get_priorities(
+    _state: tauri::State<'_, AppState>,
+) -> CmdResult<serde_json::Value> {
+    let path = std::path::Path::new(&_state.knowledge_path).join("_team/melvin/today_tasks.json");
+    let content = std::fs::read_to_string(&path).unwrap_or_else(|_| "{}".to_string());
+    let data: serde_json::Value = serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
+    Ok(data)
+}
+
+/// Reprioritise today's focus using Claude — picks and orders tasks by ID
+#[tauri::command]
+pub async fn work_reprioritise(
+    app: tauri::AppHandle,
+    _state: tauri::State<'_, AppState>,
+) -> CmdResult<serde_json::Value> {
+    use tauri::Emitter;
+    let client = get_client().await?;
+    let now = chrono::Utc::now();
+    let today = (now + chrono::Duration::hours(8)).format("%Y-%m-%d").to_string();
+
+    // Fetch active tasks with due dates
+    let tasks: Vec<serde_json::Value> = client
+        .select("tasks", "id, title, due_date, priority, triage_action, triage_score, triage_reason, status:task_statuses(type), project:projects(name), company:crm_companies!tasks_company_id_fkey(display_name)")
+        .await?;
+
+    // Build task list for Claude — include ID so it can reference them
+    let relevant: Vec<String> = tasks.iter().filter_map(|t| {
+        let status_type = t.get("status").and_then(|s| s.get("type")).and_then(|v| v.as_str()).unwrap_or("");
+        if status_type == "completed" || status_type == "canceled" { return None; }
+        let id = t.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let title = t.get("title").and_then(|v| v.as_str()).unwrap_or("");
+        let due = t.get("due_date").and_then(|v| v.as_str()).unwrap_or("");
+        let project = t.get("project").and_then(|p| p.get("name")).and_then(|v| v.as_str()).unwrap_or("");
+        let company = t.get("company").and_then(|c| c.get("display_name")).and_then(|v| v.as_str()).unwrap_or("");
+        let triage = t.get("triage_action").and_then(|v| v.as_str()).unwrap_or("");
+        let score = t.get("triage_score").and_then(|v| v.as_i64()).unwrap_or(0);
+        let priority = t.get("priority").and_then(|v| v.as_i64()).unwrap_or(0);
+        let dominated = !due.is_empty() && due <= today.as_str();
+        let end_of_week = format!("{}", (now + chrono::Duration::hours(8) + chrono::Duration::days(5)).format("%Y-%m-%d"));
+        let due_soon = !due.is_empty() && due > today.as_str() && due <= end_of_week.as_str();
+        let is_now = triage == "do_now";
+        let is_high = priority >= 1 && priority <= 2;
+        if dominated || due_soon || is_now || is_high {
+            Some(format!("{{\"id\":\"{}\",\"title\":\"{}\",\"project\":\"{}\",\"company\":\"{}\",\"due\":\"{}\",\"triage\":\"{}\",\"score\":{},\"priority\":{}}}",
+                id, title.replace('"', "'"), project.replace('"', "'"), company.replace('"', "'"),
+                if due.is_empty() { "none" } else { due }, triage, score, priority))
+        } else {
+            None
+        }
+    }).collect();
+
+    let prompt = format!(
+        "Pick 5-8 tasks for Melvin to complete TODAY, ordered by urgency.\n\
+        Most tasks are quick actions (send email, chase PO, follow up) — he can do many in a day.\n\n\
+        TASKS:\n[{}]\n\n\
+        Rules:\n\
+        - Pick 5-8 tasks. These are mostly quick follow-ups, not deep work.\n\
+        - Revenue-impacting and client-waiting tasks first\n\
+        - Overdue client-facing > internal work\n\
+        - Quick wins can fill gaps\n\
+        - Include a mix of sales and work tasks if both exist\n\n\
+        OUTPUT: ONLY a JSON array of objects. Each: {{\"id\":\"<task uuid>\",\"reason\":\"<1 sentence: why today, in plain English, no metadata>\"}}\n\
+        Start with [ end with ]. No other text.",
+        relevant.join(",")
+    );
+
+    let _ = app.emit("work:reprioritise:progress", "Running Claude to reprioritise...");
+
+    let output = tokio::process::Command::new("claude")
+        .args(["--model", "haiku", "--output-format", "text", "-p", &prompt])
+        .output()
+        .await
+        .map_err(|e| CommandError::Internal(format!("Failed to run claude: {}", e)))?;
+
+    let result = String::from_utf8_lossy(&output.stdout).to_string();
+    let result = result.trim();
+
+    // Strip code fence if present
+    let json_str = if result.starts_with("```") {
+        result.trim_start_matches("```json").trim_start_matches("```").trim_end_matches("```").trim()
+    } else {
+        result
+    };
+
+    // Parse the task sequence
+    let sequence: Vec<serde_json::Value> = serde_json::from_str(json_str)
+        .map_err(|e| CommandError::Internal(format!("Failed to parse Claude response: {} — raw: {}", e, json_str)))?;
+
+    let task_ids: Vec<String> = sequence.iter()
+        .filter_map(|v| v.get("id").and_then(|id| id.as_str()).map(|s| s.to_string()))
+        .collect();
+    let reasons: Vec<String> = sequence.iter()
+        .filter_map(|v| v.get("reason").and_then(|r| r.as_str()).map(|s| s.to_string()))
+        .collect();
+
+    let now_sgt = (now + chrono::Duration::hours(8)).format("%Y-%m-%d %H:%M SGT").to_string();
+
+    let data = serde_json::json!({
+        "task_ids": task_ids,
+        "reasons": reasons,
+        "last_confirmed": now_sgt,
+    });
+
+    // Save to simple JSON file
+    let path = std::path::Path::new(&_state.knowledge_path).join("_team/melvin/today_tasks.json");
+    std::fs::write(&path, serde_json::to_string_pretty(&data).unwrap_or_default())
+        .map_err(|e| CommandError::Internal(format!("Failed to write today_tasks.json: {}", e)))?;
+
+    Ok(data)
 }

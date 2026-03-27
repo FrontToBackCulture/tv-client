@@ -2,12 +2,15 @@
 // My Tasks and Team Tasks dashboard views
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, AlertTriangle, Clock, Calendar, CheckCircle2, User as UserIcon, Users, Loader2, Zap, Terminal, X, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, Clock, Calendar, CheckCircle2, User as UserIcon, Users, Loader2, Zap, Terminal, X, Target, ArrowRight } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "../../lib/supabase";
 import type { TaskWithRelations, User, Initiative } from "../../lib/work/types";
+import { getTaskIdentifier } from "../../lib/work/types";
 import { isOverdue } from "../../lib/date";
+import { StatusIcon, PriorityBars } from "./StatusIcon";
 import { TaskRow, Stat, initials } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
 import { toast } from "../../stores/toastStore";
@@ -19,7 +22,7 @@ interface TriageProposal {
   task_id: string;
   title: string;
   project: string;
-  item_type: "task" | "deal";
+  type: "task" | "deal";             // serde renames item_type → "type"
   triage_score: number;
   triage_action: "do_now" | "do_this_week" | "defer" | "delegate" | "kill";
   triage_reason: string;
@@ -109,6 +112,19 @@ function isToday(dateStr: string | null | undefined): boolean {
   return new Date(dateStr).toDateString() === new Date().toDateString();
 }
 
+function suggestDeferDate(): string {
+  const d = new Date();
+  // Next Monday
+  const daysToMon = (8 - d.getDay()) % 7 || 7;
+  d.setDate(d.getDate() + daysToMon);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatShortDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 function classifyTask(t: TaskWithRelations): "overdue" | "today" | "upcoming" | "no_date" | "done" {
   if (t.status?.type === "completed" || t.status?.type === "canceled") return "done";
   if (!t.due_date) return "no_date";
@@ -167,22 +183,146 @@ function isSalesTask(t: TaskWithRelations): boolean {
   return (t as any).project?.project_type === "deal";
 }
 
+// ─── CollapsibleSection ───────────────────────────────────────────────────
+
+function CollapsibleSection({ label, count, icon: Icon, color, defaultOpen = true, badge, actions, children }: {
+  label: string;
+  count?: number;
+  icon?: typeof AlertTriangle;
+  color?: string;
+  defaultOpen?: boolean;
+  badge?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="mb-2">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors rounded-lg"
+      >
+        {open ? <ChevronDown size={12} className="text-zinc-400" /> : <ChevronRight size={12} className="text-zinc-400" />}
+        {Icon && <Icon size={13} style={{ color }} />}
+        <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{label}</span>
+        {count != null && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${color || "#6B7280"}15`, color: color || "#6B7280" }}>{count}</span>
+        )}
+        {badge && <span className="text-[10px] text-zinc-400 font-normal">{badge}</span>}
+        {actions && <span className="ml-auto" onClick={e => e.stopPropagation()}>{actions}</span>}
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
+// ─── DoTodayRow — task row with inline defer controls ─────────────────────
+
+function DoTodayRow({ task, onSelect, contextLabel, onDeferred, onReject }: {
+  task: TaskWithRelations;
+  onSelect: (id: string) => void;
+  contextLabel?: string;
+  onDeferred: () => void;
+  onReject?: () => void;
+}) {
+  const [deferring, setDeferring] = useState(false);
+  const deferDate = suggestDeferDate();
+  const taskIsOverdue = isOverdue(task.due_date || "");
+  const triageStyle = task.triage_action ? ACTION_STYLES[task.triage_action] : null;
+  const reason = task.triage_reason;
+
+  const handleDefer = async () => {
+    setDeferring(true);
+    try {
+      const { error } = await supabase.from("tasks").update({ due_date: deferDate }).eq("id", task.id);
+      if (error) throw error;
+      toast.success(`Deferred to ${formatShortDate(deferDate)}`);
+      onDeferred();
+    } catch (err) {
+      toast.error(`Failed to defer: ${err}`);
+    } finally {
+      setDeferring(false);
+    }
+  };
+
+  return (
+    <div className="group border-b border-amber-100 dark:border-amber-900/20 last:border-b-0 hover:bg-amber-50/30 dark:hover:bg-amber-900/10 transition-colors">
+      {/* Main row — click anywhere to open task */}
+      <button onClick={() => onSelect(task.id)} className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors rounded">
+        {task.status && (
+          <StatusIcon type={task.status.type as import("../../lib/work/types").StatusType} color={task.status.color || "#6B7280"} size={14} />
+        )}
+        <PriorityBars priority={task.priority || 0} size={11} />
+        <span
+          className="text-xs text-zinc-400 tabular-nums flex-shrink-0 w-14 cursor-pointer hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+          title={`Click to copy: ${task.id}`}
+          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(task.id); toast.success("Task ID copied"); }}
+        >{getTaskIdentifier(task)}</span>
+        {contextLabel && (
+          <span className="text-[11px] text-zinc-500 dark:text-zinc-400 flex-shrink-0 max-w-[200px] truncate font-medium" title={contextLabel}>
+            {contextLabel}
+          </span>
+        )}
+        <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate">
+          {task.title}
+        </span>
+        {triageStyle && (
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${triageStyle.bg} ${triageStyle.text}`}>
+            {triageStyle.label} {task.triage_score}
+          </span>
+        )}
+        {task.company && (
+          <span className="text-[10px] text-zinc-400 flex-shrink-0 max-w-[100px] truncate">{task.company.display_name || task.company.name}</span>
+        )}
+        {task.due_date && (
+          <span className={`text-xs flex-shrink-0 ${taskIsOverdue ? "text-red-500" : "text-zinc-400"}`}>
+            {formatShortDate(task.due_date)}
+          </span>
+        )}
+      </button>
+      {/* Action row — defer or keep */}
+      <div className="flex items-center gap-2 px-3 pb-1.5 text-[10px]">
+        {reason && <span className="text-zinc-500 dark:text-zinc-400 flex-1 truncate">{reason}</span>}
+        {!reason && <span className="flex-1" />}
+        <button
+          onClick={handleDefer}
+          disabled={deferring}
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 font-medium transition-colors flex-shrink-0"
+        >
+          <ArrowRight size={10} />
+          {deferring ? "Moving..." : `Defer to ${formatShortDate(deferDate)}`}
+        </button>
+        {onReject && (
+          <button
+            onClick={onReject}
+            className="px-2 py-0.5 rounded text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium transition-colors flex-shrink-0"
+          >
+            Keep
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── TaskBuckets (renders overdue/today/upcoming/no_date for a set of tasks) ─
 
-function TaskBuckets({ tasks, onSelectTask, contextLabels, showCompleted }: {
+function TaskBuckets({ tasks, onSelectTask, contextLabels, showCompleted, defaultCollapsed }: {
   tasks: TaskWithRelations[];
   onSelectTask: (id: string) => void;
   contextLabels?: Map<string, string>;
   showCompleted?: TaskWithRelations[];
+  defaultCollapsed?: boolean;
 }) {
   const buckets = useMemo(() => bucketTasks(tasks), [tasks]);
   const active = tasks.filter(t => t.status?.type !== "completed" && t.status?.type !== "canceled");
+  const collapsed = defaultCollapsed ?? false;
 
   return (
     <>
-      <TaskBucket label="Overdue" tasks={buckets.overdue} icon={AlertTriangle} color="#EF4444" onSelectTask={onSelectTask} contextLabels={contextLabels} />
-      <TaskBucket label="Due Today" tasks={buckets.today} icon={Clock} color="#F59E0B" onSelectTask={onSelectTask} contextLabels={contextLabels} />
-      <TaskBucket label="Upcoming" tasks={buckets.upcoming} icon={Calendar} color="#3B82F6" onSelectTask={onSelectTask} contextLabels={contextLabels} />
+      <TaskBucket label="Overdue" tasks={buckets.overdue} icon={AlertTriangle} color="#EF4444" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} />
+      <TaskBucket label="Due Today" tasks={buckets.today} icon={Clock} color="#F59E0B" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} />
+      <TaskBucket label="Upcoming" tasks={buckets.upcoming} icon={Calendar} color="#3B82F6" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} />
       <TaskBucket label="No Due Date" tasks={buckets.no_date} icon={Calendar} color="#9CA3AF" defaultOpen={false} onSelectTask={onSelectTask} contextLabels={contextLabels} />
       {showCompleted && showCompleted.length > 0 && (
         <TaskBucket label="Completed This Week" tasks={showCompleted} icon={CheckCircle2} color="#10B981" defaultOpen={false} onSelectTask={onSelectTask} contextLabels={contextLabels} />
@@ -196,7 +336,7 @@ function TaskBuckets({ tasks, onSelectTask, contextLabels, showCompleted }: {
 
 // ─── MyTasksView ──────────────────────────────────────────────────────────
 
-export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, initiatives, initiativeLinks }: {
+export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTask, initiatives, initiativeLinks }: {
   allTasks: TaskWithRelations[];
   users: User[];
   currentUserId: string | null;
@@ -206,17 +346,27 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
 }) {
   const [includeNotion, setIncludeNotion] = useState(false);
   const [showTriageLog, setShowTriageLog] = useState(false);
-  const [proposals, setProposals] = useState<TriageProposal[]>([]);
-  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
-  const [focusFilter, setFocusFilter] = useState<string | null>(null); // null = all, or "do_now" / "do_this_week" / "defer" / "deal"
   const triageMutation = useTaskTriage();
-  const applyMutation = useMutation({
-    mutationFn: async (p: TriageProposal) => invoke("work_apply_triage", {
-      taskId: p.task_id, triageScore: p.triage_score, triageAction: p.triage_action, triageReason: p.triage_reason,
-    }),
-  });
   useTriageEnrichment();
+  const queryClient = useQueryClient();
+  const { data: priorities } = useQuery({
+    queryKey: ["work", "priorities"],
+    queryFn: () => invoke<{ task_ids?: string[]; reasons?: string[]; last_confirmed?: string }>("work_get_priorities"),
+    staleTime: 60_000,
+  });
+  const [reprioritising, setReprioritising] = useState(false);
+  const handleReprioritise = useCallback(async () => {
+    setReprioritising(true);
+    try {
+      await invoke("work_reprioritise");
+      await queryClient.invalidateQueries({ queryKey: ["work", "priorities"] });
+      toast.success("Priorities updated");
+    } catch (err) {
+      toast.error(`Reprioritise failed: ${err}`);
+    } finally {
+      setReprioritising(false);
+    }
+  }, [queryClient]);
   const { logs: triageLogs, phase: triagePhase, clearLogs } = useTriageProgress(triageMutation.isPending || showTriageLog);
   const logEndRef = useRef<HTMLDivElement>(null);
   const { addJob, updateJob } = useJobsStore();
@@ -232,7 +382,6 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
     triageJobId.current = jobId;
     clearLogs();
     setShowTriageLog(true);
-    setProposals([]);
     addJob({ id: jobId, name: "Task Triage", status: "running", message: "Scoring tasks..." });
     const toastId = toast.loading("Triaging tasks...");
 
@@ -241,9 +390,10 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
       {
         onSuccess: (result) => {
           if (result.success && result.proposals.length > 0) {
-            updateJob(jobId, { status: "completed", message: `${result.proposals.length} proposals ready` });
-            toast.update(toastId, { type: "success", message: `${result.proposals.length} triage proposals ready for review`, duration: 4000 });
-            setProposals(result.proposals);
+            updateJob(jobId, { status: "completed", message: `${result.proposals.length} tasks scored` });
+            toast.update(toastId, { type: "success", message: `${result.proposals.length} tasks scored and prioritized`, duration: 4000 });
+            // Scores are written to DB by the backend — refresh task data
+            queryClient.invalidateQueries({ queryKey: ["work"] });
             setShowTriageLog(false);
           } else {
             updateJob(jobId, { status: "failed", message: result.error || "No proposals" });
@@ -258,21 +408,6 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
     );
   }, [triageMutation, addJob, updateJob, clearLogs]);
 
-  const handleAccept = useCallback((p: TriageProposal) => {
-    if (p.item_type === "task") {
-      applyMutation.mutate(p);
-    }
-    setAcceptedIds(prev => new Set(prev).add(p.task_id));
-  }, [applyMutation]);
-
-  const handleDismiss = useCallback((id: string) => {
-    setDismissedIds(prev => new Set(prev).add(id));
-  }, []);
-
-  const handleAcceptAll = useCallback(() => {
-    const pending = proposals.filter(p => !acceptedIds.has(p.task_id) && !dismissedIds.has(p.task_id));
-    pending.forEach(p => handleAccept(p));
-  }, [proposals, acceptedIds, dismissedIds, handleAccept]);
 
   // visibleProposals is computed after salesTasks below
 
@@ -288,19 +423,8 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
   const workTasks = useMemo(() => myTasks.filter(t => !isSalesTask(t)), [myTasks]);
 
   // Filter proposals for Focus panel
-  const salesProjectNames = useMemo(() => new Set(
-    salesTasks.map(t => t.project?.name).filter(Boolean)
-  ), [salesTasks]);
 
-  const visibleProposals = useMemo(() =>
-    proposals.filter(p => !dismissedIds.has(p.task_id)).filter(p => {
-      if (!focusFilter) return true;
-      if (focusFilter === "deal") return p.item_type === "deal";
-      if (focusFilter === "sales") return p.item_type === "deal" || salesProjectNames.has(p.project);
-      if (focusFilter === "work") return p.item_type === "task" && !salesProjectNames.has(p.project);
-      return p.triage_action === focusFilter;
-    }),
-  [proposals, dismissedIds, focusFilter, salesProjectNames]);
+
 
   // Build project_id → "Initiative > Project" lookup
   const contextLabels = useMemo(() => {
@@ -328,6 +452,40 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
     return map;
   }, [myTasks, initiatives, initiativeLinks]);
 
+
+  // TODAY task sequence — direct ID lookup, no fuzzy matching
+  const todayTaskSequence = useMemo(() => {
+    if (!priorities?.task_ids?.length) return [];
+    const taskMap = new Map(myTasks.map(t => [t.id, t]));
+    return priorities.task_ids
+      .map((id, i) => ({
+        task: taskMap.get(id) || null,
+        reason: priorities.reasons?.[i] || null,
+      }))
+      .filter(item => item.task && item.task.status?.type !== "completed" && item.task.status?.type !== "canceled");
+  }, [priorities?.task_ids, priorities?.reasons, myTasks]);
+
+  // Suggested Defer — overdue + due today tasks, sorted by score
+  const [rejectedDeferIds, setRejectedDeferIds] = useState<Set<string>>(new Set());
+  const suggestedDeferTasks = useMemo(() => {
+    return myTasks
+      .filter(t => t.status?.type !== "completed" && t.status?.type !== "canceled")
+      .filter(t => isOverdue(t.due_date || "") || isToday(t.due_date))
+      .filter(t => !rejectedDeferIds.has(t.id))
+      .sort((a, b) => {
+        const scoreDiff = (b.triage_score ?? 0) - (a.triage_score ?? 0);
+        if (scoreDiff !== 0) return scoreDiff;
+        return (a.due_date || "").localeCompare(b.due_date || "");
+      });
+  }, [myTasks, rejectedDeferIds]);
+
+  // No Due Date — active tasks with no due date
+  const noDueDateTasks = useMemo(() => {
+    return myTasks.filter(t =>
+      t.status?.type !== "completed" && t.status?.type !== "canceled" && !t.due_date
+    );
+  }, [myTasks]);
+
   const activeTasks = myTasks.filter(t => t.status?.type !== "completed" && t.status?.type !== "canceled");
   const activeSales = salesTasks.filter(t => t.status?.type !== "completed" && t.status?.type !== "canceled");
 
@@ -347,8 +505,6 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
     return <div className="flex items-center justify-center h-full text-sm text-zinc-400">No user profile found</div>;
   }
 
-  const currentUser = users.find(u => u.id === currentUserId);
-
   return (
     <div className="h-full flex flex-col">
       {/* Stats */}
@@ -359,16 +515,56 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
         <Stat label="Done This Week" value={recentlyCompleted.length} icon={CheckCircle2} color="#10B981" />
       </div>
 
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
-        <div className="flex items-center gap-2">
-          {currentUser && (
-            <div className="w-6 h-6 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-xs font-medium text-teal-700 dark:text-teal-400">
-              {initials(currentUser.name)}
+      {/* Today's Priorities */}
+      <div className="flex-shrink-0 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-900/10">
+        <div className="flex items-start gap-2">
+          <Target size={13} className="text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Today</span>
+              {priorities?.last_confirmed && (
+                <span className="text-[10px] text-zinc-400" title="Last confirmed">
+                  confirmed {priorities.last_confirmed}
+                </span>
+              )}
+              <button
+                onClick={handleReprioritise}
+                disabled={reprioritising}
+                className={`text-[10px] px-2 py-0.5 rounded font-medium transition-colors ${
+                  reprioritising
+                    ? "text-amber-500 bg-amber-50 dark:bg-amber-900/20 cursor-wait"
+                    : "text-emerald-600 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                }`}
+                title="Re-assess today's priorities using AI"
+              >
+                {reprioritising ? "Thinking..." : "Reprioritise"}
+              </button>
             </div>
-          )}
-          <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{currentUser?.name || "My"} Tasks</span>
+            {todayTaskSequence.length > 0 ? (
+              <div className="flex flex-col">
+                {todayTaskSequence.map((item, i) => (
+                  <div key={item.task!.id} className="border-b border-emerald-100/50 dark:border-emerald-900/20 last:border-b-0">
+                    <div className="flex items-center gap-2 py-0.5">
+                      <span className="text-emerald-500 font-medium text-xs flex-shrink-0 w-4 text-right">{i + 1}.</span>
+                      <TaskRow task={item.task!} onSelect={onSelectTask} contextLabel={contextLabels.get(item.task!.project_id)} />
+                    </div>
+                    {(item.reason || item.task!.triage_reason) && (
+                      <div className="pl-7 pb-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                        {item.reason || item.task!.triage_reason}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-zinc-400 py-1">Click Reprioritise to set today's tasks</div>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Toolbar — Triage + Include Notion, no header */}
+      <div className="flex items-center justify-end px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800/50">
         <div className="flex items-center gap-3">
           <button
             title={triageMutation.isPending ? "Triaging tasks... (Claude is running)" : "Triage tasks — AI-score and prioritize"}
@@ -426,154 +622,49 @@ export function MyTasksView({ allTasks, users, currentUserId, onSelectTask, init
         </div>
       )}
 
-      {/* Main content: Focus (left) + Sales/Work (right) when triage active, otherwise Sales/Work full width */}
-      <div className="flex-1 overflow-hidden flex">
+      {/* Main content: single scrollable column */}
+      <div className="flex-1 overflow-y-auto p-4">
 
-        {/* Focus Panel — left column when proposals exist */}
-        {proposals.length > 0 && (
-          <div className="w-1/2 flex flex-col border-r border-zinc-100 dark:border-zinc-800/50">
-            {/* Focus header with clickable filter pills */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/50 bg-gradient-to-r from-amber-50/50 to-transparent dark:from-amber-900/10">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <Zap size={11} className="text-amber-500" />
-                <button onClick={() => setFocusFilter(null)}
-                  className={`text-[9px] px-1.5 py-0.5 rounded font-semibold transition-colors ${!focusFilter ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
-                  All {proposals.filter(p => !dismissedIds.has(p.task_id)).length}
-                </button>
-                {(["do_now", "do_this_week", "defer"] as const).map(action => {
-                  const count = proposals.filter(p => !dismissedIds.has(p.task_id) && p.triage_action === action).length;
-                  if (count === 0) return null;
-                  const s = ACTION_STYLES[action];
-                  return (
-                    <button key={action} onClick={() => setFocusFilter(focusFilter === action ? null : action)}
-                      className={`text-[9px] px-1.5 py-0.5 rounded font-semibold transition-colors ${focusFilter === action ? `${s.bg} ${s.text} ring-1 ring-current` : `${s.bg} ${s.text} opacity-70 hover:opacity-100`}`}>
-                      {s.label} {count}
-                    </button>
-                  );
-                })}
-                {proposals.some(p => p.item_type === "deal" && !dismissedIds.has(p.task_id)) && (
-                  <button onClick={() => setFocusFilter(focusFilter === "deal" ? null : "deal")}
-                    className={`text-[9px] px-1.5 py-0.5 rounded font-semibold transition-colors ${focusFilter === "deal" ? "bg-purple-100 text-purple-600 ring-1 ring-current dark:bg-purple-900/30 dark:text-purple-400" : "bg-purple-100 text-purple-600 opacity-70 hover:opacity-100 dark:bg-purple-900/30 dark:text-purple-400"}`}>
-                    Deals {proposals.filter(p => p.item_type === "deal" && !dismissedIds.has(p.task_id)).length}
-                  </button>
-                )}
-                <span className="text-zinc-300 dark:text-zinc-700">|</span>
-                <button onClick={() => setFocusFilter(focusFilter === "sales" ? null : "sales")}
-                  className={`text-[9px] px-1.5 py-0.5 rounded font-semibold transition-colors ${focusFilter === "sales" ? "bg-blue-100 text-blue-600 ring-1 ring-current dark:bg-blue-900/30 dark:text-blue-400" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
-                  Sales
-                </button>
-                <button onClick={() => setFocusFilter(focusFilter === "work" ? null : "work")}
-                  className={`text-[9px] px-1.5 py-0.5 rounded font-semibold transition-colors ${focusFilter === "work" ? "bg-teal-100 text-teal-600 ring-1 ring-current dark:bg-teal-900/30 dark:text-teal-400" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
-                  Work
-                </button>
-              </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button onClick={handleAcceptAll} className="text-[9px] px-1.5 py-0.5 rounded font-medium text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20 transition-colors">
-                  Accept All
-                </button>
-                <button onClick={() => { setProposals([]); setFocusFilter(null); }} className="p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 transition-colors">
-                  <X size={10} />
-                </button>
-              </div>
+        {/* Suggested Defer */}
+        {suggestedDeferTasks.length > 0 && (
+          <CollapsibleSection label="Suggested Defer" count={suggestedDeferTasks.length} icon={Calendar} color="#3B82F6" badge="Defer or keep each task's due date">
+            <div className="ml-2 border-l-2 border-blue-100 dark:border-blue-900/30 pl-2">
+              {suggestedDeferTasks.map(t => (
+                <DoTodayRow
+                  key={t.id}
+                  task={t}
+                  onSelect={onSelectTask}
+                  contextLabel={contextLabels.get(t.project_id)}
+                  onDeferred={() => { queryClient.invalidateQueries({ queryKey: ["work"] }); queryClient.refetchQueries({ queryKey: ["work", "tasks"] }); }}
+                  onReject={() => setRejectedDeferIds(prev => new Set(prev).add(t.id))}
+                />
+              ))}
             </div>
-
-            {/* Triage Log (collapsed into Focus panel) */}
-            {showTriageLog && triageLogs.length > 0 && (
-              <div className="px-3 py-1.5 bg-zinc-50/50 dark:bg-zinc-900/30 border-b border-zinc-100 dark:border-zinc-800/50 max-h-20 overflow-y-auto">
-                <div className="font-mono text-[10px] text-zinc-400">
-                  {triageLogs.slice(-3).map((line, i) => <div key={i}>{line}</div>)}
-                  <div ref={logEndRef} />
-                </div>
-              </div>
-            )}
-
-            {/* Proposal list */}
-            <div className="flex-1 overflow-y-auto">
-              {visibleProposals.map((p) => {
-                const accepted = acceptedIds.has(p.task_id);
-                const style = ACTION_STYLES[p.triage_action] || ACTION_STYLES.defer;
-                const isOverdue = p.days_overdue != null && p.days_overdue > 0;
-                const isDeal = p.item_type === "deal";
-                return (
-                  <div key={p.task_id} className={`group border-b border-zinc-100 dark:border-zinc-800/30 px-3 py-2.5 ${accepted ? "opacity-30" : "hover:bg-zinc-50/80 dark:hover:bg-zinc-800/20"} transition-colors`}>
-                    {/* Row 1: badge + title + accept/dismiss */}
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 ${style.bg} ${style.text}`}>
-                        {style.label} {p.triage_score}
-                      </span>
-                      {isDeal && <span className="text-[8px] px-1 py-0.5 rounded bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400 font-bold flex-shrink-0">DEAL</span>}
-                      <span className="text-xs text-zinc-800 dark:text-zinc-200 font-medium flex-1 truncate cursor-pointer" onClick={() => !isDeal && onSelectTask(p.task_id)}>
-                        {p.title}
-                      </span>
-                      {!accepted ? (
-                        <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => handleAccept(p)} title="Accept" className="p-1 rounded hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-zinc-400 hover:text-emerald-600 transition-colors">
-                            <Check size={12} />
-                          </button>
-                          <button onClick={() => handleDismiss(p.task_id)} title="Dismiss" className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 transition-colors">
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ) : (
-                        <Check size={12} className="text-emerald-500 flex-shrink-0" />
-                      )}
-                    </div>
-                    {/* Row 2: project + structured metadata */}
-                    <div className="flex items-center gap-2 mt-1 text-[10px]">
-                      <span className="text-zinc-400 truncate">{p.project}</span>
-                      {p.due_date && (
-                        <span className={isOverdue ? "text-red-500 font-medium" : "text-zinc-400"}>
-                          Due: {p.due_date}{isOverdue ? ` (${p.days_overdue}d overdue)` : ""}
-                        </span>
-                      )}
-                      {isDeal && p.deal_stage && (
-                        <span className="text-purple-500">Stage: {p.deal_stage}</span>
-                      )}
-                      {isDeal && p.deal_value != null && p.deal_value > 0 && (
-                        <span className="text-zinc-500">${(p.deal_value / 1000).toFixed(0)}K</span>
-                      )}
-                      {p.days_stale != null && (
-                        <span className={p.days_stale > 14 ? "text-red-500 font-medium" : p.days_stale > 7 ? "text-amber-500" : "text-zinc-400"}>
-                          {p.days_stale}d stale
-                        </span>
-                      )}
-                    </div>
-                    {/* Row 3: reason + suggested due date */}
-                    <div className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
-                      {p.triage_reason}
-                      {p.suggested_due_date && (
-                        <span className="ml-2 text-blue-500 font-medium">Move to: {p.suggested_due_date}</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {visibleProposals.length === 0 && (
-                <div className="text-center py-8 text-xs text-zinc-400">No items match this filter</div>
-              )}
-            </div>
-          </div>
+          </CollapsibleSection>
         )}
 
-        {/* Sales + Work: side-by-side normally, stacked when Focus is open */}
-        <div className={`${proposals.length > 0 ? "w-1/2 flex flex-col" : "w-full flex"} overflow-hidden`}>
-          {/* Sales */}
-          <div className={`${proposals.length > 0 ? "flex-1" : "w-1/2"} overflow-y-auto p-4 border-r border-zinc-100 dark:border-zinc-800/50 ${proposals.length > 0 ? "border-b" : ""}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Sales</span>
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-500">{activeSales.length}</span>
+        {/* No Due Date */}
+        {noDueDateTasks.length > 0 && (
+          <CollapsibleSection label="No Due Date" count={noDueDateTasks.length} icon={Calendar} color="#9CA3AF" defaultOpen={false}>
+            <div className="ml-2 border-l-2 border-zinc-100 dark:border-zinc-800 pl-2">
+              {noDueDateTasks.map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />)}
             </div>
-            <TaskBuckets tasks={salesTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedSales} />
+          </CollapsibleSection>
+        )}
+
+        {/* Sales */}
+        <CollapsibleSection label="Sales" count={activeSales.length} color="#3B82F6" defaultOpen={false}>
+          <div className="ml-2 pl-2">
+            <TaskBuckets tasks={salesTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedSales} defaultCollapsed />
           </div>
-          {/* Work */}
-          <div className={`${proposals.length > 0 ? "flex-1" : "w-1/2"} overflow-y-auto p-4`}>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Work</span>
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-900/20 text-teal-600">{activeWork.length}</span>
-            </div>
-            <TaskBuckets tasks={workTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedWork} />
+        </CollapsibleSection>
+
+        {/* Work */}
+        <CollapsibleSection label="Work" count={activeWork.length} color="#0D9488" defaultOpen={false}>
+          <div className="ml-2 pl-2">
+            <TaskBuckets tasks={workTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedWork} defaultCollapsed />
           </div>
-        </div>
+        </CollapsibleSection>
       </div>
     </div>
   );

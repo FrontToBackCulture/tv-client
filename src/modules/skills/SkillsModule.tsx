@@ -57,7 +57,7 @@ export function SkillsModule() {
         has_examples: skill.has_examples,
         has_deck: skill.has_deck,
         has_guide: skill.has_guide,
-        distributions: (skill.distributions as { path: string; type: string }[]) ?? [],
+        distributions: Array.isArray(skill.distributions) ? skill.distributions as { path: string; type: string }[] : [],
       };
     }
 

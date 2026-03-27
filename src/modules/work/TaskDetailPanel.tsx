@@ -1,7 +1,7 @@
 // src/modules/work/TaskDetailPanel.tsx
 // Task detail panel/modal with full editing
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -11,7 +11,9 @@ import {
   useStatuses,
   useUsers,
   useMilestones,
+  useInitiatives,
 } from "../../hooks/work";
+import { useInitiativeProjects } from "./workViewsShared";
 import { useCompanies } from "../../hooks/crm/useCompanies";
 import { useContacts } from "../../hooks/crm/useContacts";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -46,7 +48,7 @@ import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
 import { useNotionPushTask, useNotionPullTask } from "../../hooks/useNotion";
 import { NotionContent } from "./NotionContent";
 import { Button, IconButton } from "../../components/ui";
-import { DetailLoading, DetailNotFound } from "../../components/ui/DetailStates";
+import { DetailLoading } from "../../components/ui/DetailStates";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
 import { toast } from "../../stores/toastStore";
 import { useTaskFieldsStore } from "../../stores/taskFieldsStore";
@@ -76,7 +78,7 @@ export function TaskDetailPanel({
   onUpdated,
   onDeleted,
 }: TaskDetailPanelProps) {
-  const { data: task, isLoading, refetch } = useTask(taskId);
+  const { data: task, isLoading, error: taskError, refetch } = useTask(taskId);
   const updateMutation = useUpdateTask();
   const deleteMutation = useDeleteTask();
   const pushMutation = useNotionPushTask();
@@ -94,6 +96,8 @@ export function TaskDetailPanel({
   const { data: milestones = [] } = useMilestones(projectId);
   const { data: companies = [] } = useCompanies();
   const { data: contacts = [] } = useContacts();
+  const { data: initiatives = [] } = useInitiatives();
+  const { data: initiativeLinks = [] } = useInitiativeProjects();
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState("");
@@ -106,9 +110,27 @@ export function TaskDetailPanel({
   const projectType = (task as any)?.project?.project_type || "work";
   const enabledTaskFields = useTaskFieldsStore((s) => s.getEnabledFields(projectType));
 
+  // Resolve initiative name for this task's project (must be before early returns — hooks rules)
+  const initiativeName = useMemo(() => {
+    if (!task?.project_id || !initiatives.length || !initiativeLinks.length) return null;
+    const link = initiativeLinks.find(l => l.project_id === task.project_id);
+    if (!link) return null;
+    return initiatives.find(i => i.id === link.initiative_id)?.name || null;
+  }, [task?.project_id, initiatives, initiativeLinks]);
+
   if (isLoading) return <DetailLoading />;
 
-  if (!task) return <DetailNotFound message="Task not found" />;
+  if (!task) {
+    console.error("[TaskDetailPanel] Task not found for ID:", taskId, taskError?.message);
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 gap-3">
+        <p className="text-zinc-500">Task not found</p>
+        <p className="text-[10px] text-zinc-400 font-mono">{taskId}</p>
+        {taskError && <p className="text-[10px] text-red-400">{taskError.message}</p>}
+        <button onClick={onClose} className="text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 px-3 py-1 rounded hover:bg-teal-50 dark:hover:bg-teal-900/20">Dismiss</button>
+      </div>
+    );
+  }
 
   const identifier = getTaskIdentifier(task);
   const statusType = (task.status?.type || "unstarted") as import("../../lib/work/types").StatusType;
@@ -168,6 +190,14 @@ export function TaskDetailPanel({
           >
             {task.id.slice(0, 8)}
           </span>
+          {initiativeName && (
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+              {initiativeName}
+            </span>
+          )}
+          {initiativeName && task.project && (
+            <span className="text-zinc-300 dark:text-zinc-600 text-xs">›</span>
+          )}
           {task.project && (
             <span
               className="px-2 py-0.5 rounded text-xs font-medium"

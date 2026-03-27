@@ -317,6 +317,26 @@ function RawDetails({ result }: { result: HealthCheckResult }) {
               ))}
             </>
           )}
+
+          {/* Platform errors */}
+          {result.check_type === "platform_errors" && Array.isArray(details.failures) && (
+            <>
+              <p className="text-xs text-zinc-500">
+                {details.count as number} failed operation(s) across {details.tables_affected as number} table(s)
+              </p>
+              {(details.failures as Record<string, unknown>[]).map((f, i) => (
+                <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-700">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-zinc-700 dark:text-zinc-300">{String(f.table)}</span>
+                    <span className="text-red-500 font-medium">{String(f.count)}x</span>
+                    {f.origin != null && <span className="text-zinc-400">{String(f.origin)}</span>}
+                  </div>
+                  <p className="text-zinc-500 mt-0.5 truncate">{String(f.message)}</p>
+                  <p className="text-zinc-400 text-[10px]">{String(f.latest)}</p>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -480,19 +500,6 @@ export function HealthDashboard() {
     if (domains.length > 0) runner.trigger(domains);
   }, [productionDomains, runner]);
 
-  // Temporary: test VAL notifications endpoint (workspace API)
-  const handleTestNotifications = useCallback(async () => {
-    try {
-      const result = await invoke("val_fetch_notifications", { domain: "koi", max: 20 });
-      console.log("VAL Notifications (koi):", result);
-      alert("Check browser console for notification data");
-    } catch (err: unknown) {
-      console.error("Notification fetch failed:", err);
-      alert(`Failed: ${JSON.stringify(err)}`);
-    }
-  }, []);
-
-
   const selectedResult = selectedCell
     ? resultMap.get(`${selectedCell.domain}:${selectedCell.check}`) ?? null
     : null;
@@ -516,9 +523,6 @@ export function HealthDashboard() {
             {runner.progress?.isRunning
               ? `Checking ${runner.progress.currentDomain} (${runner.progress.current}/${runner.progress.total})`
               : "Run Health Checks"}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={handleTestNotifications}>
-            Test Notifications
           </Button>
           {stats.lastChecked && (
             <span className="text-xs text-zinc-400">
@@ -578,10 +582,22 @@ export function HealthDashboard() {
               {productionDomains.map((domain) => (
                 <tr
                   key={domain.domain}
-                  className="border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+                  className="group border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
                 >
-                  <td className="px-4 py-2 font-medium text-zinc-700 dark:text-zinc-300">
-                    {domain.domain}
+                  <td className="px-4 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                        {domain.domain}
+                      </span>
+                      <button
+                        onClick={() => runner.trigger([domain.domain])}
+                        disabled={runner.progress?.isRunning}
+                        className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-teal-500 transition-all"
+                        title={`Run checks for ${domain.domain}`}
+                      >
+                        <RefreshCw size={11} />
+                      </button>
+                    </div>
                   </td>
                   {HEALTH_CHECKS.map((check) => {
                     const result = resultMap.get(
