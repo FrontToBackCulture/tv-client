@@ -7,3 +7,4 @@ export * from "./useUsers";
 export * from "./useInitiatives";
 export * from "./useMilestones";
 export * from "./useProjectUpdates";
+export * from "./useTeams";

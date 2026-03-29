@@ -9,6 +9,7 @@ import type { StatusType } from "../../lib/work/types";
 import { formatDateShort as formatDate, isOverdue, daysSince } from "../../lib/date";
 import { initials, ScopeFilterBar } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
+import { useTeams } from "../../hooks/work/useTeams";
 
 export function InboxView({
   allTasks, projects, initiatives, initiativeLinks, onSelectTask,
@@ -21,6 +22,8 @@ export function InboxView({
 }) {
   const [filterInitiativeId, setFilterInitiativeId] = useState<string | null>(null);
   const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
+  const [filterTeamId, setFilterTeamId] = useState<string | null>(null);
+  const { data: teams = [] } = useTeams();
 
   const filteredProjectIds = useMemo(() => {
     if (filterProjectId) return new Set([filterProjectId]);
@@ -32,14 +35,28 @@ export function InboxView({
     return null;
   }, [filterInitiativeId, filterProjectId, initiativeLinks]);
 
+  const teamUserIds = useMemo(() => {
+    if (!filterTeamId) return null;
+    const team = teams.find(t => t.id === filterTeamId);
+    return team ? new Set(team.members.map(m => m.user_id)) : null;
+  }, [filterTeamId, teams]);
+
   const scopedTasks = useMemo(() => {
-    if (!filteredProjectIds) return allTasks;
-    return allTasks.filter(t => filteredProjectIds.has(t.project_id));
-  }, [allTasks, filteredProjectIds]);
+    let result = allTasks;
+    if (filteredProjectIds) {
+      result = result.filter(t => filteredProjectIds.has(t.project_id));
+    }
+    if (teamUserIds) {
+      result = result.filter(t =>
+        t.assignees?.some(a => teamUserIds.has(a.user?.id ?? ""))
+      );
+    }
+    return result;
+  }, [allTasks, filteredProjectIds, teamUserIds]);
 
   const inboxTasks = useMemo(() => {
     const active = scopedTasks.filter(t =>
-      t.status?.type !== "completed" && t.status?.type !== "canceled"
+      t.status?.type !== "complete"
     );
 
     const scored = active.map(t => {
@@ -61,7 +78,7 @@ export function InboxView({
       else if (priority === 2) score += 25;
       else if (priority === 3) score += 10;
 
-      if (t.status?.type === "started") score += 5;
+      if (t.status?.type === "in_progress") score += 5;
 
       return { task: t, score };
     });
@@ -97,6 +114,9 @@ export function InboxView({
         selectedProjectId={filterProjectId}
         onInitiativeChange={setFilterInitiativeId}
         onProjectChange={setFilterProjectId}
+        teams={teams}
+        selectedTeamId={filterTeamId}
+        onTeamChange={setFilterTeamId}
       />
       <div className="flex-shrink-0 px-6 pt-4 pb-2">
         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">What needs your attention</div>

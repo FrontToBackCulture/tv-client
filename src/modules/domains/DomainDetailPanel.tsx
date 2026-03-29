@@ -11,6 +11,7 @@ import {
   useValLogin,
   useValSyncAll,
   useValSyncArtifact,
+  useUpdateDomainType,
 } from "../../hooks/val-sync";
 import { StatusChip } from "./StatusChip";
 import {
@@ -51,10 +52,11 @@ import { UnifiedReviewView } from "./UnifiedReviewView";
 import { DomainCleanupTab } from "./DomainCleanupTab";
 import type { ReviewResourceType } from "./reviewTypes";
 import {
-  ARTIFACT_LABELS, TYPE_COLORS, ARTIFACT_META, OUTPUT_FILE_DESCRIPTIONS,
+  ARTIFACT_LABELS, ARTIFACT_META, OUTPUT_FILE_DESCRIPTIONS,
   formatRelativeShort, buildMergedRows,
   type DomainDetailPanelProps, type Tab,
 } from "./domainDetailShared";
+import { useDomainTypeConfig } from "./useDomainTypeConfig";
 
 export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards, discoveredDomain }: DomainDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -79,6 +81,8 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   const loginMutation = useValLogin();
   const syncAllMutation = useValSyncAll();
   const syncArtifactMutation = useValSyncArtifact();
+  const updateTypeMutation = useUpdateDomainType();
+  const typeConfig = useDomainTypeConfig();
   const auth = authQuery.data;
   const creds = credQuery.data;
   const metadata = statusQuery.data;
@@ -86,6 +90,12 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   const addJob = useJobsStore((s) => s.addJob);
   const updateJob = useJobsStore((s) => s.updateJob);
   const { openPanel } = useSidePanelStore();
+
+  // Optimistic domain type for instant UI feedback
+  const [optimisticType, setOptimisticType] = useState(discoveredDomain?.domain_type ?? "production");
+  useEffect(() => {
+    setOptimisticType(discoveredDomain?.domain_type ?? "production");
+  }, [discoveredDomain?.domain_type]);
 
   const isSyncing = syncAllMutation.isPending || syncArtifactMutation.isPending;
   const { data: discussionCount } = useDiscussionCount("domain", domain);
@@ -228,7 +238,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
     { id: "discussion", label: "Discussion" },
   ];
 
-  const typeColors = discoveredDomain ? (TYPE_COLORS[discoveredDomain.domain_type] ?? TYPE_COLORS.production) : null;
+  const typeColors = discoveredDomain ? (typeConfig.colors[optimisticType] ?? typeConfig.colors.production ?? null) : null;
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
@@ -246,9 +256,23 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                   <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 truncate">
                     {domain}
                   </h2>
-                  <span className={cn("px-2 py-0.5 rounded text-xs font-medium capitalize", typeColors.badge, typeColors.badgeText)}>
-                    {discoveredDomain.domain_type}
-                  </span>
+                  <select
+                    value={optimisticType}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      setOptimisticType(newType);
+                      updateTypeMutation.mutate({ domain, domainType: newType });
+                    }}
+                    className={cn(
+                      "px-2 py-0.5 rounded text-xs font-medium capitalize cursor-pointer border-none appearance-none",
+                      "focus:outline-none focus:ring-1 focus:ring-zinc-400",
+                      typeColors.badge, typeColors.badgeText
+                    )}
+                  >
+                    {typeConfig.types.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
                   {auth?.authenticated ? (
                     <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300">
                       <CheckCircle2 size={10} />

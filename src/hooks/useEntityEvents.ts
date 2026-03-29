@@ -4,6 +4,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { supabase } from "../lib/supabase";
+import { useJobsStore } from "../stores/jobsStore";
 
 // Types
 export interface EventEntityLink {
@@ -275,14 +276,19 @@ export function useScanEvents(entityType: string, entityId: string) {
       if (domains.length === 0 && contactEmails.length === 0) return [];
 
       // 3. Call Tauri command to scan local SQLite events
+      const { addJob, updateJob } = useJobsStore.getState();
+      const jobId = `scan-events-${Date.now()}`;
+      addJob({ id: jobId, name: "Scan Calendar Events", status: "running", message: "Scanning local calendar events..." });
       let raw: EventScanCandidate[];
       try {
         raw = await invoke<EventScanCandidate[]>("outlook_scan_events", {
           domains,
           contactEmails,
         });
+        updateJob(jobId, { status: "completed", message: `Found ${raw.length} events` });
       } catch (err) {
         console.error("[event-scan] Tauri invoke failed:", err);
+        updateJob(jobId, { status: "failed", message: `${err}` });
         return [];
       }
 

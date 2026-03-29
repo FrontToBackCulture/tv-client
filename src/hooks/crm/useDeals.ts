@@ -178,10 +178,9 @@ export function useCreateDeal() {
 
       // Create default task statuses for the deal project
       await supabase.from("task_statuses").insert([
-        { project_id: data.id, name: "Backlog", type: "backlog", color: "#6B7280", icon: "inbox", sort_order: 0 },
-        { project_id: data.id, name: "Todo", type: "unstarted", color: "#3B82F6", icon: "circle", sort_order: 1 },
-        { project_id: data.id, name: "In Progress", type: "started", color: "#0D7680", icon: "play", sort_order: 2 },
-        { project_id: data.id, name: "Done", type: "completed", color: "#10B981", icon: "check", sort_order: 3 },
+        { project_id: data.id, name: "To-do", type: "todo", color: "#9CA3AF", icon: "circle", sort_order: 0 },
+        { project_id: data.id, name: "In Progress", type: "in_progress", color: "#F59E0B", icon: "play", sort_order: 1 },
+        { project_id: data.id, name: "Complete", type: "complete", color: "#10B981", icon: "check", sort_order: 2 },
       ]);
 
       // Update company stage if prospect
@@ -368,7 +367,7 @@ export function useDealsWithTasks(filters?: DealFilters) {
         const dealTask: DealTask = {
           id: task.id,
           title: task.title,
-          status_type: statusMap.get(task.status_id) || "unstarted",
+          status_type: statusMap.get(task.status_id) || "todo",
           priority: task.priority,
           due_date: task.due_date,
           assignee_name: task.assignees?.[0]?.user?.name || null,
@@ -388,7 +387,7 @@ export function useDealsWithTasks(filters?: DealFilters) {
   const enrichedDeals: DealWithTaskInfo[] = (dealsQuery.data ?? []).map((deal) => {
     const tasks = tasksQuery.data?.get(deal.id) || [];
     const openTasks = tasks.filter(
-      (t) => !["completed", "canceled"].includes(t.status_type)
+      (t) => t.status_type !== "complete"
     );
 
     const sortedOpenTasks = [...openTasks].sort((a, b) => {
@@ -481,15 +480,15 @@ export function useDealTasks(dealId: string | null) {
         if (hasEmbeddedStatuses) {
           const taskStatuses = task.task_statuses as { type: string } | { type: string }[] | null;
           statusType = Array.isArray(taskStatuses)
-            ? taskStatuses[0]?.type || "unstarted"
-            : taskStatuses?.type || "unstarted";
+            ? taskStatuses[0]?.type || "todo"
+            : taskStatuses?.type || "todo";
 
           const projectRel = task.projects as { identifier_prefix: string } | { identifier_prefix: string }[] | null;
           projectPrefix = Array.isArray(projectRel)
             ? projectRel[0]?.identifier_prefix || "TASK"
             : projectRel?.identifier_prefix || "TASK";
         } else {
-          statusType = statusMap.get(task.status_id) || "unstarted";
+          statusType = statusMap.get(task.status_id) || "todo";
           projectPrefix = projectMap.get(task.project_id) || "TASK";
         }
 

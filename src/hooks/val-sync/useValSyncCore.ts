@@ -251,6 +251,19 @@ export function useUpdateDomainPath() {
   });
 }
 
+/** Update domain type in Supabase */
+export function useUpdateDomainType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ domain, domainType }: { domain: string; domainType: string }) =>
+      invoke("val_sync_update_domain_type", { domain, domainType }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["val-sync", "discover"] });
+      qc.invalidateQueries({ queryKey: valSyncKeys.domains() });
+    },
+  });
+}
+
 /** Sync workflow executions for a domain */
 export function useValSyncWorkflowExecutions() {
   const qc = useQueryClient();

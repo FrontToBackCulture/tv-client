@@ -4,31 +4,27 @@ use tauri::command;
 use super::runner;
 use super::storage;
 use super::types::*;
-use crate::commands::error::{CmdResult, CommandError};
+use crate::commands::error::CmdResult;
 
 // ============================================================================
-// Job CRUD
+// Job CRUD (all async, backed by Supabase)
 // ============================================================================
 
 #[command]
-pub fn scheduler_list_jobs() -> CmdResult<Vec<SchedulerJob>> {
-    storage::load_jobs()
+pub async fn scheduler_list_jobs() -> CmdResult<Vec<Job>> {
+    storage::load_jobs_async().await
 }
 
 #[command]
-pub fn scheduler_get_job(id: String) -> CmdResult<SchedulerJob> {
-    let jobs = storage::load_jobs()?;
-    jobs.into_iter()
-        .find(|j| j.id == id)
-        .ok_or_else(|| CommandError::NotFound(format!("Job {} not found", id)))
+pub async fn scheduler_get_job(id: String) -> CmdResult<Job> {
+    storage::load_job_async(&id).await
 }
 
 #[command]
-pub fn scheduler_create_job(input: JobInput) -> CmdResult<SchedulerJob> {
-    let mut jobs = storage::load_jobs()?;
+pub async fn scheduler_create_job(input: JobInput) -> CmdResult<Job> {
     let now = Utc::now();
 
-    let job = SchedulerJob {
+    let job = Job {
         id: uuid_v4(),
         name: input.name,
         skill_prompt: input.skill_prompt,
@@ -50,17 +46,13 @@ pub fn scheduler_create_job(input: JobInput) -> CmdResult<SchedulerJob> {
         last_run_status: None,
     };
 
-    jobs.push(job.clone());
-    storage::save_jobs(&jobs)?;
+    storage::save_job_async(&job).await?;
     Ok(job)
 }
 
 #[command]
-pub fn scheduler_update_job(id: String, input: JobInput) -> CmdResult<SchedulerJob> {
-    let mut jobs = storage::load_jobs()?;
-    let job = jobs.iter_mut()
-        .find(|j| j.id == id)
-        .ok_or_else(|| CommandError::NotFound(format!("Job {} not found", id)))?;
+pub async fn scheduler_update_job(id: String, input: JobInput) -> CmdResult<Job> {
+    let mut job = storage::load_job_async(&id).await?;
 
     job.name = input.name;
     job.skill_prompt = input.skill_prompt;
@@ -86,35 +78,22 @@ pub fn scheduler_update_job(id: String, input: JobInput) -> CmdResult<SchedulerJ
     job.sod_reports_folder = input.sod_reports_folder;
     job.updated_at = Utc::now();
 
-    let updated = job.clone();
-    storage::save_jobs(&jobs)?;
-    Ok(updated)
+    storage::save_job_async(&job).await?;
+    Ok(job)
 }
 
 #[command]
-pub fn scheduler_delete_job(id: String) -> CmdResult<()> {
-    let mut jobs = storage::load_jobs()?;
-    let before = jobs.len();
-    jobs.retain(|j| j.id != id);
-    if jobs.len() == before {
-        return Err(CommandError::NotFound(format!("Job {} not found", id)));
-    }
-    storage::save_jobs(&jobs)
+pub async fn scheduler_delete_job(id: String) -> CmdResult<()> {
+    storage::delete_job_async(&id).await
 }
 
 #[command]
-pub fn scheduler_toggle_job(id: String, enabled: bool) -> CmdResult<SchedulerJob> {
-    let mut jobs = storage::load_jobs()?;
-    let job = jobs.iter_mut()
-        .find(|j| j.id == id)
-        .ok_or_else(|| CommandError::NotFound(format!("Job {} not found", id)))?;
-
+pub async fn scheduler_toggle_job(id: String, enabled: bool) -> CmdResult<Job> {
+    let mut job = storage::load_job_async(&id).await?;
     job.enabled = enabled;
     job.updated_at = Utc::now();
-
-    let updated = job.clone();
-    storage::save_jobs(&jobs)?;
-    Ok(updated)
+    storage::save_job_async(&job).await?;
+    Ok(job)
 }
 
 // ============================================================================
@@ -123,17 +102,41 @@ pub fn scheduler_toggle_job(id: String, enabled: bool) -> CmdResult<SchedulerJob
 
 #[command]
 pub async fn scheduler_run_job(id: String, default_reports_folder: String, app_handle: tauri::AppHandle) -> CmdResult<String> {
-    let jobs = storage::load_jobs()?;
-    let job = jobs.into_iter()
-        .find(|j| j.id == id)
-        .ok_or_else(|| CommandError::NotFound(format!("Job {} not found", id)))?;
+    let job = storage::load_job_async(&id).await?;
 
     let run_id = uuid_v4();
     let run_id_clone = run_id.clone();
+    let run_id_tracking = run_id.clone();
+    let job_name = job.name.clone();
 
     // Spawn execution in background so the command returns immediately
     tauri::async_runtime::spawn(async move {
+        use tauri::Emitter;
+        let tracking_id = format!("scheduler-manual-{}", chrono::Utc::now().timestamp_millis());
+        let started_at = chrono::Utc::now().to_rfc3339();
+        let display_name = format!("Run: {}", job_name);
+        let _ = app_handle.emit("jobs:update", serde_json::json!({
+            "id": &tracking_id, "name": &display_name, "status": "running",
+            "message": format!("Running {}...", job_name), "startedAt": &started_at,
+        }));
         runner::execute_job(&job, &run_id_clone, RunTrigger::Manual, &app_handle, &default_reports_folder).await;
+        let job_status = storage::load_run_async(&run_id_tracking).await
+            .map(|r| r.status)
+            .unwrap_or(RunStatus::Failed);
+        match job_status {
+            RunStatus::Failed => {
+                let _ = app_handle.emit("jobs:update", serde_json::json!({
+                    "id": &tracking_id, "name": &display_name, "status": "failed",
+                    "message": format!("{} failed", job_name), "startedAt": &started_at,
+                }));
+            }
+            _ => {
+                let _ = app_handle.emit("jobs:update", serde_json::json!({
+                    "id": &tracking_id, "name": &display_name, "status": "completed",
+                    "message": format!("{} completed", job_name), "startedAt": &started_at,
+                }));
+            }
+        }
     });
 
     Ok(run_id)
@@ -175,8 +178,8 @@ pub async fn scheduler_get_run_steps(run_id: String) -> CmdResult<Vec<RunStep>> 
 // ============================================================================
 
 #[command]
-pub fn scheduler_get_status() -> CmdResult<SchedulerStatus> {
-    let jobs = storage::load_jobs()?;
+pub async fn scheduler_get_status() -> CmdResult<SchedulerStatus> {
+    let jobs = storage::load_jobs_async().await?;
     let total = jobs.len();
     let enabled = jobs.iter().filter(|j| j.enabled).count();
     let running = jobs
@@ -197,11 +200,11 @@ pub fn scheduler_get_status() -> CmdResult<SchedulerStatus> {
 // ============================================================================
 
 #[command]
-pub fn scheduler_export_jobs(file_path: String) -> CmdResult<usize> {
-    let jobs = storage::load_jobs()?;
+pub async fn scheduler_export_jobs(file_path: String) -> CmdResult<usize> {
+    let jobs = storage::load_jobs_async().await?;
 
     // Strip runtime state before exporting
-    let exported: Vec<SchedulerJob> = jobs
+    let exported: Vec<Job> = jobs
         .into_iter()
         .map(|mut j| {
             j.last_run_at = None;
@@ -217,11 +220,10 @@ pub fn scheduler_export_jobs(file_path: String) -> CmdResult<usize> {
 }
 
 #[command]
-pub fn scheduler_import_jobs(file_path: String) -> CmdResult<usize> {
+pub async fn scheduler_import_jobs(file_path: String) -> CmdResult<usize> {
     let content = std::fs::read_to_string(&file_path)?;
-    let imported: Vec<SchedulerJob> = serde_json::from_str(&content)?;
+    let imported: Vec<Job> = serde_json::from_str(&content)?;
 
-    let mut jobs = storage::load_jobs()?;
     let now = Utc::now();
     let count = imported.len();
 
@@ -233,10 +235,9 @@ pub fn scheduler_import_jobs(file_path: String) -> CmdResult<usize> {
         job.last_run_status = None;
         job.created_at = now;
         job.updated_at = now;
-        jobs.push(job);
+        storage::save_job_async(&job).await?;
     }
 
-    storage::save_jobs(&jobs)?;
     Ok(count)
 }
 

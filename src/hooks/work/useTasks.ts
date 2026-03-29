@@ -58,7 +58,7 @@ export function useAllTasks() {
           .select(
             `
             *,
-            status:task_statuses(id, type, color),
+            status:task_statuses(id, name, type, color),
             project:projects(identifier_prefix, name, color, project_type),
             assignees:task_assignees(user:users(id, name)),
             company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage),
@@ -77,6 +77,7 @@ export function useAllTasks() {
 
       return allTasks;
     },
+    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
   });
 }
 

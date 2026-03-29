@@ -1,19 +1,20 @@
 // GA4 Analytics — fetch page views from Google Analytics Data API
 //
-// Auth: Service account JWT → Bearer token (cached 1 hour)
+// Auth: OAuth2 via Google account (tokens in ~/.tv-desktop/analytics/tokens.json)
 // API: GA4 Data API v1beta runReport
 // Output: Normalized AnalyticsPageView rows → Supabase via shared storage
 //
-// Tries to fetch with Domain + UserID custom dimensions first, then
-// falls back progressively if dimensions aren't available. Warnings
-// are returned when dimensions are missing so the user knows what data
-// is incomplete. Internal users (thinkval.com) are flagged, not filtered.
+// Two sync targets:
+// 1. VAL Platform — /dashboard/* paths with Domain + UserID custom dimensions
+// 2. Website — all paths, no custom dimensions, source = "ga4-website"
+//
+// Internal users (thinkval.com) are flagged, not filtered.
 
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
 use tauri::command;
 
+use super::auth;
 use super::{upsert_page_views, AnalyticsPageView, AnalyticsSyncResult};
 use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::settings;
@@ -25,24 +26,10 @@ use crate::commands::settings;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ga4ConfigStatus {
     pub configured: bool,
-    pub service_account_path: Option<String>,
     pub property_id: Option<String>,
+    pub website_property_id: Option<String>,
+    pub is_authenticated: bool,
 }
-
-#[derive(Debug, Deserialize)]
-struct ServiceAccountKey {
-    client_email: String,
-    private_key: String,
-    token_uri: String,
-}
-
-struct CachedToken {
-    access_token: String,
-    expires_at: i64,
-}
-
-static TOKEN_CACHE: std::sync::LazyLock<Mutex<Option<CachedToken>>> =
-    std::sync::LazyLock::new(|| Mutex::new(None));
 
 // GA4 API response
 #[derive(Debug, Deserialize)]
@@ -67,87 +54,7 @@ struct Ga4Value {
 const INTERNAL_EMAIL_DOMAINS: &[&str] = &["thinkval.com"];
 
 // ============================================================================
-// Auth — Service Account JWT → Access Token
-// ============================================================================
-
-async fn get_access_token(sa_path: &str) -> CmdResult<String> {
-    {
-        let cache = TOKEN_CACHE
-            .lock()
-            .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
-        if let Some(ref cached) = *cache {
-            if Utc::now().timestamp() < cached.expires_at - 60 {
-                return Ok(cached.access_token.clone());
-            }
-        }
-    }
-
-    let sa_content = std::fs::read_to_string(sa_path)?;
-    let sa: ServiceAccountKey = serde_json::from_str(&sa_content)?;
-
-    let now = Utc::now().timestamp();
-    let exp = now + 3600;
-
-    #[derive(Serialize)]
-    struct Claims {
-        iss: String,
-        scope: String,
-        aud: String,
-        iat: i64,
-        exp: i64,
-    }
-
-    let claims = Claims {
-        iss: sa.client_email,
-        scope: "https://www.googleapis.com/auth/analytics.readonly".to_string(),
-        aud: sa.token_uri.clone(),
-        iat: now,
-        exp,
-    };
-
-    let key = jsonwebtoken::EncodingKey::from_rsa_pem(sa.private_key.as_bytes())
-        .map_err(|e| CommandError::Parse(format!("Failed to parse RSA private key: {}", e)))?;
-
-    let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
-    let jwt = jsonwebtoken::encode(&header, &claims, &key)
-        .map_err(|e| CommandError::Internal(format!("Failed to encode JWT: {}", e)))?;
-
-    let client = crate::HTTP_CLIENT.clone();
-    let resp = client
-        .post(&sa.token_uri)
-        .form(&[
-            ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
-            ("assertion", &jwt),
-        ])
-        .send()
-        .await?;
-
-    if !resp.status().is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        return Err(CommandError::Network(format!("Token exchange failed: {}", body)));
-    }
-
-    let token_resp: serde_json::Value = resp.json().await?;
-    let access_token = token_resp["access_token"]
-        .as_str()
-        .ok_or_else(|| CommandError::Parse("No access_token in response".into()))?
-        .to_string();
-
-    {
-        let mut cache = TOKEN_CACHE
-            .lock()
-            .map_err(|e| CommandError::Internal(format!("Lock error: {}", e)))?;
-        *cache = Some(CachedToken {
-            access_token: access_token.clone(),
-            expires_at: exp,
-        });
-    }
-
-    Ok(access_token)
-}
-
-// ============================================================================
-// GA4 API — Fetch page views with Domain + UserID dimensions
+// GA4 API — Fetch VAL platform page views with Domain + UserID dimensions
 // ============================================================================
 
 /// Result of a fetch attempt — rows + any warnings about missing dimensions
@@ -478,57 +385,126 @@ async fn fetch_page_views_basic(
 }
 
 // ============================================================================
+// GA4 API — Fetch website page views (no custom dimensions)
+// ============================================================================
+
+async fn fetch_website_page_views(
+    access_token: &str,
+    property_id: &str,
+) -> CmdResult<FetchResult> {
+    let client = crate::HTTP_CLIENT.clone();
+    let url = format!(
+        "https://analyticsdata.googleapis.com/v1beta/properties/{}:runReport",
+        property_id
+    );
+
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    let ninety_days_ago = (Utc::now() - chrono::Duration::days(90))
+        .format("%Y-%m-%d")
+        .to_string();
+
+    let body = serde_json::json!({
+        "dateRanges": [{
+            "startDate": ninety_days_ago,
+            "endDate": today,
+        }],
+        "dimensions": [
+            { "name": "pagePath" },
+            { "name": "date" },
+        ],
+        "metrics": [
+            { "name": "screenPageViews" },
+            { "name": "totalUsers" },
+        ],
+        "limit": "10000",
+    });
+
+    let resp = client
+        .post(&url)
+        .bearer_auth(access_token)
+        .json(&body)
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body_text = resp.text().await.unwrap_or_default();
+        return Err(CommandError::Http {
+            status: status.as_u16(),
+            body: body_text,
+        });
+    }
+
+    let report: Ga4RunReportResponse = resp.json().await?;
+
+    let mut results = Vec::new();
+    if let Some(rows) = report.rows {
+        for row in rows {
+            if row.dimension_values.len() < 2 || row.metric_values.is_empty() {
+                continue;
+            }
+            let page_path = row.dimension_values[0].value.clone();
+            let date_str = &row.dimension_values[1].value;
+            let views: i64 = row.metric_values[0].value.parse().unwrap_or(0);
+
+            let date = NaiveDate::parse_from_str(date_str, "%Y%m%d")
+                .unwrap_or_else(|_| Utc::now().date_naive());
+
+            results.push(AnalyticsPageView {
+                source: "ga4-website".to_string(),
+                domain: None,
+                page_path,
+                user_id: None,
+                view_date: date,
+                views: views as i32,
+                is_internal: false,
+            });
+        }
+    }
+
+    Ok(FetchResult {
+        rows: results,
+        warnings: vec![],
+    })
+}
+
+// ============================================================================
 // Tauri Commands
 // ============================================================================
 
-/// Check if GA4 service account and property ID are configured
+/// Check if GA4 is configured (OAuth + property IDs)
 #[command]
-pub fn ga4_check_config() -> CmdResult<Ga4ConfigStatus> {
+pub async fn ga4_check_config() -> CmdResult<Ga4ConfigStatus> {
     let s = settings::load_settings()?;
-    let sa_path = s
-        .keys
-        .get(settings::KEY_GA4_SERVICE_ACCOUNT_PATH)
-        .cloned();
     let prop_id = s.keys.get(settings::KEY_GA4_PROPERTY_ID).cloned();
+    let website_prop_id = s.keys.get(settings::KEY_GA4_WEBSITE_PROPERTY_ID).cloned();
 
-    let configured = sa_path.as_ref().map_or(false, |p| !p.is_empty())
-        && prop_id.as_ref().map_or(false, |p| !p.is_empty());
+    let has_property = prop_id.as_ref().map_or(false, |p| !p.is_empty())
+        || website_prop_id.as_ref().map_or(false, |p| !p.is_empty());
+
+    let is_authenticated = auth::load_tokens().is_some();
 
     Ok(Ga4ConfigStatus {
-        configured,
-        service_account_path: sa_path,
+        configured: has_property && is_authenticated,
         property_id: prop_id,
+        website_property_id: website_prop_id,
+        is_authenticated,
     })
 }
 
 /// List all available dimensions for the GA4 property (including custom event params).
-/// Use this to discover the correct API names for custom dimensions.
 #[command]
 pub async fn ga4_list_dimensions() -> CmdResult<Vec<String>> {
     let s = settings::load_settings()?;
-    let sa_path = s
-        .keys
-        .get(settings::KEY_GA4_SERVICE_ACCOUNT_PATH)
-        .ok_or_else(|| CommandError::Config("GA4 service account path not configured".into()))?
-        .clone();
     let property_id = s
         .keys
         .get(settings::KEY_GA4_PROPERTY_ID)
         .ok_or_else(|| CommandError::Config("GA4 property ID not configured".into()))?
         .clone();
 
-    let sa_path = if sa_path.starts_with("~/") {
-        dirs::home_dir()
-            .map(|h| h.join(&sa_path[2..]).to_string_lossy().to_string())
-            .unwrap_or(sa_path)
-    } else {
-        sa_path
-    };
-
-    let access_token = get_access_token(&sa_path).await?;
+    let access_token = auth::get_valid_token().await?;
     let client = crate::HTTP_CLIENT.clone();
 
-    // GA4 Metadata API — returns all valid dimensions and metrics
     let url = format!(
         "https://analyticsdata.googleapis.com/v1beta/properties/{}/metadata",
         property_id
@@ -547,7 +523,6 @@ pub async fn ga4_list_dimensions() -> CmdResult<Vec<String>> {
 
     let metadata: serde_json::Value = resp.json().await?;
 
-    // Extract dimension apiNames, filter to customEvent: ones for readability
     let mut dimensions = Vec::new();
     if let Some(dims) = metadata["dimensions"].as_array() {
         for dim in dims {
@@ -559,46 +534,55 @@ pub async fn ga4_list_dimensions() -> CmdResult<Vec<String>> {
         }
     }
 
-    // Sort for readability
     dimensions.sort();
     Ok(dimensions)
 }
 
-/// Fetch all dashboard page views from GA4 and store in Supabase.
-/// Excludes internal users (thinkval.com).
+/// Fetch VAL platform dashboard page views from GA4 and store in Supabase.
 #[command]
 pub async fn ga4_fetch_analytics(
     supabase_url: String,
     supabase_key: String,
 ) -> CmdResult<AnalyticsSyncResult> {
     let s = settings::load_settings()?;
-    let sa_path = s
-        .keys
-        .get(settings::KEY_GA4_SERVICE_ACCOUNT_PATH)
-        .ok_or_else(|| CommandError::Config("GA4 service account path not configured".into()))?
-        .clone();
     let property_id = s
         .keys
         .get(settings::KEY_GA4_PROPERTY_ID)
         .ok_or_else(|| CommandError::Config("GA4 property ID not configured".into()))?
         .clone();
 
-    // Resolve ~ in path
-    let sa_path = if sa_path.starts_with("~/") {
-        dirs::home_dir()
-            .map(|h| h.join(&sa_path[2..]).to_string_lossy().to_string())
-            .unwrap_or(sa_path)
-    } else {
-        sa_path
-    };
-
-    let access_token = get_access_token(&sa_path).await?;
+    let access_token = auth::get_valid_token().await?;
     let fetch_result = fetch_page_views(&access_token, &property_id).await?;
     let rows_upserted =
         upsert_page_views(&fetch_result.rows, &supabase_url, &supabase_key).await?;
 
     Ok(AnalyticsSyncResult {
         source: "ga4".to_string(),
+        rows_upserted,
+        warnings: fetch_result.warnings,
+    })
+}
+
+/// Fetch website page views from GA4 and store in Supabase.
+#[command]
+pub async fn ga4_fetch_website_analytics(
+    supabase_url: String,
+    supabase_key: String,
+) -> CmdResult<AnalyticsSyncResult> {
+    let s = settings::load_settings()?;
+    let property_id = s
+        .keys
+        .get(settings::KEY_GA4_WEBSITE_PROPERTY_ID)
+        .ok_or_else(|| CommandError::Config("GA4 website property ID not configured".into()))?
+        .clone();
+
+    let access_token = auth::get_valid_token().await?;
+    let fetch_result = fetch_website_page_views(&access_token, &property_id).await?;
+    let rows_upserted =
+        upsert_page_views(&fetch_result.rows, &supabase_url, &supabase_key).await?;
+
+    Ok(AnalyticsSyncResult {
+        source: "ga4-website".to_string(),
         rows_upserted,
         warnings: fetch_result.warnings,
     })

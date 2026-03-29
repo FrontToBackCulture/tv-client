@@ -38,6 +38,12 @@ import {
   MessageCircle,
   Command as CommandIcon,
   ArrowUpDown,
+  User,
+  Handshake,
+  Milestone,
+  MailCheck,
+  Database,
+  Activity,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { useAppStore, ModuleId } from "../stores/appStore";
@@ -47,9 +53,15 @@ import { useHelpChat } from "../hooks/useHelpChat";
 import { getSuggestedQuestions } from "../lib/help/helpContent";
 import { useViewContextStore } from "../stores/viewContextStore";
 import { useCommandStore, Command } from "../stores/commandStore";
+import { useNotificationNavStore } from "../stores/notificationNavStore";
 import { openModuleInNewWindow } from "../lib/windowManager";
 import { HelpMessage } from "../components/help/HelpMessage";
 import { triggerWhatsNew } from "./WhatsNewModal";
+import {
+  useUnifiedSearch,
+  SearchEntityType,
+  SearchResult as UnifiedSearchResult,
+} from "../hooks/useUnifiedSearch";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -66,6 +78,7 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   crm: Building2,
   work: CheckSquare,
   domains: Globe,
+  analytics: Activity,
   product: Boxes,
   gallery: GalleryHorizontalEnd,
   bot: Bot,
@@ -80,6 +93,7 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   s3browser: Globe,
   linkedin: Linkedin,
   prospecting: Target,
+  "public-data": Database,
 };
 
 const moduleLabels: Record<ModuleId, string> = {
@@ -90,6 +104,7 @@ const moduleLabels: Record<ModuleId, string> = {
   crm: "CRM",
   work: "Work",
   domains: "Domains",
+  analytics: "Analytics",
   product: "Product",
   gallery: "Gallery",
   bot: "Bots",
@@ -104,6 +119,7 @@ const moduleLabels: Record<ModuleId, string> = {
   s3browser: "S3 Browser",
   linkedin: "LinkedIn",
   prospecting: "Outbound",
+  "public-data": "Public Data",
 };
 
 const MODULE_LABELS: Record<string, string> = {
@@ -225,6 +241,53 @@ function pushRecent(id: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Debounce hook for search input
+// ---------------------------------------------------------------------------
+
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+// ---------------------------------------------------------------------------
+// Entity search helpers
+// ---------------------------------------------------------------------------
+
+const ENTITY_ICONS: Record<SearchEntityType, typeof Building2> = {
+  company: Building2,
+  contact: User,
+  deal: Handshake,
+  project: FolderOpen,
+  task: CheckSquare,
+  initiative: Milestone,
+  campaign: MailCheck,
+};
+
+const ENTITY_BADGE_COLORS: Record<SearchEntityType, string> = {
+  company: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  contact: "bg-violet-500/15 text-violet-400 border-violet-500/20",
+  deal: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+  project: "bg-teal-500/15 text-teal-400 border-teal-500/20",
+  task: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+  initiative: "bg-rose-500/15 text-rose-400 border-rose-500/20",
+  campaign: "bg-cyan-500/15 text-cyan-400 border-cyan-500/20",
+};
+
+const ENTITY_MODULE_MAP: Record<SearchEntityType, ModuleId> = {
+  company: "crm",
+  contact: "crm",
+  deal: "crm",
+  task: "work",
+  project: "projects",
+  initiative: "projects",
+  campaign: "email",
+};
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -278,6 +341,14 @@ export function CommandPalette() {
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const theme = useAppStore((s) => s.theme);
   const contextualCommands = useCommandStore((s) => s.contextualCommands);
+
+  // Unified search
+  const debouncedQuery = useDebouncedValue(query, 300);
+  const { data: searchGroups, isFetching: isSearching } = useUnifiedSearch(
+    debouncedQuery,
+    { enabled: isOpen && mode === "commands" }
+  );
+  const searchResultCount = searchGroups?.reduce((s, g) => s + g.results.length, 0) ?? 0;
 
   // Help state
   const messages = useHelpStore((s) => s.messages);
@@ -525,7 +596,7 @@ export function CommandPalette() {
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query, flatItems.length]);
+  }, [query, flatItems.length, searchResultCount]);
 
   useEffect(() => {
     if (!listRef.current) return;
@@ -598,26 +669,51 @@ export function CommandPalette() {
     []
   );
 
+  const navigateToEntity = useCallback(
+    (result: UnifiedSearchResult) => {
+      const module = ENTITY_MODULE_MAP[result.entity_type];
+      setActiveModule(module);
+      useNotificationNavStore
+        .getState()
+        .setTarget(result.entity_type, result.entity_id, false);
+      setIsOpen(false);
+    },
+    [setActiveModule]
+  );
+
+  // Flatten search results for keyboard nav (appended after command items)
+  const flatSearchResults = useMemo(
+    () => searchGroups?.flatMap((g) => g.results) ?? [],
+    [searchGroups]
+  );
+  const totalItems = flatItems.length + flatSearchResults.length;
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((prev) => Math.min(prev + 1, flatItems.length - 1));
+        setSelectedIndex((prev) => Math.min(prev + 1, totalItems - 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((prev) => Math.max(prev - 1, 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        if (flatItems[selectedIndex]) {
-          executeCommand(flatItems[selectedIndex].command);
+        if (selectedIndex < flatItems.length) {
+          if (flatItems[selectedIndex]) {
+            executeCommand(flatItems[selectedIndex].command);
+          }
+        } else {
+          const searchIdx = selectedIndex - flatItems.length;
+          if (flatSearchResults[searchIdx]) {
+            navigateToEntity(flatSearchResults[searchIdx]);
+          }
         }
       } else if (e.key === "Tab") {
-        // Tab to switch to help mode
         e.preventDefault();
         setMode("help");
       }
     },
-    [flatItems, selectedIndex, executeCommand]
+    [flatItems, flatSearchResults, totalItems, selectedIndex, executeCommand, navigateToEntity]
   );
 
   const handleHelpSend = useCallback(() => {
@@ -708,7 +804,7 @@ export function CommandPalette() {
                       type="text"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search commands..."
+                      placeholder="Search commands and data..."
                       className={cn(
                         "flex-1 bg-transparent text-[13px] outline-none",
                         "text-slate-900 dark:text-slate-100",
@@ -739,7 +835,7 @@ export function CommandPalette() {
                     ref={listRef}
                     className="max-h-[min(60vh,400px)] overflow-y-auto scrollbar-auto-hide py-1"
                   >
-                    {flatItems.length === 0 && (
+                    {flatItems.length === 0 && debouncedQuery.length < 2 && (
                       <div className="flex flex-col items-center justify-center py-10 px-6 gap-2">
                         <SearchX
                           size={28}
@@ -860,6 +956,121 @@ export function CommandPalette() {
                     })}
                     {/* Update flatIndex after render */}
                     <span className="hidden">{(flatIndex = groups.reduce((s, g) => s + g.items.length, 0))}</span>
+
+                    {/* ── Unified search results ── */}
+                    {debouncedQuery.length >= 2 && (
+                      <div>
+                        {(searchGroups?.length ?? 0) > 0 && (
+                          <div className="mx-4 my-1 border-t border-slate-150 dark:border-slate-700/60" />
+                        )}
+
+                        {isSearching && !searchGroups?.length && (
+                          <div className="flex items-center gap-2 px-4 py-3 text-[11px] text-slate-400 dark:text-slate-500">
+                            <Loader2 size={12} className="animate-spin" />
+                            Searching...
+                          </div>
+                        )}
+
+                        {searchGroups?.map((group) => {
+                          return (
+                            <div key={group.type}>
+                              <div className="px-4 pt-3 pb-1.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">
+                                  {group.label}
+                                </span>
+                              </div>
+                              {group.results.map((result) => {
+                                const globalIdx =
+                                  flatItems.length +
+                                  flatSearchResults.indexOf(result);
+                                const isSelected = globalIdx === selectedIndex;
+                                const Icon = ENTITY_ICONS[result.entity_type];
+                                return (
+                                  <motion.button
+                                    key={`${result.entity_type}-${result.entity_id}`}
+                                    data-selected={isSelected}
+                                    onClick={() => navigateToEntity(result)}
+                                    onMouseEnter={() =>
+                                      setSelectedIndex(globalIdx)
+                                    }
+                                    initial={{ opacity: 0, y: 4 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.12 }}
+                                    className={cn(
+                                      "w-full flex items-center gap-3 px-4 py-[7px] text-[13px] transition-all duration-100",
+                                      "rounded-none",
+                                      isSelected
+                                        ? "bg-teal-600 dark:bg-teal-600 text-white"
+                                        : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                                    )}
+                                  >
+                                    <span
+                                      className={cn(
+                                        "flex-shrink-0 transition-colors duration-100",
+                                        isSelected
+                                          ? "text-teal-200"
+                                          : "text-slate-400 dark:text-slate-500"
+                                      )}
+                                    >
+                                      <Icon size={15} />
+                                    </span>
+                                    <div className="flex-1 min-w-0 text-left">
+                                      <span className="block truncate leading-snug">
+                                        {result.title}
+                                      </span>
+                                      {result.subtitle && (
+                                        <span
+                                          className={cn(
+                                            "block text-[11px] truncate mt-px leading-snug",
+                                            isSelected
+                                              ? "text-teal-200/80"
+                                              : "text-slate-400 dark:text-slate-500"
+                                          )}
+                                        >
+                                          {result.subtitle}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span
+                                      className={cn(
+                                        "flex-shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded border capitalize",
+                                        isSelected
+                                          ? "text-teal-200 bg-teal-500/30 border-teal-400/30"
+                                          : ENTITY_BADGE_COLORS[result.entity_type]
+                                      )}
+                                    >
+                                      {result.entity_type}
+                                    </span>
+                                  </motion.button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+
+                        {!isSearching &&
+                          searchGroups?.length === 0 &&
+                          flatItems.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-10 px-6 gap-2">
+                              <SearchX
+                                size={28}
+                                strokeWidth={1.5}
+                                className="text-slate-300 dark:text-slate-600"
+                              />
+                              <p className="text-[13px] text-slate-400 dark:text-slate-500">
+                                No results for{" "}
+                                <span className="font-medium text-slate-500 dark:text-slate-400">
+                                  "{debouncedQuery}"
+                                </span>
+                              </p>
+                              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                                Try a shorter query or press{" "}
+                                <Kbd>Tab</Kbd> to ask Help
+                              </p>
+                            </div>
+                          )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Footer */}

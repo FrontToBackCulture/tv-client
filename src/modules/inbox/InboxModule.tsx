@@ -11,6 +11,7 @@ import {
   useArchiveEmail,
   useOutlookAuth,
   useSyncStart,
+  useSyncStatus,
 } from "../../hooks/useOutlook";
 import { useOutlookSync } from "../../hooks/useOutlookSync";
 import { cn } from "../../lib/cn";
@@ -21,13 +22,15 @@ import { InboxSidebar } from "./InboxSidebar";
 import { EmailList } from "./EmailList";
 import { EmailDetail } from "./EmailDetail";
 import { EmptyInbox } from "./EmptyInbox";
-import { OutlookSetup } from "./OutlookSetup";
 import type { EmailCategory, EmailStatus } from "../../hooks/useOutlook";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { useAppStore } from "../../stores/appStore";
 
 export function InboxModule() {
   // Auth state
   const { data: auth, isLoading: isLoadingAuth } = useOutlookAuth();
+  const { data: syncStatus } = useSyncStatus();
+  const openSettings = useAppStore((s) => s.openSettings);
 
   // Sync state
   const { isSyncing, progress: syncProgress, error: syncEventError } = useOutlookSync();
@@ -94,12 +97,9 @@ export function InboxModule() {
     setSelectedEmailId(null);
   }, [selectedFolder, selectedCategory, selectedStatus]);
 
-  const [syncMonths, setSyncMonths] = useState(3);
-
-  const handleRefresh = (months?: number) => {
-    const m = months ?? syncMonths;
-    console.log("[inbox] handleRefresh called, months:", m);
-    syncStart.mutate(m, {
+  const handleRefresh = () => {
+    console.log("[inbox] handleRefresh called (incremental)");
+    syncStart.mutate(undefined, {
       onSuccess: (count) => {
         console.log("[inbox] sync success:", count, "emails");
       },
@@ -127,9 +127,19 @@ export function InboxModule() {
     return <DetailLoading />;
   }
 
-  // Show setup if not authenticated
-  if (!auth?.isAuthenticated) {
-    return <OutlookSetup />;
+  // Show setup prompt if not authenticated or initial sync not done
+  const initialSyncDone = syncStatus?.email.lastSync && syncStatus?.email.emailsSynced > 0;
+  if (!auth?.isAuthenticated || !initialSyncDone) {
+    return (
+      <EmptyInbox
+        message={
+          !auth?.isAuthenticated
+            ? "Connect your Outlook account in Settings to view emails."
+            : "Run initial sync in Settings to populate your inbox."
+        }
+        onSetup={() => openSettings("outlook")}
+      />
+    );
   }
 
   // Map stats
@@ -156,11 +166,9 @@ export function InboxModule() {
           stats={sidebarStats}
           onRefresh={handleRefresh}
           isRefreshing={isSyncing}
-          syncMonths={syncMonths}
-          onSyncMonthsChange={setSyncMonths}
         />
         <EmptyInbox
-          onRefresh={() => handleRefresh()}
+          onRefresh={handleRefresh}
           isSyncing={isSyncing || syncStart.isPending}
           syncError={emailsError ? formatError(emailsError) : syncEventError || (syncStart.error ? formatError(syncStart.error) : null)}
           syncProgress={syncProgress}
@@ -238,8 +246,6 @@ export function InboxModule() {
           stats={sidebarStats}
           onRefresh={handleRefresh}
           isRefreshing={isAnySyncing}
-          syncMonths={syncMonths}
-          onSyncMonthsChange={setSyncMonths}
         />
 
         {/* Email List */}

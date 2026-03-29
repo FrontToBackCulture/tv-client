@@ -35,9 +35,9 @@ export function ProjectView({
     [allTasks, project.id]
   );
 
-  const completed = projectTasks.filter(t => t.status?.type === "completed").length;
+  const completed = projectTasks.filter(t => t.status?.type === "complete").length;
   const overdue = projectTasks.filter(t =>
-    isOverdue(t.due_date) && t.status?.type !== "completed" && t.status?.type !== "canceled"
+    isOverdue(t.due_date) && t.status?.type !== "complete"
   ).length;
 
   // Group tasks
@@ -74,7 +74,7 @@ export function ProjectView({
     const entries = Array.from(map.entries());
     if (groupBy === "status") {
       // Keep status order: unstarted → started → completed → canceled
-      const typeOrder: Record<string, number> = { backlog: 0, unstarted: 1, started: 2, completed: 3, canceled: 4 };
+      const typeOrder: Record<string, number> = { in_progress: 0, todo: 1, complete: 2 };
       entries.sort((a, b) => (typeOrder[a[1].statusType || ""] ?? 5) - (typeOrder[b[1].statusType || ""] ?? 5));
     } else if (groupBy === "priority") {
       entries.sort((a, b) => Number(a[0]) - Number(b[0]));

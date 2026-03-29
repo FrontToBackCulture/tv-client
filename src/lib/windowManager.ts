@@ -15,6 +15,7 @@ const moduleLabels: Record<ModuleId, string> = {
   calendar: "Calendar",
   crm: "CRM",
   domains: "Domains",
+  analytics: "Analytics",
   product: "Product",
   gallery: "Gallery",
   bot: "Bots",
@@ -27,6 +28,7 @@ const moduleLabels: Record<ModuleId, string> = {
   s3browser: "S3 Browser",
   linkedin: "LinkedIn",
   prospecting: "Outbound",
+  "public-data": "Public Data",
 };
 
 export function openModuleInNewWindow(moduleId: ModuleId) {

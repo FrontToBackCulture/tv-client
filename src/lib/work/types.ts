@@ -86,22 +86,13 @@ export const PriorityColors: Record<Priority, string> = {
   [Priority.Low]: "#10B981",
 };
 
-// Status types
-export type StatusType =
-  | "backlog"
-  | "unstarted"
-  | "started"
-  | "review"
-  | "completed"
-  | "canceled";
+// Status types (3 groups matching Notion)
+export type StatusType = "todo" | "in_progress" | "complete";
 
 export const StatusTypeLabels: Record<StatusType, string> = {
-  backlog: "Backlog",
-  unstarted: "Todo",
-  started: "In Progress",
-  review: "In Review",
-  completed: "Done",
-  canceled: "Canceled",
+  todo: "To-do",
+  in_progress: "In Progress",
+  complete: "Complete",
 };
 
 // Initiative types

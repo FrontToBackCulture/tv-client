@@ -2,6 +2,7 @@
 // Double-click row → detail panel on right
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AgGridReact } from "ag-grid-react";
 import {
   ColDef, ModuleRegistry, AllCommunityModule, CellValueChangedEvent, GetRowIdParams,
@@ -27,7 +28,7 @@ import { useActivities } from "../../hooks/crm/useActivities";
 import { useInitiatives, useLabels, useUsers } from "../../hooks/work";
 import { COMPANY_STAGES, ACTIVITY_TYPES } from "../../lib/crm/types";
 import { useAllLookupValues } from "../../hooks/useLookupValues";
-import { Settings, FolderOpen, ChevronRight, ChevronDown, Folder, RefreshCw } from "lucide-react";
+import { Settings, FolderOpen, ChevronRight, ChevronDown, Folder, RefreshCw, Tags, Plus } from "lucide-react";
 import { useRepository } from "../../stores/repositoryStore";
 import { useFolderChildren } from "../../hooks/useFiles";
 import { useApolloRevealPhone } from "../../hooks/apollo/useApollo";
@@ -269,7 +270,8 @@ function FieldGrid({ fields, onUpdate, companyId, contacts }: {
 // ── Sub-tab type ────────────────────────────────────────────────────────────
 
 type SubTab = "companies" | "contacts" | "initiatives" | "labels" | "users"
-  | "deal_stage" | "deal_solution" | "company_stage" | "activity_type" | "project_status" | "project_health" | "project_type";
+  | "deal_stage" | "deal_solution" | "company_stage" | "activity_type" | "project_status" | "project_health" | "project_type"
+  | "domain_type" | "initiative_status" | "task_status_type" | "task_statuses";
 
 // ── Sent email row with tracking ─────────────────────────────────────────────
 
@@ -396,6 +398,23 @@ export function MetadataView() {
 
   const { data: lookupValues = [], refetch: refetchLookups } = useAllLookupValues();
 
+  const { data: taskStatuses = [], refetch: refetchTaskStatuses } = useQuery({
+    queryKey: ["metadata-task-statuses"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("task_statuses")
+        .select("*, project:projects!project_id(name, identifier_prefix)")
+        .order("project_id")
+        .order("sort_order");
+      if (error) throw error;
+      return (data ?? []).map((s: any) => ({
+        ...s,
+        project_name: s.project?.name || "",
+        project_prefix: s.project?.identifier_prefix || "",
+      }));
+    },
+  });
+
   const selectedCompany = selection?.type === "company" ? companies.find(c => c.id === selection.id) : null;
   const selectedContact = selection?.type === "contact" ? contacts.find(c => c.id === selection.id) : null;
   const selectedInitiative = selection?.type === "initiative" ? initiatives.find(i => i.id === selection.id) : null;
@@ -432,9 +451,11 @@ export function MetadataView() {
     document.addEventListener("mouseup", up);
   }, [detailWidth]);
 
+  const refetchAll = () => { refetchCompanies(); refetchContacts(); refetchInitiatives(); refetchLabels(); refetchUsers(); refetchLookups(); refetchTaskStatuses(); };
+
   const updateEntity = async (table: string, id: string, field: string, value: any) => {
     await supabase.from(table).update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", id);
-    refetchCompanies(); refetchContacts(); refetchInitiatives(); refetchLabels(); refetchUsers(); refetchLookups();
+    refetchAll();
   };
 
   const deleteEntity = async (table: string, id: string, name: string, deps?: () => Promise<void>) => {
@@ -442,7 +463,7 @@ export function MetadataView() {
     if (deps) await deps();
     await supabase.from(table).delete().eq("id", id);
     setSelection(null);
-    refetchCompanies(); refetchContacts(); refetchInitiatives(); refetchLabels(); refetchUsers(); refetchLookups();
+    refetchAll();
     toast.info(`"${name}" deleted`);
   };
 
@@ -639,10 +660,24 @@ export function MetadataView() {
     { field: "sort_order", headerName: "Order", width: 70, editable: true, type: "numericColumn" },
   ], []);
 
-  const isLookupTab = ["deal_stage", "deal_solution", "company_stage", "activity_type", "project_status", "project_health", "project_type"].includes(subTab);
-  const currentColumns = subTab === "companies" ? companyColumns : subTab === "contacts" ? contactColumns : subTab === "initiatives" ? initiativeColumns : subTab === "labels" ? labelColumns : isLookupTab ? lookupColumns : userColumns;
-  const currentRows = subTab === "companies" ? companyRows : subTab === "contacts" ? contactRows : subTab === "initiatives" ? initiatives : subTab === "labels" ? labels : isLookupTab ? lookupValues.filter(l => l.type === subTab) : users;
-  const currentTable = subTab === "companies" ? "crm_companies" : subTab === "contacts" ? "crm_contacts" : subTab === "initiatives" ? "initiatives" : subTab === "labels" ? "labels" : isLookupTab ? "lookup_values" : "users";
+  const taskStatusColumns: ColDef[] = useMemo(() => [
+    { field: "project_prefix", headerName: "Project", width: 100, filter: "agSetColumnFilter" },
+    { field: "project_name", headerName: "Project Name", width: 180, filter: "agTextColumnFilter" },
+    { field: "name", headerName: "Status Name", flex: 1, editable: true, filter: "agTextColumnFilter" },
+    { field: "type", headerName: "Type", width: 120, editable: true, filter: "agSetColumnFilter",
+      cellRenderer: (p: any) => p.value ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">{p.value}</span> : null,
+    },
+    { field: "color", headerName: "Color", width: 100, editable: true,
+      cellRenderer: (p: any) => p.value ? <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: p.value }} /><span className="text-[10px] text-zinc-500">{p.value}</span></span> : null,
+    },
+    { field: "sort_order", headerName: "Order", width: 70, editable: true, type: "numericColumn" },
+  ], []);
+
+  const isLookupTab = ["deal_stage", "deal_solution", "company_stage", "activity_type", "project_status", "project_health", "project_type", "domain_type", "initiative_status", "task_status_type"].includes(subTab);
+  const isTaskStatusTab = subTab === "task_statuses";
+  const currentColumns = isTaskStatusTab ? taskStatusColumns : subTab === "companies" ? companyColumns : subTab === "contacts" ? contactColumns : subTab === "initiatives" ? initiativeColumns : subTab === "labels" ? labelColumns : isLookupTab ? lookupColumns : userColumns;
+  const currentRows = isTaskStatusTab ? taskStatuses : subTab === "companies" ? companyRows : subTab === "contacts" ? contactRows : subTab === "initiatives" ? initiatives : subTab === "labels" ? labels : isLookupTab ? lookupValues.filter(l => l.type === subTab) : users;
+  const currentTable = isTaskStatusTab ? "task_statuses" : subTab === "companies" ? "crm_companies" : subTab === "contacts" ? "crm_contacts" : subTab === "initiatives" ? "initiatives" : subTab === "labels" ? "labels" : isLookupTab ? "lookup_values" : "users";
 
   const defaultColDef = useMemo<ColDef>(() => ({
     sortable: true, resizable: true, filter: true, cellClass: "text-xs", enableRowGroup: true,
@@ -654,15 +689,15 @@ export function MetadataView() {
     const { data, colDef, newValue } = event;
     if (!data || !colDef.field) return;
     if (["contact_count"].includes(colDef.field)) return;
-    await supabase.from(currentTable).update({ [colDef.field]: newValue || null, updated_at: new Date().toISOString() }).eq("id", data.id);
-    refetchCompanies(); refetchContacts(); refetchInitiatives(); refetchLabels(); refetchUsers(); refetchLookups();
+    await supabase.from(currentTable).update({ [colDef.field]: newValue ?? null, updated_at: new Date().toISOString() }).eq("id", data.id);
+    refetchAll();
   }, [currentTable]);
 
   const handleRowDoubleClicked = useCallback((e: any) => {
     if (!e.data) return;
-    const type = subTab === "companies" ? "company" : subTab === "contacts" ? "contact" : subTab === "initiatives" ? "initiative" : subTab === "labels" ? "label" : isLookupTab ? "lookup" : "user";
+    const type = subTab === "companies" ? "company" : subTab === "contacts" ? "contact" : subTab === "initiatives" ? "initiative" : subTab === "labels" ? "label" : isLookupTab || isTaskStatusTab ? "lookup" : "user";
     setSelection({ type, id: e.data.id });
-  }, [subTab]);
+  }, [subTab, isLookupTab, isTaskStatusTab]);
 
   const exportToCsv = useCallback(() => {
     gridRef.current?.api.exportDataAsCsv({ fileName: `${subTab}-${toSGTDateString()}.csv` });
@@ -674,20 +709,56 @@ export function MetadataView() {
 
   const themeClass = theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine";
 
-  const tabs: { id: SubTab; label: string; icon: any; count: number }[] = [
-    { id: "companies", label: "Companies", icon: Building2, count: companies.length },
-    { id: "contacts", label: "Contacts", icon: User, count: contacts.length },
-    { id: "initiatives", label: "Initiatives", icon: Target, count: initiatives.length },
-    { id: "labels", label: "Labels", icon: Tag, count: labels.length },
-    { id: "users", label: "Users", icon: Bot, count: users.length },
-    { id: "deal_stage", label: "Deal Stages", icon: Settings, count: lookupValues.filter(l => l.type === "deal_stage").length },
-    { id: "deal_solution", label: "Solutions", icon: Settings, count: lookupValues.filter(l => l.type === "deal_solution").length },
-    { id: "company_stage", label: "Co. Stages", icon: Settings, count: lookupValues.filter(l => l.type === "company_stage").length },
-    { id: "activity_type", label: "Activity Types", icon: Settings, count: lookupValues.filter(l => l.type === "activity_type").length },
-    { id: "project_status", label: "Statuses", icon: Settings, count: lookupValues.filter(l => l.type === "project_status").length },
-    { id: "project_health", label: "Health", icon: Settings, count: lookupValues.filter(l => l.type === "project_health").length },
-    { id: "project_type", label: "Project Types", icon: Settings, count: lookupValues.filter(l => l.type === "project_type").length },
+  const tabGroups: { label: string; tabs: { id: SubTab; label: string; icon: any; count: number }[] }[] = [
+    {
+      label: "Entities",
+      tabs: [
+        { id: "companies", label: "Companies", icon: Building2, count: companies.length },
+        { id: "contacts", label: "Contacts", icon: User, count: contacts.length },
+        { id: "initiatives", label: "Initiatives", icon: Target, count: initiatives.length },
+        { id: "users", label: "Users", icon: Bot, count: users.length },
+      ],
+    },
+    {
+      label: "Lookups",
+      tabs: [
+        { id: "labels", label: "Labels", icon: Tag, count: labels.length },
+        { id: "deal_stage", label: "Deal Stages", icon: Settings, count: lookupValues.filter(l => l.type === "deal_stage").length },
+        { id: "deal_solution", label: "Solutions", icon: Settings, count: lookupValues.filter(l => l.type === "deal_solution").length },
+        { id: "company_stage", label: "Co. Stages", icon: Settings, count: lookupValues.filter(l => l.type === "company_stage").length },
+        { id: "activity_type", label: "Activity Types", icon: Settings, count: lookupValues.filter(l => l.type === "activity_type").length },
+        { id: "project_status", label: "Proj. Statuses", icon: Settings, count: lookupValues.filter(l => l.type === "project_status").length },
+        { id: "initiative_status", label: "Init. Statuses", icon: Settings, count: lookupValues.filter(l => l.type === "initiative_status").length },
+        { id: "task_status_type", label: "Status Types", icon: Settings, count: lookupValues.filter(l => l.type === "task_status_type").length },
+        { id: "task_statuses", label: "Task Statuses", icon: Settings, count: taskStatuses.length },
+        { id: "project_health", label: "Health", icon: Settings, count: lookupValues.filter(l => l.type === "project_health").length },
+        { id: "project_type", label: "Project Types", icon: Settings, count: lookupValues.filter(l => l.type === "project_type").length },
+        { id: "domain_type", label: "Domain Types", icon: Tags, count: lookupValues.filter(l => l.type === "domain_type").length },
+      ],
+    },
   ];
+
+  // Add row handler
+  const handleAddRow = useCallback(async () => {
+    if (isLookupTab) {
+      const label = prompt("Enter a label for the new value:");
+      if (!label?.trim()) return;
+      const nextOrder = lookupValues.filter(l => l.type === subTab).length;
+      await supabase.from("lookup_values").insert({ type: subTab, value: label.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, ""), label: label.trim(), sort_order: nextOrder });
+      refetchAll();
+    }
+  }, [isLookupTab, subTab, lookupValues]);
+
+  const handleDeleteSelected = useCallback(async () => {
+    const selected = gridRef.current?.api?.getSelectedRows();
+    if (!selected?.length) { toast.error("Select a row first"); return; }
+    const row = selected[0];
+    const name = row.label || row.value || row.name || "this item";
+    if (!confirm(`Delete "${name}"?`)) return;
+    await supabase.from(currentTable).delete().eq("id", row.id);
+    refetchAll();
+    toast.info(`"${name}" deleted`);
+  }, [currentTable]);
 
   const hasSelection = !!selection;
 
@@ -697,91 +768,118 @@ export function MetadataView() {
         .ag-theme-alpine .ag-cell, .ag-theme-alpine-dark .ag-cell { display: flex; align-items: center; }
       `}</style>
 
-      {/* Description */}
-      <div className="flex-shrink-0 px-4 pt-3 pb-1">
-        <p className="text-xs text-zinc-400">
-          Reference data shared across projects — companies, contacts, initiatives, labels, and configurable lookup values (deal stages, statuses, etc.).
-        </p>
-      </div>
+      {/* Body: sidebar + grid + optional detail panel */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Vertical tab sidebar */}
+        <aside className="w-40 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto py-2">
+          <nav className="space-y-3 px-2">
+            {tabGroups.map((group) => (
+              <div key={group.label}>
+                <div className="px-2 py-1 text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                  {group.label}
+                </div>
+                <div className="space-y-0.5 mt-0.5">
+                  {group.tabs.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => { setSubTab(tab.id); setSelection(null); setQuickFilter(""); gridRef.current?.api?.setGridOption("quickFilterText", ""); }}
+                      className={cn(
+                        "w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors",
+                        subTab === tab.id
+                          ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
+                          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                      )}
+                    >
+                      <span className="truncate">{tab.label}</span>
+                      <span className="text-[9px] text-zinc-400 ml-1 flex-shrink-0">{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </aside>
 
-      {/* Sub-tab + toolbar */}
-      <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button key={tab.id} onClick={() => { setSubTab(tab.id); setSelection(null); setQuickFilter(""); gridRef.current?.api?.setGridOption("quickFilterText", ""); }}
-                className={cn("px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5",
-                  subTab === tab.id ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800" : "text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-transparent"
-                )}>
-                <Icon size={13} />{tab.label} <span className="text-[9px] text-zinc-400">{tab.count}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Main content area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Toolbar */}
+          <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <input type="text" placeholder="Filter..." value={quickFilter}
+                  onChange={(e) => { setQuickFilter(e.target.value); gridRef.current?.api?.setGridOption("quickFilterText", e.target.value); }}
+                  className="w-48 px-2.5 py-1.5 pl-8 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-teal-500" />
+              </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative max-w-xs">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input type="text" placeholder="Filter..." value={quickFilter}
-              onChange={(e) => { setQuickFilter(e.target.value); gridRef.current?.api?.setGridOption("quickFilterText", e.target.value); }}
-              className="w-48 px-2.5 py-1.5 pl-8 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-teal-500" />
-          </div>
+              {(isLookupTab || isTaskStatusTab) && (
+                <>
+                  <button onClick={handleAddRow}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/50 border border-teal-200 dark:border-teal-800 transition-colors">
+                    <Plus size={13} /> Add
+                  </button>
+                  <button onClick={handleDeleteSelected}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border border-zinc-300 dark:border-zinc-700 transition-colors">
+                    <Trash2 size={13} />
+                  </button>
+                </>
+              )}
+            </div>
 
-          {/* Layouts dropdown */}
-          <div className="relative">
-            <button onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
-              <Bookmark size={13} /> Layouts
-            </button>
-            {showLayoutMenu && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1">
-                <button onClick={() => { applyFlatLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><Columns size={13} /> Flat View</button>
-                <button onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><ChevronsLeftRight size={13} /> Auto-fit Columns</button>
-                <button onClick={() => { resetLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><RotateCcw size={13} /> Reset to Default</button>
-                <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
-                <button onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><span className="text-green-600">+</span> Save current layout...</button>
-                {Object.keys(savedLayouts).length > 0 && (
-                  <>
+            <div className="flex items-center gap-2">
+              {/* Layouts dropdown */}
+              <div className="relative">
+                <button onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
+                  <Bookmark size={13} /> Layouts
+                </button>
+                {showLayoutMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1">
+                    <button onClick={() => { applyFlatLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><Columns size={13} /> Flat View</button>
+                    <button onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><ChevronsLeftRight size={13} /> Auto-fit Columns</button>
+                    <button onClick={() => { resetLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><RotateCcw size={13} /> Reset to Default</button>
                     <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
-                    <div className="px-3 py-1 text-xs font-medium text-zinc-500">Saved Layouts</div>
-                    {Object.keys(savedLayouts).map(name => (
-                      <div key={name} onClick={() => loadLayout(name)} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group">
-                        <span className="truncate flex items-center gap-1.5">{defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500" />}{name}</span>
-                        <div className="flex items-center gap-0.5">
-                          <button onClick={(e) => { e.stopPropagation(); saveCurrentLayout(name); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500"><Save size={12} /></button>
-                          <button onClick={(e) => toggleDefaultLayout(name, e)} className={cn("p-1 rounded", defaultLayoutName === name ? "text-amber-500" : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500")}><Star size={12} className={defaultLayoutName === name ? "fill-amber-500" : ""} /></button>
-                          <button onClick={(e) => deleteLayout(name, e)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-red-500"><X size={12} /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </>
+                    <button onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><span className="text-green-600">+</span> Save current layout...</button>
+                    {Object.keys(savedLayouts).length > 0 && (
+                      <>
+                        <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                        <div className="px-3 py-1 text-xs font-medium text-zinc-500">Saved Layouts</div>
+                        {Object.keys(savedLayouts).map(name => (
+                          <div key={name} onClick={() => loadLayout(name)} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group">
+                            <span className="truncate flex items-center gap-1.5">{defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500" />}{name}</span>
+                            <div className="flex items-center gap-0.5">
+                              <button onClick={(e) => { e.stopPropagation(); saveCurrentLayout(name); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500"><Save size={12} /></button>
+                              <button onClick={(e) => toggleDefaultLayout(name, e)} className={cn("p-1 rounded", defaultLayoutName === name ? "text-amber-500" : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500")}><Star size={12} className={defaultLayoutName === name ? "fill-amber-500" : ""} /></button>
+                              <button onClick={(e) => deleteLayout(name, e)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-red-500"><X size={12} /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
+
+              <button onClick={() => setWrapNotes(!wrapNotes)}
+                className={cn("flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-lg border transition-colors",
+                  wrapNotes ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                )} title={wrapNotes ? "Truncate text" : "Wrap text"}>
+                <WrapText size={13} />
+              </button>
+
+              <Button variant="secondary" size="sm" icon={Download} onClick={exportToCsv}>CSV</Button>
+              <Button size="sm" icon={FileSpreadsheet} onClick={exportToExcel}>Excel</Button>
+
+              <button onClick={() => setIsFullscreen(!isFullscreen)}
+                className={cn("p-1.5 rounded-lg border transition-colors", isFullscreen ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700")}>
+                {isFullscreen ? <X size={14} /> : <Maximize2 size={14} />}
+              </button>
+            </div>
           </div>
 
-          <button onClick={() => setWrapNotes(!wrapNotes)}
-            className={cn("flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-lg border transition-colors",
-              wrapNotes ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-            )} title={wrapNotes ? "Truncate text" : "Wrap text"}>
-            <WrapText size={13} />
-          </button>
-
-          <Button variant="secondary" size="sm" icon={Download} onClick={exportToCsv}>CSV</Button>
-          <Button size="sm" icon={FileSpreadsheet} onClick={exportToExcel}>Excel</Button>
-
-          <button onClick={() => setIsFullscreen(!isFullscreen)}
-            className={cn("p-1.5 rounded-lg border transition-colors", isFullscreen ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700")}>
-            {isFullscreen ? <X size={14} /> : <Maximize2 size={14} />}
-          </button>
-        </div>
-      </div>
-
-      {/* Body: grid + optional detail panel */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Grid */}
-        <div className={cn(themeClass, "flex-1 min-h-0 overflow-hidden")} style={{ width: "100%" }}>
+          {/* Grid */}
+          <div className="flex-1 flex overflow-hidden">
+            <div className={cn(themeClass, "flex-1 min-h-0 overflow-hidden")} style={{ width: "100%" }}>
           <AgGridReact
             ref={gridRef}
             key={subTab}
@@ -799,7 +897,7 @@ export function MetadataView() {
             singleClickEdit
             stopEditingWhenCellsLoseFocus
             rowSelection="single"
-            suppressRowClickSelection
+            suppressRowClickSelection={!isLookupTab && !isTaskStatusTab}
             headerHeight={32}
             rowHeight={34}
             getContextMenuItems={() => ["copy", "copyWithHeaders", "paste", "separator", "export", "separator", "autoSizeAll", "resetColumns"]}
@@ -1182,6 +1280,8 @@ export function MetadataView() {
             </div>
           </>
         )}
+          </div>
+        </div>
       </div>
 
       {/* Save Layout Dialog */}

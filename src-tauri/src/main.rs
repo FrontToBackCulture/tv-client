@@ -81,14 +81,19 @@ fn main() {
             // Terminal sessions state
             app.manage(commands::terminal::TerminalSessions::default());
 
-            // Reset any jobs stuck in "running" from a previous crash
-            commands::scheduler::storage::reset_running_jobs();
+            // Reset any jobs stuck in "running" from a previous crash (async)
+            tauri::async_runtime::spawn(async move {
+                commands::scheduler::storage::reset_running_jobs_async().await;
+            });
 
             // Start Outlook background sync
             commands::outlook::background::start_background_sync(app.handle().clone());
 
             // Start Notion background sync
             commands::notion::background::start_background_sync(app.handle().clone());
+
+            // Start GA4 Analytics background sync (daily)
+            commands::analytics::background::start_background_sync(app.handle().clone());
 
             // Start Scheduler background loop
             commands::scheduler::background::start_scheduler(
@@ -323,6 +328,7 @@ fn main() {
             commands::work::work_remove_task_assignees,
             commands::work::work_task_triage,
             commands::work::work_apply_triage,
+            commands::work::work_triage_summary,
             commands::work::work_get_priorities,
             commands::work::work_reprioritise,
             // Work Module - Milestones
@@ -354,6 +360,8 @@ fn main() {
             commands::work::work_find_user_by_email,
             commands::work::work_find_user_by_github,
             commands::work::work_find_bot_by_folder,
+            // Public Data Module
+            commands::public_data::classify_job_postings,
             // CRM Module - Companies
             commands::crm::crm_list_companies,
             commands::crm::crm_find_company,
@@ -389,6 +397,7 @@ fn main() {
             commands::val_sync::config::val_sync_list_domains,
             commands::val_sync::config::val_sync_import_config,
             commands::val_sync::config::val_sync_discover_domains,
+            commands::val_sync::config::val_sync_update_domain_type,
             // VAL Sync - Auth
             commands::val_sync::auth::val_sync_login,
             commands::val_sync::auth::val_sync_login_with_credentials,
@@ -468,9 +477,14 @@ fn main() {
             commands::val_sync::table_pipeline::val_run_table_pipeline,
             commands::val_sync::table_pipeline::val_list_domain_tables,
             commands::val_sync::table_pipeline::val_scan_category_library,
-            // GA4 Analytics
+            // GA4 Analytics - Auth
+            commands::analytics::auth::ga4_auth_start,
+            commands::analytics::auth::ga4_auth_check,
+            commands::analytics::auth::ga4_auth_logout,
+            // GA4 Analytics - Data
             commands::analytics::ga4::ga4_check_config,
             commands::analytics::ga4::ga4_fetch_analytics,
+            commands::analytics::ga4::ga4_fetch_website_analytics,
             commands::analytics::ga4::ga4_list_dimensions,
             // Settings - MS Graph credentials
             commands::settings::settings_get_ms_graph_credentials,
@@ -493,6 +507,8 @@ fn main() {
             commands::outlook::commands::outlook_mark_read,
             commands::outlook::commands::outlook_archive_email,
             commands::outlook::commands::outlook_send_email,
+            // Outlook - User lookup
+            commands::outlook::commands::outlook_lookup_user,
             // GitHub Sync
             commands::github_sync::config::github_sync_load_config,
             commands::github_sync::config::github_sync_save_config,
@@ -535,6 +551,7 @@ fn main() {
             commands::repos::commands::repos_get_releases,
             commands::repos::commands::repos_get_workflow_runs,
             // Outlook - Sync
+            commands::outlook::commands::outlook_initial_setup,
             commands::outlook::commands::outlook_sync_start,
             commands::outlook::commands::outlook_sync_status,
             commands::outlook::commands::outlook_get_folders,
@@ -576,6 +593,7 @@ fn main() {
             commands::notion::commands::notion_update_sync_config,
             commands::notion::commands::notion_delete_sync_config,
             commands::notion::commands::notion_sync_start,
+            commands::notion::commands::notion_sync_initial,
             commands::notion::commands::notion_sync_status,
             commands::notion::commands::notion_push_task,
             commands::notion::commands::notion_pull_task,

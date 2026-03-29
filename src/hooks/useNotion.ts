@@ -167,7 +167,17 @@ export function useNotionSyncStart() {
     mutationFn: () => invoke<SyncComplete[]>("notion_sync_start"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notionKeys.all });
-      // Also refresh work tasks
+      queryClient.invalidateQueries({ queryKey: ["work"] });
+    },
+  });
+}
+
+export function useNotionSyncInitial() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sinceDate?: string) => invoke<SyncComplete[]>("notion_sync_initial", { sinceDate }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notionKeys.all });
       queryClient.invalidateQueries({ queryKey: ["work"] });
     },
   });

@@ -41,19 +41,13 @@ import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
 import { SectionLoading } from "../../components/ui/DetailStates";
+import { useJobsStore } from "../../stores/jobsStore";
 
 // ============================
 // Constants
 // ============================
 
-const TYPE_ORDER = ["production", "not-active", "demo", "template"] as const;
-const TYPE_LABELS: Record<string, string> = {
-  production: "Production",
-  "not-active": "Not Active",
-  demo: "Demo",
-  template: "Templates",
-};
-const DEFAULT_COLLAPSED = new Set(["not-active", "demo", "template"]);
+import { useDomainTypeConfig } from "./useDomainTypeConfig";
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -112,13 +106,13 @@ function isStale(lastModified: string | null | undefined): boolean {
   return Date.now() - date.getTime() > STALE_THRESHOLD_MS;
 }
 
-function groupByType(domains: DiscoveredDomain[]): Map<string, DiscoveredDomain[]> {
+function groupByType(domains: DiscoveredDomain[], typeOrder: string[]): Map<string, DiscoveredDomain[]> {
   const groups = new Map<string, DiscoveredDomain[]>();
-  for (const type of TYPE_ORDER) {
+  for (const type of typeOrder) {
     const items = domains.filter((d) => d.domain_type === type);
     if (items.length > 0) groups.set(type, items);
   }
-  const known = new Set<string>(TYPE_ORDER as unknown as string[]);
+  const known = new Set<string>(typeOrder);
   const other = domains.filter((d) => !known.has(d.domain_type));
   if (other.length > 0) groups.set("other", other);
   return groups;
@@ -137,11 +131,12 @@ export function DriveTabView() {
   const paths = useKnowledgePaths();
   const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
+  const typeConfig = useDomainTypeConfig();
 
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
-    () => new Set(DEFAULT_COLLAPSED)
+    () => new Set(typeConfig.collapsed)
   );
 
   // Scan-all state
@@ -205,7 +200,7 @@ export function DriveTabView() {
     return domainsQuery.data.filter((d) => d.domain.toLowerCase().includes(q));
   }, [domainsQuery.data, searchQuery]);
 
-  const grouped = useMemo(() => groupByType(filteredDomains), [filteredDomains]);
+  const grouped = useMemo(() => groupByType(filteredDomains, typeConfig.order), [filteredDomains, typeConfig.order]);
 
   const toggleSection = useCallback((type: string) => {
     setCollapsedSections((prev) => {
@@ -229,6 +224,10 @@ export function DriveTabView() {
       (d) => d.domain_type === "production"
     );
     if (productionDomains.length === 0) return;
+
+    const { addJob, updateJob } = useJobsStore.getState();
+    const jobId = `val-drive-scan-${Date.now()}`;
+    addJob({ id: jobId, name: "VAL Drive Scan", status: "running", message: `Scanning ${productionDomains.length} domains...` });
 
     setScanAllMode(true);
     setSelectedDomain(null);
@@ -400,6 +399,14 @@ export function DriveTabView() {
     setScanResults(results);
     setScanRunning(false);
     setScanProgress("");
+
+    const errorCount = results.filter((r) => r.status === "error").length;
+    if (errorCount > 0) {
+      updateJob(jobId, { status: "failed", message: `${errorCount} domain(s) had errors` });
+    } else {
+      const totalFiles = results.reduce((sum, r) => sum + r.files.length, 0);
+      updateJob(jobId, { status: "completed", message: `Scanned ${results.length} domains, ${totalFiles} files found` });
+    }
 
     // Persist results
     const scanTime = new Date().toISOString();
@@ -596,7 +603,7 @@ export function DriveTabView() {
                   className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-400"
                 >
                   {isCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-                  {TYPE_LABELS[type] ?? type} ({domains.length})
+                  {typeConfig.labels[type] ?? type} ({domains.length})
                 </button>
                 {!isCollapsed &&
                   domains.map((d) => (

@@ -24,8 +24,10 @@ pub const KEY_MS_GRAPH_CLIENT_SECRET: &str = "ms_graph_client_secret";
 pub const KEY_ANTHROPIC_API: &str = "anthropic_api_key";
 pub const KEY_AWS_ACCESS_KEY_ID: &str = "aws_access_key_id";
 pub const KEY_AWS_SECRET_ACCESS_KEY: &str = "aws_secret_access_key";
-pub const KEY_GA4_SERVICE_ACCOUNT_PATH: &str = "ga4_service_account_path";
+pub const KEY_GA4_CLIENT_ID: &str = "ga4_client_id";
+pub const KEY_GA4_CLIENT_SECRET: &str = "ga4_client_secret";
 pub const KEY_GA4_PROPERTY_ID: &str = "ga4_property_id";
+pub const KEY_GA4_WEBSITE_PROPERTY_ID: &str = "ga4_website_property_id";
 pub const KEY_EMAIL_API_BASE_URL: &str = "email_api_base_url";
 pub const KEY_NOTION_API: &str = "notion_api_key";
 pub const KEY_NOTION_DEFAULT_DB: &str = "notion_default_database";
@@ -33,6 +35,21 @@ pub const KEY_KNOWLEDGE_PATH: &str = "knowledge_path";
 pub const KEY_APOLLO_API: &str = "apollo_api_key";
 pub const KEY_LINKEDIN_CLIENT_ID: &str = "linkedin_client_id";
 pub const KEY_LINKEDIN_CLIENT_SECRET: &str = "linkedin_client_secret";
+pub const KEY_OPENROUTER_API: &str = "openrouter_api_key";
+
+// Background sync toggle keys (default: not set = disabled)
+pub const KEY_BG_SYNC_OUTLOOK_EMAIL: &str = "bg_sync_outlook_email";
+pub const KEY_BG_SYNC_OUTLOOK_CALENDAR: &str = "bg_sync_outlook_calendar";
+pub const KEY_BG_SYNC_NOTION: &str = "bg_sync_notion";
+
+/// Check if a background sync is enabled (reads settings, returns false if key missing or != "true")
+pub fn is_bg_sync_enabled(key: &str) -> bool {
+    load_settings()
+        .ok()
+        .and_then(|s| s.keys.get(key).cloned())
+        .map(|v| v == "true")
+        .unwrap_or(false)
+}
 
 // ============================================================================
 // Types
@@ -192,8 +209,10 @@ pub fn settings_list_keys() -> CmdResult<Vec<ApiKeyInfo>> {
         (KEY_ANTHROPIC_API, "Anthropic API Key", "For AI email summaries"),
         (KEY_AWS_ACCESS_KEY_ID, "AWS Access Key ID", "For S3 AI publish"),
         (KEY_AWS_SECRET_ACCESS_KEY, "AWS Secret Access Key", "For S3 AI publish"),
-        (KEY_GA4_SERVICE_ACCOUNT_PATH, "GA4 Service Account Path", "Path to service account JSON (e.g. ~/.tv-desktop/ga4-service-account.json)"),
-        (KEY_GA4_PROPERTY_ID, "GA4 Property ID", "GA4 numeric property ID for analytics"),
+        (KEY_GA4_CLIENT_ID, "GA4 Client ID", "Google OAuth2 Client ID for Analytics"),
+        (KEY_GA4_CLIENT_SECRET, "GA4 Client Secret", "Google OAuth2 Client Secret for Analytics"),
+        (KEY_GA4_PROPERTY_ID, "GA4 Property ID", "GA4 numeric property ID for VAL platform analytics"),
+        (KEY_GA4_WEBSITE_PROPERTY_ID, "GA4 Website Property ID", "GA4 numeric property ID for website analytics"),
         (KEY_EMAIL_API_BASE_URL, "Email API Base URL", "Tracking endpoint URL for email open/click/unsubscribe (e.g. https://your-domain.ngrok-free.dev)"),
         (KEY_NOTION_API, "Notion API Key", "For syncing Notion databases to Work Module"),
         (KEY_NOTION_DEFAULT_DB, "Notion Default Database", "Default Notion database ID for pushing tasks without a sync config"),
@@ -414,6 +433,7 @@ pub fn settings_import_from_file(file_path: String) -> CmdResult<Vec<String>> {
                     "MS_GRAPH_TENANT_ID" | "AZURE_TENANT_ID" => Some(KEY_MS_GRAPH_TENANT_ID),
                     "MS_GRAPH_CLIENT_SECRET" | "AZURE_CLIENT_SECRET" => Some(KEY_MS_GRAPH_CLIENT_SECRET),
                     "ANTHROPIC_API_KEY" => Some(KEY_ANTHROPIC_API),
+                    "OPENROUTER_API_KEY" => Some(KEY_OPENROUTER_API),
                     "AWS_ACCESS_KEY_ID" => Some(KEY_AWS_ACCESS_KEY_ID),
                     "AWS_SECRET_ACCESS_KEY" => Some(KEY_AWS_SECRET_ACCESS_KEY),
                     "LINKEDIN_CLIENT_ID" => Some(KEY_LINKEDIN_CLIENT_ID),

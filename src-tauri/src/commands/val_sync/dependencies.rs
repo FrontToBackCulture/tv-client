@@ -2,7 +2,7 @@
 // Parses all definition.json files in a domain folder, extracts cross-references,
 // and outputs dependencies.json with the full resource dependency graph.
 
-use crate::commands::error::{CmdResult, CommandError};
+use crate::commands::error::CmdResult;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

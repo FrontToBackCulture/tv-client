@@ -171,6 +171,13 @@ export function useRealtimeSync() {
       .on("postgres_changes", pg("api_task_logs"), () => {
         queryClient.invalidateQueries({ queryKey: ["api-task-logs"] });
       })
+      .on("postgres_changes", pg("jobs"), () => {
+        queryClient.invalidateQueries({ queryKey: ["scheduler", "jobs"] });
+        queryClient.invalidateQueries({ queryKey: ["scheduler", "status"] });
+      })
+      .on("postgres_changes", pg("job_runs"), () => {
+        queryClient.invalidateQueries({ queryKey: ["scheduler", "runs"] });
+      })
       .subscribe();
     channels.push(schedulerChannel);
 

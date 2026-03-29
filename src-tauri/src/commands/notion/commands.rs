@@ -135,29 +135,14 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
         // Full mapping path: use sync config's field mapping + database schema
         let schema = api::get_database_schema(&cfg.notion_database_id).await?;
 
-        // Load statuses from the task's own project (not the config's target)
+        // Load global statuses (no longer per-project)
         let statuses: Vec<crate::commands::work::types::TaskStatus> = client
-            .select("task_statuses", &format!("project_id=eq.{}", project_id))
+            .select("task_statuses", "project_id=is.null&order=sort_order.asc")
             .await?;
 
-        // Also load statuses from the config's target project for value_map reverse lookup
-        let target_statuses: Vec<crate::commands::work::types::TaskStatus> = if cfg.target_project_id.as_deref() != Some(project_id) {
-            if let Some(ref tid) = cfg.target_project_id {
-                client.select("task_statuses", &format!("project_id=eq.{}", tid)).await.unwrap_or_default()
-            } else {
-                vec![]
-            }
-        } else {
-            vec![]
-        };
-
-        let mut status_id_to_name: std::collections::HashMap<String, String> = statuses.iter()
+        let status_id_to_name: std::collections::HashMap<String, String> = statuses.iter()
             .map(|s| (s.id.clone(), s.name.clone()))
             .collect();
-        // Merge target project statuses so value_map reverse lookup works across projects
-        for s in &target_statuses {
-            status_id_to_name.entry(s.id.clone()).or_insert_with(|| s.name.clone());
-        }
 
         let users: Vec<crate::commands::work::types::User> = client
             .select("users", "select=id,name,type&type=eq.human")
@@ -247,6 +232,22 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
     // When updating, only push properties — don't touch page blocks/description.
     // Notion is the source of truth for body content.
     let (action, notion_page_id) = if let Some(page_id) = existing_notion_id {
+        // Check if page is archived — if so, mark task as complete and skip
+        match api::get_page_archived(page_id).await {
+            Ok(true) => {
+                // Page is archived in Notion — mark task as Archived in tv-client
+                let archived_statuses: Vec<crate::commands::work::types::TaskStatus> = client
+                    .select("task_statuses", "project_id=is.null&type=eq.complete&name=eq.Archived")
+                    .await
+                    .unwrap_or_default();
+                if let Some(archived) = archived_statuses.first() {
+                    let _: Result<Value, _> = client.update("tasks", &task_id, &serde_json::json!({"status_id": archived.id})).await;
+                }
+                eprintln!("[notion:push] Page {} is archived — marked task as Archived", page_id);
+                return Ok(PushResult { action: "archived".to_string(), notion_page_id: page_id.to_string() });
+            }
+            _ => {}
+        }
         // Update existing page — properties only, no block replacement
         api::update_page_properties(page_id, &notion_properties).await?;
         ("updated".to_string(), page_id.to_string())
@@ -636,8 +637,74 @@ pub async fn notion_pull_task(task_id: String) -> CmdResult<PushResult> {
 /// Manually trigger a sync for all enabled configs
 #[tauri::command]
 pub async fn notion_sync_start(app_handle: tauri::AppHandle) -> CmdResult<Vec<SyncComplete>> {
-    eprintln!("[notion] Manual sync triggered");
-    sync::run_sync(&app_handle).await
+    use tauri::Emitter;
+    let job_id = format!("notion-manual-{}", chrono::Utc::now().timestamp_millis());
+    let started_at = chrono::Utc::now().to_rfc3339();
+    eprintln!("[notion] Manual incremental sync triggered");
+
+    // Emit job start
+    let _ = app_handle.emit("jobs:update", serde_json::json!({
+        "id": job_id, "name": "Notion Incremental Sync", "status": "running",
+        "message": "Starting manual sync...", "startedAt": started_at,
+    }));
+
+    let result = sync::run_sync(&app_handle, false).await;
+
+    match &result {
+        Ok(results) => {
+            let created: i64 = results.iter().map(|r| r.tasks_created).sum();
+            let updated: i64 = results.iter().map(|r| r.tasks_updated).sum();
+            let msg = if results.is_empty() { "Skipped (another sync running)".to_string() }
+                else { format!("{} created, {} updated", created, updated) };
+            let _ = app_handle.emit("jobs:update", serde_json::json!({
+                "id": job_id, "name": "Notion Incremental Sync",
+                "status": if results.is_empty() { "failed" } else { "completed" },
+                "message": msg, "startedAt": started_at,
+            }));
+        }
+        Err(e) => {
+            let _ = app_handle.emit("jobs:update", serde_json::json!({
+                "id": job_id, "name": "Notion Incremental Sync", "status": "failed",
+                "message": format!("{}", e), "startedAt": started_at,
+            }));
+        }
+    }
+    result
+}
+
+/// Initial sync — full backfill, ignores filter and last_synced_at
+#[tauri::command]
+pub async fn notion_sync_initial(app_handle: tauri::AppHandle, since_date: Option<String>) -> CmdResult<Vec<SyncComplete>> {
+    use tauri::Emitter;
+    let since = since_date.unwrap_or_else(|| "2025-08-01".to_string());
+    let job_id = format!("notion-initial-{}", chrono::Utc::now().timestamp_millis());
+    let started_at = chrono::Utc::now().to_rfc3339();
+    eprintln!("[notion] Initial sync triggered (since {})", since);
+
+    let _ = app_handle.emit("jobs:update", serde_json::json!({
+        "id": job_id, "name": "Notion Initial Sync", "status": "running",
+        "message": format!("Full backfill since {}...", since), "startedAt": started_at,
+    }));
+
+    let result = sync::run_sync_initial(&app_handle, &since).await;
+
+    match &result {
+        Ok(results) => {
+            let created: i64 = results.iter().map(|r| r.tasks_created).sum();
+            let updated: i64 = results.iter().map(|r| r.tasks_updated).sum();
+            let _ = app_handle.emit("jobs:update", serde_json::json!({
+                "id": job_id, "name": "Notion Initial Sync", "status": "completed",
+                "message": format!("{} created, {} updated", created, updated), "startedAt": started_at,
+            }));
+        }
+        Err(e) => {
+            let _ = app_handle.emit("jobs:update", serde_json::json!({
+                "id": job_id, "name": "Notion Initial Sync", "status": "failed",
+                "message": format!("{}", e), "startedAt": started_at,
+            }));
+        }
+    }
+    result
 }
 
 /// Get current sync status

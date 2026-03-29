@@ -333,7 +333,7 @@ export const DealCard = memo(function DealCard({
             </div>
             <div className="space-y-1">
               {deal.tasks.slice(0, 3).map((task) => {
-                const isComplete = ["completed", "canceled"].includes(task.status_type);
+                const isComplete = task.status_type === "complete";
                 return (
                   <div
                     key={task.id}

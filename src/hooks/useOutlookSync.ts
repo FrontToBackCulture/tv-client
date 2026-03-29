@@ -18,6 +18,11 @@ interface SyncComplete {
   incremental?: boolean;
 }
 
+interface SetupComplete {
+  emails: number;
+  events: number;
+}
+
 export function useOutlookSync() {
   const queryClient = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
@@ -39,6 +44,12 @@ export function useOutlookSync() {
       setProgress(null);
       setLastSync(event.payload.timestamp);
       // Invalidate all outlook queries so UI refreshes
+      queryClient.invalidateQueries({ queryKey: ["outlook"] });
+    }).then((unlisten) => unlisteners.push(unlisten));
+
+    listen<SetupComplete>("outlook:setup-complete", () => {
+      setIsSyncing(false);
+      setProgress(null);
       queryClient.invalidateQueries({ queryKey: ["outlook"] });
     }).then((unlisten) => unlisteners.push(unlisten));
 

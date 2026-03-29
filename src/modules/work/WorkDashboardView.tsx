@@ -625,11 +625,11 @@ export function DashboardView({
   const notionTasks = activeTasks.filter(t => !!(t as any).notion_page_id);
   const totalTasks = manualTasks.length;
   const overdueTasks = manualTasks.filter(t =>
-    isOverdue(t.due_date) && t.status?.type !== "completed" && t.status?.type !== "canceled"
+    isOverdue(t.due_date) && t.status?.type !== "complete"
   ).length;
-  const completedTasks = manualTasks.filter(t => t.status?.type === "completed").length;
-  const inProgressTasks = manualTasks.filter(t => t.status?.type === "started" || t.status?.type === "review").length;
-  const todoTasks = manualTasks.filter(t => t.status?.type === "unstarted" || t.status?.type === "backlog").length;
+  const completedTasks = manualTasks.filter(t => t.status?.type === "complete").length;
+  const inProgressTasks = manualTasks.filter(t => t.status?.type === "in_progress").length;
+  const todoTasks = manualTasks.filter(t => t.status?.type === "todo").length;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   const initProjectMap = useMemo(() => {
@@ -647,8 +647,8 @@ export function DashboardView({
     const addCount = (pid: string, t: TaskWithRelations) => {
       const current = map.get(pid) || { total: 0, completed: 0, overdue: 0 };
       current.total++;
-      if (t.status?.type === "completed") current.completed++;
-      if (isOverdue(t.due_date) && t.status?.type !== "completed" && t.status?.type !== "canceled") current.overdue++;
+      if (t.status?.type === "complete") current.completed++;
+      if (isOverdue(t.due_date) && t.status?.type !== "complete") current.overdue++;
       map.set(pid, current);
     };
     const counted = new Set<string>();

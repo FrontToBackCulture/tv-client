@@ -62,8 +62,16 @@ export const toast = {
     useToastStore.getState().addToast({ type: "info", message, duration }),
   warning: (message: string, duration = 4000) =>
     useToastStore.getState().addToast({ type: "warning", message, duration }),
-  loading: (message: string) =>
-    useToastStore.getState().addToast({ type: "loading", message, duration: 0 }),
+  loading: (message: string, maxDuration = 30000) => {
+    const id = useToastStore.getState().addToast({ type: "loading", message, duration: 0 });
+    // Auto-dismiss loading toasts after maxDuration as a safety net
+    setTimeout(() => {
+      const state = useToastStore.getState();
+      const t = state.toasts.find((t) => t.id === id);
+      if (t && t.type === "loading") state.removeToast(id);
+    }, maxDuration);
+    return id;
+  },
   update: (id: string, updates: Partial<Omit<Toast, "id">>) =>
     useToastStore.getState().updateToast(id, updates),
   dismiss: (id: string) =>

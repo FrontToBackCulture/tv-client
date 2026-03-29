@@ -73,15 +73,34 @@ pub async fn outlook_get_stats() -> CmdResult<EmailStats> {
 // ============================================================================
 
 #[tauri::command]
-pub async fn outlook_mark_read(id: String) -> CmdResult<()> {
+pub async fn outlook_mark_read(id: String, app_handle: tauri::AppHandle) -> CmdResult<()> {
     let db = EmailDb::open()?;
     db.mark_read(&id)?;
 
     // Fire-and-forget Graph API update
     tokio::spawn(async move {
+        use tauri::Emitter;
+        let job_id = format!("archive-email-{}", chrono::Utc::now().timestamp_millis());
+        let started_at = chrono::Utc::now().to_rfc3339();
+        let _ = app_handle.emit("jobs:update", serde_json::json!({
+            "id": &job_id, "name": "Archive Email", "status": "running",
+            "message": "Syncing read status to Outlook...", "startedAt": &started_at,
+        }));
         let graph = super::graph::GraphClient::new();
-        if let Err(e) = graph.mark_as_read(&id).await {
-            log::warn!("Failed to mark as read in Outlook: {}", e);
+        match graph.mark_as_read(&id).await {
+            Ok(_) => {
+                let _ = app_handle.emit("jobs:update", serde_json::json!({
+                    "id": &job_id, "name": "Archive Email", "status": "completed",
+                    "message": "Email marked as read in Outlook", "startedAt": &started_at,
+                }));
+            }
+            Err(e) => {
+                log::warn!("Failed to mark as read in Outlook: {}", e);
+                let _ = app_handle.emit("jobs:update", serde_json::json!({
+                    "id": &job_id, "name": "Archive Email", "status": "failed",
+                    "message": format!("{}", e), "startedAt": &started_at,
+                }));
+            }
         }
     });
 
@@ -117,37 +136,106 @@ pub async fn outlook_send_email(
 // Sync commands
 // ============================================================================
 
+/// Initial setup — runs initial email sync + initial calendar sync.
+/// Called from Settings when the user first connects Outlook.
 #[tauri::command]
-pub async fn outlook_sync_start(app_handle: tauri::AppHandle, months: Option<i64>) -> CmdResult<i64> {
-    eprintln!("[outlook] sync_start called, months={:?}", months);
+pub async fn outlook_initial_setup(app_handle: tauri::AppHandle, months: Option<i64>) -> CmdResult<serde_json::Value> {
+    use tauri::Emitter;
+
+    let m = months.unwrap_or(6);
+    let job_id = format!("outlook-initial-{}", chrono::Utc::now().timestamp_millis());
+    let started_at = chrono::Utc::now().to_rfc3339();
+    eprintln!("[outlook] initial_setup called, months={}", m);
+
+    let _ = app_handle.emit("jobs:update", serde_json::json!({
+        "id": &job_id, "name": "Outlook Initial Setup", "status": "running",
+        "message": format!("Syncing {} months of emails + calendar...", m), "startedAt": &started_at,
+    }));
+
     let db = EmailDb::open().map_err(|e| {
         eprintln!("[outlook] Failed to open DB: {}", e);
         e
     })?;
 
-    // Store sync months preference
-    if let Some(m) = months {
-        let _ = db.set_sync_state("sync_months", &m.to_string());
-    }
+    let _ = db.set_sync_state("sync_months", &m.to_string());
+
+    let email_count = sync::run_initial_sync(&db, &app_handle, m).await.map_err(|e| {
+        let _ = app_handle.emit("jobs:update", serde_json::json!({
+            "id": &job_id, "name": "Outlook Initial Setup", "status": "failed",
+            "message": format!("Email sync failed: {}", e), "startedAt": &started_at,
+        }));
+        e
+    })?;
+
+    let event_count = sync::run_calendar_sync(&db, &app_handle, m).await.map_err(|e| {
+        let _ = app_handle.emit("jobs:update", serde_json::json!({
+            "id": &job_id, "name": "Outlook Initial Setup", "status": "failed",
+            "message": format!("Calendar sync failed: {}", e), "startedAt": &started_at,
+        }));
+        e
+    })?;
+
+    let msg = format!("{} emails, {} events synced", email_count, event_count);
+    let _ = app_handle.emit("jobs:update", serde_json::json!({
+        "id": &job_id, "name": "Outlook Initial Setup", "status": "completed",
+        "message": &msg, "startedAt": &started_at,
+    }));
+    eprintln!("[outlook] initial_setup complete: {}", msg);
+
+    let _ = app_handle.emit("outlook:setup-complete", serde_json::json!({
+        "emails": email_count,
+        "events": event_count,
+    }));
+
+    Ok(serde_json::json!({ "emails": email_count, "events": event_count }))
+}
+
+/// Incremental email sync only. Requires initial sync to be done first.
+#[tauri::command]
+pub async fn outlook_sync_start(app_handle: tauri::AppHandle) -> CmdResult<i64> {
+    use tauri::Emitter;
+    let job_id = format!("outlook-manual-{}", chrono::Utc::now().timestamp_millis());
+    let started_at = chrono::Utc::now().to_rfc3339();
+    eprintln!("[outlook] sync_start called (incremental)");
+
+    let _ = app_handle.emit("jobs:update", serde_json::json!({
+        "id": &job_id, "name": "Outlook Email Sync", "status": "running",
+        "message": "Syncing emails...", "startedAt": &started_at,
+    }));
+
+    let db = EmailDb::open().map_err(|e| {
+        eprintln!("[outlook] Failed to open DB: {}", e);
+        e
+    })?;
 
     let initial_done = db
         .get_sync_state("initial_sync_done")?
         .map(|v| v == "true")
         .unwrap_or(false);
 
-    eprintln!("[outlook] initial_sync_done={}", initial_done);
-
-    let result = if initial_done {
-        sync::run_incremental_sync(&db, &app_handle).await
-    } else {
-        sync::run_initial_sync(&db, &app_handle, months.unwrap_or(6)).await
-    };
-
-    match &result {
-        Ok(count) => eprintln!("[outlook] sync complete: {} emails", count),
-        Err(e) => eprintln!("[outlook] sync error: {}", e),
+    if !initial_done {
+        let _ = app_handle.emit("jobs:update", serde_json::json!({
+            "id": &job_id, "name": "Outlook Email Sync", "status": "failed",
+            "message": "Initial sync not completed", "startedAt": &started_at,
+        }));
+        return Err("Initial sync not completed. Go to Settings > Outlook to set up.".into());
     }
 
+    let result = sync::run_incremental_sync(&db, &app_handle).await;
+    match &result {
+        Ok(count) => {
+            let _ = app_handle.emit("jobs:update", serde_json::json!({
+                "id": &job_id, "name": "Outlook Email Sync", "status": "completed",
+                "message": format!("{} emails", count), "startedAt": &started_at,
+            }));
+        }
+        Err(e) => {
+            let _ = app_handle.emit("jobs:update", serde_json::json!({
+                "id": &job_id, "name": "Outlook Email Sync", "status": "failed",
+                "message": format!("{}", e), "startedAt": &started_at,
+            }));
+        }
+    }
     result
 }
 
@@ -208,7 +296,6 @@ pub async fn outlook_list_calendars() -> CmdResult<Vec<super::types::CalendarEnt
 
 #[tauri::command]
 pub async fn outlook_list_events(
-    app_handle: tauri::AppHandle,
     start_time: String,
     end_time: String,
     limit: Option<i64>,
@@ -217,32 +304,11 @@ pub async fn outlook_list_events(
     let db = EmailDb::open()?;
     let max = limit.unwrap_or(200);
 
-    // Auto-trigger initial calendar sync if not done yet (backfills 24 months)
-    let calendar_initial_done = db
-        .get_sync_state("calendar_initial_sync_done")
-        .ok()
-        .flatten()
-        .map(|v| v == "true")
-        .unwrap_or(false);
-    if !calendar_initial_done {
-        let ah = app_handle.clone();
-        tokio::spawn(async move {
-            let db2 = match EmailDb::open() {
-                Ok(db) => db,
-                Err(_) => return,
-            };
-            eprintln!("[outlook:calendar] Triggering initial calendar sync (24 months)");
-            let _ = sync::run_calendar_sync(&db2, &ah, 24).await;
-        });
-    }
-
-    // Fetch fresh from Graph API
+    // Try fresh fetch from Graph API, upsert into cache (no delete)
     let graph = super::graph::GraphClient::new();
     match graph.fetch_events(max as usize, &start_time, &end_time).await {
         Ok(api_events) => {
             eprintln!("[outlook:calendar] Got {} events from API", api_events.len());
-            // Clear old events in this range and replace with fresh data
-            let _ = db.delete_events_in_range(&start_time, &end_time);
             let converted: Vec<super::types::CalendarEvent> = api_events
                 .into_iter()
                 .map(graph_event_to_calendar_event)
@@ -348,20 +414,50 @@ fn graph_event_to_calendar_event(e: super::types::GraphEvent) -> super::types::C
 // Calendar sync commands
 // ============================================================================
 
+/// Incremental calendar sync only (1 month back + 2 months forward, clear-and-replace).
+/// Requires initial setup to be done first.
 #[tauri::command]
-pub async fn outlook_calendar_sync_start(app_handle: tauri::AppHandle, months: Option<i64>) -> CmdResult<i64> {
-    eprintln!("[outlook:calendar] sync_start called, months={:?}", months);
-    let db = EmailDb::open()?;
+pub async fn outlook_calendar_sync_start(app_handle: tauri::AppHandle) -> CmdResult<i64> {
+    use tauri::Emitter;
+    let job_id = format!("outlook-cal-manual-{}", chrono::Utc::now().timestamp_millis());
+    let started_at = chrono::Utc::now().to_rfc3339();
+    eprintln!("[outlook:calendar] sync_start called (incremental)");
 
+    let _ = app_handle.emit("jobs:update", serde_json::json!({
+        "id": &job_id, "name": "Outlook Calendar Sync", "status": "running",
+        "message": "Syncing events...", "startedAt": &started_at,
+    }));
+
+    let db = EmailDb::open()?;
     let initial_done = db
         .get_sync_state("calendar_initial_sync_done")?
         .map(|v| v == "true")
         .unwrap_or(false);
 
-    // Initial sync: use provided months (default 6), incremental: just 1 month back
-    let months_back = if initial_done { 1 } else { months.unwrap_or(6) };
+    if !initial_done {
+        let _ = app_handle.emit("jobs:update", serde_json::json!({
+            "id": &job_id, "name": "Outlook Calendar Sync", "status": "failed",
+            "message": "Initial sync not completed", "startedAt": &started_at,
+        }));
+        return Err("Calendar initial sync not completed. Go to Settings > Outlook to set up.".into());
+    }
 
-    sync::run_calendar_sync(&db, &app_handle, months_back).await
+    let result = sync::run_calendar_sync(&db, &app_handle, 1).await;
+    match &result {
+        Ok(count) => {
+            let _ = app_handle.emit("jobs:update", serde_json::json!({
+                "id": &job_id, "name": "Outlook Calendar Sync", "status": "completed",
+                "message": format!("{} events", count), "startedAt": &started_at,
+            }));
+        }
+        Err(e) => {
+            let _ = app_handle.emit("jobs:update", serde_json::json!({
+                "id": &job_id, "name": "Outlook Calendar Sync", "status": "failed",
+                "message": format!("{}", e), "startedAt": &started_at,
+            }));
+        }
+    }
+    result
 }
 
 #[tauri::command]
@@ -419,4 +515,27 @@ pub async fn outlook_bootstrap_contacts(
         &clients_folder,
         &company_folder,
     )
+}
+
+// ============================================================================
+// User lookup
+// ============================================================================
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MsUserLookup {
+    pub microsoft_id: String,
+    pub display_name: String,
+    pub email: String,
+}
+
+#[tauri::command]
+pub async fn outlook_lookup_user(email: String) -> CmdResult<MsUserLookup> {
+    let graph = super::graph::GraphClient::new();
+    let (id, display_name, mail) = graph.lookup_user_by_email(&email).await?;
+    Ok(MsUserLookup {
+        microsoft_id: id,
+        display_name,
+        email: mail,
+    })
 }

@@ -369,6 +369,9 @@ function CompactCard({
             >
               {card.title}
             </h3>
+            {card.pinned && (
+              <Pin size={10} className="text-amber-500 flex-shrink-0" />
+            )}
             {!seen && (
               <span className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0" />
             )}

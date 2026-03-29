@@ -4,7 +4,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import {
-  LayoutDashboard, Columns3, Building2, BarChart3,
+  LayoutDashboard, Columns3, Building2, BarChart3, Activity,
   Plus, Target, FolderPlus, User as UserIcon, Users,
 } from "lucide-react";
 import { Button } from "../../components/ui";
@@ -27,6 +27,7 @@ import {
   TrackerView,
   MyTasksView,
   BandwidthView,
+  TeamTasksView,
   useInitiativeProjects,
 } from "../work/WorkViews";
 import { ViewTab } from "../../components/ViewTab";
@@ -44,7 +45,7 @@ import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
 import { useViewContextStore } from "../../stores/viewContextStore";
 
 type ProjectsView =
-  | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project" | "my-tasks" | "team-tasks"  // Work views
+  | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project" | "my-tasks" | "team-tasks" | "capacity"  // Work views
   | "crm-dashboard" | "pipeline" | "metadata" | "directory" | "clients" | "closed"  // CRM views
 
 const CRM_DETAIL_PANEL_WIDTH_KEY = "tv-desktop-crm-detail-panel-width";
@@ -83,7 +84,7 @@ export function ProjectsModule() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     const labels: Record<ProjectsView, string> = {
-      all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board", "my-tasks": "My Tasks", "team-tasks": "Team Bandwidth",
+      all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board", "my-tasks": "My Tasks", "team-tasks": "Team", capacity: "Capacity",
       tracker: "Tracker", project: "Project",
       "crm-dashboard": "CRM Dashboard", pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals",
     };
@@ -254,7 +255,7 @@ export function ProjectsModule() {
   const handleCloseCompanyDetail = useCallback(() => setSelectedCompanyId(null), []);
 
   // ---- Determine which section is active ----
-  const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project", "my-tasks", "team-tasks"].includes(view);
+  const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project", "my-tasks", "team-tasks", "capacity"].includes(view);
   const isCrmView = ["crm-dashboard", "pipeline", "directory", "clients", "closed"].includes(view);
 
   const showProjectView = view === "project" && selectedProject;
@@ -313,6 +314,7 @@ export function ProjectsModule() {
 
           <ViewTab label="My Tasks" icon={UserIcon} active={view === "my-tasks"} onClick={() => handleViewChange("my-tasks")} />
           <ViewTab label="Team" icon={Users} active={view === "team-tasks"} onClick={() => handleViewChange("team-tasks")} />
+          <ViewTab label="Capacity" icon={Activity} active={view === "capacity"} onClick={() => handleViewChange("capacity")} />
 
           {/* Separator */}
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
@@ -362,7 +364,7 @@ export function ProjectsModule() {
                   for (const t of allTasks) {
                     const c = map.get(t.project_id) || { total: 0, completed: 0, overdue: 0 };
                     c.total++;
-                    if (t.status?.type === "completed") c.completed++;
+                    if (t.status?.type === "complete") c.completed++;
                     map.set(t.project_id, c);
                   }
                   return map;
@@ -423,7 +425,12 @@ export function ProjectsModule() {
         )}
         {view === "team-tasks" && (
           <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
-            <BandwidthView allTasks={allTasks} users={users} onSelectTask={handleSelectTask} />
+            <TeamTasksView allTasks={allTasks} users={users} onSelectTask={handleSelectTask} initiatives={initiatives} initiativeLinks={initiativeLinks} />
+          </div>
+        )}
+        {view === "capacity" && (
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
+            <BandwidthView allTasks={allTasks} users={users} onSelectTask={handleSelectTask} initiatives={initiatives} initiativeLinks={initiativeLinks} />
           </div>
         )}
         {showProjectView && (

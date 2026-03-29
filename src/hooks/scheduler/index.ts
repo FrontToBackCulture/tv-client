@@ -9,6 +9,7 @@ export {
   useToggleJob,
   useRunJob,
   useStopJob,
+  type Job,
   type SchedulerJob,
   type JobInput,
   type SkillRef,

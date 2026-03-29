@@ -21,4 +21,5 @@ export const workKeys = {
     [...workKeys.all, "projectUpdates", projectId] as const,
   whatsappSummaries: (initiativeId: string) =>
     [...workKeys.all, "whatsapp_summaries", initiativeId] as const,
+  teams: () => [...workKeys.all, "teams"] as const,
 };

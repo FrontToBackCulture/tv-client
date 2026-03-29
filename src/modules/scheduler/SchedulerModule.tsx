@@ -65,7 +65,7 @@ export function SchedulerModule() {
 
   const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
   const selectedRuns = selectedJobId
-    ? allRuns.filter((r) => r.jobId === selectedJobId)
+    ? allRuns.filter((r) => r.job_id === selectedJobId)
     : allRuns;
 
   const handleCreateOrUpdate = useCallback(

@@ -193,12 +193,35 @@ pub async fn run_calendar_sync(
     let graph = GraphClient::new();
     let now = chrono::Utc::now();
 
-    let start = (now - chrono::Duration::days(months_back * 30)).format("%Y-%m-%dT00:00:00Z").to_string();
+    // Check if this is an incremental sync (calendar_initial_sync_done = true)
+    let is_incremental = db
+        .get_sync_state("calendar_initial_sync_done")
+        .ok()
+        .flatten()
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
+    // For incremental: only fetch events starting from last sync (not months back)
+    // For initial: use the full months_back range
+    let start = if is_incremental {
+        if let Some(last_sync) = db.get_sync_state("calendar_last_sync").ok().flatten() {
+            // Go back 1 day from last sync to catch any edge cases
+            if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(&last_sync) {
+                (ts - chrono::Duration::days(1)).format("%Y-%m-%dT00:00:00Z").to_string()
+            } else {
+                (now - chrono::Duration::days(months_back * 30)).format("%Y-%m-%dT00:00:00Z").to_string()
+            }
+        } else {
+            (now - chrono::Duration::days(months_back * 30)).format("%Y-%m-%dT00:00:00Z").to_string()
+        }
+    } else {
+        (now - chrono::Duration::days(months_back * 30)).format("%Y-%m-%dT00:00:00Z").to_string()
+    };
     let end = (now + chrono::Duration::days(60)).format("%Y-%m-%dT23:59:59Z").to_string();
 
     eprintln!(
-        "[outlook:calendar] Syncing events from {} to {} ({} months back)",
-        start, end, months_back
+        "[outlook:calendar] Syncing events from {} to {} (incremental: {})",
+        start, end, is_incremental
     );
 
     let events = match graph.fetch_events(5000, &start, &end).await {
@@ -211,8 +234,10 @@ pub async fn run_calendar_sync(
 
     eprintln!("[outlook:calendar] Got {} events from API", events.len());
 
-    // Clear old events in the sync range and upsert fresh data
-    let _ = db.delete_events_in_range(&start, &end);
+    // For initial sync: clear and re-insert. For incremental: just upsert.
+    if !is_incremental {
+        let _ = db.delete_events_in_range(&start, &end);
+    }
 
     let mut synced = 0i64;
     for event in &events {

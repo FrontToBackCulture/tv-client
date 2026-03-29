@@ -45,7 +45,7 @@ export function useMilestones(projectId: string | null) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const status = task.status as any;
         const statusType = Array.isArray(status) ? status[0]?.type : status?.type;
-        if (statusType === "completed") {
+        if (statusType === "complete") {
           current.completed++;
         }
         counts.set(milestoneId, current);

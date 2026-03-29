@@ -38,6 +38,22 @@ function useClaudeStatus(): ClaudeState {
   return state;
 }
 
+function ElapsedTime({ startedAt }: { startedAt: Date }) {
+  const [elapsed, setElapsed] = useState("");
+  useEffect(() => {
+    const update = () => {
+      const ms = Date.now() - startedAt.getTime();
+      const secs = Math.floor(ms / 1000);
+      if (secs < 60) setElapsed(`${secs}s`);
+      else { const m = Math.floor(secs / 60); setElapsed(`${m}m ${secs % 60}s`); }
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  return <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0">{elapsed}</span>;
+}
+
 export function StatusBar() {
   const syncStatus = useAppStore((s) => s.syncStatus);
   const theme = useAppStore((s) => s.theme);
@@ -48,6 +64,12 @@ export function StatusBar() {
   const recentJobs = useRecentJobs(10);
   const clearCompleted = useJobsStore((s) => s.clearCompleted);
   const removeJob = useJobsStore((s) => s.removeJob);
+  const hydrate = useJobsStore((s) => s.hydrate);
+
+  // Hydrate persisted jobs from Supabase on mount + subscribe to changes
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
 
   const sidePanelOpen = useSidePanelStore((s) => s.isOpen);
   const togglePanel = useSidePanelStore((s) => s.togglePanel);
@@ -267,11 +289,16 @@ export function StatusBar() {
                             </button>
                           )}
                         </div>
-                        {job.message && (
-                          <p className="mt-1 text-xs text-zinc-500 pl-6 break-words" title={job.message}>
-                            {job.message}
-                          </p>
-                        )}
+                        <div className="mt-1 flex items-center gap-2 pl-6">
+                          {job.message && (
+                            <p className={`text-xs text-zinc-500 ${job.status === "failed" ? "break-words whitespace-pre-wrap max-w-sm" : "truncate"}`} title={job.message}>
+                              {job.message}
+                            </p>
+                          )}
+                          {job.status === "running" && job.startedAt && (
+                            <ElapsedTime startedAt={job.startedAt} />
+                          )}
+                        </div>
                         {job.status === "running" && job.progress !== undefined && (
                           <div className="mt-1.5 pl-6">
                             <div className="h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
@@ -292,6 +319,15 @@ export function StatusBar() {
                     );})
                   )}
                 </div>
+                <button
+                  onClick={() => {
+                    setShowJobsPanel(false);
+                    useAppStore.getState().openSettings("jobs");
+                  }}
+                  className="w-full px-3 py-1.5 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-center border-t border-zinc-200 dark:border-zinc-700 transition-colors"
+                >
+                  View All Jobs
+                </button>
               </div>
             )}
           </div>

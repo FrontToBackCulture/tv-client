@@ -1,7 +1,7 @@
 // src/modules/work/StatusIcon.tsx
 // Status circle indicator (Linear-style)
 
-import { Check, X, Inbox, Pause } from "lucide-react";
+import { Check } from "lucide-react";
 import type { StatusType } from "../../lib/work/types";
 
 interface StatusIconProps {
@@ -11,96 +11,36 @@ interface StatusIconProps {
 }
 
 export function StatusIcon({ type, color = "#6B7280", size = 16 }: StatusIconProps) {
-  const iconProps = { size: size * 0.6, strokeWidth: 2.5 };
-
   switch (type) {
-    case "completed":
+    case "complete":
       return (
         <div
           className="rounded-full flex items-center justify-center"
-          style={{
-            width: size,
-            height: size,
-            backgroundColor: color,
-          }}
+          style={{ width: size, height: size, backgroundColor: color }}
         >
-          <Check {...iconProps} className="text-white" />
+          <Check size={size * 0.6} strokeWidth={2.5} className="text-white" />
         </div>
       );
 
-    case "canceled":
+    case "in_progress":
       return (
         <div
           className="rounded-full flex items-center justify-center"
-          style={{
-            width: size,
-            height: size,
-            backgroundColor: "#6B7280",
-          }}
-        >
-          <X {...iconProps} className="text-white" />
-        </div>
-      );
-
-    case "started":
-      return (
-        <div
-          className="rounded-full flex items-center justify-center"
-          style={{
-            width: size,
-            height: size,
-            border: `2px solid ${color}`,
-          }}
+          style={{ width: size, height: size, border: `2px solid ${color}` }}
         >
           <div
             className="rounded-full"
-            style={{
-              width: size * 0.35,
-              height: size * 0.35,
-              backgroundColor: color,
-            }}
+            style={{ width: size * 0.35, height: size * 0.35, backgroundColor: color }}
           />
         </div>
       );
 
-    case "review":
-      return (
-        <div
-          className="rounded-full flex items-center justify-center"
-          style={{
-            width: size,
-            height: size,
-            border: `2px solid ${color}`,
-          }}
-        >
-          <Pause size={size * 0.5} style={{ color }} strokeWidth={2.5} />
-        </div>
-      );
-
-    case "backlog":
-      return (
-        <div
-          className="rounded-full flex items-center justify-center"
-          style={{
-            width: size,
-            height: size,
-            border: `2px dashed ${color}`,
-          }}
-        >
-          <Inbox size={size * 0.5} style={{ color }} strokeWidth={2} />
-        </div>
-      );
-
-    case "unstarted":
+    case "todo":
     default:
       return (
         <div
           className="rounded-full"
-          style={{
-            width: size,
-            height: size,
-            border: `2px solid ${color}`,
-          }}
+          style={{ width: size, height: size, border: `2px solid ${color}` }}
         />
       );
   }

@@ -5,8 +5,9 @@ import { ChevronLeft, ChevronRight, RefreshCw, Download, Video, MapPin, Users, C
 import { cn } from "../../lib/cn";
 import { useCalendarEvents, type CalendarEvent } from "../../hooks/useCalendar";
 import { useOutlookAuth, useCalendarSyncStart, useCalendarSyncStatus } from "../../hooks/useOutlook";
-import { OutlookSetup } from "../inbox/OutlookSetup";
+import { EmptyInbox } from "../inbox/EmptyInbox";
 import { DetailLoading } from "../../components/ui/DetailStates";
+import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
 
 type CalendarView = "week" | "month";
@@ -59,6 +60,7 @@ const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7am to 9pm
 
 export function CalendarModule() {
   const { data: auth, isLoading: isLoadingAuth } = useOutlookAuth();
+  const openSettings = useAppStore((s) => s.openSettings);
   const [view, setView] = useState<CalendarView>("week");
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -103,7 +105,14 @@ export function CalendarModule() {
   const isSyncing = syncStatus?.isSyncing || syncStart.isPending;
 
   if (isLoadingAuth) return <DetailLoading />;
-  if (!auth?.isAuthenticated) return <OutlookSetup />;
+  if (!auth?.isAuthenticated) {
+    return (
+      <EmptyInbox
+        message="Connect your Outlook account in Settings to view your calendar."
+        onSetup={() => openSettings("outlook")}
+      />
+    );
+  }
 
   const navigateBack = () => {
     if (view === "week") setCurrentDate(addDays(currentDate, -7));
@@ -145,9 +154,9 @@ export function CalendarModule() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => syncStart.mutate(24)}
+            onClick={() => syncStart.mutate()}
             disabled={isSyncing}
-            title="Sync calendar (last 2 years)"
+            title="Sync calendar"
             className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 disabled:opacity-50"
           >
             {isSyncing ? (

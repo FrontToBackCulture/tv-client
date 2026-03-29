@@ -22,11 +22,13 @@ import {
   FileText,
   ChevronRight,
   Cloud,
+  Database,
   CalendarDays,
   MoreHorizontal,
   Linkedin,
   Target,
   SlidersHorizontal,
+  Activity,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -60,6 +62,7 @@ const navSections: NavSection[] = [
       { id: "projects", icon: FolderOpen, label: "Projects", shortcut: "\u23181" },
       { id: "library", icon: Library, label: "Library", shortcut: "\u23182" },
       { id: "metadata", icon: SlidersHorizontal, label: "Metadata", shortcut: "\u23185" },
+      { id: "analytics", icon: Activity, label: "Analytics", shortcut: "" },
     ],
   },
   {
@@ -83,6 +86,7 @@ const navSections: NavSection[] = [
     label: "Platform",
     items: [
       { id: "domains", icon: Globe, label: "Domains", shortcut: "\u23183" },
+      { id: "public-data", icon: Database, label: "Public Data", shortcut: "" },
       { id: "skills", icon: Puzzle, label: "Skills", shortcut: "\u23188" },
     ],
   },

@@ -1,90 +1,187 @@
-use std::fs;
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
 
-use super::types::{JobRun, RunStatus, RunStep, RunTrigger, SchedulerJob, ToolDetail};
+use super::types::{Job, JobRun, RunStatus, RunStep, RunTrigger, ToolDetail};
 use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase;
 
 // ============================================================================
-// Paths
+// Supabase row types (snake_case for Postgres columns)
 // ============================================================================
 
-fn scheduler_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
-        .join("scheduler")
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JobRow {
+    pub id: String,
+    pub name: String,
+    pub skill_prompt: String,
+    pub cron_expression: Option<String>,
+    pub model: String,
+    pub max_budget: Option<f64>,
+    pub allowed_tools: Vec<String>,
+    pub slack_webhook_url: Option<String>,
+    pub slack_channel_name: Option<String>,
+    pub enabled: bool,
+    pub generate_report: bool,
+    pub report_prefix: Option<String>,
+    pub skill_refs: Option<serde_json::Value>,
+    pub bot_path: Option<String>,
+    pub sod_reports_folder: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub last_run_at: Option<String>,
+    pub last_run_status: Option<String>,
 }
 
-fn jobs_path() -> PathBuf {
-    scheduler_dir().join("jobs.json")
-}
-
-fn ensure_dir(dir: &PathBuf) -> CmdResult<()> {
-    if !dir.exists() {
-        fs::create_dir_all(dir)?;
+impl From<&Job> for JobRow {
+    fn from(job: &Job) -> Self {
+        JobRow {
+            id: job.id.clone(),
+            name: job.name.clone(),
+            skill_prompt: job.skill_prompt.clone(),
+            cron_expression: job.cron_expression.clone(),
+            model: job.model.clone(),
+            max_budget: job.max_budget,
+            allowed_tools: job.allowed_tools.clone(),
+            slack_webhook_url: job.slack_webhook_url.clone(),
+            slack_channel_name: job.slack_channel_name.clone(),
+            enabled: job.enabled,
+            generate_report: job.generate_report,
+            report_prefix: job.report_prefix.clone(),
+            skill_refs: job.skill_refs.as_ref().map(|refs| serde_json::to_value(refs).unwrap_or_default()),
+            bot_path: job.bot_path.clone(),
+            sod_reports_folder: job.sod_reports_folder.clone(),
+            created_at: job.created_at.to_rfc3339(),
+            updated_at: job.updated_at.to_rfc3339(),
+            last_run_at: job.last_run_at.map(|t| t.to_rfc3339()),
+            last_run_status: job.last_run_status.as_ref().map(|s| match s {
+                RunStatus::Running => "running",
+                RunStatus::Success => "success",
+                RunStatus::Failed => "failed",
+            }.to_string()),
+        }
     }
+}
+
+impl From<JobRow> for Job {
+    fn from(row: JobRow) -> Self {
+        use chrono::{DateTime, Utc};
+        use super::types::SkillRef;
+
+        let created_at = DateTime::parse_from_rfc3339(&row.created_at)
+            .map(|t| t.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+        let updated_at = DateTime::parse_from_rfc3339(&row.updated_at)
+            .map(|t| t.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+        let last_run_at = row.last_run_at
+            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+            .map(|t| t.with_timezone(&Utc));
+
+        Job {
+            id: row.id,
+            name: row.name,
+            skill_prompt: row.skill_prompt,
+            cron_expression: row.cron_expression,
+            model: row.model,
+            max_budget: row.max_budget,
+            allowed_tools: row.allowed_tools,
+            slack_webhook_url: row.slack_webhook_url,
+            slack_channel_name: row.slack_channel_name,
+            enabled: row.enabled,
+            generate_report: row.generate_report,
+            report_prefix: row.report_prefix,
+            skill_refs: row.skill_refs.and_then(|v| serde_json::from_value::<Vec<SkillRef>>(v).ok()),
+            bot_path: row.bot_path,
+            sod_reports_folder: row.sod_reports_folder,
+            created_at,
+            updated_at,
+            last_run_at,
+            last_run_status: row.last_run_status.as_deref().map(|s| match s {
+                "success" => RunStatus::Success,
+                "failed" => RunStatus::Failed,
+                _ => RunStatus::Running,
+            }),
+        }
+    }
+}
+
+// ============================================================================
+// Jobs CRUD (Supabase)
+// ============================================================================
+
+pub async fn load_jobs_async() -> CmdResult<Vec<Job>> {
+    let client = supabase::get_client().await?;
+    let rows: Vec<JobRow> = client.select("jobs", "order=created_at.asc").await?;
+    Ok(rows.into_iter().map(Job::from).collect())
+}
+
+pub async fn load_job_async(id: &str) -> CmdResult<Job> {
+    let client = supabase::get_client().await?;
+    let query = format!("id=eq.{}", id);
+    let row = client
+        .select_single::<JobRow>("jobs", &query)
+        .await?
+        .ok_or_else(|| CommandError::NotFound(format!("Job {} not found", id)))?;
+    Ok(Job::from(row))
+}
+
+pub async fn save_job_async(job: &Job) -> CmdResult<()> {
+    let client = supabase::get_client().await?;
+    let row = JobRow::from(job);
+    client
+        .upsert_on::<_, serde_json::Value>("jobs", &row, Some("id"))
+        .await?;
     Ok(())
 }
 
-// ============================================================================
-// Jobs CRUD
-// ============================================================================
-
-pub fn load_jobs() -> CmdResult<Vec<SchedulerJob>> {
-    let path = jobs_path();
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    let content = fs::read_to_string(&path)?;
-    let jobs = serde_json::from_str(&content)?;
-    Ok(jobs)
+pub async fn delete_job_async(id: &str) -> CmdResult<()> {
+    let client = supabase::get_client().await?;
+    client.delete("jobs", &format!("id=eq.{}", id)).await
 }
 
-pub fn save_jobs(jobs: &[SchedulerJob]) -> CmdResult<()> {
-    let dir = scheduler_dir();
-    ensure_dir(&dir)?;
-    let path = jobs_path();
-    let content = serde_json::to_string_pretty(jobs)?;
-    fs::write(&path, content)?;
+pub async fn update_job_run_status(
+    id: &str,
+    status: &RunStatus,
+    ran_at: chrono::DateTime<chrono::Utc>,
+) -> CmdResult<()> {
+    let client = supabase::get_client().await?;
+    let status_str = match status {
+        RunStatus::Running => "running",
+        RunStatus::Success => "success",
+        RunStatus::Failed => "failed",
+    };
+    let data = serde_json::json!({
+        "last_run_status": status_str,
+        "last_run_at": ran_at.to_rfc3339(),
+        "updated_at": chrono::Utc::now().to_rfc3339(),
+    });
+    client
+        .update::<_, serde_json::Value>("jobs", &format!("id=eq.{}", id), &data)
+        .await?;
     Ok(())
 }
-
-
-
-// ============================================================================
-// Startup cleanup
-// ============================================================================
 
 /// Reset any jobs stuck in "running" status back to "failed".
 /// Called on app startup to clean up stale state from killed processes.
-pub fn reset_running_jobs() {
-    match load_jobs() {
-        Ok(mut jobs) => {
-            let mut changed = false;
-            for job in jobs.iter_mut() {
-                if job.last_run_status == Some(RunStatus::Running) {
-                    eprintln!("[scheduler] Resetting stale running job: {}", job.name);
-                    job.last_run_status = Some(RunStatus::Failed);
-                    changed = true;
-                }
-            }
-            if changed {
-                if let Err(e) = save_jobs(&jobs) {
-                    eprintln!("[scheduler] Failed to save reset jobs: {}", e);
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("[scheduler] Failed to load jobs for reset: {}", e);
-        }
+pub async fn reset_running_jobs_async() {
+    match async {
+        let client = supabase::get_client().await?;
+        let data = serde_json::json!({
+            "last_run_status": "failed",
+            "updated_at": chrono::Utc::now().to_rfc3339(),
+        });
+        // Update all jobs where last_run_status = running
+        let _: serde_json::Value = client
+            .update("jobs", "last_run_status=eq.running", &data)
+            .await?;
+        Ok::<(), CommandError>(())
+    }.await {
+        Ok(_) => eprintln!("[scheduler] Reset stale running jobs"),
+        Err(e) => eprintln!("[scheduler] Failed to reset running jobs: {}", e),
     }
 }
 
 // ============================================================================
-// Supabase-friendly row type (snake_case for Postgres columns)
+// Run history (renamed tables: job_runs, job_run_steps)
 // ============================================================================
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -185,15 +282,11 @@ impl From<RunRow> for JobRun {
     }
 }
 
-// ============================================================================
-// Async Supabase functions (Supabase only, no local fallback)
-// ============================================================================
-
 pub async fn save_run_async(run: &JobRun) -> CmdResult<()> {
     let client = supabase::get_client().await?;
     let db_run = RunRow::from(run);
     client
-        .insert::<_, serde_json::Value>("scheduler_runs", &db_run)
+        .upsert_on::<_, serde_json::Value>("job_runs", &db_run, Some("id"))
         .await?;
     Ok(())
 }
@@ -207,7 +300,7 @@ pub async fn load_runs_async(
     if let Some(jid) = job_id {
         query = format!("job_id=eq.{}&{}", jid, query);
     }
-    let rows: Vec<RunRow> = client.select("scheduler_runs", &query).await?;
+    let rows: Vec<RunRow> = client.select("job_runs", &query).await?;
     Ok(rows.into_iter().map(JobRun::from).collect())
 }
 
@@ -215,7 +308,7 @@ pub async fn load_run_async(run_id: &str) -> CmdResult<JobRun> {
     let client = supabase::get_client().await?;
     let query = format!("id=eq.{}", run_id);
     let row = client
-        .select_single::<RunRow>("scheduler_runs", &query)
+        .select_single::<RunRow>("job_runs", &query)
         .await?
         .ok_or_else(|| CommandError::NotFound(format!("Run {} not found", run_id)))?;
     Ok(JobRun::from(row))
@@ -276,7 +369,7 @@ pub async fn save_run_steps_async(run_id: &str, steps: &[RunStep]) -> CmdResult<
     let client = supabase::get_client().await?;
     let rows: Vec<StepRow> = steps.iter().map(|s| StepRow::from_step(run_id, s)).collect();
     client
-        .insert::<_, serde_json::Value>("scheduler_run_steps", &rows)
+        .insert::<_, serde_json::Value>("job_run_steps", &rows)
         .await?;
     Ok(())
 }
@@ -284,6 +377,6 @@ pub async fn save_run_steps_async(run_id: &str, steps: &[RunStep]) -> CmdResult<
 pub async fn load_run_steps_async(run_id: &str) -> CmdResult<Vec<RunStep>> {
     let client = supabase::get_client().await?;
     let query = format!("run_id=eq.{}&order=turn_number.asc", run_id);
-    let rows: Vec<StepRow> = client.select("scheduler_run_steps", &query).await?;
+    let rows: Vec<StepRow> = client.select("job_run_steps", &query).await?;
     Ok(rows.into_iter().map(StepRow::into_step).collect())
 }

@@ -229,9 +229,11 @@ export const useTeamConfigStore = create<TeamConfigState>((set, get) => ({
     const member = config.members[login];
     if (!member) return "all";
 
-    // null visible_modules = use defaults (admins default to everything)
+    // Admins always see everything — regardless of visible_modules setting
+    if (get().isAdmin(login)) return "all";
+
+    // null visible_modules = use defaults
     if (member.visibleModules === null) {
-      if (get().isAdmin(login)) return "all";
       return config.defaults.visibleModules;
     }
 

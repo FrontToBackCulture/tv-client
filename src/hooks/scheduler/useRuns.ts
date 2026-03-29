@@ -1,36 +1,44 @@
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
+import { supabase } from "@/lib/supabase";
 import { schedulerKeys } from "./keys";
 
 export interface JobRun {
   id: string;
-  jobId: string;
-  jobName: string;
-  startedAt: string;
-  finishedAt: string | null;
-  durationSecs: number | null;
+  job_id: string;
+  job_name: string;
+  started_at: string;
+  finished_at: string | null;
+  duration_secs: number | null;
   status: "running" | "success" | "failed";
   output: string;
-  outputPreview: string;
+  output_preview: string;
   error: string | null;
-  slackPosted: boolean;
+  slack_posted: boolean;
   trigger: "scheduled" | "manual";
-  costUsd: number | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  cacheReadTokens: number | null;
-  cacheCreationTokens: number | null;
-  numTurns: number | null;
+  cost_usd: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_creation_tokens: number | null;
+  num_turns: number | null;
 }
 
 export function useRuns(jobId?: string, limit?: number) {
   return useQuery({
     queryKey: schedulerKeys.runs(jobId),
-    queryFn: () =>
-      invoke<JobRun[]>("scheduler_list_runs", {
-        jobId: jobId ?? null,
-        limit: limit ?? 100,
-      }),
+    queryFn: async () => {
+      let query = supabase
+        .from("job_runs")
+        .select("*")
+        .order("started_at", { ascending: false })
+        .limit(limit ?? 100);
+      if (jobId) {
+        query = query.eq("job_id", jobId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as JobRun[];
+    },
     staleTime: 1000 * 5,
   });
 }
@@ -38,8 +46,15 @@ export function useRuns(jobId?: string, limit?: number) {
 export function useRun(jobId: string | null, runId: string | null) {
   return useQuery({
     queryKey: schedulerKeys.run(jobId ?? "", runId ?? ""),
-    queryFn: () =>
-      invoke<JobRun>("scheduler_get_run", { runId }),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("job_runs")
+        .select("*")
+        .eq("id", runId!)
+        .single();
+      if (error) throw error;
+      return data as JobRun;
+    },
     enabled: !!runId,
   });
 }
@@ -50,21 +65,28 @@ export interface ToolDetail {
 }
 
 export interface RunStep {
-  turnNumber: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheCreationTokens: number;
+  turn_number: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
   tools: string[];
-  toolDetails: ToolDetail[];
-  stopReason: string;
+  tool_details: ToolDetail[];
+  stop_reason: string;
 }
 
 export function useRunSteps(runId: string | null) {
   return useQuery({
     queryKey: schedulerKeys.runSteps(runId ?? ""),
-    queryFn: () =>
-      invoke<RunStep[]>("scheduler_get_run_steps", { runId }),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("job_run_steps")
+        .select("*")
+        .eq("run_id", runId!)
+        .order("turn_number", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as RunStep[];
+    },
     enabled: !!runId,
     staleTime: 1000 * 60,
   });

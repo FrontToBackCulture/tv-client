@@ -380,4 +380,36 @@ async fn fetch_domain_types() -> std::collections::HashMap<String, String> {
     map
 }
 
+/// Update domain_type in Supabase domain_metadata table.
+/// Validates against lookup_values where type = 'domain_type'.
+#[command]
+pub async fn val_sync_update_domain_type(domain: String, domain_type: String) -> CmdResult<()> {
+    let client = crate::commands::supabase::get_client().await?;
+
+    // Validate against lookup_values table
+    #[derive(Deserialize)]
+    struct LookupRow { value: String }
+    let valid: Vec<LookupRow> = client
+        .select("lookup_values", "type=eq.domain_type&select=value")
+        .await
+        .unwrap_or_default();
+    let valid_values: Vec<&str> = valid.iter().map(|r| r.value.as_str()).collect();
+    if !valid_values.is_empty() && !valid_values.contains(&domain_type.as_str()) {
+        return Err(CommandError::Config(format!(
+            "Invalid domain_type '{}'. Must be one of: {}",
+            domain_type,
+            valid_values.join(", ")
+        )));
+    }
+
+    #[derive(Serialize)]
+    struct Row { domain: String, domain_type: String }
+    let row = Row { domain, domain_type };
+    client
+        .upsert_on::<_, serde_json::Value>("domain_metadata", &row, Some("domain"))
+        .await?;
+
+    Ok(())
+}
+
 // sync metadata functions removed — now uses Supabase via metadata::read_sync_summary()

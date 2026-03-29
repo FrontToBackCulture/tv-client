@@ -18,11 +18,11 @@ pub enum RunTrigger {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SchedulerJob {
+pub struct Job {
     pub id: String,
     pub name: String,
     pub skill_prompt: String,
-    pub cron_expression: String,
+    pub cron_expression: Option<String>,  // None = ad-hoc only
     pub model: String,
     pub max_budget: Option<f64>,
     pub allowed_tools: Vec<String>,
@@ -44,6 +44,9 @@ pub struct SchedulerJob {
     pub last_run_at: Option<DateTime<Utc>>,
     pub last_run_status: Option<RunStatus>,
 }
+
+/// Backward-compatible alias
+pub type SchedulerJob = Job;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -108,7 +111,7 @@ pub struct SkillRef {
 pub struct JobInput {
     pub name: String,
     pub skill_prompt: String,
-    pub cron_expression: String,
+    pub cron_expression: Option<String>,  // None = ad-hoc only
     pub model: Option<String>,
     pub max_budget: Option<f64>,
     pub allowed_tools: Option<Vec<String>>,

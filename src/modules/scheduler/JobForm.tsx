@@ -60,35 +60,35 @@ function extractAdditionalInstructions(prompt: string): string {
 
 export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
   const isEdit = !!job;
-  const hasSkillRefs = !!job?.skillRefs && job.skillRefs.length > 0;
+  const hasSkillRefs = !!job?.skill_refs && job.skill_refs.length > 0;
 
   // Form state
   const [name, setName] = useState(job?.name ?? "");
-  const [cronExpression, setCronExpression] = useState(job?.cronExpression ?? "0 9 * * 1-5");
+  const [cronExpression, setCronExpression] = useState(job?.cron_expression ?? "0 9 * * 1-5");
   const [model, setModel] = useState(job?.model ?? "sonnet");
-  const [maxBudget, setMaxBudget] = useState<string>(job?.maxBudget?.toString() ?? "");
-  const [allowedTools, setAllowedTools] = useState(job?.allowedTools?.join(", ") ?? "");
-  const [slackWebhookUrl, setSlackWebhookUrl] = useState(job?.slackWebhookUrl ?? "");
-  const [slackChannelName, setSlackChannelName] = useState(job?.slackChannelName ?? "");
+  const [maxBudget, setMaxBudget] = useState<string>(job?.max_budget?.toString() ?? "");
+  const [allowedTools, setAllowedTools] = useState(job?.allowed_tools?.join(", ") ?? "");
+  const [slackWebhookUrl, setSlackWebhookUrl] = useState(job?.slack_webhook_url ?? "");
+  const [slackChannelName, setSlackChannelName] = useState(job?.slack_channel_name ?? "");
   const [enabled, setEnabled] = useState(job?.enabled ?? true);
-  const [generateReport, setGenerateReport] = useState(job?.generateReport ?? true);
-  const [reportPrefix, setReportPrefix] = useState(job?.reportPrefix ?? "");
+  const [generateReport, setGenerateReport] = useState(job?.generate_report ?? true);
+  const [reportPrefix, setReportPrefix] = useState(job?.report_prefix ?? "");
 
   // Skill selection mode vs raw prompt mode
   const [useSkillPicker, setUseSkillPicker] = useState(!isEdit || hasSkillRefs);
-  const [rawSkillPrompt, setRawSkillPrompt] = useState(job?.skillPrompt ?? "");
+  const [rawSkillPrompt, setRawSkillPrompt] = useState(job?.skill_prompt ?? "");
 
   // Bot & skill state
   const { data: bots } = useBots();
   const defaultBot = useMemo(() => {
     if (hasSkillRefs && bots?.length) {
-      return bots.find((b) => b.name === job!.skillRefs![0].bot) ?? bots[0];
+      return bots.find((b) => b.name === job!.skill_refs![0].bot) ?? bots[0];
     }
     return bots?.[0] ?? null;
   }, [bots, hasSkillRefs, job]);
 
   const [selectedBotName, setSelectedBotName] = useState<string | null>(
-    job?.skillRefs?.[0]?.bot ?? null
+    job?.skill_refs?.[0]?.bot ?? null
   );
 
   const activeBotName = selectedBotName ?? defaultBot?.name ?? null;
@@ -98,12 +98,12 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
 
   // Selected skill slugs
   const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(
-    () => new Set(job?.skillRefs?.map((r) => r.slug) ?? [])
+    () => new Set(job?.skill_refs?.map((r) => r.slug) ?? [])
   );
 
   // Additional instructions (text beyond skill paths)
   const [additionalInstructions, setAdditionalInstructions] = useState(
-    () => hasSkillRefs ? extractAdditionalInstructions(job!.skillPrompt) : ""
+    () => hasSkillRefs ? extractAdditionalInstructions(job!.skill_prompt) : ""
   );
 
   const selectedSkills = useMemo(
@@ -142,20 +142,20 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
 
     onSubmit({
       name: name.trim(),
-      skillPrompt,
-      cronExpression: cronExpression.trim(),
+      skill_prompt: skillPrompt,
+      cron_expression: cronExpression.trim() || null,
       model,
-      maxBudget: maxBudget ? parseFloat(maxBudget) : null,
-      allowedTools: allowedTools
+      max_budget: maxBudget ? parseFloat(maxBudget) : null,
+      allowed_tools: allowedTools
         ? allowedTools.split(",").map((t) => t.trim()).filter(Boolean)
         : [],
-      slackWebhookUrl: slackWebhookUrl.trim() || null,
-      slackChannelName: slackChannelName.trim() || null,
+      slack_webhook_url: slackWebhookUrl.trim() || null,
+      slack_channel_name: slackChannelName.trim() || null,
       enabled,
-      generateReport,
-      reportPrefix: reportPrefix.trim() || null,
-      skillRefs,
-      botPath: activeBot?.path ?? job?.botPath ?? null,
+      generate_report: generateReport,
+      report_prefix: reportPrefix.trim() || null,
+      skill_refs: skillRefs,
+      bot_path: activeBot?.path ?? job?.bot_path ?? null,
     });
   };
 

@@ -78,13 +78,7 @@ pub async fn execute_job(
     };
 
     // Update job status to Running
-    if let Ok(mut jobs) = storage::load_jobs() {
-        if let Some(j) = jobs.iter_mut().find(|j| j.id == job.id) {
-            j.last_run_status = Some(RunStatus::Running);
-            j.last_run_at = Some(started_at);
-            let _ = storage::save_jobs(&jobs);
-        }
-    }
+    let _ = storage::update_job_run_status(&job.id, &RunStatus::Running, started_at).await;
 
     // Helper to emit progress updates
     let emit_progress = |step: &str| {
@@ -234,14 +228,7 @@ pub async fn execute_job(
     }
 
     // Update job status
-    if let Ok(mut jobs) = storage::load_jobs() {
-        if let Some(j) = jobs.iter_mut().find(|j| j.id == job.id) {
-            j.last_run_status = Some(run.status.clone());
-            j.last_run_at = Some(finished_at);
-            j.updated_at = Utc::now();
-            let _ = storage::save_jobs(&jobs);
-        }
-    }
+    let _ = storage::update_job_run_status(&job.id, &run.status, finished_at).await;
 
     // Emit completed event
     let _ = app_handle.emit(

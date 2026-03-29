@@ -20,6 +20,7 @@ const MetadataModule = lazy(() => import("./modules/metadata").then(m => ({ defa
 const CalendarModule = lazy(() => import("./modules/calendar").then(m => ({ default: m.CalendarModule })));
 const BotModule = lazy(() => import("./modules/bot/BotModule").then(m => ({ default: m.BotModule })));
 const DomainsModule = lazy(() => import("./modules/domains").then(m => ({ default: m.DomainsModule })));
+const AnalyticsModule = lazy(() => import("./modules/analytics").then(m => ({ default: m.AnalyticsModule })));
 const ProductModule = lazy(() => import("./modules/product/ProductModule").then(m => ({ default: m.ProductModule })));
 const PortalModule = lazy(() => import("./modules/portal").then(m => ({ default: m.PortalModule })));
 const SchedulerModule = lazy(() => import("./modules/scheduler").then(m => ({ default: m.SchedulerModule })));
@@ -31,6 +32,7 @@ const BlogModule = lazy(() => import("./modules/blog").then(m => ({ default: m.B
 const S3BrowserModule = lazy(() => import("./modules/s3-browser").then(m => ({ default: m.S3BrowserModule })));
 const LinkedInModule = lazy(() => import("./modules/linkedin/LinkedInModule").then(m => ({ default: m.LinkedInModule })));
 const ProspectingModule = lazy(() => import("./modules/prospecting").then(m => ({ default: m.ProspectingModule })));
+const PublicDataModule = lazy(() => import("./modules/public-data/PublicDataModule").then(m => ({ default: m.PublicDataModule })));
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { invoke } from "@tauri-apps/api/core";
@@ -56,6 +58,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   calendar: CalendarModule,
   crm: CrmModule,
   domains: DomainsModule,
+  analytics: AnalyticsModule,
   product: ProductModule,
   gallery: GalleryModule,
   bot: BotModule,
@@ -68,6 +71,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   s3browser: S3BrowserModule,
   linkedin: LinkedInModule,
   prospecting: ProspectingModule,
+  "public-data": PublicDataModule,
 };
 
 export default function App() {

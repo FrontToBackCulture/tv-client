@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { useJobsStore } from "../../stores/jobsStore";
 import {
   gitHubSyncKeys,
   type GitHubSyncConfig,
@@ -74,8 +75,9 @@ export function useGitHubSyncPreview() {
 
 /** Run full sync for a repo */
 export function useGitHubSyncRun() {
+  const { addJob, updateJob } = useJobsStore.getState();
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       token,
       owner,
       repo,
@@ -83,6 +85,17 @@ export function useGitHubSyncRun() {
       token: string;
       owner: string;
       repo: string;
-    }) => invoke<SyncResult>("github_sync_run", { token, owner, repo }),
+    }) => {
+      const jobId = `github-sync-${Date.now()}`;
+      addJob({ id: jobId, name: "GitHub Sync", status: "running", message: `Syncing ${owner}/${repo}...` });
+      try {
+        const result = await invoke<SyncResult>("github_sync_run", { token, owner, repo });
+        updateJob(jobId, { status: "completed", message: `Synced ${owner}/${repo}` });
+        return result;
+      } catch (err) {
+        updateJob(jobId, { status: "failed", message: `${err}` });
+        throw err;
+      }
+    },
   });
 }

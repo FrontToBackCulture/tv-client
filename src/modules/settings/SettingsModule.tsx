@@ -20,6 +20,7 @@ import {
   ListChecks,
   Mail,
   Linkedin,
+  Activity,
 } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -36,6 +37,7 @@ import { McpEndpointsView } from "./McpEndpointsView";
 import { ClaudeCodeSetupView } from "./ClaudeCodeSetupView";
 import { PortalSettingsView } from "./PortalSettingsView";
 import { DiagnosticsView } from "./DiagnosticsView";
+import { JobsView } from "./JobsView";
 import { TeamView } from "./TeamView";
 import { FolderPathsView } from "./FolderPathsView";
 import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
@@ -43,8 +45,10 @@ import { ProjectFieldsView } from "./ProjectFieldsView";
 import { TaskFieldsView } from "./TaskFieldsView";
 import { OutlookConnectionView } from "./OutlookConnectionView";
 import { LinkedInConnectionView } from "./LinkedInConnectionView";
+import { GA4ConnectionView } from "./GA4ConnectionView";
+import { BackgroundSyncView } from "./BackgroundSyncView";
 
-type SettingsViewId = "keys" | "val" | "outlook" | "linkedin" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics" | "project-fields" | "task-fields";
+type SettingsViewId = "keys" | "val" | "outlook" | "linkedin" | "ga4" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics" | "project-fields" | "task-fields" | "jobs" | "bg-sync";
 
 interface SidebarItem {
   id: SettingsViewId;
@@ -66,6 +70,7 @@ const baseSidebarGroups: SidebarGroup[] = [
       { id: "mcp", label: "MCP Endpoints", icon: Globe },
       { id: "outlook", label: "Outlook", icon: Mail },
       { id: "linkedin", label: "LinkedIn", icon: Linkedin },
+      { id: "ga4", label: "Google Analytics", icon: Activity },
     ],
   },
   {
@@ -74,6 +79,7 @@ const baseSidebarGroups: SidebarGroup[] = [
       { id: "sync", label: "Sync Paths", icon: RefreshCw },
       { id: "folders", label: "Folder Paths", icon: FolderOpen },
       { id: "notion", label: "Notion Sync", icon: Cloud },
+      { id: "bg-sync", label: "Background Sync", icon: RefreshCw },
     ],
   },
   {
@@ -90,6 +96,7 @@ const baseSidebarGroups: SidebarGroup[] = [
     label: "Admin",
     items: [
       { id: "team", label: "Team", icon: Users },
+      { id: "jobs", label: "Jobs", icon: Activity },
       { id: "diagnostics", label: "Diagnostics", icon: Stethoscope },
     ],
   },
@@ -149,7 +156,7 @@ export function SettingsModal() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     if (!settingsOpen) return;
-    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", outlook: "Outlook", linkedin: "LinkedIn", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", "project-fields": "Project Fields", "task-fields": "Task Fields", portal: "Portal", notion: "Notion Sync", team: "Team", diagnostics: "Diagnostics" };
+    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", outlook: "Outlook", linkedin: "LinkedIn", ga4: "Google Analytics", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", "project-fields": "Project Fields", "task-fields": "Task Fields", portal: "Portal", notion: "Notion Sync", team: "Team", jobs: "Jobs", diagnostics: "Diagnostics", "bg-sync": "Background Sync" };
     setViewContext(activeView, labels[activeView]);
   }, [activeView, setViewContext, settingsOpen]);
 
@@ -220,6 +227,7 @@ export function SettingsModal() {
               {activeView === "val" && <ValCredentialsView />}
               {activeView === "outlook" && <OutlookConnectionView />}
               {activeView === "linkedin" && <LinkedInConnectionView />}
+              {activeView === "ga4" && <GA4ConnectionView />}
               {activeView === "sync" && <SyncPathsView />}
               {activeView === "folders" && <FolderPathsView />}
               {activeView === "mcp" && <McpEndpointsView />}
@@ -229,7 +237,9 @@ export function SettingsModal() {
               {activeView === "task-fields" && <TaskFieldsView />}
               {activeView === "portal" && <PortalSettingsView />}
               {activeView === "notion" && <NotionSyncConfigs />}
+              {activeView === "bg-sync" && <BackgroundSyncView />}
               {activeView === "team" && <TeamView />}
+              {activeView === "jobs" && <JobsView />}
               {activeView === "diagnostics" && <DiagnosticsView onNavigate={(view) => setActiveView(view as SettingsViewId)} />}
             </div>
           </div>

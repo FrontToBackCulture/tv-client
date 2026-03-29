@@ -209,10 +209,18 @@ impl SupabaseClient {
             .await?;
 
         let response = self.check_response(response).await?;
-        Ok(response.json().await?)
+        let body_text = response.text().await.map_err(|e| {
+            eprintln!("[supabase:rpc] Failed to read response body for '{}': {}", function, e);
+            CommandError::Internal(format!("Failed to read RPC response: {}", e))
+        })?;
+        serde_json::from_str(&body_text).map_err(|e| {
+            eprintln!("[supabase:rpc] Failed to decode response for '{}': {} — body: {}", function, e, &body_text[..body_text.len().min(500)]);
+            CommandError::Internal(format!("error decoding response body: {}", e))
+        })
     }
 }
 
+#[allow(dead_code)]
 /// Create a SupabaseClient from explicit URL and key (for testing and direct usage)
 pub fn client_from(url: &str, anon_key: &str) -> SupabaseClient {
     SupabaseClient::new(url, anon_key)

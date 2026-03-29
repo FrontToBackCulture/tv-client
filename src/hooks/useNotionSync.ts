@@ -4,10 +4,12 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useQueryClient } from "@tanstack/react-query";
+import { useJobsStore } from "../stores/jobsStore";
 import type { SyncProgress, SyncComplete } from "../lib/notion/types";
 
 export function useNotionSync() {
   const queryClient = useQueryClient();
+  const updateJob = useJobsStore((s) => s.updateJob);
   const [isSyncing, setIsSyncing] = useState(false);
   const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -21,6 +23,15 @@ export function useNotionSync() {
       setIsSyncing(true);
       setProgress(event.payload);
       setError(null);
+      // Update any running Notion sync jobs with progress
+      const p = event.payload;
+      const jobs = useJobsStore.getState().jobs;
+      for (const job of jobs) {
+        if (job.status === "running" && job.name.includes("Notion")) {
+          const progress = p.total > 0 ? Math.round((p.current / p.total) * 100) : undefined;
+          updateJob(job.id, { message: p.message, progress });
+        }
+      }
     }).then((unlisten) => unlisteners.push(unlisten));
 
     listen<SyncComplete>("notion:sync-complete", (event) => {

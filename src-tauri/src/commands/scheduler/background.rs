@@ -25,7 +25,7 @@ pub fn start_scheduler(app_handle: tauri::AppHandle, default_reports_folder: Str
 }
 
 async fn check_and_run_jobs(app_handle: &tauri::AppHandle, default_reports_folder: &str) {
-    let jobs = match storage::load_jobs() {
+    let jobs = match storage::load_jobs_async().await {
         Ok(j) => j,
         Err(e) => {
             eprintln!("[scheduler] Failed to load jobs: {}", e);
@@ -36,14 +36,20 @@ async fn check_and_run_jobs(app_handle: &tauri::AppHandle, default_reports_folde
     let now = Utc::now();
 
     for job in jobs.iter().filter(|j| j.enabled) {
+        // Skip ad-hoc jobs (no cron expression)
+        let cron_expr_str = match &job.cron_expression {
+            Some(expr) => expr.clone(),
+            None => continue,
+        };
+
         // Parse cron expression (cron crate needs 6 or 7 fields; add seconds if missing)
-        let cron_expr = normalize_cron(&job.cron_expression);
+        let cron_expr = normalize_cron(&cron_expr_str);
         let schedule = match Schedule::from_str(&cron_expr) {
             Ok(s) => s,
             Err(e) => {
                 eprintln!(
                     "[scheduler] Invalid cron '{}' for job '{}': {}",
-                    job.cron_expression, job.name, e
+                    cron_expr_str, job.name, e
                 );
                 continue;
             }
@@ -67,8 +73,36 @@ async fn check_and_run_jobs(app_handle: &tauri::AppHandle, default_reports_folde
 
         // Spawn in separate task so concurrent jobs are OK
         let reports_folder = default_reports_folder.to_string();
+        let job_name_for_tracking = job_clone.name.clone();
+        let run_id_for_tracking = run_id.clone();
         tauri::async_runtime::spawn(async move {
+            use tauri::Emitter;
+            let tracking_id = format!("scheduler-{}-{}", job_clone.id, chrono::Utc::now().timestamp_millis());
+            let started_at = chrono::Utc::now().to_rfc3339();
+            let display_name = format!("Scheduled: {}", job_name_for_tracking);
+            let _ = handle.emit("jobs:update", serde_json::json!({
+                "id": &tracking_id, "name": &display_name, "status": "running",
+                "message": format!("Running scheduled job: {}", job_name_for_tracking), "startedAt": &started_at,
+            }));
             runner::execute_job(&job_clone, &run_id, RunTrigger::Scheduled, &handle, &reports_folder).await;
+            // Check run status from storage to determine success/failure
+            let job_status = storage::load_run_async(&run_id_for_tracking).await
+                .map(|r| r.status)
+                .unwrap_or(super::types::RunStatus::Failed);
+            match job_status {
+                super::types::RunStatus::Failed => {
+                    let _ = handle.emit("jobs:update", serde_json::json!({
+                        "id": &tracking_id, "name": &display_name, "status": "failed",
+                        "message": format!("{} failed", job_name_for_tracking), "startedAt": &started_at,
+                    }));
+                }
+                _ => {
+                    let _ = handle.emit("jobs:update", serde_json::json!({
+                        "id": &tracking_id, "name": &display_name, "status": "completed",
+                        "message": format!("{} completed", job_name_for_tracking), "startedAt": &started_at,
+                    }));
+                }
+            }
         });
     }
 }

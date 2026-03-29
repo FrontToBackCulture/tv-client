@@ -15,11 +15,13 @@ import {
   ArrowLeftRight,
 } from "lucide-react";
 import { Button, IconButton } from "../../components/ui";
+import { toast } from "../../stores/toastStore";
 import {
   useNotionSyncConfigs,
   useUpdateSyncConfig,
   useDeleteSyncConfig,
   useNotionSyncStart,
+  useNotionSyncInitial,
   useNotionPreview,
   useNotionDatabaseSchema,
 } from "../../hooks/useNotion";
@@ -38,7 +40,9 @@ export function NotionSyncConfigs() {
   const updateConfig = useUpdateSyncConfig();
   const deleteConfig = useDeleteSyncConfig();
   const syncStart = useNotionSyncStart();
+  const syncInitial = useNotionSyncInitial();
   const { isSyncing } = useNotionSync();
+  const [initialSyncDate, setInitialSyncDate] = useState("2025-08-01");
 
   const getProjectName = (id?: string) =>
     projects.find((p) => p.id === id)?.name ?? "Unknown";
@@ -85,10 +89,49 @@ export function NotionSyncConfigs() {
             loading={isSyncing}
             size="sm"
           >
-            Sync Now
+            Incremental Sync
           </Button>
           <Button icon={Plus} onClick={() => setShowSetup(true)} size="sm">
             Add Sync
+          </Button>
+        </div>
+      </div>
+
+      {/* Initial Sync */}
+      <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/30 dark:border-amber-800/20">
+        <div className="flex-1">
+          <div className="text-xs font-semibold text-amber-700 dark:text-amber-400">Initial Sync (Full Backfill)</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">Pull ALL tasks from Notion (no status filter). Use for first-time sync or to catch missing tasks.</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] text-zinc-400">Since:</label>
+          <input
+            type="date"
+            value={initialSyncDate}
+            onChange={(e) => setInitialSyncDate(e.target.value)}
+            className="text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-transparent text-zinc-600 dark:text-zinc-400"
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              const toastId = toast.loading(`Running initial sync (since ${initialSyncDate})...`);
+              syncInitial.mutate(initialSyncDate, {
+                onSuccess: (results) => {
+                  const created = results.reduce((sum, r) => sum + r.tasks_created, 0);
+                  const updated = results.reduce((sum, r) => sum + r.tasks_updated, 0);
+                  toast.update(toastId, { type: "success", message: `Initial sync done: ${created} created, ${updated} updated`, duration: 8000 });
+                },
+                onError: (err: any) => {
+                  const msg = err?.message || (typeof err === "object" ? JSON.stringify(err) : String(err));
+                  toast.update(toastId, { type: "error", message: `Initial sync failed: ${msg}`, duration: 8000 });
+                },
+              });
+            }}
+            disabled={syncInitial.isPending || isSyncing}
+            loading={syncInitial.isPending}
+          >
+            {syncInitial.isPending ? "Syncing..." : "Run Initial Sync"}
           </Button>
         </div>
       </div>

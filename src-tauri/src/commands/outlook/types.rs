@@ -220,6 +220,7 @@ pub struct GraphAttachmentList {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct GraphAttachment {
     pub id: String,
     #[serde(rename = "contentId")]

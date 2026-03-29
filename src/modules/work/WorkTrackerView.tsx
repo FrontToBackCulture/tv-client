@@ -10,6 +10,7 @@ import {
   ScopeFilterBar, HealthBadge, ProgressBar,
 } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
+import { useTeams } from "../../hooks/work/useTeams";
 
 function TrackerSection({ title, count, color, defaultOpen = true, children }: {
   title: string; count: number; color: string; defaultOpen?: boolean; children: React.ReactNode;
@@ -72,6 +73,8 @@ export function TrackerView({
 }) {
   const [filterInitiativeId, setFilterInitiativeId] = useState<string | null>(null);
   const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
+  const [filterTeamId, setFilterTeamId] = useState<string | null>(null);
+  const { data: teams = [] } = useTeams();
 
   const filteredProjectIds = useMemo(() => {
     if (filterProjectId) return new Set([filterProjectId]);
@@ -83,10 +86,24 @@ export function TrackerView({
     return null;
   }, [filterInitiativeId, filterProjectId, initiativeLinks]);
 
+  const teamUserIds = useMemo(() => {
+    if (!filterTeamId) return null;
+    const team = teams.find(t => t.id === filterTeamId);
+    return team ? new Set(team.members.map(m => m.user_id)) : null;
+  }, [filterTeamId, teams]);
+
   const filteredTasks = useMemo(() => {
-    if (!filteredProjectIds) return allTasks;
-    return allTasks.filter(t => filteredProjectIds.has(t.project_id));
-  }, [allTasks, filteredProjectIds]);
+    let result = allTasks;
+    if (filteredProjectIds) {
+      result = result.filter(t => filteredProjectIds.has(t.project_id));
+    }
+    if (teamUserIds) {
+      result = result.filter(t =>
+        t.assignees?.some(a => teamUserIds.has(a.user?.id ?? ""))
+      );
+    }
+    return result;
+  }, [allTasks, filteredProjectIds, teamUserIds]);
 
   const filteredProjects = useMemo(() => {
     if (!filteredProjectIds) return projects;
@@ -95,14 +112,14 @@ export function TrackerView({
 
   const overdueTasks = useMemo(() =>
     filteredTasks.filter(t =>
-      isOverdue(t.due_date) && t.status?.type !== "completed" && t.status?.type !== "canceled"
+      isOverdue(t.due_date) && t.status?.type !== "complete"
     ).sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime()),
   [filteredTasks]);
 
   const dueThisWeek = useMemo(() =>
     filteredTasks.filter(t =>
       t.due_date && !isOverdue(t.due_date) && isThisWeek(t.due_date) &&
-      t.status?.type !== "completed" && t.status?.type !== "canceled"
+      t.status?.type !== "complete"
     ).sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime()),
   [filteredTasks]);
 
@@ -116,7 +133,7 @@ export function TrackerView({
       const pid = t.project_id;
       const current = map.get(pid) || { total: 0, completed: 0 };
       current.total++;
-      if (t.status?.type === "completed") current.completed++;
+      if (t.status?.type === "complete") current.completed++;
       map.set(pid, current);
     }
     return map;
@@ -124,7 +141,7 @@ export function TrackerView({
 
   const stalledTasks = useMemo(() =>
     filteredTasks.filter(t =>
-      t.status?.type === "started" && t.updated_at && daysSince(t.updated_at) >= 7
+      t.status?.type === "in_progress" && t.updated_at && daysSince(t.updated_at) >= 7
     ).sort((a, b) => daysSince(b.updated_at!) - daysSince(a.updated_at!)),
   [filteredTasks]);
 
@@ -137,6 +154,9 @@ export function TrackerView({
         selectedProjectId={filterProjectId}
         onInitiativeChange={setFilterInitiativeId}
         onProjectChange={setFilterProjectId}
+        teams={teams}
+        selectedTeamId={filterTeamId}
+        onTeamChange={setFilterTeamId}
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">

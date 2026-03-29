@@ -400,6 +400,63 @@ impl GraphClient {
         Ok(all_events)
     }
 
+    // ========================================================================
+    // User lookup
+    // ========================================================================
+
+    /// Look up a user by email, returns (id, displayName, mail)
+    pub async fn lookup_user_by_email(&self, email: &str) -> CmdResult<(String, String, String)> {
+        let token = self.get_token().await?;
+        let filter = format!("mail eq '{}' or userPrincipalName eq '{}'", email, email);
+        let url = format!(
+            "{}/users?$filter={}&$select=id,displayName,mail,userPrincipalName&$top=1",
+            GRAPH_BASE,
+            urlencoding::encode(&filter),
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", token))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(CommandError::Http { status: status.as_u16(), body });
+        }
+
+        let data: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| CommandError::Parse(format!("Failed to parse user lookup: {}", e)))?;
+
+        let users = data["value"]
+            .as_array()
+            .ok_or_else(|| CommandError::Parse("No value array in response".to_string()))?;
+
+        let user = users
+            .first()
+            .ok_or_else(|| CommandError::NotFound(format!("No user found with email: {}", email)))?;
+
+        let id = user["id"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        let display_name = user["displayName"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        let mail = user["mail"]
+            .as_str()
+            .or_else(|| user["userPrincipalName"].as_str())
+            .unwrap_or("")
+            .to_string();
+
+        Ok((id, display_name, mail))
+    }
+
     /// Reply to email
     pub async fn reply_to_email(
         &self,

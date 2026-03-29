@@ -33,3 +33,4 @@ pub mod s3_browser;
 pub mod apollo;
 #[allow(dead_code)]
 pub mod linkedin;
+pub mod public_data;

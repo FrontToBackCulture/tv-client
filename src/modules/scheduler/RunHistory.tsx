@@ -51,7 +51,7 @@ export function RunHistory({ runs, isLoading, onBack, title }: RunHistoryProps) 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                        {run.jobName}
+                        {run.job_name}
                       </span>
                       <span className={cn(
                         "px-1.5 py-0.5 text-xs font-medium rounded-full",
@@ -61,25 +61,25 @@ export function RunHistory({ runs, isLoading, onBack, title }: RunHistoryProps) 
                       )}>
                         {run.trigger}
                       </span>
-                      {run.slackPosted && <Slack size={12} className="text-zinc-400" />}
+                      {run.slack_posted && <Slack size={12} className="text-zinc-400" />}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
                       <span className="text-xs text-zinc-400">
-                        {new Date(run.startedAt).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
+                        {new Date(run.started_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
                       </span>
-                      {run.durationSecs != null && (
+                      {run.duration_secs != null && (
                         <span className="text-xs text-zinc-400">
-                          {formatDuration(run.durationSecs)}
+                          {formatDuration(run.duration_secs)}
                         </span>
                       )}
-                      {run.inputTokens != null && run.outputTokens != null && (
+                      {run.input_tokens != null && run.output_tokens != null && (
                         <span className="text-xs text-zinc-400">
-                          {formatTokens(run.inputTokens + run.outputTokens + (run.cacheReadTokens ?? 0))} tokens
+                          {formatTokens(run.input_tokens + run.output_tokens + (run.cache_read_tokens ?? 0))} tokens
                         </span>
                       )}
-                      {run.costUsd != null && run.costUsd > 0 && (
+                      {run.cost_usd != null && run.cost_usd > 0 && (
                         <span className="text-xs text-zinc-400">
-                          ${run.costUsd.toFixed(2)}
+                          ${run.cost_usd.toFixed(2)}
                         </span>
                       )}
                     </div>

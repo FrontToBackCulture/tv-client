@@ -14,11 +14,11 @@ const icons: Record<ToastType, typeof CheckCircle2> = {
 };
 
 const styles: Record<ToastType, string> = {
-  success: "border-success/30 bg-success-light text-success-dark",
-  error: "border-error/30 bg-error-light text-error-dark",
-  info: "border-info/30 bg-info-light text-info-dark",
-  warning: "border-warning/30 bg-warning-light text-warning-dark",
-  loading: "border-info/30 bg-info-light text-info-dark",
+  success: "border-success/30 bg-success-light text-success-dark dark:text-success",
+  error: "border-error/30 bg-error-light text-error-dark dark:text-error",
+  info: "border-info/30 bg-info-light text-info-dark dark:text-info",
+  warning: "border-warning/30 bg-warning-light text-warning-dark dark:text-warning",
+  loading: "border-info/30 bg-info-light text-info-dark dark:text-info",
 };
 
 const iconColors: Record<ToastType, string> = {

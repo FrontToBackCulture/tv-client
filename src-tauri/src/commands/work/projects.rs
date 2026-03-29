@@ -129,35 +129,7 @@ pub async fn work_create_project(data: CreateProject) -> CmdResult<Project> {
     // Create project
     let project: Project = client.insert("projects", &insert_data).await?;
 
-    // Create default statuses
-    let default_statuses = if data.project_type.as_deref() == Some("deal") {
-        vec![
-            ("Backlog", "backlog", "#6B7280", 0),
-            ("Todo", "unstarted", "#3B82F6", 1),
-            ("In Progress", "started", "#0D7680", 2),
-            ("Done", "completed", "#10B981", 3),
-        ]
-    } else {
-        vec![
-            ("Backlog", "backlog", "#6B7280", 0),
-            ("Todo", "unstarted", "#3B82F6", 1),
-            ("In Progress", "started", "#F59E0B", 2),
-            ("In Review", "review", "#8B5CF6", 3),
-            ("Done", "completed", "#10B981", 4),
-            ("Canceled", "canceled", "#EF4444", 5),
-        ]
-    };
-
-    for (name, status_type, color, sort_order) in default_statuses {
-        let status = serde_json::json!({
-            "project_id": project.id,
-            "name": name,
-            "type": status_type,
-            "color": color,
-            "sort_order": sort_order
-        });
-        let _: TaskStatus = client.insert("task_statuses", &status).await?;
-    }
+    // Statuses are global — no per-project statuses needed
 
     // Deal-specific: update company stage if prospect → opportunity
     if data.project_type.as_deref() == Some("deal") {

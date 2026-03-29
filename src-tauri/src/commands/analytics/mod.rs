@@ -4,7 +4,10 @@
 // AnalyticsPageView structs, which get upserted to the Supabase
 // analytics_page_views table.
 
+pub mod auth;
+pub mod background;
 pub mod ga4;
+pub mod types;
 
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -46,35 +49,69 @@ pub async fn upsert_page_views(
         return Ok(0);
     }
 
+    // Deduplicate: GA4 can return multiple rows for the same (source, page_path, user_id, view_date)
+    // when there are different domain values. Aggregate by summing views.
+    use std::collections::HashMap;
+    struct AggRow {
+        domain: Option<String>,
+        views: i32,
+        is_internal: bool,
+    }
+    let mut deduped: HashMap<(String, String, String, String), AggRow> = HashMap::new();
+    for r in rows {
+        let key = (
+            r.source.clone(),
+            r.page_path.clone(),
+            r.user_id.as_deref().unwrap_or("").to_string(),
+            r.view_date.to_string(),
+        );
+        let entry = deduped.entry(key).or_insert(AggRow {
+            domain: r.domain.clone(),
+            views: 0,
+            is_internal: r.is_internal,
+        });
+        entry.views += r.views;
+        // Keep domain if we find a non-null one
+        if entry.domain.is_none() && r.domain.is_some() {
+            entry.domain = r.domain.clone();
+        }
+        if r.is_internal {
+            entry.is_internal = true;
+        }
+    }
+
     let client = crate::HTTP_CLIENT.clone();
-    let url = format!("{}/rest/v1/analytics_page_views", supabase_url);
+    let url = format!(
+        "{}/rest/v1/analytics_page_views?on_conflict=source,page_path,user_id,view_date",
+        supabase_url
+    );
+
+    let all_rows: Vec<serde_json::Value> = deduped
+        .into_iter()
+        .map(|((source, page_path, user_id, view_date), agg)| {
+            serde_json::json!({
+                "source": source,
+                "domain": agg.domain,
+                "page_path": page_path,
+                "user_id": user_id,
+                "view_date": view_date,
+                "views": agg.views,
+                "is_internal": agg.is_internal,
+                "created_at": Utc::now().to_rfc3339(),
+            })
+        })
+        .collect();
 
     // Supabase has a payload size limit — batch in chunks of 500
     let mut total = 0;
-    for chunk in rows.chunks(500) {
-        let payload: Vec<serde_json::Value> = chunk
-            .iter()
-            .map(|r| {
-                serde_json::json!({
-                    "source": r.source,
-                    "domain": r.domain,
-                    "page_path": r.page_path,
-                    "user_id": r.user_id,
-                    "view_date": r.view_date.to_string(),
-                    "views": r.views,
-                    "is_internal": r.is_internal,
-                    "created_at": Utc::now().to_rfc3339(),
-                })
-            })
-            .collect();
-
+    for chunk in all_rows.chunks(500) {
         let resp = client
             .post(&url)
             .header("apikey", supabase_key)
             .header("Authorization", format!("Bearer {}", supabase_key))
             .header("Content-Type", "application/json")
             .header("Prefer", "resolution=merge-duplicates")
-            .json(&payload)
+            .json(&chunk)
             .send()
             .await?;
 

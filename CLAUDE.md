@@ -169,6 +169,17 @@ npm run tauri:build      # Build desktop app
 
 ## Gotchas
 
+### Cargo stale builds — touch before building
+
+Cargo uses file modification timestamps to detect changes. The Claude Code Edit tool sometimes doesn't update mtime in a way cargo detects. **Always touch edited Rust files before building:**
+
+```bash
+touch src-tauri/src/commands/the_file_you_edited.rs
+cargo build --manifest-path src-tauri/Cargo.toml
+```
+
+If `cargo build` says "Finished" without "Compiling", it missed the change. The `touch` forces it. Also applies to `tauri dev` auto-rebuild.
+
 ### tv-mcp binary — rebuild after Rust changes
 
 After any changes to `src-tauri/src/mcp/` or `src-tauri/src/commands/`, rebuild the standalone binary:

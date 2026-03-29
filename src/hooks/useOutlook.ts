@@ -202,10 +202,50 @@ export function useSyncStart() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (months?: number) => invoke<number>("outlook_sync_start", { months: months ?? 3 }),
+    mutationFn: () => invoke<number>("outlook_sync_start"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outlook"] });
     },
+  });
+}
+
+// ============================================================================
+// Initial setup hook (for Settings onboarding)
+// ============================================================================
+
+export interface InitialSetupResult {
+  emails: number;
+  events: number;
+}
+
+export function useInitialSetup() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (months: number) =>
+      invoke<InitialSetupResult>("outlook_initial_setup", { months }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["outlook"] });
+    },
+  });
+}
+
+export interface SyncStatusResult {
+  isSyncing: boolean;
+  lastSync: string | null;
+  emailsSynced: number;
+  error: string | null;
+}
+
+export function useSyncStatus() {
+  return useQuery({
+    queryKey: ["outlook", "sync-status"],
+    queryFn: async () => {
+      const email = await invoke<SyncStatusResult>("outlook_sync_status");
+      const calendar = await invoke<CalendarSyncStatus>("outlook_calendar_sync_status");
+      return { email, calendar };
+    },
+    staleTime: 1000 * 30,
   });
 }
 
@@ -232,7 +272,7 @@ export function useCalendarSyncStart() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (months?: number) => invoke<number>("outlook_calendar_sync_start", { months: months ?? 24 }),
+    mutationFn: () => invoke<number>("outlook_calendar_sync_start"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outlook", "calendar-sync-status"] });
       queryClient.invalidateQueries({ queryKey: ["outlook", "events"] });

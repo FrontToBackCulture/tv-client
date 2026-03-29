@@ -129,6 +129,12 @@ pub struct SyncConfig {
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+    /// Runtime-only: use created_time instead of last_edited_time for since filter
+    #[serde(default, skip_serializing)]
+    pub use_created_time: bool,
+    /// Runtime-only: skip fetching page body content (faster for bulk sync)
+    #[serde(default, skip_serializing)]
+    pub skip_body: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

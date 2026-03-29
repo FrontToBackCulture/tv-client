@@ -3,6 +3,7 @@
 
 import { useState, useMemo } from "react";
 import { useDealsWithTasks, useUpdateDeal } from "../../hooks/crm";
+import { toast } from "../../stores/toastStore";
 import { Deal, DealWithTaskInfo, DEAL_STAGES, DEAL_SOLUTIONS } from "../../lib/crm/types";
 import { DealCard } from "./DealCard";
 import { ArrowUpDown, RefreshCw, Filter, ChevronDown, GripVertical } from "lucide-react";
@@ -112,6 +113,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [solutionFilter, setSolutionFilter] = useState<string>(getSavedSolutionFilter);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   // Fetch active deals with tasks (not won/lost)
   const { data: deals = [], isLoading, refetch } = useDealsWithTasks({
@@ -154,15 +156,21 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
   // Handle drag and drop stage change
   async function handleStageDrop(dealId: string, newStage: string) {
     setDragOverStage(null);
+    setDraggingId(null);
+    const deal = deals.find(d => d.id === dealId);
+    const dealName = deal?.name || dealId.slice(0, 8);
+    toast.loading(`Moving ${dealName} to ${newStage}...`);
     try {
       await updateMutation.mutateAsync({
         id: dealId,
         updates: { stage: newStage as Deal["stage"] },
       });
+      toast.success(`${dealName} moved to ${newStage}`);
       refetch();
       onRefresh?.();
     } catch (error) {
-      console.error("Failed to update deal stage:", error);
+      console.error("[pipeline] Failed to update deal stage:", error);
+      toast.error(`Failed to move deal: ${error}`);
       refetch();
     }
   }
@@ -358,17 +366,24 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                 )}
                 onDragOver={(e) => {
                   e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
                   if (dragOverStage !== stage.value) setDragOverStage(stage.value);
                 }}
                 onDragLeave={(e) => {
-                  // Only clear if we're actually leaving this column
                   if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                     setDragOverStage(null);
                   }
                 }}
                 onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   const dealId = e.dataTransfer.getData("dealId");
-                  if (dealId) handleStageDrop(dealId, stage.value);
+                  console.log("[pipeline] onDrop fired, dealId:", dealId, "stage:", stage.value);
+                  if (dealId) {
+                    handleStageDrop(dealId, stage.value);
+                  } else {
+                    console.warn("[pipeline] No dealId in dataTransfer");
+                  }
                 }}
               >
                 {sorted.length === 0 ? (
@@ -400,8 +415,21 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
                         onDragStart={(e) => {
                           e.dataTransfer.setData("dealId", deal.id);
                           e.dataTransfer.effectAllowed = "move";
+                          setDraggingId(deal.id);
                         }}
-                        className="cursor-grab active:cursor-grabbing active:opacity-60 animate-fade-slide-in"
+                        onDragEnd={() => setDraggingId(null)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dragOverStage !== stage.value) setDragOverStage(stage.value);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const dealId = e.dataTransfer.getData("dealId");
+                          if (dealId && dealId !== deal.id) handleStageDrop(dealId, stage.value);
+                        }}
+                        className={`cursor-grab active:cursor-grabbing active:opacity-60 animate-fade-slide-in ${draggingId && draggingId !== deal.id ? "[&>*]:pointer-events-none" : ""}`}
                         style={staggerStyle(i)}
                       >
                         <DealCard

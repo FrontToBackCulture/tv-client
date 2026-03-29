@@ -43,20 +43,7 @@ interface DomainsOverviewProps {
   onSelectDomain: (domain: string) => void;
 }
 
-const TYPE_ORDER = ["production", "not-active", "demo", "template"] as const;
-const TYPE_LABELS: Record<string, string> = {
-  production: "Production",
-  "not-active": "Not Active",
-  demo: "Demo",
-  template: "Templates",
-};
-
-const TYPE_DOT_COLORS: Record<string, string> = {
-  production: "bg-green-500",
-  "not-active": "bg-zinc-400",
-  demo: "bg-blue-500",
-  template: "bg-purple-500",
-};
+import { useDomainTypeConfig } from "./useDomainTypeConfig";
 
 function formatRelativeTime(isoString: string | null): string {
   if (!isoString) return "Never";
@@ -73,13 +60,13 @@ function formatRelativeTime(isoString: string | null): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function groupByType(domains: DiscoveredDomain[]): Map<string, DiscoveredDomain[]> {
+function groupByType(domains: DiscoveredDomain[], typeOrder: string[]): Map<string, DiscoveredDomain[]> {
   const groups = new Map<string, DiscoveredDomain[]>();
-  for (const type of TYPE_ORDER) {
+  for (const type of typeOrder) {
     const items = domains.filter((d) => d.domain_type === type);
     if (items.length > 0) groups.set(type, items);
   }
-  const known = new Set<string>(TYPE_ORDER as unknown as string[]);
+  const known = new Set<string>(typeOrder);
   const other = domains.filter((d) => !known.has(d.domain_type));
   if (other.length > 0) groups.set("other", other);
   return groups;
@@ -160,11 +147,15 @@ function DropdownMenu({
 function DomainCard({
   domain,
   onClick,
+  dotColors,
+  labels,
 }: {
   domain: DiscoveredDomain;
   onClick: () => void;
+  dotColors: Record<string, string>;
+  labels: Record<string, string>;
 }) {
-  const dotColor = TYPE_DOT_COLORS[domain.domain_type] ?? "bg-zinc-400";
+  const dotColor = dotColors[domain.domain_type] ?? "bg-zinc-400";
   const [copied, setCopied] = useState(false);
 
   const handleCopyReportsPath = (e: React.MouseEvent) => {
@@ -213,7 +204,7 @@ function DomainCard({
         </div>
       </div>
       <div className="flex items-center gap-3 text-xs text-zinc-400">
-        <span>{TYPE_LABELS[domain.domain_type] ?? domain.domain_type}</span>
+        <span>{labels[domain.domain_type] ?? domain.domain_type}</span>
         {domain.last_sync && (
           <>
             <span>·</span>
@@ -231,6 +222,7 @@ function DomainCard({
 
 export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const [search, setSearch] = useState("");
+  const typeConfig = useDomainTypeConfig();
 
   const paths = useKnowledgePaths();
   const domainsPath = paths ? `${paths.platform}/domains` : null;
@@ -277,8 +269,8 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
       );
       const warningText = result.warnings.length > 0 ? ` | Warnings: ${result.warnings.join("; ")}` : "";
       updateJob(jobId, { status: "completed", progress: 100, message: `Synced ${result.rows_upserted} page views${warningText}` });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : typeof e === "object" && e !== null ? JSON.stringify(e) : String(e);
       updateJob(jobId, { status: "failed", progress: 100, message: msg });
     } finally {
       setIsGa4Syncing(false);
@@ -358,7 +350,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const filtered = all.filter((d) =>
     search ? d.domain.toLowerCase().includes(search.toLowerCase()) : true
   );
-  const grouped = groupByType(filtered);
+  const grouped = groupByType(filtered, typeConfig.order);
   const currentOp = getCurrentOperation();
 
   // Dropdown menu items
@@ -538,7 +530,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
               <div key={type}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                    {TYPE_LABELS[type] ?? type}
+                    {typeConfig.labels[type] ?? type}
                   </span>
                   <span className="text-xs text-zinc-400/60">{items.length}</span>
                 </div>
@@ -548,6 +540,8 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
                       key={d.domain}
                       domain={d}
                       onClick={() => onSelectDomain(d.domain)}
+                      dotColors={typeConfig.dotColors}
+                      labels={typeConfig.labels}
                     />
                   ))}
                 </div>

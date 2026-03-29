@@ -40,6 +40,7 @@ import {
   Upload,
   Download,
   ExternalLink,
+  ChevronDown,
 } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
@@ -133,7 +134,7 @@ export function TaskDetailPanel({
   }
 
   const identifier = getTaskIdentifier(task);
-  const statusType = (task.status?.type || "unstarted") as import("../../lib/work/types").StatusType;
+  const statusType = (task.status?.type || "todo") as import("../../lib/work/types").StatusType;
   const statusColor = task.status?.color || "#6B7280";
 
   async function handleUpdateField(field: string, value: unknown) {
@@ -309,17 +310,36 @@ export function TaskDetailPanel({
             {/* Status */}
             <div className="flex items-center gap-3">
               <span className="w-24 text-xs text-zinc-400 dark:text-zinc-500">Status</span>
-              <select
-                value={task.status_id || ""}
-                onChange={(e) => handleUpdateField("status_id", e.target.value)}
-                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
-              >
-                {statuses.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative flex-1">
+                <select
+                  value={task.status_id || ""}
+                  onChange={(e) => handleUpdateField("status_id", e.target.value)}
+                  className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                >
+                  {(() => {
+                    const typeLabels: Record<string, string> = { todo: "To-do", in_progress: "In Progress", complete: "Complete" };
+                    const typeOrder = ["todo", "in_progress", "complete"];
+                    const grouped = statuses.reduce<Record<string, typeof statuses>>((acc, s) => {
+                      (acc[s.type] ??= []).push(s);
+                      return acc;
+                    }, {});
+                    const useGroups = statuses.length > 10;
+                    if (!useGroups) {
+                      return statuses.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ));
+                    }
+                    return typeOrder.filter(t => grouped[t]?.length).map(type => (
+                      <optgroup key={type} label={typeLabels[type] || type}>
+                        {grouped[type].map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </optgroup>
+                    ));
+                  })()}
+                </select>
+                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+              </div>
             </div>
 
             {/* Priority */}
@@ -328,17 +348,20 @@ export function TaskDetailPanel({
                 <Flag size={12} />
                 Priority
               </span>
-              <select
-                value={task.priority ?? Priority.None}
-                onChange={(e) => handleUpdateField("priority", parseInt(e.target.value))}
-                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
-              >
-                {Object.entries(PriorityLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative flex-1">
+                <select
+                  value={task.priority ?? Priority.None}
+                  onChange={(e) => handleUpdateField("priority", parseInt(e.target.value))}
+                  className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                >
+                  {Object.entries(PriorityLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+              </div>
             </div>
 
             {/* Assignees */}
@@ -389,20 +412,23 @@ export function TaskDetailPanel({
                 <MilestoneIcon size={12} />
                 Milestone
               </span>
-              <select
-                value={task.milestone_id || ""}
-                onChange={(e) =>
-                  handleUpdateField("milestone_id", e.target.value || null)
-                }
-                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
-              >
-                <option value="">No milestone</option>
-                {milestones.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative flex-1">
+                <select
+                  value={task.milestone_id || ""}
+                  onChange={(e) =>
+                    handleUpdateField("milestone_id", e.target.value || null)
+                  }
+                  className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                >
+                  <option value="">No milestone</option>
+                  {milestones.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+              </div>
             </div>
 
             {/* Due Date */}
@@ -442,16 +468,19 @@ export function TaskDetailPanel({
                   <Target size={12} />
                   Type
                 </span>
-                <select
-                  value={task.task_type || "general"}
-                  onChange={(e) => handleUpdateField("task_type", e.target.value)}
-                  className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
-                >
-                  <option value="general">General</option>
-                  <option value="target">Target</option>
-                  <option value="prospect">Prospect</option>
-                  <option value="follow_up">Follow Up</option>
-                </select>
+                <div className="relative flex-1">
+                  <select
+                    value={task.task_type || "general"}
+                    onChange={(e) => handleUpdateField("task_type", e.target.value)}
+                    className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                  >
+                    <option value="general">General</option>
+                    <option value="target">Target</option>
+                    <option value="prospect">Prospect</option>
+                    <option value="follow_up">Follow Up</option>
+                  </select>
+                  <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                </div>
               </div>
             )}
 
@@ -479,28 +508,31 @@ export function TaskDetailPanel({
                   <Building2 size={12} />
                   Company
                 </span>
-                <select
-                  value={(task as any).company_id || ""}
-                  onChange={async (e) => {
-                    const val = e.target.value || null;
-                    try {
-                      await updateMutation.mutateAsync({
-                        id: taskId,
-                        updates: { company_id: val, contact_id: null },
-                      });
-                      refetch();
-                      onUpdated?.();
-                    } catch (error) {
-                      console.error("Failed to update company:", error);
-                    }
-                  }}
-                  className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
-                >
-                  <option value="">No company</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.display_name || c.name}</option>
-                  ))}
-                </select>
+                <div className="relative flex-1">
+                  <select
+                    value={(task as any).company_id || ""}
+                    onChange={async (e) => {
+                      const val = e.target.value || null;
+                      try {
+                        await updateMutation.mutateAsync({
+                          id: taskId,
+                          updates: { company_id: val, contact_id: null },
+                        });
+                        refetch();
+                        onUpdated?.();
+                      } catch (error) {
+                        console.error("Failed to update company:", error);
+                      }
+                    }}
+                    className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                  >
+                    <option value="">No company</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.display_name || c.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                </div>
               </div>
             )}
 
@@ -511,18 +543,21 @@ export function TaskDetailPanel({
                   <User size={12} />
                   Contact
                 </span>
-                <select
-                  value={(task as any).contact_id || ""}
-                  onChange={(e) => handleUpdateField("contact_id", e.target.value || null)}
-                  className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
-                >
-                  <option value="">No contact</option>
-                  {contacts
-                    .filter((c) => !(task as any).company_id || c.company_id === (task as any).company_id)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                </select>
+                <div className="relative flex-1">
+                  <select
+                    value={(task as any).contact_id || ""}
+                    onChange={(e) => handleUpdateField("contact_id", e.target.value || null)}
+                    className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                  >
+                    <option value="">No contact</option>
+                    {contacts
+                      .filter((c) => !(task as any).company_id || c.company_id === (task as any).company_id)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                </div>
               </div>
             )}
 

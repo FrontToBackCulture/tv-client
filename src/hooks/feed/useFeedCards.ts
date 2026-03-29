@@ -14,6 +14,7 @@ import { feedKeys } from "./keys";
 export function useFeedCards(filter: string, userId: string) {
   return useQuery({
     queryKey: feedKeys.cardsByFilter(filter),
+    refetchInterval: 5 * 60 * 1000, // refresh every 5 minutes
     queryFn: async (): Promise<FeedCardWithInteraction[]> => {
       const today = new Date().toISOString().split("T")[0];
 
@@ -56,37 +57,13 @@ export function useFeedCards(filter: string, userId: string) {
         interaction: interactionMap.get(c.id) || null,
       }));
 
-      return interleaveFeed(merged);
+      // Pinned first, then chronological (query already sorts by created_at DESC).
+      // The blue "new" dot handles unseen indication — no reordering needed.
+      const pinned = merged.filter((c) => c.pinned);
+      const unpinned = merged.filter((c) => !c.pinned);
+      return [...pinned, ...unpinned];
     },
   });
-}
-
-/**
- * Interleave: pinned first, then unseen (3 event : 1 knowledge), then seen chronologically.
- */
-function interleaveFeed(cards: FeedCardWithInteraction[]): FeedCardWithInteraction[] {
-  const pinned = cards.filter((c) => c.pinned);
-  const unpinned = cards.filter((c) => !c.pinned);
-
-  const unseen = unpinned.filter((c) => !c.interaction?.seen);
-  const seen = unpinned.filter((c) => c.interaction?.seen);
-
-  const unseenEvents = unseen.filter((c) => c.category === "event");
-  const unseenKnowledge = unseen.filter((c) => c.category === "knowledge");
-
-  const interleaved: FeedCardWithInteraction[] = [];
-  let ei = 0;
-  let ki = 0;
-  while (ei < unseenEvents.length || ki < unseenKnowledge.length) {
-    for (let n = 0; n < 3 && ei < unseenEvents.length; n++, ei++) {
-      interleaved.push(unseenEvents[ei]);
-    }
-    if (ki < unseenKnowledge.length) {
-      interleaved.push(unseenKnowledge[ki++]);
-    }
-  }
-
-  return [...pinned, ...interleaved, ...seen];
 }
 
 // ─── Series Cards (detail cards for a series) ───
@@ -135,8 +112,27 @@ export function useMarkSeen(userId: string) {
       if (error) throw new Error(`Failed to mark seen: ${error.message}`);
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: feedKeys.cards() });
+    onSuccess: (_data, cardId) => {
+      // Update local cache optimistically instead of refetching.
+      // Refetching was causing a cascade: hero marks seen → refetch → new hero → marks seen → ...
+      queryClient.setQueriesData<FeedCardWithInteraction[]>(
+        { queryKey: feedKeys.cards() },
+        (old) =>
+          old?.map((c) =>
+            c.id === cardId
+              ? {
+                  ...c,
+                  interaction: {
+                    ...c.interaction,
+                    card_id: cardId,
+                    user_id: userId,
+                    seen: true,
+                    seen_at: new Date().toISOString(),
+                  } as FeedInteraction,
+                }
+              : c
+          )
+      );
     },
   });
 }

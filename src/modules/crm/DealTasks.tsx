@@ -57,8 +57,8 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
         .select("id, name, type")
         .eq("project_id", CRM_FOLLOWUPS_PROJECT_ID);
 
-      const unstartedStatus = (projectStatuses ?? []).find((s) => s.type === "unstarted");
-      if (!unstartedStatus) throw new Error("No unstarted status found");
+      const unstartedStatus = (projectStatuses ?? []).find((s) => s.type === "todo");
+      if (!unstartedStatus) throw new Error("No todo status found");
 
       const { data, error } = await supabase
         .from("tasks")
@@ -93,8 +93,8 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
         .select("id, name, type")
         .eq("project_id", CRM_FOLLOWUPS_PROJECT_ID);
 
-      const completedStatus = (projectStatuses ?? []).find((s) => s.type === "completed");
-      if (!completedStatus) throw new Error("No completed status found");
+      const completedStatus = (projectStatuses ?? []).find((s) => s.type === "complete");
+      if (!completedStatus) throw new Error("No complete status found");
 
       const { error } = await supabase
         .from("tasks")
@@ -131,7 +131,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
       {/* Task list */}
       <div className="space-y-2">
         {tasks.map((task: DealTaskFull) => {
-          const isCompleted = task.status_type === "completed";
+          const isCompleted = task.status_type === "complete";
           const isCompleting = completeMutation.isPending;
 
           return (

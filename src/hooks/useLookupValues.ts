@@ -40,6 +40,9 @@ export function useCompanyStages() { return useLookupValues("company_stage"); }
 export function useActivityTypes() { return useLookupValues("activity_type"); }
 export function useProjectStatuses() { return useLookupValues("project_status"); }
 export function useProjectHealthValues() { return useLookupValues("project_health"); }
+export function useDomainTypeLookups() { return useLookupValues("domain_type"); }
+export function useInitiativeStatuses() { return useLookupValues("initiative_status"); }
+export function useTaskStatusTypes() { return useLookupValues("task_status_type"); }
 
 // All lookup values (for Metadata grid)
 export function useAllLookupValues() { return useLookupValues(); }

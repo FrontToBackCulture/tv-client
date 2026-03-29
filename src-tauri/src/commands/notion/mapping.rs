@@ -211,7 +211,15 @@ pub fn map_page_to_task(
                 task.insert("due_date".to_string(), Value::String(mapped_value));
             }
             "assignee_id" | "assignees" => {
-                task.insert("assignee_id".to_string(), Value::String(mapped_value));
+                // For people fields, apply value_map per person (comma-separated)
+                if raw_value.contains(',') && value_map.is_some() {
+                    let resolved: Vec<String> = raw_value.split(',')
+                        .map(|name| apply_value_map(name.trim(), value_map))
+                        .collect();
+                    task.insert("assignee_id".to_string(), Value::String(resolved.join(",")));
+                } else {
+                    task.insert("assignee_id".to_string(), Value::String(mapped_value));
+                }
             }
             "milestone_id" => {
                 task.insert("milestone_id".to_string(), Value::String(mapped_value));
@@ -309,13 +317,14 @@ pub fn map_task_to_page(
             _ => raw_value.clone(),
         };
 
-        // Try reverse value_map (Notion name → task value), but fall back to the resolved name
-        let notion_value = if let Some(vmap) = value_map {
-            // First try reversing with the raw UUID (exact match for same-project)
+        // For status_id: use the resolved name directly (our status names match Notion's).
+        // Reverse value_map is unreliable for status because many Notion statuses map to the same UUID.
+        // For other fields: try reverse value_map, fall back to resolved name.
+        let notion_value = if task_field == "status_id" {
+            resolved_value
+        } else if let Some(vmap) = value_map {
             reverse_value_map(&raw_value, vmap)
-                // Then try reversing with the resolved name
                 .or_else(|| reverse_value_map(&resolved_value, vmap))
-                // Fall back to the resolved name directly (works for cross-project)
                 .unwrap_or(resolved_value)
         } else {
             resolved_value

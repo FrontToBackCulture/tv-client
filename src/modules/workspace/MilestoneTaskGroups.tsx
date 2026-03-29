@@ -1,7 +1,7 @@
 // Milestone-grouped task table: collapsible sections per milestone with progress
 import { useState } from "react";
 import {
-  ChevronDown, ChevronRight, CheckCircle2, XCircle, Circle,
+  ChevronDown, ChevronRight, CheckCircle2, Circle,
   Milestone as MilestoneIcon, Trash2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
@@ -11,12 +11,10 @@ import {
 } from "../../lib/work/types";
 
 const STATUS_TYPE_COLORS: Record<StatusType, string> = {
-  backlog: "#6B7280", unstarted: "#3B82F6", started: "#F59E0B",
-  review: "#8B5CF6", completed: "#10B981", canceled: "#EF4444",
+  todo: "#9CA3AF", in_progress: "#F59E0B", complete: "#10B981",
 };
 const STATUS_TYPE_LABELS: Record<StatusType, string> = {
-  backlog: "Backlog", unstarted: "Todo", started: "In Progress",
-  review: "In Review", completed: "Done", canceled: "Canceled",
+  todo: "To-do", in_progress: "In Progress", complete: "Complete",
 };
 
 type SortCol = "id" | "title" | "priority" | "assignee" | "milestone" | "due_date" | null;
@@ -36,7 +34,7 @@ interface Props {
 function sortTasks(tasks: TaskWithRelations[], col: SortCol, dir: "asc" | "desc"): TaskWithRelations[] {
   if (!col) {
     // Default sort: status order, then task number
-    const order: Record<string, number> = { started: 0, review: 0, unstarted: 1, backlog: 2, completed: 3, canceled: 4 };
+    const order: Record<string, number> = { in_progress: 0, todo: 1, complete: 2 };
     return [...tasks].sort((a, b) => {
       const statusDiff = (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
       if (statusDiff !== 0) return statusDiff;
@@ -112,7 +110,7 @@ export function MilestoneTaskGroups({
   );
 
   const renderRow = (task: TaskWithRelations) => {
-    const st = (task.status?.type as StatusType) ?? "unstarted";
+    const st = (task.status?.type as StatusType) ?? "todo";
     const sc = STATUS_TYPE_COLORS[st] || "#6B7280";
     const identifier = getTaskIdentifier(task);
     const pc = PriorityColors[task.priority as Priority] ?? "#6B7280";
@@ -129,9 +127,8 @@ export function MilestoneTaskGroups({
         <td className="px-3 py-1.5 relative" style={{ width: 36 }} onClick={(e) => e.stopPropagation()}>
           <div className="relative w-5 h-5">
             <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              {st === "completed" ? <CheckCircle2 size={14} style={{ color: sc }} />
-                : st === "canceled" ? <XCircle size={14} style={{ color: sc }} />
-                : st === "started" || st === "review" ? (
+              {st === "complete" ? <CheckCircle2 size={14} style={{ color: sc }} />
+                : st === "in_progress" ? (
                   <svg width="14" height="14" viewBox="0 0 16 16">
                     <circle cx="8" cy="8" r="6.5" fill="none" stroke={sc} strokeWidth="1.5" />
                     <path d="M8 1.5 A6.5 6.5 0 0 1 8 14.5" fill={sc} />

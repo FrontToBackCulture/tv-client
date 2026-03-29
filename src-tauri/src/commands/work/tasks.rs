@@ -316,6 +316,7 @@ pub async fn work_task_triage(
     app: tauri::AppHandle,
     _state: tauri::State<'_, AppState>,
     _model: Option<String>,
+    task_ids: Option<Vec<String>>,
 ) -> CmdResult<TaskTriageResult> {
     use tauri::Emitter;
 
@@ -345,7 +346,13 @@ pub async fn work_task_triage(
     let tasks: Vec<serde_json::Value> = client.select("tasks", &task_query).await.unwrap_or_default();
     let tasks: Vec<serde_json::Value> = tasks.into_iter().filter(|t| {
         let pn = t.get("project").and_then(|p| p.get("name")).and_then(|n| n.as_str()).unwrap_or("");
-        pn != "tv-notion-tasks"
+        if pn == "tv-notion-tasks" { return false; }
+        // If task_ids filter is provided, only include matching tasks
+        if let Some(ref ids) = task_ids {
+            let tid = t.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            return ids.iter().any(|id| id == tid);
+        }
+        true
     }).collect();
 
     let _ = app.emit("task-triage:progress", TaskTriageProgress {
@@ -610,125 +617,7 @@ pub async fn work_task_triage(
 
     let task_count = proposals.iter().filter(|p| p.item_type == "task").count();
     let deal_count = proposals.iter().filter(|p| p.item_type == "deal").count();
-    eprintln!("[task_triage] Instant scoring done. {} proposals ({} tasks + {} deals). Spawning Claude for reasoning...", count, task_count, deal_count);
-
-    // ── 7. Background: Claude enriches reasons with strategic thinking ──
-    let proposals_for_claude = proposals.clone();
-    // Build set of deal IDs so enrichment doesn't write deal (project) UUIDs to tasks table
-    let deal_ids: std::collections::HashSet<String> = proposals_for_claude.iter()
-        .filter(|p| p.item_type == "deal")
-        .map(|p| p.task_id.clone())
-        .collect();
-    let app_bg = app.clone();
-    let kb_clone = _state.knowledge_path.clone();
-    tokio::spawn(async move {
-        use std::process::Stdio;
-        use tokio::io::AsyncWriteExt;
-        use tokio::process::Command;
-
-        // Build a compact summary for Claude — just scores + titles, ask for better reasons
-        let items: Vec<String> = proposals_for_claude.iter().map(|p| {
-            format!("{{\"id\":\"{}\",\"type\":\"{}\",\"title\":\"{}\",\"project\":\"{}\",\"score\":{},\"action\":\"{}\",\"reason\":\"{}\"}}",
-                p.task_id, p.item_type, p.title.replace('"', "'"), p.project.replace('"', "'"),
-                p.triage_score, p.triage_action, p.triage_reason.replace('"', "'"))
-        }).collect();
-        let items_json = format!("[{}]", items.join(","));
-
-        // Read priorities for context
-        let priorities = {
-            let path = std::path::Path::new(&kb_clone).join("_team/melvin/priorities.md");
-            std::fs::read_to_string(&path).unwrap_or_default()
-        };
-
-        let prompt = format!(
-            "You are Melvin's strategic advisor. Below are his triaged tasks and deals, already scored.\n\
-            Your job: rewrite each triage_reason to be more strategic and actionable.\n\n\
-            PRIORITIES:\n{}\n\n\
-            SCORED ITEMS:\n{}\n\n\
-            For each item:\n\
-            1. Rewrite triage_reason with strategic thinking — not just factors, but WHY it matters\n\
-            2. Name the person/company and the specific next step\n\
-            3. You CAN override the score if you think the formula got it wrong\n\
-               - A low-scored task that's actually critical? Bump it up and explain why\n\
-               - A high-scored task that's less important than it looks? Lower it\n\
-            4. You CAN override the action (do_now/do_this_week/defer/delegate/kill)\n\
-            5. If you see patterns (e.g., 5 overdue follow-ups), call it out in the first item\n\n\
-            OUTPUT: ONLY a JSON array. Start with [ end with ]. No other text.\n\
-            Each element: {{\"id\":\"<same id>\",\"score\":<adjusted or same>,\"action\":\"<adjusted or same>\",\"reason\":\"<your strategic reason>\"}}\n\
-            Keep the same order.",
-            priorities, items_json
-        );
-
-        let mut cmd = Command::new("claude");
-        cmd.arg("-p").arg("--model").arg("sonnet").arg("--output-format").arg("json");
-        cmd.current_dir(&kb_clone);
-        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-
-        let child = cmd.spawn();
-        if let Ok(mut child) = child {
-            if let Some(mut stdin) = child.stdin.take() {
-                let _ = stdin.write_all(prompt.as_bytes()).await;
-                let _ = stdin.shutdown().await;
-            }
-            if let Ok(output) = child.wait_with_output().await {
-                if output.status.success() {
-                    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                    // Parse Claude's JSON output
-                    let text = serde_json::from_str::<serde_json::Value>(&stdout)
-                        .ok()
-                        .and_then(|j| j.get("result").and_then(|v| v.as_str()).map(|s| s.to_string()))
-                        .unwrap_or(stdout);
-
-                    // Extract JSON array of improved reasons
-                    let reasons: Vec<serde_json::Value> = {
-                        let t = text.trim();
-                        serde_json::from_str(t)
-                            .or_else(|_| {
-                                if let (Some(s), Some(e)) = (t.find('['), t.rfind(']')) {
-                                    serde_json::from_str(&t[s..=e])
-                                } else {
-                                    Err(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::InvalidData, "no array")))
-                                }
-                            })
-                            .unwrap_or_default()
-                    };
-
-                    if !reasons.is_empty() {
-                        // Update reasons in DB
-                        if let Ok(client) = get_client().await {
-                            let mut updated = 0;
-                            for r in &reasons {
-                                let id = r.get("id").and_then(|v| v.as_str());
-                                let reason = r.get("reason").and_then(|v| v.as_str());
-                                let score = r.get("score").and_then(|v| v.as_i64());
-                                let action = r.get("action").and_then(|v| v.as_str());
-                                if let (Some(id), Some(reason)) = (id, reason) {
-                                    // Skip deal proposals — their IDs are project UUIDs, not task UUIDs
-                                    if deal_ids.contains(id) { continue; }
-                                    let mut update = serde_json::json!({ "triage_reason": reason });
-                                    if let Some(s) = score { update["triage_score"] = serde_json::json!(s); }
-                                    if let Some(a) = action { update["triage_action"] = serde_json::json!(a); }
-                                    let res: Result<serde_json::Value, _> = client.update("tasks", &format!("id=eq.{}", id), &update).await;
-                                    if res.is_ok() { updated += 1; }
-                                }
-                            }
-                            eprintln!("[task_triage] Claude enriched {} items (reasons + score overrides)", updated);
-                        }
-                        // Emit special event so frontend refreshes task data
-                        let _ = app_bg.emit("task-triage:enriched", serde_json::json!({
-                            "count": reasons.len()
-                        }));
-                        let _ = app_bg.emit("task-triage:progress", TaskTriageProgress {
-                            message: format!("Claude refined {} reasons with strategic insights", reasons.len()),
-                            phase: "complete".into(),
-                        });
-                    } else {
-                        eprintln!("[task_triage] Claude returned no parseable reasons");
-                    }
-                }
-            }
-        }
-    });
+    eprintln!("[task_triage] Scoring done. {} proposals ({} tasks + {} deals)", count, task_count, deal_count);
 
     Ok(TaskTriageResult {
         success: !proposals.is_empty(),
@@ -762,6 +651,215 @@ pub async fn work_apply_triage(
         .await?;
 
     work_get_task(task_id).await
+}
+
+/// Generate a strategic triage summary using Claude — pulls full context from Supabase
+#[tauri::command]
+pub async fn work_triage_summary(proposals_json: String) -> CmdResult<String> {
+    let api_key = crate::commands::settings::settings_get_key(
+        crate::commands::settings::KEY_ANTHROPIC_API.to_string(),
+    )?
+    .ok_or_else(|| CommandError::Config("Anthropic API key not configured".into()))?;
+
+    let sb_client = get_client().await?;
+
+    // Load prompt config
+    let configs: Vec<serde_json::Value> = sb_client
+        .select("triage_config", "id=eq.default")
+        .await
+        .unwrap_or_default();
+    let config = configs.first();
+    let system = config
+        .and_then(|c| c["summary_system_prompt"].as_str())
+        .unwrap_or("Write a strategic summary.")
+        .to_string();
+    let model = config
+        .and_then(|c| c["summary_model"].as_str())
+        .unwrap_or("claude-sonnet-4-6-20250514")
+        .to_string();
+    let max_tokens = config
+        .and_then(|c| c["summary_max_tokens"].as_i64())
+        .unwrap_or(1000) as u32;
+
+    // ── Pull full context from Supabase ──
+
+    // 1. Initiatives
+    let initiatives: Vec<serde_json::Value> = sb_client
+        .select("initiatives", "select=id,name,status,health,description&status=in.(active,planned)&order=name")
+        .await.unwrap_or_default();
+
+    // 2. Initiative-project links
+    let init_links: Vec<serde_json::Value> = sb_client
+        .select("initiative_project_links", "select=initiative_id,project_id")
+        .await.unwrap_or_default();
+
+    // 3. Active projects with company info
+    let projects: Vec<serde_json::Value> = sb_client
+        .select("projects", "select=id,name,project_type,status,description,color,company:crm_companies(name,display_name,stage)&status=eq.active&order=name")
+        .await.unwrap_or_default();
+
+    // 4. Active tasks with status, assignees, description
+    let tasks: Vec<serde_json::Value> = sb_client
+        .select("tasks", "select=id,title,description,priority,due_date,triage_score,triage_action,triage_reason,project_id,status:task_statuses(name,type),assignees:task_assignees(user:users(name)),company:crm_companies!tasks_company_id_fkey(name,display_name)&status.type=neq.complete&order=due_date.asc.nullslast")
+        .await.unwrap_or_default();
+
+    // 5. Active plans
+    let plans: Vec<serde_json::Value> = sb_client
+        .select("plans", "select=horizon,title&status=eq.active&order=horizon")
+        .await.unwrap_or_default();
+
+    // ── Build structured context ──
+    let mut context = String::with_capacity(20000);
+
+    // Plans
+    if !plans.is_empty() {
+        context.push_str("=== ACTIVE PLANS ===\n");
+        for p in &plans {
+            let horizon = p["horizon"].as_str().unwrap_or("?");
+            let title = p["title"].as_str().unwrap_or("");
+            context.push_str(&format!("[{}] {}\n", horizon, title));
+        }
+        context.push('\n');
+    }
+
+    // Build project-to-initiative map
+    let mut proj_to_init: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for link in &init_links {
+        let iid = link["initiative_id"].as_str().unwrap_or("");
+        let pid = link["project_id"].as_str().unwrap_or("");
+        if let Some(init) = initiatives.iter().find(|i| i["id"].as_str() == Some(iid)) {
+            proj_to_init.insert(pid.to_string(), init["name"].as_str().unwrap_or("").to_string());
+        }
+    }
+
+    // Build project-to-tasks map
+    let mut proj_tasks: std::collections::HashMap<String, Vec<&serde_json::Value>> = std::collections::HashMap::new();
+    for t in &tasks {
+        let pid = t["project_id"].as_str().unwrap_or("none").to_string();
+        proj_tasks.entry(pid).or_default().push(t);
+    }
+
+    // Group by initiative
+    context.push_str("=== INITIATIVES & PROJECTS ===\n");
+    let mut seen_projects = std::collections::HashSet::new();
+
+    for init in &initiatives {
+        let init_name = init["name"].as_str().unwrap_or("?");
+        let init_status = init["status"].as_str().unwrap_or("?");
+        let init_health = init["health"].as_str().unwrap_or("?");
+        let init_desc = init["description"].as_str().unwrap_or("");
+        context.push_str(&format!("\nINITIATIVE: {} [{}] [{}]\n", init_name, init_status, init_health));
+        if !init_desc.is_empty() { context.push_str(&format!("  {}\n", &init_desc[..init_desc.len().min(200)])); }
+
+        // Find projects in this initiative
+        for link in &init_links {
+            if link["initiative_id"].as_str() != init["id"].as_str() { continue; }
+            let pid = link["project_id"].as_str().unwrap_or("");
+            seen_projects.insert(pid.to_string());
+
+            if let Some(proj) = projects.iter().find(|p| p["id"].as_str() == Some(pid)) {
+                let pname = proj["name"].as_str().unwrap_or("?");
+                let ptype = proj["project_type"].as_str().unwrap_or("work");
+                let company = proj["company"]["display_name"].as_str()
+                    .or(proj["company"]["name"].as_str())
+                    .unwrap_or("");
+                let stage = proj["company"]["stage"].as_str().unwrap_or("");
+                let pdesc = proj["description"].as_str().unwrap_or("");
+
+                context.push_str(&format!("  PROJECT: {} ({}{}{})\n",
+                    pname, ptype,
+                    if !company.is_empty() { format!(", {}", company) } else { String::new() },
+                    if !stage.is_empty() { format!(", {}", stage) } else { String::new() },
+                ));
+                if !pdesc.is_empty() { context.push_str(&format!("    {}\n", &pdesc[..pdesc.len().min(150)])); }
+
+                // Tasks in this project
+                if let Some(ptasks) = proj_tasks.get(pid) {
+                    for t in ptasks.iter().take(10) {
+                        let title = t["title"].as_str().unwrap_or("?");
+                        let status = t["status"]["name"].as_str().unwrap_or("?");
+                        let due = t["due_date"].as_str().unwrap_or("no date");
+                        let score = t["triage_score"].as_i64().map(|s| format!(" [{}]", s)).unwrap_or_default();
+                        let action = t["triage_action"].as_str().unwrap_or("");
+                        let assignees: Vec<&str> = t["assignees"].as_array()
+                            .map(|a| a.iter().filter_map(|x| x["user"]["name"].as_str()).collect())
+                            .unwrap_or_default();
+                        let desc_preview = t["description"].as_str()
+                            .map(|d| if d.len() > 100 { format!(" — {}...", &d[..100]) } else { format!(" — {}", d) })
+                            .unwrap_or_default();
+
+                        context.push_str(&format!("    - [{}] {} (due: {}, {}{}) {}{}\n",
+                            status, title, due,
+                            if !assignees.is_empty() { assignees.join(", ") } else { "unassigned".into() },
+                            if !action.is_empty() { format!(", {}{}", action, score) } else { String::new() },
+                            desc_preview,
+                            "",
+                        ));
+                    }
+                    if ptasks.len() > 10 {
+                        context.push_str(&format!("    ... and {} more tasks\n", ptasks.len() - 10));
+                    }
+                }
+            }
+        }
+    }
+
+    // Unlinked projects
+    let unlinked: Vec<&serde_json::Value> = projects.iter()
+        .filter(|p| !seen_projects.contains(p["id"].as_str().unwrap_or("")))
+        .collect();
+    if !unlinked.is_empty() {
+        context.push_str("\nUNLINKED PROJECTS (not in any initiative):\n");
+        for proj in unlinked.iter().take(20) {
+            let pid = proj["id"].as_str().unwrap_or("");
+            let pname = proj["name"].as_str().unwrap_or("?");
+            let ptype = proj["project_type"].as_str().unwrap_or("work");
+            let task_count = proj_tasks.get(pid).map(|t| t.len()).unwrap_or(0);
+            context.push_str(&format!("  {} ({}, {} tasks)\n", pname, ptype, task_count));
+        }
+    }
+
+    // Triage results (from frontend)
+    context.push_str(&format!("\n=== TRIAGE SCORES ===\n{}\n", proposals_json));
+
+    eprintln!("[triage_summary] Built context: {} chars, sending to {} ...", context.len(), model);
+
+    // ── Call Claude ──
+    let client = crate::HTTP_CLIENT.clone();
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("Content-Type", "application/json")
+        .header("x-api-key", &api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&serde_json::json!({
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": 0.3,
+            "system": system,
+            "messages": [{ "role": "user", "content": context }]
+        }))
+        .send()
+        .await
+        .map_err(|e| CommandError::Network(format!("API request failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(CommandError::Http { status, body });
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ContentBlock { text: Option<String> }
+    #[derive(serde::Deserialize)]
+    struct ApiResponse { content: Vec<ContentBlock> }
+
+    let api_response: ApiResponse = response.json().await?;
+    let summary = api_response.content.first()
+        .and_then(|c| c.text.clone())
+        .unwrap_or_else(|| "Triage complete — no summary generated.".to_string());
+
+    eprintln!("[triage_summary] Summary: {}", &summary[..summary.len().min(200)]);
+    Ok(summary)
 }
 
 /// Read today's task sequence (list of task IDs)

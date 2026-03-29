@@ -7,7 +7,7 @@ import {
   BarChart3, ListChecks, Globe, FileSpreadsheet, ChevronDown,
   ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
-  Circle, XCircle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Sparkles, Mail, CalendarDays,
+  Circle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Sparkles, Mail, CalendarDays,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
@@ -329,21 +329,15 @@ function ArtifactTreeItem({
 // ============================================================================
 
 const STATUS_TYPE_COLORS: Record<StatusType, string> = {
-  backlog: "#9CA3AF",
-  unstarted: "#3B82F6",
-  started: "#F59E0B",
-  review: "#8B5CF6",
-  completed: "#10B981",
-  canceled: "#EF4444",
+  todo: "#9CA3AF",
+  in_progress: "#F59E0B",
+  complete: "#10B981",
 };
 
 const STATUS_TYPE_LABELS: Record<StatusType, string> = {
-  backlog: "Backlog",
-  unstarted: "Todo",
-  started: "In Progress",
-  review: "In Review",
-  completed: "Done",
-  canceled: "Canceled",
+  todo: "To-do",
+  in_progress: "In Progress",
+  complete: "Complete",
 };
 
 function TaskArtifactItem({
@@ -383,13 +377,11 @@ function TaskArtifactItem({
         )}
       >
         <span className="w-[11px]" />
-        {/* Status icon: filled circle for done/canceled, half for started/review, empty for todo/backlog */}
+        {/* Status icon: filled circle for complete, half for in_progress, empty for todo */}
         <span className="flex-shrink-0" title={statusLabel ?? undefined}>
-          {statusType === "completed" ? (
+          {statusType === "complete" ? (
             <CheckCircle2 size={13} style={{ color: statusColor }} />
-          ) : statusType === "canceled" ? (
-            <XCircle size={13} style={{ color: statusColor }} />
-          ) : statusType === "started" || statusType === "review" ? (
+          ) : statusType === "in_progress" ? (
             <svg width="13" height="13" viewBox="0 0 16 16" className="flex-shrink-0">
               <circle cx="8" cy="8" r="6.5" fill="none" stroke={statusColor} strokeWidth="1.5" />
               <path d="M8 1.5 A6.5 6.5 0 0 1 8 14.5" fill={statusColor} />
@@ -1717,20 +1709,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
       // Delete all tasks in bulk
       await supabase.from("tasks").delete().eq("project_id", workspaceId);
 
-      // 3. Fix orphaned status refs — tasks moved to other projects may still use this project's statuses
-      const { data: projStatuses } = await supabase.from("task_statuses").select("id").eq("project_id", workspaceId);
-      const sIds = (projStatuses || []).map(s => s.id);
-      if (sIds.length > 0) {
-        const { data: orphans } = await supabase.from("tasks").select("id, project_id").in("status_id", sIds).neq("project_id", workspaceId);
-        if (orphans?.length) {
-          const pids = [...new Set(orphans.map(t => t.project_id))];
-          for (const pid of pids) {
-            const { data: ts } = await supabase.from("task_statuses").select("id").eq("project_id", pid).eq("type", "unstarted").limit(1);
-            if (ts?.[0]) await supabase.from("tasks").update({ status_id: ts[0].id }).in("id", orphans.filter(t => t.project_id === pid).map(t => t.id));
-          }
-        }
-      }
-      await supabase.from("task_statuses").delete().eq("project_id", workspaceId);
+      // Statuses are global — no per-project cleanup needed
 
       // 4. Delete all project children
       await supabase.from("milestones").delete().eq("project_id", workspaceId);
@@ -1755,7 +1734,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
   }, [workspaceId, onBack, _onUpdated]);
 
   const projectTasks = allTasks.filter(t => t.project_id === workspaceId);
-  const completedTasks = projectTasks.filter(t => t.status?.type === "completed").length;
+  const completedTasks = projectTasks.filter(t => t.status?.type === "complete").length;
 
   // Filter + paginate tasks for large projects
   const hasColumnFilters = filterPriority !== null || filterAssignee !== null || filterCompany !== null || filterDueDate !== null;
@@ -1787,7 +1766,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
         if (filterDueDate === "no_date") return !t.due_date;
         if (filterDueDate === "has_date") return !!t.due_date;
         if (!t.due_date) return false;
-        if (filterDueDate === "overdue") return new Date(t.due_date) < now && t.status?.type !== "completed" && t.status?.type !== "canceled";
+        if (filterDueDate === "overdue") return new Date(t.due_date) < now && t.status?.type !== "complete";
         if (filterDueDate === "this_week") {
           const d = new Date(t.due_date);
           const end = new Date(now); end.setDate(end.getDate() + 7);
@@ -2617,13 +2596,13 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                               if (cmp !== 0) return cmp * dir;
                             }
                             // Default sort: status order, then task number
-                            const order: Record<string, number> = { started: 0, review: 0, unstarted: 1, backlog: 2, completed: 3, canceled: 4 };
+                            const order: Record<string, number> = { in_progress: 0, todo: 1, complete: 2 };
                             const statusDiff = (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
                             if (statusDiff !== 0) return statusDiff;
                             return (a.task_number ?? 0) - (b.task_number ?? 0);
                           })
                           .map((task) => {
-                            const statusType = (task.status?.type as StatusType) ?? "unstarted";
+                            const statusType = (task.status?.type as StatusType) ?? "todo";
                             const statusColor = task.status?.color || STATUS_TYPE_COLORS[statusType] || "#6B7280";
                             const identifier = getTaskIdentifier(task);
                             const priorityColor = PriorityColors[task.priority as Priority] ?? "#6B7280";
@@ -2663,11 +2642,9 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                   <div className="relative w-5 h-5">
                                     {/* Visual icon */}
                                     <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                      {statusType === "completed" ? (
+                                      {statusType === "complete" ? (
                                         <CheckCircle2 size={14} style={{ color: statusColor }} />
-                                      ) : statusType === "canceled" ? (
-                                        <XCircle size={14} style={{ color: statusColor }} />
-                                      ) : statusType === "started" || statusType === "review" ? (
+                                      ) : statusType === "in_progress" ? (
                                         <svg width="14" height="14" viewBox="0 0 16 16">
                                           <circle cx="8" cy="8" r="6.5" fill="none" stroke={statusColor} strokeWidth="1.5" />
                                           <path d="M8 1.5 A6.5 6.5 0 0 1 8 14.5" fill={statusColor} />
@@ -3135,9 +3112,9 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                           description: task.description || `Converted from task: ${task.title}`,
                           stage: "lead",
                         });
-                        // Mark original task as completed and link to deal
+                        // Mark original task as complete and link to deal
                         const { supabase } = await import("../../lib/supabase");
-                        const doneStatus = taskStatuses.find(s => s.type === "completed");
+                        const doneStatus = taskStatuses.find(s => s.type === "complete");
                         const updates: Record<string, any> = {
                           task_type: "converted",
                           description: `${task.description || ""}\n\n→ Converted to deal project: ${newDeal.id}`.trim(),

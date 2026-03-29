@@ -13,6 +13,7 @@ const allModules: ModuleInfo[] = [
   { id: "library", label: "Library", description: "Knowledge base content and documents" },
   { id: "projects", label: "Projects", description: "Tasks, CRM, workspaces — unified project hub" },
   { id: "domains", label: "Domains", description: "VAL client domains and data" },
+  { id: "analytics", label: "Analytics", description: "GA4 usage analytics for platform and website" },
   { id: "metadata", label: "Metadata", description: "Reference data — companies, contacts, lookup values" },
   { id: "work", label: "Work", description: "Task board and work tracking" },
   { id: "inbox", label: "Inbox", description: "Email inbox and triage" },

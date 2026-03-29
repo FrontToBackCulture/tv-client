@@ -218,16 +218,27 @@ pub struct QueryResult {
 /// Query a database with optional filter and pagination
 /// Returns all pages (handles pagination internally)
 /// If the filter is rejected by Notion (400), retries without the user filter and returns a warning
+#[allow(dead_code)]
 pub async fn query_database(
     database_id: &str,
     filter: Option<&Value>,
     since: Option<&str>,
 ) -> CmdResult<QueryResult> {
+    query_database_ex(database_id, filter, since, false).await
+}
+
+/// Query with option to use created_time instead of last_edited_time for the since filter
+pub async fn query_database_ex(
+    database_id: &str,
+    filter: Option<&Value>,
+    since: Option<&str>,
+    use_created_time: bool,
+) -> CmdResult<QueryResult> {
     // Clone filter so we can own it for the retry path
     let filter_owned = filter.cloned();
     let since_owned = since.map(|s| s.to_string());
 
-    match query_database_with_filter(database_id, filter_owned.as_ref(), since_owned.as_deref()).await {
+    match query_database_with_filter_ex(database_id, filter_owned.as_ref(), since_owned.as_deref(), use_created_time).await {
         Ok(pages) => Ok(QueryResult { pages, filter_warning: None }),
         Err(CommandError::Http { status: 400, body }) if filter.is_some() => {
             // Filter was rejected — extract error message and retry without it
@@ -236,7 +247,7 @@ pub async fn query_database(
                 "[notion:query] Filter rejected (400), retrying without filter. Error: {}",
                 warning
             );
-            let pages = query_database_with_filter(database_id, None, since_owned.as_deref()).await?;
+            let pages = query_database_with_filter_ex(database_id, None, since_owned.as_deref(), use_created_time).await?;
             Ok(QueryResult {
                 pages,
                 filter_warning: Some(warning),
@@ -256,11 +267,22 @@ fn parse_notion_error(body: &str) -> String {
     body.to_string()
 }
 
-/// Query implementation with optional filter
+#[allow(dead_code)]
+/// Query implementation with optional filter (legacy wrapper)
 async fn query_database_with_filter(
     database_id: &str,
     filter: Option<&Value>,
     since: Option<&str>,
+) -> CmdResult<Vec<NotionPage>> {
+    query_database_with_filter_ex(database_id, filter, since, false).await
+}
+
+/// Query implementation with optional filter and timestamp type selection
+async fn query_database_with_filter_ex(
+    database_id: &str,
+    filter: Option<&Value>,
+    since: Option<&str>,
+    use_created_time: bool,
 ) -> CmdResult<Vec<NotionPage>> {
     let api_key = get_api_key()?;
     let url = format!("{}/databases/{}/query", NOTION_API_BASE, database_id);
@@ -278,7 +300,7 @@ async fn query_database_with_filter(
         });
 
         // Build filter combining user filter and since timestamp
-        let combined_filter = build_query_filter(filter, since);
+        let combined_filter = build_query_filter(filter, since, use_created_time);
         if let Some(f) = &combined_filter {
             body["filter"] = f.clone();
         }
@@ -322,14 +344,19 @@ async fn query_database_with_filter(
 /// If the user filter is already a compound filter (or/and), we can't wrap it in another
 /// compound without exceeding the limit. In that case, just use the user filter as-is —
 /// the user is expected to include their own date constraints.
-fn build_query_filter(user_filter: Option<&Value>, since: Option<&str>) -> Option<Value> {
+fn build_query_filter(user_filter: Option<&Value>, since: Option<&str>, use_created_time: bool) -> Option<Value> {
     let since_filter = since.map(|ts| {
-        json!({
-            "timestamp": "last_edited_time",
-            "last_edited_time": {
-                "after": ts
-            }
-        })
+        if use_created_time {
+            json!({
+                "timestamp": "created_time",
+                "created_time": { "after": ts }
+            })
+        } else {
+            json!({
+                "timestamp": "last_edited_time",
+                "last_edited_time": { "after": ts }
+            })
+        }
     });
 
     match (user_filter, since_filter) {
@@ -925,6 +952,25 @@ pub async fn get_page_title(page_id: &str) -> CmdResult<String> {
     Ok(extract_page_title(&page.get("properties").cloned().unwrap_or_default()))
 }
 
+/// Check if a Notion page is archived
+pub async fn get_page_archived(page_id: &str) -> CmdResult<bool> {
+    let api_key = get_api_key()?;
+    let url = format!("{}/pages/{}", NOTION_API_BASE, page_id);
+
+    let response = HTTP_CLIENT
+        .get(&url)
+        .headers(notion_headers(&api_key))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Ok(false); // If we can't fetch, assume not archived
+    }
+
+    let page: Value = response.json().await?;
+    Ok(page["archived"].as_bool().unwrap_or(false))
+}
+
 /// List all pages from a database (titles + IDs) — for relation field value mapping
 pub async fn list_database_pages(database_id: &str) -> CmdResult<Vec<(String, String)>> {
     let api_key = get_api_key()?;
@@ -1248,6 +1294,7 @@ pub async fn update_page_properties(
     Ok(())
 }
 
+#[allow(dead_code)]
 /// Delete all blocks from a page, then append new ones
 pub async fn replace_page_blocks(
     page_id: &str,

@@ -14,11 +14,9 @@ import { initials, ScopeFilterBar } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
 
 const BOARD_COLUMNS: { type: StatusType; label: string }[] = [
-  { type: "backlog", label: "Backlog" },
-  { type: "unstarted", label: "Todo" },
-  { type: "started", label: "In Progress" },
-  { type: "review", label: "In Review" },
-  { type: "completed", label: "Done" },
+  { type: "todo", label: "To-do" },
+  { type: "in_progress", label: "In Progress" },
+  { type: "complete", label: "Complete" },
 ];
 
 export function BoardView({
@@ -63,7 +61,7 @@ export function BoardView({
   const tasksByStatusType = useMemo(() => {
     const map = new Map<StatusType, TaskWithRelations[]>();
     for (const t of tasks) {
-      const type = (t.status?.type || "backlog") as StatusType;
+      const type = (t.status?.type || "todo") as StatusType;
       const arr = map.get(type) || [];
       arr.push(t);
       map.set(type, arr);

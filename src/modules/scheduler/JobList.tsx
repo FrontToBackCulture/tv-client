@@ -89,7 +89,7 @@ function JobRow({
   compact?: boolean;
 }) {
   const runningInfo = useRunningJobsStore((s) => s.runningJobs[job.id]);
-  const isRunning = !!runningInfo || job.lastRunStatus === "running";
+  const isRunning = !!runningInfo || job.last_run_status === "running";
 
   if (compact) {
     return (
@@ -127,14 +127,14 @@ function JobRow({
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">
-              {describeCronShort(job.cronExpression)}
+              {job.cron_expression ? describeCronShort(job.cron_expression) : "ad-hoc"}
             </span>
-            {job.skillRefs && job.skillRefs.length > 0 && (
+            {job.skill_refs && job.skill_refs.length > 0 && (
               <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                {job.skillRefs.length}sk
+                {job.skill_refs.length}sk
               </span>
             )}
-            {isRunning ? <RunningBadge startedAt={runningInfo?.startedAt} step={runningInfo?.step} /> : <StatusBadge status={job.lastRunStatus} />}
+            {isRunning ? <RunningBadge startedAt={runningInfo?.startedAt} step={runningInfo?.step} /> : <StatusBadge status={job.last_run_status} />}
           </div>
         </div>
       </div>
@@ -176,23 +176,23 @@ function JobRow({
           )}>
             {job.name}
           </span>
-          {isRunning ? <RunningBadge startedAt={runningInfo?.startedAt} step={runningInfo?.step} /> : <StatusBadge status={job.lastRunStatus} />}
+          {isRunning ? <RunningBadge startedAt={runningInfo?.startedAt} step={runningInfo?.step} /> : <StatusBadge status={job.last_run_status} />}
         </div>
         <div className="flex items-center gap-3 mt-0.5">
           <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">
-            {describeCronShort(job.cronExpression)}
+            {job.cron_expression ? describeCronShort(job.cron_expression) : "ad-hoc"}
           </span>
           <span className="text-xs text-zinc-400 dark:text-zinc-500">
             {job.model}
           </span>
-          {job.skillRefs && job.skillRefs.length > 0 && (
+          {job.skill_refs && job.skill_refs.length > 0 && (
             <span className="text-xs text-zinc-400 dark:text-zinc-500">
-              {job.skillRefs.length} skill{job.skillRefs.length !== 1 ? "s" : ""}
+              {job.skill_refs.length} skill{job.skill_refs.length !== 1 ? "s" : ""}
             </span>
           )}
-          {job.slackChannelName && (
+          {job.slack_channel_name && (
             <span className="text-xs text-zinc-400 dark:text-zinc-500">
-              → {job.slackChannelName}
+              → {job.slack_channel_name}
             </span>
           )}
         </div>

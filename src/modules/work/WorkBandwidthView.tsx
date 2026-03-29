@@ -6,9 +6,10 @@ import {
   AlertTriangle, TrendingUp, TrendingDown, Clock, CheckCircle2,
   ChevronDown, ChevronRight, Minus, Activity, Users,
 } from "lucide-react";
-import type { TaskWithRelations, User } from "../../lib/work/types";
+import type { TaskWithRelations, User, Initiative } from "../../lib/work/types";
 import { isOverdue } from "../../lib/date";
 import { TaskRow, Stat, initials } from "./workViewsShared";
+import type { InitiativeProjectLink } from "./workViewsShared";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -41,11 +42,11 @@ function isThisWeek(dateStr: string | null): boolean {
 }
 
 function isActive(t: TaskWithRelations): boolean {
-  return t.status?.type !== "completed" && t.status?.type !== "canceled";
+  return t.status?.type !== "complete";
 }
 
 function wasCompletedInRange(t: TaskWithRelations, startMs: number, endMs: number): boolean {
-  if (t.status?.type !== "completed" || !t.updated_at) return false;
+  if (t.status?.type !== "complete" || !t.updated_at) return false;
   const ts = new Date(t.updated_at).getTime();
   return ts >= startMs && ts < endMs;
 }
@@ -92,11 +93,11 @@ function computePersonStats(
     overdue: active.filter(t => isOverdue(t.due_date)),
     dueThisWeek: active.filter(t => isThisWeek(t.due_date)),
     highPriority: active.filter(t => t.priority === 1 || t.priority === 2),
-    stale: active.filter(t => isStale(t) && t.status?.type !== "backlog"),
+    stale: active.filter(t => isStale(t) && t.status?.type !== "todo"),
     noDate: active.filter(t => !t.due_date),
     completedThisWeek: userTasks.filter(t => wasCompletedInRange(t, weekAgoMs, nowMs)),
     completedLastWeek: userTasks.filter(t => wasCompletedInRange(t, twoWeeksAgoMs, weekAgoMs)),
-    inProgress: active.filter(t => t.status?.type === "started" || t.status?.type === "review"),
+    inProgress: active.filter(t => t.status?.type === "in_progress"),
   };
 }
 
@@ -168,7 +169,7 @@ function VelocityIndicator({ thisWeek, lastWeek }: { thisWeek: number; lastWeek:
 
 // ─── Person Row ──────────────────────────────────────────────────────────
 
-function PersonRow({ stats, onSelectTask }: { stats: PersonStats; onSelectTask: (id: string) => void }) {
+function PersonRow({ stats, onSelectTask, contextLabels }: { stats: PersonStats; onSelectTask: (id: string) => void; contextLabels?: Map<string, string> }) {
   const [expanded, setExpanded] = useState(false);
   const load = getLoadLevel(stats.active.length);
   const cfg = LOAD_CONFIG[load];
@@ -244,7 +245,7 @@ function PersonRow({ stats, onSelectTask }: { stats: PersonStats; onSelectTask: 
               <div className="px-3 py-1 text-[10px] font-semibold text-red-500 uppercase tracking-wide">Overdue</div>
               {stats.overdue
                 .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
-                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} />)
+                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} contextLabel={contextLabels?.get(t.project_id)} />)
               }
             </div>
           )}
@@ -256,7 +257,7 @@ function PersonRow({ stats, onSelectTask }: { stats: PersonStats; onSelectTask: 
               {stats.stale
                 .sort((a, b) => new Date(a.updated_at || 0).getTime() - new Date(b.updated_at || 0).getTime())
                 .slice(0, 10)
-                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} />)
+                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} contextLabel={contextLabels?.get(t.project_id)} />)
               }
               {stats.stale.length > 10 && (
                 <div className="px-3 py-1 text-[10px] text-zinc-400">+{stats.stale.length - 10} more</div>
@@ -272,7 +273,7 @@ function PersonRow({ stats, onSelectTask }: { stats: PersonStats; onSelectTask: 
                 .filter(t => !stats.overdue.includes(t))
                 .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
                 .slice(0, 10)
-                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} />)
+                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} contextLabel={contextLabels?.get(t.project_id)} />)
               }
             </div>
           )}
@@ -313,16 +314,64 @@ function AlertCard({ title, count, color, icon: Icon, children, defaultOpen = tr
 
 // ─── Main View ───────────────────────────────────────────────────────────
 
-export function BandwidthView({ allTasks, users, onSelectTask }: {
+const STALE_DAYS = 60;
+
+function isTaskStale(t: TaskWithRelations): boolean {
+  if (t.status?.type === "complete") return false;
+  const threshold = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000;
+  // If due date exists and is older than threshold → stale
+  if (t.due_date) return new Date(t.due_date).getTime() < threshold;
+  // No due date — check updated_at
+  const lastUpdate = t.updated_at ? new Date(t.updated_at).getTime() : 0;
+  return lastUpdate < threshold;
+}
+
+export function BandwidthView({ allTasks, users, onSelectTask, initiatives, initiativeLinks }: {
   allTasks: TaskWithRelations[];
   users: User[];
   onSelectTask: (id: string) => void;
+  initiatives?: Initiative[];
+  initiativeLinks?: InitiativeProjectLink[];
 }) {
-  const [includeNotion, setIncludeNotion] = useState(false);
+  const [includeNotion, setIncludeNotion] = useState(true);
+  const [showStale, setShowStale] = useState(false);
 
-  const tasks = useMemo(() => {
+  // Build project_id → "Initiative › Project" lookup
+  const contextLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!initiatives?.length || !initiativeLinks?.length) {
+      for (const t of allTasks) {
+        if (t.project?.name && !map.has(t.project_id)) {
+          map.set(t.project_id, t.project.name);
+        }
+      }
+      return map;
+    }
+    const initMap = new Map(initiatives.map(i => [i.id, i.name]));
+    const projToInit = new Map<string, string>();
+    for (const link of initiativeLinks) {
+      const initName = initMap.get(link.initiative_id);
+      if (initName) projToInit.set(link.project_id, initName);
+    }
+    for (const t of allTasks) {
+      if (!map.has(t.project_id) && t.project?.name) {
+        const initName = projToInit.get(t.project_id);
+        map.set(t.project_id, initName ? `${initName} › ${t.project.name}` : t.project.name);
+      }
+    }
+    return map;
+  }, [allTasks, initiatives, initiativeLinks]);
+
+  const filteredByNotion = useMemo(() => {
     return allTasks.filter(t => includeNotion || !(t as any).notion_page_id);
   }, [allTasks, includeNotion]);
+
+  const staleCount = useMemo(() => filteredByNotion.filter(isTaskStale).length, [filteredByNotion]);
+
+  const tasks = useMemo(() => {
+    if (showStale) return filteredByNotion;
+    return filteredByNotion.filter(t => !isTaskStale(t));
+  }, [filteredByNotion, showStale]);
 
   const nowMs = Date.now();
   const weekAgoMs = nowMs - WEEK_MS;
@@ -363,7 +412,7 @@ export function BandwidthView({ allTasks, users, onSelectTask }: {
     return {
       totalActive: activeTasks.length,
       totalOverdue: activeTasks.filter(t => isOverdue(t.due_date)).length,
-      totalStale: activeTasks.filter(t => isStale(t) && t.status?.type !== "backlog").length,
+      totalStale: activeTasks.filter(t => isStale(t) && t.status?.type !== "todo").length,
       completedThisWeek: tasks.filter(t => wasCompletedInRange(t, weekAgoMs, nowMs)).length,
       completedLastWeek: tasks.filter(t => wasCompletedInRange(t, twoWeeksAgoMs, weekAgoMs)).length,
       highPriorityNoDate: activeTasks.filter(t => (t.priority === 1 || t.priority === 2) && !t.due_date),
@@ -400,10 +449,16 @@ export function BandwidthView({ allTasks, users, onSelectTask }: {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-300" /> Todo</span>
           </div>
         </div>
-        <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
-          <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500" />
-          Include Notion
-        </label>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+            <input type="checkbox" checked={showStale} onChange={(e) => setShowStale(e.target.checked)} className="rounded border-zinc-300 text-amber-600 focus:ring-amber-500" />
+            Show Stale ({staleCount})
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+            <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500" />
+            Include Notion
+          </label>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -413,14 +468,14 @@ export function BandwidthView({ allTasks, users, onSelectTask }: {
             <AlertCard title="Overdue + High Priority" count={teamStats.overdueHighPriority.length} color="#EF4444" icon={AlertTriangle}>
               {teamStats.overdueHighPriority
                 .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99) || new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
-                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} />)
+                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} contextLabel={contextLabels?.get(t.project_id)} />)
               }
             </AlertCard>
 
             <AlertCard title="High Priority — No Due Date" count={teamStats.highPriorityNoDate.length} color="#F59E0B" icon={Clock} defaultOpen={false}>
               {teamStats.highPriorityNoDate
                 .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
-                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} />)
+                .map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} contextLabel={contextLabels?.get(t.project_id)} />)
               }
             </AlertCard>
           </div>
@@ -444,6 +499,7 @@ export function BandwidthView({ allTasks, users, onSelectTask }: {
               key={stats.user?.id || "unassigned"}
               stats={stats}
               onSelectTask={onSelectTask}
+              contextLabels={contextLabels}
             />
           ))}
 
