@@ -42,13 +42,18 @@ jobs:
         id: sccache-check
         shell: bash
         run: |
-          if sccache --start-server 2>/dev/null && sccache --show-stats 2>/dev/null; then
-            echo "available=true" >> $GITHUB_OUTPUT
-            echo "sccache is healthy"
-          else
-            echo "available=false" >> $GITHUB_OUTPUT
-            echo "::warning::sccache unavailable, building without cache"
-          fi
+          # sccache-action already starts the server — just wait for it to be ready
+          for i in 1 2 3 4 5; do
+            if sccache --show-stats 2>&1; then
+              echo "available=true" >> $GITHUB_OUTPUT
+              echo "sccache is healthy (attempt $i)"
+              exit 0
+            fi
+            echo "sccache not ready yet (attempt $i), waiting..."
+            sleep 2
+          done
+          echo "available=false" >> $GITHUB_OUTPUT
+          echo "::warning::sccache unavailable after 5 attempts, building without cache"
         env:
           SCCACHE_GHA_ENABLED: "true"
 
