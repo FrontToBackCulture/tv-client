@@ -47,19 +47,22 @@ jobs:
         id: sccache-check
         shell: bash
         run: |
-          # Test sccache with an actual compile to verify storage is reachable
-          # (--show-stats succeeds even when Azure storage is down)
-          echo 'fn main(){}' > /tmp/_sc_test.rs
-          export RUSTC_WRAPPER=sccache
-          export SCCACHE_GHA_ENABLED=true
-          if timeout 30 rustc /tmp/_sc_test.rs -o /tmp/_sc_test 2>&1; then
-            echo "available=true" >> $GITHUB_OUTPUT
-            echo "sccache is healthy (test compile succeeded)"
-          else
+          # Test sccache with a compile + stats check to verify storage is reachable
+          TMPDIR="${RUNNER_TEMP:-/tmp}"
+          echo 'fn main(){}' > "$TMPDIR/_sc_test.rs"
+          RUSTC_WRAPPER=sccache SCCACHE_GHA_ENABLED=true rustc "$TMPDIR/_sc_test.rs" -o "$TMPDIR/_sc_test" 2>/dev/null || true
+          STATS=$(sccache --show-stats 2>&1 || true)
+          rm -f "$TMPDIR/_sc_test.rs" "$TMPDIR/_sc_test" "$TMPDIR/_sc_test.exe"
+          if echo "$STATS" | grep -qi "error\|unavailable\|unreachable"; then
             echo "available=false" >> $GITHUB_OUTPUT
             echo "::warning::sccache storage unreachable, building without cache"
+          elif echo "$STATS" | grep -q "Cache hits"; then
+            echo "available=true" >> $GITHUB_OUTPUT
+            echo "sccache is healthy"
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "::warning::sccache stats unclear, building without cache"
           fi
-          rm -f /tmp/_sc_test.rs /tmp/_sc_test
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
