@@ -5,6 +5,8 @@ import { useProductActivity } from "../../hooks/product";
 import type { ProductEntityType } from "../../lib/product/types";
 import { Clock } from "lucide-react";
 import { SectionLoading } from "../../components/ui/DetailStates";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ProductActivityTimelineProps {
   entityType: ProductEntityType;
@@ -56,7 +58,9 @@ export function ProductActivityTimeline({ entityType, entityId }: ProductActivit
               )}
             </div>
             {activity.content && (
-              <p className="text-xs text-zinc-500 mt-0.5">{activity.content}</p>
+              <div className="text-xs text-zinc-500 mt-0.5 prose prose-xs dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{activity.content}</ReactMarkdown>
+              </div>
             )}
             {(activity.old_value || activity.new_value) && (
               <div className="text-xs text-zinc-400 mt-0.5">

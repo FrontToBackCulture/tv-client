@@ -135,9 +135,9 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
         // Full mapping path: use sync config's field mapping + database schema
         let schema = api::get_database_schema(&cfg.notion_database_id).await?;
 
-        // Load global statuses (no longer per-project)
+        // Load global statuses
         let statuses: Vec<crate::commands::work::types::TaskStatus> = client
-            .select("task_statuses", "project_id=is.null&order=sort_order.asc")
+            .select("task_statuses", "order=sort_order.asc")
             .await?;
 
         let status_id_to_name: std::collections::HashMap<String, String> = statuses.iter()
@@ -237,7 +237,7 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
             Ok(true) => {
                 // Page is archived in Notion — mark task as Archived in tv-client
                 let archived_statuses: Vec<crate::commands::work::types::TaskStatus> = client
-                    .select("task_statuses", "project_id=is.null&type=eq.complete&name=eq.Archived")
+                    .select("task_statuses", "type=eq.complete&name=eq.Archived")
                     .await
                     .unwrap_or_default();
                 if let Some(archived) = archived_statuses.first() {

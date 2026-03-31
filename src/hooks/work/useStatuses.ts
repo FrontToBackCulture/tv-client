@@ -5,7 +5,7 @@ import { supabase } from "../../lib/supabase";
 import type { TaskStatus } from "../../lib/work/types";
 import { workKeys } from "./keys";
 
-export function useStatuses(_projectId?: string | null) {
+export function useStatuses() {
   return useQuery({
     queryKey: workKeys.statuses("global"),
     queryFn: async (): Promise<TaskStatus[]> => {

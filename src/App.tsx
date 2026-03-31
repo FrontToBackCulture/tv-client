@@ -5,12 +5,11 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Shell } from "./shell/Shell";
 import { useAutoBriefing } from "./hooks/feed";
+import { useTaskAdvisor } from "./hooks/chat";
 
 // Core modules (loaded eagerly — most likely first screen)
 import { HomeModule } from "./modules/home/HomeModule";
 import { ProjectsModule } from "./modules/projects";
-import { WorkModule } from "./modules/work/WorkModule";
-import { CrmModule } from "./modules/crm/CrmModule";
 import { InboxModule } from "./modules/inbox/InboxModule";
 
 // Lazy-loaded modules (loaded on first navigate — keeps initial bundle small)
@@ -33,6 +32,7 @@ const LinkedInModule = lazy(() => import("./modules/linkedin/LinkedInModule").th
 const ProspectingModule = lazy(() => import("./modules/prospecting").then(m => ({ default: m.ProspectingModule })));
 const PublicDataModule = lazy(() => import("./modules/public-data/PublicDataModule").then(m => ({ default: m.PublicDataModule })));
 const ChatModule = lazy(() => import("./modules/chat").then(m => ({ default: m.ChatModule })));
+const ReferralsModule = lazy(() => import("./modules/referrals/ReferralsModule").then(m => ({ default: m.ReferralsModule })));
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { invoke } from "@tauri-apps/api/core";
@@ -54,11 +54,11 @@ const modules: Record<ModuleId, React.ComponentType> = {
   library: LibraryModule,
   projects: ProjectsModule,
   metadata: MetadataModule,
-  work: WorkModule,
+  work: ProjectsModule,
   inbox: InboxModule,
   calendar: CalendarModule,
   chat: ChatModule,
-  crm: CrmModule,
+  crm: ProjectsModule,
   domains: DomainsModule,
   analytics: AnalyticsModule,
   product: ProductModule,
@@ -74,7 +74,22 @@ const modules: Record<ModuleId, React.ComponentType> = {
   linkedin: LinkedInModule,
   prospecting: ProspectingModule,
   "public-data": PublicDataModule,
+  referrals: ReferralsModule,
 };
+
+// Force hard reload when app version changes (clears stale webview cache)
+const CACHE_BUST_KEY = "tv-client-cache-bust-version";
+(function cacheBust() {
+  const current = __APP_VERSION__;
+  const last = localStorage.getItem(CACHE_BUST_KEY);
+  if (last && last !== current) {
+    localStorage.setItem(CACHE_BUST_KEY, current);
+    // Force reload to pick up new assets — only runs once per version change
+    window.location.reload();
+    return;
+  }
+  localStorage.setItem(CACHE_BUST_KEY, current);
+})();
 
 export default function App() {
   const openTabs = useModuleTabStore((s) => s.tabs);
@@ -110,13 +125,16 @@ export default function App() {
   // Auto-briefing: generate feed cards from system activity on load + interval
   useAutoBriefing();
 
+  // Task advisor: bot-mel check-ins via chat on load + every 2 hours
+  useTaskAdvisor();
+
   // Redirect to first visible module if active module is hidden
   const isModuleVisible = useModuleVisibilityStore((s) => s.isModuleVisible);
   const teamConfigLoaded = useTeamConfigStore((s) => s.isLoaded);
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeTab)) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser", "linkedin"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser", "linkedin", "referrals"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id));
       if (firstVisible) {
         openTab(firstVisible);

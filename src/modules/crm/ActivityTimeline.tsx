@@ -14,6 +14,8 @@ import {
   Clock,
 } from "lucide-react";
 import { formatDateActivity as formatDate } from "../../lib/date";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ActivityTimelineProps {
   companyId: string;
@@ -123,9 +125,9 @@ export function ActivityTimeline({
                   </p>
                 )}
                 {activity.content && (
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 whitespace-pre-wrap">
-                    {activity.content}
-                  </p>
+                  <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{activity.content}</ReactMarkdown>
+                  </div>
                 )}
                 {activity.type === "stage_change" &&
                   activity.old_value &&

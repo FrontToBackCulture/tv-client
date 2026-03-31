@@ -277,6 +277,26 @@ pub struct CreateActivity {
     pub activity_date: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateActivity {
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub activity_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activity_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+}
+
 // ============================================================================
 // Email Links
 // ============================================================================

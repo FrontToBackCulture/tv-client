@@ -117,15 +117,56 @@ fn platform_label() -> &'static str {
 }
 
 /// Resolve the full path to the `claude` CLI binary.
-/// macOS GUI apps don't inherit the user's shell PATH, so we check common
-/// installation locations directly before falling back to bare `claude`.
+/// GUI apps (both macOS and Windows) often don't inherit the user's full shell
+/// PATH, so we scan common installation locations before falling back to a bare
+/// command name.
 fn resolve_claude_path() -> String {
-    if cfg!(target_os = "windows") {
-        return "claude.exe".to_string();
-    }
+    let (binary_name, candidates) = if cfg!(target_os = "windows") {
+        let mut paths = Vec::new();
 
-    // Common install locations on macOS/Linux
-    let candidates: Vec<PathBuf> = {
+        // Claude Code native installer (AppData\Local\Programs)
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            let local = PathBuf::from(&local);
+            paths.push(local.join("Programs").join("claude-code").join("claude.exe"));
+            paths.push(local.join("Programs").join("claude").join("claude.exe"));
+            // Scoop installs
+            paths.push(local.join("Microsoft").join("WinGet").join("Links").join("claude.exe"));
+        }
+
+        // npm global installs — check actual npm prefix first
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let appdata = PathBuf::from(&appdata);
+            // Default npm global prefix on Windows
+            paths.push(appdata.join("npm").join("claude.cmd"));
+            paths.push(appdata.join("npm").join("claude.exe"));
+        }
+
+        if let Some(home) = dirs::home_dir() {
+            // Claude Code local install
+            paths.push(home.join(".claude").join("local").join("claude.exe"));
+            // nvm-windows — scan all installed node versions
+            if let Ok(nvm_home) = std::env::var("NVM_HOME") {
+                if let Ok(entries) = std::fs::read_dir(&nvm_home) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if p.is_dir() {
+                            paths.push(p.join("claude.cmd"));
+                            paths.push(p.join("claude.exe"));
+                        }
+                    }
+                }
+            }
+            // Chocolatey
+            paths.push(home.join("AppData").join("Local").join("Chocolatey").join("bin").join("claude.exe"));
+        }
+
+        // Program Files
+        paths.push(PathBuf::from(r"C:\Program Files\Claude\claude.exe"));
+        paths.push(PathBuf::from(r"C:\Program Files\nodejs\claude.cmd"));
+
+        ("claude.exe", paths)
+    } else {
+        // macOS / Linux
         let mut paths = vec![
             PathBuf::from("/usr/local/bin/claude"),
             PathBuf::from("/opt/homebrew/bin/claude"),
@@ -136,7 +177,8 @@ fn resolve_claude_path() -> String {
             // npm global installs
             paths.push(home.join(".npm-global").join("bin").join("claude"));
         }
-        paths
+
+        ("claude", paths)
     };
 
     for path in &candidates {
@@ -146,37 +188,46 @@ fn resolve_claude_path() -> String {
     }
 
     // Fallback: try bare name (works if PATH is set correctly)
-    "claude".to_string()
+    binary_name.to_string()
 }
 
 /// Run `claude <args>` and return the output.
-/// On Windows, tries `claude.exe` first (newer installs), then falls back to
-/// `cmd /C claude` which resolves `.cmd` files via PATHEXT.
+/// Uses `resolve_claude_path()` to find the binary on all platforms.
+/// On Windows, if the resolved path is a `.cmd` file, runs through `cmd /C`.
 async fn run_claude(args: &[&str]) -> CmdResult<std::process::Output> {
-    if cfg!(target_os = "windows") {
-        // Try claude.exe directly first (Claude Code >= 2.x installs this)
-        if let Ok(output) = tokio::process::Command::new("claude.exe")
-            .args(args)
-            .output()
-            .await
-        {
-            return Ok(output);
-        }
-        // Fallback: run through cmd.exe for .cmd/.bat resolution
-        let mut cmd_args = vec!["/C", "claude"];
-        cmd_args.extend_from_slice(args);
+    let claude_path = resolve_claude_path();
+
+    if cfg!(target_os = "windows") && claude_path.ends_with(".cmd") {
+        // .cmd files must be run through cmd.exe
+        let mut cmd_args = vec!["/C", &claude_path];
+        let args_owned: Vec<&str> = args.to_vec();
+        cmd_args.extend_from_slice(&args_owned);
         tokio::process::Command::new("cmd")
             .args(&cmd_args)
             .output()
             .await
-            .map_err(|e| CommandError::Io(format!("Failed to run claude via cmd.exe: {e}")))
+            .map_err(|e| CommandError::Io(format!("Failed to run {claude_path} via cmd.exe: {e}")))
     } else {
-        let claude_path = resolve_claude_path();
-        tokio::process::Command::new(&claude_path)
+        // .exe or unix binary — run directly
+        let result = tokio::process::Command::new(&claude_path)
             .args(args)
             .output()
-            .await
-            .map_err(|e| CommandError::Io(format!("Failed to run {claude_path}: {e}")))
+            .await;
+
+        match result {
+            Ok(output) => Ok(output),
+            Err(e) if cfg!(target_os = "windows") => {
+                // Last resort on Windows: try cmd /C claude for PATHEXT resolution
+                let mut cmd_args = vec!["/C", "claude"];
+                cmd_args.extend_from_slice(args);
+                tokio::process::Command::new("cmd")
+                    .args(&cmd_args)
+                    .output()
+                    .await
+                    .map_err(|_| CommandError::Io(format!("Failed to run {claude_path}: {e}")))
+            }
+            Err(e) => Err(CommandError::Io(format!("Failed to run {claude_path}: {e}"))),
+        }
     }
 }
 

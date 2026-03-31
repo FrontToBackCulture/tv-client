@@ -2,6 +2,7 @@
 // Task detail panel/modal with full editing
 
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   useTask,
   useUpdateTask,
@@ -40,6 +41,8 @@ import {
   ExternalLink,
   ChevronDown,
   History,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
@@ -70,6 +73,7 @@ export function TaskDetailPanel({
   onUpdated,
   onDeleted,
 }: TaskDetailPanelProps) {
+  const [expanded, setExpanded] = useState(false);
   const { data: task, isLoading, error: taskError, refetch } = useTask(taskId);
   const updateMutation = useUpdateTask();
   const deleteMutation = useDeleteTask();
@@ -83,7 +87,7 @@ export function TaskDetailPanel({
   }, [task, setViewDetail]);
 
   const projectId = task?.project_id || "";
-  const { data: statuses = [] } = useStatuses(projectId);
+  const { data: statuses = [] } = useStatuses();
   const { data: users = [] } = useUsers();
   const { data: milestones = [] } = useMilestones(projectId);
   const { data: companies = [] } = useCompanies();
@@ -160,11 +164,11 @@ export function TaskDetailPanel({
     }
   }
 
-  return (
-    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
+  const panelContent = (
+    <div className={`h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 ${expanded ? "max-w-5xl mx-auto w-full" : ""}`}>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
           <StatusIcon type={statusType} color={statusColor} size={20} />
           <span className="text-sm text-zinc-500 font-mono">{identifier}</span>
           <span
@@ -208,7 +212,15 @@ export function TaskDetailPanel({
             </a>
           )}
         </div>
-        <IconButton icon={X} size={18} label="Close" onClick={onClose} />
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <IconButton
+            icon={expanded ? Minimize2 : Maximize2}
+            size={18}
+            label={expanded ? "Collapse" : "Expand"}
+            onClick={() => setExpanded(!expanded)}
+          />
+          <IconButton icon={X} size={18} label="Close" onClick={() => { setExpanded(false); onClose(); }} />
+        </div>
       </div>
 
       {/* Tabs */}
@@ -764,6 +776,20 @@ export function TaskDetailPanel({
       )}
     </div>
   );
+
+  if (expanded) {
+    // Portal to the nearest module content container to fill the body area
+    // Shell.tsx renders module content in a div with class "relative" and min-w-0
+    const portalTarget = document.querySelector('[data-module-content]') || document.body;
+    return createPortal(
+      <div className="absolute inset-0 z-40 bg-zinc-50 dark:bg-zinc-950 overflow-hidden flex flex-col">
+        {panelContent}
+      </div>,
+      portalTarget
+    );
+  }
+
+  return panelContent;
 }
 
 // ─── Task Changes Panel ──────────────────────────────────────────────────

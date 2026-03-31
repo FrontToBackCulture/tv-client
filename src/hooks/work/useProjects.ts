@@ -6,7 +6,6 @@ import type {
   Project,
   ProjectInsert,
   ProjectUpdate,
-  TaskStatusInsert,
 } from "../../lib/work/types";
 import { workKeys } from "./keys";
 
@@ -82,35 +81,7 @@ export function useCreateProject() {
 
       if (error) throw new Error(`Failed to create project: ${error.message}`);
 
-      // Create default statuses
-      const defaultStatuses: TaskStatusInsert[] = [
-        {
-          project_id: data.id,
-          name: "To-do",
-          type: "todo",
-          color: "#9CA3AF",
-          icon: "circle",
-          sort_order: 0,
-        },
-        {
-          project_id: data.id,
-          name: "In Progress",
-          type: "in_progress",
-          color: "#F59E0B",
-          icon: "play",
-          sort_order: 1,
-        },
-        {
-          project_id: data.id,
-          name: "Complete",
-          type: "complete",
-          color: "#10B981",
-          icon: "check",
-          sort_order: 2,
-        },
-      ];
-
-      await supabase.from("task_statuses").insert(defaultStatuses);
+      // Statuses are global — no per-project creation needed
 
       return data;
     },

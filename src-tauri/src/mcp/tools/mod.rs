@@ -85,11 +85,12 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
         return work::call(name, arguments).await;
     }
 
-    // CRM module tools (companies, contacts, activities only — deals are projects now)
+    // CRM module tools (companies, contacts) + activities (general)
     if name.starts_with("list-crm-") || name.starts_with("find-crm-") ||
        name.starts_with("get-crm-") || name.starts_with("create-crm-") ||
        name.starts_with("update-crm-") || name.starts_with("delete-crm-") ||
-       name.starts_with("log-crm-") {
+       name == "log-activity" || name == "list-activities" ||
+       name == "update-activity" || name == "delete-activity" {
         return crm::call(name, arguments).await;
     }
 
@@ -241,7 +242,8 @@ mod tests {
             "list-crm-companies", "find-crm-company", "get-crm-company",
             "create-crm-company", "update-crm-company", "delete-crm-company",
             "list-crm-contacts", "find-crm-contact", "create-crm-contact",
-            "update-crm-contact", "log-crm-activity", "list-crm-activities",
+            "update-crm-contact", "log-activity", "list-activities",
+            "update-activity", "delete-activity",
         ];
         for name in expected {
             assert!(names.contains(name), "Missing CRM tool: {}", name);

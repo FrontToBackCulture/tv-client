@@ -3,8 +3,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { MessageSquare, ArrowRight } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useThreads, useChatReadPositions, useUpsertReadPosition, type Thread } from "../../hooks/chat";
 import { useCreateDiscussion } from "../../hooks/useDiscussions";
+import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../stores/authStore";
 import { useUsers } from "../../hooks/work";
 import { useNotificationNavStore } from "../../stores/notificationNavStore";
@@ -58,6 +60,32 @@ export function ChatModule() {
     }
   }, [selectedThread, currentUser, upsertReadPosition]);
 
+  const queryClient = useQueryClient();
+
+  async function handleDeleteThread(thread: Thread) {
+    // Delete all discussions for this entity
+    const { error } = await supabase
+      .from("discussions")
+      .delete()
+      .eq("entity_type", thread.entity_type)
+      .eq("entity_id", thread.entity_id);
+
+    if (error) {
+      console.error("Failed to delete thread:", error);
+      return;
+    }
+
+    // Clear selection if we deleted the active thread
+    if (selectedThread?.entity_id === thread.entity_id && selectedThread?.entity_type === thread.entity_type) {
+      setSelectedThread(null);
+    }
+
+    // Refresh data
+    queryClient.invalidateQueries({ queryKey: ["discussions"] });
+    queryClient.invalidateQueries({ queryKey: ["chat"] });
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+  }
+
   async function handleCreateThread(params: {
     title: string;
     body: string;
@@ -83,8 +111,15 @@ export function ChatModule() {
       title: params.title,
       created_at: result.created_at,
       last_activity_at: result.created_at,
+      message_count: 1,
+      last_author: currentUser,
     };
     setSelectedThread(newThread);
+
+    // Mark as read after cache settles so creator doesn't see unread dot
+    setTimeout(() => {
+      upsertReadPosition.mutate({ userId: currentUser, threadId: result.id });
+    }, 500);
   }
 
   return (
@@ -97,6 +132,7 @@ export function ChatModule() {
           selectedThreadId={selectedThread?.id ?? null}
           onSelect={setSelectedThread}
           onNewThread={() => setShowNewThread(true)}
+          onDeleteThread={handleDeleteThread}
         />
       </div>
 

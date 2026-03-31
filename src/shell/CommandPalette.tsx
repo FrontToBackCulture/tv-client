@@ -96,6 +96,7 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   linkedin: Linkedin,
   prospecting: Target,
   "public-data": Database,
+  referrals: Handshake,
 };
 
 const moduleLabels: Record<ModuleId, string> = {
@@ -123,6 +124,7 @@ const moduleLabels: Record<ModuleId, string> = {
   linkedin: "LinkedIn",
   prospecting: "Outbound",
   "public-data": "Public Data",
+  referrals: "Referrals",
 };
 
 const MODULE_LABELS: Record<string, string> = {

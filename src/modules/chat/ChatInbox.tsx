@@ -1,7 +1,7 @@
-// Left panel — thread inbox with entity-type accents and unread tracking
+// Left panel — thread inbox with entity-type accents, unread tracking, pin & delete
 
-import { Plus, MessageSquare, Hash, Building2, CheckSquare, FolderOpen, Briefcase, FileText, Globe, Mail, Search } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Plus, MessageSquare, Hash, Building2, CheckSquare, FolderOpen, Briefcase, FileText, Globe, Mail, Search, Pin, Trash2 } from "lucide-react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { Thread } from "../../hooks/chat";
 
@@ -31,12 +31,89 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString("en-SG", { month: "short", day: "numeric" });
 }
 
+function threadKey(t: Thread): string {
+  return `${t.entity_type}:${t.entity_id}`;
+}
+
+// ---------------------------------------------------------------------------
+// Pinned threads — persisted per user in localStorage
+// ---------------------------------------------------------------------------
+const PINS_KEY = "tv-chat-pinned-threads";
+
+function loadPins(): Set<string> {
+  try {
+    const stored = localStorage.getItem(PINS_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function savePins(pins: Set<string>) {
+  localStorage.setItem(PINS_KEY, JSON.stringify([...pins]));
+}
+
+// ---------------------------------------------------------------------------
+// Context menu
+// ---------------------------------------------------------------------------
+interface ContextMenu {
+  thread: Thread;
+  x: number;
+  y: number;
+}
+
+function ThreadContextMenu({ menu, isPinned, onPin, onDelete, onClose }: {
+  menu: ContextMenu;
+  isPinned: boolean;
+  onPin: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-50 min-w-[160px] bg-[var(--bg-elevated)] dark:bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] shadow-lg py-1 animate-fade-slide-in"
+      style={{ top: menu.y, left: menu.x }}
+    >
+      <button
+        onClick={() => { onPin(); onClose(); }}
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-[var(--text-primary)] hover:bg-[var(--bg-muted)] transition-colors"
+      >
+        <Pin size={13} className={isPinned ? "text-[var(--color-accent)]" : "text-[var(--text-muted)]"} />
+        {isPinned ? "Unpin thread" : "Pin thread"}
+      </button>
+      <div className="mx-2 my-0.5 border-t border-[var(--border-default)]" />
+      <button
+        onClick={() => { onDelete(); onClose(); }}
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-[var(--color-error)] hover:bg-[var(--color-error-light)] transition-colors"
+      >
+        <Trash2 size={13} />
+        Delete thread
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 interface ChatInboxProps {
   threads: Thread[];
   readPositions: Map<string, string>;
   selectedThreadId: string | null;
   onSelect: (thread: Thread) => void;
   onNewThread: () => void;
+  onDeleteThread: (thread: Thread) => void;
 }
 
 export function ChatInbox({
@@ -45,19 +122,48 @@ export function ChatInbox({
   selectedThreadId,
   onSelect,
   onNewThread,
+  onDeleteThread,
 }: ChatInboxProps) {
   const [search, setSearch] = useState("");
+  const [pins, setPins] = useState(loadPins);
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Thread | null>(null);
+
+  const togglePin = useCallback((thread: Thread) => {
+    setPins((prev) => {
+      const next = new Set(prev);
+      const key = threadKey(thread);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      savePins(next);
+      return next;
+    });
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, thread: Thread) => {
+    e.preventDefault();
+    setContextMenu({ thread, x: e.clientX, y: e.clientY });
+  }, []);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return threads;
-    const q = search.toLowerCase();
-    return threads.filter(
-      (t) =>
-        (t.title || "").toLowerCase().includes(q) ||
-        t.body.toLowerCase().includes(q) ||
-        t.author.toLowerCase().includes(q)
-    );
-  }, [threads, search]);
+    let list = threads;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (t) =>
+          (t.title || "").toLowerCase().includes(q) ||
+          t.body.toLowerCase().includes(q) ||
+          t.author.toLowerCase().includes(q)
+      );
+    }
+    // Sort: pinned first, then by last_activity_at (already sorted from hook)
+    const pinned = list.filter((t) => pins.has(threadKey(t)));
+    const unpinned = list.filter((t) => !pins.has(threadKey(t)));
+    return [...pinned, ...unpinned];
+  }, [threads, search, pins]);
 
   const unreadCount = useMemo(() => {
     return threads.filter((t) => {
@@ -128,12 +234,14 @@ export function ChatInbox({
               const isSelected = thread.id === selectedThreadId;
               const readAt = readPositions.get(thread.id);
               const isUnread = !readAt || new Date(thread.last_activity_at) > new Date(readAt);
+              const isPinned = pins.has(threadKey(thread));
               const title = thread.title || thread.body.slice(0, 50) || "Untitled";
 
               return (
                 <button
                   key={thread.id}
                   onClick={() => onSelect(thread)}
+                  onContextMenu={(e) => handleContextMenu(e, thread)}
                   className={`w-full text-left px-2.5 py-2 flex items-start gap-2.5 rounded-lg border-l-[3px] transition-all duration-150 animate-fade-slide-in ${meta.border} ${
                     isSelected
                       ? "bg-[var(--color-teal-light)] dark:bg-[var(--color-teal-light)]"
@@ -150,16 +258,19 @@ export function ChatInbox({
 
                   {/* Content */}
                   <div className="flex-1 min-w-0 py-0.5">
-                    <span className={`block text-[12px] leading-tight truncate ${
-                      isUnread
-                        ? "font-semibold text-[var(--text-primary)]"
-                        : "font-medium text-[var(--text-secondary)]"
-                    }`}>
-                      {title}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {isPinned && <Pin size={10} className="text-[var(--color-accent)] flex-shrink-0" />}
+                      <span className={`block text-[12px] leading-tight truncate ${
+                        isUnread
+                          ? "font-semibold text-[var(--text-primary)]"
+                          : "font-medium text-[var(--text-secondary)]"
+                      }`}>
+                        {title}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1 mt-1">
                       <span className="text-[10px] text-[var(--text-muted)] truncate">
-                        {thread.author}
+                        {thread.last_author || thread.author}
                       </span>
                       <span className="text-[10px] text-[var(--text-muted)] opacity-40">·</span>
                       <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">
@@ -178,6 +289,50 @@ export function ChatInbox({
           </div>
         )}
       </div>
+
+      {/* Context menu */}
+      {contextMenu && (
+        <ThreadContextMenu
+          menu={contextMenu}
+          isPinned={pins.has(threadKey(contextMenu.thread))}
+          onPin={() => togglePin(contextMenu.thread)}
+          onDelete={() => setConfirmDelete(contextMenu.thread)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDelete(null)}>
+          <div className="absolute inset-0 bg-black/30 dark:bg-black/50" />
+          <div
+            className="relative bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] rounded-2xl shadow-xl w-full max-w-[340px] border border-[var(--border-default)] p-5 animate-fade-slide-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-heading text-[15px] text-[var(--text-primary)] mb-2">Delete thread?</h3>
+            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mb-4">
+              This will permanently delete all messages in "{confirmDelete.title || confirmDelete.body.slice(0, 40)}". This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-3 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] rounded-lg hover:bg-[var(--bg-muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onDeleteThread(confirmDelete);
+                  setConfirmDelete(null);
+                }}
+                className="px-3 py-1.5 text-[12px] font-semibold text-white bg-[var(--color-error)] hover:opacity-90 rounded-lg transition-all"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

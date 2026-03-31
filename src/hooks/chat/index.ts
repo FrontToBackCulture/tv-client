@@ -5,3 +5,4 @@ export { useChatReadPositions, useUpsertReadPosition } from "./useChatReadPositi
 export { useDiscussionMentionCount, useCreateDiscussionMention } from "./useDiscussionMentions";
 export { useEntityMentionSearch } from "./useEntityMentionSearch";
 export type { EntitySearchResult } from "./useEntityMentionSearch";
+export { useTaskAdvisor, triggerTaskAdvisor } from "./useTaskAdvisor";

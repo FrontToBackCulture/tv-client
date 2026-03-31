@@ -1,7 +1,6 @@
 // src/modules/crm/index.ts
 // Export all CRM module components
 
-export { CrmModule } from "./CrmModule";
 export { CRMSidebar } from "./CRMSidebar";
 export { CompanyDetailPanel } from "./CompanyDetailPanel";
 export { DirectoryView } from "./DirectoryView";

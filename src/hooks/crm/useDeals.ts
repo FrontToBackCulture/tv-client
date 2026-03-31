@@ -176,12 +176,7 @@ export function useCreateDeal() {
 
       if (error) throw new Error(`Failed to create deal: ${error.message}`);
 
-      // Create default task statuses for the deal project
-      await supabase.from("task_statuses").insert([
-        { project_id: data.id, name: "To-do", type: "todo", color: "#9CA3AF", icon: "circle", sort_order: 0 },
-        { project_id: data.id, name: "In Progress", type: "in_progress", color: "#F59E0B", icon: "play", sort_order: 1 },
-        { project_id: data.id, name: "Complete", type: "complete", color: "#10B981", icon: "check", sort_order: 2 },
-      ]);
+      // Statuses are global — no per-project creation needed
 
       // Update company stage if prospect
       const { data: company } = await supabase

@@ -269,7 +269,7 @@ function ConfigEditor({
   const { data: schema, isLoading: schemaLoading } = useNotionDatabaseSchema(config.notion_database_id);
 
   // Project statuses + users + companies for value mapping
-  const { data: statuses = [] } = useStatuses(config.target_project_id ?? null);
+  const { data: statuses = [] } = useStatuses();
   const { data: users = [] } = useUsers();
   const { data: companies = [] } = useCompanies();
 

@@ -45,6 +45,7 @@ const moduleLabels: Record<ModuleId, string> = {
   linkedin: "LinkedIn",
   prospecting: "Outbound",
   "public-data": "Public Data",
+  referrals: "Referrals",
 };
 
 function TitleBar() {
@@ -141,7 +142,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
         />
 
         {/* Module content */}
-        <div className="flex-1 overflow-hidden min-w-0 relative">
+        <div className="flex-1 overflow-hidden min-w-0 relative" data-module-content>
           <PendingProjectView />
           <PendingTaskView />
           <ErrorBoundary>{children}</ErrorBoundary>

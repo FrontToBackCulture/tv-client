@@ -12,6 +12,7 @@ export interface Discussion {
   author: string;
   body: string;
   title: string | null;
+  attachments: string[]; // array of image URLs
   last_activity_at: string;
   created_at: string;
   updated_at: string;
@@ -75,6 +76,7 @@ export function useCreateDiscussion() {
       body: string;
       parent_id?: string;
       title?: string;
+      attachments?: string[];
     }) => {
       const { data, error } = await supabase
         .from("discussions")

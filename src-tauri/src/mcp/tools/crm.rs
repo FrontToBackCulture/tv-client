@@ -1,7 +1,7 @@
 // CRM Module MCP Tools
 // Company, contact, and activity management tools
 
-use crate::commands::crm::{self, CreateActivity, CreateCompany, CreateContact, UpdateCompany, UpdateContact};
+use crate::commands::crm::{self, CreateActivity, CreateCompany, CreateContact, UpdateActivity, UpdateCompany, UpdateContact};
 use crate::mcp::protocol::{InputSchema, Tool, ToolResult};
 use serde_json::{json, Value};
 
@@ -165,9 +165,9 @@ pub fn tools() -> Vec<Tool> {
                 vec!["contact_id".to_string()],
             ),
         },
-        // Activities
+        // Activities (general — works for companies, projects, tasks, or standalone)
         Tool {
-            name: "log-crm-activity".to_string(),
+            name: "log-activity".to_string(),
             description: "Log an activity (note, call, meeting) for a company, project, or task.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -184,7 +184,7 @@ pub fn tools() -> Vec<Tool> {
             ),
         },
         Tool {
-            name: "list-crm-activities".to_string(),
+            name: "list-activities".to_string(),
             description: "List activities for a company, project, or task.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
@@ -195,6 +195,34 @@ pub fn tools() -> Vec<Tool> {
                     "limit": { "type": "integer", "description": "Max results (default: 20)" }
                 }),
                 vec![],
+            ),
+        },
+        Tool {
+            name: "update-activity".to_string(),
+            description: "Update an existing activity.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "activity_id": { "type": "string", "description": "The activity UUID (required)" },
+                    "type": { "type": "string", "enum": ["note", "call", "meeting", "email", "task"], "description": "Activity type" },
+                    "subject": { "type": "string", "description": "Activity subject/title" },
+                    "content": { "type": "string", "description": "Activity content/notes" },
+                    "activity_date": { "type": "string", "description": "When the activity occurred (ISO date)" },
+                    "company_id": { "type": "string", "description": "Company UUID" },
+                    "contact_id": { "type": "string", "description": "Contact UUID" },
+                    "project_id": { "type": "string", "description": "Project UUID" },
+                    "task_id": { "type": "string", "description": "Task UUID" }
+                }),
+                vec!["activity_id".to_string()],
+            ),
+        },
+        Tool {
+            name: "delete-activity".to_string(),
+            description: "Delete an activity.".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "activity_id": { "type": "string", "description": "The activity UUID (required)" }
+                }),
+                vec!["activity_id".to_string()],
             ),
         },
     ]
@@ -340,7 +368,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         }
 
         // Activities
-        "log-crm-activity" => {
+        "log-activity" => {
             let data: CreateActivity = match serde_json::from_value(args) {
                 Ok(d) => d,
                 Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
@@ -350,7 +378,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
-        "list-crm-activities" => {
+        "list-activities" => {
             let company_id = args.get("company_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let project_id = args.get("project_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let task_id = args.get("task_id").and_then(|v| v.as_str()).map(|s| s.to_string());
@@ -358,6 +386,34 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             let limit = args.get("limit").and_then(|v| v.as_i64()).map(|n| n as i32);
             match crm::crm_list_activities(company_id, None, project_id, task_id, activity_type, limit).await {
                 Ok(activities) => ToolResult::json(&activities),
+                Err(e) => ToolResult::error(e.to_string()),
+            }
+        }
+        "update-activity" => {
+            let activity_id = match args.get("activity_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("activity_id is required".to_string()),
+            };
+            let mut data_args = args.clone();
+            if let Some(obj) = data_args.as_object_mut() {
+                obj.remove("activity_id");
+            }
+            let data: UpdateActivity = match serde_json::from_value(data_args) {
+                Ok(d) => d,
+                Err(e) => return ToolResult::error(format!("Invalid parameters: {}", e)),
+            };
+            match crm::crm_update_activity(activity_id, data).await {
+                Ok(activity) => ToolResult::json(&activity),
+                Err(e) => ToolResult::error(e.to_string()),
+            }
+        }
+        "delete-activity" => {
+            let activity_id = match args.get("activity_id").and_then(|v| v.as_str()) {
+                Some(id) => id.to_string(),
+                None => return ToolResult::error("activity_id is required".to_string()),
+            };
+            match crm::crm_delete_activity(activity_id).await {
+                Ok(()) => ToolResult::text("Activity deleted successfully".to_string()),
                 Err(e) => ToolResult::error(e.to_string()),
             }
         }
@@ -378,8 +434,8 @@ mod tests {
     #[test]
     fn crm_tools_count() {
         let t = tools();
-        // Companies (6) + Contacts (4) + Activities (2) = 12
-        assert_eq!(t.len(), 12);
+        // Companies (6) + Contacts (4) + Activities (4) = 14
+        assert_eq!(t.len(), 14);
     }
 
     #[test]
@@ -412,7 +468,7 @@ mod tests {
     #[test]
     fn log_activity_requires_type() {
         let t = tools();
-        let tool = t.iter().find(|t| t.name == "log-crm-activity").unwrap();
+        let tool = t.iter().find(|t| t.name == "log-activity").unwrap();
         assert_eq!(
             tool.input_schema.required,
             Some(vec!["type".to_string()])

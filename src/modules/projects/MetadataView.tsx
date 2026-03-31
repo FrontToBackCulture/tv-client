@@ -1074,17 +1074,17 @@ export function MetadataView() {
                       })()}
                     </div>
                     {/* Activities */}
-                    {activities.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                        <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Activities</h3>
-                        {activities.slice(0, 8).map(a => (
-                          <div key={a.id} className="text-[11px] mb-1">
-                            <span className="text-[9px] px-1 rounded bg-zinc-100 text-zinc-500 mr-1">{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</span>
-                            {a.subject && <span className="text-zinc-600">{a.subject}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                      <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Activities</h3>
+                      {activities.length === 0 ? (
+                        <p className="text-[11px] text-zinc-400 italic">No activities yet</p>
+                      ) : activities.slice(0, 8).map(a => (
+                        <div key={a.id} className="text-[11px] mb-1">
+                          <span className="text-[9px] px-1 rounded bg-zinc-100 text-zinc-500 mr-1">{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</span>
+                          {a.subject && <span className="text-zinc-600">{a.subject}</span>}
+                        </div>
+                      ))}
+                    </div>
                     <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                       <button onClick={() => deleteEntity("crm_companies", selectedCompany.id, selectedCompany.name, async () => {
                         await supabase.from("crm_activities").delete().eq("company_id", selectedCompany.id);
@@ -1150,17 +1150,17 @@ export function MetadataView() {
                       </select>
                     </div>
                     {/* Activities */}
-                    {activities.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                        <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Activities</h3>
-                        {activities.slice(0, 8).map(a => (
-                          <div key={a.id} className="text-[11px] mb-1">
-                            <span className="text-[9px] px-1 rounded bg-zinc-100 text-zinc-500 mr-1">{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</span>
-                            {a.subject && <span className="text-zinc-600">{a.subject}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                      <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Activities</h3>
+                      {activities.length === 0 ? (
+                        <p className="text-[11px] text-zinc-400 italic">No activities yet</p>
+                      ) : activities.slice(0, 8).map(a => (
+                        <div key={a.id} className="text-[11px] mb-1">
+                          <span className="text-[9px] px-1 rounded bg-zinc-100 text-zinc-500 mr-1">{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</span>
+                          {a.subject && <span className="text-zinc-600">{a.subject}</span>}
+                        </div>
+                      ))}
+                    </div>
                     {/* Pending Email Drafts */}
                     {pendingDrafts.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">

@@ -1489,10 +1489,11 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const [filterPriority, setFilterPriority] = useState<number | null>(null);
   const [filterAssignee, setFilterAssignee] = useState<string | null>(null);
   const [filterCompany, setFilterCompany] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterDueDate, setFilterDueDate] = useState<string | null>(null); // "overdue" | "this_week" | "has_date" | "no_date"
   const [sortColumn, setSortColumn] = useState<string | null>(null); // column key
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ details: true, emails: true, events: true });
   const [contextMenuTab, setContextMenuTab] = useState<"milestone" | "project" | "convert">("milestone");
   const [newMilestoneName, setNewMilestoneName] = useState("");
 
@@ -1576,7 +1577,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   }, [allInitiativeLinks, allInitiatives]);
   // Task inline editing hooks
   const updateTaskMutation = useUpdateTask();
-  const { data: taskStatuses = [] } = useStatuses(workspaceId);
+  const { data: taskStatuses = [] } = useStatuses();
   const { data: taskUsers = [] } = useUsers();
   const { data: allCompanies = [] } = useCompanies();
   const { data: allContacts = [] } = useContacts();
@@ -1762,7 +1763,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
   const completedTasks = projectTasks.filter(t => t.status?.type === "complete").length;
 
   // Filter + paginate tasks for large projects
-  const hasColumnFilters = filterPriority !== null || filterAssignee !== null || filterCompany !== null || filterDueDate !== null;
+  const hasColumnFilters = filterStatus !== null || filterPriority !== null || filterAssignee !== null || filterCompany !== null || filterDueDate !== null;
   const filteredTasks = useMemo(() => {
     let tasks = projectTasks;
     if (taskSearch) {
@@ -1774,6 +1775,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
         || (t.company as any)?.display_name?.toLowerCase().includes(q)
       );
     }
+    if (filterStatus !== null) tasks = tasks.filter(t => t.status_id === filterStatus);
     if (filterPriority !== null) tasks = tasks.filter(t => (t.priority ?? 0) === filterPriority);
     if (filterAssignee !== null) {
       tasks = filterAssignee === "__none__"
@@ -1801,7 +1803,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
       });
     }
     return tasks;
-  }, [projectTasks, taskSearch, filterPriority, filterAssignee, filterCompany, filterDueDate]);
+  }, [projectTasks, taskSearch, filterStatus, filterPriority, filterAssignee, filterCompany, filterDueDate]);
   const isLargeProject = projectTasks.length > 100;
   const visibleTasks = isLargeProject ? filteredTasks.slice(0, taskPageSize) : filteredTasks;
   const hasMoreTasks = isLargeProject && filteredTasks.length > taskPageSize;
@@ -1837,6 +1839,17 @@ Write a brief current state summary. No bullet points, just a natural sentence o
       const e = counts.get(t.company_id) || { name, count: 0 }; e.count++; counts.set(t.company_id, e);
     }
     return Array.from(counts.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, v]) => ({ value: id, label: v.name, count: v.count }));
+  }, [projectTasks]);
+
+  const statusFilterOptions = useMemo(() => {
+    const counts = new Map<string, { name: string; sortOrder: number; count: number }>();
+    for (const t of projectTasks) {
+      if (!t.status_id || !t.status) continue;
+      const e = counts.get(t.status_id) || { name: t.status.name, sortOrder: t.status.sort_order ?? 0, count: 0 };
+      e.count++;
+      counts.set(t.status_id, e);
+    }
+    return Array.from(counts.entries()).sort((a, b) => a[1].sortOrder - b[1].sortOrder).map(([id, v]) => ({ value: id, label: v.name, count: v.count }));
   }, [projectTasks]);
 
   // Sort handler
@@ -2493,6 +2506,21 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         placeholder="Search tasks..."
                         className="text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 outline-none max-w-[200px] focus:border-teal-400 dark:focus:border-teal-600 transition-colors"
                       />
+                      {/* Status filter */}
+                      <select
+                        value={filterStatus ?? ""}
+                        onChange={(e) => { setFilterStatus(e.target.value === "" ? null : e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
+                        className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
+                          filterStatus !== null
+                            ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                            : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                        }`}
+                      >
+                        <option value="">Status</option>
+                        {statusFilterOptions.map(o => (
+                          <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
+                        ))}
+                      </select>
                       {/* Priority filter */}
                       <select
                         value={filterPriority ?? ""}
@@ -2558,7 +2586,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                       </select>
                       {(taskSearch || hasColumnFilters) && (
                         <button
-                          onClick={() => { setTaskSearch(""); setFilterPriority(null); setFilterAssignee(null); setFilterCompany(null); setFilterDueDate(null); }}
+                          onClick={() => { setTaskSearch(""); setFilterStatus(null); setFilterPriority(null); setFilterAssignee(null); setFilterCompany(null); setFilterDueDate(null); }}
                           className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center gap-0.5"
                         >
                           <X size={10} /> Clear
@@ -3032,7 +3060,9 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                               <div className="text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-0.5">{activity.subject}</div>
                             )}
                             {activity.content && (
-                              <div className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{activity.content}</div>
+                              <div className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed prose prose-xs dark:prose-invert max-w-none">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{activity.content}</ReactMarkdown>
+                              </div>
                             )}
                           </div>
                         </div>

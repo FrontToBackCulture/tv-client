@@ -423,7 +423,7 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel }: {
   // Fetch statuses when dropdown opens
   useEffect(() => {
     if (!statusOpen || statusList.length > 0) return;
-    supabase.from("task_statuses").select("id, name, type, color").is("project_id", null).order("sort_order")
+    supabase.from("task_statuses").select("id, name, type, color").order("sort_order")
       .then(({ data }) => { if (data) setStatusList(data); });
   }, [statusOpen, statusList.length]);
 

@@ -17,7 +17,7 @@ interface DealTasksProps {
 }
 
 // CRM Follow-ups project ID
-const CRM_FOLLOWUPS_PROJECT_ID = "4d8cc7b3-7bfd-473d-9b30-ba89f3975346";
+// Statuses are global — no project-specific status lookup needed
 
 const PriorityLabels: Record<number, string> = {
   0: "None",
@@ -51,13 +51,13 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
   // Create task mutation
   const createMutation = useMutation({
     mutationFn: async (taskData: typeof formData) => {
-      // First fetch statuses
-      const { data: projectStatuses } = await supabase
+      // Fetch global statuses
+      const { data: statuses } = await supabase
         .from("task_statuses")
         .select("id, name, type")
-        .eq("project_id", CRM_FOLLOWUPS_PROJECT_ID);
+        .order("sort_order");
 
-      const unstartedStatus = (projectStatuses ?? []).find((s) => s.type === "todo");
+      const unstartedStatus = (statuses ?? []).find((s) => s.type === "todo");
       if (!unstartedStatus) throw new Error("No todo status found");
 
       const { data, error } = await supabase
@@ -87,13 +87,13 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
   // Complete task mutation
   const completeMutation = useMutation({
     mutationFn: async (taskId: string) => {
-      // First fetch statuses
-      const { data: projectStatuses } = await supabase
+      // Fetch global statuses
+      const { data: statuses } = await supabase
         .from("task_statuses")
         .select("id, name, type")
-        .eq("project_id", CRM_FOLLOWUPS_PROJECT_ID);
+        .order("sort_order");
 
-      const completedStatus = (projectStatuses ?? []).find((s) => s.type === "complete");
+      const completedStatus = (statuses ?? []).find((s) => s.name === "Done" && s.type === "complete");
       if (!completedStatus) throw new Error("No complete status found");
 
       const { error } = await supabase

@@ -4,11 +4,29 @@ import { useState } from "react";
 import { Pencil, Trash2, Check, X, Reply } from "lucide-react";
 import type { Discussion } from "../../hooks/useDiscussions";
 
-/** Render body text with @mentions and [[entity]] links highlighted */
+/** Render inline markdown: bold, italic, and code */
+function renderInlineMarkdown(text: string, keyPrefix: string): React.ReactNode {
+  // Split on **bold**, *italic*, and `code` patterns
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={`${keyPrefix}-${i}`} className="font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return <em key={`${keyPrefix}-${i}`}>{part.slice(1, -1)}</em>;
+    }
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return <code key={`${keyPrefix}-${i}`} className="px-1 py-0.5 rounded bg-[var(--bg-muted)] text-[12px] font-mono">{part.slice(1, -1)}</code>;
+    }
+    return part;
+  });
+}
+
+/** Render body text with @mentions, [[entity]] links, and inline markdown */
 function renderBodyWithMentions(text: string): React.ReactNode {
   // Split on @mentions and [[entity:label|id]] patterns
   const parts = text.split(/(@[\w-]+|\[\[[\w]+:[^|]+\|[^\]]+\]\])/g);
-  if (parts.length === 1) return text;
   return parts.map((part, i) => {
     if (part.startsWith("@")) {
       return (
@@ -32,7 +50,8 @@ function renderBodyWithMentions(text: string): React.ReactNode {
         </span>
       );
     }
-    return part;
+    // Apply inline markdown to plain text segments
+    return <span key={i}>{renderInlineMarkdown(part, `md-${i}`)}</span>;
   });
 }
 
@@ -175,9 +194,32 @@ export function DiscussionItem({
           </button>
         </div>
       ) : (
-        <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap break-words leading-relaxed">
-          {renderBodyWithMentions(discussion.body)}
-        </p>
+        <>
+          <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap break-words leading-relaxed">
+            {renderBodyWithMentions(discussion.body)}
+          </p>
+          {/* Image attachments */}
+          {discussion.attachments && discussion.attachments.length > 0 && (
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {discussion.attachments.map((url, i) => (
+                <a
+                  key={i}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
+                >
+                  <img
+                    src={url}
+                    alt="attachment"
+                    className="max-h-48 max-w-xs rounded-lg border border-[var(--border-default)] object-cover hover:opacity-90 transition-opacity cursor-pointer"
+                    loading="lazy"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

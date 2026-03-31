@@ -28,10 +28,13 @@ import {
   Undo,
   Redo,
   Table as TableIcon,
+  ImagePlus,
+  Loader2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Calendar, User, Tag, FileText, ListTree } from "lucide-react";
+import { ResizableImage, uploadImage } from "../../components/TipTapResizableImage";
 
 interface Frontmatter {
   title?: string;
@@ -274,6 +277,9 @@ turndownService.addRule("table", {
 export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
   const [tocOpen, setTocOpen] = useState(false);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const editorRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Parse frontmatter and store it separately (preserved during edits)
   const { frontmatterRaw, frontmatter, body } = useMemo(() => parseFrontmatter(content), []);
@@ -288,6 +294,31 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
     }
   }, []);
 
+  // Upload images and insert at cursor position
+  const handleImageUpload = useCallback(
+    async (files: File[], insertPos?: number) => {
+      const ed = editorRef.current;
+      if (!ed) return;
+      setUploading(true);
+      try {
+        let pos = insertPos ?? ed.state.selection.anchor;
+        for (const file of files) {
+          const url = await uploadImage(file);
+          ed.chain().insertContentAt(pos, { type: "image", attrs: { src: url } }).run();
+          pos = ed.state.selection.anchor;
+        }
+      } catch (err) {
+        console.error("Image upload failed:", err);
+      } finally {
+        setUploading(false);
+      }
+    },
+    []
+  );
+
+  const handleImageUploadRef = useRef(handleImageUpload);
+  handleImageUploadRef.current = handleImageUpload;
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -299,6 +330,7 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
       Link.configure({
         openOnClick: false,
       }),
+      ResizableImage.configure({ inline: false, allowBase64: false }),
       Placeholder.configure({
         placeholder: "Start writing...",
       }),
@@ -315,6 +347,45 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
       attributes: {
         class: "prose dark:prose-invert prose-zinc max-w-none focus:outline-none min-h-[300px] px-6 py-4",
       },
+      handlePaste: (view, event) => {
+        const imageFiles: File[] = [];
+        const items = event.clipboardData?.items;
+        if (items) {
+          for (const item of Array.from(items)) {
+            if (item.type.startsWith("image/")) {
+              const file = item.getAsFile();
+              if (file) imageFiles.push(file);
+            }
+          }
+        }
+        if (imageFiles.length === 0) {
+          const files = event.clipboardData?.files;
+          if (files) {
+            for (const file of Array.from(files)) {
+              if (file.type.startsWith("image/")) imageFiles.push(file);
+            }
+          }
+        }
+        if (imageFiles.length > 0) {
+          event.preventDefault();
+          const pos = view.state.selection.anchor;
+          handleImageUploadRef.current(imageFiles, pos);
+          return true;
+        }
+        return false;
+      },
+      handleDrop: (view, event) => {
+        const files = event.dataTransfer?.files;
+        if (!files?.length) return false;
+        const imageFiles = Array.from(files).filter(f => f.type.startsWith("image/"));
+        if (imageFiles.length > 0) {
+          event.preventDefault();
+          const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+          handleImageUploadRef.current(imageFiles, pos);
+          return true;
+        }
+        return false;
+      },
     },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
@@ -324,6 +395,8 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
       onChange(fullMarkdown);
     },
   });
+
+  editorRef.current = editor;
 
   // Extract headings from editor for TOC
   const extractHeadings = useCallback(() => {
@@ -452,6 +525,9 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
         .dark .markdown-editor-container .ProseMirror pre code {
           color: #d4d4d8;
         }
+        .markdown-editor-container .ProseMirror [data-node-view-wrapper] {
+          margin: 8px 0;
+        }
       `}</style>
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/80 flex-wrap">
@@ -560,6 +636,13 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           >
             <TableIcon size={16} />
           </ToolbarButton>
+          <ToolbarButton
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            title="Insert Image"
+          >
+            {uploading ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
+          </ToolbarButton>
         </div>
 
         <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
@@ -598,6 +681,24 @@ export function MarkdownEditor({ content, onChange }: MarkdownEditorProps) {
           {/* Frontmatter metadata badge */}
           {frontmatter && <MetadataBadge frontmatter={frontmatter} />}
           <EditorContent editor={editor} className="h-full" />
+          {uploading && (
+            <div className="flex items-center gap-1.5 text-xs text-zinc-400 px-6 py-1">
+              <Loader2 size={12} className="animate-spin" />
+              Uploading image...
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              if (files.length) handleImageUpload(files);
+              e.target.value = "";
+            }}
+          />
         </div>
         {tocOpen && (
           <div className="w-52 flex-shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 overflow-hidden">

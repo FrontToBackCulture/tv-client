@@ -1,4 +1,5 @@
 // Compact entity context chip — navigates to the linked entity on click
+// For files, derives the filename from the entity_id path
 
 import { Building2, CheckSquare, FolderOpen, Briefcase, FileText, Globe, Mail } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -16,6 +17,17 @@ const entityConfig: Record<string, { icon: LucideIcon; label: string; accent: st
   campaign:    { icon: Mail,        label: "Campaign", accent: "text-[var(--color-magenta)]", bg: "bg-[var(--color-magenta-light)]", module: "email" },
 };
 
+/** Derive a display label from the entity type and ID */
+function deriveLabel(entityType: string, entityId: string): string {
+  if (entityType === "file") {
+    // entity_id is a path — extract the filename
+    const normalized = entityId.replace(/\\/g, "/");
+    return normalized.split("/").pop() || entityId;
+  }
+  // For other types, truncate the UUID
+  return entityConfig[entityType]?.label || entityId.slice(0, 8);
+}
+
 interface ChatEntityCardProps {
   entityType: string;
   entityId: string;
@@ -30,8 +42,12 @@ export function ChatEntityCard({ entityType, entityId, entityLabel }: ChatEntity
   const openTab = useModuleTabStore((s) => s.openTab);
   const setNavTarget = useNotificationNavStore((s) => s.setTarget);
 
+  const displayLabel = entityLabel || deriveLabel(entityType, entityId);
+
   function handleNavigate() {
-    setNavTarget(entityType, entityId, false);
+    // Normalize backslashes to forward slashes for file paths
+    const normalizedId = entityType === "file" ? entityId.replace(/\\/g, "/") : entityId;
+    setNavTarget(entityType, normalizedId, false);
     openTab(config.module);
   }
 
@@ -39,10 +55,10 @@ export function ChatEntityCard({ entityType, entityId, entityLabel }: ChatEntity
     <button
       onClick={handleNavigate}
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium ${config.accent} ${config.bg} hover:opacity-75 transition-opacity duration-150`}
-      title={`Open ${config.label}`}
+      title={`Open ${displayLabel}`}
     >
       <Icon size={11} />
-      <span>{entityLabel || `${config.label}`}</span>
+      <span>{displayLabel}</span>
     </button>
   );
 }

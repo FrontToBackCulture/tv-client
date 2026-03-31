@@ -211,7 +211,6 @@ pub struct UpdateProject {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskStatus {
     pub id: String,
-    pub project_id: Option<String>,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,

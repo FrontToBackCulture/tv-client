@@ -125,6 +125,16 @@ async fn handle_call_tool(
 // ============================================================================
 
 use std::io::{self, BufRead, Write};
+use std::time::SystemTime;
+
+/// Get the modification time of the current executable binary.
+/// Returns None if the path can't be resolved or metadata can't be read.
+fn get_binary_mtime() -> Option<SystemTime> {
+    let exe = std::env::current_exe().ok()?;
+    // Resolve symlinks so we detect the actual binary being replaced
+    let real = std::fs::canonicalize(&exe).unwrap_or(exe);
+    std::fs::metadata(&real).ok()?.modified().ok()
+}
 
 /// Run the MCP server on stdio (for Claude Desktop)
 /// Uses synchronous I/O — tokio async stdin hangs when the binary is linked
@@ -134,6 +144,9 @@ pub async fn run_stdio() -> io::Result<()> {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     let reader = stdin.lock();
+
+    // Record the binary's mtime at startup so we can detect updates
+    let startup_mtime = get_binary_mtime();
 
     for line in reader.lines() {
         let line = line?;
@@ -174,6 +187,17 @@ pub async fn run_stdio() -> io::Result<()> {
 
         writeln!(stdout, "{}", response_json)?;
         stdout.flush()?;
+
+        // After completing the request, check if our binary has been replaced.
+        // If so, exit cleanly — Claude Code will respawn us with the new binary.
+        if let Some(start) = startup_mtime {
+            if let Some(current) = get_binary_mtime() {
+                if current != start {
+                    eprintln!("[tv-mcp] Binary updated on disk — exiting for restart");
+                    std::process::exit(0);
+                }
+            }
+        }
     }
 
     Ok(())

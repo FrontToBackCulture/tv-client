@@ -30,6 +30,7 @@ const moduleLabels: Record<ModuleId, string> = {
   linkedin: "LinkedIn",
   prospecting: "Outbound",
   "public-data": "Public Data",
+  referrals: "Referrals",
 };
 
 export function openModuleInNewWindow(moduleId: ModuleId) {

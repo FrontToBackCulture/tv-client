@@ -62,18 +62,6 @@ export function LibraryModule() {
     }
   }, [activeTab, setViewContext, setViewDetail]);
 
-  // Handle navigation from chat entity cards / notification bell
-  const navTarget = useNotificationNavStore((s) => s.target);
-  const clearNavTarget = useNotificationNavStore((s) => s.clearTarget);
-  useEffect(() => {
-    if (navTarget?.entityType === "file") {
-      const filePath = navTarget.entityId;
-      const fileName = filePath.split("/").pop() || filePath;
-      openTab(filePath, fileName, false);
-      clearNavTarget();
-    }
-  }, [navTarget, clearNavTarget, openTab]);
-
   // Clear tabs when repository changes
   const handleRepositoryChange = useCallback(() => {
     closeAllTabs();
@@ -156,6 +144,19 @@ export function LibraryModule() {
       pinTab(path);
     }
   }, [openTab, pinTab]);
+
+  // Handle navigation from chat entity cards / notification bell
+  const navTarget = useNotificationNavStore((s) => s.target);
+  const clearNavTarget = useNotificationNavStore((s) => s.clearTarget);
+  useEffect(() => {
+    if (navTarget?.entityType === "file" && knowledgePath) {
+      // Normalize backslashes and resolve to absolute path
+      const entityId = navTarget.entityId.replace(/\\/g, "/");
+      const fullPath = entityId.startsWith("/") ? entityId : `${knowledgePath}/${entityId}`;
+      handleFileSelect(fullPath);
+      clearNavTarget();
+    }
+  }, [navTarget, clearNavTarget, knowledgePath, handleFileSelect]);
 
   // Handle split file selection
   const handleSplitFileSelect = useCallback(async (path: string) => {

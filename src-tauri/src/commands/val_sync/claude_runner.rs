@@ -23,6 +23,8 @@ pub struct ClaudeRunRequest {
     pub model: Option<String>,
     pub max_budget_usd: Option<f64>,
     pub cwd: Option<String>,
+    /// Resume a previous conversation by session ID (uses `claude --resume`)
+    pub resume_session_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +73,13 @@ pub async fn claude_run(
         .arg("--model")
         .arg(&model)
         .arg("--dangerously-skip-permissions");
+
+    // Resume a previous conversation session
+    if let Some(ref sid) = request.resume_session_id {
+        if !sid.is_empty() {
+            cmd.arg("--resume").arg(sid);
+        }
+    }
 
     // Optional budget cap (only relevant for API key users)
     if let Some(budget) = request.max_budget_usd {

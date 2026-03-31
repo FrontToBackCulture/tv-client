@@ -1,12 +1,16 @@
 // Thread conversation view — messages with grouped authorship and entity context
 
-import { useRef, useEffect, useState, useMemo } from "react";
-import { Hash, MessageSquare, Loader2 } from "lucide-react";
+import { useRef, useEffect, useState, useMemo, useCallback } from "react";
+import { Hash, MessageSquare, Loader2, Sparkles, Brain } from "lucide-react";
+import { useRunningJobs } from "../../stores/jobsStore";
+import { invoke } from "@tauri-apps/api/core";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDiscussions, useCreateDiscussion, useUpdateDiscussion, useDeleteDiscussion } from "../../hooks/useDiscussions";
 import { useCreateNotification } from "../../hooks/useNotifications";
 import { useCreateDiscussionMention, type EntitySearchResult } from "../../hooks/chat";
 import { useAuth } from "../../stores/authStore";
 import { useUsers } from "../../hooks/work";
+import { supabase } from "../../lib/supabase";
 import { DiscussionItem } from "../../components/discussions/DiscussionItem";
 import { ChatComposer } from "./ChatComposer";
 import { ChatEntityCard } from "./ChatEntityCard";
@@ -30,9 +34,11 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
   const deleteMutation = useDeleteDiscussion();
   const createNotification = useCreateNotification();
   const createMention = useCreateDiscussionMention();
+  const queryClient = useQueryClient();
 
   const listRef = useRef<HTMLDivElement>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
 
   const authUser = useAuth((s) => s.user);
   const { data: allUsers = [] } = useUsers();
@@ -71,23 +77,109 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
     return map;
   }, [discussions]);
 
-  async function handleSubmit(body: string, entityMentions: EntitySearchResult[]) {
+  // Generate thread title using Claude Haiku
+  const generateTitle = useCallback(async () => {
+    if (!discussions || discussions.length === 0) return;
+    setIsGeneratingTitle(true);
+    try {
+      const apiKey = await invoke<string | null>("settings_get_anthropic_key");
+      if (!apiKey) {
+        console.error("No Anthropic API key configured");
+        return;
+      }
+
+      // Gather conversation content (first 20 messages)
+      const messages = discussions.slice(0, 20).map((d) =>
+        `${d.author}: ${d.body}`
+      ).join("\n");
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 60,
+          messages: [{
+            role: "user",
+            content: `Generate a short, descriptive title (max 8 words) for this conversation thread. Return ONLY the title, nothing else.\n\nConversation:\n${messages}`,
+          }],
+        }),
+      });
+
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+      const data = await response.json();
+      const title = data.content?.[0]?.text?.trim();
+      if (!title) return;
+
+      // Update the title on the first (oldest) discussion in this entity group
+      const oldest = [...discussions].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )[0];
+
+      await supabase
+        .from("discussions")
+        .update({ title })
+        .eq("id", oldest.id);
+
+      // Refresh
+      queryClient.invalidateQueries({ queryKey: ["discussions"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "threads"] });
+    } catch (err) {
+      console.error("Failed to generate title:", err);
+    } finally {
+      setIsGeneratingTitle(false);
+    }
+  }, [discussions, queryClient]);
+
+  async function handleSubmit(body: string, entityMentions: EntitySearchResult[], attachments?: string[]) {
     const result = await createMutation.mutateAsync({
       entity_type: thread.entity_type,
       entity_id: thread.entity_id,
       author: currentUser,
       body,
       parent_id: replyingTo || undefined,
+      ...(attachments?.length ? { attachments } : {}),
     });
 
     const mentions = parseMentions(body);
     const preview = body.length > 100 ? body.slice(0, 100) + "..." : body;
     const notifiedUsers = new Set<string>();
 
+    // Resolve team mentions to individual members
+    const resolvedMentions: string[] = [];
     for (const mentioned of mentions) {
-      notifiedUsers.add(mentioned.toLowerCase());
+      // Check if this is a team slug
+      const { data: teamMembers } = await supabase
+        .from("team_members")
+        .select("user:users(name)")
+        .eq("team_id", (
+          await supabase.from("teams").select("id").eq("slug", mentioned).limit(1)
+        ).data?.[0]?.id || "__none__");
+
+      if (teamMembers && teamMembers.length > 0) {
+        // It's a team — fan out to all members
+        for (const tm of teamMembers) {
+          const memberName = (tm.user as unknown as { name: string })?.name;
+          if (memberName) resolvedMentions.push(memberName.toLowerCase());
+        }
+      } else {
+        // It's a regular user mention
+        resolvedMentions.push(mentioned.toLowerCase());
+      }
+    }
+
+    for (const recipient of resolvedMentions) {
+      if (notifiedUsers.has(recipient)) continue;
+      if (recipient === currentUser.toLowerCase()) continue;
+      notifiedUsers.add(recipient);
       createNotification.mutate({
-        recipient: mentioned,
+        recipient,
         type: "mention",
         discussion_id: result.id,
         entity_type: thread.entity_type,
@@ -121,6 +213,10 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
     }
 
     setReplyingTo(null);
+
+    // Mark thread as read after cache settles so sender doesn't see unread dot
+    // Delay ensures last_read_at is set after last_activity_at refreshes
+    setTimeout(() => onMarkRead(), 500);
   }
 
   function handleUpdate(id: string, newBody: string) {
@@ -142,9 +238,23 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
           <Hash size={13} className="text-[var(--text-muted)]" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="font-heading text-[15px] text-[var(--text-primary)] truncate leading-tight">
-            {threadTitle}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-heading text-[15px] text-[var(--text-primary)] truncate leading-tight">
+              {threadTitle}
+            </h2>
+            <button
+              onClick={generateTitle}
+              disabled={isGeneratingTitle || !discussions?.length}
+              className="flex-shrink-0 p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-teal-light)] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
+              title="Generate title with AI"
+            >
+              {isGeneratingTitle ? (
+                <Loader2 size={12} className="animate-spin text-[var(--color-accent)]" />
+              ) : (
+                <Sparkles size={12} />
+              )}
+            </button>
+          </div>
           <div className="flex items-center gap-2 mt-0.5">
             {isAnchored && (
               <ChatEntityCard entityType={thread.entity_type} entityId={thread.entity_id} />
@@ -209,6 +319,9 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
         )}
       </div>
 
+      {/* Typing indicator — shown when bot-mel is processing */}
+      <TaskAdvisorTypingIndicator />
+
       {/* Composer */}
       <ChatComposer
         replyingTo={replyingTo}
@@ -216,6 +329,26 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
         onSubmit={handleSubmit}
         disabled={createMutation.isPending}
       />
+    </div>
+  );
+}
+
+/** Typing indicator — shows when bot-mel is processing a request */
+function TaskAdvisorTypingIndicator() {
+  const runningJobs = useRunningJobs();
+  const isProcessing = runningJobs.some(
+    (j) => j.name === "bot-mel — processing request" && j.status === "running"
+  );
+
+  if (!isProcessing) return null;
+
+  return (
+    <div className="px-4 py-2 flex items-center gap-2 animate-fade-slide-in">
+      <Brain size={14} className="text-[var(--color-purple)] animate-pulse" />
+      <span className="text-[12px] text-[var(--text-muted)]">
+        bot-mel is working on your request...
+      </span>
+      <Loader2 size={12} className="text-[var(--text-muted)] animate-spin" />
     </div>
   );
 }

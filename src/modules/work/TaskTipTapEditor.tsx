@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, JSONContent } from "@tiptap/react";
 import {
   Bold, Italic, Strikethrough, Code, Heading2, List, ListOrdered,
-  Quote, Minus, ChevronDown as ToggleIcon,
+  Quote, Minus, ChevronDown as ToggleIcon, ImagePlus, Loader2,
 } from "lucide-react";
 import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
@@ -20,6 +20,7 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { Details, DetailsSummary, DetailsContent } from "@tiptap/extension-details";
 import { supabase } from "../../lib/supabase";
+import { ResizableImage, uploadImage } from "../../components/TipTapResizableImage";
 
 // Shared extensions config — reusable for both read-only and editable modes
 const getExtensions = (editable: boolean) => [
@@ -28,6 +29,7 @@ const getExtensions = (editable: boolean) => [
   }),
   Highlight,
   Link.configure({ openOnClick: !editable }),
+  ResizableImage.configure({ inline: false, allowBase64: false }),
   ...(editable
     ? [Placeholder.configure({ placeholder: "Add a description..." })]
     : []),
@@ -58,6 +60,9 @@ const detailsStyles = `
   [data-type="detailsContent"] {
     padding: 4px 0;
     display: block !important;
+  }
+  .ProseMirror [data-node-view-wrapper] {
+    margin: 8px 0;
   }
 `;
 
@@ -138,6 +143,7 @@ export function TaskContentEditor({
   onUpdated?: () => void;
 }) {
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const handleSave = useCallback(
     async (json: JSONContent) => {
@@ -150,6 +156,43 @@ export function TaskContentEditor({
     [taskId, onUpdated]
   );
 
+  const editorRef = useRef<any>(null);
+
+  // Upload image files and insert into editor at cursor position
+  const handleImageUpload = useCallback(
+    async (files: File[], insertPos?: number) => {
+      const ed = editorRef.current;
+      if (!ed) return;
+      setUploading(true);
+      try {
+        // Use provided position, or current cursor, or end of doc
+        let pos = insertPos ?? ed.state.selection.anchor;
+        for (const file of files) {
+          const url = await uploadImage(file);
+          ed.chain()
+            .insertContentAt(pos, { type: "image", attrs: { src: url } })
+            .run();
+          // Move position past the inserted image node
+          pos = ed.state.selection.anchor;
+        }
+        // Trigger save after inserting images
+        if (saveTimeout.current) clearTimeout(saveTimeout.current);
+        saveTimeout.current = setTimeout(() => {
+          handleSave(ed.getJSON());
+        }, 500);
+      } catch (err) {
+        console.error("Image upload failed:", err);
+      } finally {
+        setUploading(false);
+      }
+    },
+    [handleSave]
+  );
+
+  // Ref for handleImageUpload so editorProps callbacks can access latest version
+  const handleImageUploadRef = useRef(handleImageUpload);
+  handleImageUploadRef.current = handleImageUpload;
+
   const editor = useEditor({
     extensions: getExtensions(true),
     content: content || { type: "doc", content: [{ type: "paragraph" }] },
@@ -157,6 +200,51 @@ export function TaskContentEditor({
       attributes: {
         class:
           "prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-li:my-0.5 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2 prose-table:my-2 prose-hr:my-3 focus:outline-none min-h-[100px] px-0 py-2",
+      },
+      handlePaste: (view, event) => {
+        const imageFiles: File[] = [];
+
+        // Try clipboardData.items first (Chrome/standard)
+        const items = event.clipboardData?.items;
+        if (items) {
+          for (const item of Array.from(items)) {
+            if (item.type.startsWith("image/")) {
+              const file = item.getAsFile();
+              if (file) imageFiles.push(file);
+            }
+          }
+        }
+
+        // Fallback: check clipboardData.files (Tauri/WebKit)
+        if (imageFiles.length === 0) {
+          const files = event.clipboardData?.files;
+          if (files) {
+            for (const file of Array.from(files)) {
+              if (file.type.startsWith("image/")) imageFiles.push(file);
+            }
+          }
+        }
+
+        if (imageFiles.length > 0) {
+          event.preventDefault();
+          const pos = view.state.selection.anchor;
+          handleImageUploadRef.current(imageFiles, pos);
+          return true;
+        }
+        return false;
+      },
+      handleDrop: (view, event) => {
+        const files = event.dataTransfer?.files;
+        if (!files?.length) return false;
+        const imageFiles = Array.from(files).filter(f => f.type.startsWith("image/"));
+        if (imageFiles.length > 0) {
+          event.preventDefault();
+          // Insert at drop position
+          const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+          handleImageUploadRef.current(imageFiles, pos);
+          return true;
+        }
+        return false;
       },
     },
     onUpdate: ({ editor }) => {
@@ -167,6 +255,9 @@ export function TaskContentEditor({
       }, 1500);
     },
   });
+
+  // Keep editor ref in sync
+  editorRef.current = editor;
 
   // Update content when taskId changes
   useEffect(() => {
@@ -184,6 +275,7 @@ export function TaskContentEditor({
 
 
   const [showToolbar, setShowToolbar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div
@@ -191,15 +283,39 @@ export function TaskContentEditor({
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setShowToolbar(false); }}
     >
       <style>{detailsStyles}</style>
-      {showToolbar && editor && <EditorToolbar editor={editor} />}
+      {showToolbar && editor && (
+        <EditorToolbar
+          editor={editor}
+          uploading={uploading}
+          onImageClick={() => fileInputRef.current?.click()}
+        />
+      )}
       <EditorContent editor={editor} />
+      {uploading && (
+        <div className="flex items-center gap-1.5 text-xs text-zinc-400 mt-1">
+          <Loader2 size={12} className="animate-spin" />
+          Uploading image...
+        </div>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          if (files.length) handleImageUpload(files);
+          e.target.value = "";
+        }}
+      />
     </div>
   );
 }
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────
 
-function EditorToolbar({ editor }: { editor: any }) {
+function EditorToolbar({ editor, uploading, onImageClick }: { editor: any; uploading?: boolean; onImageClick?: () => void }) {
   const btn = (active: boolean) =>
     `w-7 h-7 flex items-center justify-center rounded transition-colors ${
       active
@@ -226,6 +342,15 @@ function EditorToolbar({ editor }: { editor: any }) {
         title="Toggle Block"
       >
         <ToggleIcon size={13} />
+      </button>
+      <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
+      <button
+        onClick={onImageClick}
+        className={btn(false)}
+        title="Insert Image"
+        disabled={uploading}
+      >
+        {uploading ? <Loader2 size={13} className="animate-spin" /> : <ImagePlus size={13} />}
       </button>
     </div>
   );

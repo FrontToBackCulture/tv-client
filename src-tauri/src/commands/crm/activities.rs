@@ -72,6 +72,16 @@ pub async fn crm_log_activity(data: CreateActivity) -> CmdResult<Activity> {
     Ok(activity)
 }
 
+/// Update an activity
+#[tauri::command]
+pub async fn crm_update_activity(activity_id: String, data: UpdateActivity) -> CmdResult<Activity> {
+    let client = get_client().await?;
+
+    let query = format!("id=eq.{}", activity_id);
+    let activity: Activity = client.update("crm_activities", &query, &data).await?;
+    Ok(activity)
+}
+
 /// Delete an activity
 #[tauri::command]
 pub async fn crm_delete_activity(activity_id: String) -> CmdResult<()> {

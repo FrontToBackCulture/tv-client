@@ -27,6 +27,7 @@ import {
   Headset,
   ClipboardList,
   MessageSquare,
+  Handshake,
   LucideIcon,
 } from "lucide-react";
 import { cn } from "../lib/cn";
@@ -58,6 +59,7 @@ const moduleIcons: Record<ModuleId, LucideIcon> = {
   linkedin: Linkedin,
   prospecting: Target,
   "public-data": Database,
+  referrals: Handshake,
 };
 
 const moduleLabels: Record<ModuleId, string> = {
@@ -85,6 +87,7 @@ const moduleLabels: Record<ModuleId, string> = {
   linkedin: "LinkedIn",
   prospecting: "Outbound",
   "public-data": "Public Data",
+  referrals: "Referrals",
 };
 
 interface ContextMenuState {

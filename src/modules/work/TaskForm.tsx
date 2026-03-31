@@ -23,7 +23,7 @@ export function TaskForm({
   onClose,
   onSaved,
 }: TaskFormProps) {
-  const { data: statuses = [] } = useStatuses(projectId);
+  const { data: statuses = [] } = useStatuses();
   const { data: users = [] } = useUsers();
   const { data: milestones = [] } = useMilestones(projectId);
 

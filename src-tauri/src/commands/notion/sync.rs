@@ -203,7 +203,7 @@ async fn sync_config(
     let project_statuses: Vec<crate::commands::work::types::TaskStatus> = client
         .select(
             "task_statuses",
-            "project_id=is.null&order=sort_order.asc",
+            "order=sort_order.asc",
         )
         .await?;
 

@@ -45,7 +45,7 @@ export function BoardView({
     return filteredProjects[0]?.id || null;
   }, [filterProjectId, filteredProjects]);
 
-  const { data: statuses = [] } = useStatuses(effectiveProjectId);
+  const { data: statuses = [] } = useStatuses();
   const { data: tasks = [] } = useTasks(effectiveProjectId);
 
   const statusesByType = useMemo(() => {

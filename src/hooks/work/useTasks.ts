@@ -217,14 +217,28 @@ export function useUpdateTask() {
       updates: TaskUpdate;
       assignee_ids?: string[];
     }): Promise<Task> => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
+      let data: Task;
 
-      if (error) throw new Error(`Failed to update task: ${error.message}`);
+      // Only update task fields if there are actual changes
+      if (Object.keys(updates).length > 0) {
+        const { data: updated, error } = await supabase
+          .from("tasks")
+          .update(updates)
+          .eq("id", id)
+          .select()
+          .single();
+        if (error) throw new Error(`Failed to update task: ${error.message}`);
+        data = updated;
+      } else {
+        // Fetch current task when only assignees are changing
+        const { data: current, error } = await supabase
+          .from("tasks")
+          .select()
+          .eq("id", id)
+          .single();
+        if (error) throw new Error(`Failed to fetch task: ${error.message}`);
+        data = current;
+      }
 
       // Replace assignees if provided
       if (assignee_ids !== undefined) {

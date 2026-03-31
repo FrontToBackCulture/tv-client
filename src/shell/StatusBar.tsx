@@ -6,11 +6,14 @@ import { useAppStore } from "../stores/appStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { useClaudeRunStore } from "../stores/claudeRunStore";
 import { cn } from "../lib/cn";
-import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, PanelRight, Code, ChevronDown, Wrench, Activity } from "lucide-react";
+import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, PanelRight, Code, ChevronDown, Wrench, Activity, Brain } from "lucide-react";
 import { useSidePanelStore } from "../stores/sidePanelStore";
 import { NotificationBell } from "../components/notifications/NotificationBell";
 import { useAppUpdate } from "../hooks/useAppUpdate";
 import { UpdatePreviewPanel } from "./UpdatePreviewPanel";
+import { triggerTaskAdvisor } from "../hooks/chat";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCurrentUserId } from "../hooks/work/useUsers";
 
 interface ClaudeMcpStatus {
   binary_installed: boolean;
@@ -74,6 +77,9 @@ export function StatusBar() {
   const sidePanelOpen = useSidePanelStore((s) => s.isOpen);
   const togglePanel = useSidePanelStore((s) => s.togglePanel);
   const activeModule = useAppStore((s) => s.activeModule);
+  const queryClient = useQueryClient();
+  const currentUserId = useCurrentUserId();
+  const [advisorRunning, setAdvisorRunning] = useState(false);
   const { updateAvailable, version: updateVersion, body: updateBody, downloading, installed, progress, error: updateError, installUpdate } = useAppUpdate();
   const [showJobsPanel, setShowJobsPanel] = useState(false);
   const [showUpdatePreview, setShowUpdatePreview] = useState(false);
@@ -333,6 +339,34 @@ export function StatusBar() {
           </div>
 
         <span>⌘K for commands</span>
+
+        {/* Task Advisor — manual trigger */}
+        <button
+          onClick={async () => {
+            if (advisorRunning || !currentUserId) return;
+            setAdvisorRunning(true);
+            try {
+              await triggerTaskAdvisor(queryClient, currentUserId);
+            } finally {
+              setAdvisorRunning(false);
+            }
+          }}
+          disabled={advisorRunning}
+          className={cn(
+            "flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors",
+            advisorRunning
+              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+              : "hover:bg-zinc-200 dark:hover:bg-zinc-800"
+          )}
+          title="Task check-in — ask bot-mel how your day looks"
+        >
+          {advisorRunning ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <Brain size={12} />
+          )}
+          <span>{advisorRunning ? "Checking..." : "Check-in"}</span>
+        </button>
 
         {/* Notifications */}
         <NotificationBell variant="statusbar" />

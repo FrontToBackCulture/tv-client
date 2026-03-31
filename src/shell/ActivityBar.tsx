@@ -33,6 +33,7 @@ import {
   ClipboardList,
   CalendarClock,
   MessageSquare,
+  Handshake,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -88,6 +89,7 @@ const navSections: NavSection[] = [
       { id: "blog", icon: FileText, label: "Blog", shortcut: "" },
       { id: "gallery", icon: GalleryHorizontalEnd, label: "Gallery", shortcut: "\u23186" },
       { id: "portal", icon: Headset, label: "Portal", shortcut: "" },
+      { id: "referrals", icon: Handshake, label: "Referrals", shortcut: "" },
     ],
   },
   {
@@ -437,25 +439,34 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
   const teamConfig = useTeamConfigStore((s) => s.config);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
-  // Chat unread badge — count threads with activity after user's last read position
+  // Chat unread badge — count conversations with activity after user's last read position
   const currentUserId = useCurrentUserId();
   const { data: chatUnreadCount = 0 } = useQuery({
     queryKey: ["chat", "unread-badge", currentUserId],
     queryFn: async () => {
       if (!currentUserId) return 0;
-      // Get the user's name for read positions (author field is name, not UUID)
       const { data: user } = await supabase.from("users").select("name").eq("id", currentUserId).single();
       if (!user) return 0;
       const userName = user.name;
 
-      // Get all top-level threads
+      // Get all top-level messages
       const { data: threads } = await supabase
         .from("discussions")
-        .select("id, last_activity_at")
+        .select("id, entity_type, entity_id, last_activity_at")
         .is("parent_id", null)
         .order("last_activity_at", { ascending: false })
-        .limit(50);
+        .limit(200);
       if (!threads || threads.length === 0) return 0;
+
+      // Group by entity — one conversation per entity_type:entity_id
+      const entityLatest = new Map<string, { id: string; last_activity_at: string }>();
+      for (const t of threads) {
+        const key = `${t.entity_type}:${t.entity_id}`;
+        const existing = entityLatest.get(key);
+        if (!existing || new Date(t.last_activity_at) > new Date(existing.last_activity_at)) {
+          entityLatest.set(key, { id: t.id, last_activity_at: t.last_activity_at });
+        }
+      }
 
       // Get read positions
       const { data: positions } = await supabase
@@ -464,10 +475,15 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
         .eq("user_id", userName);
 
       const readMap = new Map((positions ?? []).map(p => [p.thread_id, p.last_read_at]));
-      return threads.filter(t => {
-        const readAt = readMap.get(t.id);
-        return !readAt || new Date(t.last_activity_at) > new Date(readAt);
-      }).length;
+
+      let unread = 0;
+      for (const [, conv] of entityLatest) {
+        const readAt = readMap.get(conv.id);
+        if (!readAt || new Date(conv.last_activity_at) > new Date(readAt)) {
+          unread++;
+        }
+      }
+      return unread;
     },
     enabled: !!currentUserId,
     refetchInterval: 30000,

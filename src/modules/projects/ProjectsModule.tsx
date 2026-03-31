@@ -361,7 +361,7 @@ export function ProjectsModule() {
       </div>
 
       {/* Content area */}
-      <div ref={containerRef} className="flex-1 flex overflow-hidden">
+      <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
         {/* ---- All Projects View ---- */}
         {view === "all" && allSubView === "browse" && (
           <div className="flex-1 overflow-hidden">
