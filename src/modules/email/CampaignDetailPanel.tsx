@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { formatError } from "@/lib/formatError";
-import { X, Send, Loader2, Copy, Pencil, FlaskConical, User, Maximize2, FileText, Tag, Upload, Check, ChevronRight, ChevronDown, Folder, FolderOpen, MessageSquare, Link2 } from "lucide-react";
+import { X, Send, Loader2, Copy, Pencil, FlaskConical, User, Maximize2, FileText, Upload, Check, ChevronRight, ChevronDown, Folder, FolderOpen, MessageSquare } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
