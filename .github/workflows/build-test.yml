@@ -42,20 +42,18 @@ jobs:
         id: sccache-check
         shell: bash
         run: |
-          # sccache-action already starts the server — just wait for it to be ready
-          for i in 1 2 3 4 5; do
-            if sccache --show-stats 2>&1; then
-              echo "available=true" >> $GITHUB_OUTPUT
-              echo "sccache is healthy (attempt $i)"
-              exit 0
-            fi
-            echo "sccache not ready yet (attempt $i), waiting..."
-            sleep 2
-          done
-          echo "available=false" >> $GITHUB_OUTPUT
-          echo "::warning::sccache unavailable after 5 attempts, building without cache"
-        env:
-          SCCACHE_GHA_ENABLED: "true"
+          # Test sccache with an actual compile to verify storage is reachable
+          echo 'fn main(){}' > /tmp/_sc_test.rs
+          export RUSTC_WRAPPER=sccache
+          export SCCACHE_GHA_ENABLED=true
+          if timeout 30 rustc /tmp/_sc_test.rs -o /tmp/_sc_test 2>&1; then
+            echo "available=true" >> $GITHUB_OUTPUT
+            echo "sccache is healthy (test compile succeeded)"
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "::warning::sccache storage unreachable, building without cache"
+          fi
+          rm -f /tmp/_sc_test.rs /tmp/_sc_test
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
