@@ -123,6 +123,7 @@ export interface ActivityFilters {
   companyId?: string;
   dealId?: string;
   projectId?: string;
+  taskId?: string;
   contactId?: string;
   type?: Activity["type"] | Activity["type"][];
   afterDate?: string;

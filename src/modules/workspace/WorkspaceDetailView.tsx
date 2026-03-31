@@ -23,9 +23,11 @@ import {
   PDFViewer, ImageViewer, CSVViewer, JSONViewer, SQLViewer,
   HTMLViewer, ExcalidrawViewer,
 } from "../library/viewers";
+import { useQueryClient } from "@tanstack/react-query";
 import { useWorkspace, useUpdateWorkspace, useAddArtifact, useRemoveArtifact } from "../../hooks/workspace";
 import { useFileTree, useReadFile, useFolderChildren, type TreeNode } from "../../hooks/useFiles";
-import { useTask, useAllTasks, useUpdateTask } from "../../hooks/work/useTasks";
+import { useTask, useTasks, useUpdateTask } from "../../hooks/work/useTasks";
+import { workKeys } from "../../hooks/work/keys";
 import { useMilestones, useCreateMilestone, useDeleteMilestone } from "../../hooks/work/useMilestones";
 import { useStatuses } from "../../hooks/work/useStatuses";
 import { useUsers } from "../../hooks/work/useUsers";
@@ -1463,6 +1465,7 @@ function EditableField({ value, onSave, type = "text", options, displayValue }: 
 }
 
 export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated, onCreateTask, onNavigateToProject }: Props) {
+  const queryClient = useQueryClient();
   const { data: workspace, isLoading, refetch: refetchWorkspace } = useWorkspace(workspaceId);
   const updateWorkspace = useUpdateWorkspace();
   const { activeRepository, repositories } = useRepository();
@@ -1477,7 +1480,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkProjectMenu, setBulkProjectMenu] = useState<{ x: number; y: number } | null>(null);
   const [bulkProjectSearch, setBulkProjectSearch] = useState("");
-  const [bulkMoving, setBulkMoving] = useState(false);
+  const [bulkMoving] = useState(false);
   const [taskDetailId, setTaskDetailId] = useState<string | null>(null);
   const [showMilestoneInput, setShowMilestoneInput] = useState(false);
   const [taskSearch, setTaskSearch] = useState("");
@@ -1557,7 +1560,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   );
 
   // Tasks for this project
-  const { data: allTasks = [] } = useAllTasks();
+  const { data: projectTasks = [], refetch: refetchTasks } = useTasks(workspaceId);
   // All projects for task reassignment
   const { data: allProjectsList = [] } = useProjects("all");
   // Initiatives for project labels
@@ -1599,7 +1602,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
       if (!apiKey) { toast.error("No Anthropic API key configured. Add it in Settings."); return; }
 
       // Gather project context
-      const tasks = allTasks.filter(t => t.project_id === workspaceId);
+      const tasks = projectTasks;
       const taskSummary = tasks.map(t => {
         const statusLabel = t.status?.name || "Unknown";
         const company = allCompanies.find(c => c.id === t.company_id);
@@ -1679,23 +1682,39 @@ Write a brief current state summary. No bullet points, just a natural sentence o
     } finally {
       setIsDescribing(false);
     }
-  }, [workspaceId, allTasks, allCompanies, activities, ws, workspace, refetchWorkspace]);
+  }, [workspaceId, projectTasks, allCompanies, activities, ws, workspace, refetchWorkspace]);
 
   const reassignTask = useCallback(async (taskId: string, newProjectId: string) => {
     const { supabase } = await import("../../lib/supabase");
     await supabase.from("tasks").update({ project_id: newProjectId }).eq("id", taskId);
-    refetchWorkspace();
+    refetchTasks();
     _onUpdated();
-  }, [refetchWorkspace, _onUpdated]);
+  }, [refetchTasks, _onUpdated]);
 
   const reassignTasks = useCallback(async (taskIds: string[], newProjectId: string) => {
+    const idSet = new Set(taskIds);
+
+    // Optimistically remove moved tasks from the current project's cache
+    queryClient.setQueryData(workKeys.tasksByProject(workspaceId), (old: any[] | undefined) =>
+      old?.filter(t => !idSet.has(t.id))
+    );
+    setSelectedTaskIds(new Set());
+
+    // Persist to Supabase
     const { supabase } = await import("../../lib/supabase");
     const { error } = await supabase.from("tasks").update({ project_id: newProjectId }).in("id", taskIds);
-    if (error) throw new Error(error.message);
-    setSelectedTaskIds(new Set());
-    refetchWorkspace();
+    if (error) {
+      // Rollback: refetch to restore correct state
+      queryClient.invalidateQueries({ queryKey: workKeys.tasksByProject(workspaceId) });
+      throw new Error(error.message);
+    }
+
+    // Refetch both projects + global task cache
+    queryClient.invalidateQueries({ queryKey: workKeys.tasksByProject(workspaceId) });
+    queryClient.invalidateQueries({ queryKey: workKeys.tasksByProject(newProjectId) });
+    queryClient.invalidateQueries({ queryKey: workKeys.tasks() });
     _onUpdated();
-  }, [refetchWorkspace, _onUpdated]);
+  }, [queryClient, workspaceId, _onUpdated]);
 
   const deleteProject = useCallback(async () => {
     if (!confirm("Delete this project and all its tasks? This cannot be undone.")) return;
@@ -1740,7 +1759,6 @@ Write a brief current state summary. No bullet points, just a natural sentence o
     }
   }, [workspaceId, onBack, _onUpdated]);
 
-  const projectTasks = allTasks.filter(t => t.project_id === workspaceId);
   const completedTasks = projectTasks.filter(t => t.status?.type === "complete").length;
 
   // Filter + paginate tasks for large projects
@@ -3310,15 +3328,14 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                       key={p.id}
                       disabled={bulkMoving}
                       onClick={async () => {
-                        setBulkMoving(true);
                         const count = selectedTaskIds.size;
                         const ids = Array.from(selectedTaskIds);
+                        // Close menu and show feedback immediately (optimistic update handles the rest)
+                        setBulkProjectMenu(null);
+                        toast.success(`Moving ${count} task${count > 1 ? "s" : ""} to ${p.name}...`);
                         try {
                           await reassignTasks(ids, p.id);
-                          toast.success(`${count} task${count > 1 ? "s" : ""} moved to ${p.name}`);
-                          setBulkProjectMenu(null);
                         } catch (err: any) { toast.error(`Failed to move tasks: ${err?.message || err}`); }
-                        finally { setBulkMoving(false); }
                       }}
                       className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${bulkMoving ? "opacity-50 cursor-wait" : isCurrent ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
                     >

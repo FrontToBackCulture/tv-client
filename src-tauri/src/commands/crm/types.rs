@@ -236,6 +236,8 @@ pub struct Activity {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub email_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
@@ -263,6 +265,8 @@ pub struct CreateActivity {
     pub contact_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

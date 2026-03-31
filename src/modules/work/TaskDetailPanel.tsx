@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
+import { useActivities } from "../../hooks/crm/useActivities";
 import { useActivityBarStore } from "../../stores/activityBarStore";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
@@ -96,6 +97,7 @@ export function TaskDetailPanel({
   const [activeTab, setActiveTab] = useState<"details" | "emails" | "discussion" | "changes">("details");
   const { data: discussionCount } = useDiscussionCount("task", taskId);
   const { data: emailCount } = useLinkedEmailCount("task", taskId);
+  const { data: crmActivities = [] } = useActivities({ taskId });
   const projectType = (task as any)?.project?.project_type || "work";
   const enabledTaskFields = useTaskFieldsStore((s) => s.getEnabledFields(projectType));
 
@@ -613,9 +615,43 @@ export function TaskDetailPanel({
             </div>
           </div>
 
-          {/* Activity */}
+          {/* Activities (CRM) */}
+          {crmActivities.length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Activities ({crmActivities.length})</h3>
+              <div className="space-y-3">
+                {crmActivities.map((a) => {
+                  const date = new Date(a.activity_date);
+                  const dateStr = date.toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
+                  const timeStr = date.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <div key={a.id} className="flex gap-2">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-bold mt-0.5 ${
+                        a.type === "note" ? "bg-blue-50 text-blue-500 dark:bg-blue-950/30 dark:text-blue-400" :
+                        a.type === "meeting" ? "bg-purple-50 text-purple-500 dark:bg-purple-950/30 dark:text-purple-400" :
+                        a.type === "call" ? "bg-green-50 text-green-500 dark:bg-green-950/30 dark:text-green-400" :
+                        "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                      }`}>
+                        {(a.type || "N").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-medium capitalize">{a.type}</span>
+                          <span className="text-[10px] text-zinc-400">{dateStr} {timeStr}</span>
+                        </div>
+                        {a.subject && <div className="text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-0.5">{a.subject}</div>}
+                        {a.content && <div className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{a.content}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Auto-logged changes */}
           <div>
-            <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Activity</h3>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Changes</h3>
             {task.activity && task.activity.length > 0 ? (
               <div className="space-y-2">
                 {[...task.activity].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")).map((activity) => (
@@ -641,7 +677,7 @@ export function TaskDetailPanel({
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-zinc-400 dark:text-zinc-600">No activity yet</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-600">No changes yet</p>
             )}
           </div>
 

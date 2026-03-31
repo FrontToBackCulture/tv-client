@@ -100,7 +100,7 @@ export function ProjectsModule() {
   const { data: projects = [], refetch: refetchProjects } = useProjects();
   // All projects across all types (for "All" view)
   const { data: allProjects = [], refetch: refetchAllProjects } = useProjects("all");
-  const { data: allTasks = [], refetch: refetchTasks, isLoading: tasksLoading } = useAllTasks();
+  const { data: allTasks = [], refetch: refetchTasks } = useAllTasks();
   const { data: initiatives = [], refetch: refetchInitiatives } = useInitiatives();
   const { data: initiativeLinks = [], refetch: refetchInitiativeLinks } = useInitiativeProjects();
   const { data: users = [] } = useUsers();
@@ -308,16 +308,7 @@ export function ProjectsModule() {
     </div>
   );
 
-  if (tasksLoading) {
-    return (
-      <div className="h-full flex items-center justify-center bg-white dark:bg-zinc-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-zinc-400">Loading tasks...</span>
-        </div>
-      </div>
-    );
-  }
+  // Don't block the entire module on tasks loading — let views render and show tasks as they arrive
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">

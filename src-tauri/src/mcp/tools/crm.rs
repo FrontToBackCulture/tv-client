@@ -168,7 +168,7 @@ pub fn tools() -> Vec<Tool> {
         // Activities
         Tool {
             name: "log-crm-activity".to_string(),
-            description: "Log an activity (note, call, meeting) for a company or project.".to_string(),
+            description: "Log an activity (note, call, meeting) for a company, project, or task.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "company_id": { "type": "string", "description": "Company UUID (optional)" },
@@ -177,6 +177,7 @@ pub fn tools() -> Vec<Tool> {
                     "content": { "type": "string", "description": "Activity content/notes" },
                     "contact_id": { "type": "string", "description": "Link to a contact (optional)" },
                     "project_id": { "type": "string", "description": "Link to a project (optional)" },
+                    "task_id": { "type": "string", "description": "Link to a task (optional)" },
                     "activity_date": { "type": "string", "description": "When the activity occurred (ISO date, default: now)" }
                 }),
                 vec!["type".to_string()],
@@ -184,11 +185,12 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "list-crm-activities".to_string(),
-            description: "List activities for a company or project.".to_string(),
+            description: "List activities for a company, project, or task.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
                     "company_id": { "type": "string", "description": "Filter by company UUID" },
                     "project_id": { "type": "string", "description": "Filter by project UUID" },
+                    "task_id": { "type": "string", "description": "Filter by task UUID" },
                     "type": { "type": "string", "enum": ["note", "call", "meeting", "email", "task", "stage_change"] },
                     "limit": { "type": "integer", "description": "Max results (default: 20)" }
                 }),
@@ -351,9 +353,10 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
         "list-crm-activities" => {
             let company_id = args.get("company_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let project_id = args.get("project_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let task_id = args.get("task_id").and_then(|v| v.as_str()).map(|s| s.to_string());
             let activity_type = args.get("type").and_then(|v| v.as_str()).map(|s| s.to_string());
             let limit = args.get("limit").and_then(|v| v.as_i64()).map(|n| n as i32);
-            match crm::crm_list_activities(company_id, None, project_id, activity_type, limit).await {
+            match crm::crm_list_activities(company_id, None, project_id, task_id, activity_type, limit).await {
                 Ok(activities) => ToolResult::json(&activities),
                 Err(e) => ToolResult::error(e.to_string()),
             }

@@ -10,6 +10,7 @@ pub async fn crm_list_activities(
     company_id: Option<String>,
     _deal_id: Option<String>, // deprecated — use project_id instead
     project_id: Option<String>,
+    task_id: Option<String>,
     activity_type: Option<String>,
     limit: Option<i32>,
 ) -> CmdResult<Vec<Activity>> {
@@ -22,6 +23,9 @@ pub async fn crm_list_activities(
     }
     if let Some(pid) = project_id {
         filters.push(format!("project_id=eq.{}", pid));
+    }
+    if let Some(tid) = task_id {
+        filters.push(format!("task_id=eq.{}", tid));
     }
     if let Some(t) = activity_type {
         filters.push(format!("type=eq.{}", t));

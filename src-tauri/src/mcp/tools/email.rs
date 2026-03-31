@@ -426,6 +426,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                         .get("crm_project_id")
                         .and_then(|v| v.as_str())
                         .map(String::from),
+                    task_id: None,
                     email_id: None,
                     subject: Some(subject.clone()),
                     content: Some(format!("Sent to: {}", to)),

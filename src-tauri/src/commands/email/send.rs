@@ -926,6 +926,7 @@ pub async fn email_send_draft(draft_id: String, test_email: Option<String>) -> C
                 activity_type: "email".to_string(),
                 contact_id: draft.contact_id.clone(),
                 project_id: None,
+                task_id: None,
                 email_id: None,
                 subject: Some(draft.subject.clone()),
                 content: Some(format!("Sent to: {}", draft.to_email)),

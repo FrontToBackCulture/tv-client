@@ -30,6 +30,10 @@ export function useActivities(filters?: ActivityFilters) {
         query = query.eq("project_id", filters.projectId);
       }
 
+      if (filters?.taskId) {
+        query = query.eq("task_id", filters.taskId);
+      }
+
       if (filters?.contactId) {
         query = query.eq("contact_id", filters.contactId);
       }
@@ -61,7 +65,7 @@ export function useActivities(filters?: ActivityFilters) {
         throw new Error(`Failed to fetch activities: ${error.message}`);
       return data ?? [];
     },
-    enabled: filters?.companyId !== undefined || filters?.projectId !== undefined || !filters,
+    enabled: filters?.companyId !== undefined || filters?.projectId !== undefined || filters?.taskId !== undefined || !filters,
   });
 }
 
