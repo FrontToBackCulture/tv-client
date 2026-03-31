@@ -9,7 +9,7 @@ import { EmailDetailPanel } from "../../components/emails/EmailDetailPanel";
 import type { LinkedEmail } from "../../hooks/email/useEntityEmails";
 import {
   ChevronDown, ChevronRight, Pencil, Search, ArrowUpDown,
-  Target, TrendingUp, CheckCircle2, AlertTriangle, Trash2,
+  CheckCircle2, Trash2,
   PanelLeftClose, PanelLeftOpen, EyeOff, Eye, GripVertical, Mail, MessageCircle, Tag, CircleAlert, Users,
 } from "lucide-react";
 import {
@@ -31,7 +31,7 @@ import { isOverdue } from "../../lib/date";
 import { cn } from "../../lib/cn";
 import { DEAL_STAGES } from "../../lib/crm/types";
 import {
-  StatusBadge, ProgressBar, Stat, getInitiativeColor,
+  StatusBadge, ProgressBar, getInitiativeColor,
 } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
@@ -616,22 +616,6 @@ export function DashboardView({
     document.addEventListener("mouseup", onMouseUp);
   }, [sidebarWidth]);
 
-  const activeProjects = projects.filter(p => p.status === "active");
-  const activeProjectIds = new Set(activeProjects.map(p => p.id));
-  const activeProjectCount = activeProjects.length;
-  // Only count tasks from active projects, split by notion vs manual
-  const activeTasks = allTasks.filter(t => activeProjectIds.has(t.project_id));
-  const manualTasks = activeTasks.filter(t => !(t as any).notion_page_id);
-  const notionTasks = activeTasks.filter(t => !!(t as any).notion_page_id);
-  const totalTasks = manualTasks.length;
-  const overdueTasks = manualTasks.filter(t =>
-    isOverdue(t.due_date) && t.status?.type !== "complete"
-  ).length;
-  const completedTasks = manualTasks.filter(t => t.status?.type === "complete").length;
-  const inProgressTasks = manualTasks.filter(t => t.status?.type === "in_progress").length;
-  const todoTasks = manualTasks.filter(t => t.status?.type === "todo").length;
-  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
   const initProjectMap = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const link of initiativeLinks) {
@@ -906,14 +890,6 @@ export function DashboardView({
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Stats row — scoped to active projects, manual tasks only (excludes Notion-synced) */}
-      <div className="flex-shrink-0 grid grid-cols-5 gap-3 p-4 border-b border-zinc-100 dark:border-zinc-800/50">
-        <Stat label="Active Projects" value={activeProjectCount} icon={Target} color="#0D7680" />
-        <Stat label={`${todoTasks} todo · ${inProgressTasks} in progress`} value={totalTasks} icon={CheckCircle2} color="#3B82F6" />
-        <Stat label="Overdue" value={overdueTasks} icon={AlertTriangle} color={overdueTasks > 0 ? "#EF4444" : "#9CA3AF"} />
-        <Stat label={`${completedTasks} completed`} value={`${completionRate}%`} icon={TrendingUp} color="#10B981" />
-        <Stat label="Notion Tasks (excluded)" value={notionTasks.length} icon={CheckCircle2} color="#9CA3AF" />
-      </div>
 
       {/* Body: tree (left) + detail (right) */}
       <div className="flex-1 flex overflow-hidden">

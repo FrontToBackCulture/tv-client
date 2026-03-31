@@ -1,7 +1,6 @@
 // src/App.tsx
 
 import { useEffect, useState, lazy, Suspense } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Shell } from "./shell/Shell";
@@ -33,10 +32,12 @@ const S3BrowserModule = lazy(() => import("./modules/s3-browser").then(m => ({ d
 const LinkedInModule = lazy(() => import("./modules/linkedin/LinkedInModule").then(m => ({ default: m.LinkedInModule })));
 const ProspectingModule = lazy(() => import("./modules/prospecting").then(m => ({ default: m.ProspectingModule })));
 const PublicDataModule = lazy(() => import("./modules/public-data/PublicDataModule").then(m => ({ default: m.PublicDataModule })));
+const ChatModule = lazy(() => import("./modules/chat").then(m => ({ default: m.ChatModule })));
 import { Login } from "./components/Login";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore, ModuleId } from "./stores/appStore";
+import { useModuleTabStore } from "./stores/moduleTabStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useModuleVisibilityStore } from "./stores/moduleVisibilityStore";
 import { useSidePanelStore } from "./stores/sidePanelStore";
@@ -56,6 +57,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   work: WorkModule,
   inbox: InboxModule,
   calendar: CalendarModule,
+  chat: ChatModule,
   crm: CrmModule,
   domains: DomainsModule,
   analytics: AnalyticsModule,
@@ -75,12 +77,23 @@ const modules: Record<ModuleId, React.ComponentType> = {
 };
 
 export default function App() {
-  const activeModule = useAppStore((s) => s.activeModule);
-  const setActiveModule = useAppStore((s) => s.setActiveModule);
+  const openTabs = useModuleTabStore((s) => s.tabs);
+  const activeTab = useModuleTabStore((s) => s.activeTab);
+  const openTab = useModuleTabStore((s) => s.openTab);
   const { user, isLoading, isInitialized, initialize } = useAuth();
   const loadTeamConfig = useTeamConfigStore((s) => s.loadConfig);
   const registerCurrentUser = useTeamConfigStore((s) => s.registerCurrentUser);
   const [setupDone, setSetupDone] = useState(isSetupComplete);
+
+  // Keep appStore.activeModule in sync with tab store (for keyboard shortcuts, window title, etc.)
+  useEffect(() => {
+    return useModuleTabStore.subscribe((state) => {
+      const current = useAppStore.getState().activeModule;
+      if (current !== state.activeTab) {
+        useAppStore.getState().setActiveModule(state.activeTab);
+      }
+    });
+  }, []);
 
   // Initialize auth on mount
   useEffect(() => {
@@ -102,14 +115,14 @@ export default function App() {
   const teamConfigLoaded = useTeamConfigStore((s) => s.isLoaded);
   useEffect(() => {
     if (!teamConfigLoaded) return;
-    if (!isModuleVisible(activeModule)) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser", "linkedin"];
+    if (!isModuleVisible(activeTab)) {
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser", "linkedin"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id));
       if (firstVisible) {
-        setActiveModule(firstVisible);
+        openTab(firstVisible);
       }
     }
-  }, [activeModule, isModuleVisible, teamConfigLoaded, setActiveModule]);
+  }, [activeTab, isModuleVisible, teamConfigLoaded, openTab]);
 
   // Sync active repository path to backend settings.json (knowledge_path)
   const activeRepoId = useRepositoryStore((s) => s.activeRepositoryId);
@@ -123,7 +136,7 @@ export default function App() {
   // Subscribe to Supabase Realtime for automatic UI updates (only when authenticated)
   useRealtimeSync();
 
-  // Keyboard shortcuts: ⌘1-7 to switch modules, ⌘, for settings
+  // Keyboard shortcuts: ⌘1-7 to switch modules, ⌘W to close tab, ⌘, for settings
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "9") {
@@ -139,7 +152,15 @@ export default function App() {
           "skills",
           "scheduler",
         ];
-        setActiveModule(moduleKeys[parseInt(e.key) - 1]);
+        openTab(moduleKeys[parseInt(e.key) - 1]);
+      }
+      // ⌘W to close active tab
+      if ((e.metaKey || e.ctrlKey) && e.key === "w" && !e.shiftKey) {
+        e.preventDefault();
+        const tabStore = useModuleTabStore.getState();
+        if (tabStore.tabs.length > 1) {
+          tabStore.closeTab(tabStore.activeTab);
+        }
       }
       // ⌘, for settings (standard macOS shortcut) — toggle modal
       if ((e.metaKey || e.ctrlKey) && e.key === ",") {
@@ -191,7 +212,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [setActiveModule]);
+  }, [openTab]);
 
   // Listen for native menu events (preferences, zoom)
   useEffect(() => {
@@ -265,28 +286,28 @@ export default function App() {
     return <SetupWizard onComplete={() => setSetupDone(true)} />;
   }
 
-  const ActiveModule = modules[activeModule];
-
   return (
-    <Shell activeModule={activeModule} onModuleChange={setActiveModule}>
-      <Suspense fallback={
-        <div className="flex-1 flex items-center justify-center">
-          <ListSkeleton rows={8} />
-        </div>
-      }>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeModule}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
+    <Shell activeModule={activeTab} onModuleChange={openTab}>
+      {openTabs.map((tabId) => {
+        const Module = modules[tabId];
+        return (
+          <div
+            key={tabId}
             className="h-full"
+            style={{ display: tabId === activeTab ? "block" : "none" }}
           >
-            <ActiveModule />
-          </motion.div>
-        </AnimatePresence>
-      </Suspense>
+            <Suspense
+              fallback={
+                <div className="flex-1 flex items-center justify-center">
+                  <ListSkeleton rows={8} />
+                </div>
+              }
+            >
+              <Module />
+            </Suspense>
+          </div>
+        );
+      })}
     </Shell>
   );
 }

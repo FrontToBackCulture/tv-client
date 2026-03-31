@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { formatError } from "@/lib/formatError";
-import { X, Send, Loader2, Copy, Pencil, FlaskConical, User, Maximize2, FileText, Tag, Upload, Check, ChevronRight, ChevronDown, Folder, FolderOpen, MessageSquare } from "lucide-react";
+import { X, Send, Loader2, Copy, Pencil, FlaskConical, User, Maximize2, FileText, Tag, Upload, Check, ChevronRight, ChevronDown, Folder, FolderOpen, MessageSquare, Link2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
@@ -27,6 +27,7 @@ import type { EmailContact } from "../../lib/email/types";
 import { formatDate } from "../../lib/date";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useFileTree, useFolderChildren, type TreeNode } from "../../hooks/useFiles";
+import { extractTokens, classifyTokens, applyTokens } from "../../lib/email/tokens";
 
 interface CampaignDetailPanelProps {
   campaignId: string;
@@ -61,6 +62,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
   const [uploadingReport, setUploadingReport] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showReportPicker, setShowReportPicker] = useState(false);
+  const [copiedPath, setCopiedPath] = useState(false);
   const [testGroupId, setTestGroupId] = useState<string>("");
   const queryClient = useQueryClient();
   const [fileHtml, setFileHtml] = useState<string | null>(null);
@@ -111,18 +113,52 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
   // The HTML to show — prefer file content over stored html_body
   const rawHtml = fileHtml || campaign?.html_body || "";
 
+  // Custom token state — seeded from campaign.tokens
+  const [customTokens, setCustomTokens] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (campaign?.tokens && typeof campaign.tokens === "object") {
+      setCustomTokens(campaign.tokens as Record<string, string>);
+    }
+  }, [campaign?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scan HTML for tokens and classify
+  const { custom: customTokenKeys } = useMemo(
+    () => classifyTokens(extractTokens(rawHtml)),
+    [rawHtml]
+  );
+
   // Apply token replacement for preview
   const previewHtml = useMemo(() => {
     if (!rawHtml) return "";
-    let html = rawHtml;
-    const firstName = selectedContact?.first_name || "there";
-    const subject = campaign?.subject || "";
-    html = html.replace(/\{\{first_name\}\}/g, firstName);
-    html = html.replace(/\{\{subject\}\}/g, subject);
-    html = html.replace(/\{\{unsubscribe_url\}\}/g, "#unsubscribe");
-    html = html.replace(/\{\{report_url\}\}/g, campaign?.report_url || "#report-not-uploaded");
+    const systemValues: Record<string, string> = {
+      first_name: selectedContact?.first_name || "there",
+      subject: campaign?.subject || "",
+      unsubscribe_url: "#unsubscribe",
+      report_url: campaign?.report_url || customTokens.report_url || "#report-not-uploaded",
+    };
+    let html = applyTokens(rawHtml, systemValues, customTokens);
+    // Inject click interceptor so links post to parent for external opening
+    const clickScript = `<script>document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&!a.href.startsWith('#')&&!a.href.startsWith('javascript')){e.preventDefault();window.parent.postMessage({type:'preview-link',url:a.href},'*');}});<\/script>`;
+    html = html.replace(/<\/body>/i, clickScript + "</body>");
     return html;
-  }, [rawHtml, selectedContact, campaign?.subject, campaign?.report_url]);
+  }, [rawHtml, selectedContact, campaign?.subject, campaign?.report_url, customTokens]);
+
+  // Listen for link clicks from preview iframe and open in external browser
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "preview-link" && typeof e.data.url === "string") {
+        import("@tauri-apps/plugin-shell").then(({ open }) => open(e.data.url));
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  // Save custom tokens to DB
+  const saveTokens = (next: Record<string, string>) => {
+    setCustomTokens(next);
+    updateCampaign.mutate({ id: campaignId, updates: { tokens: next } as any });
+  };
 
   if (isLoading) {
     return (
@@ -195,64 +231,65 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
             onSave={(v) => updateCampaign.mutate({ id: campaignId, updates: { bcc_email: v || null } })}
           />
           <DetailRow label="Status" value={statusDef?.label || campaign.status} />
-          <DetailRow label="Group" value={campaign.group?.name || "—"} />
+          <EditableGroup
+            value={campaign.group_id || ""}
+            onSave={(v) => updateCampaign.mutate({ id: campaignId, updates: { group_id: v || null } })}
+          />
           <EditableCategory
             value={campaign.category || ""}
             suggestions={existingCategories}
             onSave={(v) => updateCampaign.mutate({ id: campaignId, updates: { category: v || null } })}
           />
           {campaign.content_path && (
-            <DetailRow label="Content" value={campaign.content_path.split("/").pop() || campaign.content_path} />
-          )}
-          {/* Report attachment */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
-                <FileText size={10} />
-                Report
-              </span>
+            <div>
+              <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 block mb-0.5">Content</span>
               <button
-                onClick={() => setShowReportPicker(true)}
-                className="text-xs text-zinc-700 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 hover:underline decoration-dashed underline-offset-2 cursor-pointer text-right truncate max-w-[220px]"
-                title={campaign.report_path || "Click to select report file"}
+                onClick={() => {
+                  navigator.clipboard.writeText(campaign.content_path!);
+                  setCopiedPath(true);
+                  setTimeout(() => setCopiedPath(false), 1500);
+                }}
+                className="flex items-center gap-1 text-xs text-zinc-700 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+                title={`Click to copy: ${campaign.content_path}`}
               >
-                {campaign.report_path ? campaign.report_path.split("/").pop() : "— select file"}
+                <Copy size={10} className="shrink-0 opacity-40" />
+                {copiedPath ? "Copied!" : (campaign.content_path.split("/").pop() || campaign.content_path)}
               </button>
             </div>
+          )}
+          {/* Report attachment */}
+          <div>
+            <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 block mb-0.5">Report</span>
+            <button
+              onClick={() => campaign.report_url
+                ? import("@tauri-apps/plugin-shell").then(({ open }) => open(campaign.report_url!))
+                : setShowReportPicker(true)
+              }
+              className={`text-xs block ${campaign.report_url ? "text-teal-600 dark:text-teal-400 hover:text-teal-700" : "text-zinc-700 dark:text-zinc-300 hover:text-teal-600"} hover:underline decoration-dashed underline-offset-2 cursor-pointer`}
+              title={campaign.report_url || campaign.report_path || "Click to select report file"}
+            >
+              {campaign.report_path ? campaign.report_path.split("/").pop() : "— select file"}
+            </button>
             {campaign.report_path && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  {campaign.report_url ? (
-                    <>
-                      <Check size={10} className="text-green-500" />
-                      <a
-                        href={campaign.report_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[10px] text-green-600 dark:text-green-400 hover:underline"
-                      >
-                        Uploaded{campaign.report_uploaded_at ? ` ${formatDate(campaign.report_uploaded_at)}` : ""}
-                      </a>
-                    </>
-                  ) : (
-                    <span className="text-[10px] text-zinc-400">Not uploaded to S3</span>
-                  )}
-                </div>
+              <div className="flex items-center gap-1.5 mt-1">
+                {campaign.report_url ? (
+                  <span className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <Check size={9} />
+                    Uploaded{campaign.report_uploaded_at ? ` ${formatDate(campaign.report_uploaded_at)}` : ""}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-zinc-400">Not uploaded</span>
+                )}
+                <span className="flex-1" />
                 <button
                   onClick={async () => {
                     setUploadingReport(true);
                     setUploadError(null);
                     try {
-                      await invoke("email_upload_report", {
-                        campaignId,
-                        knowledgePath: knowledgePath || "",
-                      });
+                      await invoke("email_upload_report", { campaignId, knowledgePath: knowledgePath || "" });
                       queryClient.invalidateQueries({ queryKey: emailKeys.campaign(campaignId) });
-                    } catch (e: any) {
-                      setUploadError(e?.message || String(e));
-                    } finally {
-                      setUploadingReport(false);
-                    }
+                    } catch (e: any) { setUploadError(e?.message || String(e)); }
+                    finally { setUploadingReport(false); }
                   }}
                   disabled={uploadingReport}
                   className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/30 hover:bg-teal-100 dark:hover:bg-teal-900/50 rounded transition-colors disabled:opacity-50"
@@ -263,12 +300,60 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                     <><Upload size={10} /> {campaign.report_url ? "Re-upload" : "Upload"}</>
                   )}
                 </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await invoke("email_clear_report", { campaignId });
+                      queryClient.invalidateQueries({ queryKey: emailKeys.campaign(campaignId) });
+                    } catch (e: any) { setUploadError(e?.message || String(e)); }
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 rounded transition-colors"
+                  title="Remove report and delete from S3"
+                >
+                  <X size={10} /> Clear
+                </button>
               </div>
             )}
             {uploadError && (
-              <p className="text-[10px] text-red-600 dark:text-red-400">{uploadError}</p>
+              <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">{uploadError}</p>
             )}
           </div>
+          {/* Custom tokens */}
+          {customTokenKeys.map((key) => (
+            <div key={key}>
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">{key}</span>
+                <div className="flex items-center gap-1">
+                  {key === "report_url" && campaign.report_url && !customTokens[key] && (
+                    <button
+                      onClick={() => saveTokens({ ...customTokens, report_url: campaign.report_url! })}
+                      className="text-[10px] font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 hover:underline"
+                    >
+                      Use report URL
+                    </button>
+                  )}
+                  {customTokens[key] && (
+                    <button
+                      onClick={() => import("@tauri-apps/plugin-shell").then(({ open }) => open(customTokens[key]))}
+                      className="text-teal-600 dark:text-teal-400 hover:text-teal-700"
+                      title="Open URL"
+                    >
+                      <Maximize2 size={10} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <input
+                type="text"
+                value={customTokens[key] || ""}
+                placeholder="Enter URL or value..."
+                onChange={(e) => setCustomTokens((prev) => ({ ...prev, [key]: e.target.value }))}
+                onBlur={() => saveTokens(customTokens)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveTokens(customTokens); }}
+                className="w-full text-xs px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500"
+              />
+            </div>
+          ))}
           {campaign.sent_at && (
             <DetailRow label="Sent" value={formatDate(campaign.sent_at)} />
           )}
@@ -307,7 +392,12 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
               </button>
               <button
                 onClick={() => {
-                  if (!confirm("Send this campaign to the entire group now?")) return;
+                  const activeRecipients = recipients.filter((r) => r.latestEvent === "pending" || !r.latestEvent);
+                  const recipientList = activeRecipients.length > 0
+                    ? activeRecipients.map((r) => `  • ${r.firstName || r.email.split("@")[0]} (${r.email})`).join("\n")
+                    : recipients.map((r) => `  • ${r.firstName || r.email.split("@")[0]} (${r.email})`).join("\n");
+                  const count = activeRecipients.length || recipients.length;
+                  if (!confirm(`Send to ${count} recipient${count !== 1 ? "s" : ""}?\n\n${recipientList}\n\nProceed?`)) return;
                   sendCampaign.mutate(
                     { campaignId, apiBaseUrl: apiBaseUrl, knowledgePath: knowledgePath || undefined },
                     {
@@ -345,6 +435,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                 report_path: campaign.report_path,
                 bcc_email: campaign.bcc_email,
                 group_id: campaign.group_id,
+                tokens: campaign.tokens,
               });
             }}
             disabled={cloneCampaign.isPending}
@@ -565,7 +656,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                 srcDoc={previewHtml}
                 className="w-full bg-white border-0"
                 style={{ height: "85vh" }}
-                sandbox=""
+                sandbox="allow-scripts"
                 title={`Preview: ${campaign.name}`}
               />
             </div>
@@ -599,9 +690,9 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 flex-shrink-0">{label}</span>
-      <span className="text-xs text-zinc-700 dark:text-zinc-300 text-right">{value}</span>
+    <div>
+      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 block mb-0.5">{label}</span>
+      <span className="text-xs text-zinc-700 dark:text-zinc-300 block break-words">{value}</span>
     </div>
   );
 }
@@ -803,11 +894,8 @@ function EditableCategory({
   };
 
   return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 flex-shrink-0 flex items-center gap-1">
-        <Tag size={10} />
-        Category
-      </span>
+    <div>
+      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 block mb-0.5">Category</span>
       {editing ? (
         <>
           <input
@@ -819,7 +907,7 @@ function EditableCategory({
             onBlur={handleCommit}
             onKeyDown={handleKeyDown}
             placeholder="e.g., Reports, Newsletter"
-            className="text-xs text-right text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-0.5 w-44 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="text-xs text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-teal-500"
           />
           <datalist id="campaign-categories-detail">
             {suggestions.map((c) => (
@@ -830,7 +918,7 @@ function EditableCategory({
       ) : (
         <button
           onClick={() => setEditing(true)}
-          className="text-xs text-zinc-700 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 hover:underline decoration-dashed underline-offset-2 cursor-text text-right truncate max-w-[220px]"
+          className="text-xs text-zinc-700 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 hover:underline decoration-dashed underline-offset-2 cursor-text block"
           title={value || "Click to set category"}
         >
           {value || "—"}
@@ -854,17 +942,45 @@ function EditableBcc({
   );
 
   return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 flex-shrink-0">BCC</span>
+    <div>
+      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 block mb-0.5">BCC</span>
       <select
         value={value}
         onChange={(e) => onSave(e.target.value)}
-        className="text-xs text-right text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border-none rounded px-1 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 max-w-[220px]"
+        className="text-xs text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 w-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
       >
         <option value="">— none</option>
         {thinkvalContacts.map((c: EmailContact) => (
           <option key={c.id} value={c.email}>
             {c.first_name ? `${c.first_name}` : c.email.split("@")[0]} ({c.email})
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function EditableGroup({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (value: string) => void;
+}) {
+  const { data: groups = [] } = useEmailGroups();
+
+  return (
+    <div>
+      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 block mb-0.5">Group</span>
+      <select
+        value={value}
+        onChange={(e) => onSave(e.target.value)}
+        className="text-xs text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 w-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+      >
+        <option value="">— none</option>
+        {groups.map((g) => (
+          <option key={g.id} value={g.id}>
+            {g.name}
           </option>
         ))}
       </select>

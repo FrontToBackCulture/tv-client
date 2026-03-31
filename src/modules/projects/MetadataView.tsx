@@ -12,9 +12,10 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import {
   Search, Download, FileSpreadsheet, Maximize2, X, RotateCcw,
-  Building2, Target, Tag, Bot, Trash2, User, Send, FlaskConical, Mail,
-  Bookmark, ChevronsLeftRight, Columns, Star, Save, WrapText,
+  Building2, Target, Tag, Bot, Trash2, User, Send, FlaskConical, Mail, Handshake,
+  Bookmark, ChevronsLeftRight, Columns, Star, Save, WrapText, PanelLeftOpen, PanelLeftClose,
 } from "lucide-react";
+import { useCollapsiblePanel } from "../../hooks/useCollapsiblePanel";
 import { cn } from "../../lib/cn";
 import { toSGTDateString } from "../../lib/date";
 import { Button } from "../../components/ui";
@@ -269,7 +270,7 @@ function FieldGrid({ fields, onUpdate, companyId, contacts }: {
 
 // ── Sub-tab type ────────────────────────────────────────────────────────────
 
-type SubTab = "companies" | "contacts" | "initiatives" | "labels" | "users"
+type SubTab = "companies" | "contacts" | "initiatives" | "labels" | "users" | "partners"
   | "deal_stage" | "deal_solution" | "company_stage" | "activity_type" | "project_status" | "project_health" | "project_type"
   | "domain_type" | "initiative_status" | "task_status_type" | "task_statuses";
 
@@ -373,6 +374,7 @@ function SentEmailRow({ email, isExpanded, onToggle }: {
 
 export function MetadataView() {
   const theme = useAppStore((s) => s.theme);
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useCollapsiblePanel("tv-metadata-sidebar-collapsed");
   const [subTab, setSubTab] = useState<SubTab>("companies");
   const [quickFilter, setQuickFilter] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -398,6 +400,15 @@ export function MetadataView() {
 
   const { data: lookupValues = [], refetch: refetchLookups } = useAllLookupValues();
 
+  const { data: partners = [], refetch: refetchPartners } = useQuery({
+    queryKey: ["partner-access"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("partner_access").select("*").order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const { data: taskStatuses = [], refetch: refetchTaskStatuses } = useQuery({
     queryKey: ["metadata-task-statuses"],
     queryFn: async () => {
@@ -420,6 +431,7 @@ export function MetadataView() {
   const selectedInitiative = selection?.type === "initiative" ? initiatives.find(i => i.id === selection.id) : null;
   const selectedLabel = selection?.type === "label" ? labels.find(l => l.id === selection.id) : null;
   const selectedUser = selection?.type === "user" ? users.find(u => u.id === selection.id) : null;
+  const selectedPartner = selection?.type === "partner" ? partners.find(p => p.id === selection.id) : null;
   const selectedLookup = selection?.type === "lookup" ? lookupValues.find(l => l.id === selection.id) : null;
 
   const activityCompanyId = selectedCompany?.id || (selectedContact ? selectedContact.company_id : null);
@@ -451,10 +463,13 @@ export function MetadataView() {
     document.addEventListener("mouseup", up);
   }, [detailWidth]);
 
-  const refetchAll = () => { refetchCompanies(); refetchContacts(); refetchInitiatives(); refetchLabels(); refetchUsers(); refetchLookups(); refetchTaskStatuses(); };
+  const refetchAll = () => { refetchCompanies(); refetchContacts(); refetchInitiatives(); refetchLabels(); refetchUsers(); refetchLookups(); refetchTaskStatuses(); refetchPartners(); };
 
+  const TABLES_WITHOUT_UPDATED_AT = ["partner_access"];
   const updateEntity = async (table: string, id: string, field: string, value: any) => {
-    await supabase.from(table).update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", id);
+    const payload: any = { [field]: value };
+    if (!TABLES_WITHOUT_UPDATED_AT.includes(table)) payload.updated_at = new Date().toISOString();
+    await supabase.from(table).update(payload).eq("id", id);
     refetchAll();
   };
 
@@ -552,10 +567,24 @@ export function MetadataView() {
         return true;
       },
     },
+    { field: "source", headerName: "Source", width: 120, editable: true, filter: "agSetColumnFilter",
+      cellEditor: "agSelectCellEditor", cellEditorParams: { values: ["", "direct", "referral", "inbound", "apollo", "manual", "existing"] },
+    },
+    { field: "referred_by", headerName: "Referred By", width: 150, editable: true, filter: "agTextColumnFilter" },
+    { field: "partner_id", headerName: "Partner", width: 150, editable: true,
+      cellEditor: "agSelectCellEditor", cellEditorParams: { values: ["(none)", ...partners.map(p => p.name)] },
+      valueGetter: (p: any) => { const partner = partners.find(pt => pt.id === p.data?.partner_id); return partner ? partner.name : ""; },
+      valueSetter: (p: any) => {
+        if (!p.newValue || p.newValue === "(none)") { p.data.partner_id = null; return true; }
+        const partner = partners.find(pt => pt.name === p.newValue);
+        p.data.partner_id = partner ? partner.id : null;
+        return true;
+      },
+    },
     { field: "contact_count", headerName: "Contacts", width: 80, type: "numericColumn" },
     { field: "notes", headerName: "Notes", width: 200, editable: true, hide: true },
     { field: "updated_at", headerName: "Updated", width: 100, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "" },
-  ], []);
+  ], [partners]);
 
   const companyRows = useMemo(() => companies.map(c => ({
     ...c,
@@ -673,11 +702,25 @@ export function MetadataView() {
     { field: "sort_order", headerName: "Order", width: 70, editable: true, type: "numericColumn" },
   ], []);
 
+  const partnerColumns: ColDef[] = useMemo(() => [
+    { field: "name", headerName: "Name", flex: 1, filter: "agTextColumnFilter", editable: true, pinned: "left" },
+    { field: "company", headerName: "Company", width: 180, editable: true, filter: "agTextColumnFilter" },
+    { field: "email", headerName: "Email", width: 200, editable: true, filter: "agTextColumnFilter" },
+    { field: "phone", headerName: "Phone", width: 140, editable: true },
+    { field: "active", headerName: "Active", width: 90, editable: true,
+      cellRenderer: (p: any) => p.value ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700">active</span> : <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-500">inactive</span>,
+      cellEditor: "agSelectCellEditor", cellEditorParams: { values: [true, false] },
+    },
+    { field: "code", headerName: "Code", width: 120, editable: false },
+    { field: "last_accessed", headerName: "Last Accessed", width: 130, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric", year: "numeric" }) : "Never" },
+    { field: "created_at", headerName: "Created", width: 110, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "" },
+  ], []);
+
   const isLookupTab = ["deal_stage", "deal_solution", "company_stage", "activity_type", "project_status", "project_health", "project_type", "domain_type", "initiative_status", "task_status_type"].includes(subTab);
   const isTaskStatusTab = subTab === "task_statuses";
-  const currentColumns = isTaskStatusTab ? taskStatusColumns : subTab === "companies" ? companyColumns : subTab === "contacts" ? contactColumns : subTab === "initiatives" ? initiativeColumns : subTab === "labels" ? labelColumns : isLookupTab ? lookupColumns : userColumns;
-  const currentRows = isTaskStatusTab ? taskStatuses : subTab === "companies" ? companyRows : subTab === "contacts" ? contactRows : subTab === "initiatives" ? initiatives : subTab === "labels" ? labels : isLookupTab ? lookupValues.filter(l => l.type === subTab) : users;
-  const currentTable = isTaskStatusTab ? "task_statuses" : subTab === "companies" ? "crm_companies" : subTab === "contacts" ? "crm_contacts" : subTab === "initiatives" ? "initiatives" : subTab === "labels" ? "labels" : isLookupTab ? "lookup_values" : "users";
+  const currentColumns = isTaskStatusTab ? taskStatusColumns : subTab === "companies" ? companyColumns : subTab === "contacts" ? contactColumns : subTab === "partners" ? partnerColumns : subTab === "initiatives" ? initiativeColumns : subTab === "labels" ? labelColumns : isLookupTab ? lookupColumns : userColumns;
+  const currentRows = isTaskStatusTab ? taskStatuses : subTab === "companies" ? companyRows : subTab === "contacts" ? contactRows : subTab === "partners" ? partners : subTab === "initiatives" ? initiatives : subTab === "labels" ? labels : isLookupTab ? lookupValues.filter(l => l.type === subTab) : users;
+  const currentTable = isTaskStatusTab ? "task_statuses" : subTab === "companies" ? "crm_companies" : subTab === "contacts" ? "crm_contacts" : subTab === "partners" ? "partner_access" : subTab === "initiatives" ? "initiatives" : subTab === "labels" ? "labels" : isLookupTab ? "lookup_values" : "users";
 
   const defaultColDef = useMemo<ColDef>(() => ({
     sortable: true, resizable: true, filter: true, cellClass: "text-xs", enableRowGroup: true,
@@ -689,13 +732,22 @@ export function MetadataView() {
     const { data, colDef, newValue } = event;
     if (!data || !colDef.field) return;
     if (["contact_count"].includes(colDef.field)) return;
-    await supabase.from(currentTable).update({ [colDef.field]: newValue ?? null, updated_at: new Date().toISOString() }).eq("id", data.id);
+    // For partner_id, valueSetter already converted name→UUID in data.partner_id
+    const actualValue = colDef.field === "partner_id" ? data.partner_id : newValue;
+    const payload: any = { [colDef.field]: actualValue ?? null };
+    if (!TABLES_WITHOUT_UPDATED_AT.includes(currentTable)) payload.updated_at = new Date().toISOString();
+    // Auto-fill referred_by when partner_id changes on companies
+    if (currentTable === "crm_companies" && colDef.field === "partner_id") {
+      const partner = partners.find(p => p.id === actualValue);
+      payload.referred_by = partner ? partner.name : null;
+    }
+    await supabase.from(currentTable).update(payload).eq("id", data.id);
     refetchAll();
-  }, [currentTable]);
+  }, [currentTable, partners]);
 
   const handleRowDoubleClicked = useCallback((e: any) => {
     if (!e.data) return;
-    const type = subTab === "companies" ? "company" : subTab === "contacts" ? "contact" : subTab === "initiatives" ? "initiative" : subTab === "labels" ? "label" : isLookupTab || isTaskStatusTab ? "lookup" : "user";
+    const type = subTab === "companies" ? "company" : subTab === "contacts" ? "contact" : subTab === "partners" ? "partner" : subTab === "initiatives" ? "initiative" : subTab === "labels" ? "label" : isLookupTab || isTaskStatusTab ? "lookup" : "user";
     setSelection({ type, id: e.data.id });
   }, [subTab, isLookupTab, isTaskStatusTab]);
 
@@ -717,6 +769,7 @@ export function MetadataView() {
         { id: "contacts", label: "Contacts", icon: User, count: contacts.length },
         { id: "initiatives", label: "Initiatives", icon: Target, count: initiatives.length },
         { id: "users", label: "Users", icon: Bot, count: users.length },
+        { id: "partners", label: "Partners", icon: Handshake, count: partners.length },
       ],
     },
     {
@@ -771,33 +824,54 @@ export function MetadataView() {
       {/* Body: sidebar + grid + optional detail panel */}
       <div className="flex-1 flex overflow-hidden">
         {/* Vertical tab sidebar */}
-        <aside className="w-40 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto py-2">
-          <nav className="space-y-3 px-2">
-            {tabGroups.map((group) => (
-              <div key={group.label}>
-                <div className="px-2 py-1 text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                  {group.label}
-                </div>
-                <div className="space-y-0.5 mt-0.5">
-                  {group.tabs.map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => { setSubTab(tab.id); setSelection(null); setQuickFilter(""); gridRef.current?.api?.setGridOption("quickFilterText", ""); }}
-                      className={cn(
-                        "w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors",
-                        subTab === tab.id
-                          ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
-                          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
-                      )}
-                    >
-                      <span className="truncate">{tab.label}</span>
-                      <span className="text-[9px] text-zinc-400 ml-1 flex-shrink-0">{tab.count}</span>
-                    </button>
-                  ))}
-                </div>
+        <aside className="flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto py-2 transition-all duration-200" style={{ width: sidebarCollapsed ? 40 : 160 }}>
+          {sidebarCollapsed ? (
+            <div className="flex flex-col items-center">
+              <button
+                onClick={toggleSidebar}
+                className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="Expand panel"
+              >
+                <PanelLeftOpen size={14} />
+              </button>
+            </div>
+          ) : (
+            <nav className="space-y-3 px-2">
+              <div className="flex justify-end px-1">
+                <button
+                  onClick={toggleSidebar}
+                  className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                  title="Collapse panel"
+                >
+                  <PanelLeftClose size={12} />
+                </button>
               </div>
-            ))}
-          </nav>
+              {tabGroups.map((group) => (
+                <div key={group.label}>
+                  <div className="px-2 py-1 text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                    {group.label}
+                  </div>
+                  <div className="space-y-0.5 mt-0.5">
+                    {group.tabs.map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => { setSubTab(tab.id); setSelection(null); setQuickFilter(""); gridRef.current?.api?.setGridOption("quickFilterText", ""); }}
+                        className={cn(
+                          "w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors",
+                          subTab === tab.id
+                            ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
+                            : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                        )}
+                      >
+                        <span className="truncate">{tab.label}</span>
+                        <span className="text-[9px] text-zinc-400 ml-1 flex-shrink-0">{tab.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </nav>
+          )}
         </aside>
 
         {/* Main content area */}
@@ -954,8 +1028,17 @@ export function MetadataView() {
                       { label: "Client Folder", field: "client_folder_path", value: selectedCompany.client_folder_path, type: "folder_picker" },
                       { label: "Deal Folder", field: "deal_folder_path", value: selectedCompany.deal_folder_path, type: "folder_picker" },
                       { label: "Research Folder", field: "research_folder_path", value: selectedCompany.research_folder_path, type: "folder_picker" },
+                      { label: "Source", field: "source", value: selectedCompany.source, type: "select", options: [{ value: "", label: "(none)" }, { value: "direct", label: "Direct" }, { value: "referral", label: "Referral" }, { value: "inbound", label: "Inbound" }, { value: "apollo", label: "Apollo" }, { value: "manual", label: "Manual" }, { value: "existing", label: "Existing" }] },
+                      { label: "Referred By", field: "referred_by", value: selectedCompany.referred_by },
+                      { label: "Partner", field: "partner_id", value: selectedCompany.partner_id, type: "select", options: [{ value: "", label: "(none)" }, ...partners.map(p => ({ value: p.id, label: p.name }))] },
                       { label: "Notes", field: "notes", value: selectedCompany.notes, type: "textarea" },
-                    ]} onUpdate={(f, v) => updateEntity("crm_companies", selectedCompany.id, f, v)} companyId={selectedCompany.id} contacts={contacts} />
+                    ]} onUpdate={async (f, v) => {
+                      await updateEntity("crm_companies", selectedCompany.id, f, v);
+                      if (f === "partner_id") {
+                        const partner = partners.find(p => p.id === v);
+                        await updateEntity("crm_companies", selectedCompany.id, "referred_by", partner ? partner.name : null);
+                      }
+                    }} companyId={selectedCompany.id} contacts={contacts} />
                     {/* Contacts */}
                     <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                       <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Contacts</h3>
@@ -1248,6 +1331,40 @@ export function MetadataView() {
                     ]} onUpdate={(f, v) => updateEntity("users", selectedUser.id, f, v)} />
                     <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                       <button onClick={() => deleteEntity("users", selectedUser.id, selectedUser.name)}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700"><Trash2 size={11} /> Delete</button>
+                    </div>
+                  </div>
+                )}
+                {/* Partner */}
+                {selectedPartner && (
+                  <div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <Handshake size={18} className="text-teal-500" />
+                      <div>
+                        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedPartner.name}</h2>
+                        <span className={cn("text-[9px] px-1.5 rounded-full font-semibold uppercase", selectedPartner.active ? "bg-emerald-50 text-emerald-500" : "bg-zinc-100 text-zinc-400")}>{selectedPartner.active ? "active" : "inactive"}</span>
+                      </div>
+                    </div>
+                    <FieldGrid fields={[
+                      { label: "Name", field: "name", value: selectedPartner.name },
+                      { label: "Company", field: "company", value: selectedPartner.company },
+                      { label: "Email", field: "email", value: selectedPartner.email },
+                      { label: "Phone", field: "phone", value: selectedPartner.phone },
+                      { label: "Active", field: "active", value: selectedPartner.active ? "true" : "false", type: "select", options: [{ value: "true", label: "Active" }, { value: "false", label: "Inactive" }] },
+                      { label: "Code", field: "code", value: selectedPartner.code },
+                    ]} onUpdate={(f, v) => updateEntity("partner_access", selectedPartner.id, f, f === "active" ? v === "true" : v)} />
+                    <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                      <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Referred Companies</h3>
+                      {companies.filter(c => c.partner_id === selectedPartner.id).length === 0
+                        ? <p className="text-xs text-zinc-400">No companies linked</p>
+                        : companies.filter(c => c.partner_id === selectedPartner.id).map(c => (
+                          <div key={c.id} onClick={() => { setSubTab("companies"); setSelection({ type: "company", id: c.id }); }}
+                            className="text-xs text-zinc-600 dark:text-zinc-400 hover:text-teal-500 cursor-pointer py-0.5">{c.display_name || c.name}</div>
+                        ))
+                      }
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                      <button onClick={() => deleteEntity("partner_access", selectedPartner.id, selectedPartner.name)}
                         className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700"><Trash2 size={11} /> Delete</button>
                     </div>
                   </div>

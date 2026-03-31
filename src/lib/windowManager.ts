@@ -13,6 +13,7 @@ const moduleLabels: Record<ModuleId, string> = {
   work: "Work",
   inbox: "Inbox",
   calendar: "Calendar",
+  chat: "Chat",
   crm: "CRM",
   domains: "Domains",
   analytics: "Analytics",

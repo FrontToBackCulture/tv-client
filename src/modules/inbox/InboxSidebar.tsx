@@ -13,6 +13,7 @@ import {
   Package,
   VolumeX,
   RefreshCw,
+  PanelLeftClose,
 } from "lucide-react";
 import { IconButton } from "../../components/ui";
 import type { EmailCategory, EmailStatus } from "../../hooks/useOutlook";
@@ -34,6 +35,7 @@ interface InboxSidebarProps {
   };
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  onCollapse?: () => void;
 }
 
 export function InboxSidebar({
@@ -46,6 +48,7 @@ export function InboxSidebar({
   stats,
   onRefresh,
   isRefreshing,
+  onCollapse,
 }: InboxSidebarProps) {
   const folders = [
     { id: "Inbox", icon: Inbox, count: stats.inbox },
@@ -67,7 +70,18 @@ export function InboxSidebar({
       {/* Header */}
       <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">Inbox</h2>
+          <div className="flex items-center gap-1.5">
+            {onCollapse && (
+              <button
+                onClick={onCollapse}
+                className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors flex-shrink-0"
+                title="Collapse panel"
+              >
+                <PanelLeftClose size={12} />
+              </button>
+            )}
+            <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">Inbox</h2>
+          </div>
           {onRefresh && (
             <IconButton
               icon={RefreshCw}

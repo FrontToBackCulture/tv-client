@@ -1,9 +1,8 @@
-// src/components/discussions/DiscussionPanel.tsx
 // Universal discussion panel — attach to any entity
 // Supports @mentions with autocomplete and notification creation
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { MessageSquare, Send, X } from "lucide-react";
+import { MessageSquare, Send, X, CornerDownLeft } from "lucide-react";
 import { useDiscussions, useCreateDiscussion, useUpdateDiscussion, useDeleteDiscussion } from "../../hooks/useDiscussions";
 import { useCreateNotification } from "../../hooks/useNotifications";
 import { useAuth } from "../../stores/authStore";
@@ -54,15 +53,13 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
       .slice(0, 6);
   }, [mentionQuery, mentionableUsers]);
 
-  // Get current user — match against users table name (same as @mention autocomplete)
+  // Get current user
   const user = useAuth((s) => s.user);
   const currentUserFromAuth = user?.name || user?.login || "unknown";
-  // Find matching user in the users table to get the canonical name
   const matchedUser = allUsers.find(
     (u) => u.github_username === user?.login || u.microsoft_email === user?.login || u.name === currentUserFromAuth
   );
   const currentUser = matchedUser?.name || currentUserFromAuth;
-  // Collect all possible names for ownership matching
   const currentUserAliases = [
     user?.login, user?.name, matchedUser?.name, matchedUser?.github_username, matchedUser?.microsoft_email
   ].filter((n): n is string => !!n && n !== currentUser);
@@ -85,7 +82,6 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
     const cursorPos = e.target.selectionStart;
     const textBeforeCursor = value.slice(0, cursorPos);
 
-    // Check if we're in a mention: find last @ before cursor
     const atMatch = textBeforeCursor.match(/@([\w-]*)$/);
     if (atMatch) {
       setMentionQuery(atMatch[1]);
@@ -104,13 +100,11 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
     const textBeforeCursor = body.slice(0, cursorPos);
     const textAfterCursor = body.slice(cursorPos);
 
-    // Replace the @query with @username
     const atIdx = textBeforeCursor.lastIndexOf("@");
     const newText = textBeforeCursor.slice(0, atIdx) + `@${username} ` + textAfterCursor;
     setBody(newText);
     setMentionQuery(null);
 
-    // Restore focus and cursor
     requestAnimationFrame(() => {
       textarea.focus();
       const newPos = atIdx + username.length + 2;
@@ -135,7 +129,6 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
     const preview = trimmed.length > 100 ? trimmed.slice(0, 100) + "..." : trimmed;
     const notifiedUsers = new Set<string>();
 
-    // Notify @mentioned users
     for (const mentioned of mentions) {
       notifiedUsers.add(mentioned.toLowerCase());
       createNotification.mutate({
@@ -149,7 +142,6 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
       });
     }
 
-    // Notify the parent comment author on reply (if not already notified via @mention)
     if (replyingTo && discussions) {
       const parentComment = discussions.find((d) => d.id === replyingTo);
       if (parentComment && !notifiedUsers.has(parentComment.author.toLowerCase()) && parentComment.author.toLowerCase() !== currentUser.toLowerCase()) {
@@ -176,7 +168,6 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
   }
 
   function handleDelete(id: string) {
-    // Find the comment being deleted to notify mentioned users
     const comment = discussions?.find((d) => d.id === id);
     if (comment) {
       const mentions = parseMentions(comment.body);
@@ -238,16 +229,16 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
   });
 
   return (
-    <div className="flex flex-col h-full bg-zinc-50 dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800">
+    <div className="flex flex-col h-full bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] border-l border-[var(--border-default)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center gap-1.5">
-          <MessageSquare size={14} className="text-zinc-500" />
-          <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+      <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-[var(--border-default)] flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <MessageSquare size={13} className="text-[var(--text-muted)]" />
+          <span className="text-[12px] font-semibold text-[var(--text-primary)]">
             Discussion
           </span>
           {discussions && discussions.length > 0 && (
-            <span className="text-[10px] text-zinc-400 bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full">
+            <span className="text-[10px] font-medium text-[var(--text-muted)] bg-[var(--bg-muted)] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
               {discussions.length}
             </span>
           )}
@@ -255,30 +246,32 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="w-6 h-6 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)] transition-colors duration-150"
           >
-            <X size={14} />
+            <X size={13} />
           </button>
         )}
       </div>
 
       {/* Comment list */}
-      <div ref={listRef} className="flex-1 overflow-auto">
+      <div ref={listRef} className="flex-1 overflow-auto scrollbar-auto-hide">
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <span className="text-xs text-zinc-400">Loading...</span>
+          <div className="flex items-center justify-center py-10">
+            <span className="text-[11px] text-[var(--text-muted)]">Loading...</span>
           </div>
         ) : topLevel.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-            <MessageSquare size={24} className="text-zinc-300 dark:text-zinc-700 mb-2" />
-            <p className="text-xs text-zinc-400 dark:text-zinc-600">
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+            <div className="w-9 h-9 rounded-xl bg-[var(--bg-muted)] flex items-center justify-center mb-2.5">
+              <MessageSquare size={16} className="text-[var(--text-muted)]" />
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)]">
               No comments yet
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-zinc-100 dark:divide-zinc-900">
-            {topLevel.map((discussion) => (
-              <div key={discussion.id}>
+          <div className="py-1">
+            {topLevel.map((discussion, i) => (
+              <div key={discussion.id} className="animate-fade-slide-in" style={{ animationDelay: `${i * 30}ms` }}>
                 <DiscussionItem
                   discussion={discussion}
                   currentUser={currentUser}
@@ -290,7 +283,6 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
                     inputRef.current?.focus();
                   }}
                 />
-                {/* Replies */}
                 {repliesByParent.get(discussion.id)?.map((reply) => (
                   <DiscussionItem
                     key={reply.id}
@@ -309,28 +301,34 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
       </div>
 
       {/* Input area */}
-      <div className="border-t border-zinc-200 dark:border-zinc-800 p-2 relative">
+      <div className="border-t border-[var(--border-default)] p-2.5 relative flex-shrink-0">
         {/* @mention autocomplete dropdown */}
         {mentionQuery !== null && filteredMentions.length > 0 && (
           <div
             ref={mentionRef}
-            className="absolute bottom-full left-2 right-2 mb-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg overflow-hidden z-10"
+            className="absolute bottom-full left-2.5 right-2.5 mb-1.5 bg-[var(--bg-elevated)] dark:bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-lg overflow-hidden z-10 animate-fade-slide-in"
           >
-            {filteredMentions.map((user, i) => (
+            <div className="px-2.5 py-1.5 border-b border-[var(--border-default)]">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                People
+              </span>
+            </div>
+            {filteredMentions.map((u, i) => (
               <button
-                key={user.name}
+                key={u.name}
                 onMouseDown={(e) => {
-                  e.preventDefault(); // Prevent textarea blur
-                  insertMention(user.name);
+                  e.preventDefault();
+                  insertMention(u.name);
                 }}
-                className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 ${
+                className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2.5 transition-colors duration-100 ${
                   i === mentionIndex
-                    ? "bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300"
-                    : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    ? "bg-[var(--color-teal-light)] dark:bg-[var(--color-teal-light)]"
+                    : "hover:bg-[var(--bg-muted)] dark:hover:bg-[var(--bg-muted)]"
                 }`}
               >
-                <span className="font-medium">@{user.name}</span>
-                <span className="text-[10px] text-zinc-400">{user.type}</span>
+                <span className="font-medium text-[var(--color-accent)]">@</span>
+                <span className="font-medium text-[var(--text-primary)]">{u.name}</span>
+                <span className="text-[10px] text-[var(--text-muted)] ml-auto capitalize">{u.type}</span>
               </button>
             ))}
           </div>
@@ -338,46 +336,55 @@ export function DiscussionPanel({ entityType, entityId, onClose }: DiscussionPan
 
         {/* Reply indicator */}
         {replyingTo && (
-          <div className="flex items-center gap-1.5 mb-1.5 px-1">
-            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">
-              Replying to comment
+          <div className="flex items-center gap-1.5 mb-2 px-0.5">
+            <CornerDownLeft size={11} className="text-[var(--color-accent)]" />
+            <span className="text-[11px] font-medium text-[var(--color-accent)]">
+              Replying
             </span>
             <button
               onClick={() => setReplyingTo(null)}
-              className="p-0.5 rounded text-zinc-400 hover:text-zinc-600"
+              className="p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
             >
               <X size={10} />
             </button>
           </div>
         )}
 
-        <div className="flex gap-1.5 items-end">
-          <textarea
-            ref={inputRef}
-            value={body}
-            onChange={handleInputChange}
-            placeholder={replyingTo ? "Write a reply..." : "Add a comment... (@ to mention)"}
-            rows={1}
-            className="flex-1 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md px-2.5 py-1.5 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 resize-none focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-600"
-            onKeyDown={handleKeyDown}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = "auto";
-              target.style.height = Math.min(target.scrollHeight, 120) + "px";
-            }}
-          />
+        <div className="flex gap-2 items-end min-w-0">
+          <div className="flex-1 min-w-0">
+            <textarea
+              ref={inputRef}
+              value={body}
+              onChange={handleInputChange}
+              placeholder={replyingTo ? "Write a reply..." : "Comment — @ to mention"}
+              rows={1}
+              className="w-full text-[13px] bg-[var(--bg-muted)] dark:bg-[var(--bg-muted)] border-0 rounded-xl px-3 py-1.5 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-shadow duration-150 overflow-x-hidden overflow-y-auto"
+              style={{ maxHeight: 100 }}
+              onKeyDown={handleKeyDown}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = "auto";
+                target.style.height = Math.min(target.scrollHeight, 100) + "px";
+              }}
+            />
+          </div>
           <button
             onClick={handleSubmit}
             disabled={!body.trim() || createMutation.isPending}
-            className="p-1.5 rounded-md text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
             title="Send (⌘+Enter)"
           >
-            <Send size={16} />
+            <Send size={13} />
           </button>
         </div>
-        <p className="text-[10px] text-zinc-400 mt-1 px-1">
-          {currentUser} · ⌘+Enter to send · @ to mention
-        </p>
+        <div className="flex items-center gap-2 mt-1.5 px-0.5">
+          <span className="text-[10px] text-[var(--text-muted)]">
+            <kbd className="px-1 py-0.5 rounded bg-[var(--bg-muted)] text-[9px] font-mono">⌘↵</kbd> send
+          </span>
+          <span className="text-[10px] text-[var(--text-muted)]">
+            <kbd className="px-1 py-0.5 rounded bg-[var(--bg-muted)] text-[9px] font-mono">@</kbd> mention
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -213,9 +213,23 @@ export function useRealtimeSync() {
       .channel("discussions-changes")
       .on("postgres_changes", pg("discussions"), () => {
         queryClient.invalidateQueries({ queryKey: ["discussions"] });
+        queryClient.invalidateQueries({ queryKey: ["chat", "threads"] });
       })
       .subscribe();
     channels.push(discussionsChannel);
+
+    // ── Chat (read positions + entity mentions) ─────────────────────
+    const chatChannel = supabase
+      .channel("chat-changes")
+      .on("postgres_changes", pg("chat_read_positions"), () => {
+        queryClient.invalidateQueries({ queryKey: ["chat", "read"] });
+      })
+      .on("postgres_changes", pg("discussion_mentions"), () => {
+        queryClient.invalidateQueries({ queryKey: ["chat", "mentions"] });
+        queryClient.invalidateQueries({ queryKey: ["chat", "mentionCount"] });
+      })
+      .subscribe();
+    channels.push(chatChannel);
 
     // ── Notifications ────────────────────────────────────────────────
     const notificationsChannel = supabase

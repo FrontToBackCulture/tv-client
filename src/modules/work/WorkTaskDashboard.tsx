@@ -138,7 +138,7 @@ function classifyTask(t: TaskWithRelations): "overdue" | "today" | "upcoming" | 
 
 // ─── TaskBucket ───────────────────────────────────────────────────────────
 
-function TaskBucket({ label, tasks, icon: Icon, color, defaultOpen = true, onSelectTask, contextLabels }: {
+function TaskBucket({ label, tasks, icon: Icon, color, defaultOpen = true, onSelectTask, contextLabels, selectedTaskIds, onToggleSelect }: {
   label: string;
   tasks: TaskWithRelations[];
   icon: typeof AlertTriangle;
@@ -146,6 +146,8 @@ function TaskBucket({ label, tasks, icon: Icon, color, defaultOpen = true, onSel
   defaultOpen?: boolean;
   onSelectTask: (id: string) => void;
   contextLabels?: Map<string, string>;
+  selectedTaskIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen && tasks.length > 0);
   if (tasks.length === 0) return null;
@@ -162,7 +164,7 @@ function TaskBucket({ label, tasks, icon: Icon, color, defaultOpen = true, onSel
         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${color}15`, color }}>{tasks.length}</span>
       </button>
       {open && (
-        <StatusGroupedTasks tasks={tasks} onSelectTask={onSelectTask} contextLabels={contextLabels || new Map()} />
+        <StatusGroupedTasks tasks={tasks} onSelectTask={onSelectTask} contextLabels={contextLabels || new Map()} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
       )}
     </div>
   );
@@ -311,12 +313,14 @@ export function _DoTodayRow({ task, onSelect, contextLabel, onDeferred, onReject
 
 // ─── TaskBuckets (renders overdue/today/upcoming/no_date for a set of tasks) ─
 
-function TaskBuckets({ tasks, onSelectTask, contextLabels, showCompleted, defaultCollapsed }: {
+function TaskBuckets({ tasks, onSelectTask, contextLabels, showCompleted, defaultCollapsed, selectedTaskIds, onToggleSelect }: {
   tasks: TaskWithRelations[];
   onSelectTask: (id: string) => void;
   contextLabels?: Map<string, string>;
   showCompleted?: TaskWithRelations[];
   defaultCollapsed?: boolean;
+  selectedTaskIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }) {
   const buckets = useMemo(() => bucketTasks(tasks), [tasks]);
   const active = tasks.filter(t => t.status?.type !== "complete");
@@ -324,12 +328,12 @@ function TaskBuckets({ tasks, onSelectTask, contextLabels, showCompleted, defaul
 
   return (
     <>
-      <TaskBucket label="Overdue" tasks={buckets.overdue} icon={AlertTriangle} color="#EF4444" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} />
-      <TaskBucket label="Due Today" tasks={buckets.today} icon={Clock} color="#F59E0B" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} />
-      <TaskBucket label="Upcoming" tasks={buckets.upcoming} icon={Calendar} color="#3B82F6" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} />
-      <TaskBucket label="No Due Date" tasks={buckets.no_date} icon={Calendar} color="#9CA3AF" defaultOpen={false} onSelectTask={onSelectTask} contextLabels={contextLabels} />
+      <TaskBucket label="Overdue" tasks={buckets.overdue} icon={AlertTriangle} color="#EF4444" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
+      <TaskBucket label="Due Today" tasks={buckets.today} icon={Clock} color="#F59E0B" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
+      <TaskBucket label="Upcoming" tasks={buckets.upcoming} icon={Calendar} color="#3B82F6" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
+      <TaskBucket label="No Due Date" tasks={buckets.no_date} icon={Calendar} color="#9CA3AF" defaultOpen={false} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
       {showCompleted && showCompleted.length > 0 && (
-        <TaskBucket label="Completed This Week" tasks={showCompleted} icon={CheckCircle2} color="#10B981" defaultOpen={false} onSelectTask={onSelectTask} contextLabels={contextLabels} />
+        <TaskBucket label="Completed This Week" tasks={showCompleted} icon={CheckCircle2} color="#10B981" defaultOpen={false} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
       )}
       {active.length === 0 && (
         <div className="text-center py-6 text-xs text-zinc-400">No active tasks</div>
@@ -399,6 +403,20 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
 }) {
   const [includeNotion, setIncludeNotion] = useState(true);
   const [myTasksTab, setMyTasksTab] = useState<"strategy" | "tasks">("strategy");
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [todayOpen, setTodayOpen] = useState(true);
+  const [showChangesPanel, setShowChangesPanel] = useState(false);
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedTaskIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  }, []);
+  const selectAllOf = useCallback((tasks: TaskWithRelations[]) => {
+    setSelectedTaskIds(prev => {
+      const allSelected = tasks.every(t => prev.has(t.id));
+      const next = new Set(prev);
+      tasks.forEach(t => allSelected ? next.delete(t.id) : next.add(t.id));
+      return next;
+    });
+  }, []);
   const [_showTriageLog, _setShowTriageLog] = useState(false);
   const triageMutation = useTaskTriage();
   useTriageEnrichment();
@@ -467,6 +485,29 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
 
   const STALE_DAYS = 60;
   const staleThreshold = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000;
+
+  const currentUserName = useMemo(() => _users.find(u => u.id === currentUserId)?.name || null, [_users, currentUserId]);
+
+  // Recent changes across all my tasks (last 24h)
+  const myTaskIds = useMemo(() => allTasks.filter(t => (t.assignees || []).some(a => a.user?.id === currentUserId)).map(t => t.id), [allTasks, currentUserId]);
+  const { data: recentChanges = [] } = useQuery({
+    queryKey: ["task_changes_recent", currentUserId],
+    queryFn: async () => {
+      if (myTaskIds.length === 0) return [];
+      const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("task_changes")
+        .select("*")
+        .in("task_id", myTaskIds.slice(0, 200))
+        .gte("changed_at", since)
+        .order("changed_at", { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: myTaskIds.length > 0,
+    staleTime: 30_000,
+  });
 
   const allMyTasks = useMemo(() => {
     if (!currentUserId) return [];
@@ -623,6 +664,14 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
         {allClear && (
           <span className="text-xs font-medium text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full">All clear!</span>
         )}
+        <button
+          onClick={() => setShowChangesPanel(!showChangesPanel)}
+          className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md transition-colors ${showChangesPanel ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+          title="Recent Changes"
+        >
+          <Clock size={12} />
+          {recentChanges.length > 0 && <span className="font-medium">{recentChanges.length}</span>}
+        </button>
         <label className="flex items-center gap-1 text-[10px] text-zinc-400 cursor-pointer">
           <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500 w-3 h-3" />
           Notion
@@ -646,11 +695,13 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
         ))}
       </div>
 
+      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       {/* Strategy Tab */}
       {myTasksTab === "strategy" && (
         <div className="flex-1 overflow-y-auto">
-          <PlansBanner />
-          <TriageBanner view="my_tasks" tasks={myTasks.filter(t => t.status?.type !== "complete")} />
+          <PlansBanner currentUserName={currentUserName} />
+          <TriageBanner view="my_tasks" tasks={myTasks.filter(t => t.status?.type !== "complete")} currentUserName={currentUserName} />
         </div>
       )}
 
@@ -658,17 +709,96 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
       {myTasksTab === "tasks" && (
       <div className="flex-1 overflow-y-auto p-4">
 
-        {/* Today's Work — overdue + due today, all in one view */}
+        {/* Bulk actions bar */}
+        {selectedTaskIds.size > 0 && (
+          <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200/30 dark:border-blue-800/20">
+            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">{selectedTaskIds.size} selected</span>
+            <button
+              className="text-[10px] px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 font-medium transition-colors"
+              onClick={async () => {
+                const tasksToSync = allMyTasks.filter(t => selectedTaskIds.has(t.id) && (t as any).notion_page_id);
+                if (tasksToSync.length === 0) { toast.error("No selected tasks have Notion pages"); return; }
+                const jobId = `notion-bulk-${Date.now()}`;
+                const jobStore = useJobsStore.getState();
+                jobStore.addJob({ id: jobId, name: `Notion Bulk Sync`, status: "running", message: `0/${tasksToSync.length} tasks...` });
+                let synced = 0, failed = 0;
+                const failures: string[] = [];
+                for (const t of tasksToSync) {
+                  try {
+                    await invoke("notion_push_task", { taskId: t.id });
+                    synced++;
+                  } catch (err: any) {
+                    failed++;
+                    failures.push(`${t.title?.slice(0, 40)}: ${err?.message || err}`);
+                  }
+                  jobStore.updateJob(jobId, { message: `${synced + failed}/${tasksToSync.length} (${synced} synced${failed ? `, ${failed} failed` : ""})` });
+                }
+                jobStore.updateJob(jobId, { status: failed > 0 ? "failed" : "completed", message: `${synced} synced${failed ? `, ${failed} failed` : ""} of ${tasksToSync.length}` });
+                setSelectedTaskIds(new Set());
+                queryClient.invalidateQueries({ queryKey: ["work"] });
+              }}
+            >
+              ↑ Sync to Notion
+            </button>
+            <button
+              className="text-[10px] px-2 py-1 rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-medium"
+              onClick={() => setSelectedTaskIds(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {/* Today's Work — overdue + due today, collapsible */}
         {(() => {
           const todayTasks = myTasks.filter(t => t.status?.type !== "complete" && (isOverdue(t.due_date || "") || isToday(t.due_date)));
           return todayTasks.length > 0 ? (
             <div className="mb-4 rounded-lg border border-red-200/30 dark:border-red-800/20 bg-red-50/30 dark:bg-red-900/5 p-3">
-              <div className="flex items-center gap-2 mb-2">
+              <button
+                onClick={() => setTodayOpen(!todayOpen)}
+                className="w-full flex items-center gap-2 mb-1 hover:opacity-80 transition-opacity"
+              >
+                {todayOpen ? <ChevronDown size={12} className="text-red-400" /> : <ChevronRight size={12} className="text-red-400" />}
                 <AlertTriangle size={14} className="text-red-500" />
                 <span className="text-sm font-semibold text-red-600 dark:text-red-400">Today</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium">{todayTasks.length}</span>
-              </div>
-              <StatusGroupedTasks tasks={todayTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} />
+                {/* Select all today */}
+                <span
+                  className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full bg-red-100/50 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 cursor-pointer transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const allSelected = todayTasks.every(t => selectedTaskIds.has(t.id));
+                    const next = new Set(selectedTaskIds);
+                    todayTasks.forEach(t => allSelected ? next.delete(t.id) : next.add(t.id));
+                    setSelectedTaskIds(next);
+                  }}
+                >
+                  {todayTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}
+                </span>
+              </button>
+              {todayOpen && (
+                <StatusGroupedTasks
+                  tasks={todayTasks}
+                  onSelectTask={onSelectTask}
+                  contextLabels={contextLabels}
+                  rowComponent={(t) => (
+                    <div key={t.id} className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedTaskIds.has(t.id)}
+                        onChange={() => {
+                          const next = new Set(selectedTaskIds);
+                          next.has(t.id) ? next.delete(t.id) : next.add(t.id);
+                          setSelectedTaskIds(next);
+                        }}
+                        className="w-3 h-3 rounded border-zinc-300 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <TaskRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />
+                    </div>
+                  )}
+                />
+              )}
             </div>
           ) : (
             <div className="mb-4 rounded-lg border border-emerald-200/30 dark:border-emerald-800/20 bg-emerald-50/30 dark:bg-emerald-900/5 p-3 flex items-center gap-2">
@@ -680,35 +810,47 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
 
         {/* No Due Date — with inline date picker */}
         {noDueDateTasks.length > 0 && (
-          <CollapsibleSection label="Needs Due Date" count={noDueDateTasks.length} icon={AlertTriangle} color="#F59E0B" defaultOpen={false} badge="Assign due dates">
+          <CollapsibleSection label="Needs Due Date" count={noDueDateTasks.length} icon={AlertTriangle} color="#F59E0B" defaultOpen={false} badge="Assign due dates"
+            actions={<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100/50 dark:bg-amber-900/20 text-amber-600 hover:bg-amber-200 dark:hover:bg-amber-900/40 cursor-pointer transition-colors" onClick={() => selectAllOf(noDueDateTasks)}>{noDueDateTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}</span>}
+          >
             <div className="ml-2 border-l-2 border-amber-100 dark:border-amber-900/30 pl-2">
               {noDueDateTasks.map(t => (
-                <NeedsDueDateRow key={t.id} task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} onUpdated={() => queryClient.invalidateQueries({ queryKey: ["work"] })} />
+                <div key={t.id} className="flex items-center gap-1">
+                  <input type="checkbox" checked={selectedTaskIds.has(t.id)} onChange={() => toggleSelect(t.id)} className="w-3 h-3 rounded border-zinc-300 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()} />
+                  <NeedsDueDateRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} onUpdated={() => queryClient.invalidateQueries({ queryKey: ["work"] })} />
+                </div>
               ))}
             </div>
           </CollapsibleSection>
         )}
 
         {/* Sales */}
-        <CollapsibleSection label="Sales" count={activeSales.length} color="#3B82F6" defaultOpen={false}>
+        <CollapsibleSection label="Sales" count={activeSales.length} color="#3B82F6" defaultOpen={false}
+          actions={<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100/50 dark:bg-blue-900/20 text-blue-600 hover:bg-blue-200 dark:hover:bg-blue-900/40 cursor-pointer transition-colors" onClick={() => selectAllOf(salesTasks)}>{salesTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}</span>}
+        >
           <div className="ml-2 pl-2">
-            <TaskBuckets tasks={salesTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedSales} defaultCollapsed />
+            <TaskBuckets tasks={salesTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedSales} defaultCollapsed selectedTaskIds={selectedTaskIds} onToggleSelect={toggleSelect} />
           </div>
         </CollapsibleSection>
 
         {/* Work */}
-        <CollapsibleSection label="Work" count={activeWork.length} color="#0D9488" defaultOpen={false}>
+        <CollapsibleSection label="Work" count={activeWork.length} color="#0D9488" defaultOpen={false}
+          actions={<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-teal-100/50 dark:bg-teal-900/20 text-teal-600 hover:bg-teal-200 dark:hover:bg-teal-900/40 cursor-pointer transition-colors" onClick={() => selectAllOf(workTasks)}>{workTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}</span>}
+        >
           <div className="ml-2 pl-2">
-            <TaskBuckets tasks={workTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedWork} defaultCollapsed />
+            <TaskBuckets tasks={workTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedWork} defaultCollapsed selectedTaskIds={selectedTaskIds} onToggleSelect={toggleSelect} />
           </div>
         </CollapsibleSection>
 
         {/* Stale — tasks not updated in 60+ days */}
         {staleTasks.length > 0 && (
-          <CollapsibleSection label="Stale" count={staleTasks.length} icon={Clock} color="#F59E0B" defaultOpen={false} badge={`Not updated in ${STALE_DAYS}+ days`}>
+          <CollapsibleSection label="Stale" count={staleTasks.length} icon={Clock} color="#F59E0B" defaultOpen={false} badge={`Not updated in ${STALE_DAYS}+ days`}
+            actions={<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100/50 dark:bg-amber-900/20 text-amber-600 hover:bg-amber-200 dark:hover:bg-amber-900/40 cursor-pointer transition-colors" onClick={() => selectAllOf(staleTasks)}>{staleTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}</span>}
+          >
             <div className="ml-2 border-l-2 border-amber-100 dark:border-amber-900/30 pl-2">
               {staleTasks.map(t => (
                 <div key={t.id} className="group flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 rounded">
+                  <input type="checkbox" checked={selectedTaskIds.has(t.id)} onChange={() => toggleSelect(t.id)} className="w-3 h-3 rounded border-zinc-300 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()} />
                   <TaskRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />
                   <span className="text-[10px] text-amber-500 flex-shrink-0">{daysAgo(t.updated_at)}d ago</span>
                   <button
@@ -753,6 +895,83 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
         )}
       </div>
       )}
+      </div>{/* end flex-col content */}
+
+      {/* Recent Changes Side Panel */}
+      {showChangesPanel && (
+        <div className="flex-shrink-0 w-80 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+            <div className="flex items-center gap-2">
+              <Clock size={14} className="text-purple-500" />
+              <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Recent Changes</span>
+              {recentChanges.length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 font-medium">{recentChanges.length}</span>
+              )}
+            </div>
+            <button onClick={() => setShowChangesPanel(false)} className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              <X size={14} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {recentChanges.length === 0 ? (
+              <div className="p-4 text-center">
+                <Clock size={24} className="text-zinc-300 dark:text-zinc-700 mx-auto mb-2" />
+                <p className="text-xs text-zinc-400">No changes yet</p>
+                <p className="text-[10px] text-zinc-400 mt-1">Changes to due dates, status, priority, and other fields will appear here.</p>
+              </div>
+            ) : (
+              <div className="py-2">
+                {(() => {
+                  const fieldLabel: Record<string, string> = { due_date: "Due Date", title: "Title", status_id: "Status", priority: "Priority", project_id: "Project", company_id: "Company", triage_action: "Triage", triage_score: "Score", archived_at: "Archived" };
+                  // Group by date
+                  const grouped = new Map<string, typeof recentChanges>();
+                  for (const c of recentChanges) {
+                    const day = new Date(c.changed_at).toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short" });
+                    if (!grouped.has(day)) grouped.set(day, []);
+                    grouped.get(day)!.push(c);
+                  }
+                  return [...grouped.entries()].map(([day, dayChanges]) => (
+                    <div key={day}>
+                      <div className="px-4 py-1.5 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider sticky top-0 bg-white dark:bg-zinc-950">{day}</div>
+                      {(dayChanges as any[]).map((c: any) => {
+                        const task = allMyTasks.find(t => t.id === c.task_id);
+                        return (
+                          <div
+                            key={c.id}
+                            className="px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 cursor-pointer border-b border-zinc-50 dark:border-zinc-800/30"
+                            onClick={() => { if (task) onSelectTask(task.id); }}
+                          >
+                            <div className="flex items-start gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{task?.title || c.task_id.slice(0, 8)}</div>
+                                <div className="flex items-center gap-1.5 mt-1.5">
+                                  <span className="text-[10px] font-medium text-purple-500">{fieldLabel[c.field] || c.field}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  {c.old_value && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/10 text-red-500 line-through truncate max-w-[100px]" title={c.old_value}>{c.old_value}</span>
+                                  )}
+                                  <span className="text-[10px] text-zinc-400">&rarr;</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 truncate max-w-[100px]" title={c.new_value || "(empty)"}>{c.new_value || "(empty)"}</span>
+                                </div>
+                              </div>
+                              <span className="text-[10px] text-zinc-400 flex-shrink-0 mt-0.5">
+                                {new Date(c.changed_at).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            {c.changed_by && <div className="text-[9px] text-zinc-400 mt-1">by {c.changed_by}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      </div>{/* end flex row */}
     </div>
   );
 }
@@ -898,24 +1117,25 @@ interface Plan {
   ends_at: string;
 }
 
-function PlansBanner() {
+function PlansBanner({ currentUserName }: { currentUserName: string | null }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(true);
   const [adding, setAdding] = useState<string | null>(null); // horizon being added to
   const [newTitle, setNewTitle] = useState("");
 
   const { data: plans = [] } = useQuery({
-    queryKey: ["plans"],
+    queryKey: ["plans", currentUserName],
     queryFn: async (): Promise<Plan[]> => {
-      const { data } = await supabase
+      let query = supabase
         .from("plans")
         .select("*")
-        .eq("status", "active")
-        .order("horizon")
-        .order("sort_order");
+        .eq("status", "active");
+      if (currentUserName) query = query.eq("created_by", currentUserName);
+      const { data } = await query.order("horizon").order("sort_order");
       return (data ?? []) as Plan[];
     },
     staleTime: 60_000,
+    enabled: !!currentUserName,
   });
 
   const monthPlans = plans.filter(p => p.horizon === "month");
@@ -947,21 +1167,21 @@ function PlansBanner() {
       sort_order: plans.filter(p => p.horizon === horizon).length,
       starts_at: horizonDates[horizon].starts_at,
       ends_at: horizonDates[horizon].ends_at,
-      created_by: "mel-tv",
+      created_by: currentUserName || "unknown",
     });
     setNewTitle("");
     setAdding(null);
-    queryClient.invalidateQueries({ queryKey: ["plans"] });
+    queryClient.invalidateQueries({ queryKey: ["plans", currentUserName] });
   };
 
   const handleComplete = async (id: string) => {
     await supabase.from("plans").update({ status: "completed" }).eq("id", id);
-    queryClient.invalidateQueries({ queryKey: ["plans"] });
+    queryClient.invalidateQueries({ queryKey: ["plans", currentUserName] });
   };
 
   const handleDrop = async (id: string) => {
     await supabase.from("plans").update({ status: "dropped" }).eq("id", id);
-    queryClient.invalidateQueries({ queryKey: ["plans"] });
+    queryClient.invalidateQueries({ queryKey: ["plans", currentUserName] });
   };
 
   const totalPlans = plans.length;
@@ -1030,7 +1250,7 @@ function PlansBanner() {
 
 // ─── Triage Banner — shows last triage summary + triage button ──────────
 
-function TriageBanner({ view, viewKey, tasks }: { view: "my_tasks" | "team"; viewKey?: string; tasks: TaskWithRelations[] }) {
+function TriageBanner({ view, viewKey, tasks, currentUserName }: { view: "my_tasks" | "team"; viewKey?: string; tasks: TaskWithRelations[]; currentUserName?: string | null }) {
   const effectiveViewKey = viewKey || view;
   const queryClient = useQueryClient();
   const triageMutation = useTaskTriage();
@@ -1086,13 +1306,15 @@ function TriageBanner({ view, viewKey, tasks }: { view: "my_tasks" | "team"; vie
   void _openPromptEditor; void _savePrompt;
 
   // Load last triage run
+  const triageCreatedBy = currentUserName || "mel-tv";
   const { data: lastRun } = useQuery({
-    queryKey: ["triage_runs", effectiveViewKey],
+    queryKey: ["triage_runs", effectiveViewKey, triageCreatedBy],
     queryFn: async () => {
       const { data } = await supabase
         .from("triage_runs")
         .select("*")
         .eq("view", effectiveViewKey)
+        .eq("created_by", triageCreatedBy)
         .order("created_at", { ascending: false })
         .limit(1);
       return data?.[0] || null;
@@ -1220,7 +1442,7 @@ ${taskFilter}${existingTriageContext}`;
         }
 
         // Save triage run IMMEDIATELY so UI updates fast
-        const triageData = { view: effectiveViewKey, tasks_scored: scoredTasks.length, summary: aiSummary, details: { counts, topByAction }, created_by: "mel-tv" };
+        const triageData = { view: effectiveViewKey, tasks_scored: scoredTasks.length, summary: aiSummary, details: { counts, topByAction }, created_by: triageCreatedBy };
         const { error: insertErr } = await supabase.from("triage_runs").insert(triageData);
         if (insertErr) {
           toast.error(`Failed to save triage: ${insertErr.message}`);
@@ -1376,11 +1598,13 @@ function formatTimeAgo(date: Date): string {
   return `${days}d ago`;
 }
 
-function StatusGroupedTasks({ tasks, onSelectTask, contextLabels, rowComponent }: {
+function StatusGroupedTasks({ tasks, onSelectTask, contextLabels, rowComponent, selectedTaskIds, onToggleSelect }: {
   tasks: TaskWithRelations[];
   onSelectTask: (id: string) => void;
   contextLabels: Map<string, string>;
   rowComponent?: (task: TaskWithRelations) => React.ReactNode;
+  selectedTaskIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }) {
   const grouped = useMemo(() => {
     // Sort order: furthest along pipeline first (complete → late in_progress → early in_progress → todo)
@@ -1422,7 +1646,20 @@ function StatusGroupedTasks({ tasks, onSelectTask, contextLabels, rowComponent }
             <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">{statusName}</span>
             <span className="text-[9px] text-zinc-400">{statusTasks.length}</span>
           </div>
-          {statusTasks.map(t => rowComponent ? rowComponent(t) : <TaskRow key={t.id} task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />)}
+          {statusTasks.map(t => rowComponent ? rowComponent(t) : (
+            <div key={t.id} className="flex items-center gap-1">
+              {onToggleSelect && (
+                <input
+                  type="checkbox"
+                  checked={selectedTaskIds?.has(t.id) ?? false}
+                  onChange={() => onToggleSelect(t.id)}
+                  className="w-3 h-3 rounded border-zinc-300 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+              <TaskRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />
+            </div>
+          ))}
         </div>
       ))}
     </div>
@@ -1439,6 +1676,11 @@ function PersonSection({ user, tasks, onSelectTask, contextLabels, defaultOpen =
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(defaultOpen);
   const [showPersonTriage, setShowPersonTriage] = useState(false);
+  const [todayOpen, setTodayOpen] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  }, []);
   const active = tasks.filter(t => t.status?.type !== "complete");
 
   // Load person's last triage
@@ -1571,7 +1813,7 @@ RULES: READ ONLY. No updates. Return ONLY JSON:
                 // Save per-person triage run
                 const personView = `person-${user?.id}`;
                 const personSummary = parsed.summary || "";
-                await supabase.from("triage_runs").insert({ view: personView, tasks_scored: scoredTasks.length, summary: personSummary, details: { tasks: scoredTasks }, created_by: "mel-tv" });
+                await supabase.from("triage_runs").insert({ view: personView, tasks_scored: scoredTasks.length, summary: personSummary, details: { tasks: scoredTasks }, created_by: user?.name || "unknown" });
                 jobStore.updateJob(jobId, { status: "completed", message: `${scoredTasks.length} tasks triaged for ${personName}` });
                 toast.success(`${personName}: ${scoredTasks.length} tasks triaged`);
                 setShowPersonTriage(true);
@@ -1605,15 +1847,58 @@ RULES: READ ONLY. No updates. Return ONLY JSON:
               )}
             </div>
           )}
-          {/* Today card — overdue + due today combined */}
+          {/* Bulk actions bar */}
+          {selectedIds.size > 0 && (
+            <div className="mb-2 mx-1 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200/30 dark:border-blue-800/20">
+              <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">{selectedIds.size} selected</span>
+              <button
+                className="text-[9px] px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 font-medium transition-colors"
+                onClick={async () => {
+                  const tasksToSync = active.filter(t => selectedIds.has(t.id) && (t as any).notion_page_id);
+                  if (tasksToSync.length === 0) { toast.error("No selected tasks have Notion pages"); return; }
+                  const jobId = `notion-bulk-${user?.name || "person"}-${Date.now()}`;
+                  const jobStore = useJobsStore.getState();
+                  jobStore.addJob({ id: jobId, name: `Notion Sync: ${user?.name || "Unassigned"}`, status: "running", message: `0/${tasksToSync.length} tasks...` });
+                  let synced = 0, failed = 0;
+                  for (const t of tasksToSync) {
+                    try { await invoke("notion_push_task", { taskId: t.id }); synced++; } catch { failed++; }
+                    jobStore.updateJob(jobId, { message: `${synced + failed}/${tasksToSync.length} (${synced} synced${failed ? `, ${failed} failed` : ""})` });
+                  }
+                  jobStore.updateJob(jobId, { status: failed > 0 ? "failed" : "completed", message: `${synced} synced${failed ? `, ${failed} failed` : ""} of ${tasksToSync.length}` });
+                  setSelectedIds(new Set());
+                  queryClient.invalidateQueries({ queryKey: ["work"] });
+                }}
+              >
+                ↑ Sync to Notion
+              </button>
+              <button className="text-[9px] px-2 py-0.5 rounded text-zinc-500 hover:text-zinc-700 font-medium" onClick={() => setSelectedIds(new Set())}>Clear</button>
+            </div>
+          )}
+          {/* Today card — overdue + due today combined, collapsible */}
           {(overdue.length > 0 || dueToday.length > 0) ? (
             <div className="mb-2 mx-1 rounded-lg border border-red-200/30 dark:border-red-800/20 bg-red-50/30 dark:bg-red-900/5 p-2.5">
-              <div className="flex items-center gap-2 mb-1.5">
+              <button onClick={() => setTodayOpen(!todayOpen)} className="w-full flex items-center gap-2 mb-1 hover:opacity-80 transition-opacity">
+                {todayOpen ? <ChevronDown size={10} className="text-red-400" /> : <ChevronRight size={10} className="text-red-400" />}
                 <AlertTriangle size={12} className="text-red-500" />
                 <span className="text-[11px] font-semibold text-red-600 dark:text-red-400">Today</span>
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium">{overdue.length + dueToday.length}</span>
-              </div>
-              <StatusGroupedTasks tasks={[...overdue, ...dueToday]} onSelectTask={onSelectTask} contextLabels={contextLabels} />
+                <span
+                  className="ml-auto text-[8px] px-1.5 py-0.5 rounded-full bg-red-100/50 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 cursor-pointer transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const todayTasks = [...overdue, ...dueToday];
+                    const allSelected = todayTasks.every(t => selectedIds.has(t.id));
+                    const next = new Set(selectedIds);
+                    todayTasks.forEach(t => allSelected ? next.delete(t.id) : next.add(t.id));
+                    setSelectedIds(next);
+                  }}
+                >
+                  {[...overdue, ...dueToday].every(t => selectedIds.has(t.id)) ? "Deselect all" : "Select all"}
+                </span>
+              </button>
+              {todayOpen && (
+                <StatusGroupedTasks tasks={[...overdue, ...dueToday]} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
+              )}
             </div>
           ) : (
             <div className="mb-2 mx-1 rounded-lg border border-emerald-200/20 dark:border-emerald-800/20 bg-emerald-50/30 dark:bg-emerald-900/5 p-2 flex items-center gap-2">
@@ -1624,13 +1909,13 @@ RULES: READ ONLY. No updates. Return ONLY JSON:
           {/* Upcoming */}
           {upcoming.length > 0 && (
             <CollapsibleSection label="Upcoming" count={upcoming.length} icon={Calendar} color="#3B82F6" defaultOpen={false}>
-              <StatusGroupedTasks tasks={upcoming} onSelectTask={onSelectTask} contextLabels={contextLabels} />
+              <StatusGroupedTasks tasks={upcoming} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
             </CollapsibleSection>
           )}
           {/* No Due Date */}
           {noDate.length > 0 && (
             <CollapsibleSection label="No Due Date" count={noDate.length} icon={Calendar} color="#9CA3AF" defaultOpen={false}>
-              <StatusGroupedTasks tasks={noDate} onSelectTask={onSelectTask} contextLabels={contextLabels} />
+              <StatusGroupedTasks tasks={noDate} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
             </CollapsibleSection>
           )}
           {active.length === 0 && <div className="px-3 py-2 text-xs text-zinc-400">No active tasks</div>}

@@ -43,6 +43,7 @@ import { ClosedDealsView } from "../crm/ClosedDealsView";
 import { NotionSyncStatus } from "../notion/NotionSyncStatus";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { useNotificationNavStore } from "../../stores/notificationNavStore";
 
 type ProjectsView =
   | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project" | "my-tasks" | "team-tasks" | "capacity"  // Work views
@@ -99,11 +100,31 @@ export function ProjectsModule() {
   const { data: projects = [], refetch: refetchProjects } = useProjects();
   // All projects across all types (for "All" view)
   const { data: allProjects = [], refetch: refetchAllProjects } = useProjects("all");
-  const { data: allTasks = [], refetch: refetchTasks } = useAllTasks();
+  const { data: allTasks = [], refetch: refetchTasks, isLoading: tasksLoading } = useAllTasks();
   const { data: initiatives = [], refetch: refetchInitiatives } = useInitiatives();
   const { data: initiativeLinks = [], refetch: refetchInitiativeLinks } = useInitiativeProjects();
   const { data: users = [] } = useUsers();
   const currentUserId = useCurrentUserId();
+
+  // Pick up pending project from sidebar/task detail
+
+  // Handle notification/chat navigation — open entity when navigated from notification bell or chat entity card
+  const navTarget = useNotificationNavStore((s) => s.target);
+  const clearNavTarget = useNotificationNavStore((s) => s.clearTarget);
+  useEffect(() => {
+    if (!navTarget) return;
+    if (navTarget.entityType === "task") {
+      setSelectedTaskId(navTarget.entityId);
+      clearNavTarget();
+    } else if (navTarget.entityType === "project") {
+      setSelectedProjectId(navTarget.entityId);
+      setView("project");
+      clearNavTarget();
+    } else if (navTarget.entityType === "crm_company" || navTarget.entityType === "crm_deal") {
+      setSelectedCompanyId(navTarget.entityId);
+      clearNavTarget();
+    }
+  }, [navTarget, clearNavTarget, setView]);
 
   // Data fetching — CRM
   const pipelineStatsQuery = usePipelineStats();
@@ -287,6 +308,17 @@ export function ProjectsModule() {
     </div>
   );
 
+  if (tasksLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-white dark:bg-zinc-950">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-zinc-400">Loading tasks...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Header */}
@@ -400,7 +432,7 @@ export function ProjectsModule() {
                     key={manageSelectedId}
                     workspaceId={manageSelectedId}
                     onBack={() => setManageSelectedId(null)}
-                    onUpdated={() => { refetchAllProjects(); }}
+                    onUpdated={() => { refetchAllProjects(); refetchTasks(); }}
                     onCreateTask={() => {
                       setCreateTaskProjectId(manageSelectedId);
                       setShowTaskForm(true);

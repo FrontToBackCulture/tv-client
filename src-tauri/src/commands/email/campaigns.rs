@@ -20,6 +20,7 @@ pub struct EmailCampaign {
     pub scheduled_at: Option<String>,
     pub sent_at: Option<String>,
     pub created_at: Option<String>,
+    pub tokens: Option<serde_json::Value>,
     pub updated_at: Option<String>,
 }
 
@@ -35,6 +36,8 @@ pub struct CreateCampaign {
     pub bcc_email: Option<String>,
     pub category: Option<String>,
     pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -59,6 +62,8 @@ pub struct UpdateCampaign {
     pub category: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

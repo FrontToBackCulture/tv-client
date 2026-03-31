@@ -15,7 +15,7 @@ import {
 } from "../../hooks/useOutlook";
 import { useOutlookSync } from "../../hooks/useOutlookSync";
 import { cn } from "../../lib/cn";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, PanelLeftOpen } from "lucide-react";
 import { Button } from "../../components/ui";
 import { DetailLoading } from "../../components/ui/DetailStates";
 import { InboxSidebar } from "./InboxSidebar";
@@ -25,12 +25,14 @@ import { EmptyInbox } from "./EmptyInbox";
 import type { EmailCategory, EmailStatus } from "../../hooks/useOutlook";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useAppStore } from "../../stores/appStore";
+import { useCollapsiblePanel } from "../../hooks/useCollapsiblePanel";
 
 export function InboxModule() {
   // Auth state
   const { data: auth, isLoading: isLoadingAuth } = useOutlookAuth();
   const { data: syncStatus } = useSyncStatus();
   const openSettings = useAppStore((s) => s.openSettings);
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useCollapsiblePanel("tv-inbox-sidebar-collapsed");
 
   // Sync state
   const { isSyncing, progress: syncProgress, error: syncEventError } = useOutlookSync();
@@ -156,17 +158,26 @@ export function InboxModule() {
   if (!isLoading && emails.length === 0 && !selectedCategory && !selectedStatus) {
     return (
       <div className="h-full flex">
-        <InboxSidebar
-          selectedFolder={selectedFolder}
-          selectedCategory={selectedCategory}
-          selectedStatus={selectedStatus}
-          onFolderChange={setSelectedFolder}
-          onCategoryChange={setSelectedCategory}
-          onStatusChange={setSelectedStatus}
-          stats={sidebarStats}
-          onRefresh={handleRefresh}
-          isRefreshing={isSyncing}
-        />
+        {sidebarCollapsed ? (
+          <div className="w-10 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center py-2">
+            <button onClick={toggleSidebar} className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title="Expand panel">
+              <PanelLeftOpen size={14} />
+            </button>
+          </div>
+        ) : (
+          <InboxSidebar
+            selectedFolder={selectedFolder}
+            selectedCategory={selectedCategory}
+            selectedStatus={selectedStatus}
+            onFolderChange={setSelectedFolder}
+            onCategoryChange={setSelectedCategory}
+            onStatusChange={setSelectedStatus}
+            stats={sidebarStats}
+            onRefresh={handleRefresh}
+            isRefreshing={isSyncing}
+            onCollapse={toggleSidebar}
+          />
+        )}
         <EmptyInbox
           onRefresh={handleRefresh}
           isSyncing={isSyncing || syncStart.isPending}
@@ -236,17 +247,26 @@ export function InboxModule() {
 
       <div className="flex-1 flex min-h-0">
         {/* Sidebar */}
-        <InboxSidebar
-          selectedFolder={selectedFolder}
-          selectedCategory={selectedCategory}
-          selectedStatus={selectedStatus}
-          onFolderChange={setSelectedFolder}
-          onCategoryChange={setSelectedCategory}
-          onStatusChange={setSelectedStatus}
-          stats={sidebarStats}
-          onRefresh={handleRefresh}
-          isRefreshing={isAnySyncing}
-        />
+        {sidebarCollapsed ? (
+          <div className="w-10 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center py-2">
+            <button onClick={toggleSidebar} className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title="Expand panel">
+              <PanelLeftOpen size={14} />
+            </button>
+          </div>
+        ) : (
+          <InboxSidebar
+            selectedFolder={selectedFolder}
+            selectedCategory={selectedCategory}
+            selectedStatus={selectedStatus}
+            onFolderChange={setSelectedFolder}
+            onCategoryChange={setSelectedCategory}
+            onStatusChange={setSelectedStatus}
+            stats={sidebarStats}
+            onRefresh={handleRefresh}
+            isRefreshing={isAnySyncing}
+            onCollapse={toggleSidebar}
+          />
+        )}
 
         {/* Email List */}
         <EmailList

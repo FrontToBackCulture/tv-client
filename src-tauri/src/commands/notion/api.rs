@@ -507,6 +507,11 @@ pub async fn get_page_content_as_markdown(page_id: &str) -> CmdResult<String> {
     Ok(blocks_to_markdown(&blocks, 0))
 }
 
+/// Fetch page blocks recursively (raw with _children), for TipTap conversion
+pub async fn get_page_blocks_raw(page_id: &str) -> CmdResult<Vec<Value>> {
+    fetch_blocks_recursive(page_id, 0, 5).await
+}
+
 /// Fetch block children with pagination, recursively fetching nested children
 /// up to `max_depth` levels deep. Each block with children gets a "_children" key added.
 fn fetch_blocks_recursive(block_id: &str, depth: u32, max_depth: u32) -> std::pin::Pin<Box<dyn std::future::Future<Output = CmdResult<Vec<Value>>> + Send + '_>> {
@@ -837,6 +842,321 @@ fn extract_file_url(file_obj: &Value) -> String {
     }
 }
 
+// ─── TipTap JSON converter ───────────────────────────────────────────────
+// Converts Notion API blocks to TipTap-compatible JSON with proper
+// details/summary nodes for toggle blocks.
+
+/// Convert Notion blocks to TipTap JSON document
+pub fn blocks_to_tiptap_json(blocks: &[Value]) -> Value {
+    let content = blocks_to_tiptap_nodes(blocks);
+    serde_json::json!({
+        "type": "doc",
+        "content": content
+    })
+}
+
+fn blocks_to_tiptap_nodes(blocks: &[Value]) -> Vec<Value> {
+    let mut nodes: Vec<Value> = Vec::new();
+
+    for block in blocks {
+        let bt = block["type"].as_str().unwrap_or("");
+        let children = block.get("_children").and_then(|c| c.as_array());
+
+        match bt {
+            "paragraph" => {
+                let content = rich_text_to_tiptap(&block["paragraph"]["rich_text"]);
+                nodes.push(serde_json::json!({
+                    "type": "paragraph",
+                    "content": content
+                }));
+                if let Some(kids) = children {
+                    nodes.extend(blocks_to_tiptap_nodes(kids));
+                }
+            }
+
+            "heading_1" | "heading_2" | "heading_3" => {
+                let key = bt;
+                let content = rich_text_to_tiptap(&block[key]["rich_text"]);
+                let is_toggleable = block[key]["is_toggleable"].as_bool() == Some(true);
+
+                if is_toggleable && children.is_some() {
+                    // Toggle heading → details/summary node
+                    let mut details_body = blocks_to_tiptap_nodes(children.unwrap());
+                    if details_body.is_empty() {
+                        details_body.push(serde_json::json!({ "type": "paragraph" }));
+                    }
+                    nodes.push(serde_json::json!({
+                        "type": "details",
+                        "attrs": { "open": true },
+                        "content": [
+                            { "type": "detailsSummary", "content": content },
+                            { "type": "detailsContent", "content": details_body }
+                        ]
+                    }));
+                } else {
+                    let level = match bt {
+                        "heading_1" => 1,
+                        "heading_2" => 2,
+                        _ => 3,
+                    };
+                    nodes.push(serde_json::json!({
+                        "type": "heading",
+                        "attrs": { "level": level },
+                        "content": content
+                    }));
+                    // Non-toggleable headings with children (rare but possible)
+                    if let Some(kids) = children {
+                        nodes.extend(blocks_to_tiptap_nodes(kids));
+                    }
+                }
+            }
+
+            "bulleted_list_item" => {
+                let content = rich_text_to_tiptap(&block["bulleted_list_item"]["rich_text"]);
+                let mut li_content = vec![serde_json::json!({
+                    "type": "paragraph",
+                    "content": content
+                })];
+                if let Some(kids) = children {
+                    li_content.push(serde_json::json!({
+                        "type": "bulletList",
+                        "content": kids.iter().map(|k| {
+                            let kid_content = rich_text_to_tiptap(&k[k["type"].as_str().unwrap_or("")]["rich_text"]);
+                            let kid_children = k.get("_children").and_then(|c| c.as_array());
+                            let mut inner = vec![serde_json::json!({ "type": "paragraph", "content": kid_content })];
+                            if let Some(grandkids) = kid_children {
+                                inner.extend(blocks_to_tiptap_nodes(grandkids));
+                            }
+                            serde_json::json!({ "type": "listItem", "content": inner })
+                        }).collect::<Vec<_>>()
+                    }));
+                }
+                nodes.push(serde_json::json!({
+                    "type": "bulletList",
+                    "content": [{ "type": "listItem", "content": li_content }]
+                }));
+            }
+
+            "numbered_list_item" => {
+                let content = rich_text_to_tiptap(&block["numbered_list_item"]["rich_text"]);
+                let mut li_content = vec![serde_json::json!({
+                    "type": "paragraph",
+                    "content": content
+                })];
+                if let Some(kids) = children {
+                    li_content.extend(blocks_to_tiptap_nodes(kids));
+                }
+                nodes.push(serde_json::json!({
+                    "type": "orderedList",
+                    "content": [{ "type": "listItem", "content": li_content }]
+                }));
+            }
+
+            "to_do" => {
+                let checked = block["to_do"]["checked"].as_bool().unwrap_or(false);
+                let content = rich_text_to_tiptap(&block["to_do"]["rich_text"]);
+                nodes.push(serde_json::json!({
+                    "type": "taskList",
+                    "content": [{
+                        "type": "taskItem",
+                        "attrs": { "checked": checked },
+                        "content": [{ "type": "paragraph", "content": content }]
+                    }]
+                }));
+            }
+
+            "toggle" => {
+                let summary_content = rich_text_to_tiptap(&block["toggle"]["rich_text"]);
+                let mut details_body = vec![];
+                if let Some(kids) = children {
+                    details_body = blocks_to_tiptap_nodes(kids);
+                }
+                if details_body.is_empty() {
+                    details_body.push(serde_json::json!({ "type": "paragraph" }));
+                }
+                nodes.push(serde_json::json!({
+                    "type": "details",
+                    "content": [
+                        {
+                            "type": "detailsSummary",
+                            "content": summary_content
+                        },
+                        {
+                            "type": "detailsContent",
+                            "content": details_body
+                        }
+                    ]
+                }));
+            }
+
+            "quote" => {
+                let content = rich_text_to_tiptap(&block["quote"]["rich_text"]);
+                nodes.push(serde_json::json!({
+                    "type": "blockquote",
+                    "content": [{ "type": "paragraph", "content": content }]
+                }));
+            }
+
+            "callout" => {
+                let content = rich_text_to_tiptap(&block["callout"]["rich_text"]);
+                nodes.push(serde_json::json!({
+                    "type": "blockquote",
+                    "content": [{ "type": "paragraph", "content": content }]
+                }));
+            }
+
+            "code" => {
+                let lang = block["code"]["language"].as_str().unwrap_or("");
+                let text = block["code"]["rich_text"].as_array()
+                    .map(|arr| arr.iter().map(|rt| rt["plain_text"].as_str().unwrap_or("")).collect::<Vec<_>>().join(""))
+                    .unwrap_or_default();
+                nodes.push(serde_json::json!({
+                    "type": "codeBlock",
+                    "attrs": { "language": lang },
+                    "content": [{ "type": "text", "text": text }]
+                }));
+            }
+
+            "divider" => {
+                nodes.push(serde_json::json!({ "type": "horizontalRule" }));
+            }
+
+            "image" => {
+                let url = extract_file_url(&block["image"]);
+                let caption = block["image"]["caption"].as_array()
+                    .map(|arr| arr.iter().map(|rt| rt["plain_text"].as_str().unwrap_or("")).collect::<Vec<_>>().join(""))
+                    .unwrap_or_default();
+                // Render as a paragraph with the image link for now
+                nodes.push(serde_json::json!({
+                    "type": "paragraph",
+                    "content": [{
+                        "type": "text",
+                        "text": if caption.is_empty() { format!("[image]({})", url) } else { format!("[{}]({})", caption, url) },
+                        "marks": [{ "type": "link", "attrs": { "href": url } }]
+                    }]
+                }));
+            }
+
+            "table" => {
+                if let Some(rows) = children {
+                    let mut table_rows = Vec::new();
+                    for (i, row) in rows.iter().enumerate() {
+                        if let Some(cells) = row.get("table_row")
+                            .and_then(|tr| tr.get("cells"))
+                            .and_then(|c| c.as_array())
+                        {
+                            let cell_type = if i == 0 { "tableHeader" } else { "tableCell" };
+                            let tiptap_cells: Vec<Value> = cells.iter().map(|cell| {
+                                let content = rich_text_to_tiptap(cell);
+                                serde_json::json!({
+                                    "type": cell_type,
+                                    "content": [{ "type": "paragraph", "content": content }]
+                                })
+                            }).collect();
+                            table_rows.push(serde_json::json!({
+                                "type": "tableRow",
+                                "content": tiptap_cells
+                            }));
+                        }
+                    }
+                    nodes.push(serde_json::json!({
+                        "type": "table",
+                        "content": table_rows
+                    }));
+                }
+            }
+
+            "bookmark" | "link_preview" => {
+                let url_key = if bt == "bookmark" { "bookmark" } else { "link_preview" };
+                let url = block[url_key]["url"].as_str().unwrap_or("");
+                let caption = if bt == "bookmark" {
+                    block["bookmark"]["caption"].as_array()
+                        .map(|arr| arr.iter().map(|rt| rt["plain_text"].as_str().unwrap_or("")).collect::<Vec<_>>().join(""))
+                        .unwrap_or_default()
+                } else { String::new() };
+                let label = if caption.is_empty() { url.to_string() } else { caption };
+                nodes.push(serde_json::json!({
+                    "type": "paragraph",
+                    "content": [{
+                        "type": "text",
+                        "text": label,
+                        "marks": [{ "type": "link", "attrs": { "href": url } }]
+                    }]
+                }));
+            }
+
+            "child_page" | "child_database" => {
+                let key = bt;
+                let title = block[key]["title"].as_str().unwrap_or("Untitled");
+                nodes.push(serde_json::json!({
+                    "type": "paragraph",
+                    "content": [{ "type": "text", "text": title, "marks": [{ "type": "bold" }] }]
+                }));
+            }
+
+            "column_list" => {
+                if let Some(cols) = children {
+                    for col in cols {
+                        if let Some(col_kids) = col.get("_children").and_then(|c| c.as_array()) {
+                            nodes.extend(blocks_to_tiptap_nodes(col_kids));
+                        }
+                    }
+                }
+            }
+            "column" => {} // handled by column_list
+
+            _ => {
+                // Unknown block type — skip but process children
+                if let Some(kids) = children {
+                    nodes.extend(blocks_to_tiptap_nodes(kids));
+                }
+            }
+        }
+    }
+
+    nodes
+}
+
+/// Convert Notion rich_text array to TipTap inline content nodes
+fn rich_text_to_tiptap(rich_text: &Value) -> Vec<Value> {
+    let arr = match rich_text.as_array() {
+        Some(a) => a,
+        None => return vec![],
+    };
+
+    arr.iter()
+        .filter_map(|rt| {
+            let text = rt["plain_text"].as_str().unwrap_or("");
+            if text.is_empty() { return None; }
+
+            let annotations = &rt["annotations"];
+            let mut marks: Vec<Value> = Vec::new();
+
+            if annotations["bold"].as_bool() == Some(true) {
+                marks.push(serde_json::json!({ "type": "bold" }));
+            }
+            if annotations["italic"].as_bool() == Some(true) {
+                marks.push(serde_json::json!({ "type": "italic" }));
+            }
+            if annotations["strikethrough"].as_bool() == Some(true) {
+                marks.push(serde_json::json!({ "type": "strike" }));
+            }
+            if annotations["code"].as_bool() == Some(true) {
+                marks.push(serde_json::json!({ "type": "code" }));
+            }
+            if let Some(url) = rt["href"].as_str() {
+                marks.push(serde_json::json!({ "type": "link", "attrs": { "href": url } }));
+            }
+
+            let mut node = serde_json::json!({ "type": "text", "text": text });
+            if !marks.is_empty() {
+                node["marks"] = serde_json::json!(marks);
+            }
+            Some(node)
+        })
+        .collect()
+}
+
 /// Extract attachment info from blocks
 fn extract_attachments(blocks: &[Value]) -> Vec<NotionAttachment> {
     let mut attachments = Vec::new();
@@ -1022,6 +1342,238 @@ pub async fn list_database_pages(database_id: &str) -> CmdResult<Vec<(String, St
 // ============================================================================
 // Push: tv-client → Notion
 // ============================================================================
+
+/// Convert TipTap JSON content to Notion block objects
+pub fn tiptap_json_to_blocks(doc: &Value) -> Vec<Value> {
+    let content = match doc.get("content").and_then(|c| c.as_array()) {
+        Some(c) => c,
+        None => return vec![],
+    };
+    tiptap_nodes_to_blocks(content)
+}
+
+fn tiptap_nodes_to_blocks(nodes: &[Value]) -> Vec<Value> {
+    let mut blocks = Vec::new();
+
+    for node in nodes {
+        let node_type = node["type"].as_str().unwrap_or("");
+        match node_type {
+            "paragraph" => {
+                let rich_text = tiptap_inline_to_rich_text(node.get("content"));
+                blocks.push(serde_json::json!({
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": { "rich_text": rich_text }
+                }));
+            }
+
+            "heading" => {
+                let level = node["attrs"]["level"].as_u64().unwrap_or(1);
+                let rich_text = tiptap_inline_to_rich_text(node.get("content"));
+                let ht = match level { 1 => "heading_1", 2 => "heading_2", _ => "heading_3" };
+                blocks.push(serde_json::json!({
+                    "object": "block",
+                    "type": ht,
+                    ht: { "rich_text": rich_text }
+                }));
+            }
+
+            "bulletList" => {
+                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
+                    for item in items {
+                        let (text, children) = extract_list_item_content(item);
+                        let mut block = serde_json::json!({
+                            "object": "block",
+                            "type": "bulleted_list_item",
+                            "bulleted_list_item": { "rich_text": text }
+                        });
+                        if !children.is_empty() {
+                            block["bulleted_list_item"]["children"] = serde_json::json!(children);
+                        }
+                        blocks.push(block);
+                    }
+                }
+            }
+
+            "orderedList" => {
+                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
+                    for item in items {
+                        let (text, children) = extract_list_item_content(item);
+                        let mut block = serde_json::json!({
+                            "object": "block",
+                            "type": "numbered_list_item",
+                            "numbered_list_item": { "rich_text": text }
+                        });
+                        if !children.is_empty() {
+                            block["numbered_list_item"]["children"] = serde_json::json!(children);
+                        }
+                        blocks.push(block);
+                    }
+                }
+            }
+
+            "details" => {
+                // TipTap details → Notion toggle block
+                let content = node.get("content").and_then(|c| c.as_array());
+                let summary_text = content.and_then(|c| c.iter().find(|n| n["type"].as_str() == Some("detailsSummary")))
+                    .map(|s| tiptap_inline_to_rich_text(s.get("content")))
+                    .unwrap_or_default();
+                let body_nodes = content.and_then(|c| c.iter().find(|n| n["type"].as_str() == Some("detailsContent")))
+                    .and_then(|dc| dc.get("content").and_then(|c| c.as_array()))
+                    .map(|nodes| tiptap_nodes_to_blocks(nodes))
+                    .unwrap_or_default();
+
+                let mut block = serde_json::json!({
+                    "object": "block",
+                    "type": "toggle",
+                    "toggle": { "rich_text": summary_text }
+                });
+                if !body_nodes.is_empty() {
+                    block["toggle"]["children"] = serde_json::json!(body_nodes);
+                }
+                blocks.push(block);
+            }
+
+            "blockquote" => {
+                let inner = node.get("content").and_then(|c| c.as_array());
+                let rich_text = inner.and_then(|nodes| nodes.first())
+                    .map(|p| tiptap_inline_to_rich_text(p.get("content")))
+                    .unwrap_or_default();
+                blocks.push(serde_json::json!({
+                    "object": "block",
+                    "type": "quote",
+                    "quote": { "rich_text": rich_text }
+                }));
+            }
+
+            "codeBlock" => {
+                let lang = node["attrs"]["language"].as_str().unwrap_or("plain text");
+                let text = node.get("content").and_then(|c| c.as_array())
+                    .map(|arr| arr.iter().map(|n| n["text"].as_str().unwrap_or("")).collect::<Vec<_>>().join(""))
+                    .unwrap_or_default();
+                blocks.push(serde_json::json!({
+                    "object": "block",
+                    "type": "code",
+                    "code": {
+                        "rich_text": [{ "type": "text", "text": { "content": text } }],
+                        "language": lang
+                    }
+                }));
+            }
+
+            "horizontalRule" => {
+                blocks.push(serde_json::json!({
+                    "object": "block",
+                    "type": "divider",
+                    "divider": {}
+                }));
+            }
+
+            "table" => {
+                if let Some(rows) = node.get("content").and_then(|c| c.as_array()) {
+                    let mut table_rows = Vec::new();
+                    for row in rows {
+                        if let Some(cells) = row.get("content").and_then(|c| c.as_array()) {
+                            let cell_texts: Vec<Value> = cells.iter().map(|cell| {
+                                let inner = cell.get("content").and_then(|c| c.as_array())
+                                    .and_then(|nodes| nodes.first())
+                                    .map(|p| tiptap_inline_to_rich_text(p.get("content")))
+                                    .unwrap_or_default();
+                                serde_json::json!(inner)
+                            }).collect();
+                            table_rows.push(serde_json::json!({
+                                "type": "table_row",
+                                "table_row": { "cells": cell_texts }
+                            }));
+                        }
+                    }
+                    let width = table_rows.first()
+                        .and_then(|r| r["table_row"]["cells"].as_array())
+                        .map(|c| c.len())
+                        .unwrap_or(1);
+                    blocks.push(serde_json::json!({
+                        "object": "block",
+                        "type": "table",
+                        "table": {
+                            "table_width": width,
+                            "has_column_header": true,
+                            "children": table_rows
+                        }
+                    }));
+                }
+            }
+
+            _ => {
+                // Unknown node — try to convert children
+                if let Some(content) = node.get("content").and_then(|c| c.as_array()) {
+                    blocks.extend(tiptap_nodes_to_blocks(content));
+                }
+            }
+        }
+    }
+    blocks
+}
+
+fn extract_list_item_content(item: &Value) -> (Vec<Value>, Vec<Value>) {
+    let content = item.get("content").and_then(|c| c.as_array());
+    let mut rich_text = vec![];
+    let mut children = vec![];
+
+    if let Some(nodes) = content {
+        for node in nodes {
+            match node["type"].as_str().unwrap_or("") {
+                "paragraph" => {
+                    rich_text = tiptap_inline_to_rich_text(node.get("content"));
+                }
+                _ => {
+                    children.extend(tiptap_nodes_to_blocks(&[node.clone()]));
+                }
+            }
+        }
+    }
+    (rich_text, children)
+}
+
+fn tiptap_inline_to_rich_text(content: Option<&Value>) -> Vec<Value> {
+    let arr = match content.and_then(|c| c.as_array()) {
+        Some(a) => a,
+        None => return vec![],
+    };
+
+    arr.iter().filter_map(|node| {
+        let text = node["text"].as_str()?;
+        if text.is_empty() { return None; }
+
+        let mut annotations = serde_json::json!({
+            "bold": false, "italic": false, "strikethrough": false,
+            "underline": false, "code": false, "color": "default"
+        });
+        let mut href: Option<String> = None;
+
+        if let Some(marks) = node.get("marks").and_then(|m| m.as_array()) {
+            for mark in marks {
+                match mark["type"].as_str().unwrap_or("") {
+                    "bold" => annotations["bold"] = serde_json::json!(true),
+                    "italic" => annotations["italic"] = serde_json::json!(true),
+                    "strike" => annotations["strikethrough"] = serde_json::json!(true),
+                    "code" => annotations["code"] = serde_json::json!(true),
+                    "link" => href = mark["attrs"]["href"].as_str().map(|s| s.to_string()),
+                    _ => {}
+                }
+            }
+        }
+
+        let mut rt = serde_json::json!({
+            "type": "text",
+            "text": { "content": text },
+            "annotations": annotations
+        });
+        if let Some(url) = href {
+            rt["text"]["link"] = serde_json::json!({ "url": url });
+        }
+        Some(rt)
+    }).collect()
+}
 
 /// Convert markdown text to Notion block objects
 pub fn markdown_to_blocks(markdown: &str) -> Vec<Value> {

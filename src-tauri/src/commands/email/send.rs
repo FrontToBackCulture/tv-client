@@ -51,6 +51,7 @@ struct Campaign {
     bcc_email: Option<String>,
     group_id: Option<String>,
     status: String,
+    tokens: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -129,27 +130,41 @@ async fn upload_report_to_s3(
 
 // ── Resolve campaign HTML body ────────────────────────────────────
 
-/// Get the HTML body for a campaign, reading from content_path file if set
+/// Get the HTML body for a campaign, reading from content_path file if set.
+/// Automatically inlines CSS `<style>` blocks into element `style` attributes
+/// so emails render correctly in clients that strip `<style>` tags (e.g. Gmail).
 fn resolve_html_body(campaign: &Campaign, knowledge_path: Option<&str>) -> CmdResult<String> {
-    // If content_path is set, read from file
-    if let Some(content_path) = &campaign.content_path {
+    let raw = if let Some(content_path) = &campaign.content_path {
         if let Some(kp) = knowledge_path {
             let full_path = std::path::Path::new(kp).join(content_path);
             match std::fs::read_to_string(&full_path) {
-                Ok(content) => return Ok(content),
+                Ok(content) => content,
                 Err(e) => {
                     eprintln!("Failed to read content_path {}: {}", full_path.display(), e);
-                    // Fall through to html_body
+                    campaign.html_body.clone()
+                        .ok_or_else(|| CommandError::Internal("Campaign has no HTML body or content file".into()))?
                 }
             }
+        } else {
+            campaign.html_body.clone()
+                .ok_or_else(|| CommandError::Internal("Campaign has no HTML body or content file".into()))?
+        }
+    } else {
+        campaign.html_body.clone()
+            .ok_or_else(|| CommandError::Internal("Campaign has no HTML body or content file".into()))?
+    };
+
+    // Inline CSS for email client compatibility
+    let inliner = css_inline::CSSInliner::options()
+        .keep_style_tags(false)
+        .build();
+    match inliner.inline(&raw) {
+        Ok(inlined) => Ok(inlined),
+        Err(e) => {
+            eprintln!("CSS inlining failed, using raw HTML: {}", e);
+            Ok(raw)
         }
     }
-
-    // Fall back to html_body stored in database
-    campaign
-        .html_body
-        .clone()
-        .ok_or_else(|| CommandError::Internal("Campaign has no HTML body or content file".into()))
 }
 
 // ── Token replacement ──────────────────────────────────────────────
@@ -162,6 +177,7 @@ fn replace_tokens(
     api_base_url: &str,
     subject: &str,
     report_url: Option<&str>,
+    custom_tokens: Option<&serde_json::Value>,
 ) -> String {
     let mut result = html.to_string();
 
@@ -172,7 +188,7 @@ fn replace_tokens(
     // Replace {{subject}} — templates use this in hero headings
     result = result.replace("{{subject}}", subject);
 
-    // Replace {{report_url}} — link to the uploaded report
+    // Replace {{report_url}} — from dedicated column or tokens JSON
     if let Some(url) = report_url {
         result = result.replace("{{report_url}}", url);
     }
@@ -183,6 +199,23 @@ fn replace_tokens(
         api_base_url, contact.id, campaign_id
     );
     result = result.replace("{{unsubscribe_url}}", &unsub_url);
+
+    // Replace custom tokens from campaign.tokens JSONB
+    if let Some(serde_json::Value::Object(map)) = custom_tokens {
+        for (key, val) in map {
+            // Skip system tokens that are always computed — but allow report_url
+            // from tokens if the dedicated column didn't provide it
+            if matches!(key.as_str(), "first_name" | "subject" | "unsubscribe_url") {
+                continue;
+            }
+            if key == "report_url" && report_url.is_some() {
+                continue;
+            }
+            if let Some(s) = val.as_str() {
+                result = result.replace(&format!("{{{{{}}}}}", key), s);
+            }
+        }
+    }
 
     // Inject open tracking pixel before </body>
     let open_pixel = format!(
@@ -207,6 +240,7 @@ fn replace_tokens_preview(
     first_name: &str,
     subject: &str,
     report_url: Option<&str>,
+    custom_tokens: Option<&serde_json::Value>,
 ) -> String {
     let mut result = html.to_string();
     result = result.replace("{{first_name}}", first_name);
@@ -217,6 +251,22 @@ fn replace_tokens_preview(
     } else {
         result = result.replace("{{report_url}}", "#report");
     }
+
+    // Replace custom tokens
+    if let Some(serde_json::Value::Object(map)) = custom_tokens {
+        for (key, val) in map {
+            if matches!(key.as_str(), "first_name" | "subject" | "unsubscribe_url") {
+                continue;
+            }
+            if key == "report_url" && report_url.is_some() {
+                continue;
+            }
+            if let Some(s) = val.as_str() {
+                result = result.replace(&format!("{{{{{}}}}}", key), s);
+            }
+        }
+    }
+
     result
 }
 
@@ -289,6 +339,53 @@ pub async fn email_upload_report(
     .await?;
 
     Ok(UploadReportResult { url })
+}
+
+// ── Clear report command ─────────────────────────────────────────
+
+#[command]
+pub async fn email_clear_report(campaign_id: String) -> CmdResult<()> {
+    let db = get_client().await?;
+
+    // Fetch campaign to get report_url for S3 deletion
+    let campaign: Campaign = db
+        .select_single::<Campaign>(
+            "email_campaigns",
+            &format!("id=eq.{}&select=*", campaign_id),
+        )
+        .await?
+        .ok_or_else(|| CommandError::NotFound("Campaign not found".into()))?;
+
+    // Delete from S3 if uploaded
+    if let Some(ref url) = campaign.report_url {
+        // Extract S3 key from URL: https://s3.{region}.amazonaws.com/{bucket}/{key}
+        let prefix = format!("https://s3.{}.amazonaws.com/{}/", S3_REGION, S3_BUCKET);
+        if let Some(key) = url.strip_prefix(&prefix) {
+            let settings = crate::commands::settings::load_settings()?;
+            if let (Some(ak), Some(sk)) = (
+                settings.keys.get("aws_access_key_id"),
+                settings.keys.get("aws_secret_access_key"),
+            ) {
+                let s3 = build_s3_client(ak, sk);
+                // Best-effort delete — don't fail if S3 delete fails
+                let _ = s3.delete_object()
+                    .bucket(S3_BUCKET)
+                    .key(key)
+                    .send()
+                    .await;
+            }
+        }
+    }
+
+    // Clear report fields in DB
+    db.update::<serde_json::Value, serde_json::Value>(
+        "email_campaigns",
+        &format!("id=eq.{}", campaign_id),
+        &serde_json::json!({ "report_path": null, "report_url": null, "report_uploaded_at": null }),
+    )
+    .await?;
+
+    Ok(())
 }
 
 // ── Main send command ─────────────────────────────────────────────
@@ -551,6 +648,7 @@ pub async fn email_send_test(
         "Test User",
         &campaign.subject,
         report_url.as_deref(),
+        campaign.tokens.as_ref(),
     );
 
     // Build raw MIME email
@@ -627,7 +725,7 @@ async fn send_to_contact(
         .await?;
 
     // Replace tokens in HTML
-    let personalized = replace_tokens(html_body, contact, &event.id, campaign_id, api_base_url, &campaign.subject, report_url);
+    let personalized = replace_tokens(html_body, contact, &event.id, campaign_id, api_base_url, &campaign.subject, report_url, campaign.tokens.as_ref());
 
     // Build raw MIME email with X-Campaign-Id header
     let boundary = format!("----=_Part_{}", chrono::Utc::now().timestamp_millis());
@@ -679,7 +777,7 @@ async fn send_to_contact(
     // Send untracked BCC copy (no open pixel, no click tracking, no event row)
     if let Some(bcc) = &campaign.bcc_email {
         if !bcc.is_empty() {
-            let bcc_html = replace_tokens_preview(html_body, contact.first_name.as_deref().unwrap_or("there"), &campaign.subject, report_url);
+            let bcc_html = replace_tokens_preview(html_body, contact.first_name.as_deref().unwrap_or("there"), &campaign.subject, report_url, campaign.tokens.as_ref());
             let bcc_boundary = format!("----=_Part_bcc_{}", chrono::Utc::now().timestamp_millis());
             let bcc_raw = format!(
                 "From: {} <{}>\r\n\

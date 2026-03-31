@@ -252,9 +252,13 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
         api::update_page_properties(page_id, &notion_properties).await?;
         ("updated".to_string(), page_id.to_string())
     } else {
-        // Create new page — include description as initial content
-        let description = task["description"].as_str().unwrap_or("");
-        let blocks = api::markdown_to_blocks(description);
+        // Create new page — prefer TipTap JSON for content, fall back to markdown
+        let blocks = if let Some(json_content) = task.get("description_json").filter(|v| !v.is_null()) {
+            api::tiptap_json_to_blocks(json_content)
+        } else {
+            let description = task["description"].as_str().unwrap_or("");
+            api::markdown_to_blocks(description)
+        };
         let new_page_id = api::create_page(
             &database_id,
             &notion_properties,
@@ -563,9 +567,15 @@ pub async fn notion_pull_task(task_id: String) -> CmdResult<PushResult> {
             None
         };
 
-    // Fetch page body content
+    // Fetch page body content (markdown + TipTap JSON)
     let page_body_md = match api::get_page_content_as_markdown(&notion_page_id).await {
         Ok(md) if !md.is_empty() => Some(md),
+        _ => None,
+    };
+
+    // Also generate TipTap JSON for rich content (toggle blocks, etc.)
+    let page_body_json: Option<Value> = match api::get_page_blocks_raw(&notion_page_id).await {
+        Ok(blocks) if !blocks.is_empty() => Some(api::blocks_to_tiptap_json(&blocks)),
         _ => None,
     };
 
@@ -618,6 +628,18 @@ pub async fn notion_pull_task(task_id: String) -> CmdResult<PushResult> {
         .as_str()
         .unwrap_or("updated")
         .to_string();
+
+    // Save TipTap JSON content alongside markdown (for toggle blocks, etc.)
+    if let Some(ref json_content) = page_body_json {
+        let _: Value = client
+            .update(
+                "tasks",
+                &format!("id=eq.{}", task_id),
+                &serde_json::json!({ "description_json": json_content }),
+            )
+            .await?;
+        eprintln!("[notion:pull] Saved description_json for task {}", task_id);
+    }
 
     eprintln!(
         "[notion:pull] Task {} {} from Notion page {}",

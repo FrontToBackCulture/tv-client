@@ -224,7 +224,7 @@ export function BlogModule() {
                       </button>
                       {article.status === "published" && (
                         <a
-                          href={`https://thinkval.co/news/${article.slug}`}
+                          href={`https://thinkval.com/news/${article.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-1.5 text-zinc-400 hover:text-blue-600 transition-colors rounded"

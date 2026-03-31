@@ -1,10 +1,18 @@
-// For Notion-linked tasks, render the stored description with ReactMarkdown.
-// Description is synced from Notion via the pull command (Rust blocks-to-markdown converter).
+// For Notion-linked tasks, render the stored description.
+// Prefers description_json (TipTap JSON with toggle support) over markdown fallback.
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { JSONContent } from "@tiptap/react";
+import { TaskContentViewer } from "./TaskTipTapEditor";
 
-export function NotionContent({ description }: { description: string | null }) {
+export function NotionContent({ description, descriptionJson }: { description: string | null; descriptionJson?: JSONContent | null }) {
+  // Prefer TipTap JSON if available
+  if (descriptionJson) {
+    return <TaskContentViewer content={descriptionJson} />;
+  }
+
+  // Fallback to markdown
   if (!description) return <p className="text-zinc-400">No content synced from Notion yet. Click "Sync from Notion" to pull content.</p>;
 
   return (

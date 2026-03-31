@@ -10,6 +10,7 @@ import {
   Boxes,
   Bot,
   ExternalLink,
+  Plus,
   LucideIcon,
   Headset,
   Clock,
@@ -17,10 +18,9 @@ import {
   GitBranch,
   MailPlus,
   GalleryHorizontalEnd,
-  PanelLeftClose,
-  PanelLeft,
   FileText,
   ChevronRight,
+  ChevronDown,
   Cloud,
   Database,
   CalendarDays,
@@ -29,6 +29,10 @@ import {
   Target,
   SlidersHorizontal,
   Activity,
+  Search,
+  ClipboardList,
+  CalendarClock,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -37,6 +41,9 @@ import { openModuleInNewWindow } from "../lib/windowManager";
 import { UserProfile } from "../components/UserProfile";
 import { useModuleVisibilityStore } from "../stores/moduleVisibilityStore";
 import { useTeamConfigStore } from "../stores/teamConfigStore";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "../lib/supabase";
+import { useCurrentUserId } from "../hooks/work/useUsers";
 
 interface ActivityBarProps {
   activeModule: ModuleId;
@@ -69,6 +76,7 @@ const navSections: NavSection[] = [
     label: "Comms",
     items: [
       { id: "inbox", icon: Mail, label: "Inbox", shortcut: "" },
+      { id: "chat", icon: MessageSquare, label: "Chat", shortcut: "" },
       { id: "calendar", icon: CalendarDays, label: "Calendar", shortcut: "" },
     ],
   },
@@ -151,7 +159,7 @@ function Tooltip({ children, label, shortcut, show }: {
 // Context menu
 // ---------------------------------------------------------------------------
 
-function ActivityBarContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose: () => void }) {
+function ActivityBarContextMenu({ menu, onClose, onModuleChange }: { menu: ContextMenuState; onClose: () => void; onModuleChange: (module: ModuleId) => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -170,13 +178,23 @@ function ActivityBarContextMenu({ menu, onClose }: { menu: ContextMenuState; onC
     >
       <button
         onClick={() => {
+          onModuleChange(menu.moduleId);
+          onClose();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+      >
+        <Plus size={14} />
+        Open in New Tab
+      </button>
+      <button
+        onClick={() => {
           openModuleInNewWindow(menu.moduleId);
           onClose();
         }}
         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
       >
         <ExternalLink size={14} />
-        Open {menu.label} in New Window
+        Open in New Window
       </button>
     </div>
   );
@@ -214,12 +232,14 @@ function NavButton({
   item,
   isActive,
   isExpanded,
+  badge,
   onModuleChange,
   onContextMenu,
 }: {
   item: NavItem;
   isActive: boolean;
   isExpanded: boolean;
+  badge?: number;
   onModuleChange: (id: ModuleId) => void;
   onContextMenu: (e: React.MouseEvent, item: NavItem) => void;
 }) {
@@ -228,20 +248,27 @@ function NavButton({
   if (!isExpanded) {
     return (
       <Tooltip label={item.label} shortcut={item.shortcut} show>
-        <button
-          key={item.id}
-          data-help-id={`activity-bar-${item.id}`}
-          onClick={() => onModuleChange(item.id)}
-          onContextMenu={(e) => onContextMenu(e, item)}
-          className={cn(
-            "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150",
-            isActive
-              ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20 dark:shadow-teal-500/15"
-              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
+        <div className="relative">
+          <button
+            key={item.id}
+            data-help-id={`activity-bar-${item.id}`}
+            onClick={() => onModuleChange(item.id)}
+            onContextMenu={(e) => onContextMenu(e, item)}
+            className={cn(
+              "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150",
+              isActive
+                ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20 dark:shadow-teal-500/15"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
+            )}
+          >
+            <Icon size={18} strokeWidth={isActive ? 2.25 : 1.75} />
+          </button>
+          {badge !== undefined && badge > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold bg-red-500 text-white rounded-full px-1 pointer-events-none">
+              {badge > 9 ? "9+" : badge}
+            </span>
           )}
-        >
-          <Icon size={18} strokeWidth={isActive ? 2.25 : 1.75} />
-        </button>
+        </div>
       </Tooltip>
     );
   }
@@ -261,7 +288,12 @@ function NavButton({
     >
       <Icon size={16} strokeWidth={isActive ? 2.25 : 1.75} className="shrink-0" />
       <span className="text-[13px] truncate flex-1 text-left">{item.label}</span>
-      {item.shortcut && (
+      {badge !== undefined && badge > 0 && (
+        <span className="min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold bg-red-500 text-white rounded-full px-1 shrink-0">
+          {badge > 9 ? "9+" : badge}
+        </span>
+      )}
+      {!badge && item.shortcut && (
         <span className={cn(
           "text-[10px] font-mono shrink-0",
           isActive ? "text-teal-200" : "text-slate-400 dark:text-slate-600"
@@ -395,11 +427,51 @@ function MoreFlyout({
 
 export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) {
   const isExpanded = useActivityBarStore((s) => s.isExpanded);
-  const toggleExpanded = useActivityBarStore((s) => s.toggleExpanded);
+  const mode = useActivityBarStore((s) => s.mode);
+  const activeTab = useActivityBarStore((s) => s.activeTab);
+  const sidebarWidth = useActivityBarStore((s) => s.width);
+  const setWidth = useActivityBarStore((s) => s.setWidth);
   const isModuleVisible = useModuleVisibilityStore((s) => s.isModuleVisible);
+  const resizing = useRef(false);
   const hiddenModules = useModuleVisibilityStore((s) => s.hiddenModules);
   const teamConfig = useTeamConfigStore((s) => s.config);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  // Chat unread badge — count threads with activity after user's last read position
+  const currentUserId = useCurrentUserId();
+  const { data: chatUnreadCount = 0 } = useQuery({
+    queryKey: ["chat", "unread-badge", currentUserId],
+    queryFn: async () => {
+      if (!currentUserId) return 0;
+      // Get the user's name for read positions (author field is name, not UUID)
+      const { data: user } = await supabase.from("users").select("name").eq("id", currentUserId).single();
+      if (!user) return 0;
+      const userName = user.name;
+
+      // Get all top-level threads
+      const { data: threads } = await supabase
+        .from("discussions")
+        .select("id, last_activity_at")
+        .is("parent_id", null)
+        .order("last_activity_at", { ascending: false })
+        .limit(50);
+      if (!threads || threads.length === 0) return 0;
+
+      // Get read positions
+      const { data: positions } = await supabase
+        .from("chat_read_positions")
+        .select("thread_id, last_read_at")
+        .eq("user_id", userName);
+
+      const readMap = new Map((positions ?? []).map(p => [p.thread_id, p.last_read_at]));
+      return threads.filter(t => {
+        const readAt = readMap.get(t.id);
+        return !readAt || new Date(t.last_activity_at) > new Date(readAt);
+      }).length;
+    },
+    enabled: !!currentUserId,
+    refetchInterval: 30000,
+  });
 
   // Collapsible section state — persisted to localStorage
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -440,126 +512,401 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
     setContextMenu({ moduleId: item.id, label: item.label, x: e.clientX, y: e.clientY });
   };
 
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    resizing.current = true;
+    const startX = e.clientX;
+    const startW = sidebarWidth;
+    const onMove = (ev: MouseEvent) => {
+      if (!resizing.current) return;
+      setWidth(startW + (ev.clientX - startX));
+    };
+    const onUp = () => {
+      resizing.current = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [sidebarWidth, setWidth]);
+
+  // Hidden mode: sidebar completely gone — toggle via title bar button
+  if (mode === "hidden") return null;
+
   return (
     <div
       data-help-id="activity-bar"
-      className={cn(
-        "bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col py-2 gap-0.5 transition-all duration-200 overflow-hidden select-none",
-        isExpanded ? "w-48 items-stretch px-1.5" : "w-[52px] items-center px-1.5"
-      )}
+      className="bg-slate-50 dark:bg-slate-900 flex flex-col py-2 gap-0.5 overflow-hidden select-none flex-shrink-0 items-stretch px-1.5 relative"
+      style={{ width: sidebarWidth }}
     >
-      {/* Home + collapse toggle */}
-      {isExpanded ? (
-        <div className="flex items-center gap-0.5 mb-1">
-          <button
-            onClick={() => onModuleChange("home")}
-            className={cn(
-              "flex-1 h-8 flex items-center gap-2.5 px-2.5 rounded-lg transition-all duration-150",
-              activeModule === "home"
-                ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
-            )}
-            title="Home"
-          >
-            <Home size={16} strokeWidth={activeModule === "home" ? 2.25 : 1.75} className="shrink-0" />
-            <span className="text-[13px] font-medium truncate">TV Desktop</span>
-          </button>
-          <button
-            onClick={toggleExpanded}
-            className="h-8 w-7 flex items-center justify-center rounded-lg transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 shrink-0"
-            title="Collapse sidebar"
-          >
-            <PanelLeftClose size={14} />
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center gap-0.5 mb-1">
-          <Tooltip label="Home" show>
-            <button
-              onClick={() => onModuleChange("home")}
-              className={cn(
-                "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150",
-                activeModule === "home"
-                  ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
-              )}
-              title="Home"
-            >
-              <Home size={18} strokeWidth={activeModule === "home" ? 2.25 : 1.75} />
-            </button>
-          </Tooltip>
-          <button
-            onClick={toggleExpanded}
-            className="w-9 h-5 flex items-center justify-center rounded transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
-            title="Expand sidebar"
-          >
-            <PanelLeft size={13} />
-          </button>
-        </div>
-      )}
+      {/* Resize handle */}
+      <div
+        onMouseDown={handleResizeStart}
+        className="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize hover:bg-teal-500/30 active:bg-teal-500/50 transition-colors z-10"
+      />
+      {/* Tab bar — switches sidebar content */}
+      <SidebarTabs activeModule={activeModule} onModuleChange={onModuleChange} />
 
-      {/* Module sections */}
-      {filteredSections.map((section, i) => {
-        const isCollapsed = !!collapsedSections[section.label];
-        const containsActive = section.items.some((item) => item.id === activeModule);
-        const showItems = !isCollapsed || containsActive;
+      {/* Sidebar content based on active tab */}
+      {activeTab === "nav" ? (
+        <>
+          {/* Module sections */}
+          {filteredSections.map((section, i) => {
+            const isCollapsed = !!collapsedSections[section.label];
+            const containsActive = section.items.some((item) => item.id === activeModule);
+            const showItems = !isCollapsed || containsActive;
 
-        return (
-          <div key={section.label}>
-            {isExpanded ? (
-              <SectionHeader
-                label={section.label}
-                collapsed={isCollapsed}
-                onToggle={() => toggleSection(section.label)}
-              />
-            ) : (
-              i > 0 && (
-                <div className="py-1.5 flex justify-center">
-                  <div className="w-5 h-px bg-slate-200 dark:bg-slate-700" />
-                </div>
-              )
-            )}
-            {showItems && (
-              <div className={cn(
-                "flex flex-col",
-                isExpanded ? "gap-0.5" : "gap-0.5 items-center"
-              )}>
-                {section.items.map((item) => (
-                  <NavButton
-                    key={item.id}
-                    item={item}
-                    isActive={activeModule === item.id}
-                    isExpanded={isExpanded}
-                    onModuleChange={onModuleChange}
-                    onContextMenu={handleContextMenu}
+            return (
+              <div key={section.label}>
+                {isExpanded ? (
+                  <SectionHeader
+                    label={section.label}
+                    collapsed={isCollapsed}
+                    onToggle={() => toggleSection(section.label)}
                   />
-                ))}
-                {/* More flyout — at the end of Platform section */}
-                {section.label === "Platform" && filteredMoreItems.length > 0 && (
-                  <MoreFlyout
-                    items={filteredMoreItems}
-                    activeModule={activeModule}
-                    isExpanded={isExpanded}
-                    onModuleChange={onModuleChange}
-                    onContextMenu={handleContextMenu}
-                  />
+                ) : (
+                  i > 0 && (
+                    <div className="py-1.5 flex justify-center">
+                      <div className="w-5 h-px bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                  )
+                )}
+                {showItems && (
+                  <div className={cn(
+                    "flex flex-col",
+                    isExpanded ? "gap-0.5" : "gap-0.5 items-center"
+                  )}>
+                    {section.items.map((item) => (
+                      <NavButton
+                        key={item.id}
+                        item={item}
+                        isActive={activeModule === item.id}
+                        isExpanded={isExpanded}
+                        badge={item.id === "chat" ? chatUnreadCount : undefined}
+                        onModuleChange={onModuleChange}
+                        onContextMenu={handleContextMenu}
+                      />
+                    ))}
+                    {/* More flyout — at the end of Platform section */}
+                    {section.label === "Platform" && filteredMoreItems.length > 0 && (
+                      <MoreFlyout
+                        items={filteredMoreItems}
+                        activeModule={activeModule}
+                        isExpanded={isExpanded}
+                        onModuleChange={onModuleChange}
+                        onContextMenu={handleContextMenu}
+                      />
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
 
-      {/* Spacer */}
-      <div className="flex-1" />
+          {/* Spacer */}
+          <div className="flex-1" />
 
-      {/* User profile */}
-      <UserProfile collapsed={!isExpanded} />
+          {/* User profile */}
+          <UserProfile collapsed={!isExpanded} />
+        </>
+      ) : activeTab === "inbox" ? (
+        <SidebarInbox onSelectTask={(id) => { useActivityBarStore.getState().openTask(id); }} />
+      ) : activeTab === "calendar" ? (
+        <SidebarCalendar onSelectTask={(id) => { useActivityBarStore.getState().openTask(id); }} />
+      ) : null}
 
       {/* Context menu overlay */}
       {contextMenu && (
-        <ActivityBarContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
+        <ActivityBarContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onModuleChange={onModuleChange} />
       )}
+    </div>
+  );
+}
+
+// ─── Sidebar Tabs ─────────────────────────────────────────────────────────
+
+function SidebarTabs({ onModuleChange }: { activeModule: ModuleId; onModuleChange: (module: ModuleId) => void }) {
+  const activeTab = useActivityBarStore((s) => s.activeTab);
+  const setActiveTab = useActivityBarStore((s) => s.setActiveTab);
+
+  const tabs = [
+    { id: "nav" as const, icon: Home, label: "Home" },
+    { id: "inbox" as const, icon: ClipboardList, label: "Today" },
+    { id: "calendar" as const, icon: CalendarClock, label: "Upcoming" },
+    { id: "search" as const, icon: Search, label: "Search" },
+  ];
+
+  return (
+    <div className="flex items-center gap-0.5 mb-1 px-0.5">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => {
+            if (tab.id === "search") {
+              window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
+            } else if (tab.id === "nav") {
+              setActiveTab("nav");
+              onModuleChange("home");
+            } else {
+              setActiveTab(activeTab === tab.id ? "nav" : tab.id);
+            }
+          }}
+          className={cn(
+            "flex-1 h-7 flex items-center justify-center rounded-md transition-colors",
+            activeTab === tab.id
+              ? "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+              : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50"
+          )}
+          title={tab.label}
+        >
+          <tab.icon size={14} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Sidebar Inbox — today's tasks + recent changes ──────────────────────
+
+function SidebarInbox({ onSelectTask }: { onSelectTask: (id: string) => void }) {
+  const currentUserId = useCurrentUserId();
+
+  const { data: todayTasks = [] } = useQuery({
+    queryKey: ["sidebar-inbox-tasks", currentUserId],
+    queryFn: async () => {
+      if (!currentUserId) return [];
+      const today = new Date().toISOString().slice(0, 10);
+      // Get completed status IDs to exclude
+      const { data: completeStatuses } = await supabase.from("task_statuses").select("id").eq("type", "complete");
+      const completeIds = (completeStatuses ?? []).map((s: any) => s.id);
+      let query = supabase
+        .from("tasks")
+        .select("id, title, due_date, status_id, project_id, task_number, triage_action, triage_score, projects!tasks_project_id_fkey(name, identifier_prefix), task_assignees!inner(user_id)")
+        .eq("task_assignees.user_id", currentUserId)
+        .lte("due_date", today)
+        .not("status_id", "is", null)
+        .order("due_date", { ascending: true })
+        .limit(50);
+      if (completeIds.length > 0) {
+        for (const cid of completeIds) query = query.neq("status_id", cid);
+      }
+      const { data } = await query;
+      return data ?? [];
+    },
+    enabled: !!currentUserId,
+    staleTime: 30_000,
+  });
+
+  const { data: recentChanges = [] } = useQuery({
+    queryKey: ["sidebar-inbox-changes", currentUserId],
+    queryFn: async () => {
+      if (!currentUserId) return [];
+      const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from("task_changes")
+        .select("*")
+        .gte("changed_at", since)
+        .order("changed_at", { ascending: false })
+        .limit(20);
+      return data ?? [];
+    },
+    enabled: !!currentUserId,
+    staleTime: 30_000,
+  });
+
+  const fieldLabel: Record<string, string> = { due_date: "Due Date", title: "Title", status_id: "Status", priority: "Priority", project_id: "Project", triage_action: "Triage" };
+
+  const triageGroups = useMemo(() => {
+    const groups: { key: string; label: string; color: string; dotColor: string; tasks: any[] }[] = [
+      { key: "do_now", label: "Now", color: "text-red-500", dotColor: "bg-red-500", tasks: [] },
+      { key: "do_this_week", label: "This Week", color: "text-amber-500", dotColor: "bg-amber-400", tasks: [] },
+      { key: "defer", label: "Defer", color: "text-blue-500", dotColor: "bg-blue-400", tasks: [] },
+      { key: "unsorted", label: "Unsorted", color: "text-slate-400", dotColor: "bg-slate-400", tasks: [] },
+    ];
+    const map = new Map(groups.map(g => [g.key, g]));
+    for (const t of todayTasks) {
+      const action = (t as any).triage_action;
+      const group = map.get(action) || map.get("unsorted")!;
+      group.tasks.push(t);
+    }
+    // Sort within each group by triage_score desc
+    for (const g of groups) g.tasks.sort((a: any, b: any) => (b.triage_score ?? 0) - (a.triage_score ?? 0));
+    return groups.filter(g => g.tasks.length > 0);
+  }, [todayTasks]);
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="px-2 py-1.5">
+        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 mb-1">Today ({todayTasks.length})</div>
+        {todayTasks.length === 0 ? (
+          <div className="px-1 py-2 text-[11px] text-slate-400">All clear</div>
+        ) : (
+          triageGroups.map(group => (
+            <SidebarTaskGroup
+              key={group.key}
+              label={group.label}
+              color={group.color}
+              dotColor={group.dotColor}
+              tasks={group.tasks}
+              onSelectTask={onSelectTask}
+              defaultOpen={group.key === "do_now" || group.key === "do_this_week"}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Recent changes */}
+      {recentChanges.length > 0 && (
+        <div className="px-2 py-1.5 border-t border-slate-100 dark:border-slate-800">
+          <SidebarTaskGroup
+            label="Recent Changes"
+            color="text-purple-500"
+            dotColor="bg-purple-400"
+            tasks={[]}
+            onSelectTask={() => {}}
+            defaultOpen={false}
+            customContent={
+              <>
+                {recentChanges.map((c: any) => (
+                  <div key={c.id} className="px-1 py-1.5 text-[10px]">
+                    <div className="text-slate-500 dark:text-slate-400">
+                      <span className="font-medium text-purple-500">{fieldLabel[c.field] || c.field}</span>
+                      {" "}
+                      {c.old_value && <span className="line-through text-red-400">{c.old_value}</span>}
+                      {" → "}
+                      <span className="text-emerald-500">{c.new_value || "(empty)"}</span>
+                    </div>
+                    <div className="text-[9px] text-slate-400 mt-0.5">
+                      {new Date(c.changed_at).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}
+                      {c.changed_by && ` · ${c.changed_by}`}
+                    </div>
+                  </div>
+                ))}
+              </>
+            }
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sidebar Calendar — upcoming due dates ───────────────────────────────
+
+// ─── Sidebar Task Group — collapsible section ────────────────────────────
+
+function SidebarTaskGroup({ label, color, dotColor, tasks, onSelectTask, defaultOpen = true, customContent }: {
+  label: string;
+  color: string;
+  dotColor: string;
+  tasks: any[];
+  onSelectTask: (id: string) => void;
+  defaultOpen?: boolean;
+  customContent?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const count = customContent ? undefined : tasks.length;
+
+  return (
+    <div className="mb-1">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-1.5 px-1 py-1 hover:bg-slate-100 dark:hover:bg-slate-800/30 rounded-md transition-colors"
+      >
+        {open ? <ChevronDown size={10} className="text-slate-400" /> : <ChevronRight size={10} className="text-slate-400" />}
+        <span className={cn("text-[10px] font-semibold uppercase tracking-wider", color)}>{label}</span>
+        {count != null && <span className={cn("text-[9px] font-medium", color)}>{count}</span>}
+      </button>
+      {open && (
+        customContent || (
+          <div className="ml-1">
+            {tasks.map((t: any) => {
+              const prefix = t.projects?.identifier_prefix || "";
+              const identifier = prefix ? `${prefix}-${t.task_number}` : `#${t.task_number}`;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => onSelectTask(t.id)}
+                  className="w-full flex items-start gap-2 px-1 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors text-left"
+                >
+                  <div className={cn("w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0", dotColor)} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] text-slate-700 dark:text-slate-300 truncate">{t.title}</div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {identifier} · {t.projects?.name || ""}
+                      {t.triage_score != null && <span className={cn("ml-1 font-medium", color)}>{t.triage_score}</span>}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// ─── Sidebar Calendar — upcoming due dates ───────────────────────────────
+
+function SidebarCalendar({ onSelectTask }: { onSelectTask: (id: string) => void }) {
+  const currentUserId = useCurrentUserId();
+
+  const { data: upcoming = [] } = useQuery({
+    queryKey: ["sidebar-calendar", currentUserId],
+    queryFn: async () => {
+      if (!currentUserId) return [];
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from("tasks")
+        .select("id, title, due_date, task_number, projects!tasks_project_id_fkey(name, identifier_prefix), task_assignees!inner(user_id)")
+        .eq("task_assignees.user_id", currentUserId)
+        .gte("due_date", tomorrow)
+        .lte("due_date", nextWeek)
+        .order("due_date", { ascending: true })
+        .limit(30);
+      return data ?? [];
+    },
+    enabled: !!currentUserId,
+    staleTime: 60_000,
+  });
+
+  // Group by date
+  const grouped = new Map<string, any[]>();
+  for (const t of upcoming) {
+    const day = new Date((t as any).due_date).toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short" });
+    if (!grouped.has(day)) grouped.set(day, []);
+    grouped.get(day)!.push(t);
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="px-2 py-1.5">
+        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 mb-1">Next 7 Days</div>
+        {upcoming.length === 0 ? (
+          <div className="px-1 py-2 text-[11px] text-slate-400">No upcoming tasks</div>
+        ) : (
+          [...grouped.entries()].map(([day, tasks]) => (
+            <div key={day} className="mb-2">
+              <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 px-1 py-0.5">{day}</div>
+              {tasks.map((t: any) => {
+                const prefix = t.projects?.identifier_prefix || "";
+                const identifier = prefix ? `${prefix}-${t.task_number}` : `#${t.task_number}`;
+                return (
+                  <div key={t.id} onClick={() => onSelectTask(t.id)} className="flex items-start gap-2 px-1 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
+                    <CalendarDays size={11} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] text-slate-700 dark:text-slate-300 truncate">{t.title}</div>
+                      <div className="text-[10px] text-slate-400">{identifier}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

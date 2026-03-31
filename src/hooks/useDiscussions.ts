@@ -11,6 +11,8 @@ export interface Discussion {
   parent_id: string | null;
   author: string;
   body: string;
+  title: string | null;
+  last_activity_at: string;
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +74,7 @@ export function useCreateDiscussion() {
       author: string;
       body: string;
       parent_id?: string;
+      title?: string;
     }) => {
       const { data, error } = await supabase
         .from("discussions")
@@ -89,6 +92,7 @@ export function useCreateDiscussion() {
       queryClient.invalidateQueries({
         queryKey: discussionKeys.count(data.entity_type, data.entity_id),
       });
+      queryClient.invalidateQueries({ queryKey: ["chat", "threads"] });
     },
   });
 }

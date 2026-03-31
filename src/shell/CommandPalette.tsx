@@ -44,6 +44,7 @@ import {
   MailCheck,
   Database,
   Activity,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { useAppStore, ModuleId } from "../stores/appStore";
@@ -91,6 +92,7 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   email: MailPlus,
   blog: FileText,
   s3browser: Globe,
+  chat: MessageSquare,
   linkedin: Linkedin,
   prospecting: Target,
   "public-data": Database,
@@ -101,6 +103,7 @@ const moduleLabels: Record<ModuleId, string> = {
   library: "Library",
   projects: "Projects",
   metadata: "Metadata",
+  chat: "Chat",
   crm: "CRM",
   work: "Work",
   domains: "Domains",

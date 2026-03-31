@@ -53,7 +53,8 @@ pub fn tools() -> Vec<Tool> {
                     "html_body": { "type": "string", "description": "Inline HTML body (use content_path instead for file-based campaigns)" },
                     "bcc_email": { "type": "string", "description": "BCC recipient email" },
                     "category": { "type": "string", "description": "Campaign category for organization" },
-                    "status": { "type": "string", "enum": ["draft", "scheduled"], "description": "Initial status (default: draft)" }
+                    "status": { "type": "string", "enum": ["draft", "scheduled"], "description": "Initial status (default: draft)" },
+                    "tokens": { "type": "object", "description": "Custom template token key-value pairs (e.g. {\"report_url\": \"https://...\", \"chat_url\": \"https://...\"})" }
                 }),
                 vec!["name".to_string(), "subject".to_string(), "from_name".to_string()],
             ),
@@ -72,7 +73,8 @@ pub fn tools() -> Vec<Tool> {
                     "content_path": { "type": "string" },
                     "bcc_email": { "type": "string" },
                     "category": { "type": "string" },
-                    "status": { "type": "string", "enum": ["draft", "scheduled"] }
+                    "status": { "type": "string", "enum": ["draft", "scheduled"] },
+                    "tokens": { "type": "object", "description": "Custom template token key-value pairs" }
                 }),
                 vec!["campaign_id".to_string()],
             ),
@@ -294,6 +296,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 bcc_email: args.get("bcc_email").and_then(|v| v.as_str()).map(String::from),
                 category: args.get("category").and_then(|v| v.as_str()).map(String::from),
                 status: args.get("status").and_then(|v| v.as_str()).map(String::from),
+                tokens: args.get("tokens").cloned(),
             };
 
             match campaigns::create_campaign(data).await {
@@ -319,6 +322,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 bcc_email: args.get("bcc_email").and_then(|v| v.as_str()).map(String::from),
                 category: args.get("category").and_then(|v| v.as_str()).map(String::from),
                 status: args.get("status").and_then(|v| v.as_str()).map(String::from),
+                tokens: args.get("tokens").cloned(),
             };
 
             match campaigns::update_campaign(campaign_id, data).await {

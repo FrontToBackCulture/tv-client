@@ -2,7 +2,7 @@
 // Campaign list with tree sidebar for grouping + inline category picker + actions
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { Plus, Pencil, Copy, Trash2, Tag, Check, X, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Copy, Trash2, Tag, Check, X, ChevronRight, Clipboard } from "lucide-react";
 import { useEmailCampaigns, useDeleteEmailCampaign, useCloneEmailCampaign, useUpdateEmailCampaign } from "../../hooks/email";
 import { CAMPAIGN_STATUSES } from "../../lib/email/types";
 import type { EmailCampaignWithStats } from "../../lib/email/types";
@@ -347,6 +347,18 @@ function CampaignRow({
         <div className="flex-shrink-0 flex items-center gap-2">
           {/* Action icons — visible on hover */}
           <div className="hidden group-hover/row:flex items-center gap-0.5">
+            {campaign.content_path && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(campaign.content_path!);
+                }}
+                className="p-1 text-zinc-400 hover:text-teal-500 dark:hover:text-teal-400 rounded transition-colors"
+                title={`Copy path: ${campaign.content_path}`}
+              >
+                <Clipboard size={12} />
+              </button>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(); }}
               className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded transition-colors"

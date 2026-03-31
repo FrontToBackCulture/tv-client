@@ -23,6 +23,7 @@ const ENTITY_MODULE: Record<string, ModuleId> = {
   campaign: "email",
   domain: "domains",
   domain_artifact: "domains",
+  general: "chat",
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -34,6 +35,7 @@ const ENTITY_LABELS: Record<string, string> = {
   campaign: "campaign",
   domain: "domain",
   domain_artifact: "artifact",
+  general: "thread",
 };
 
 function formatRelativeTime(dateStr: string): string {

@@ -8,6 +8,7 @@ import {
   ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
   Circle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Sparkles, Mail, CalendarDays,
+  MessageSquare,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
@@ -39,6 +40,8 @@ import { ACTIVITY_TYPES } from "../../lib/crm/types";
 import { DEAL_STAGES, DEAL_SOLUTIONS, COMPANY_STAGES } from "../../lib/crm/types";
 import { useRepository } from "../../stores/repositoryStore";
 import { toast } from "../../stores/toastStore";
+import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
+import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { useTaskFieldsStore } from "../../stores/taskFieldsStore";
 import type { WorkspaceSession, WorkspaceArtifact } from "../../lib/workspace/types";
 import { MilestoneTaskGroups } from "./MilestoneTaskGroups";
@@ -1464,7 +1467,8 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const updateWorkspace = useUpdateWorkspace();
   const { activeRepository, repositories } = useRepository();
   const basePath = activeRepository?.path ?? "";
-  const [selection, setSelection] = useState<{ type: "file"; path: string } | { type: "session"; id: string } | { type: "task"; id: string } | { type: "crm_deal"; id: string } | { type: "crm_company"; id: string } | { type: "activity"; id: string } | { type: "contact"; id: string } | null>(null);
+  const [selection, setSelection] = useState<{ type: "file"; path: string } | { type: "session"; id: string } | { type: "task"; id: string } | { type: "crm_deal"; id: string } | { type: "crm_company"; id: string } | { type: "activity"; id: string } | { type: "contact"; id: string } | { type: "discussion" } | null>(null);
+  const { data: discussionCount } = useDiscussionCount("project", workspaceId);
   const [showPicker, setShowPicker] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [taskContextMenu, setTaskContextMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
@@ -1681,14 +1685,17 @@ Write a brief current state summary. No bullet points, just a natural sentence o
     const { supabase } = await import("../../lib/supabase");
     await supabase.from("tasks").update({ project_id: newProjectId }).eq("id", taskId);
     refetchWorkspace();
-  }, [refetchWorkspace]);
+    _onUpdated();
+  }, [refetchWorkspace, _onUpdated]);
 
   const reassignTasks = useCallback(async (taskIds: string[], newProjectId: string) => {
     const { supabase } = await import("../../lib/supabase");
-    await supabase.from("tasks").update({ project_id: newProjectId }).in("id", taskIds);
+    const { error } = await supabase.from("tasks").update({ project_id: newProjectId }).in("id", taskIds);
+    if (error) throw new Error(error.message);
     setSelectedTaskIds(new Set());
     refetchWorkspace();
-  }, [refetchWorkspace]);
+    _onUpdated();
+  }, [refetchWorkspace, _onUpdated]);
 
   const deleteProject = useCallback(async () => {
     if (!confirm("Delete this project and all its tasks? This cannot be undone.")) return;
@@ -2081,6 +2088,27 @@ Write a brief current state summary. No bullet points, just a natural sentence o
               )}
             </div>
 
+            {/* Discussion */}
+            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+              <button
+                onClick={() => setSelection({ type: "discussion" })}
+                className={cn(
+                  "w-full text-left flex items-center gap-2 px-1 py-1.5 rounded-md text-xs font-medium transition-colors",
+                  selection?.type === "discussion"
+                    ? "text-[var(--color-accent)] bg-[var(--color-teal-light)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]"
+                )}
+              >
+                <MessageSquare size={13} />
+                <span>Discussion</span>
+                {(discussionCount ?? 0) > 0 && (
+                  <span className="text-[10px] font-medium text-[var(--text-muted)] bg-[var(--bg-muted)] px-1.5 py-0.5 rounded-full ml-auto">
+                    {discussionCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
             {/* Deal metadata — hidden from project details pane, managed via CRM */}
             {false && isDeal && companyId && (
               <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
@@ -2165,7 +2193,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
         {/* RIGHT: File preview, session detail, task detail, or context */}
         <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col">
           {/* Close bar — shown when viewing a file/session/entity so user can return to project details */}
-          {selection && (
+          {selection && selection.type !== "discussion" && (
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/80 dark:bg-zinc-900/50">
               <button
                 onClick={() => setSelection(null)}
@@ -2194,6 +2222,8 @@ Write a brief current state summary. No bullet points, just a natural sentence o
             <ContactDetailPanel contact={contacts.find(c => c.id === selection.id) || null} />
           ) : selection?.type === "activity" ? (
             <ActivityDetailPanel activity={activities.find(a => a.id === selection.id) || null} />
+          ) : selection?.type === "discussion" ? (
+            <DiscussionPanel entityType="project" entityId={workspaceId} onClose={() => setSelection(null)} />
           ) : (
             <div className="h-full overflow-y-auto p-6">
               {/* Current State */}
@@ -3281,11 +3311,13 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                       disabled={bulkMoving}
                       onClick={async () => {
                         setBulkMoving(true);
+                        const count = selectedTaskIds.size;
+                        const ids = Array.from(selectedTaskIds);
                         try {
-                          await reassignTasks(Array.from(selectedTaskIds), p.id);
-                          toast.success(`${selectedTaskIds.size} task${selectedTaskIds.size > 1 ? "s" : ""} moved`);
+                          await reassignTasks(ids, p.id);
+                          toast.success(`${count} task${count > 1 ? "s" : ""} moved to ${p.name}`);
                           setBulkProjectMenu(null);
-                        } catch { toast.error("Failed to move tasks"); }
+                        } catch (err: any) { toast.error(`Failed to move tasks: ${err?.message || err}`); }
                         finally { setBulkMoving(false); }
                       }}
                       className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${bulkMoving ? "opacity-50 cursor-wait" : isCurrent ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}

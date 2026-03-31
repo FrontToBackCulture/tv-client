@@ -55,7 +55,7 @@ export type Database = {
           is_internal: boolean
           page_path: string
           source: string
-          user_id: string | null
+          user_id: string
           view_date: string
           views: number
         }
@@ -66,7 +66,7 @@ export type Database = {
           is_internal?: boolean
           page_path: string
           source?: string
-          user_id?: string | null
+          user_id?: string
           view_date: string
           views?: number
         }
@@ -77,7 +77,7 @@ export type Database = {
           is_internal?: boolean
           page_path?: string
           source?: string
-          user_id?: string | null
+          user_id?: string
           view_date?: string
           views?: number
         }
@@ -257,6 +257,7 @@ export type Database = {
           industry: string | null
           name: string
           notes: string | null
+          partner_id: string | null
           referred_by: string | null
           research_folder_path: string | null
           source: string | null
@@ -279,6 +280,7 @@ export type Database = {
           industry?: string | null
           name: string
           notes?: string | null
+          partner_id?: string | null
           referred_by?: string | null
           research_folder_path?: string | null
           source?: string | null
@@ -301,6 +303,7 @@ export type Database = {
           industry?: string | null
           name?: string
           notes?: string | null
+          partner_id?: string | null
           referred_by?: string | null
           research_folder_path?: string | null
           source?: string | null
@@ -310,7 +313,15 @@ export type Database = {
           updated_at?: string | null
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "crm_companies_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partner_access"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       crm_contacts: {
         Row: {
@@ -634,6 +645,30 @@ export type Database = {
         }
         Relationships: []
       }
+      domain_health_checks: {
+        Row: {
+          check_type: string
+          checked_at: string
+          details: Json
+          domain: string
+          status: string
+        }
+        Insert: {
+          check_type: string
+          checked_at?: string
+          details?: Json
+          domain: string
+          status: string
+        }
+        Update: {
+          check_type?: string
+          checked_at?: string
+          details?: Json
+          domain?: string
+          status?: string
+        }
+        Relationships: []
+      }
       domain_metadata: {
         Row: {
           created_at: string
@@ -751,6 +786,7 @@ export type Database = {
           sent_at: string | null
           status: string
           subject: string
+          tokens: Record<string, string> | null
           updated_at: string
         }
         Insert: {
@@ -771,6 +807,7 @@ export type Database = {
           sent_at?: string | null
           status?: string
           subject: string
+          tokens?: Record<string, string> | null
           updated_at?: string
         }
         Update: {
@@ -791,6 +828,7 @@ export type Database = {
           sent_at?: string | null
           status?: string
           subject?: string
+          tokens?: Record<string, string> | null
           updated_at?: string
         }
         Relationships: [
@@ -1172,6 +1210,74 @@ export type Database = {
           },
         ]
       }
+      event_cache: {
+        Row: {
+          attendees: Json | null
+          body_preview: string | null
+          cached_at: string | null
+          cached_by: string | null
+          end_at: string | null
+          end_timezone: string | null
+          id: string
+          is_all_day: boolean | null
+          is_online_meeting: boolean | null
+          location: string | null
+          online_meeting_url: string | null
+          organizer_email: string | null
+          organizer_name: string | null
+          start_at: string | null
+          start_timezone: string | null
+          subject: string | null
+          web_link: string | null
+        }
+        Insert: {
+          attendees?: Json | null
+          body_preview?: string | null
+          cached_at?: string | null
+          cached_by?: string | null
+          end_at?: string | null
+          end_timezone?: string | null
+          id: string
+          is_all_day?: boolean | null
+          is_online_meeting?: boolean | null
+          location?: string | null
+          online_meeting_url?: string | null
+          organizer_email?: string | null
+          organizer_name?: string | null
+          start_at?: string | null
+          start_timezone?: string | null
+          subject?: string | null
+          web_link?: string | null
+        }
+        Update: {
+          attendees?: Json | null
+          body_preview?: string | null
+          cached_at?: string | null
+          cached_by?: string | null
+          end_at?: string | null
+          end_timezone?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          is_online_meeting?: boolean | null
+          location?: string | null
+          online_meeting_url?: string | null
+          organizer_email?: string | null
+          organizer_name?: string | null
+          start_at?: string | null
+          start_timezone?: string | null
+          subject?: string | null
+          web_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_cache_cached_by_fkey"
+            columns: ["cached_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_entity_links: {
         Row: {
           created_at: string
@@ -1484,6 +1590,196 @@ export type Database = {
           },
         ]
       }
+      job_run_steps: {
+        Row: {
+          cache_creation_tokens: number | null
+          cache_read_tokens: number | null
+          created_at: string | null
+          id: number
+          input_tokens: number | null
+          output_tokens: number | null
+          run_id: string
+          stop_reason: string | null
+          tool_details: Json | null
+          tools: string[] | null
+          turn_number: number
+        }
+        Insert: {
+          cache_creation_tokens?: number | null
+          cache_read_tokens?: number | null
+          created_at?: string | null
+          id?: never
+          input_tokens?: number | null
+          output_tokens?: number | null
+          run_id: string
+          stop_reason?: string | null
+          tool_details?: Json | null
+          tools?: string[] | null
+          turn_number: number
+        }
+        Update: {
+          cache_creation_tokens?: number | null
+          cache_read_tokens?: number | null
+          created_at?: string | null
+          id?: never
+          input_tokens?: number | null
+          output_tokens?: number | null
+          run_id?: string
+          stop_reason?: string | null
+          tool_details?: Json | null
+          tools?: string[] | null
+          turn_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduler_run_steps_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "job_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_runs: {
+        Row: {
+          cache_creation_tokens: number | null
+          cache_read_tokens: number | null
+          cost_usd: number | null
+          created_at: string
+          duration_secs: number | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          input_tokens: number | null
+          job_id: string | null
+          job_name: string
+          num_turns: number | null
+          output: string | null
+          output_preview: string | null
+          output_tokens: number | null
+          slack_posted: boolean | null
+          started_at: string
+          status: string
+          trigger: string
+        }
+        Insert: {
+          cache_creation_tokens?: number | null
+          cache_read_tokens?: number | null
+          cost_usd?: number | null
+          created_at?: string
+          duration_secs?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id: string
+          input_tokens?: number | null
+          job_id?: string | null
+          job_name: string
+          num_turns?: number | null
+          output?: string | null
+          output_preview?: string | null
+          output_tokens?: number | null
+          slack_posted?: boolean | null
+          started_at: string
+          status: string
+          trigger: string
+        }
+        Update: {
+          cache_creation_tokens?: number | null
+          cache_read_tokens?: number | null
+          cost_usd?: number | null
+          created_at?: string
+          duration_secs?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input_tokens?: number | null
+          job_id?: string | null
+          job_name?: string
+          num_turns?: number | null
+          output?: string | null
+          output_preview?: string | null
+          output_tokens?: number | null
+          slack_posted?: boolean | null
+          started_at?: string
+          status?: string
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_job_runs_job"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          allowed_tools: string[] | null
+          bot_path: string | null
+          created_at: string
+          cron_expression: string | null
+          enabled: boolean
+          generate_report: boolean
+          id: string
+          last_run_at: string | null
+          last_run_status: string | null
+          max_budget: number | null
+          model: string
+          name: string
+          report_prefix: string | null
+          skill_prompt: string
+          skill_refs: Json | null
+          slack_channel_name: string | null
+          slack_webhook_url: string | null
+          sod_reports_folder: string | null
+          updated_at: string
+        }
+        Insert: {
+          allowed_tools?: string[] | null
+          bot_path?: string | null
+          created_at?: string
+          cron_expression?: string | null
+          enabled?: boolean
+          generate_report?: boolean
+          id: string
+          last_run_at?: string | null
+          last_run_status?: string | null
+          max_budget?: number | null
+          model?: string
+          name: string
+          report_prefix?: string | null
+          skill_prompt: string
+          skill_refs?: Json | null
+          slack_channel_name?: string | null
+          slack_webhook_url?: string | null
+          sod_reports_folder?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allowed_tools?: string[] | null
+          bot_path?: string | null
+          created_at?: string
+          cron_expression?: string | null
+          enabled?: boolean
+          generate_report?: boolean
+          id?: string
+          last_run_at?: string | null
+          last_run_status?: string | null
+          max_budget?: number | null
+          model?: string
+          name?: string
+          report_prefix?: string | null
+          skill_prompt?: string
+          skill_refs?: Json | null
+          slack_channel_name?: string | null
+          slack_webhook_url?: string | null
+          sod_reports_folder?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       labels: {
         Row: {
           color: string
@@ -1687,6 +1983,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      partner_access: {
+        Row: {
+          active: boolean | null
+          code: string
+          company: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          last_accessed: string | null
+          name: string
+          phone: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          code: string
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          last_accessed?: string | null
+          name: string
+          phone?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          code?: string
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          last_accessed?: string | null
+          name?: string
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      plans: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          ends_at: string
+          horizon: string
+          id: string
+          sort_order: number | null
+          starts_at: string
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          ends_at: string
+          horizon: string
+          id?: string
+          sort_order?: number | null
+          starts_at: string
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string
+          horizon?: string
+          id?: string
+          sort_order?: number | null
+          starts_at?: string
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       portal_banners: {
         Row: {
@@ -3170,122 +3544,6 @@ export type Database = {
           },
         ]
       }
-      scheduler_run_steps: {
-        Row: {
-          cache_creation_tokens: number | null
-          cache_read_tokens: number | null
-          created_at: string | null
-          id: number
-          input_tokens: number | null
-          output_tokens: number | null
-          run_id: string
-          stop_reason: string | null
-          tool_details: Json | null
-          tools: string[] | null
-          turn_number: number
-        }
-        Insert: {
-          cache_creation_tokens?: number | null
-          cache_read_tokens?: number | null
-          created_at?: string | null
-          id?: never
-          input_tokens?: number | null
-          output_tokens?: number | null
-          run_id: string
-          stop_reason?: string | null
-          tool_details?: Json | null
-          tools?: string[] | null
-          turn_number: number
-        }
-        Update: {
-          cache_creation_tokens?: number | null
-          cache_read_tokens?: number | null
-          created_at?: string | null
-          id?: never
-          input_tokens?: number | null
-          output_tokens?: number | null
-          run_id?: string
-          stop_reason?: string | null
-          tool_details?: Json | null
-          tools?: string[] | null
-          turn_number?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "scheduler_run_steps_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "scheduler_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      scheduler_runs: {
-        Row: {
-          cache_creation_tokens: number | null
-          cache_read_tokens: number | null
-          cost_usd: number | null
-          created_at: string
-          duration_secs: number | null
-          error: string | null
-          finished_at: string | null
-          id: string
-          input_tokens: number | null
-          job_id: string
-          job_name: string
-          num_turns: number | null
-          output: string | null
-          output_preview: string | null
-          output_tokens: number | null
-          slack_posted: boolean | null
-          started_at: string
-          status: string
-          trigger: string
-        }
-        Insert: {
-          cache_creation_tokens?: number | null
-          cache_read_tokens?: number | null
-          cost_usd?: number | null
-          created_at?: string
-          duration_secs?: number | null
-          error?: string | null
-          finished_at?: string | null
-          id: string
-          input_tokens?: number | null
-          job_id: string
-          job_name: string
-          num_turns?: number | null
-          output?: string | null
-          output_preview?: string | null
-          output_tokens?: number | null
-          slack_posted?: boolean | null
-          started_at: string
-          status: string
-          trigger: string
-        }
-        Update: {
-          cache_creation_tokens?: number | null
-          cache_read_tokens?: number | null
-          cost_usd?: number | null
-          created_at?: string
-          duration_secs?: number | null
-          error?: string | null
-          finished_at?: string | null
-          id?: string
-          input_tokens?: number | null
-          job_id?: string
-          job_name?: string
-          num_turns?: number | null
-          output?: string | null
-          output_preview?: string | null
-          output_tokens?: number | null
-          slack_posted?: boolean | null
-          started_at?: string
-          status?: string
-          trigger?: string
-        }
-        Relationships: []
-      }
       skill_activity: {
         Row: {
           action: string
@@ -3558,69 +3816,6 @@ export type Database = {
           },
         ]
       }
-      team_members: {
-        Row: {
-          team_id: string
-          user_id: string
-          created_at: string
-        }
-        Insert: {
-          team_id: string
-          user_id: string
-          created_at?: string
-        }
-        Update: {
-          team_id?: string
-          user_id?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "team_members_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_members_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      teams: {
-        Row: {
-          id: string
-          name: string
-          slug: string
-          color: string
-          description: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          slug: string
-          color?: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          slug?: string
-          color?: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       task_attachments: {
         Row: {
           created_at: string | null
@@ -3703,7 +3898,7 @@ export type Database = {
           icon: string | null
           id: string
           name: string
-          project_id: string
+          project_id: string | null
           sort_order: number
           type: string
         }
@@ -3714,7 +3909,7 @@ export type Database = {
           icon?: string | null
           id?: string
           name: string
-          project_id: string
+          project_id?: string | null
           sort_order?: number
           type: string
         }
@@ -3725,7 +3920,7 @@ export type Database = {
           icon?: string | null
           id?: string
           name?: string
-          project_id?: string
+          project_id?: string | null
           sort_order?: number
           type?: string
         }
@@ -3887,6 +4082,123 @@ export type Database = {
           },
         ]
       }
+      team_members: {
+        Row: {
+          created_at: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          color: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      triage_config: {
+        Row: {
+          id: string
+          summary_max_tokens: number | null
+          summary_model: string | null
+          summary_system_prompt: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          summary_max_tokens?: number | null
+          summary_model?: string | null
+          summary_system_prompt: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          summary_max_tokens?: number | null
+          summary_model?: string | null
+          summary_system_prompt?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      triage_runs: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          details: Json | null
+          id: string
+          summary: string | null
+          tasks_scored: number | null
+          view: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          details?: Json | null
+          id?: string
+          summary?: string | null
+          tasks_scored?: number | null
+          view: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          details?: Json | null
+          id?: string
+          summary?: string | null
+          tasks_scored?: number | null
+          view?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           avatar_url: string | null
@@ -3944,6 +4256,62 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_summaries: {
+        Row: {
+          action_items: Json | null
+          client_folder: string
+          created_at: string | null
+          date: string
+          id: string
+          initiative_id: string
+          key_topics: Json | null
+          media_notes: string | null
+          message_count: number | null
+          participants: Json | null
+          source_file: string | null
+          summary: string
+          updated_at: string | null
+        }
+        Insert: {
+          action_items?: Json | null
+          client_folder: string
+          created_at?: string | null
+          date: string
+          id?: string
+          initiative_id: string
+          key_topics?: Json | null
+          media_notes?: string | null
+          message_count?: number | null
+          participants?: Json | null
+          source_file?: string | null
+          summary: string
+          updated_at?: string | null
+        }
+        Update: {
+          action_items?: Json | null
+          client_folder?: string
+          created_at?: string | null
+          date?: string
+          id?: string
+          initiative_id?: string
+          key_topics?: Json | null
+          media_notes?: string | null
+          message_count?: number | null
+          participants?: Json | null
+          source_file?: string | null
+          summary?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_summaries_initiative_id_fkey"
+            columns: ["initiative_id"]
+            isOneToOne: false
+            referencedRelation: "initiatives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -3963,6 +4331,18 @@ export type Database = {
           subject: string
         }[]
       }
+      search_all: {
+        Args: { entity_types?: string[]; query: string; result_limit?: number }
+        Returns: {
+          entity_id: string
+          entity_type: string
+          rank: number
+          subtitle: string
+          title: string
+        }[]
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       sync_notion_task: {
         Args: {
           p_assignee_id?: string

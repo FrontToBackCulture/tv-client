@@ -45,7 +45,7 @@ interface TeamConfigState {
 const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "projects", "domains", "skills"];
 
 // Admin identifiers — GitHub usernames or Microsoft emails
-const ADMIN_LOGINS = new Set(["melvinFTBC", "melvinwang", "melvin@thinkval.co"]);
+const ADMIN_LOGINS = new Set(["melvinFTBC", "melvinwang", "melvin@thinkval.com"]);
 
 // Legacy module IDs that were consolidated into "projects"
 const LEGACY_PROJECT_MODULES = new Set(["work", "workspace", "crm"]);

@@ -1,9 +1,7 @@
 // src/modules/work/TaskDetailPanel.tsx
 // Task detail panel/modal with full editing
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useState, useEffect, useMemo } from "react";
 import {
   useTask,
   useUpdateTask,
@@ -41,30 +39,22 @@ import {
   Download,
   ExternalLink,
   ChevronDown,
+  History,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "../../lib/supabase";
+import { useActivityBarStore } from "../../stores/activityBarStore";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { EmailsPanel } from "../../components/emails/EmailsPanel";
 import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
 import { useNotionPushTask, useNotionPullTask } from "../../hooks/useNotion";
-import { NotionContent } from "./NotionContent";
+import { TaskContentEditor } from "./TaskTipTapEditor";
 import { Button, IconButton } from "../../components/ui";
 import { DetailLoading } from "../../components/ui/DetailStates";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
 import { toast } from "../../stores/toastStore";
 import { useTaskFieldsStore } from "../../stores/taskFieldsStore";
-
-function AutoResizeTextarea({ minRows = 4, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { minRows?: number }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const resize = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.max(el.scrollHeight, minRows * 22)}px`;
-  }, [minRows]);
-  useEffect(() => { resize(); }, [props.value, resize]);
-  return <textarea ref={ref} onInput={resize} {...props} />;
-}
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -102,10 +92,8 @@ export function TaskDetailPanel({
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState("");
-  const [editingDescription, setEditingDescription] = useState(false);
-  const [descriptionValue, setDescriptionValue] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<"details" | "emails" | "discussion">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "emails" | "discussion" | "changes">("details");
   const { data: discussionCount } = useDiscussionCount("task", taskId);
   const { data: emailCount } = useLinkedEmailCount("task", taskId);
   const projectType = (task as any)?.project?.project_type || "work";
@@ -158,13 +146,6 @@ export function TaskDetailPanel({
     }
   }
 
-  async function handleSaveDescription() {
-    if (descriptionValue !== task?.description) {
-      await handleUpdateField("description", descriptionValue);
-    }
-    setEditingDescription(false);
-  }
-
   async function handleDelete() {
     try {
       await deleteMutation.mutateAsync(taskId);
@@ -200,15 +181,18 @@ export function TaskDetailPanel({
             <span className="text-zinc-300 dark:text-zinc-600 text-xs">›</span>
           )}
           {task.project && (
-            <span
-              className="px-2 py-0.5 rounded text-xs font-medium"
+            <button
+              onClick={() => {
+                useActivityBarStore.getState().openProject((task.project as any)!.id);
+              }}
+              className="px-2 py-0.5 rounded text-xs font-medium hover:opacity-75 transition-opacity cursor-pointer"
               style={{
                 backgroundColor: `${task.project.color}20`,
                 color: task.project.color || "#6B7280",
               }}
             >
               {task.project.name}
-            </span>
+            </button>
           )}
           {task.notion_page_id && (
             <a
@@ -267,6 +251,16 @@ export function TaskDetailPanel({
             </span>
           )}
         </button>
+        <button
+          onClick={() => setActiveTab("changes")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
+            activeTab === "changes"
+              ? "border-teal-500 text-teal-600 dark:text-teal-400"
+              : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          }`}
+        >
+          <History size={13} />
+        </button>
       </div>
 
       {/* Content */}
@@ -274,6 +268,8 @@ export function TaskDetailPanel({
         <EmailsPanel entityType="task" entityId={taskId} />
       ) : activeTab === "discussion" ? (
         <DiscussionPanel entityType="task" entityId={taskId} />
+      ) : activeTab === "changes" ? (
+        <TaskChangesPanel taskId={taskId} />
       ) : (
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-6">
@@ -608,45 +604,13 @@ export function TaskDetailPanel({
           {/* Description */}
           <div>
             <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Description</h3>
-            {editingDescription ? (
-              <div>
-                <AutoResizeTextarea
-                  value={descriptionValue}
-                  onChange={(e) => setDescriptionValue(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm rounded-md bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500 border-none leading-relaxed resize-none"
-                  autoFocus
-                  minRows={4}
-                />
-                <div className="flex justify-end gap-2 mt-2">
-                  <Button variant="ghost" onClick={() => setEditingDescription(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSaveDescription}>
-                    Save
-                  </Button>
-                </div>
-              </div>
-            ) : task.notion_page_id ? (
-              <div className="px-1 py-1 text-sm text-zinc-700 dark:text-zinc-300">
-                <NotionContent description={task.description} />
-              </div>
-            ) : (
-              <div
-                onClick={() => {
-                  setDescriptionValue(task.description || "");
-                  setEditingDescription(true);
-                }}
-                className="px-1 py-1 text-sm text-zinc-700 dark:text-zinc-300 rounded-md cursor-text hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
-              >
-                {task.description ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-li:my-0 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.description}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <span className="text-zinc-400 dark:text-zinc-600">Add a description...</span>
-                )}
-              </div>
-            )}
+            <div className="px-1 py-1 text-sm text-zinc-700 dark:text-zinc-300">
+              <TaskContentEditor
+                taskId={task.id}
+                content={(task as any).description_json}
+                onUpdated={onUpdated}
+              />
+            </div>
           </div>
 
           {/* Activity */}
@@ -762,6 +726,88 @@ export function TaskDetailPanel({
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Task Changes Panel ──────────────────────────────────────────────────
+
+const FIELD_LABELS: Record<string, string> = {
+  due_date: "Due Date",
+  title: "Title",
+  status_id: "Status",
+  priority: "Priority",
+  project_id: "Project",
+  company_id: "Company",
+  triage_action: "Triage Action",
+  triage_score: "Triage Score",
+  archived_at: "Archived",
+};
+
+function TaskChangesPanel({ taskId }: { taskId: string }) {
+  const { data: changes = [], isLoading } = useQuery({
+    queryKey: ["task_changes", taskId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("task_changes")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("changed_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  if (isLoading) {
+    return <div className="p-4 text-xs text-zinc-400">Loading changes...</div>;
+  }
+
+  if (changes.length === 0) {
+    return <div className="p-4 text-xs text-zinc-400">No changes recorded yet.</div>;
+  }
+
+  // Group by date
+  const grouped = new Map<string, typeof changes>();
+  for (const c of changes) {
+    const day = new Date(c.changed_at).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
+    if (!grouped.has(day)) grouped.set(day, []);
+    grouped.get(day)!.push(c);
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4">
+      {[...grouped.entries()].map(([day, dayChanges]) => (
+        <div key={day} className="mb-4">
+          <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">{day}</div>
+          <div className="space-y-1.5">
+            {dayChanges.map((c) => (
+              <div key={c.id} className="flex items-start gap-2 text-xs">
+                <span className="text-[10px] text-zinc-400 flex-shrink-0 w-12 text-right mt-0.5">
+                  {new Date(c.changed_at).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-zinc-600 dark:text-zinc-300">{FIELD_LABELS[c.field] || c.field}</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {c.old_value && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/10 text-red-500 line-through truncate max-w-[140px]" title={c.old_value}>
+                        {c.old_value}
+                      </span>
+                    )}
+                    <span className="text-zinc-400">&rarr;</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 truncate max-w-[140px]" title={c.new_value || "(empty)"}>
+                      {c.new_value || "(empty)"}
+                    </span>
+                  </div>
+                  {c.changed_by && (
+                    <span className="text-[9px] text-zinc-400 mt-0.5 block">by {c.changed_by}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

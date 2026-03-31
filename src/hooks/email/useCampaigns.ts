@@ -165,7 +165,7 @@ export interface CampaignRecipient {
 
 export function useCampaignRecipients(campaignId: string | null, groupId: string | null) {
   return useQuery({
-    queryKey: [...emailKeys.eventsByCampaign(campaignId || ""), "recipients"],
+    queryKey: [...emailKeys.eventsByCampaign(campaignId || ""), "recipients", groupId],
     queryFn: async (): Promise<CampaignRecipient[]> => {
       if (!campaignId || !groupId) return [];
 
@@ -368,6 +368,7 @@ export function useCloneEmailCampaign() {
           html_body: original.html_body,
           report_path: original.report_path,
           bcc_email: original.bcc_email,
+          tokens: original.tokens,
           status: "draft",
         })
         .select()

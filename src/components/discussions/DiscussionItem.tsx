@@ -1,35 +1,52 @@
-// src/components/discussions/DiscussionItem.tsx
-// Single comment in a discussion thread
+// Single comment in a discussion thread — shared across Chat module and entity panels
 
 import { useState } from "react";
 import { Pencil, Trash2, Check, X, Reply } from "lucide-react";
 import type { Discussion } from "../../hooks/useDiscussions";
 
-/** Render body text with @mentions highlighted */
+/** Render body text with @mentions and [[entity]] links highlighted */
 function renderBodyWithMentions(text: string): React.ReactNode {
-  const parts = text.split(/(@[\w-]+)/g);
+  // Split on @mentions and [[entity:label|id]] patterns
+  const parts = text.split(/(@[\w-]+|\[\[[\w]+:[^|]+\|[^\]]+\]\])/g);
   if (parts.length === 1) return text;
-  return parts.map((part, i) =>
-    part.startsWith("@") ? (
-      <span key={i} className="text-teal-600 dark:text-teal-400 font-medium">
-        {part}
-      </span>
-    ) : (
-      part
-    )
-  );
+  return parts.map((part, i) => {
+    if (part.startsWith("@")) {
+      return (
+        <span key={i} className="font-medium text-[var(--color-accent)]">
+          {part}
+        </span>
+      );
+    }
+    // [[type:Label|uuid]]
+    const entityMatch = part.match(/^\[\[([\w]+):([^|]+)\|([^\]]+)\]\]$/);
+    if (entityMatch) {
+      const [, type, label] = entityMatch;
+      const colors: Record<string, string> = {
+        company: "text-[var(--color-info)]",
+        task: "text-[var(--color-warning)]",
+        project: "text-[var(--color-purple)]",
+      };
+      return (
+        <span key={i} className={`font-medium ${colors[type] || "text-[var(--color-accent)]"}`}>
+          {label}
+        </span>
+      );
+    }
+    return part;
+  });
 }
 
 // Author colors for visual distinction
 const authorColors: Record<string, string> = {
-  melvin: "text-teal-600 dark:text-teal-400",
-  darren: "text-blue-600 dark:text-blue-400",
-  "bot-mel": "text-purple-600 dark:text-purple-400",
-  "bot-dar": "text-indigo-600 dark:text-indigo-400",
+  melvin: "text-[var(--color-teal)]",
+  darren: "text-[var(--color-info)]",
+  "bot-mel": "text-[var(--color-purple)]",
+  "bot-dar": "text-[var(--color-info-dark)]",
+  "mel-tv": "text-[var(--color-teal)]",
 };
 
 function getAuthorColor(author: string): string {
-  return authorColors[author] || "text-zinc-600 dark:text-zinc-400";
+  return authorColors[author] || "text-[var(--text-secondary)]";
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -50,7 +67,7 @@ function formatRelativeTime(dateStr: string): string {
 interface DiscussionItemProps {
   discussion: Discussion;
   currentUser: string;
-  currentUserAliases?: string[]; // Additional names to match for ownership (github login, etc.)
+  currentUserAliases?: string[];
   onUpdate: (id: string, body: string) => void;
   onDelete: (id: string) => void;
   onReply?: (parentId: string) => void;
@@ -68,7 +85,6 @@ export function DiscussionItem({
 }: DiscussionItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editBody, setEditBody] = useState(discussion.body);
-  // Match ownership against canonical name + any aliases (github login, display name)
   const allNames = [currentUser, ...currentUserAliases].map((n) => n.toLowerCase());
   const isOwn = allNames.includes(discussion.author.toLowerCase());
 
@@ -86,30 +102,32 @@ export function DiscussionItem({
 
   return (
     <div
-      className={`group px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors ${
-        isReply ? "ml-6 border-l-2 border-zinc-200 dark:border-zinc-800" : ""
+      className={`group px-3 py-2 transition-colors duration-100 ${
+        isReply
+          ? "ml-6 border-l-2 border-[var(--border-default)]"
+          : "hover:bg-[var(--bg-muted)]/50 dark:hover:bg-[var(--bg-muted)]/50 rounded-lg"
       }`}
     >
-      {/* Header: author + time + actions */}
+      {/* Header */}
       <div className="flex items-center gap-2 mb-0.5">
-        <span className={`text-xs font-semibold ${getAuthorColor(discussion.author)}`}>
+        <span className={`text-[11px] font-semibold ${getAuthorColor(discussion.author)}`}>
           {discussion.author}
         </span>
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-600">
+        <span className="text-[10px] text-[var(--text-muted)]">
           {formatRelativeTime(discussion.created_at)}
         </span>
         {discussion.updated_at !== discussion.created_at && (
-          <span className="text-[10px] text-zinc-400 dark:text-zinc-600 italic">
+          <span className="text-[10px] text-[var(--text-muted)] italic">
             (edited)
           </span>
         )}
-        {/* Actions — always visible (small team, everyone can delete) */}
+        {/* Actions */}
         {!isEditing && (
-          <div className="ml-auto flex gap-0.5">
+          <div className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
             {onReply && !isReply && (
               <button
                 onClick={() => onReply(discussion.id)}
-                className="p-0.5 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--bg-muted)] transition-colors duration-100"
                 title="Reply"
               >
                 <Reply size={12} />
@@ -118,7 +136,7 @@ export function DiscussionItem({
             {isOwn && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="p-0.5 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)] transition-colors duration-100"
                 title="Edit"
               >
                 <Pencil size={12} />
@@ -126,7 +144,7 @@ export function DiscussionItem({
             )}
             <button
               onClick={() => onDelete(discussion.id)}
-              className="p-0.5 rounded text-zinc-400 hover:text-red-500"
+              className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--color-error)] hover:bg-[var(--color-error-light)] transition-colors duration-100"
               title="Delete"
             >
               <Trash2 size={12} />
@@ -137,11 +155,11 @@ export function DiscussionItem({
 
       {/* Body */}
       {isEditing ? (
-        <div className="flex gap-1.5 items-start">
+        <div className="flex gap-1.5 items-start mt-1">
           <textarea
             value={editBody}
             onChange={(e) => setEditBody(e.target.value)}
-            className="flex-1 text-sm bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-2 py-1 text-zinc-800 dark:text-zinc-200 resize-none focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="flex-1 text-[13px] bg-[var(--bg-muted)] dark:bg-[var(--bg-muted)] border-0 rounded-xl px-3 py-1.5 text-[var(--text-primary)] resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
             rows={2}
             autoFocus
             onKeyDown={(e) => {
@@ -149,15 +167,15 @@ export function DiscussionItem({
               if (e.key === "Escape") handleCancel();
             }}
           />
-          <button onClick={handleSave} className="p-1 text-teal-600 hover:text-teal-700">
+          <button onClick={handleSave} className="p-1 rounded-md text-[var(--color-accent)] hover:bg-[var(--color-teal-light)]">
             <Check size={14} />
           </button>
-          <button onClick={handleCancel} className="p-1 text-zinc-400 hover:text-zinc-600">
+          <button onClick={handleCancel} className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)]">
             <X size={14} />
           </button>
         </div>
       ) : (
-        <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap break-words">
+        <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap break-words leading-relaxed">
           {renderBodyWithMentions(discussion.body)}
         </p>
       )}

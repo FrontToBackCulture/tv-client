@@ -165,7 +165,7 @@ export function BlogEditor({ article, onBack, onSave }: BlogEditorProps) {
           </button>
           {article.status === "published" && (
             <a
-              href={`https://thinkval.co/news/${article.slug}`}
+              href={`https://thinkval.com/news/${article.slug}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-zinc-500 hover:text-blue-600 transition-colors"

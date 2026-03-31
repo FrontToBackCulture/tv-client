@@ -1,7 +1,7 @@
 // src/modules/library/LibraryModule.tsx
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Library, Search, X, File, Folder, FolderOpen, ChevronRight, ChevronDown, Loader2, Clock } from "lucide-react";
+import { Library, Search, X, File, Folder, FolderOpen, ChevronRight, ChevronDown, Loader2, Clock, PanelLeftOpen } from "lucide-react";
 import { SectionLoading } from "../../components/ui/DetailStates";
 import { invoke } from "@tauri-apps/api/core";
 import { Sidebar } from "./Sidebar";
@@ -14,6 +14,8 @@ import { useRecentFilesStore } from "../../stores/recentFilesStore";
 import { useFileSearch } from "../../hooks/useSearch";
 import { useFileTree, useFolderChildren, TreeNode } from "../../hooks/useFiles";
 import { useViewContextStore } from "../../stores/viewContextStore";
+import { useNotificationNavStore } from "../../stores/notificationNavStore";
+import { useCollapsiblePanel } from "../../hooks/useCollapsiblePanel";
 
 // Sidebar width constraints
 const MIN_SIDEBAR_WIDTH = 200;
@@ -39,6 +41,7 @@ export function LibraryModule() {
   const setSplitFile = useTabStore((s) => s.setSplitFile);
   const closeSplit = useTabStore((s) => s.closeSplit);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useCollapsiblePanel("tv-library-sidebar-collapsed");
   const [splitWidth, setSplitWidth] = useState(0.5); // fraction of content area
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -58,6 +61,18 @@ export function LibraryModule() {
       setViewContext("empty", "No file open");
     }
   }, [activeTab, setViewContext, setViewDetail]);
+
+  // Handle navigation from chat entity cards / notification bell
+  const navTarget = useNotificationNavStore((s) => s.target);
+  const clearNavTarget = useNotificationNavStore((s) => s.clearTarget);
+  useEffect(() => {
+    if (navTarget?.entityType === "file") {
+      const filePath = navTarget.entityId;
+      const fileName = filePath.split("/").pop() || filePath;
+      openTab(filePath, fileName, false);
+      clearNavTarget();
+    }
+  }, [navTarget, clearNavTarget, openTab]);
 
   // Clear tabs when repository changes
   const handleRepositoryChange = useCallback(() => {
@@ -209,23 +224,40 @@ export function LibraryModule() {
   return (
     <div ref={containerRef} className="h-full flex bg-zinc-50 dark:bg-zinc-950">
       {/* Sidebar with file tree */}
-      <Sidebar
-        key={activeRepository?.id ?? "no-repo"}
-        knowledgePath={knowledgePath}
-        selectedPath={activeTab?.path ?? null}
-        onFileSelect={handleFileSelect}
-        onPinSelect={handleFilePinned}
-        onRepositoryChange={handleRepositoryChange}
-        width={sidebarWidth}
-      />
+      <div className="flex-shrink-0 flex flex-col transition-all duration-200" style={{ width: sidebarCollapsed ? 40 : sidebarWidth }}>
+        {sidebarCollapsed ? (
+          <div className="flex flex-col items-center py-2">
+            <button
+              onClick={toggleSidebar}
+              className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              title="Expand panel"
+            >
+              <PanelLeftOpen size={14} />
+            </button>
+          </div>
+        ) : (
+          <Sidebar
+            key={activeRepository?.id ?? "no-repo"}
+            knowledgePath={knowledgePath}
+            selectedPath={activeTab?.path ?? null}
+            onFileSelect={handleFileSelect}
+            onPinSelect={handleFilePinned}
+            onRepositoryChange={handleRepositoryChange}
+            width={sidebarWidth}
+            onCollapse={toggleSidebar}
+          />
+        )}
+      </div>
 
       {/* Resize handle */}
-      <div
-        onMouseDown={handleMouseDown}
-        className={`w-1 cursor-col-resize hover:bg-teal-500/50 transition-colors flex-shrink-0 ${
-          isResizing ? "bg-teal-500" : "bg-transparent hover:bg-zinc-300 dark:hover:bg-zinc-700"
-        }`}
-      />
+      {!sidebarCollapsed && (
+        <div
+          onMouseDown={handleMouseDown}
+          className={`w-1 cursor-col-resize hover:bg-teal-500/50 transition-colors flex-shrink-0 ${
+            isResizing ? "bg-teal-500" : "bg-transparent hover:bg-zinc-300 dark:hover:bg-zinc-700"
+          }`}
+        />
+      )}
 
       {/* Main content area: tab bar + viewer */}
       <div className="flex-1 flex flex-col overflow-hidden">

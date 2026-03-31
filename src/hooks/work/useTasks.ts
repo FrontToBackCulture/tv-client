@@ -24,7 +24,7 @@ export function useTasks(projectId: string | null) {
           *,
           status:task_statuses(*),
           labels:task_labels(label:labels(*)),
-          project:projects(identifier_prefix, name, color, project_type),
+          project:projects(id, identifier_prefix, name, color, project_type),
           milestone:milestones(*),
           assignees:task_assignees(user:users(*)),
           creator:users!tasks_created_by_fkey(*),
@@ -59,7 +59,7 @@ export function useAllTasks() {
             `
             *,
             status:task_statuses(id, name, type, color),
-            project:projects(identifier_prefix, name, color, project_type),
+            project:projects(id, identifier_prefix, name, color, project_type),
             assignees:task_assignees(user:users(id, name)),
             company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage),
             contact:crm_contacts!tasks_contact_id_fkey(id, name, email)
@@ -95,7 +95,7 @@ export function useTask(id: string | null) {
           status:task_statuses(*),
           labels:task_labels(label:labels(*)),
           activity:task_activity(*),
-          project:projects(identifier_prefix, name, color, project_type),
+          project:projects(id, identifier_prefix, name, color, project_type),
           milestone:milestones(*),
           assignees:task_assignees(user:users(*)),
           creator:users!tasks_created_by_fkey(*),

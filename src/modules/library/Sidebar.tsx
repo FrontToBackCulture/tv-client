@@ -14,6 +14,7 @@ import {
   X,
   ChevronsUpDown,
   ChevronsDownUp,
+  PanelLeftClose,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileTree } from "./FileTree";
@@ -34,9 +35,10 @@ interface SidebarProps {
   onPinSelect?: (path: string) => void;
   onRepositoryChange?: () => void;
   width?: number;
+  onCollapse?: () => void;
 }
 
-export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect, onRepositoryChange, width = 256 }: SidebarProps) {
+export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect, onRepositoryChange, width = 256, onCollapse }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [showFavorites, setShowFavorites] = useState(true);
@@ -109,6 +111,15 @@ export function Sidebar({ knowledgePath, selectedPath, onFileSelect, onPinSelect
       <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
+            {onCollapse && (
+              <button
+                onClick={onCollapse}
+                className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors flex-shrink-0"
+                title="Collapse panel"
+              >
+                <PanelLeftClose size={12} />
+              </button>
+            )}
             <FolderOpen size={16} className="text-zinc-500" />
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Files</span>
           </div>

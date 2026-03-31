@@ -23,7 +23,13 @@ import { useNotificationNavStore } from "../../stores/notificationNavStore";
 type EmailView = "contacts" | "groups" | "campaigns" | "templates" | "analytics";
 
 export function EmailModule() {
-  const [activeView, setActiveView] = useState<EmailView>("contacts");
+  const [activeView, setActiveViewRaw] = useState<EmailView>(
+    () => (localStorage.getItem("email-active-tab") as EmailView) || "contacts"
+  );
+  const setActiveView = (v: EmailView) => {
+    localStorage.setItem("email-active-tab", v);
+    setActiveViewRaw(v);
+  };
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);

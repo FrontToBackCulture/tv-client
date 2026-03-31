@@ -569,6 +569,7 @@ fn main() {
             commands::email::email_send_test,
             commands::email::email_send_draft,
             commands::email::email_upload_report,
+            commands::email::email_clear_report,
             commands::email::email_test_ses_connection,
             // Discussions
             commands::discussions::discussions_list,
