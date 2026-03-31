@@ -18,7 +18,7 @@ jobs:
             target: aarch64-apple-darwin
             label: macOS-arm64
             suffix: arm64
-          - platform: windows-latest
+          - platform: windows-latest-large
             target: x86_64-pc-windows-msvc
             label: Windows-x64
             suffix: win-x64
