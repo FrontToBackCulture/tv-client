@@ -1,7 +1,7 @@
 // src/modules/product/DomainDetailPanel.tsx
 // Domain detail with auth status, sync controls, and artifact status
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   useValAuth,
   useValCredentials,
@@ -12,6 +12,7 @@ import {
   useValSyncAll,
   useValSyncArtifact,
   useUpdateDomainType,
+  useAiTableCoverage,
 } from "../../hooks/val-sync";
 import { StatusChip } from "./StatusChip";
 import {
@@ -57,6 +58,10 @@ import {
   type DomainDetailPanelProps, type Tab,
 } from "./domainDetailShared";
 import { useDomainTypeConfig } from "./useDomainTypeConfig";
+import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
+import * as XLSX from "xlsx";
 
 export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards, discoveredDomain }: DomainDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -99,6 +104,44 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
 
   const isSyncing = syncAllMutation.isPending || syncArtifactMutation.isPending;
   const { data: discussionCount } = useDiscussionCount("domain", domain);
+  const paths = useKnowledgePaths();
+  const tableCoverageMutation = useAiTableCoverage();
+
+  const handleExportAiTableCoverage = useCallback(async () => {
+    if (!paths?.skills) return;
+    const result = await tableCoverageMutation.mutateAsync({ domain, skillsPath: paths.skills });
+
+    const wb = XLSX.utils.book_new();
+
+    // Tab 1: Tables used by AI Skills
+    const aiData = result.ai_tables.map((t) => ({
+      "Table ID": t.table_id,
+      "Display Name": t.display_name,
+      Space: t.space,
+      Zone: t.zone,
+    }));
+    const aiSheet = XLSX.utils.json_to_sheet(aiData.length ? aiData : [{ "Table ID": "(none)", "Display Name": "", Space: "", Zone: "" }]);
+    XLSX.utils.book_append_sheet(wb, aiSheet, "AI Skill Tables");
+
+    // Tab 2: Tables NOT used by AI Skills
+    const unusedData = result.unused_tables.map((t) => ({
+      "Table ID": t.table_id,
+      "Display Name": t.display_name,
+      Space: t.space,
+      Zone: t.zone,
+    }));
+    const unusedSheet = XLSX.utils.json_to_sheet(unusedData.length ? unusedData : [{ "Table ID": "(none)", "Display Name": "", Space: "", Zone: "" }]);
+    XLSX.utils.book_append_sheet(wb, unusedSheet, "Unused Tables");
+
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    const filePath = await save({
+      defaultPath: `${domain}-ai-table-coverage.xlsx`,
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+    });
+    if (!filePath) return;
+    await writeFile(filePath, new Uint8Array(buf));
+  }, [domain, paths?.skills, tableCoverageMutation]);
 
   // Sync dropdown menu
   const [syncMenuOpen, setSyncMenuOpen] = useState(false);
@@ -337,6 +380,15 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                           {label}
                         </button>
                       ))}
+                      <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                      <div className="px-3 py-1 text-xs text-zinc-400 uppercase tracking-wider">Export</div>
+                      <button
+                        onClick={() => { handleExportAiTableCoverage(); setSyncMenuOpen(false); }}
+                        disabled={tableCoverageMutation.isPending}
+                        className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+                      >
+                        {tableCoverageMutation.isPending ? "Exporting..." : "AI Table Coverage"}
+                      </button>
                     </div>
                   )}
                 </div>

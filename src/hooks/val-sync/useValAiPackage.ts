@@ -95,6 +95,33 @@ export function useSaveDomainAiConfig() {
   });
 }
 
+// ============================================================
+// AI Table Coverage
+// ============================================================
+
+export interface TableEntry {
+  table_id: string;
+  display_name: string;
+  space: string;
+  zone: string;
+}
+
+export interface AiTableCoverageResult {
+  ai_tables: TableEntry[];
+  unused_tables: TableEntry[];
+}
+
+/** Get AI table coverage for a domain — tables used by AI skills vs unused domain tables */
+export function useAiTableCoverage() {
+  return useMutation({
+    mutationFn: (params: { domain: string; skillsPath: string }) =>
+      invoke<AiTableCoverageResult>("val_ai_table_coverage", {
+        domain: params.domain,
+        skillsPath: params.skillsPath,
+      }),
+  });
+}
+
 /** Get deployment status for a skill across all domains (configured, generated, S3, drift) */
 export function useSkillDeploymentStatus(
   skill: string | null,

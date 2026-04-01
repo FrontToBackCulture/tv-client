@@ -113,6 +113,7 @@ export function ChatModule() {
       last_activity_at: result.created_at,
       message_count: 1,
       last_author: currentUser,
+      participants: [currentUser.toLowerCase()],
     };
     setSelectedThread(newThread);
 
@@ -130,6 +131,7 @@ export function ChatModule() {
           threads={threads}
           readPositions={readPositions}
           selectedThreadId={selectedThread?.id ?? null}
+          currentUser={currentUser}
           onSelect={setSelectedThread}
           onNewThread={() => setShowNewThread(true)}
           onDeleteThread={handleDeleteThread}

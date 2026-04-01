@@ -17,6 +17,8 @@ export interface Thread {
   last_activity_at: string;
   message_count: number;
   last_author: string;
+  /** All unique authors who participated in this thread */
+  participants: string[];
 }
 
 /** Fetch unique threads (one per entity) sorted by last activity */
@@ -36,6 +38,28 @@ export function useThreads() {
       if (error) throw new Error(error.message);
       const rows = (data ?? []) as (Thread & { message_count?: number; last_author?: string })[];
 
+      // Also fetch all authors per entity (for participant tracking)
+      const { data: allMessages } = await supabase
+        .from("discussions")
+        .select("entity_type, entity_id, author, body")
+        .limit(2000);
+
+      // Build participant + mention sets per entity
+      const entityParticipants = new Map<string, Set<string>>();
+      for (const m of allMessages ?? []) {
+        const key = `${m.entity_type}:${m.entity_id}`;
+        if (!entityParticipants.has(key)) entityParticipants.set(key, new Set());
+        const set = entityParticipants.get(key)!;
+        set.add(m.author.toLowerCase());
+        // Extract @mentions from body
+        const mentions = m.body.match(/@([\w-]+)/g);
+        if (mentions) {
+          for (const mention of mentions) {
+            set.add(mention.slice(1).toLowerCase());
+          }
+        }
+      }
+
       // Group by entity_type:entity_id
       // First row per group = oldest message = stable title
       const grouped = new Map<string, Thread>();
@@ -49,6 +73,7 @@ export function useThreads() {
             title: row.title || row.body.slice(0, 60),
             message_count: 1,
             last_author: row.author,
+            participants: [...(entityParticipants.get(key) ?? [])],
           });
         } else {
           existing.message_count = (existing.message_count || 1) + 1;
@@ -58,10 +83,7 @@ export function useThreads() {
             existing.id = row.id; // representative ID for read tracking = latest message
           }
           existing.last_author = row.author;
-          // If an explicit title was set (via NewThreadModal), prefer it
-          if (row.title && !existing.title?.includes(existing.body.slice(0, 10))) {
-            // Keep the explicit title from the first message
-          }
+          existing.participants = [...(entityParticipants.get(key) ?? [])];
         }
       }
 

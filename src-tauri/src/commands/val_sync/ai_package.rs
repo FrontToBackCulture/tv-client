@@ -5,7 +5,9 @@
 
 use super::config::load_config_internal;
 use crate::commands::error::{CmdResult, CommandError};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 use tauri::command;
@@ -190,6 +192,78 @@ fn copy_skill_dir_recursive(
                     errors.push(format!("Failed to copy {}/{}: {}", skill, fname, e));
                 }
             }
+        }
+    }
+}
+
+/// Extract table IDs and display names from skill reference files.
+/// Scans .md and .sql files for `custom_tbl_*` and `perspective_tbl_*` patterns.
+/// Tries to pull display names from markdown table rows like `| Name | \`table_id\` |`.
+fn extract_tables_from_skills(
+    skills_path: &Path,
+    skills: &[String],
+) -> Vec<(String, String)> {
+    let table_id_re = Regex::new(r"(?:custom_tbl_\d+_\d+|perspective_tbl_\d+)").unwrap();
+    // Match markdown table rows: | Display Name | `table_id` | ...
+    let table_row_re = Regex::new(
+        r"\|\s*([^|]+?)\s*\|\s*`((?:custom_tbl_\d+_\d+|perspective_tbl_\d+))`\s*\|"
+    ).unwrap();
+
+    // table_id -> display_name (BTreeMap for sorted output)
+    let mut tables: BTreeMap<String, String> = BTreeMap::new();
+
+    for skill in skills {
+        let skill_dir = skills_path.join(skill);
+        if !skill_dir.exists() { continue; }
+        collect_tables_recursive(&skill_dir, &table_id_re, &table_row_re, &mut tables);
+    }
+
+    tables.into_iter().collect()
+}
+
+/// Recursively scan a directory for table IDs in .md and .sql files.
+fn collect_tables_recursive(
+    dir: &Path,
+    table_id_re: &Regex,
+    table_row_re: &Regex,
+    tables: &mut BTreeMap<String, String>,
+) {
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_tables_recursive(&path, table_id_re, table_row_re, tables);
+            continue;
+        }
+
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if ext != "md" && ext != "sql" {
+            continue;
+        }
+
+        let content = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        // First pass: extract table IDs with display names from markdown table rows
+        for cap in table_row_re.captures_iter(&content) {
+            let display_name = cap[1].trim().to_string();
+            let table_id = cap[2].to_string();
+            // Only set if we don't already have a display name, or if current is just the ID
+            if !tables.contains_key(&table_id) || tables[&table_id] == table_id {
+                tables.insert(table_id, display_name);
+            }
+        }
+
+        // Second pass: catch any table IDs not in markdown table rows (e.g. in SQL or prose)
+        for mat in table_id_re.find_iter(&content) {
+            let table_id = mat.as_str().to_string();
+            tables.entry(table_id.clone()).or_insert(table_id);
         }
     }
 }
@@ -425,6 +499,126 @@ pub fn val_list_domain_ai_status(
     });
 
     Ok(statuses)
+}
+
+// ============================================================================
+// AI Table Coverage — which domain tables are/aren't used by AI skills
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TableEntry {
+    pub table_id: String,
+    pub display_name: String,
+    pub space: String,
+    pub zone: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiTableCoverageResult {
+    pub ai_tables: Vec<TableEntry>,
+    pub unused_tables: Vec<TableEntry>,
+}
+
+/// Recursively flatten all tables from all_tables.json tree structure.
+fn flatten_domain_tables(nodes: &[serde_json::Value]) -> Vec<TableEntry> {
+    let mut tables = Vec::new();
+    for node in nodes {
+        let node_type = node.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        if node_type == "repoTable" {
+            let table_id = node.get("table_name").and_then(|t| t.as_str()).unwrap_or("").to_string();
+            let display_name = node.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+            let space = node.get("spaceName").and_then(|s| s.as_str()).unwrap_or("").to_string();
+            let zone = node.get("zoneName").and_then(|z| z.as_str()).unwrap_or("").to_string();
+            if !table_id.is_empty() {
+                tables.push(TableEntry { table_id, display_name, space, zone });
+            }
+        }
+        // Recurse into children
+        if let Some(children) = node.get("children").and_then(|c| c.as_array()) {
+            tables.extend(flatten_domain_tables(children));
+        }
+        // Also recurse into repo_phase_data (phases contain repos which contain tables)
+        if let Some(rpd) = node.get("repo_phase_data").and_then(|r| r.as_array()) {
+            tables.extend(flatten_domain_tables(rpd));
+        }
+    }
+    tables
+}
+
+/// Get AI table coverage for a domain — tables used by AI skills vs all domain tables.
+#[command]
+pub fn val_ai_table_coverage(
+    domain: String,
+    skills_path: String,
+) -> CmdResult<AiTableCoverageResult> {
+    let skills_base = Path::new(&skills_path);
+    let config = load_config_internal()?;
+    let domain_config = config
+        .domains
+        .iter()
+        .find(|d| d.domain == domain)
+        .ok_or_else(|| CommandError::NotFound(format!("Domain '{}' not found", domain)))?;
+
+    let global_path = Path::new(&domain_config.global_path);
+
+    // Read ai_config to get assigned skills
+    let ai_path = global_path.join("ai");
+    let ai_config = read_ai_config(&ai_path);
+
+    // Extract tables referenced by AI skills
+    let ai_table_map = extract_tables_from_skills(skills_base, &ai_config.skills);
+    let ai_table_ids: std::collections::HashSet<String> = ai_table_map.iter().map(|(id, _)| id.clone()).collect();
+
+    // Read all_tables.json for the domain
+    let schema_path = global_path.join("schema").join("all_tables.json");
+    let all_domain_tables = if schema_path.exists() {
+        let raw = fs::read_to_string(&schema_path)?;
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&raw)?;
+        let mut flat = flatten_domain_tables(&parsed);
+        // Deduplicate by table_id
+        let mut seen = std::collections::HashSet::new();
+        flat.retain(|t| seen.insert(t.table_id.clone()));
+        flat.sort_by(|a, b| a.table_id.cmp(&b.table_id));
+        flat
+    } else {
+        Vec::new()
+    };
+
+    // Build the domain table lookup for enriching AI tables with space/zone
+    let domain_lookup: std::collections::HashMap<String, &TableEntry> = all_domain_tables
+        .iter()
+        .map(|t| (t.table_id.clone(), t))
+        .collect();
+
+    // AI tables — enrich with space/zone from domain schema
+    let ai_tables: Vec<TableEntry> = ai_table_map
+        .iter()
+        .map(|(table_id, display_name)| {
+            if let Some(dt) = domain_lookup.get(table_id) {
+                TableEntry {
+                    table_id: table_id.clone(),
+                    display_name: if display_name != table_id { display_name.clone() } else { dt.display_name.clone() },
+                    space: dt.space.clone(),
+                    zone: dt.zone.clone(),
+                }
+            } else {
+                TableEntry {
+                    table_id: table_id.clone(),
+                    display_name: display_name.clone(),
+                    space: String::new(),
+                    zone: String::new(),
+                }
+            }
+        })
+        .collect();
+
+    // Unused tables — domain tables not in AI skills
+    let unused_tables: Vec<TableEntry> = all_domain_tables
+        .into_iter()
+        .filter(|t| !ai_table_ids.contains(&t.table_id))
+        .collect();
+
+    Ok(AiTableCoverageResult { ai_tables, unused_tables })
 }
 
 // ============================================================================

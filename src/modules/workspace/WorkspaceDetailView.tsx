@@ -1699,18 +1699,32 @@ Write a brief current state summary. No bullet points, just a natural sentence o
     queryClient.setQueryData(workKeys.tasksByProject(workspaceId), (old: any[] | undefined) =>
       old?.filter(t => !idSet.has(t.id))
     );
+    // Optimistically add moved tasks to the target project's cache
+    queryClient.setQueryData(workKeys.tasksByProject(newProjectId), (old: any[] | undefined) => {
+      if (!old) return old;
+      const sourceData: any[] = queryClient.getQueryData(workKeys.tasksByProject(workspaceId)) ?? [];
+      // Grab the full task objects from before the filter (use global cache)
+      const allTasks: any[] = queryClient.getQueryData(workKeys.tasks()) ?? [];
+      const movedTasks = allTasks.filter(t => idSet.has(t.id)).map(t => ({ ...t, project_id: newProjectId }));
+      return [...old, ...movedTasks];
+    });
     setSelectedTaskIds(new Set());
 
-    // Persist to Supabase
+    // Persist to Supabase — batch in chunks of 200 to avoid URI-too-long
     const { supabase } = await import("../../lib/supabase");
-    const { error } = await supabase.from("tasks").update({ project_id: newProjectId }).in("id", taskIds);
-    if (error) {
-      // Rollback: refetch to restore correct state
-      queryClient.invalidateQueries({ queryKey: workKeys.tasksByProject(workspaceId) });
-      throw new Error(error.message);
+    const CHUNK = 200;
+    for (let i = 0; i < taskIds.length; i += CHUNK) {
+      const chunk = taskIds.slice(i, i + CHUNK);
+      const { error } = await supabase.from("tasks").update({ project_id: newProjectId }).in("id", chunk);
+      if (error) {
+        // Rollback: refetch to restore correct state
+        queryClient.invalidateQueries({ queryKey: workKeys.tasksByProject(workspaceId) });
+        queryClient.invalidateQueries({ queryKey: workKeys.tasksByProject(newProjectId) });
+        throw new Error(error.message);
+      }
     }
 
-    // Refetch both projects + global task cache
+    // Background refetch to sync — don't block on it
     queryClient.invalidateQueries({ queryKey: workKeys.tasksByProject(workspaceId) });
     queryClient.invalidateQueries({ queryKey: workKeys.tasksByProject(newProjectId) });
     queryClient.invalidateQueries({ queryKey: workKeys.tasks() });
@@ -3362,9 +3376,9 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         const ids = Array.from(selectedTaskIds);
                         // Close menu and show feedback immediately (optimistic update handles the rest)
                         setBulkProjectMenu(null);
-                        toast.success(`Moving ${count} task${count > 1 ? "s" : ""} to ${p.name}...`);
                         try {
                           await reassignTasks(ids, p.id);
+                          toast.success(`Moved ${count} task${count > 1 ? "s" : ""} to ${p.name}`);
                         } catch (err: any) { toast.error(`Failed to move tasks: ${err?.message || err}`); }
                       }}
                       className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${bulkMoving ? "opacity-50 cursor-wait" : isCurrent ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}

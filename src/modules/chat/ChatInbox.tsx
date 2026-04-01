@@ -111,6 +111,7 @@ interface ChatInboxProps {
   threads: Thread[];
   readPositions: Map<string, string>;
   selectedThreadId: string | null;
+  currentUser: string;
   onSelect: (thread: Thread) => void;
   onNewThread: () => void;
   onDeleteThread: (thread: Thread) => void;
@@ -120,6 +121,7 @@ export function ChatInbox({
   threads,
   readPositions,
   selectedThreadId,
+  currentUser,
   onSelect,
   onNewThread,
   onDeleteThread,
@@ -149,7 +151,12 @@ export function ChatInbox({
   }, []);
 
   const filtered = useMemo(() => {
-    let list = threads;
+    // Only show threads where the current user is a participant (authored or mentioned)
+    const userLower = currentUser.toLowerCase();
+    let list = threads.filter((t) =>
+      t.participants?.some((p) => p === userLower)
+    );
+
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -163,7 +170,7 @@ export function ChatInbox({
     const pinned = list.filter((t) => pins.has(threadKey(t)));
     const unpinned = list.filter((t) => !pins.has(threadKey(t)));
     return [...pinned, ...unpinned];
-  }, [threads, search, pins]);
+  }, [threads, search, pins, currentUser]);
 
   const unreadCount = useMemo(() => {
     return threads.filter((t) => {

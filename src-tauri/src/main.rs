@@ -448,6 +448,7 @@ fn main() {
             commands::val_sync::ai_package::val_list_domain_ai_status,
             commands::val_sync::ai_package::val_save_domain_ai_config,
             commands::val_sync::ai_package::val_skill_deployment_status,
+            commands::val_sync::ai_package::val_ai_table_coverage,
             // VAL Sync - S3 sync (push AI folders to S3)
             commands::val_sync::s3_sync::val_sync_ai_to_s3,
             commands::val_sync::s3_sync::val_s3_ai_status,
