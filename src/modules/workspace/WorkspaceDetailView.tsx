@@ -1702,7 +1702,6 @@ Write a brief current state summary. No bullet points, just a natural sentence o
     // Optimistically add moved tasks to the target project's cache
     queryClient.setQueryData(workKeys.tasksByProject(newProjectId), (old: any[] | undefined) => {
       if (!old) return old;
-      const sourceData: any[] = queryClient.getQueryData(workKeys.tasksByProject(workspaceId)) ?? [];
       // Grab the full task objects from before the filter (use global cache)
       const allTasks: any[] = queryClient.getQueryData(workKeys.tasks()) ?? [];
       const movedTasks = allTasks.filter(t => idSet.has(t.id)).map(t => ({ ...t, project_id: newProjectId }));
