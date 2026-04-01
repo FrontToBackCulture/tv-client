@@ -11,14 +11,13 @@ import { toSGTDateString } from "../../lib/date";
 import type { TaskWithRelations } from "../../lib/work/types";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCurrentUserId } from "../work/useUsers";
+import { useCurrentUserId, useUsers } from "../work/useUsers";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
 
 const INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 const LAST_RUN_KEY = "tv-task-advisor-last-run";
 const BOT_AUTHOR = "bot-mel";
-const RECIPIENT = "melvin";
 
 // ---------------------------------------------------------------------------
 // Time helpers (SGT)
@@ -202,7 +201,7 @@ function buildPromptData(snapshot: TaskSnapshot): string {
   return lines.join("\n");
 }
 
-async function composeMessage(snapshot: TaskSnapshot): Promise<string | null> {
+async function composeMessage(snapshot: TaskSnapshot, userName: string): Promise<string | null> {
   const apiKey = await invoke<string | null>("settings_get_anthropic_key");
   if (!apiKey) {
     console.warn("[task-advisor] No Anthropic API key configured");
@@ -230,7 +229,7 @@ async function composeMessage(snapshot: TaskSnapshot): Promise<string | null> {
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 300,
-      system: `You are bot-mel, a blunt and practical task advisor. You're checking in on @melvin's task list throughout the day. Be direct — no fluff, no cheerleading, no bullet points, no emojis.
+      system: `You are bot-mel, a blunt and practical task advisor. You're checking in on @${userName}'s task list throughout the day. Be direct — no fluff, no cheerleading, no bullet points, no emojis.
 
 Your job:
 - Highlight what matters most right now given the time of day and hours remaining
@@ -240,7 +239,7 @@ Your job:
 - Acknowledge progress when tasks have been completed — but briefly, then move on to what's next
 - If everything looks good, say so in one line and move on
 
-Write conversationally, like a blunt colleague checking in. 3-5 sentences max. Always address as @melvin. Reference specific task names when relevant. Do NOT use markdown formatting.`,
+Write conversationally, like a blunt colleague checking in. 3-5 sentences max. Always address as @${userName}. Reference specific task names when relevant. Do NOT use markdown formatting.`,
       messages: [
         {
           role: "user",
@@ -265,6 +264,7 @@ Write conversationally, like a blunt colleague checking in. 3-5 sentences max. A
 
 async function postMessage(
   message: string,
+  recipient: string,
   queryClient: QueryClient
 ): Promise<void> {
   // Each check-in gets its own thread (unique entity_id with timestamp)
@@ -298,11 +298,11 @@ async function postMessage(
     return;
   }
 
-  // Notify @melvin
+  // Notify the user
   const preview =
     message.length > 100 ? message.slice(0, 100) + "..." : message;
   await supabase.from("notifications").insert({
-    recipient: RECIPIENT,
+    recipient,
     type: "mention",
     discussion_id: discussion.id,
     entity_type: "general",
@@ -323,18 +323,19 @@ async function postMessage(
 
 async function runTaskAdvisor(
   queryClient: QueryClient,
-  userId: string
+  userId: string,
+  userName: string
 ): Promise<void> {
   console.log("[task-advisor] Running check...");
 
   try {
     const snapshot = await gatherMyTasks(userId);
-    const message = await composeMessage(snapshot);
+    const message = await composeMessage(snapshot, userName);
 
     if (!message) {
       console.log("[task-advisor] Nothing to report");
     } else {
-      await postMessage(message, queryClient);
+      await postMessage(message, userName, queryClient);
       console.log("[task-advisor] Posted check-in");
     }
   } catch (err) {
@@ -347,9 +348,10 @@ async function runTaskAdvisor(
 /** Manually trigger a check-in. Returns when done. */
 export async function triggerTaskAdvisor(
   queryClient: QueryClient,
-  userId: string
+  userId: string,
+  userName: string
 ): Promise<void> {
-  await runTaskAdvisor(queryClient, userId);
+  await runTaskAdvisor(queryClient, userId, userName);
 }
 
 // ---------------------------------------------------------------------------
@@ -489,7 +491,9 @@ ${taskRef}
 - To kill/cancel: update status_id to "${doneStatusId}"`;
   }
 
-  const prompt = `You are bot-mel — Melvin's blunt, practical AI assistant in a chat thread. @melvin just sent you a message. Read the conversation and do what he's asking.
+  const userName = discussion.author;
+
+  const prompt = `You are bot-mel — a blunt, practical AI assistant in a chat thread. @${userName} just sent you a message. Read the conversation and do what they're asking.
 
 ## Conversation so far:
 ${conversationHistory}
@@ -497,13 +501,13 @@ ${imageContext}
 ${taskContext}
 
 ## What to do:
-1. Understand what @melvin is asking for.
+1. Understand what @${userName} is asking for.
 2. If screenshots are attached, read the image files to understand the context.
 3. Use the available MCP tools to execute the request: update tasks, look up CRM data, log activities, create tasks, get project info, etc.
-4. After completing the work, output ONLY your final reply to @melvin as plain text. Be conversational and direct — that's bot-mel's style. No emojis, no excessive formatting.
+4. After completing the work, output ONLY your final reply to @${userName} as plain text. Be conversational and direct — that's bot-mel's style. No emojis, no excessive formatting.
 
 ## Important:
-- Only act on what @melvin explicitly asked for. Don't assume or over-reach.
+- Only act on what @${userName} explicitly asked for. Don't assume or over-reach.
 - If something is ambiguous, ask for clarification instead of guessing.
 - Do NOT call add-discussion. Your text output will be posted to the chat automatically.
 - Your final output should be ONLY the reply text — no JSON, no code blocks, no tool call summaries.
@@ -587,7 +591,7 @@ ${taskContext}
 
     // Post the result as a single clean reply in the chat thread
     if (resultText && resultText.trim()) {
-      const replyBody = `@melvin ${resultText.trim()}`;
+      const replyBody = `@${userName} ${resultText.trim()}`;
 
       await supabase.from("discussions").insert({
         entity_type: "general",
@@ -600,10 +604,10 @@ ${taskContext}
       // Notify
       const preview = replyBody.length > 100 ? replyBody.slice(0, 100) + "..." : replyBody;
       await supabase.from("notifications").insert({
-        recipient: RECIPIENT,
+        recipient: userName,
         type: "mention",
         discussion_id: discussion.id,
-        entity_type: "general",
+        entity_type: discussion.entity_type,
         entity_id: discussion.entity_id,
         actor: BOT_AUTHOR,
         body_preview: preview,
@@ -642,11 +646,13 @@ ${taskContext}
 export function useTaskAdvisor() {
   const queryClient = useQueryClient();
   const userId = useCurrentUserId();
+  const { data: allUsers = [] } = useUsers();
+  const userName = allUsers.find((u) => u.id === userId)?.name || "user";
   const ranRef = useRef(false);
 
   // Run on startup (after 8s delay, if 2h+ since last run)
   useEffect(() => {
-    if (!userId || ranRef.current) return;
+    if (!userId || !userName || userName === "user" || ranRef.current) return;
     ranRef.current = true;
 
     const lastRun = localStorage.getItem(LAST_RUN_KEY);
@@ -655,22 +661,22 @@ export function useTaskAdvisor() {
 
     if (shouldRun) {
       const timer = setTimeout(() => {
-        runTaskAdvisor(queryClient, userId).catch(console.warn);
+        runTaskAdvisor(queryClient, userId, userName).catch(console.warn);
       }, 8000);
       return () => clearTimeout(timer);
     }
-  }, [queryClient, userId]);
+  }, [queryClient, userId, userName]);
 
   // Recurring interval
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !userName || userName === "user") return;
 
     const interval = setInterval(() => {
-      runTaskAdvisor(queryClient, userId).catch(console.warn);
+      runTaskAdvisor(queryClient, userId, userName).catch(console.warn);
     }, INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [queryClient, userId]);
+  }, [queryClient, userId, userName]);
 
   // Bot mention handler — subscribe to new discussions that @mention bot-mel
   useEffect(() => {

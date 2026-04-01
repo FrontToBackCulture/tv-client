@@ -13,7 +13,7 @@ import { useAppUpdate } from "../hooks/useAppUpdate";
 import { UpdatePreviewPanel } from "./UpdatePreviewPanel";
 import { triggerTaskAdvisor } from "../hooks/chat";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCurrentUserId } from "../hooks/work/useUsers";
+import { useCurrentUserId, useUsers } from "../hooks/work/useUsers";
 
 interface ClaudeMcpStatus {
   binary_installed: boolean;
@@ -79,6 +79,8 @@ export function StatusBar() {
   const activeModule = useAppStore((s) => s.activeModule);
   const queryClient = useQueryClient();
   const currentUserId = useCurrentUserId();
+  const { data: sbUsers = [] } = useUsers();
+  const currentUserName = sbUsers.find((u) => u.id === currentUserId)?.name || "user";
   const [advisorRunning, setAdvisorRunning] = useState(false);
   const { updateAvailable, version: updateVersion, body: updateBody, downloading, installed, progress, error: updateError, installUpdate } = useAppUpdate();
   const [showJobsPanel, setShowJobsPanel] = useState(false);
@@ -346,7 +348,7 @@ export function StatusBar() {
             if (advisorRunning || !currentUserId) return;
             setAdvisorRunning(true);
             try {
-              await triggerTaskAdvisor(queryClient, currentUserId);
+              await triggerTaskAdvisor(queryClient, currentUserId, currentUserName);
             } finally {
               setAdvisorRunning(false);
             }
