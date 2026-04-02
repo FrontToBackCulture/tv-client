@@ -14,8 +14,11 @@ use tauri::command;
 // ============================================================================
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SqlQueryRequest {
     sql: String,
+    rows_per_page: usize,
+    is_full_data: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -42,6 +45,7 @@ async fn execute_sql_internal(
     token: &str,
     domain: &str,
     sql: &str,
+    rows_per_page: usize,
 ) -> Result<SqlQueryResponse, String> {
     let client = crate::HTTP_CLIENT.clone();
 
@@ -51,7 +55,11 @@ async fn execute_sql_internal(
         .post(&url)
         .header("Content-Type", "application/json")
         .query(&[("token", token)])
-        .json(&SqlQueryRequest { sql: sql.to_string() })
+        .json(&SqlQueryRequest {
+            sql: sql.to_string(),
+            rows_per_page,
+            is_full_data: true,
+        })
         .send()
         .await
         .map_err(|e| format!("SQL query failed: {}", e))?;
@@ -97,7 +105,7 @@ pub async fn val_execute_sql(
 ) -> CmdResult<SqlExecuteResult> {
     let domain_config = get_domain_config(&domain)?;
     let api_domain = domain_config.api_domain();
-    let max_rows = limit.unwrap_or(500);
+    let max_rows = limit.unwrap_or(1000);
 
     // Check if sql is a file path
     let actual_sql = if sql.ends_with(".sql") {
@@ -127,7 +135,7 @@ pub async fn val_execute_sql(
     let (token, _) = auth::ensure_auth(&domain).await?;
 
     // Execute query
-    match execute_sql_internal(&token, api_domain, &actual_sql).await {
+    match execute_sql_internal(&token, api_domain, &actual_sql, max_rows).await {
         Ok(response) => {
             let data = response.data.unwrap_or_default();
             let total_rows = data.len();
@@ -152,7 +160,7 @@ pub async fn val_execute_sql(
                 auth::reauth(&domain).await?;
                 let (new_token, _) = auth::ensure_auth(&domain).await?;
 
-                match execute_sql_internal(&new_token, api_domain, &actual_sql).await {
+                match execute_sql_internal(&new_token, api_domain, &actual_sql, max_rows).await {
                     Ok(response) => {
                         let data = response.data.unwrap_or_default();
                         let total_rows = data.len();

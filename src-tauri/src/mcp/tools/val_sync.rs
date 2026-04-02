@@ -218,7 +218,7 @@ pub fn tools() -> Vec<Tool> {
                     },
                     "limit": {
                         "type": "number",
-                        "description": "Max rows to return (default: 100)"
+                        "description": "Max rows to return (default: 1000)"
                     }
                 }),
                 vec!["domain".to_string(), "sql".to_string()],
