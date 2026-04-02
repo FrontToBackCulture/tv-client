@@ -511,6 +511,10 @@ pub struct TableEntry {
     pub display_name: String,
     pub space: String,
     pub zone: String,
+    /// How this table was discovered: "skill" (direct reference in skill files),
+    /// "workflow" (used by a workflow that feeds a skill table)
+    #[serde(default)]
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -530,7 +534,7 @@ fn flatten_domain_tables(nodes: &[serde_json::Value]) -> Vec<TableEntry> {
             let space = node.get("spaceName").and_then(|s| s.as_str()).unwrap_or("").to_string();
             let zone = node.get("zoneName").and_then(|z| z.as_str()).unwrap_or("").to_string();
             if !table_id.is_empty() {
-                tables.push(TableEntry { table_id, display_name, space, zone });
+                tables.push(TableEntry { table_id, display_name, space, zone, source: String::new() });
             }
         }
         // Recurse into children
@@ -590,24 +594,25 @@ pub fn val_ai_table_coverage(
         .map(|t| (t.table_id.clone(), t))
         .collect();
 
-    // AI tables — enrich with space/zone from domain schema
+    // AI tables — always prefer domain display name over skill file name
     let ai_tables: Vec<TableEntry> = ai_table_map
         .iter()
         .map(|(table_id, display_name)| {
-            if let Some(dt) = domain_lookup.get(table_id) {
-                TableEntry {
-                    table_id: table_id.clone(),
-                    display_name: if display_name != table_id { display_name.clone() } else { dt.display_name.clone() },
-                    space: dt.space.clone(),
-                    zone: dt.zone.clone(),
-                }
+            let (dn, space, zone) = if let Some(dt) = domain_lookup.get(table_id) {
+                (
+                    if !dt.display_name.is_empty() { dt.display_name.clone() } else { display_name.clone() },
+                    dt.space.clone(),
+                    dt.zone.clone(),
+                )
             } else {
-                TableEntry {
-                    table_id: table_id.clone(),
-                    display_name: display_name.clone(),
-                    space: String::new(),
-                    zone: String::new(),
-                }
+                (display_name.clone(), String::new(), String::new())
+            };
+            TableEntry {
+                table_id: table_id.clone(),
+                display_name: dn,
+                space,
+                zone,
+                source: "skill".to_string(),
             }
         })
         .collect();
@@ -616,6 +621,7 @@ pub fn val_ai_table_coverage(
     let unused_tables: Vec<TableEntry> = all_domain_tables
         .into_iter()
         .filter(|t| !ai_table_ids.contains(&t.table_id))
+        .map(|t| TableEntry { source: String::new(), ..t })
         .collect();
 
     Ok(AiTableCoverageResult { ai_tables, unused_tables })

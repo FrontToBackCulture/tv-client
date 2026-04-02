@@ -104,6 +104,8 @@ export interface TableEntry {
   display_name: string;
   space: string;
   zone: string;
+  /** "skill" = directly referenced in skill files, "workflow" = used by feeding workflows */
+  source: string;
 }
 
 export interface AiTableCoverageResult {

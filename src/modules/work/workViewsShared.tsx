@@ -50,7 +50,7 @@ export function getInitiativeColor(init: { color?: string | null }, index: numbe
   return init.color || INITIATIVE_COLORS[index % INITIATIVE_COLORS.length];
 }
 
-export type WorkView = "inbox" | "dashboard" | "board" | "tracker" | "notion" | "project";
+export type WorkView = "inbox" | "dashboard" | "board" | "tracker" | "notion" | "project" | "triage-context";
 
 export interface InitiativeProjectLink {
   initiative_id: string;
@@ -577,8 +577,27 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel }: {
       </span>
       {/* Col 6: Title */}
       <span className="text-xs text-zinc-800 dark:text-zinc-200 truncate pr-2">{task.title}</span>
-      {/* Col 7: Triage badge */}
-      <span className="text-right truncate">
+      {/* Col 7: Triage badge + context chips */}
+      <span className="text-right truncate flex items-center gap-1 justify-end">
+        {/* Context chips */}
+        {(task as any).triage_context_matches?.length > 0 && (
+          (task as any).triage_context_matches.slice(0, 3).map((cm: any) => (
+            <span
+              key={cm.context_id}
+              className={`text-[9px] px-1 py-0.5 rounded font-medium whitespace-nowrap ${
+                cm.level === "customer" ? "bg-teal-500/10 text-teal-400" :
+                cm.level === "product" ? "bg-purple-500/10 text-purple-400" :
+                cm.level === "team" ? "bg-amber-500/10 text-amber-400" :
+                cm.level === "individual" ? "bg-blue-500/10 text-blue-400" :
+                "bg-zinc-500/10 text-zinc-400"
+              }`}
+              title={`${cm.level}: ${cm.text}`}
+            >
+              {cm.context_name.length > 10 ? cm.context_name.slice(0, 10) + "…" : cm.context_name}
+              {cm.boost > 0 ? ` +${cm.boost}` : cm.boost < 0 ? ` ${cm.boost}` : ""}
+            </span>
+          ))
+        )}
         {task.triage_action && (
           <span
             className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
@@ -630,6 +649,9 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel }: {
         onChange={async (e) => {
           const val = e.target.value || null;
           await optimisticUpdate({ due_date: val, triage_action: null, triage_score: null, triage_reason: null }, "Due date update");
+          if (val && !isOverdue(val) && val !== new Date().toISOString().slice(0, 10)) {
+            toast.success("Due date updated — task moved to Upcoming");
+          }
         }}
         className={`text-xs text-right bg-transparent border-0 outline-none cursor-pointer w-full appearance-none ${task.due_date && isOverdue(task.due_date) ? "text-red-500" : "text-zinc-400"} hover:text-zinc-600 dark:hover:text-zinc-300`}
         style={{ colorScheme: "dark" }}

@@ -131,10 +131,11 @@ def transform(r):
 def get_existing_uuids():
     """Fetch all existing mcf_uuids from Supabase to detect duplicates."""
     uuids = set()
-    url = f"{SUPABASE_URL}/rest/v1/public_data.mcf_job_postings?select=mcf_uuid"
+    url = f"{SUPABASE_URL}/rest/v1/mcf_job_postings?select=mcf_uuid"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Accept-Profile": "public_data",
     }
     offset = 0
     while True:
@@ -153,11 +154,12 @@ def get_existing_uuids():
 
 
 def upsert_batch(rows, retries=2):
-    url = f"{SUPABASE_URL}/rest/v1/public_data.mcf_job_postings?on_conflict=mcf_uuid"
+    url = f"{SUPABASE_URL}/rest/v1/mcf_job_postings?on_conflict=mcf_uuid"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
+        "Content-Profile": "public_data",
         "Prefer": "resolution=ignore-duplicates",
     }
     body = json.dumps(rows).encode()

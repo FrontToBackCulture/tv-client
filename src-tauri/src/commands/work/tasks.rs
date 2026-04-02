@@ -276,6 +276,30 @@ pub struct TaskTriageProgress {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TriageContext {
+    pub id: String,
+    pub level: String,
+    pub name: String,
+    pub text: String,
+    pub boost: i32,
+    pub suppress: bool,
+    pub match_team_id: Option<String>,
+    pub match_user_id: Option<String>,
+    pub match_project_id: Option<String>,
+    pub match_company_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ContextMatch {
+    pub context_id: String,
+    pub context_name: String,
+    pub level: String,
+    pub boost: i32,       // weighted contribution (points added/subtracted)
+    pub raw_boost: i32,   // original boost value from the context
+    pub text: String,     // context text for display
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TriageProposal {
     pub task_id: String,
     pub title: String,
@@ -295,6 +319,11 @@ pub struct TriageProposal {
     pub deal_value: Option<f64>,
     pub days_stale: Option<i32>,            // days since last CRM activity
     pub company: Option<String>,
+    // Context influence
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_matches: Option<Vec<ContextMatch>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_bonus: Option<i32>,
 }
 
 fn default_type() -> String {
@@ -308,6 +337,90 @@ pub struct TaskTriageResult {
     pub output_text: String,
     pub error: Option<String>,
     pub cost_usd: Option<f64>,
+}
+
+/// Compute context bonus for a task/deal based on matching triage contexts
+fn compute_context_bonus(
+    task_company_id: &str,
+    task_project_id: &str,
+    task_assignee_ids: &[String],
+    user_teams: &std::collections::HashMap<String, Vec<String>>,
+    contexts: &[TriageContext],
+    weights: &serde_json::Value,
+) -> (i32, Vec<ContextMatch>) {
+    let mut matches = Vec::new();
+    let mut total_bonus: f64 = 0.0;
+
+    let w_company = weights.get("company").and_then(|v| v.as_f64()).unwrap_or(10.0);
+    let w_team = weights.get("team").and_then(|v| v.as_f64()).unwrap_or(15.0);
+    let w_individual = weights.get("individual").and_then(|v| v.as_f64()).unwrap_or(10.0);
+    let w_product = weights.get("product").and_then(|v| v.as_f64()).unwrap_or(25.0);
+    let w_customer = weights.get("customer").and_then(|v| v.as_f64()).unwrap_or(40.0);
+
+    for ctx in contexts {
+        let matched = match ctx.level.as_str() {
+            "company" => true,
+            "customer" => {
+                ctx.match_company_id.as_deref().map_or(false, |cid| !cid.is_empty() && cid == task_company_id)
+            }
+            "product" => {
+                ctx.match_project_id.as_deref().map_or(false, |pid| !pid.is_empty() && pid == task_project_id)
+            }
+            "team" => {
+                ctx.match_team_id.as_deref().map_or(false, |tid| {
+                    task_assignee_ids.iter().any(|uid| {
+                        user_teams.get(uid).map_or(false, |teams| teams.contains(&tid.to_string()))
+                    })
+                })
+            }
+            "individual" => {
+                ctx.match_user_id.as_deref().map_or(false, |uid| !uid.is_empty() && task_assignee_ids.contains(&uid.to_string()))
+            }
+            _ => false,
+        };
+
+        if matched {
+            let level_weight = match ctx.level.as_str() {
+                "company" => w_company,
+                "team" => w_team,
+                "individual" => w_individual,
+                "product" => w_product,
+                "customer" => w_customer,
+                _ => 0.0,
+            };
+            let raw = if ctx.suppress { -ctx.boost.abs() } else { ctx.boost };
+            let contribution = (raw as f64 * level_weight / 100.0).round() as i32;
+            total_bonus += contribution as f64;
+
+            matches.push(ContextMatch {
+                context_id: ctx.id.clone(),
+                context_name: ctx.name.clone(),
+                level: ctx.level.clone(),
+                boost: contribution,
+                raw_boost: raw,
+                text: ctx.text.clone(),
+            });
+        }
+    }
+
+    let capped = (total_bonus as i32).clamp(-30, 30);
+    (capped, matches)
+}
+
+/// Parse a TriageContext from a serde_json::Value row
+fn parse_triage_context(v: &serde_json::Value) -> Option<TriageContext> {
+    Some(TriageContext {
+        id: v.get("id")?.as_str()?.to_string(),
+        level: v.get("level")?.as_str()?.to_string(),
+        name: v.get("name")?.as_str()?.to_string(),
+        text: v.get("text")?.as_str()?.to_string(),
+        boost: v.get("boost").and_then(|b| b.as_i64()).unwrap_or(10) as i32,
+        suppress: v.get("suppress").and_then(|b| b.as_bool()).unwrap_or(false),
+        match_team_id: v.get("match_team_id").and_then(|x| x.as_str()).map(|s| s.to_string()),
+        match_user_id: v.get("match_user_id").and_then(|x| x.as_str()).map(|s| s.to_string()),
+        match_project_id: v.get("match_project_id").and_then(|x| x.as_str()).map(|s| s.to_string()),
+        match_company_id: v.get("match_company_id").and_then(|x| x.as_str()).map(|s| s.to_string()),
+    })
 }
 
 /// Run triage entirely in Rust — no Claude CLI. Scores tasks and deals instantly.
@@ -333,10 +446,11 @@ pub async fn work_task_triage(
     let client = get_client().await?;
     // !inner on status join ensures we only get rows with matching status
     let task_query = format!(
-        "select=id,title,priority,due_date,task_type,description,\
-        project:projects(name,project_type),\
+        "select=id,title,priority,due_date,task_type,description,project_id,\
+        project:projects(id,name,project_type),\
         status:task_statuses!inner(type),\
-        company:crm_companies(name)\
+        company:crm_companies(id,name),\
+        assignees:task_assignees(user_id)\
         &status.type=in.(backlog,unstarted,started,review)\
         &due_date=lte.{}\
         &order=due_date.asc",
@@ -404,6 +518,32 @@ pub async fn work_task_triage(
         }
     };
 
+    // ── 5. Fetch triage contexts, weights, and team memberships ────────
+    let ctx_rows: Vec<serde_json::Value> = client
+        .select("triage_contexts", "select=*&active=eq.true")
+        .await.unwrap_or_default();
+    let triage_contexts: Vec<TriageContext> = ctx_rows.iter().filter_map(parse_triage_context).collect();
+
+    let config_rows: Vec<serde_json::Value> = client
+        .select("triage_config", "id=eq.default")
+        .await.unwrap_or_default();
+    let context_weights = config_rows.first()
+        .and_then(|c| c.get("context_weights"))
+        .cloned()
+        .unwrap_or(serde_json::json!({"company": 10, "team": 15, "individual": 10, "product": 25, "customer": 40}));
+
+    let tm_rows: Vec<serde_json::Value> = client
+        .select("team_members", "select=user_id,team_id")
+        .await.unwrap_or_default();
+    let mut user_teams: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for row in &tm_rows {
+        if let (Some(uid), Some(tid)) = (row.get("user_id").and_then(|v| v.as_str()), row.get("team_id").and_then(|v| v.as_str())) {
+            user_teams.entry(uid.to_string()).or_default().push(tid.to_string());
+        }
+    }
+
+    eprintln!("[task_triage] {} active triage contexts loaded", triage_contexts.len());
+
     // Calculate SGT time and hours left in workday (assume 6pm end)
     let sgt_hour = (now.hour() + 8) % 24; // rough SGT offset
     let hours_left = if sgt_hour >= 18 { 0 } else { 18 - sgt_hour };
@@ -425,6 +565,14 @@ pub async fn work_task_triage(
         let task_type = t.get("task_type").and_then(|v| v.as_str()).unwrap_or("");
         let desc = t.get("description").and_then(|v| v.as_str()).unwrap_or("");
         let company = t.get("company").and_then(|c| c.get("name")).and_then(|n| n.as_str()).unwrap_or("");
+        let company_id = t.get("company").and_then(|c| c.get("id")).and_then(|v| v.as_str()).unwrap_or("");
+        let task_project_id = t.get("project_id").and_then(|v| v.as_str()).unwrap_or(
+            t.get("project").and_then(|p| p.get("id")).and_then(|v| v.as_str()).unwrap_or("")
+        );
+        let assignee_ids: Vec<String> = t.get("assignees")
+            .and_then(|a| a.as_array())
+            .map(|arr| arr.iter().filter_map(|a| a.get("user_id").and_then(|v| v.as_str()).map(|s| s.to_string())).collect())
+            .unwrap_or_default();
         let proj_type = t.get("project").and_then(|p| p.get("project_type")).and_then(|v| v.as_str()).unwrap_or("");
         let combined = format!("{} {}", title, desc);
 
@@ -473,7 +621,13 @@ pub async fn work_task_triage(
             }) { 10 } else { 0 }
         };
 
-        let score = (rev * 3 + stale * 2 + waiting * 2 + prio + effort + time_bonus + meeting_bonus).min(100);
+        let base_score = (rev * 3 + stale * 2 + waiting * 2 + prio + effort + time_bonus + meeting_bonus).min(100);
+
+        // Context bonus from triage contexts
+        let (ctx_bonus, ctx_matches) = compute_context_bonus(
+            company_id, task_project_id, &assignee_ids, &user_teams, &triage_contexts, &context_weights,
+        );
+        let score = (base_score + ctx_bonus).clamp(0, 100);
 
         // Override: P1 + overdue = always do_now
         let score = if priority == 1 && due_date < today.as_str() { score.max(90) } else { score };
@@ -540,10 +694,12 @@ pub async fn work_task_triage(
             deal_value: None,
             days_stale: None,
             company: if company.is_empty() { None } else { Some(company.to_string()) },
+            context_matches: if ctx_matches.is_empty() { None } else { Some(ctx_matches) },
+            context_bonus: if ctx_bonus != 0 { Some(ctx_bonus) } else { None },
         });
     }
 
-    // ── 5. Score deals (staleness check) ────────────────────────────────
+    // ── 6. Score deals (staleness check) ────────────────────────────────
     let urgent_stages = ["proposal", "negotiation", "pilot", "qualified"];
 
     for d in &deals {
@@ -552,6 +708,7 @@ pub async fn work_task_triage(
         let stage = d.get("deal_stage").and_then(|v| v.as_str()).unwrap_or("");
         let value = d.get("deal_value").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let stage_changed = d.get("deal_stage_changed_at").and_then(|v| v.as_str()).unwrap_or("");
+        let deal_company_id = d.get("company_id").and_then(|v| v.as_str()).unwrap_or("");
 
         // Calculate days since last activity
         let last_act = last_activity.get(&id).map(|s| s.as_str()).unwrap_or(stage_changed);
@@ -571,7 +728,13 @@ pub async fn work_task_triage(
         let stage_score = if is_urgent_stage { 10 } else { 3 };
         let value_score = if value > 10000.0 { 10 } else if value > 1000.0 { 5 } else { 2 };
 
-        let score = (stale_score * 3 + stage_score * 2 + value_score * 2).min(100);
+        let base_deal_score = (stale_score * 3 + stage_score * 2 + value_score * 2).min(100);
+
+        // Context bonus for deals (match on company_id, project_id = deal id)
+        let (deal_ctx_bonus, deal_ctx_matches) = compute_context_bonus(
+            deal_company_id, &id, &[], &user_teams, &triage_contexts, &context_weights,
+        );
+        let score = (base_deal_score + deal_ctx_bonus).clamp(0, 100);
         let action = if score >= 80 { "do_now" } else if score >= 60 { "do_this_week" } else { "defer" };
 
         // Suggest follow-up date
@@ -602,6 +765,8 @@ pub async fn work_task_triage(
             deal_value: if value > 0.0 { Some(value) } else { None },
             days_stale: Some(days_stale as i32),
             company: Some(name),
+            context_matches: if deal_ctx_matches.is_empty() { None } else { Some(deal_ctx_matches) },
+            context_bonus: if deal_ctx_bonus != 0 { Some(deal_ctx_bonus) } else { None },
         });
     }
 
@@ -635,16 +800,22 @@ pub async fn work_apply_triage(
     triage_score: i32,
     triage_action: String,
     triage_reason: String,
+    context_matches: Option<serde_json::Value>,
 ) -> CmdResult<Task> {
     let client = get_client().await?;
 
     let now = chrono::Utc::now().to_rfc3339();
-    let update_data = serde_json::json!({
+    let mut update_data = serde_json::json!({
         "triage_score": triage_score,
         "triage_action": triage_action,
         "triage_reason": triage_reason,
         "last_triaged_at": now
     });
+    if let Some(cm) = context_matches {
+        update_data["triage_context_matches"] = cm;
+    } else {
+        update_data["triage_context_matches"] = serde_json::Value::Null;
+    }
 
     let _: Task = client
         .update("tasks", &format!("id=eq.{}", task_id), &update_data)
@@ -819,6 +990,34 @@ pub async fn work_triage_summary(proposals_json: String) -> CmdResult<String> {
         }
     }
 
+    // Active triage contexts (strategic priorities set by admin)
+    let triage_ctx_rows: Vec<serde_json::Value> = sb_client
+        .select("triage_contexts", "select=*&active=eq.true&order=level,name")
+        .await.unwrap_or_default();
+
+    if !triage_ctx_rows.is_empty() {
+        // Fetch weights for display
+        let tc_weights = config
+            .and_then(|c| c.get("context_weights"))
+            .cloned()
+            .unwrap_or(serde_json::json!({"company": 10, "team": 15, "individual": 10, "product": 25, "customer": 40}));
+
+        context.push_str("\n=== ACTIVE TRIAGE CONTEXTS (admin-set strategic priorities) ===\n");
+        context.push_str("These contexts influence scoring. Use them to frame your recommendations.\n\n");
+        for row in &triage_ctx_rows {
+            let level = row["level"].as_str().unwrap_or("?");
+            let name = row["name"].as_str().unwrap_or("?");
+            let text = row["text"].as_str().unwrap_or("");
+            let boost = row["boost"].as_i64().unwrap_or(10);
+            let suppress = row["suppress"].as_bool().unwrap_or(false);
+            let weight = tc_weights.get(level).and_then(|v| v.as_i64()).unwrap_or(0);
+            let modifier = if suppress { format!("-{}", boost.abs()) } else { format!("+{}", boost) };
+            context.push_str(&format!("[{}] {} (weight: {}%, boost: {}): {}\n",
+                level.to_uppercase(), name, weight, modifier, text));
+        }
+        context.push('\n');
+    }
+
     // Triage results (from frontend)
     context.push_str(&format!("\n=== TRIAGE SCORES ===\n{}\n", proposals_json));
 
@@ -973,4 +1172,74 @@ pub async fn work_reprioritise(
         .map_err(|e| CommandError::Internal(format!("Failed to write today_tasks.json: {}", e)))?;
 
     Ok(data)
+}
+
+// ============================================================================
+// Triage Context CRUD
+// ============================================================================
+
+/// List all triage contexts
+#[tauri::command]
+pub async fn work_list_triage_contexts() -> CmdResult<Vec<serde_json::Value>> {
+    let client = get_client().await?;
+    let rows: Vec<serde_json::Value> = client
+        .select("triage_contexts", "select=*&order=level,name")
+        .await?;
+    Ok(rows)
+}
+
+/// Create or update a triage context
+#[tauri::command]
+pub async fn work_upsert_triage_context(data: serde_json::Value) -> CmdResult<serde_json::Value> {
+    let client = get_client().await?;
+
+    let has_id = data.get("id").and_then(|v| v.as_str()).map_or(false, |s| !s.is_empty());
+
+    if has_id {
+        let id = data["id"].as_str().unwrap();
+        let mut update = data.clone();
+        update["updated_at"] = serde_json::Value::String(chrono::Utc::now().to_rfc3339());
+        let result: serde_json::Value = client
+            .update("triage_contexts", &format!("id=eq.{}", id), &update)
+            .await?;
+        Ok(result)
+    } else {
+        let result: serde_json::Value = client
+            .insert("triage_contexts", &data)
+            .await?;
+        Ok(result)
+    }
+}
+
+/// Delete a triage context
+#[tauri::command]
+pub async fn work_delete_triage_context(id: String) -> CmdResult<()> {
+    let client = get_client().await?;
+    client.delete("triage_contexts", &format!("id=eq.{}", id)).await?;
+    Ok(())
+}
+
+/// Get context weights from triage_config
+#[tauri::command]
+pub async fn work_get_context_weights() -> CmdResult<serde_json::Value> {
+    let client = get_client().await?;
+    let rows: Vec<serde_json::Value> = client
+        .select("triage_config", "id=eq.default")
+        .await.unwrap_or_default();
+    let weights = rows.first()
+        .and_then(|c| c.get("context_weights"))
+        .cloned()
+        .unwrap_or(serde_json::json!({"company": 10, "team": 15, "individual": 10, "product": 25, "customer": 40}));
+    Ok(weights)
+}
+
+/// Update context weights in triage_config
+#[tauri::command]
+pub async fn work_set_context_weights(weights: serde_json::Value) -> CmdResult<serde_json::Value> {
+    let client = get_client().await?;
+    let update = serde_json::json!({ "context_weights": weights });
+    let result: serde_json::Value = client
+        .update("triage_config", "id=eq.default", &update)
+        .await?;
+    Ok(result)
 }

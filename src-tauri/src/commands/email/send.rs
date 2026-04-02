@@ -58,13 +58,13 @@ struct Campaign {
 struct Contact {
     id: String,
     email: String,
-    first_name: Option<String>,
-    status: Option<String>,
+    name: Option<String>,
+    edm_status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct ContactLink {
-    email_contacts: Option<Contact>,
+    crm_contacts: Option<Contact>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -181,8 +181,10 @@ fn replace_tokens(
 ) -> String {
     let mut result = html.to_string();
 
-    // Replace {{first_name}}
-    let first_name = contact.first_name.as_deref().unwrap_or("there");
+    // Replace {{first_name}} — extract first name from full name
+    let first_name = contact.name.as_deref()
+        .and_then(|n| n.split_whitespace().next())
+        .unwrap_or("there");
     result = result.replace("{{first_name}}", first_name);
 
     // Replace {{subject}} — templates use this in hero headings
@@ -449,7 +451,7 @@ pub async fn email_send_campaign(
         .select(
             "email_contact_groups",
             &format!(
-                "group_id=eq.{}&select=email_contacts(*)",
+                "group_id=eq.{}&select=crm_contacts(*)",
                 group_id
             ),
         )
@@ -457,10 +459,10 @@ pub async fn email_send_campaign(
 
     let contacts: Vec<&Contact> = contact_links
         .iter()
-        .filter_map(|link| link.email_contacts.as_ref())
+        .filter_map(|link| link.crm_contacts.as_ref())
         .filter(|c| c.email.contains('@')) // basic sanity
         .filter(|c| {
-            let status = c.status.as_deref().unwrap_or("active");
+            let status = c.edm_status.as_deref().unwrap_or("active");
             status == "active"
         })
         .collect();
@@ -777,7 +779,8 @@ async fn send_to_contact(
     // Send untracked BCC copy (no open pixel, no click tracking, no event row)
     if let Some(bcc) = &campaign.bcc_email {
         if !bcc.is_empty() {
-            let bcc_html = replace_tokens_preview(html_body, contact.first_name.as_deref().unwrap_or("there"), &campaign.subject, report_url, campaign.tokens.as_ref());
+            let bcc_first = contact.name.as_deref().and_then(|n| n.split_whitespace().next()).unwrap_or("there");
+            let bcc_html = replace_tokens_preview(html_body, bcc_first, &campaign.subject, report_url, campaign.tokens.as_ref());
             let bcc_boundary = format!("----=_Part_bcc_{}", chrono::Utc::now().timestamp_millis());
             let bcc_raw = format!(
                 "From: {} <{}>\r\n\
@@ -868,7 +871,7 @@ pub async fn email_send_draft(draft_id: String, test_email: Option<String>) -> C
             "event_type": "sent",
         });
         if let Some(ref cid) = draft.contact_id {
-            event_data["crm_contact_id"] = serde_json::json!(cid);
+            event_data["contact_id"] = serde_json::json!(cid);
         }
         let event: EventRow = client
             .insert("email_events", &event_data)

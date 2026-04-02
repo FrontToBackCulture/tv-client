@@ -37,7 +37,7 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
 
   if (!contact) return null;
 
-  const statusDef = CONTACT_STATUSES.find((s) => s.value === contact.status);
+  const statusDef = CONTACT_STATUSES.find((s) => s.value === contact.edm_status);
   const memberGroupIds = new Set((contact.groups || []).map((g) => g.id));
   const availableGroups = (allGroups || []).filter((g) => !memberGroupIds.has(g.id));
 
@@ -57,9 +57,7 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
         <div className="flex items-center gap-2 min-w-0">
           <Mail size={14} className="flex-shrink-0 text-zinc-400" />
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 truncate">
-            {contact.first_name || contact.last_name
-              ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
-              : contact.email}
+            {contact.name || contact.email}
           </h2>
         </div>
         <button
@@ -74,10 +72,8 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
       <div className="px-4 py-4 space-y-4">
         <div className="space-y-2">
           <EditableRow label="Email" value={contact.email} onSave={(v) => handleFieldSave("email", v)} />
-          <EditableRow label="First Name" value={contact.first_name || ""} onSave={(v) => handleFieldSave("first_name", v)} />
-          <EditableRow label="Last Name" value={contact.last_name || ""} onSave={(v) => handleFieldSave("last_name", v)} />
-          <EditableRow label="Company" value={contact.company || ""} onSave={(v) => handleFieldSave("company", v)} />
-          <EditableRow label="Domain" value={contact.domain || ""} onSave={(v) => handleFieldSave("domain", v)} />
+          <EditableRow label="Name" value={contact.name || ""} onSave={(v) => handleFieldSave("name", v)} />
+          <EditableRow label="Role" value={contact.role || ""} onSave={(v) => handleFieldSave("role", v)} />
           {/* Status toggle */}
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">Status</span>
@@ -96,7 +92,7 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
                   }`}
                 />
                 <span className="text-zinc-700 dark:text-zinc-300">
-                  {statusDef?.label || contact.status}
+                  {statusDef?.label || contact.edm_status}
                 </span>
                 <ChevronDown size={10} className="text-zinc-400" />
               </button>
@@ -106,9 +102,9 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
                     <button
                       key={s.value}
                       onClick={() => {
-                        if (s.value !== contact.status) {
+                        if (s.value !== contact.edm_status) {
                           updateContact.mutate(
-                            { id: contactId, updates: { status: s.value } },
+                            { id: contactId, updates: { edm_status: s.value } },
                             { onSuccess: () => setShowStatusPicker(false) }
                           );
                         } else {
@@ -117,7 +113,7 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
                       }}
                       disabled={updateContact.isPending}
                       className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 ${
-                        s.value === contact.status
+                        s.value === contact.edm_status
                           ? "text-zinc-900 dark:text-zinc-100 font-medium"
                           : "text-zinc-600 dark:text-zinc-400"
                       }`}

@@ -26,6 +26,7 @@ const moduleLabels: Record<ModuleId, string> = {
   repos: "Repos",
   email: "EDM",
   blog: "Blog",
+  guides: "Guides",
   s3browser: "S3 Browser",
   linkedin: "LinkedIn",
   prospecting: "Outbound",

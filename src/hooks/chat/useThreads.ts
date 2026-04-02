@@ -78,9 +78,9 @@ export function useThreads() {
         } else {
           existing.message_count = (existing.message_count || 1) + 1;
           // Update last_activity_at and last_author to the newest message
+          // Keep id stable (first message) — read positions are stored against it
           if (new Date(row.last_activity_at) > new Date(existing.last_activity_at)) {
             existing.last_activity_at = row.last_activity_at;
-            existing.id = row.id; // representative ID for read tracking = latest message
           }
           existing.last_author = row.author;
           existing.participants = [...(entityParticipants.get(key) ?? [])];

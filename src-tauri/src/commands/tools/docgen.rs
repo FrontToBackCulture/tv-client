@@ -287,6 +287,36 @@ fn extract_yaml_values(markdown: &str) -> HashMap<String, String> {
 }
 
 /// Extract list items under a specific heading (handles sub-headings like **Title:**)
+/// Convert **bold** markdown syntax to <strong> HTML tags
+fn convert_inline_bold(text: &str) -> String {
+    let mut result = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '*' && chars.peek() == Some(&'*') {
+            chars.next(); // consume second *
+            let mut bold_text = String::new();
+            let mut closed = false;
+            while let Some(bc) = chars.next() {
+                if bc == '*' && chars.peek() == Some(&'*') {
+                    chars.next(); // consume closing **
+                    closed = true;
+                    break;
+                }
+                bold_text.push(bc);
+            }
+            if closed {
+                result.push_str(&format!("<strong>{}</strong>", bold_text));
+            } else {
+                result.push_str("**");
+                result.push_str(&bold_text);
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 fn extract_list_items(markdown: &str, heading: &str) -> Vec<String> {
     let mut items = Vec::new();
     let mut in_section = false;
@@ -491,7 +521,9 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
                 scope_items_html.push_str("      <ul>\n");
                 in_list = true;
             }
-            scope_items_html.push_str(&format!("        <li>{}</li>\n", item));
+            // Convert **bold** markdown to <strong> tags
+            let converted = convert_inline_bold(item);
+            scope_items_html.push_str(&format!("        <li>{}</li>\n", converted));
         }
     }
     // Close final list if open
@@ -997,7 +1029,7 @@ fn wrap_in_order_form_template(data: &OrderFormData) -> String {
     <table class="payment-table">
       <thead>
         <tr>
-          <th>Subscription Period</th>
+          <th>Payment</th>
           <th>Payment Date</th>
           <th>Amount</th>
         </tr>
@@ -1276,6 +1308,7 @@ fn wrap_in_proposal_template(body: &str, title: &str) -> String {
     ul, ol {{
       margin: 0 0 12px 0;
       padding-left: 22px;
+      page-break-inside: avoid;
     }}
 
     li {{

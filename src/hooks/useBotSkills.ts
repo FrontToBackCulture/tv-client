@@ -134,6 +134,53 @@ export function useBotSkills(skillsPath: string | null) {
   });
 }
 
+/**
+ * Load all skills from the shared _skills/ folder at the repo root.
+ * These are global skills, not per-bot.
+ */
+export function useSkills() {
+  const { activeRepository } = useRepository();
+  const skillsPath = activeRepository
+    ? `${activeRepository.path}/_skills`
+    : null;
+
+  return useQuery({
+    queryKey: ["skills", skillsPath],
+    queryFn: async () => {
+      if (!skillsPath) return [];
+
+      const entries = await invoke<DirEntry[]>("list_directory", { path: skillsPath });
+      const dirs = entries.filter((e) => e.is_directory && !e.name.startsWith(".") && !e.name.startsWith("_"));
+
+      const skills: BotSkill[] = [];
+
+      for (const dir of dirs) {
+        const skillMdPath = `${dir.path}/SKILL.md`;
+        try {
+          const raw = await invoke<string>("read_file", { path: skillMdPath });
+          const lines = raw.split("\n").slice(0, 30);
+          const parsed = parseFrontmatter(lines);
+
+          skills.push({
+            slug: dir.name,
+            title: parsed.title || parsed.name || dir.name,
+            summary: parsed.summary || parsed.description || "",
+            tools: parsed.tools || "",
+            category: parsed.category || "",
+            skillPath: `_skills/${dir.name}/SKILL.md`,
+          });
+        } catch {
+          // No SKILL.md — skip
+        }
+      }
+
+      return skills.sort((a, b) => a.title.localeCompare(b.title));
+    },
+    enabled: !!skillsPath,
+    staleTime: 30_000,
+  });
+}
+
 /** Parse YAML frontmatter from lines (between --- delimiters) */
 function parseFrontmatter(lines: string[]): Record<string, string> {
   const result: Record<string, string> = {};

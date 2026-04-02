@@ -45,6 +45,7 @@ import {
   Database,
   Activity,
   MessageSquare,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { useAppStore, ModuleId } from "../stores/appStore";
@@ -91,6 +92,7 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   portal: Settings,
   email: MailPlus,
   blog: FileText,
+  guides: BookOpen,
   s3browser: Globe,
   chat: MessageSquare,
   linkedin: Linkedin,
@@ -120,6 +122,7 @@ const moduleLabels: Record<ModuleId, string> = {
   portal: "Portal",
   email: "EDM",
   blog: "Blog",
+  guides: "Guides",
   s3browser: "S3 Browser",
   linkedin: "LinkedIn",
   prospecting: "Outbound",

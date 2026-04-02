@@ -13,7 +13,7 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import {
   Search, Download, FileSpreadsheet, Maximize2, X, RotateCcw,
   Building2, Target, Tag, Bot, Trash2, User, Send, FlaskConical, Mail, Handshake,
-  Bookmark, ChevronsLeftRight, Columns, Star, Save, WrapText, PanelLeftOpen, PanelLeftClose,
+  Bookmark, ChevronsLeftRight, Columns, Star, Save, WrapText, PanelLeftOpen, PanelLeftClose, Globe, AlertTriangle,
 } from "lucide-react";
 import { useCollapsiblePanel } from "../../hooks/useCollapsiblePanel";
 import { cn } from "../../lib/cn";
@@ -172,7 +172,7 @@ function FolderPickerField({ value, onSave }: { value: string | null | undefined
 function EmailDomainsField({ value, companyId, contacts, onSave }: {
   value: string | null | undefined;
   companyId: string;
-  contacts: { email: string; company_id: string }[];
+  contacts: { email: string; company_id: string; is_active?: boolean }[];
   onSave: (val: string) => void;
 }) {
   const [syncing, setSyncing] = useState(false);
@@ -180,7 +180,7 @@ function EmailDomainsField({ value, companyId, contacts, onSave }: {
   async function autoPopulate() {
     setSyncing(true);
     try {
-      const companyContacts = contacts.filter(c => c.company_id === companyId);
+      const companyContacts = contacts.filter(c => c.company_id === companyId && c.is_active !== false);
       const domains = new Set<string>();
       for (const c of companyContacts) {
         if (c.email) {
@@ -382,6 +382,9 @@ export function MetadataView() {
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState("");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addDialogLabel, setAddDialogLabel] = useState("");
+  const addInputRef = useRef<HTMLInputElement>(null);
   const [savedLayouts, setSavedLayouts] = useState<Record<string, object>>(() => {
     try { return JSON.parse(localStorage.getItem("tv-desktop-metadata-grid-layouts") || "{}"); } catch { return {}; }
   });
@@ -480,6 +483,144 @@ export function MetadataView() {
     setSelection(null);
     refetchAll();
     toast.info(`"${name}" deleted`);
+  };
+
+  // ── Bulk company actions ──────────────────────────────────────────────
+
+  const GENERIC_DOMAINS = new Set(["gmail.com", "hotmail.com", "yahoo.com", "outlook.com", "icloud.com", "live.com", "aol.com", "protonmail.com", "me.com", "msn.com", "mail.com", "ymail.com", "googlemail.com", "apollo.import"]);
+  const [bulkPopulating, setBulkPopulating] = useState(false);
+  const [findingDupes, setFindingDupes] = useState(false);
+  const [dupeResults, setDupeResults] = useState<{ nameA: string; stageA: string; nameB: string; stageB: string; matchType: string }[] | null>(null);
+
+  const bulkPopulateDomains = async () => {
+    setBulkPopulating(true);
+    try {
+      const missing = companies.filter(c => !c.email_domains || c.email_domains.length === 0);
+      if (missing.length === 0) { toast.info("All companies already have email domains"); return; }
+      let updated = 0;
+      for (const co of missing) {
+        // Try contacts first
+        const coContacts = contacts.filter(c => c.company_id === co.id && c.is_active !== false);
+        const contactDomains = new Set<string>();
+        for (const c of coContacts) {
+          if (c.email) {
+            const d = c.email.split("@")[1]?.toLowerCase();
+            if (d && !GENERIC_DOMAINS.has(d)) contactDomains.add(d);
+          }
+        }
+        let domains = Array.from(contactDomains).sort();
+        // Fallback to website
+        if (domains.length === 0 && co.website) {
+          try {
+            const url = new URL(co.website);
+            let host = url.hostname.replace(/^www\./, "").replace(/^group\./, "");
+            if (host) domains = [host];
+          } catch { /* skip invalid URLs */ }
+        }
+        if (domains.length > 0) {
+          await supabase.from("crm_companies").update({ email_domains: domains, updated_at: new Date().toISOString() }).eq("id", co.id);
+          updated++;
+        }
+      }
+      refetchCompanies();
+      toast.success(`Populated email domains for ${updated} of ${missing.length} companies`);
+    } catch (e: any) {
+      toast.error(`Bulk populate failed: ${e.message}`);
+    } finally {
+      setBulkPopulating(false);
+    }
+  };
+
+  const findDuplicates = async () => {
+    setFindingDupes(true);
+    setDupeResults(null);
+    try {
+      const dupes: { nameA: string; stageA: string; nameB: string; stageB: string; matchType: string }[] = [];
+      // Check shared email domains
+      for (let i = 0; i < companies.length; i++) {
+        for (let j = i + 1; j < companies.length; j++) {
+          const a = companies[i], b = companies[j];
+          const aDomains = a.email_domains ?? [];
+          const bDomains = b.email_domains ?? [];
+          if (aDomains.length > 0 && bDomains.length > 0 && aDomains.some((d: string) => bDomains.includes(d))) {
+            dupes.push({ nameA: a.name, stageA: a.stage ?? "", nameB: b.name, stageB: b.stage ?? "", matchType: "Shared email domain" });
+          }
+        }
+      }
+      // Check shared website domain
+      const websiteMap = new Map<string, typeof companies[0]>();
+      for (const co of companies) {
+        if (!co.website) continue;
+        try {
+          const host = new URL(co.website).hostname.replace(/^www\./, "");
+          const existing = websiteMap.get(host);
+          if (existing) {
+            const already = dupes.some(d => (d.nameA === existing.name && d.nameB === co.name) || (d.nameA === co.name && d.nameB === existing.name));
+            if (!already) dupes.push({ nameA: existing.name, stageA: existing.stage ?? "", nameB: co.name, stageB: co.stage ?? "", matchType: "Shared website" });
+          } else {
+            websiteMap.set(host, co);
+          }
+        } catch { /* skip */ }
+      }
+      setDupeResults(dupes);
+      if (dupes.length === 0) toast.success("No duplicates found");
+      else toast.info(`Found ${dupes.length} potential duplicate(s)`);
+    } finally {
+      setFindingDupes(false);
+    }
+  };
+
+  const [findingContactDupes, setFindingContactDupes] = useState(false);
+  const [contactDupeResults, setContactDupeResults] = useState<{ nameA: string; emailA: string; companyA: string; nameB: string; emailB: string; companyB: string; matchType: string }[] | null>(null);
+
+  const findContactDuplicates = async () => {
+    setFindingContactDupes(true);
+    setContactDupeResults(null);
+    try {
+      const dupes: typeof contactDupeResults & {} = [];
+      const activeContacts = contacts.filter(c => c.is_active !== false);
+      const companyName = (id: string) => companies.find(c => c.id === id)?.name ?? "Unknown";
+      // Same email across contacts
+      const emailMap = new Map<string, typeof activeContacts[0]>();
+      for (const c of activeContacts) {
+        if (!c.email) continue;
+        const key = c.email.toLowerCase();
+        const existing = emailMap.get(key);
+        if (existing) {
+          dupes.push({
+            nameA: existing.name, emailA: existing.email ?? "", companyA: companyName(existing.company_id),
+            nameB: c.name, emailB: c.email ?? "", companyB: companyName(c.company_id),
+            matchType: existing.company_id === c.company_id ? "Same email, same company" : "Same email, different company",
+          });
+        } else {
+          emailMap.set(key, c);
+        }
+      }
+      // Same name within same company
+      const nameKey = (c: typeof activeContacts[0]) => `${c.company_id}::${c.name.toLowerCase().trim()}`;
+      const nameMap = new Map<string, typeof activeContacts[0]>();
+      for (const c of activeContacts) {
+        const key = nameKey(c);
+        const existing = nameMap.get(key);
+        if (existing && existing.id !== c.id) {
+          const already = dupes.some(d => (d.emailA === existing.email && d.emailB === c.email) || (d.emailA === c.email && d.emailB === existing.email));
+          if (!already) {
+            dupes.push({
+              nameA: existing.name, emailA: existing.email ?? "", companyA: companyName(existing.company_id),
+              nameB: c.name, emailB: c.email ?? "", companyB: companyName(c.company_id),
+              matchType: "Same name, same company",
+            });
+          }
+        } else {
+          nameMap.set(key, c);
+        }
+      }
+      setContactDupeResults(dupes);
+      if (dupes.length === 0) toast.success("No duplicate contacts found");
+      else toast.info(`Found ${dupes.length} potential duplicate contact(s)`);
+    } finally {
+      setFindingContactDupes(false);
+    }
   };
 
   // ── Layout management ──────────────────────────────────────────────────
@@ -588,7 +729,7 @@ export function MetadataView() {
 
   const companyRows = useMemo(() => companies.map(c => ({
     ...c,
-    contact_count: contacts.filter(ct => ct.company_id === c.id).length,
+    contact_count: contacts.filter(ct => ct.company_id === c.id && ct.is_active !== false).length,
   })), [companies, contacts]);
 
   const contactColumns: ColDef[] = useMemo(() => [
@@ -793,14 +934,47 @@ export function MetadataView() {
 
   // Add row handler
   const handleAddRow = useCallback(async () => {
+    if (subTab === "partners") {
+      // Generate VAL-{random10} code
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      const random = Array.from(crypto.getRandomValues(new Uint8Array(10))).map(b => chars[b % chars.length]).join("");
+      const code = `VAL-${random}`;
+      // SHA-256 hash
+      const encoder = new TextEncoder();
+      const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(code));
+      const codeHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+      const { error } = await supabase.from("partner_access").insert({ name: "New Partner", code, code_hash: codeHash, active: true });
+      if (error) { toast.error("Failed to create partner"); return; }
+      refetchAll();
+      toast.info(`Partner created with code: ${code}`);
+      return;
+    }
+    // For lookup tabs, labels, and task statuses — show inline add dialog
+    if (isLookupTab || isTaskStatusTab || subTab === "labels") {
+      setAddDialogLabel("");
+      setShowAddDialog(true);
+      setTimeout(() => addInputRef.current?.focus(), 50);
+      return;
+    }
+  }, [isLookupTab, isTaskStatusTab, subTab]);
+
+  const handleAddConfirm = useCallback(async () => {
+    const label = addDialogLabel.trim();
+    if (!label) return;
+    setShowAddDialog(false);
+    setAddDialogLabel("");
     if (isLookupTab) {
-      const label = prompt("Enter a label for the new value:");
-      if (!label?.trim()) return;
       const nextOrder = lookupValues.filter(l => l.type === subTab).length;
-      await supabase.from("lookup_values").insert({ type: subTab, value: label.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, ""), label: label.trim(), sort_order: nextOrder });
+      await supabase.from("lookup_values").insert({ type: subTab, value: label.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, ""), label, sort_order: nextOrder });
+      refetchAll();
+    } else if (subTab === "labels") {
+      await supabase.from("labels").insert({ name: label, color: "#6b7280" });
+      refetchAll();
+    } else if (isTaskStatusTab) {
+      await supabase.from("task_statuses").insert({ name: label, color: "#6b7280", sort_order: taskStatuses.length });
       refetchAll();
     }
-  }, [isLookupTab, subTab, lookupValues]);
+  }, [addDialogLabel, isLookupTab, isTaskStatusTab, subTab, lookupValues, taskStatuses]);
 
   const handleDeleteSelected = useCallback(async () => {
     const selected = gridRef.current?.api?.getSelectedRows();
@@ -886,7 +1060,7 @@ export function MetadataView() {
                   className="w-48 px-2.5 py-1.5 pl-8 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-teal-500" />
               </div>
 
-              {(isLookupTab || isTaskStatusTab) && (
+              {(isLookupTab || isTaskStatusTab || subTab === "partners" || subTab === "labels") && (
                 <>
                   <button onClick={handleAddRow}
                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/50 border border-teal-200 dark:border-teal-800 transition-colors">
@@ -897,6 +1071,27 @@ export function MetadataView() {
                     <Trash2 size={13} />
                   </button>
                 </>
+              )}
+              {subTab === "companies" && (
+                <>
+                  <button onClick={bulkPopulateDomains} disabled={bulkPopulating}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/50 border border-teal-200 dark:border-teal-800 transition-colors disabled:opacity-50"
+                    title="Auto-populate email domains from contacts and websites for all companies missing them">
+                    <Globe size={13} className={bulkPopulating ? "animate-spin" : ""} /> Populate Domains
+                  </button>
+                  <button onClick={findDuplicates} disabled={findingDupes}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800 transition-colors disabled:opacity-50"
+                    title="Find companies with shared email domains or websites">
+                    <AlertTriangle size={13} className={findingDupes ? "animate-pulse" : ""} /> Find Duplicates
+                  </button>
+                </>
+              )}
+              {subTab === "contacts" && (
+                <button onClick={findContactDuplicates} disabled={findingContactDupes}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800 transition-colors disabled:opacity-50"
+                  title="Find contacts with same email or same name within a company">
+                  <AlertTriangle size={13} className={findingContactDupes ? "animate-pulse" : ""} /> Find Duplicates
+                </button>
               )}
             </div>
 
@@ -951,6 +1146,72 @@ export function MetadataView() {
             </div>
           </div>
 
+          {/* Inline add dialog */}
+          {showAddDialog && (
+            <div className="flex-shrink-0 border-b border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20 px-4 py-2">
+              <form onSubmit={(e) => { e.preventDefault(); handleAddConfirm(); }} className="flex items-center gap-2">
+                <span className="text-xs font-medium text-teal-700 dark:text-teal-300">New {subTab === "labels" ? "label" : isTaskStatusTab ? "status" : "value"}:</span>
+                <input
+                  ref={addInputRef}
+                  type="text"
+                  value={addDialogLabel}
+                  onChange={(e) => setAddDialogLabel(e.target.value)}
+                  placeholder="Enter a name..."
+                  className="flex-1 max-w-xs px-2.5 py-1 text-xs rounded-md border border-teal-300 dark:border-teal-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  onKeyDown={(e) => { if (e.key === "Escape") { setShowAddDialog(false); setAddDialogLabel(""); } }}
+                />
+                <button type="submit" className="px-2.5 py-1 text-xs font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors">Add</button>
+                <button type="button" onClick={() => { setShowAddDialog(false); setAddDialogLabel(""); }} className="px-2.5 py-1 text-xs font-medium rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">Cancel</button>
+              </form>
+            </div>
+          )}
+
+          {/* Duplicate results banner */}
+          {dupeResults && dupeResults.length > 0 && (
+            <div className="flex-shrink-0 border-b border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <AlertTriangle size={13} /> {dupeResults.length} potential duplicate{dupeResults.length !== 1 ? "s" : ""} found
+                </span>
+                <button onClick={() => setDupeResults(null)} className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">Dismiss</button>
+              </div>
+              <div className="space-y-1 max-h-32 overflow-auto">
+                {dupeResults.map((d, i) => (
+                  <div key={i} className="text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                    <span className="font-medium">{d.nameA}</span>
+                    <span className="text-amber-500 text-[10px]">({d.stageA})</span>
+                    <span className="text-zinc-400">&amp;</span>
+                    <span className="font-medium">{d.nameB}</span>
+                    <span className="text-amber-500 text-[10px]">({d.stageB})</span>
+                    <span className="text-zinc-400 ml-auto">{d.matchType}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Contact duplicate results banner */}
+          {contactDupeResults && contactDupeResults.length > 0 && (
+            <div className="flex-shrink-0 border-b border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <AlertTriangle size={13} /> {contactDupeResults.length} potential duplicate contact{contactDupeResults.length !== 1 ? "s" : ""} found
+                </span>
+                <button onClick={() => setContactDupeResults(null)} className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">Dismiss</button>
+              </div>
+              <div className="space-y-1 max-h-32 overflow-auto">
+                {contactDupeResults.map((d, i) => (
+                  <div key={i} className="text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                    <span className="font-medium">{d.nameA}</span>
+                    <span className="text-amber-500 text-[10px]">({d.companyA})</span>
+                    <span className="text-zinc-400">&amp;</span>
+                    <span className="font-medium">{d.nameB}</span>
+                    <span className="text-amber-500 text-[10px]">({d.companyB})</span>
+                    <span className="text-zinc-400 ml-auto">{d.matchType}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Grid */}
           <div className="flex-1 flex overflow-hidden">
             <div className={cn(themeClass, "flex-1 min-h-0 overflow-hidden")} style={{ width: "100%" }}>
@@ -965,6 +1226,7 @@ export function MetadataView() {
             onCellValueChanged={handleCellValueChanged}
             onRowDoubleClicked={handleRowDoubleClicked}
             quickFilterText={quickFilter}
+            onFirstDataRendered={(params) => params.api.autoSizeAllColumns()}
             animateRows
             enableRangeSelection
             enableBrowserTooltips
@@ -1044,7 +1306,7 @@ export function MetadataView() {
                       <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Contacts</h3>
                       {(() => {
                         const engagedContactIds = new Set(activities.map(a => a.contact_id).filter(Boolean));
-                        const companyContacts = contacts.filter(c => c.company_id === selectedCompany.id);
+                        const companyContacts = contacts.filter(c => c.company_id === selectedCompany.id && c.is_active !== false);
                         // Sort: engaged first, then primary, then alphabetical
                         const sorted = [...companyContacts].sort((a, b) => {
                           const aEngaged = engagedContactIds.has(a.id) ? 1 : 0;
@@ -1140,10 +1402,11 @@ export function MetadataView() {
                     <div className="mt-3 text-xs text-zinc-400 flex items-center gap-1">
                       Company:
                       <select
-                        value={selectedContact.company_id}
-                        onChange={(e) => updateEntity("crm_contacts", selectedContact.id, "company_id", e.target.value)}
+                        value={selectedContact.company_id || ""}
+                        onChange={(e) => updateEntity("crm_contacts", selectedContact.id, "company_id", e.target.value || null)}
                         className="text-xs bg-transparent text-teal-600 dark:text-teal-400 border-none cursor-pointer hover:underline focus:outline-none"
                       >
+                        <option value="">(no company)</option>
                         {companies.map(c => (
                           <option key={c.id} value={c.id}>{c.display_name || c.name}</option>
                         ))}

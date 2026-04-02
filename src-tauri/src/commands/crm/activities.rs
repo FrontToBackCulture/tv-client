@@ -185,13 +185,15 @@ pub async fn crm_auto_link_email(
         .await?;
 
     if let Some(contact) = sender_contact {
-        let link_data = LinkEmailRequest {
-            email_id: email_id.clone(),
-            company_id: contact.company_id.clone(),
-            contact_id: Some(contact.id),
-            match_type: "contact_email".to_string(),
-        };
-        return Ok(Some(crm_link_email(link_data).await?));
+        if let Some(ref company_id) = contact.company_id {
+            let link_data = LinkEmailRequest {
+                email_id: email_id.clone(),
+                company_id: company_id.clone(),
+                contact_id: Some(contact.id),
+                match_type: "contact_email".to_string(),
+            };
+            return Ok(Some(crm_link_email(link_data).await?));
+        }
     }
 
     // Strategy 2: Match recipient emails to contacts
@@ -203,13 +205,15 @@ pub async fn crm_auto_link_email(
                 .await?;
 
             if let Some(contact) = recipient_contact {
-                let link_data = LinkEmailRequest {
-                    email_id: email_id.clone(),
-                    company_id: contact.company_id.clone(),
-                    contact_id: Some(contact.id),
-                    match_type: "contact_email".to_string(),
-                };
-                return Ok(Some(crm_link_email(link_data).await?));
+                if let Some(ref company_id) = contact.company_id {
+                    let link_data = LinkEmailRequest {
+                        email_id: email_id.clone(),
+                        company_id: company_id.clone(),
+                        contact_id: Some(contact.id),
+                        match_type: "contact_email".to_string(),
+                    };
+                    return Ok(Some(crm_link_email(link_data).await?));
+                }
             }
         }
     }

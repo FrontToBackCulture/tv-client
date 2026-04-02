@@ -13,3 +13,4 @@ export { BoardView } from "./WorkBoardView";
 export { TrackerView } from "./WorkTrackerView";
 export { MyTasksView, TeamTasksView } from "./WorkTaskDashboard";
 export { BandwidthView } from "./WorkBandwidthView";
+export { TriageContextView } from "./WorkTriageContextView";

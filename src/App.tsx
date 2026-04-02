@@ -27,6 +27,7 @@ const SkillsModule = lazy(() => import("./modules/skills/SkillsModule").then(m =
 const EmailModule = lazy(() => import("./modules/email/EmailModule").then(m => ({ default: m.EmailModule })));
 const GalleryModule = lazy(() => import("./modules/gallery").then(m => ({ default: m.GalleryModule })));
 const BlogModule = lazy(() => import("./modules/blog").then(m => ({ default: m.BlogModule })));
+const GuidesModule = lazy(() => import("./modules/guides").then(m => ({ default: m.GuidesModule })));
 const S3BrowserModule = lazy(() => import("./modules/s3-browser").then(m => ({ default: m.S3BrowserModule })));
 const LinkedInModule = lazy(() => import("./modules/linkedin/LinkedInModule").then(m => ({ default: m.LinkedInModule })));
 const ProspectingModule = lazy(() => import("./modules/prospecting").then(m => ({ default: m.ProspectingModule })));
@@ -70,6 +71,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   repos: ReposModule,
   email: EmailModule,
   blog: BlogModule,
+  guides: GuidesModule,
   s3browser: S3BrowserModule,
   linkedin: LinkedInModule,
   prospecting: ProspectingModule,

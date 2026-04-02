@@ -178,10 +178,10 @@ export function useCampaignRecipients(campaignId: string | null, groupId: string
       const contactIds = (memberships ?? []).map((m) => m.contact_id);
       if (contactIds.length === 0) return [];
 
-      // Fetch contacts
+      // Fetch contacts (now from crm_contacts)
       const { data: contacts } = await supabase
-        .from("email_contacts")
-        .select("id, email, first_name, last_name, status")
+        .from("crm_contacts")
+        .select("id, email, name, edm_status")
         .in("id", contactIds);
 
       // Fetch events for this campaign
@@ -193,6 +193,7 @@ export function useCampaignRecipients(campaignId: string | null, groupId: string
       // Build latest event per contact (highest priority wins)
       const eventMap = new Map<string, string>();
       for (const ev of events ?? []) {
+        if (!ev.contact_id) continue;
         const current = eventMap.get(ev.contact_id);
         const currentPri = current ? (EVENT_PRIORITY[current] || 0) : 0;
         const newPri = EVENT_PRIORITY[ev.event_type] || 0;
@@ -202,13 +203,14 @@ export function useCampaignRecipients(campaignId: string | null, groupId: string
       }
 
       return (contacts ?? []).map((c) => {
-        const contactStatus = c.status || "active";
+        const contactStatus = c.edm_status || "active";
         const isActive = contactStatus === "active";
+        const nameParts = (c.name || "").split(" ");
         return {
           contactId: c.id,
           email: c.email,
-          firstName: c.first_name,
-          lastName: c.last_name,
+          firstName: nameParts[0] || null,
+          lastName: nameParts.slice(1).join(" ") || null,
           latestEvent: eventMap.get(c.id) || (isActive ? "pending" : "skipped"),
         };
       });

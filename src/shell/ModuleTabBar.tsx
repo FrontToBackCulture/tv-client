@@ -28,6 +28,7 @@ import {
   ClipboardList,
   MessageSquare,
   Handshake,
+  BookOpen,
   LucideIcon,
 } from "lucide-react";
 import { cn } from "../lib/cn";
@@ -55,6 +56,7 @@ const moduleIcons: Record<ModuleId, LucideIcon> = {
   repos: GitBranch,
   email: MailPlus,
   blog: FileText,
+  guides: BookOpen,
   s3browser: Cloud,
   linkedin: Linkedin,
   prospecting: Target,
@@ -83,6 +85,7 @@ const moduleLabels: Record<ModuleId, string> = {
   repos: "Repos",
   email: "EDM",
   blog: "Blog",
+  guides: "Guides",
   s3browser: "S3 Browser",
   linkedin: "LinkedIn",
   prospecting: "Outbound",

@@ -2,7 +2,7 @@
 // My Tasks and Team Tasks dashboard views
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, AlertTriangle, Clock, Calendar, CheckCircle2, Loader2, Zap, X, Target, ArrowRight } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, Clock, Calendar, CheckCircle2, Loader2, Zap, X, Target, ArrowRight, Filter } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,15 @@ import { useClaudeRunStore } from "../../stores/claudeRunStore";
 import { useTeams } from "../../hooks/work/useTeams";
 
 // ─── Task Triage Types & Hooks ───────────────────────────────────────────
+
+interface ContextMatch {
+  context_id: string;
+  context_name: string;
+  level: string;
+  boost: number;
+  raw_boost: number;
+  text: string;
+}
 
 interface TriageProposal {
   task_id: string;
@@ -37,6 +46,9 @@ interface TriageProposal {
   deal_value?: number | null;
   days_stale?: number | null;
   company?: string | null;
+  // Context influence
+  context_matches?: ContextMatch[] | null;
+  context_bonus?: number | null;
 }
 
 interface TaskTriageResult {
@@ -1666,22 +1678,23 @@ function StatusGroupedTasks({ tasks, onSelectTask, contextLabels, rowComponent, 
   );
 }
 
-function PersonSection({ user, tasks, onSelectTask, contextLabels, defaultOpen = false }: {
+function PersonSection({ user, tasks, onSelectTask, contextLabels, defaultOpen = false, applyFilters }: {
   user: { id: string; name: string } | null;
   tasks: TaskWithRelations[];
   onSelectTask: (id: string) => void;
   contextLabels: Map<string, string>;
   defaultOpen?: boolean;
+  applyFilters?: (tasks: TaskWithRelations[]) => TaskWithRelations[];
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(defaultOpen);
   const [showPersonTriage, setShowPersonTriage] = useState(false);
-  const [todayOpen, setTodayOpen] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   }, []);
   const active = tasks.filter(t => t.status?.type !== "complete");
+  const displayed = applyFilters ? applyFilters(active) : active;
 
   // Load person's last triage
   const personTriageKey = user ? `person-${user.id}` : null;
@@ -1695,16 +1708,40 @@ function PersonSection({ user, tasks, onSelectTask, contextLabels, defaultOpen =
     enabled: !!personTriageKey,
     staleTime: 60_000,
   });
+
+  // Badges always from unfiltered data
   const overdue = active.filter(t => isOverdue(t.due_date || ""));
   const dueToday = active.filter(t => isToday(t.due_date));
-  const upcoming = active.filter(t => t.due_date && !isOverdue(t.due_date) && !isToday(t.due_date));
-  const noDate = active.filter(t => !t.due_date);
 
-  // Top tasks by triage score = their "Today" (currently unused)
-  // const topTasks = active
-  //   .filter(t => t.triage_action === "do_now" || (isOverdue(t.due_date || "") && (t.triage_score ?? 0) >= 60))
-  //   .sort((a, b) => (b.triage_score ?? 0) - (a.triage_score ?? 0))
-  //   .slice(0, 5);
+  // Group by triage action
+  const actionGroups = useMemo(() => {
+    const groups: Record<string, TaskWithRelations[]> = { do_now: [], do_this_week: [], defer: [], untriaged: [] };
+    for (const t of displayed) {
+      const action = t.triage_action;
+      if (action === "do_now") groups.do_now.push(t);
+      else if (action === "do_this_week") groups.do_this_week.push(t);
+      else if (action === "defer" || action === "delegate" || action === "kill") groups.defer.push(t);
+      else groups.untriaged.push(t);
+    }
+    for (const arr of Object.values(groups)) arr.sort((a, b) => (b.triage_score ?? 0) - (a.triage_score ?? 0));
+    return groups;
+  }, [displayed]);
+
+  // Context pills for this person
+  const personContexts = useMemo(() => {
+    const ctxMap = new Map<string, { name: string; level: string; count: number }>();
+    for (const t of active) {
+      const matches = (t as any).triage_context_matches as any[] | null;
+      if (matches) {
+        for (const cm of matches) {
+          const existing = ctxMap.get(cm.context_name);
+          if (existing) existing.count++;
+          else ctxMap.set(cm.context_name, { name: cm.context_name, level: cm.level, count: 1 });
+        }
+      }
+    }
+    return [...ctxMap.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [active]);
 
   return (
     <div className="mb-1">
@@ -1717,118 +1754,101 @@ function PersonSection({ user, tasks, onSelectTask, contextLabels, defaultOpen =
           {user ? initials(user.name) : "?"}
         </div>
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{user?.name || "Unassigned"}</span>
-        <span className="text-xs text-zinc-400 ml-auto">{active.length}</span>
+        <span className="text-xs text-zinc-400">{active.length}</span>
         <div className="flex items-center gap-1">
           {overdue.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-50 text-red-500 dark:bg-red-900/20 font-medium">{overdue.length} overdue</span>}
           {dueToday.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-900/20 font-medium">{dueToday.length} today</span>}
         </div>
-        {/* Sync all to Notion */}
-        {active.some(t => (t as any).notion_page_id) && (
+        {/* Context pills */}
+        <div className="flex items-center gap-1">
+          {personContexts.map(ctx => (
+            <span key={ctx.name} className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${
+              ctx.level === "customer" ? "bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400" :
+              ctx.level === "product" ? "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" :
+              ctx.level === "team" ? "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400" :
+              "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+            }`}>
+              {ctx.name}
+            </span>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-1">
+          {/* Sync all to Notion */}
+          {active.some(t => (t as any).notion_page_id) && (
+            <span
+              className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
+              title="Sync all tasks to Notion"
+              onClick={async (e) => {
+                e.stopPropagation();
+                const notionTasks = active.filter(t => (t as any).notion_page_id);
+                const jobId = `notion-push-${user?.name || "unassigned"}-${Date.now()}`;
+                const jobStore = useJobsStore.getState();
+                jobStore.addJob({ id: jobId, name: `Notion Push: ${user?.name || "Unassigned"}`, status: "running", message: `0/${notionTasks.length} tasks...` });
+                let synced = 0, failed = 0;
+                const failures: string[] = [];
+                for (const t of notionTasks) {
+                  try { await invoke("notion_push_task", { taskId: t.id }); synced++; } catch (err: any) { failed++; failures.push(`${t.title?.slice(0, 40)}: ${err?.message || err}`); }
+                  jobStore.updateJob(jobId, { message: `${synced + failed}/${notionTasks.length} tasks (${synced} synced${failed ? `, ${failed} failed` : ""})` });
+                }
+                if (failures.length) console.error(`[Notion Push] ${user?.name} failures:\n${failures.join("\n")}`);
+                jobStore.updateJob(jobId, { status: failed > 0 ? "failed" : "completed", message: `${synced} synced${failed ? `, ${failed} failed` : ""} of ${notionTasks.length} tasks${failures.length ? " — " + failures.join(" | ") : ""}` });
+              }}
+            >
+              ↑ Notion
+            </span>
+          )}
+          {/* Per-person triage */}
           <span
-            className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
-            title="Sync all tasks to Notion"
+            className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer transition-colors"
+            title={`Triage ${user?.name || "Unassigned"}'s tasks`}
             onClick={async (e) => {
               e.stopPropagation();
-              const notionTasks = active.filter(t => (t as any).notion_page_id);
-              const jobId = `notion-push-${user?.name || "unassigned"}-${Date.now()}`;
+              const personName = user?.name || "Unassigned";
+              const jobId = `triage-person-${user?.id || "unassigned"}-${Date.now()}`;
               const jobStore = useJobsStore.getState();
-              jobStore.addJob({ id: jobId, name: `Notion Push: ${user?.name || "Unassigned"}`, status: "running", message: `0/${notionTasks.length} tasks...` });
-              let synced = 0;
-              let failed = 0;
-              const failures: string[] = [];
-              for (const t of notionTasks) {
-                try {
-                  await invoke("notion_push_task", { taskId: t.id });
-                  synced++;
-                } catch (err: any) {
-                  failed++;
-                  failures.push(`${t.title?.slice(0, 40)}: ${err?.message || err}`);
+              const claudeStore = useClaudeRunStore.getState();
+              jobStore.addJob({ id: jobId, name: `Triage: ${personName}`, status: "running", message: "Claude is analyzing..." });
+              claudeStore.createRun({ id: jobId, name: `Triage: ${personName}`, domainName: "", tableId: "" });
+              const personPrompt = `You are a strategic task triage advisor. Use mcp__supabase__execute_sql to query the database.\n\nSTEP 1 — QUERY:\n- SELECT t.id, t.title, t.description, t.priority, t.due_date, ts.name as status, ts.type as status_type, p.name as project, p.project_type, c.display_name as company FROM tasks t LEFT JOIN task_statuses ts ON ts.id = t.status_id LEFT JOIN projects p ON p.id = t.project_id LEFT JOIN crm_companies c ON c.id = t.company_id WHERE ts.type != 'complete' AND t.updated_at > NOW() - INTERVAL '60 days' AND t.id IN (SELECT task_id FROM task_assignees WHERE user_id = '${user?.id}') ORDER BY t.due_date ASC NULLS LAST\n- SELECT horizon, title FROM plans WHERE status = 'active'\n\nSCOPE: Individual triage for ${personName}.\nFocus on what ${personName} should prioritize: what to do now, what can wait, what's blocking them, any tasks that should be reassigned.\n\nSTEP 2 — For EACH task, assign: action (do_now|do_this_week|defer|delegate|kill), score (0-100), reason (1 sentence).\n\nSTEP 3 — Summary with labeled sections:\nURGENT: [what ${personName} needs to do now]\nTHIS WEEK: [key focus areas]\nDEFER/KILL: [what to cut]\nWORKLOAD: [capacity assessment]\n\nRULES: READ ONLY. No updates. Return ONLY JSON:\n{"summary":"...","tasks":[{"id":"uuid","title":"...","project":"...","action":"...","score":0,"reason":"..."}]}`;
+              try {
+                const result = await invoke<{ result: string; is_error: boolean }>("claude_run", {
+                  runId: jobId,
+                  request: { prompt: personPrompt, allowed_tools: ["mcp__supabase__execute_sql"], model: "sonnet", max_budget_usd: 0.5 },
+                });
+                if (result.result) {
+                  let parsed: any = {};
+                  try {
+                    const raw = result.result.trim();
+                    let jsonStr = raw;
+                    const codeMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+                    if (codeMatch) jsonStr = codeMatch[1].trim();
+                    const s = jsonStr.indexOf("{"), en = jsonStr.lastIndexOf("}");
+                    if (s >= 0 && en > s) parsed = JSON.parse(jsonStr.slice(s, en + 1));
+                  } catch {}
+                  const scoredTasks = parsed.tasks || [];
+                  const activeIds = new Set(active.map(t => t.id));
+                  const now = new Date().toISOString();
+                  scoredTasks.filter((t: any) => activeIds.has(t.id)).forEach((t: any) => {
+                    supabase.from("tasks").update({ triage_score: t.score, triage_action: t.action, triage_reason: t.reason, last_triaged_at: now }).eq("id", t.id).then(() => {});
+                  });
+                  const personView = `person-${user?.id}`;
+                  await supabase.from("triage_runs").insert({ view: personView, tasks_scored: scoredTasks.length, summary: parsed.summary || "", details: { tasks: scoredTasks }, created_by: user?.name || "unknown" });
+                  jobStore.updateJob(jobId, { status: "completed", message: `${scoredTasks.length} tasks triaged for ${personName}` });
+                  toast.success(`${personName}: ${scoredTasks.length} tasks triaged`);
+                  setShowPersonTriage(true);
+                  queryClient.invalidateQueries({ queryKey: ["work"] });
+                  queryClient.invalidateQueries({ queryKey: ["triage_runs", personView] });
+                } else {
+                  jobStore.updateJob(jobId, { status: "failed", message: "No result" });
                 }
-                jobStore.updateJob(jobId, { message: `${synced + failed}/${notionTasks.length} tasks (${synced} synced${failed ? `, ${failed} failed` : ""})` });
+              } catch (err: any) {
+                jobStore.updateJob(jobId, { status: "failed", message: err?.message || String(err) });
               }
-              if (failures.length) console.error(`[Notion Push] ${user?.name} failures:\n${failures.join("\n")}`);
-              jobStore.updateJob(jobId, {
-                status: failed > 0 ? "failed" : "completed",
-                message: `${synced} synced${failed ? `, ${failed} failed` : ""} of ${notionTasks.length} tasks${failures.length ? " — " + failures.join(" | ") : ""}`,
-              });
             }}
           >
-            ↑ Notion
+            ⚡ Triage
           </span>
-        )}
-        {/* Per-person triage */}
-        <span
-          className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer transition-colors"
-          title={`Triage ${user?.name || "Unassigned"}'s tasks`}
-          onClick={async (e) => {
-            e.stopPropagation();
-            const personName = user?.name || "Unassigned";
-            const jobId = `triage-person-${user?.id || "unassigned"}-${Date.now()}`;
-            const jobStore = useJobsStore.getState();
-            const claudeStore = useClaudeRunStore.getState();
-            jobStore.addJob({ id: jobId, name: `Triage: ${personName}`, status: "running", message: "Claude is analyzing..." });
-            claudeStore.createRun({ id: jobId, name: `Triage: ${personName}`, domainName: "", tableId: "" });
-
-            const personPrompt = `You are a strategic task triage advisor. Use mcp__supabase__execute_sql to query the database.
-
-STEP 1 — QUERY:
-- SELECT t.id, t.title, t.description, t.priority, t.due_date, ts.name as status, ts.type as status_type, p.name as project, p.project_type, c.display_name as company FROM tasks t LEFT JOIN task_statuses ts ON ts.id = t.status_id LEFT JOIN projects p ON p.id = t.project_id LEFT JOIN crm_companies c ON c.id = t.company_id WHERE ts.type != 'complete' AND t.updated_at > NOW() - INTERVAL '60 days' AND t.id IN (SELECT task_id FROM task_assignees WHERE user_id = '${user?.id}') ORDER BY t.due_date ASC NULLS LAST
-- SELECT horizon, title FROM plans WHERE status = 'active'
-
-SCOPE: Individual triage for ${personName}.
-Focus on what ${personName} should prioritize: what to do now, what can wait, what's blocking them, any tasks that should be reassigned.
-
-STEP 2 — For EACH task, assign: action (do_now|do_this_week|defer|delegate|kill), score (0-100), reason (1 sentence).
-
-STEP 3 — Summary with labeled sections:
-URGENT: [what ${personName} needs to do now]
-THIS WEEK: [key focus areas]
-DEFER/KILL: [what to cut]
-WORKLOAD: [capacity assessment]
-
-RULES: READ ONLY. No updates. Return ONLY JSON:
-{"summary":"...","tasks":[{"id":"uuid","title":"...","project":"...","action":"...","score":0,"reason":"..."}]}`;
-
-            try {
-              const result = await invoke<{ result: string; is_error: boolean }>("claude_run", {
-                runId: jobId,
-                request: { prompt: personPrompt, allowed_tools: ["mcp__supabase__execute_sql"], model: "sonnet", max_budget_usd: 0.5 },
-              });
-              if (result.result) {
-                let parsed: any = {};
-                try {
-                  const raw = result.result.trim();
-                  let jsonStr = raw;
-                  const codeMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-                  if (codeMatch) jsonStr = codeMatch[1].trim();
-                  const s = jsonStr.indexOf("{"), en = jsonStr.lastIndexOf("}");
-                  if (s >= 0 && en > s) parsed = JSON.parse(jsonStr.slice(s, en + 1));
-                } catch {}
-                const scoredTasks = parsed.tasks || [];
-                const activeIds = new Set(active.map(t => t.id));
-                const now = new Date().toISOString();
-                scoredTasks.filter((t: any) => activeIds.has(t.id)).forEach((t: any) => {
-                  supabase.from("tasks").update({ triage_score: t.score, triage_action: t.action, triage_reason: t.reason, last_triaged_at: now }).eq("id", t.id).then(() => {});
-                });
-                // Save per-person triage run
-                const personView = `person-${user?.id}`;
-                const personSummary = parsed.summary || "";
-                await supabase.from("triage_runs").insert({ view: personView, tasks_scored: scoredTasks.length, summary: personSummary, details: { tasks: scoredTasks }, created_by: user?.name || "unknown" });
-                jobStore.updateJob(jobId, { status: "completed", message: `${scoredTasks.length} tasks triaged for ${personName}` });
-                toast.success(`${personName}: ${scoredTasks.length} tasks triaged`);
-                setShowPersonTriage(true);
-                queryClient.invalidateQueries({ queryKey: ["work"] });
-                queryClient.invalidateQueries({ queryKey: ["triage_runs", personView] });
-              } else {
-                jobStore.updateJob(jobId, { status: "failed", message: "No result" });
-              }
-            } catch (err: any) {
-              jobStore.updateJob(jobId, { status: "failed", message: err?.message || String(err) });
-            }
-          }}
-        >
-          ⚡ Triage
-        </span>
+        </div>
       </button>
       {open && (
         <div className="ml-5 border-l-2 border-zinc-100 dark:border-zinc-800 pl-2 pb-2">
@@ -1874,57 +1894,36 @@ RULES: READ ONLY. No updates. Return ONLY JSON:
               <button className="text-[9px] px-2 py-0.5 rounded text-zinc-500 hover:text-zinc-700 font-medium" onClick={() => setSelectedIds(new Set())}>Clear</button>
             </div>
           )}
-          {/* Today card — overdue + due today combined, collapsible */}
-          {(overdue.length > 0 || dueToday.length > 0) ? (
+          {/* Now (do_now) — expanded, red card */}
+          {actionGroups.do_now.length > 0 && (
             <div className="mb-2 mx-1 rounded-lg border border-red-200/30 dark:border-red-800/20 bg-red-50/30 dark:bg-red-900/5 p-2.5">
-              <button onClick={() => setTodayOpen(!todayOpen)} className="w-full flex items-center gap-2 mb-1 hover:opacity-80 transition-opacity">
-                {todayOpen ? <ChevronDown size={10} className="text-red-400" /> : <ChevronRight size={10} className="text-red-400" />}
+              <div className="flex items-center gap-2 mb-1">
                 <AlertTriangle size={12} className="text-red-500" />
-                <span className="text-[11px] font-semibold text-red-600 dark:text-red-400">Today</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium">{overdue.length + dueToday.length}</span>
-                <span
-                  className="ml-auto text-[8px] px-1.5 py-0.5 rounded-full bg-red-100/50 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 cursor-pointer transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const todayTasks = [...overdue, ...dueToday];
-                    const allSelected = todayTasks.every(t => selectedIds.has(t.id));
-                    const next = new Set(selectedIds);
-                    todayTasks.forEach(t => allSelected ? next.delete(t.id) : next.add(t.id));
-                    setSelectedIds(next);
-                  }}
-                >
-                  {[...overdue, ...dueToday].every(t => selectedIds.has(t.id)) ? "Deselect all" : "Select all"}
-                </span>
-              </button>
-              {todayOpen && (
-                <StatusGroupedTasks tasks={[...overdue, ...dueToday]} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
-              )}
-            </div>
-          ) : (
-            <div className="mb-2 mx-1 rounded-lg border border-emerald-200/20 dark:border-emerald-800/20 bg-emerald-50/30 dark:bg-emerald-900/5 p-2 flex items-center gap-2">
-              <CheckCircle2 size={11} className="text-emerald-500" />
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400">All clear for today</span>
+                <span className="text-[11px] font-semibold text-red-600 dark:text-red-400">Now</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium">{actionGroups.do_now.length}</span>
+              </div>
+              <StatusGroupedTasks tasks={actionGroups.do_now} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
             </div>
           )}
-          {/* Upcoming */}
-          {upcoming.length > 0 && (
-            <CollapsibleSection label="Upcoming" count={upcoming.length} icon={Calendar} color="#3B82F6" defaultOpen={false}>
-              <StatusGroupedTasks tasks={upcoming} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
+          {/* This Week (do_this_week) — expanded */}
+          {actionGroups.do_this_week.length > 0 && (
+            <CollapsibleSection label="This Week" count={actionGroups.do_this_week.length} icon={Clock} color="#F59E0B" defaultOpen={true}>
+              <StatusGroupedTasks tasks={actionGroups.do_this_week} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
             </CollapsibleSection>
           )}
-          {/* No Due Date */}
-          {noDate.length > 0 && (
-            <CollapsibleSection label="No Due Date" count={noDate.length} icon={Calendar} color="#9CA3AF" defaultOpen={false}>
-              <StatusGroupedTasks tasks={noDate} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
+          {/* Defer — collapsed */}
+          {actionGroups.defer.length > 0 && (
+            <CollapsibleSection label="Defer" count={actionGroups.defer.length} icon={Calendar} color="#3B82F6" defaultOpen={false}>
+              <StatusGroupedTasks tasks={actionGroups.defer} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
             </CollapsibleSection>
           )}
-          {active.length === 0 && <div className="px-3 py-2 text-xs text-zinc-400">No active tasks</div>}
-          {active.length > 0 && upcoming.length === 0 && dueToday.length === 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 mt-1 rounded bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/30 dark:border-amber-800/20">
-              <AlertTriangle size={12} className="text-amber-500 flex-shrink-0" />
-              <span className="text-[11px] text-amber-600 dark:text-amber-400">No upcoming work planned — only overdue tasks remain</span>
-            </div>
+          {/* Untriaged — collapsed */}
+          {actionGroups.untriaged.length > 0 && (
+            <CollapsibleSection label="Untriaged" count={actionGroups.untriaged.length} icon={Calendar} color="#9CA3AF" defaultOpen={false}>
+              <StatusGroupedTasks tasks={actionGroups.untriaged} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
+            </CollapsibleSection>
           )}
+          {displayed.length === 0 && <div className="px-3 py-2 text-xs text-zinc-400">No matching tasks</div>}
         </div>
       )}
     </div>
@@ -2099,6 +2098,32 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
     return tasks.filter(t => (t.assignees || []).some(a => a.user?.id && selectedPersonIds.has(a.user.id)));
   }, [tasks, selectedPersonIds]);
 
+  // Task filters (for People tab)
+  const [actionFilter, setActionFilter] = useState<Set<string>>(new Set());
+  const [companyFilter, setCompanyFilter] = useState<string | null>(null);
+  const [contextFilter, setContextFilter] = useState<string | null>(null);
+
+  const filterOptions = useMemo(() => {
+    const companies = new Map<string, string>();
+    const contexts = new Set<string>();
+    for (const t of filteredTasks) {
+      if (t.company?.id) companies.set(t.company.id, (t.company as any).display_name || t.company.name);
+      const matches = (t as any).triage_context_matches as any[] | null;
+      if (matches) for (const cm of matches) contexts.add(cm.context_name);
+    }
+    return { companies: [...companies.entries()].sort((a, b) => a[1].localeCompare(b[1])), contexts: [...contexts].sort() };
+  }, [filteredTasks]);
+
+  const applyTaskFilters = useCallback((taskList: TaskWithRelations[]) => {
+    let result = taskList;
+    if (actionFilter.size > 0) result = result.filter(t => actionFilter.has(t.triage_action || "untriaged"));
+    if (companyFilter) result = result.filter(t => t.company?.id === companyFilter);
+    if (contextFilter) result = result.filter(t => ((t as any).triage_context_matches as any[] | null)?.some((cm: any) => cm.context_name === contextFilter));
+    return result;
+  }, [actionFilter, companyFilter, contextFilter]);
+
+  const hasActiveFilters = actionFilter.size > 0 || !!companyFilter || !!contextFilter;
+
   const totalActive = filteredTasks.length;
   const totalOverdue = filteredTasks.filter(t => isOverdue(t.due_date || "")).length;
   const totalNoDate = filteredTasks.filter(t => !t.due_date).length;
@@ -2266,10 +2291,48 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
       )}
 
       {/* People Tab */}
-      {teamTab === "people" && (
+      {teamTab === "people" && (<>
+      {/* Task filter bar */}
+      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800/50 flex-wrap">
+        <Filter size={11} className="text-zinc-500" />
+        <span className="text-[10px] text-zinc-500">Filter:</span>
+        {(["do_now", "do_this_week", "defer", "untriaged"] as const).map(action => {
+          const style = ACTION_STYLES[action] || { label: "Untriaged", bg: "bg-zinc-100 dark:bg-zinc-800", text: "text-zinc-500 dark:text-zinc-400" };
+          const label = action === "do_now" ? "Now" : action === "do_this_week" ? "This Week" : action === "defer" ? "Defer" : "Untriaged";
+          const active = actionFilter.has(action);
+          return (
+            <button key={action} onClick={() => {
+              setActionFilter(prev => { const next = new Set(prev); next.has(action) ? next.delete(action) : next.add(action); return next; });
+            }}
+              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${active ? `${style.bg} ${style.text} ring-1 ring-current/20` : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+            >
+              {label}
+            </button>
+          );
+        })}
+        <span className="text-zinc-300 dark:text-zinc-700">|</span>
+        <select value={companyFilter || ""} onChange={e => setCompanyFilter(e.target.value || null)}
+          className="text-[10px] bg-transparent border border-zinc-200 dark:border-zinc-700 rounded px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 outline-none focus:border-teal-500">
+          <option value="">All Companies</option>
+          {filterOptions.companies.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
+        {filterOptions.contexts.length > 0 && (
+          <select value={contextFilter || ""} onChange={e => setContextFilter(e.target.value || null)}
+            className="text-[10px] bg-transparent border border-zinc-200 dark:border-zinc-700 rounded px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 outline-none focus:border-teal-500">
+            <option value="">All Contexts</option>
+            {filterOptions.contexts.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        {hasActiveFilters && (
+          <button onClick={() => { setActionFilter(new Set()); setCompanyFilter(null); setContextFilter(null); }}
+            className="text-[10px] text-zinc-400 hover:text-zinc-200 flex items-center gap-0.5 transition-colors">
+            <X size={10} /> Clear
+          </button>
+        )}
+      </div>
       <div className="flex-1 overflow-y-auto p-4">
         {/* Needs Attention — tasks missing due date or company */}
-        {totalNoDate > 0 && (
+        {!hasActiveFilters && totalNoDate > 0 && (
           <CollapsibleSection label="Needs Due Date" count={totalNoDate} icon={AlertTriangle} color="#F59E0B" defaultOpen={false} badge="Assign due dates to these tasks">
             <StatusGroupedTasks
               tasks={filteredTasks.filter(t => !t.due_date).slice(0, 50)}
@@ -2282,6 +2345,11 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
 
         {grouped.map(([userId, userTasks]) => {
           const user = userId ? users.find(u => u.id === userId) || null : null;
+          // Hide empty persons when filters are active
+          if (hasActiveFilters) {
+            const filtered = applyTaskFilters(userTasks.filter(t => t.status?.type !== "complete"));
+            if (filtered.length === 0) return null;
+          }
           return (
             <PersonSection
               key={userId || "unassigned"}
@@ -2290,6 +2358,7 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
               onSelectTask={onSelectTask}
               contextLabels={contextLabels}
               defaultOpen={userId !== null && userTasks.some(t => isOverdue(t.due_date || ""))}
+              applyFilters={applyTaskFilters}
             />
           );
         })}
@@ -2297,7 +2366,7 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
           <div className="text-center py-12 text-sm text-zinc-400">No active tasks</div>
         )}
       </div>
-      )}
+      </>)}
     </div>
   );
 }

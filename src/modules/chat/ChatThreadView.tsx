@@ -287,34 +287,46 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
             </p>
           </div>
         ) : (
-          <div className="px-3 py-2">
-            {topLevel.map((discussion, i) => (
-              <div
-                key={discussion.id}
-                className="animate-fade-slide-in"
-                style={{ animationDelay: `${i * 40}ms` }}
-              >
-                <DiscussionItem
-                  discussion={discussion}
-                  currentUser={currentUser}
-                  currentUserAliases={currentUserAliases}
-                  onUpdate={handleUpdate}
-                  onDelete={handleDelete}
-                  onReply={(parentId) => setReplyingTo(parentId)}
-                />
-                {repliesByParent.get(discussion.id)?.map((reply) => (
-                  <DiscussionItem
-                    key={reply.id}
-                    discussion={reply}
-                    currentUser={currentUser}
-                    currentUserAliases={currentUserAliases}
-                    onUpdate={handleUpdate}
-                    onDelete={handleDelete}
-                    isReply
-                  />
-                ))}
-              </div>
-            ))}
+          <div className="py-2">
+            {(() => {
+              // Flatten all messages in order: top-level interleaved with their replies
+              const allMessages: { discussion: typeof topLevel[0]; isReply: boolean }[] = [];
+              for (const discussion of topLevel) {
+                allMessages.push({ discussion, isReply: false });
+                const replies = repliesByParent.get(discussion.id) ?? [];
+                for (const reply of replies) {
+                  allMessages.push({ discussion: reply, isReply: true });
+                }
+              }
+
+              return allMessages.map(({ discussion, isReply: isReplyMsg }, i) => {
+                // Determine if this is a continuation from the same author
+                const prev = i > 0 ? allMessages[i - 1] : null;
+                const isContinuation = !isReplyMsg && prev && !prev.isReply &&
+                  prev.discussion.author === discussion.author &&
+                  // Only group if within 5 minutes of each other
+                  (new Date(discussion.created_at).getTime() - new Date(prev.discussion.created_at).getTime()) < 5 * 60 * 1000;
+
+                return (
+                  <div
+                    key={discussion.id}
+                    className="animate-fade-slide-in"
+                    style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
+                  >
+                    <DiscussionItem
+                      discussion={discussion}
+                      currentUser={currentUser}
+                      currentUserAliases={currentUserAliases}
+                      onUpdate={handleUpdate}
+                      onDelete={handleDelete}
+                      onReply={isReplyMsg ? undefined : (parentId) => setReplyingTo(parentId)}
+                      isReply={isReplyMsg}
+                      isContinuation={!!isContinuation}
+                    />
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
       </div>

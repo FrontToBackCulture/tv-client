@@ -1,7 +1,7 @@
-// Task Advisor — proactive bot-mel check-ins via chat
-// Runs on app startup + every 2 hours. Posts to discussions as bot-mel.
-// Calls Claude Haiku to compose a natural, advisory message about your tasks.
-// Reply handler: when user replies, kicks off Claude Code to process and act.
+// DIO Automations — Data → Instruction → Output
+// Lightweight automations stored in Supabase (dio_automations table).
+// Each runs in-app via the Anthropic API on a configurable schedule.
+// Reply handler: when user replies to a DIO thread, Claude Code processes + acts.
 
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -15,9 +15,128 @@ import { useCurrentUserId, useUsers } from "../work/useUsers";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
 
-const INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
-const LAST_RUN_KEY = "tv-task-advisor-last-run";
+const CHECK_INTERVAL_MS = 60_000; // Check every 60s whether it's time to run
 const BOT_AUTHOR = "bot-mel";
+
+// ---------------------------------------------------------------------------
+// Types (matches dio_automations table)
+// ---------------------------------------------------------------------------
+
+export interface DioSources {
+  tasks: boolean;
+  deals: boolean;
+  emails: boolean;
+  projects: boolean;
+  calendar: boolean;
+}
+
+export type PostMode = "new_thread" | "same_thread";
+
+export interface DioAutomation {
+  id: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  interval_hours: number;
+  active_hours: string | null;
+  sources: DioSources;
+  model: string;
+  system_prompt: string | null;
+  post_mode: PostMode;
+  thread_id: string | null;
+  thread_title: string | null;
+  bot_author: string;
+  last_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type DioAutomationInput = Omit<DioAutomation, "id" | "created_at" | "updated_at" | "last_run_at">;
+
+// ---------------------------------------------------------------------------
+// Constants & defaults
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+export const DEFAULT_THREAD_TITLE_NEW = "Check-in — {date} at {time}";
+export const DEFAULT_THREAD_TITLE_SAME = "Daily Check-ins";
+
+export const DEFAULT_SOURCES: DioSources = {
+  tasks: true,
+  deals: false,
+  emails: false,
+  projects: false,
+  calendar: false,
+};
+
+export const SOURCE_OPTIONS = [
+  { key: "tasks" as const, label: "My Tasks", desc: "Overdue, due today, in progress, upcoming 3 days" },
+  { key: "deals" as const, label: "CRM Pipeline", desc: "Active deals with stage and expected close" },
+  { key: "emails" as const, label: "Recent Emails", desc: "Top 10 inbox items by priority (requires Outlook)" },
+  { key: "projects" as const, label: "Project Updates", desc: "Active work projects with open/overdue task counts" },
+  { key: "calendar" as const, label: "Calendar Events", desc: "Today's remaining events (requires Outlook)" },
+] as const;
+
+export const MODEL_OPTIONS = [
+  { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5 (fast, cheap)" },
+  { value: "claude-sonnet-4-6-20260401", label: "Sonnet 4.6 (balanced)" },
+] as const;
+
+export const DEFAULT_SYSTEM_PROMPT = `You are bot-mel, a blunt and practical task advisor. You're checking in on the user's task list throughout the day. Be direct — no fluff, no cheerleading, no bullet points, no emojis.
+
+Your job:
+- Highlight what matters most right now given the time of day and hours remaining
+- Call out if they're avoiding the hard or important stuff (high priority / overdue items not in progress)
+- Note if the pace is on track or falling behind
+- If time is running short, suggest what to defer to tomorrow
+- Acknowledge progress when tasks have been completed — but briefly, then move on to what's next
+- If everything looks good, say so in one line and move on
+
+Write conversationally, like a blunt colleague checking in. 3-5 sentences max. Reference specific task names when relevant. Do NOT use markdown formatting.`;
+
+// ---------------------------------------------------------------------------
+// Supabase CRUD
+// ---------------------------------------------------------------------------
+
+export async function loadDioAutomations(): Promise<DioAutomation[]> {
+  const { data, error } = await supabase
+    .from("dio_automations")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("[dio] Failed to load automations:", error.message);
+    return [];
+  }
+  return (data ?? []).map((row) => ({
+    ...row,
+    sources: { ...DEFAULT_SOURCES, ...(row.sources as object) } as DioSources,
+    post_mode: (row.post_mode === "same_thread" ? "same_thread" : "new_thread") as PostMode,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Schedule helpers
+// ---------------------------------------------------------------------------
+
+function parseActiveHours(ah: string | null): { start: number; end: number } | null {
+  if (!ah || !ah.includes("-")) return null;
+  const [s, e] = ah.split("-").map(Number);
+  if (isNaN(s) || isNaN(e)) return null;
+  return { start: s, end: e };
+}
+
+function isWithinActiveHours(automation: DioAutomation): boolean {
+  const parsed = parseActiveHours(automation.active_hours);
+  if (!parsed) return true;
+  const h = getSGTHour();
+  return h >= parsed.start && h < parsed.end;
+}
+
+function isDue(automation: DioAutomation): boolean {
+  if (!automation.last_run_at) return true;
+  const elapsed = Date.now() - new Date(automation.last_run_at).getTime();
+  return elapsed >= automation.interval_hours * 3600000;
+}
 
 // ---------------------------------------------------------------------------
 // Time helpers (SGT)
@@ -146,6 +265,168 @@ async function gatherMyTasks(userId: string): Promise<TaskSnapshot> {
 }
 
 // ---------------------------------------------------------------------------
+// Additional data sources
+// ---------------------------------------------------------------------------
+
+interface GatheredContext {
+  sections: string[];
+}
+
+async function gatherActiveDeals(): Promise<string | null> {
+  const { data: deals } = await supabase
+    .from("projects")
+    .select("name, deal_stage, deal_value, deal_expected_close, company:crm_companies!projects_company_id_fkey(name, display_name)")
+    .eq("project_type", "deal")
+    .is("archived_at", null)
+    .not("deal_stage", "in", "(won,lost)")
+    .order("deal_expected_close", { ascending: true, nullsFirst: false })
+    .limit(10);
+
+  if (!deals?.length) return null;
+
+  const lines = ["ACTIVE DEALS (" + deals.length + "):"];
+  for (const d of deals) {
+    const company = (d.company as unknown as { display_name?: string; name?: string })?.display_name
+      || (d.company as unknown as { name?: string })?.name || "Unknown";
+    const value = d.deal_value ? `$${Number(d.deal_value).toLocaleString()}` : "no value";
+    const close = d.deal_expected_close ? `close: ${d.deal_expected_close.slice(0, 10)}` : "no close date";
+    lines.push(`- ${company} — ${d.deal_stage || "unknown stage"} — ${value} (${close})`);
+  }
+  return lines.join("\n");
+}
+
+async function gatherRecentEmails(): Promise<string | null> {
+  try {
+    const emails = await invoke<Array<{
+      subject: string;
+      from_name: string;
+      importance: string;
+      is_read: boolean;
+      received_at: string;
+    }>>("outlook_list_emails", { folder: null, category: null, status: "unread", search: null, limit: 10, offset: 0 });
+
+    if (!emails?.length) return null;
+
+    const lines = [`RECENT EMAILS (${emails.length} unread):`];
+    for (const e of emails) {
+      const prio = e.importance === "high" ? "[HIGH] " : "";
+      const ago = formatTimeAgo(e.received_at);
+      lines.push(`- ${prio}${e.subject} — ${e.from_name} (${ago})`);
+    }
+    return lines.join("\n");
+  } catch {
+    return null; // Outlook not connected
+  }
+}
+
+async function gatherProjectUpdates(userId: string): Promise<string | null> {
+  const { data: projects } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("project_type", "work")
+    .eq("status", "active")
+    .is("archived_at", null)
+    .limit(10);
+
+  if (!projects?.length) return null;
+
+  const today = toSGTDateString();
+  const lines = [`ACTIVE PROJECTS (${projects.length}):`];
+
+  for (const p of projects) {
+    const { count: openCount } = await supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", p.id)
+      .not("status_id", "in", `(${await getDoneStatusIds()})`);
+
+    const { count: overdueCount } = await supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", p.id)
+      .not("status_id", "in", `(${await getDoneStatusIds()})`)
+      .lt("due_date", today);
+
+    const overdueNote = (overdueCount ?? 0) > 0 ? `, ${overdueCount} overdue` : ", none overdue";
+    lines.push(`- ${p.name} — ${openCount ?? 0} open tasks${overdueNote}`);
+  }
+  return lines.join("\n");
+}
+
+let _doneStatusIdsCache: string | null = null;
+async function getDoneStatusIds(): Promise<string> {
+  if (_doneStatusIdsCache) return _doneStatusIdsCache;
+  const { data } = await supabase.from("task_statuses").select("id").eq("type", "complete");
+  _doneStatusIdsCache = (data || []).map((s) => `'${s.id}'`).join(",") || "'__none__'";
+  return _doneStatusIdsCache;
+}
+
+async function gatherCalendarEvents(): Promise<string | null> {
+  try {
+    const now = new Date();
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const events = await invoke<Array<{
+      subject: string;
+      start_at: string;
+      end_at: string;
+      is_all_day: boolean;
+      location: string;
+      is_online_meeting: boolean;
+    }>>("outlook_list_events", {
+      startTime: now.toISOString(),
+      endTime: endOfDay.toISOString(),
+      limit: 10,
+    });
+
+    if (!events?.length) return null;
+
+    const lines = [`TODAY'S REMAINING EVENTS (${events.length}):`];
+    for (const e of events) {
+      const start = new Date(e.start_at).toLocaleTimeString("en-SG", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit", hour12: false });
+      const durationMin = Math.round((new Date(e.end_at).getTime() - new Date(e.start_at).getTime()) / 60000);
+      const duration = durationMin >= 60 ? `${Math.floor(durationMin / 60)}h${durationMin % 60 ? ` ${durationMin % 60}m` : ""}` : `${durationMin}m`;
+      const loc = e.is_online_meeting ? "online" : (e.location || "");
+      const locNote = loc ? `, ${loc}` : "";
+      lines.push(`- ${start} — ${e.subject} (${duration}${locNote})`);
+    }
+    return lines.join("\n");
+  } catch {
+    return null; // Outlook not connected
+  }
+}
+
+function formatTimeAgo(isoDate: string): string {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+async function gatherContext(userId: string, sources: AdvisorSources): Promise<GatheredContext> {
+  const results = await Promise.allSettled([
+    sources.tasks ? gatherMyTasks(userId).then(buildPromptData) : Promise.resolve(null),
+    sources.deals ? gatherActiveDeals() : Promise.resolve(null),
+    sources.emails ? gatherRecentEmails() : Promise.resolve(null),
+    sources.projects ? gatherProjectUpdates(userId) : Promise.resolve(null),
+    sources.calendar ? gatherCalendarEvents() : Promise.resolve(null),
+  ]);
+
+  const sections: string[] = [];
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value) sections.push(r.value);
+  }
+
+  // Always add time context
+  sections.push(`Current time: ${getSGTTimeString()} SGT\nHours until midnight: ~${getRemainingWorkHours()}`);
+
+  return { sections };
+}
+
+// ---------------------------------------------------------------------------
 // Haiku message composition
 // ---------------------------------------------------------------------------
 
@@ -201,22 +482,27 @@ function buildPromptData(snapshot: TaskSnapshot): string {
   return lines.join("\n");
 }
 
-async function composeMessage(snapshot: TaskSnapshot, userName: string): Promise<string | null> {
+async function composeMessage(
+  context: GatheredContext,
+  userName: string,
+  systemPromptOverride?: string | null,
+  model?: string,
+): Promise<string | null> {
   const apiKey = await invoke<string | null>("settings_get_anthropic_key");
   if (!apiKey) {
     console.warn("[task-advisor] No Anthropic API key configured");
     return null;
   }
 
-  const totalActive =
-    snapshot.overdue.length + snapshot.dueToday.length + snapshot.inProgress.length;
-
-  // Nothing to say
-  if (totalActive === 0 && snapshot.completedToday.length === 0) {
+  // Nothing to say if no data sections
+  if (context.sections.length <= 1) { // only time context
     return null;
   }
 
-  const taskData = buildPromptData(snapshot);
+  const contextData = context.sections.join("\n\n---\n\n");
+
+  const basePrompt = systemPromptOverride || DEFAULT_SYSTEM_PROMPT;
+  const systemPrompt = `${basePrompt}\n\nAlways address as @${userName}.`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -227,23 +513,13 @@ async function composeMessage(snapshot: TaskSnapshot, userName: string): Promise
       "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      system: `You are bot-mel, a blunt and practical task advisor. You're checking in on @${userName}'s task list throughout the day. Be direct — no fluff, no cheerleading, no bullet points, no emojis.
-
-Your job:
-- Highlight what matters most right now given the time of day and hours remaining
-- Call out if they're avoiding the hard or important stuff (high priority / overdue items not in progress)
-- Note if the pace is on track or falling behind
-- If time is running short, suggest what to defer to tomorrow
-- Acknowledge progress when tasks have been completed — but briefly, then move on to what's next
-- If everything looks good, say so in one line and move on
-
-Write conversationally, like a blunt colleague checking in. 3-5 sentences max. Always address as @${userName}. Reference specific task names when relevant. Do NOT use markdown formatting.`,
+      model: model || DEFAULT_MODEL,
+      max_tokens: 400,
+      system: systemPrompt,
       messages: [
         {
           role: "user",
-          content: `Here's the current task status:\n\n${taskData}\n\nGive your check-in.`,
+          content: `Here's your current status:\n\n${contextData}\n\nGive your check-in.`,
         },
       ],
     }),
@@ -262,54 +538,128 @@ Write conversationally, like a blunt colleague checking in. 3-5 sentences max. A
 // Post to discussions
 // ---------------------------------------------------------------------------
 
+function resolveThreadTitle(template: string): string {
+  const now = new Date();
+  const vars: Record<string, string> = {
+    date: now.toLocaleDateString("en-SG", { timeZone: "Asia/Singapore", day: "numeric", month: "short", year: "numeric" }),
+    time: now.toLocaleTimeString("en-SG", { timeZone: "Asia/Singapore", hour: "numeric", minute: "2-digit", hour12: true }),
+    day: now.toLocaleDateString("en-SG", { timeZone: "Asia/Singapore", weekday: "long" }),
+    month: now.toLocaleDateString("en-SG", { timeZone: "Asia/Singapore", month: "short", year: "numeric" }),
+  };
+  return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] || `{${key}}`);
+}
+
 async function postMessage(
   message: string,
   recipient: string,
-  queryClient: QueryClient
+  queryClient: QueryClient,
+  postMode: PostMode,
+  threadId: string,
+  threadTitle: string,
+  author: string = BOT_AUTHOR,
 ): Promise<void> {
-  // Each check-in gets its own thread (unique entity_id with timestamp)
-  const entityId = `task-advisor:${Date.now()}`;
+  const resolvedTitle = resolveThreadTitle(threadTitle);
 
-  const timeLabel = new Date().toLocaleString("en-SG", {
-    timeZone: "Asia/Singapore",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  if (postMode === "same_thread") {
+    // Find existing root for this thread
+    const { data: existing } = await supabase
+      .from("discussions")
+      .select("id")
+      .eq("entity_type", "general")
+      .eq("entity_id", threadId)
+      .is("parent_id", null)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .single();
 
-  const insertParams: Record<string, unknown> = {
-    entity_type: "general",
-    entity_id: entityId,
-    author: BOT_AUTHOR,
-    body: message,
-    title: `Check-in — ${timeLabel}`,
-  };
+    if (existing) {
+      const { data: reply, error } = await supabase
+        .from("discussions")
+        .insert({
+          entity_type: "general",
+          entity_id: threadId,
+          author,
+          body: message,
+          parent_id: existing.id,
+        })
+        .select()
+        .single();
 
-  const { data: discussion, error } = await supabase
-    .from("discussions")
-    .insert(insertParams)
-    .select()
-    .single();
+      if (error) {
+        console.error("[dio] Failed to post reply:", error.message);
+        return;
+      }
 
-  if (error) {
-    console.error("[task-advisor] Failed to post:", error.message);
-    return;
+      const preview = message.length > 100 ? message.slice(0, 100) + "..." : message;
+      await supabase.from("notifications").insert({
+        recipient,
+        type: "mention",
+        discussion_id: reply.id,
+        entity_type: "general",
+        entity_id: threadId,
+        actor: author,
+        body_preview: preview,
+      });
+    } else {
+      const { data: root, error } = await supabase
+        .from("discussions")
+        .insert({
+          entity_type: "general",
+          entity_id: threadId,
+          author,
+          body: message,
+          title: resolvedTitle,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("[dio] Failed to create thread:", error.message);
+        return;
+      }
+
+      const preview = message.length > 100 ? message.slice(0, 100) + "..." : message;
+      await supabase.from("notifications").insert({
+        recipient,
+        type: "mention",
+        discussion_id: root.id,
+        entity_type: "general",
+        entity_id: threadId,
+        actor: author,
+        body_preview: preview,
+      });
+    }
+  } else {
+    const entityId = `dio:${Date.now()}`;
+
+    const { data: discussion, error } = await supabase
+      .from("discussions")
+      .insert({
+        entity_type: "general",
+        entity_id: entityId,
+        author,
+        body: message,
+        title: resolvedTitle,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[dio] Failed to post:", error.message);
+      return;
+    }
+
+    const preview = message.length > 100 ? message.slice(0, 100) + "..." : message;
+    await supabase.from("notifications").insert({
+      recipient,
+      type: "mention",
+      discussion_id: discussion.id,
+      entity_type: "general",
+      entity_id: entityId,
+      actor: author,
+      body_preview: preview,
+    });
   }
-
-  // Notify the user
-  const preview =
-    message.length > 100 ? message.slice(0, 100) + "..." : message;
-  await supabase.from("notifications").insert({
-    recipient,
-    type: "mention",
-    discussion_id: discussion.id,
-    entity_type: "general",
-    entity_id: entityId,
-    actor: BOT_AUTHOR,
-    body_preview: preview,
-  });
 
   // Refresh UI
   queryClient.invalidateQueries({ queryKey: ["discussions"] });
@@ -321,37 +671,63 @@ async function postMessage(
 // Runner
 // ---------------------------------------------------------------------------
 
-async function runTaskAdvisor(
+async function runDioAutomation(
+  automation: DioAutomation,
   queryClient: QueryClient,
   userId: string,
-  userName: string
+  userName: string,
 ): Promise<void> {
-  console.log("[task-advisor] Running check...");
+  console.log(`[dio] Running "${automation.name}"...`);
+
+  const pm = automation.post_mode;
+  const tid = automation.thread_id || `dio:${automation.id}:daily`;
+  const ttl = automation.thread_title || (pm === "same_thread" ? DEFAULT_THREAD_TITLE_SAME : DEFAULT_THREAD_TITLE_NEW);
 
   try {
-    const snapshot = await gatherMyTasks(userId);
-    const message = await composeMessage(snapshot, userName);
+    const context = await gatherContext(userId, automation.sources);
+    const message = await composeMessage(context, userName, automation.system_prompt, automation.model);
 
     if (!message) {
-      console.log("[task-advisor] Nothing to report");
+      console.log(`[dio] "${automation.name}" — nothing to report`);
     } else {
-      await postMessage(message, userName, queryClient);
-      console.log("[task-advisor] Posted check-in");
+      await postMessage(message, userName, queryClient, pm, tid, ttl, automation.bot_author);
+      console.log(`[dio] "${automation.name}" — posted as ${automation.bot_author}`);
     }
   } catch (err) {
-    console.error("[task-advisor] Error:", err);
+    console.error(`[dio] "${automation.name}" error:`, err);
   }
 
-  localStorage.setItem(LAST_RUN_KEY, new Date().toISOString());
+  // Update last_run_at in Supabase
+  await supabase
+    .from("dio_automations")
+    .update({ last_run_at: new Date().toISOString() })
+    .eq("id", automation.id);
 }
 
-/** Manually trigger a check-in. Returns when done. */
+/** Manually trigger a DIO automation by ID. */
+export async function triggerDioAutomation(
+  automationId: string,
+  queryClient: QueryClient,
+  userId: string,
+  userName: string,
+): Promise<void> {
+  const automations = await loadDioAutomations();
+  const auto = automations.find((a) => a.id === automationId);
+  if (!auto) {
+    console.error(`[dio] Automation ${automationId} not found`);
+    return;
+  }
+  await runDioAutomation(auto, queryClient, userId, userName);
+  queryClient.invalidateQueries({ queryKey: ["dio-automations"] });
+}
+
+// Legacy alias for existing callers
 export async function triggerTaskAdvisor(
   queryClient: QueryClient,
   userId: string,
-  userName: string
+  userName: string,
 ): Promise<void> {
-  await runTaskAdvisor(queryClient, userId, userName);
+  await triggerDioAutomation("task-advisor", queryClient, userId, userName);
 }
 
 // ---------------------------------------------------------------------------
@@ -448,10 +824,10 @@ async function handleBotMention(
   }
 
   // Build context based on thread type
-  const isTaskAdvisorThread = discussion.entity_id.startsWith("task-advisor:");
+  const isDioThread = discussion.entity_id.startsWith("task-advisor:") || discussion.entity_id.startsWith("dio:");
   let taskContext = "";
 
-  if (isTaskAdvisorThread) {
+  if (isDioThread) {
     // Include full task data for task advisor threads
     const snapshot = await gatherMyTasks(userId);
     const taskData = buildPromptData(snapshot);
@@ -650,32 +1026,39 @@ export function useTaskAdvisor() {
   const userName = allUsers.find((u) => u.id === userId)?.name || "user";
   const ranRef = useRef(false);
 
-  // Run on startup (after 8s delay, if 2h+ since last run)
-  useEffect(() => {
-    if (!userId || !userName || userName === "user" || ranRef.current) return;
-    ranRef.current = true;
-
-    const lastRun = localStorage.getItem(LAST_RUN_KEY);
-    const shouldRun =
-      !lastRun || Date.now() - new Date(lastRun).getTime() > INTERVAL_MS;
-
-    if (shouldRun) {
-      const timer = setTimeout(() => {
-        runTaskAdvisor(queryClient, userId, userName).catch(console.warn);
-      }, 8000);
-      return () => clearTimeout(timer);
-    }
-  }, [queryClient, userId, userName]);
-
-  // Recurring interval
+  // Run all due DIO automations on startup + every 60s
   useEffect(() => {
     if (!userId || !userName || userName === "user") return;
 
-    const interval = setInterval(() => {
-      runTaskAdvisor(queryClient, userId, userName).catch(console.warn);
-    }, INTERVAL_MS);
+    async function checkAndRunAll() {
+      try {
+        const automations = await loadDioAutomations();
+        for (const auto of automations) {
+          if (!auto.enabled) continue;
+          if (!isWithinActiveHours(auto)) continue;
+          if (!isDue(auto)) continue;
+          await runDioAutomation(auto, queryClient, userId, userName);
+        }
+        queryClient.invalidateQueries({ queryKey: ["dio-automations"] });
+      } catch (err) {
+        console.warn("[dio] Check failed:", err);
+      }
+    }
 
-    return () => clearInterval(interval);
+    // Startup check (once, after 8s delay)
+    let startupTimer: ReturnType<typeof setTimeout> | null = null;
+    if (!ranRef.current) {
+      ranRef.current = true;
+      startupTimer = setTimeout(checkAndRunAll, 8000);
+    }
+
+    // Recurring check every 60s
+    const interval = setInterval(checkAndRunAll, CHECK_INTERVAL_MS);
+
+    return () => {
+      if (startupTimer) clearTimeout(startupTimer);
+      clearInterval(interval);
+    };
   }, [queryClient, userId, userName]);
 
   // Bot mention handler — subscribe to new discussions that @mention bot-mel
@@ -707,9 +1090,9 @@ export function useTaskAdvisor() {
 
           // Trigger on: (1) any @bot-mel mention, or (2) replies in task-advisor threads
           const mentionsBot = /@bot-mel\b/i.test(row.body);
-          const isTaskAdvisorThread = row.entity_id.startsWith("task-advisor:");
+          const isDioThread = row.entity_id.startsWith("task-advisor:") || row.entity_id.startsWith("dio:");
 
-          if (!mentionsBot && !isTaskAdvisorThread) return;
+          if (!mentionsBot && !isDioThread) return;
 
           handleBotMention(
             { ...row, attachments: row.attachments || [] },

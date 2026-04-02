@@ -11,6 +11,7 @@ import {
   useEmailCampaigns,
 } from "../../hooks/email";
 import { useKnowledgePaths, useFolderConfig } from "../../hooks/useKnowledgePaths";
+import { useUsers } from "../../hooks/work/useUsers";
 import type { EmailCampaignWithStats } from "../../lib/email/types";
 
 interface TemplateFile {
@@ -109,6 +110,12 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
     }
   };
 
+  const { data: humanUsers = [] } = useUsers("human");
+  const senderOptions = useMemo(
+    () => humanUsers.filter((u) => u.email),
+    [humanUsers]
+  );
+
   const { data: groups = [] } = useEmailGroups();
   const { data: allCampaigns = [] } = useEmailCampaigns();
   const createCampaign = useCreateEmailCampaign();
@@ -205,31 +212,26 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                   placeholder="e.g., Your March update is here"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                    From Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={fromName}
-                    onChange={(e) => setFromName(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    placeholder="ThinkVAL"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                    From Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={fromEmail}
-                    onChange={(e) => setFromEmail(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    placeholder="hello@thinkval.com"
-                  />
-                </div>
+              <div>
+                <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                  From (Sender) *
+                </label>
+                <select
+                  value={senderOptions.some((u) => u.email === fromEmail) ? `${fromName}||${fromEmail}` : ""}
+                  onChange={(e) => {
+                    const [name, email] = e.target.value.split("||");
+                    setFromName(name ?? "");
+                    setFromEmail(email ?? "");
+                  }}
+                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value="">Select a sender...</option>
+                  {senderOptions.map((u) => (
+                    <option key={u.id} value={`${u.name}||${u.email}`}>
+                      {u.name} &lt;{u.email}&gt;
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">

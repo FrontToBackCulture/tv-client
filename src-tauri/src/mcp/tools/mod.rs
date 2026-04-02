@@ -79,6 +79,7 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
        name == "add-project-to-initiative" || name == "remove-project-from-initiative" ||
        name == "list-initiative-projects" ||
        name.starts_with("list-label") || name.starts_with("create-label") ||
+       name == "register-skill" || name == "list-skills" ||
        name == "list-users" || name == "list-bots" ||
        name == "get-pipeline" ||
        name.starts_with("add-project-") || name.starts_with("remove-project-") {

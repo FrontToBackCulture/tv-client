@@ -173,7 +173,10 @@ export function ChatInbox({
   }, [threads, search, pins, currentUser]);
 
   const unreadCount = useMemo(() => {
+    // Only count unread in threads the user is a participant in
+    const userLower = currentUser.toLowerCase();
     return threads.filter((t) => {
+      if (!t.participants?.some((p) => p === userLower)) return false;
       const readAt = readPositions.get(t.id);
       return !readAt || new Date(t.last_activity_at) > new Date(readAt);
     }).length;

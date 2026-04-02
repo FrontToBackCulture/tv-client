@@ -57,7 +57,7 @@ pub(crate) fn build_find_by_domain_query(domain: &str) -> String {
 pub(crate) fn build_get_company_query(company_id: &str, include_relations: bool) -> String {
     if include_relations {
         format!(
-            "select=*,contacts:crm_contacts(*),deals:crm_deals(*),activities:crm_activities(*)&id=eq.{}",
+            "select=*,contacts:crm_contacts(*),activities:crm_activities(*)&id=eq.{}",
             company_id
         )
     } else {
@@ -149,10 +149,9 @@ pub async fn crm_update_company(company_id: String, data: UpdateCompany) -> CmdR
 pub async fn crm_delete_company(company_id: String) -> CmdResult<()> {
     let client = get_client().await?;
 
-    // Delete in order: activities, email_links, deals, contacts, company
+    // Delete in order: activities, email_links, contacts, company
     client.delete("crm_activities", &format!("company_id=eq.{}", company_id)).await?;
     client.delete("crm_email_company_links", &format!("company_id=eq.{}", company_id)).await?;
-    client.delete("crm_deals", &format!("company_id=eq.{}", company_id)).await?;
     client.delete("crm_contacts", &format!("company_id=eq.{}", company_id)).await?;
     client.delete("crm_companies", &format!("id=eq.{}", company_id)).await
 }
@@ -255,7 +254,6 @@ mod tests {
     fn get_company_with_relations() {
         let q = build_get_company_query("abc-123", true);
         assert!(q.contains("select=*,contacts:crm_contacts(*)"));
-        assert!(q.contains("deals:crm_deals(*)"));
         assert!(q.contains("activities:crm_activities(*)"));
         assert!(q.contains("id=eq.abc-123"));
     }

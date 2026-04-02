@@ -26,6 +26,7 @@ import { emailKeys } from "../../hooks/email/keys";
 import type { EmailContact } from "../../lib/email/types";
 import { formatDate } from "../../lib/date";
 import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useUsers } from "../../hooks/work/useUsers";
 import { useFileTree, useFolderChildren, type TreeNode } from "../../hooks/useFiles";
 import { extractTokens, classifyTokens, applyTokens } from "../../lib/email/tokens";
 
@@ -64,6 +65,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
   const [showReportPicker, setShowReportPicker] = useState(false);
   const [copiedPath, setCopiedPath] = useState(false);
   const [testGroupId, setTestGroupId] = useState<string>("");
+  const [sendConfirm, setSendConfirm] = useState<{ count: number; list: string } | null>(null);
   const queryClient = useQueryClient();
   const [fileHtml, setFileHtml] = useState<string | null>(null);
   const [apiBaseUrl, setApiBaseUrl] = useState<string>("");
@@ -131,7 +133,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
   const previewHtml = useMemo(() => {
     if (!rawHtml) return "";
     const systemValues: Record<string, string> = {
-      first_name: selectedContact?.first_name || "there",
+      first_name: selectedContact?.name?.split(" ")[0] || "there",
       subject: campaign?.subject || "",
       unsubscribe_url: "#unsubscribe",
       report_url: campaign?.report_url || customTokens.report_url || "#report-not-uploaded",
@@ -225,7 +227,11 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
       <div className="px-4 py-4 space-y-4">
         <div className="space-y-2">
           <DetailRow label="Subject" value={campaign.subject} />
-          <DetailRow label="From" value={`${campaign.from_name} <${campaign.from_email}>`} />
+          <EditableSender
+            fromName={campaign.from_name}
+            fromEmail={campaign.from_email}
+            onSave={(name, email) => updateCampaign.mutate({ id: campaignId, updates: { from_name: name, from_email: email } })}
+          />
           <EditableBcc
             value={campaign.bcc_email || ""}
             onSave={(v) => updateCampaign.mutate({ id: campaignId, updates: { bcc_email: v || null } })}
@@ -393,17 +399,11 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
               <button
                 onClick={() => {
                   const activeRecipients = recipients.filter((r) => r.latestEvent === "pending" || !r.latestEvent);
-                  const recipientList = activeRecipients.length > 0
-                    ? activeRecipients.map((r) => `  • ${r.firstName || r.email.split("@")[0]} (${r.email})`).join("\n")
-                    : recipients.map((r) => `  • ${r.firstName || r.email.split("@")[0]} (${r.email})`).join("\n");
+                  const list = activeRecipients.length > 0
+                    ? activeRecipients.map((r) => `${r.firstName || r.email.split("@")[0]} (${r.email})`).join(", ")
+                    : recipients.map((r) => `${r.firstName || r.email.split("@")[0]} (${r.email})`).join(", ");
                   const count = activeRecipients.length || recipients.length;
-                  if (!confirm(`Send to ${count} recipient${count !== 1 ? "s" : ""}?\n\n${recipientList}\n\nProceed?`)) return;
-                  sendCampaign.mutate(
-                    { campaignId, apiBaseUrl: apiBaseUrl, knowledgePath: knowledgePath || undefined },
-                    {
-                      onSuccess: (result) => setSendResult(result),
-                    }
-                  );
+                  setSendConfirm({ count, list });
                 }}
                 disabled={sendCampaign.isPending || missingApiUrl}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-md transition-colors"
@@ -476,7 +476,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                           : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600"
                       }`}
                     >
-                      {c.first_name || c.email.split("@")[0]}
+                      {c.name?.split(" ")[0] || c.email.split("@")[0]}
                     </button>
                   ))}
                 </div>
@@ -545,6 +545,43 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
         {sendCampaign.isError && (
           <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-xs text-red-700 dark:text-red-300">
             {(sendCampaign.error as any)?.message || "Failed to send campaign"}
+          </div>
+        )}
+
+        {/* Send Confirmation Dialog */}
+        {sendConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 p-6 max-w-md w-full mx-4">
+              <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">
+                Send Campaign?
+              </h3>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-1">
+                This will send to <strong>{sendConfirm.count} recipient{sendConfirm.count !== 1 ? "s" : ""}</strong>:
+              </p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 max-h-32 overflow-y-auto">
+                {sendConfirm.list}
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setSendConfirm(null)}
+                  className="px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setSendConfirm(null);
+                    sendCampaign.mutate(
+                      { campaignId, apiBaseUrl: apiBaseUrl, knowledgePath: knowledgePath || undefined },
+                      { onSuccess: (result) => setSendResult(result) }
+                    );
+                  }}
+                  className="px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                >
+                  Send Now
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -636,7 +673,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                       <option value="">Default tokens</option>
                       {groupContacts.map((c: EmailContact) => (
                         <option key={c.id} value={c.id}>
-                          {c.first_name || c.email} {c.last_name || ""}
+                          {c.name || c.email}
                         </option>
                       ))}
                     </select>
@@ -952,7 +989,43 @@ function EditableBcc({
         <option value="">— none</option>
         {thinkvalContacts.map((c: EmailContact) => (
           <option key={c.id} value={c.email}>
-            {c.first_name ? `${c.first_name}` : c.email.split("@")[0]} ({c.email})
+            {c.name?.split(" ")[0] || c.email.split("@")[0]} ({c.email})
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function EditableSender({
+  fromName,
+  fromEmail,
+  onSave,
+}: {
+  fromName: string;
+  fromEmail: string;
+  onSave: (name: string, email: string) => void;
+}) {
+  const { data: humanUsers = [] } = useUsers("human");
+  const senderOptions = humanUsers.filter((u) => u.email);
+
+  return (
+    <div>
+      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 block mb-0.5">From</span>
+      <select
+        value={senderOptions.some((u) => u.email === fromEmail) ? `${fromName}||${fromEmail}` : ""}
+        onChange={(e) => {
+          const [name, email] = e.target.value.split("||");
+          if (name && email) onSave(name, email);
+        }}
+        className="text-xs text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 w-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+      >
+        {!senderOptions.some((u) => u.email === fromEmail) && (
+          <option value="">{fromName} &lt;{fromEmail}&gt;</option>
+        )}
+        {senderOptions.map((u) => (
+          <option key={u.id} value={`${u.name}||${u.email}`}>
+            {u.name} &lt;{u.email}&gt;
           </option>
         ))}
       </select>

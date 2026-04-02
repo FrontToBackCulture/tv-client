@@ -18,7 +18,7 @@ export function ImportModal({ onClose }: ImportModalProps) {
   const importContacts = useImportContacts();
 
   const handleDownloadTemplate = () => {
-    const csv = "email,first_name,last_name,company,domain,group\njohn@example.com,John,Doe,Acme Corp,acme,Newsletter\njane@example.com,Jane,Smith,Acme Corp,acme,Newsletter\n";
+    const csv = "email,first_name,last_name,group\njohn@example.com,John,Doe,Newsletter\njane@example.com,Jane,Smith,Newsletter\n";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -107,8 +107,6 @@ export function ImportModal({ onClose }: ImportModalProps) {
                   Upload a CSV with columns: <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">email</code> (required),{" "}
                   <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">first_name</code>,{" "}
                   <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">last_name</code>,{" "}
-                  <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">company</code>,{" "}
-                  <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">domain</code>,{" "}
                   <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">group</code>
                 </p>
 

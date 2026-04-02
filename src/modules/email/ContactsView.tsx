@@ -65,7 +65,7 @@ const contactGroupByOptions: GroupByOption<ContactWithGroupNames>[] = [
   {
     key: "status",
     label: "Status",
-    getGroup: (c) => c.status,
+    getGroup: (c) => c.edm_status || "active",
     getLabel: (v) => STATUS_LABELS[v] ?? v,
     sortGroups: (a, b) => {
       const order = ["active", "unsubscribed", "bounced"];
@@ -73,14 +73,9 @@ const contactGroupByOptions: GroupByOption<ContactWithGroupNames>[] = [
     },
   },
   {
-    key: "company",
-    label: "Company",
-    getGroup: (c) => c.company || "(no company)",
-  },
-  {
-    key: "domain",
-    label: "Domain",
-    getGroup: (c) => c.domain || "(no domain)",
+    key: "source",
+    label: "Source",
+    getGroup: (c) => c.source || "(no source)",
   },
   {
     key: "group",
@@ -100,7 +95,7 @@ interface ContactsViewProps {
 
 export function ContactsView({ selectedId, onSelect, onNewContact, onImport }: ContactsViewProps) {
   const [search, setSearch] = useState("");
-  const [groupBy, setGroupBy] = useState("company");
+  const [groupBy, setGroupBy] = useState("status");
   const [treeSelection, setTreeSelection] = useState<TreeSelection>({ groupValue: null });
   const deleteContact = useDeleteEmailContact();
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -114,9 +109,7 @@ export function ContactsView({ selectedId, onSelect, onNewContact, onImport }: C
     return allContacts.filter(
       (c) =>
         c.email.toLowerCase().includes(q) ||
-        (c.first_name && c.first_name.toLowerCase().includes(q)) ||
-        (c.last_name && c.last_name.toLowerCase().includes(q)) ||
-        (c.company && c.company.toLowerCase().includes(q)),
+        (c.name && c.name.toLowerCase().includes(q)),
     );
   }, [allContacts, search]);
 
@@ -301,7 +294,7 @@ function ContactRow({
   onDeleteCancel: () => void;
   isDeleting: boolean;
 }) {
-  const statusDef = CONTACT_STATUSES.find((s) => s.value === contact.status);
+  const statusDef = CONTACT_STATUSES.find((s) => s.value === contact.edm_status);
   const statusColors: Record<string, string> = {
     green: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
     gray: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
@@ -312,7 +305,7 @@ function ContactRow({
     return (
       <div className="px-4 py-3 bg-red-50 dark:bg-red-950/30">
         <p className="text-xs text-red-700 dark:text-red-400 mb-2">
-          Delete <strong>{contact.first_name || contact.email}</strong>?
+          Delete <strong>{contact.name || contact.email}</strong>?
         </p>
         <div className="flex gap-2">
           <button
@@ -343,12 +336,10 @@ function ContactRow({
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-zinc-800 dark:text-zinc-100 truncate">
-            {contact.first_name || contact.last_name
-              ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
-              : contact.email}
+            {contact.name || contact.email}
           </p>
           <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
-            {contact.company ? `${contact.company} · ` : ""}{contact.email}
+            {contact.email}
           </p>
         </div>
         <div className="flex-shrink-0 flex items-center gap-2">

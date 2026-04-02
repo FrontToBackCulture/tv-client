@@ -115,22 +115,22 @@ export function useImportContacts() {
         }
       }
 
-      // Upsert contacts in batches
+      // Upsert contacts in batches (into crm_contacts)
       const BATCH_SIZE = 100;
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
         const batch = validRows.slice(i, i + BATCH_SIZE);
         const contactInserts = batch.map((row) => ({
           email: row.email,
-          first_name: row.first_name || null,
-          last_name: row.last_name || null,
-          company: row.company || null,
-          domain: row.domain || null,
+          name: [row.first_name, row.last_name].filter(Boolean).join(" ") || row.email,
+          edm_status: "active" as const,
           source: "csv_import",
+          is_active: true,
+          is_primary: false,
         }));
 
         const { data: upserted, error } = await supabase
-          .from("email_contacts")
-          .upsert(contactInserts, {
+          .from("crm_contacts")
+          .upsert(contactInserts as any, {
             onConflict: "email",
             ignoreDuplicates: true,
           })

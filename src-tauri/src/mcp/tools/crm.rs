@@ -116,10 +116,10 @@ pub fn tools() -> Vec<Tool> {
         },
         Tool {
             name: "create-crm-contact".to_string(),
-            description: "Create a new contact for a company.".to_string(),
+            description: "Create a new contact. Company is optional — omit for EDM-only contacts.".to_string(),
             input_schema: InputSchema::with_properties(
                 json!({
-                    "company_id": { "type": "string", "description": "Company UUID (required)" },
+                    "company_id": { "type": "string", "description": "Company UUID (optional — omit for contacts without a company)" },
                     "name": { "type": "string", "description": "Contact name (required)" },
                     "email": { "type": "string", "description": "Email address (required)" },
                     "phone": { "type": "string" },
@@ -134,9 +134,10 @@ pub fn tools() -> Vec<Tool> {
                     "linkedin_connect_msg": { "type": "string", "description": "Message to send with LinkedIn connection request" },
                     "linkedin_dm_msg": { "type": "string", "description": "Message to send if already connected on LinkedIn" },
                     "email_outreach_msg": { "type": "string", "description": "Draft email outreach message" },
-                    "linkedin_connected": { "type": "boolean", "description": "Whether already connected on LinkedIn" }
+                    "linkedin_connected": { "type": "boolean", "description": "Whether already connected on LinkedIn" },
+                    "edm_status": { "type": "string", "enum": ["active", "unsubscribed", "bounced"], "description": "Email deliverability status for campaigns (default: active)" }
                 }),
-                vec!["company_id".to_string(), "name".to_string(), "email".to_string()],
+                vec!["name".to_string(), "email".to_string()],
             ),
         },
         Tool {
@@ -160,7 +161,8 @@ pub fn tools() -> Vec<Tool> {
                     "linkedin_connect_msg": { "type": "string", "description": "Message to send with LinkedIn connection request" },
                     "linkedin_dm_msg": { "type": "string", "description": "Message to send if already connected on LinkedIn" },
                     "email_outreach_msg": { "type": "string", "description": "Draft email outreach message" },
-                    "linkedin_connected": { "type": "boolean", "description": "Whether already connected on LinkedIn" }
+                    "linkedin_connected": { "type": "boolean", "description": "Whether already connected on LinkedIn" },
+                    "edm_status": { "type": "string", "enum": ["active", "unsubscribed", "bounced"], "description": "Email deliverability status for campaigns" }
                 }),
                 vec!["contact_id".to_string()],
             ),
@@ -456,13 +458,13 @@ mod tests {
     }
 
     #[test]
-    fn create_contact_requires_three_fields() {
+    fn create_contact_requires_name_and_email() {
         let t = tools();
         let tool = t.iter().find(|t| t.name == "create-crm-contact").unwrap();
         let req = tool.input_schema.required.as_ref().unwrap();
-        assert!(req.contains(&"company_id".to_string()));
         assert!(req.contains(&"name".to_string()));
         assert!(req.contains(&"email".to_string()));
+        assert!(!req.contains(&"company_id".to_string()));
     }
 
     #[test]
@@ -545,21 +547,32 @@ mod tests {
     // -------------------------------------------------------
 
     #[test]
-    fn create_contact_parses_required_fields() {
+    fn create_contact_parses_with_company() {
         let args = json!({
             "company_id": "comp-1",
             "name": "John Doe",
             "email": "john@example.com"
         });
         let data: CreateContact = serde_json::from_value(args).unwrap();
-        assert_eq!(data.company_id, "comp-1");
+        assert_eq!(data.company_id, Some("comp-1".to_string()));
         assert_eq!(data.email, "john@example.com");
         assert!(data.phone.is_none());
     }
 
     #[test]
+    fn create_contact_parses_without_company() {
+        let args = json!({
+            "name": "John Doe",
+            "email": "john@example.com"
+        });
+        let data: CreateContact = serde_json::from_value(args).unwrap();
+        assert!(data.company_id.is_none());
+        assert_eq!(data.email, "john@example.com");
+    }
+
+    #[test]
     fn create_contact_fails_without_email() {
-        let args = json!({"company_id": "comp-1", "name": "John"});
+        let args = json!({"name": "John"});
         let result: Result<CreateContact, _> = serde_json::from_value(args);
         assert!(result.is_err());
     }

@@ -104,7 +104,8 @@ pub struct UpdateCompany {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Contact {
     pub id: String,
-    pub company_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
     pub name: String,
     pub email: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,6 +145,8 @@ pub struct Contact {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linkedin_connected: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub edm_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
@@ -154,7 +157,8 @@ pub struct Contact {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateContact {
-    pub company_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_id: Option<String>,
     pub name: String,
     pub email: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -183,6 +187,8 @@ pub struct CreateContact {
     pub email_outreach_msg: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linkedin_connected: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edm_status: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -219,6 +225,8 @@ pub struct UpdateContact {
     pub email_outreach_msg: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linkedin_connected: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edm_status: Option<String>,
 }
 
 // ============================================================================

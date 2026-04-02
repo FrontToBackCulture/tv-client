@@ -27,6 +27,7 @@ export function useRealtimeSync() {
       .on("postgres_changes", pg("crm_contacts"), () => {
         queryClient.invalidateQueries({ queryKey: ["crm", "contacts"] });
         queryClient.invalidateQueries({ queryKey: ["crm", "companies"] });
+        queryClient.invalidateQueries({ queryKey: ["email", "contacts"] });
       })
       .on("postgres_changes", pg("crm_activities"), () => {
         queryClient.invalidateQueries({ queryKey: ["crm", "activities"] });
@@ -66,9 +67,6 @@ export function useRealtimeSync() {
     // ── Email ────────────────────────────────────────────────────────
     const emailChannel = supabase
       .channel("email-changes")
-      .on("postgres_changes", pg("email_contacts"), () => {
-        queryClient.invalidateQueries({ queryKey: ["email", "contacts"] });
-      })
       .on("postgres_changes", pg("email_groups"), () => {
         queryClient.invalidateQueries({ queryKey: ["email", "groups"] });
       })

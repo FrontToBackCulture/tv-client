@@ -37,7 +37,6 @@ import { McpEndpointsView } from "./McpEndpointsView";
 import { ClaudeCodeSetupView } from "./ClaudeCodeSetupView";
 import { PortalSettingsView } from "./PortalSettingsView";
 import { DiagnosticsView } from "./DiagnosticsView";
-import { JobsView } from "./JobsView";
 import { TeamView } from "./TeamView";
 import { FolderPathsView } from "./FolderPathsView";
 import { NotionSyncConfigs } from "../notion/NotionSyncConfigs";
@@ -48,7 +47,7 @@ import { LinkedInConnectionView } from "./LinkedInConnectionView";
 import { GA4ConnectionView } from "./GA4ConnectionView";
 import { BackgroundSyncView } from "./BackgroundSyncView";
 
-type SettingsViewId = "keys" | "val" | "outlook" | "linkedin" | "ga4" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics" | "project-fields" | "task-fields" | "jobs" | "bg-sync";
+type SettingsViewId = "keys" | "val" | "outlook" | "linkedin" | "ga4" | "sync" | "folders" | "mcp" | "claude" | "bots" | "portal" | "team" | "notion" | "diagnostics" | "project-fields" | "task-fields" | "bg-sync";
 
 interface SidebarItem {
   id: SettingsViewId;
@@ -96,7 +95,6 @@ const baseSidebarGroups: SidebarGroup[] = [
     label: "Admin",
     items: [
       { id: "team", label: "Team", icon: Users },
-      { id: "jobs", label: "Jobs", icon: Activity },
       { id: "diagnostics", label: "Diagnostics", icon: Stethoscope },
     ],
   },
@@ -156,7 +154,7 @@ export function SettingsModal() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     if (!settingsOpen) return;
-    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", outlook: "Outlook", linkedin: "LinkedIn", ga4: "Google Analytics", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", "project-fields": "Project Fields", "task-fields": "Task Fields", portal: "Portal", notion: "Notion Sync", team: "Team", jobs: "Jobs", diagnostics: "Diagnostics", "bg-sync": "Background Sync" };
+    const labels: Record<SettingsViewId, string> = { keys: "API Keys", val: "VAL Credentials", outlook: "Outlook", linkedin: "LinkedIn", ga4: "Google Analytics", sync: "Sync Paths", folders: "Folder Paths", mcp: "MCP Endpoints", claude: "Claude Code", bots: "Bots", "project-fields": "Project Fields", "task-fields": "Task Fields", portal: "Portal", notion: "Notion Sync", team: "Team", diagnostics: "Diagnostics", "bg-sync": "Background Sync" };
     setViewContext(activeView, labels[activeView]);
   }, [activeView, setViewContext, settingsOpen]);
 
@@ -186,7 +184,7 @@ export function SettingsModal() {
         {/* Body: sidebar + content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Sidebar */}
-          <aside className="w-44 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-2 overflow-y-auto">
+          <aside className="w-48 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-2 overflow-y-auto">
             <nav className="space-y-3">
               {sidebarGroups.map((group) => (
                 <div key={group.label}>
@@ -209,8 +207,8 @@ export function SettingsModal() {
                               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
                           )}
                         >
-                          <Icon size={16} />
-                          {item.label}
+                          <Icon size={16} className="flex-shrink-0" />
+                          <span className="truncate">{item.label}</span>
                         </button>
                       );
                     })}
@@ -239,7 +237,6 @@ export function SettingsModal() {
               {activeView === "notion" && <NotionSyncConfigs />}
               {activeView === "bg-sync" && <BackgroundSyncView />}
               {activeView === "team" && <TeamView />}
-              {activeView === "jobs" && <JobsView />}
               {activeView === "diagnostics" && <DiagnosticsView onNavigate={(view) => setActiveView(view as SettingsViewId)} />}
             </div>
           </div>

@@ -1,13 +1,14 @@
 // Email module types for tv-client
+// EmailContact is now an alias for crm_contacts (unified contact list)
 import type { Database } from "../supabase-types";
 
-// Base types from database
+// Base types — email contacts are now CRM contacts
 export type EmailContact =
-  Database["public"]["Tables"]["email_contacts"]["Row"];
+  Database["public"]["Tables"]["crm_contacts"]["Row"];
 export type EmailContactInsert =
-  Database["public"]["Tables"]["email_contacts"]["Insert"];
+  Database["public"]["Tables"]["crm_contacts"]["Insert"];
 export type EmailContactUpdate =
-  Database["public"]["Tables"]["email_contacts"]["Update"];
+  Database["public"]["Tables"]["crm_contacts"]["Update"];
 
 export type EmailGroup = Database["public"]["Tables"]["email_groups"]["Row"];
 export type EmailGroupInsert =
@@ -59,7 +60,7 @@ export interface CampaignStats {
 
 // Filter types
 export interface EmailContactFilters {
-  status?: EmailContact["status"] | EmailContact["status"][];
+  edmStatus?: string | string[];
   groupId?: string;
   search?: string;
 }

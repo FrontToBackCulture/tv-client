@@ -329,6 +329,11 @@ fn main() {
             commands::work::work_task_triage,
             commands::work::work_apply_triage,
             commands::work::work_triage_summary,
+            commands::work::work_list_triage_contexts,
+            commands::work::work_upsert_triage_context,
+            commands::work::work_delete_triage_context,
+            commands::work::work_get_context_weights,
+            commands::work::work_set_context_weights,
             commands::work::work_get_priorities,
             commands::work::work_reprioritise,
             // Work Module - Milestones

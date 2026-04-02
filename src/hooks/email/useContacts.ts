@@ -1,10 +1,10 @@
 // Email Contacts CRUD hooks
+// Now queries crm_contacts (unified contact list)
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import type {
   EmailContact,
-  EmailContactInsert,
   EmailContactUpdate,
   EmailContactFilters,
   EmailContactWithGroups,
@@ -21,27 +21,27 @@ export function useEmailContacts(filters?: EmailContactFilters) {
         // Fetch contacts in a specific group via join table
         const { data, error } = await supabase
           .from("email_contact_groups")
-          .select("contact_id, email_contacts(*)")
+          .select("contact_id, crm_contacts(*)")
           .eq("group_id", filters.groupId);
 
         if (error)
           throw new Error(`Failed to fetch group contacts: ${error.message}`);
-        return (data ?? []).map((row: any) => row.email_contacts);
+        return (data ?? []).map((row: any) => row.crm_contacts);
       }
 
-      let query = supabase.from("email_contacts").select("*");
+      let query = supabase.from("crm_contacts").select("*");
 
-      if (filters?.status) {
-        if (Array.isArray(filters.status)) {
-          query = query.in("status", filters.status);
+      if (filters?.edmStatus) {
+        if (Array.isArray(filters.edmStatus)) {
+          query = query.in("edm_status", filters.edmStatus);
         } else {
-          query = query.eq("status", filters.status);
+          query = query.eq("edm_status", filters.edmStatus);
         }
       }
 
       if (filters?.search) {
         query = query.or(
-          `email.ilike.%${filters.search}%,first_name.ilike.%${filters.search}%,last_name.ilike.%${filters.search}%`
+          `email.ilike.%${filters.search}%,name.ilike.%${filters.search}%`
         );
       }
 
@@ -63,7 +63,7 @@ export function useEmailContact(id: string | null) {
       if (!id) return null;
 
       const { data: contact, error } = await supabase
-        .from("email_contacts")
+        .from("crm_contacts")
         .select("*")
         .eq("id", id)
         .single();
@@ -92,11 +92,17 @@ export function useCreateEmailContact() {
 
   return useMutation({
     mutationFn: async (
-      contact: EmailContactInsert
+      contact: Partial<EmailContact> & { email: string; name: string }
     ): Promise<EmailContact> => {
       const { data, error } = await supabase
-        .from("email_contacts")
-        .insert({ ...contact, email: contact.email.toLowerCase() })
+        .from("crm_contacts")
+        .insert({
+          ...contact,
+          email: contact.email.toLowerCase(),
+          edm_status: contact.edm_status ?? "active",
+          is_active: true,
+          is_primary: false,
+        } as any)
         .select()
         .single();
 
@@ -123,12 +129,12 @@ export function useUpdateEmailContact() {
     }): Promise<EmailContact> => {
       const updateData = { ...updates };
       if (updates.email) {
-        updateData.email = updates.email.toLowerCase();
+        (updateData as any).email = updates.email.toLowerCase();
       }
 
       const { data, error } = await supabase
-        .from("email_contacts")
-        .update(updateData)
+        .from("crm_contacts")
+        .update(updateData as any)
         .eq("id", id)
         .select()
         .single();
@@ -150,7 +156,7 @@ export function useDeleteEmailContact() {
   return useMutation({
     mutationFn: async (id: string): Promise<void> => {
       const { error } = await supabase
-        .from("email_contacts")
+        .from("crm_contacts")
         .delete()
         .eq("id", id);
 

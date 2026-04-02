@@ -97,8 +97,8 @@ pub async fn apollo_check_existing(
     let mut source_id_map: std::collections::HashMap<&str, (&str, &str)> =
         std::collections::HashMap::new();
     for c in &all_contacts {
-        if let Some(ref sid) = c.source_id {
-            source_id_map.insert(sid.as_str(), (&c.name, &c.company_id));
+        if let (Some(ref sid), Some(ref cid)) = (&c.source_id, &c.company_id) {
+            source_id_map.insert(sid.as_str(), (&c.name, cid.as_str()));
         }
     }
 
@@ -119,8 +119,9 @@ pub async fn apollo_check_existing(
         .iter()
         .filter_map(|c| {
             let first_name = extract_first_name(&c.name)?;
-            let company_name = company_names.get(c.company_id.as_str())?;
-            Some((first_name, company_name.clone(), c.name.clone(), c.company_id.clone()))
+            let cid = c.company_id.as_deref()?;
+            let company_name = company_names.get(cid)?;
+            Some((first_name, company_name.clone(), c.name.clone(), cid.to_string()))
         })
         .collect();
 

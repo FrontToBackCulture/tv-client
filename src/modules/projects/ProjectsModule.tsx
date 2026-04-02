@@ -5,7 +5,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import {
   LayoutDashboard, Columns3, Building2, BarChart3, Activity,
-  Plus, Target, FolderPlus, User as UserIcon, Users,
+  Plus, Target, FolderPlus, User as UserIcon, Users, Layers,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "../../components/ui";
 import { useProjects, useAllTasks, useInitiatives, useUsers, useUpdateProject } from "../../hooks/work";
@@ -28,6 +29,7 @@ import {
   MyTasksView,
   BandwidthView,
   TeamTasksView,
+  TriageContextView,
   useInitiativeProjects,
 } from "../work/WorkViews";
 import { ViewTab } from "../../components/ViewTab";
@@ -46,7 +48,7 @@ import { useViewContextStore } from "../../stores/viewContextStore";
 import { useNotificationNavStore } from "../../stores/notificationNavStore";
 
 type ProjectsView =
-  | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project" | "my-tasks" | "team-tasks" | "capacity"  // Work views
+  | "all" | "inbox" | "dashboard" | "board" | "tracker" | "project" | "my-tasks" | "team-tasks" | "capacity" | "triage-context"  // Work views
   | "crm-dashboard" | "pipeline" | "metadata" | "directory" | "clients" | "closed"  // CRM views
 
 const CRM_DETAIL_PANEL_WIDTH_KEY = "tv-desktop-crm-detail-panel-width";
@@ -61,6 +63,70 @@ function setDetailPanelWidth(width: number): void {
   if (typeof window !== "undefined") {
     localStorage.setItem(CRM_DETAIL_PANEL_WIDTH_KEY, String(width));
   }
+}
+
+// Collapsible tab group — shows group label when collapsed, individual tabs when expanded
+// Auto-expands when the active view is in this group
+function TabGroup({ label, tabs, activeView, onSelect }: {
+  label: string;
+  tabs: { label: string; icon: import("lucide-react").LucideIcon; view: ProjectsView; subView?: string }[];
+  activeView: ProjectsView;
+  onSelect: (view: ProjectsView, subView?: string) => void;
+}) {
+  const hasActiveTab = tabs.some(t => t.view === activeView);
+  const [manualExpand, setManualExpand] = useState<boolean | null>(null);
+  const expanded = manualExpand ?? hasActiveTab;
+
+  // Reset manual override when active tab changes into/out of this group
+  useEffect(() => { setManualExpand(null); }, [hasActiveTab]);
+
+  if (expanded) {
+    return (
+      <div className="flex items-center h-full">
+        {/* Collapse handle — group label */}
+        <button
+          onClick={() => setManualExpand(false)}
+          className="text-[9px] font-semibold uppercase tracking-[0.06em] text-zinc-600 dark:text-zinc-600 hover:text-zinc-400 dark:hover:text-zinc-400 px-1.5 h-full flex items-center transition-colors cursor-pointer select-none"
+          title={`Collapse ${label}`}
+        >
+          {label}
+        </button>
+        {tabs.map(tab => (
+          <ViewTab
+            key={tab.view + (tab.subView || "")}
+            label={tab.label}
+            icon={tab.icon}
+            active={tab.view === activeView}
+            onClick={() => onSelect(tab.view, tab.subView)}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // Collapsed — show just the group label as a clickable pill
+  const activeTab = tabs.find(t => t.view === activeView);
+  return (
+    <button
+      onClick={() => setManualExpand(true)}
+      className={`flex items-center gap-1 px-2.5 py-1 h-full text-[11px] font-medium transition-colors border-b-2 cursor-pointer select-none ${
+        activeTab
+          ? "border-teal-500 text-zinc-100"
+          : "border-transparent text-zinc-500 dark:text-zinc-500 hover:text-zinc-300 dark:hover:text-zinc-400"
+      }`}
+      title={`Expand ${label}: ${tabs.map(t => t.label).join(", ")}`}
+    >
+      {activeTab ? (
+        <>
+          <activeTab.icon size={13} />
+          {activeTab.label}
+        </>
+      ) : (
+        <span className="text-[10px] font-semibold uppercase tracking-[0.04em]">{label}</span>
+      )}
+      <ChevronDown size={10} className="opacity-40" />
+    </button>
+  );
 }
 
 export function ProjectsModule() {
@@ -85,7 +151,7 @@ export function ProjectsModule() {
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
     const labels: Record<ProjectsView, string> = {
-      all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board", "my-tasks": "My Tasks", "team-tasks": "Team", capacity: "Capacity",
+      all: "All Projects", inbox: "My Tasks", dashboard: "Dashboard", board: "Board", "my-tasks": "My Tasks", "team-tasks": "Team", capacity: "Capacity", "triage-context": "Triage Context",
       tracker: "Tracker", project: "Project",
       "crm-dashboard": "CRM Dashboard", pipeline: "Pipeline", metadata: "Metadata", directory: "Directory", clients: "Clients", closed: "Closed Deals",
     };
@@ -276,7 +342,7 @@ export function ProjectsModule() {
   const handleCloseCompanyDetail = useCallback(() => setSelectedCompanyId(null), []);
 
   // ---- Determine which section is active ----
-  const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project", "my-tasks", "team-tasks", "capacity"].includes(view);
+  const isWorkView = ["all", "inbox", "dashboard", "board", "tracker", "project", "my-tasks", "team-tasks", "capacity", "triage-context"].includes(view);
   const isCrmView = ["crm-dashboard", "pipeline", "directory", "clients", "closed"].includes(view);
 
   const showProjectView = view === "project" && selectedProject;
@@ -328,22 +394,41 @@ export function ProjectsModule() {
       {/* Tab bar */}
       <div className="flex-shrink-0 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/50 px-4">
         <div className="flex items-center overflow-x-auto">
-          {/* Work section */}
-          <ViewTab label="Browse" icon={LayoutDashboard} active={view === "all" && allSubView === "browse"} onClick={() => { handleViewChange("all"); setAllSubView("browse"); }} />
-          <ViewTab label="Manage" icon={Columns3} active={view === "all" && allSubView === "manage"} onClick={() => { handleViewChange("all"); setAllSubView("manage"); }} />
+          <TabGroup
+            label="Projects"
+            tabs={[
+              { label: "Browse", icon: LayoutDashboard, view: "all" as ProjectsView, subView: "browse" },
+              { label: "Manage", icon: Columns3, view: "all" as ProjectsView, subView: "manage" },
+            ]}
+            activeView={view}
+            onSelect={(v, sub) => { handleViewChange(v); if (sub) setAllSubView(sub as any); }}
+          />
 
-          {/* Separator */}
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
-          <ViewTab label="My Tasks" icon={UserIcon} active={view === "my-tasks"} onClick={() => handleViewChange("my-tasks")} />
-          <ViewTab label="Team" icon={Users} active={view === "team-tasks"} onClick={() => handleViewChange("team-tasks")} />
-          <ViewTab label="Capacity" icon={Activity} active={view === "capacity"} onClick={() => handleViewChange("capacity")} />
+          <TabGroup
+            label="Tasks"
+            tabs={[
+              { label: "My Tasks", icon: UserIcon, view: "my-tasks" as ProjectsView },
+              { label: "Team", icon: Users, view: "team-tasks" as ProjectsView },
+              { label: "Capacity", icon: Activity, view: "capacity" as ProjectsView },
+              { label: "Context", icon: Layers, view: "triage-context" as ProjectsView },
+            ]}
+            activeView={view}
+            onSelect={(v) => handleViewChange(v)}
+          />
 
-          {/* Separator */}
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
-          <ViewTab label="CRM Dashboard" icon={BarChart3} active={view === "crm-dashboard"} onClick={() => handleViewChange("crm-dashboard")} />
-          <ViewTab label="CRM Pipeline" icon={Building2} active={view === "pipeline"} onClick={() => handleViewChange("pipeline")} />
+          <TabGroup
+            label="CRM"
+            tabs={[
+              { label: "Dashboard", icon: BarChart3, view: "crm-dashboard" as ProjectsView },
+              { label: "Pipeline", icon: Building2, view: "pipeline" as ProjectsView },
+            ]}
+            activeView={view}
+            onSelect={(v) => handleViewChange(v)}
+          />
         </div>
 
         {/* Actions */}
@@ -454,6 +539,11 @@ export function ProjectsModule() {
         {view === "capacity" && (
           <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
             <BandwidthView allTasks={allTasks} users={users} onSelectTask={handleSelectTask} initiatives={initiatives} initiativeLinks={initiativeLinks} />
+          </div>
+        )}
+        {view === "triage-context" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <TriageContextView />
           </div>
         )}
         {showProjectView && (

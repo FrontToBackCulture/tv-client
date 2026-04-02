@@ -34,6 +34,7 @@ import {
   CalendarClock,
   MessageSquare,
   Handshake,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -87,6 +88,7 @@ const navSections: NavSection[] = [
       { id: "prospecting", icon: Target, label: "Outbound", shortcut: "" },
       { id: "email", icon: MailPlus, label: "EDM", shortcut: "" },
       { id: "blog", icon: FileText, label: "Blog", shortcut: "" },
+      { id: "guides", icon: BookOpen, label: "Guides", shortcut: "" },
       { id: "gallery", icon: GalleryHorizontalEnd, label: "Gallery", shortcut: "\u23186" },
       { id: "portal", icon: Headset, label: "Portal", shortcut: "" },
       { id: "referrals", icon: Handshake, label: "Referrals", shortcut: "" },
@@ -449,22 +451,48 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
       if (!user) return 0;
       const userName = user.name;
 
-      // Get all top-level messages
-      const { data: threads } = await supabase
+      // Get all messages to determine participants per thread
+      const { data: allMessages } = await supabase
         .from("discussions")
-        .select("id, entity_type, entity_id, last_activity_at")
-        .is("parent_id", null)
-        .order("last_activity_at", { ascending: false })
-        .limit(200);
-      if (!threads || threads.length === 0) return 0;
+        .select("id, entity_type, entity_id, author, body, parent_id, last_activity_at")
+        .limit(2000);
+      if (!allMessages || allMessages.length === 0) return 0;
 
-      // Group by entity — one conversation per entity_type:entity_id
-      const entityLatest = new Map<string, { id: string; last_activity_at: string }>();
-      for (const t of threads) {
-        const key = `${t.entity_type}:${t.entity_id}`;
-        const existing = entityLatest.get(key);
-        if (!existing || new Date(t.last_activity_at) > new Date(existing.last_activity_at)) {
-          entityLatest.set(key, { id: t.id, last_activity_at: t.last_activity_at });
+      // Build per-entity: root ID (oldest, parent_id=null), latest activity, and participants
+      const entities = new Map<string, { rootId: string; lastActivity: string; participants: Set<string> }>();
+      const userLower = userName.toLowerCase();
+
+      for (const m of allMessages) {
+        const key = `${m.entity_type}:${m.entity_id}`;
+        let entry = entities.get(key);
+        if (!entry) {
+          entry = { rootId: "", lastActivity: "", participants: new Set() };
+          entities.set(key, entry);
+        }
+        // Track root ID (first message with no parent)
+        if (!m.parent_id && (!entry.rootId || new Date(m.last_activity_at) < new Date(entry.lastActivity) || !entry.lastActivity)) {
+          if (!entry.rootId) entry.rootId = m.id;
+        }
+        // Track latest activity
+        if (!entry.lastActivity || new Date(m.last_activity_at) > new Date(entry.lastActivity)) {
+          entry.lastActivity = m.last_activity_at;
+        }
+        // Track participants (authors + @mentions)
+        entry.participants.add(m.author.toLowerCase());
+        const mentions = m.body.match(/@([\w-]+)/g);
+        if (mentions) mentions.forEach((mention: string) => entry!.participants.add(mention.slice(1).toLowerCase()));
+      }
+
+      // Fix root IDs: ensure we use the actual oldest root message per entity
+      for (const m of allMessages) {
+        if (m.parent_id) continue;
+        const key = `${m.entity_type}:${m.entity_id}`;
+        const entry = entities.get(key);
+        if (!entry) continue;
+        // Use earliest root message
+        const existingRoot = allMessages.find(msg => msg.id === entry.rootId);
+        if (!existingRoot || new Date(m.last_activity_at) < new Date(existingRoot.last_activity_at)) {
+          entry.rootId = m.id;
         }
       }
 
@@ -477,9 +505,12 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
       const readMap = new Map((positions ?? []).map(p => [p.thread_id, p.last_read_at]));
 
       let unread = 0;
-      for (const [, conv] of entityLatest) {
-        const readAt = readMap.get(conv.id);
-        if (!readAt || new Date(conv.last_activity_at) > new Date(readAt)) {
+      for (const [, entry] of entities) {
+        // Only count threads the user is a participant in
+        if (!entry.participants.has(userLower)) continue;
+        if (!entry.rootId) continue;
+        const readAt = readMap.get(entry.rootId);
+        if (!readAt || new Date(entry.lastActivity) > new Date(readAt)) {
           unread++;
         }
       }
@@ -701,6 +732,7 @@ function SidebarInbox({ onSelectTask }: { onSelectTask: (id: string) => void }) 
         .eq("task_assignees.user_id", currentUserId)
         .lte("due_date", today)
         .not("status_id", "is", null)
+        .neq("triage_action", "kill")
         .order("due_date", { ascending: true })
         .limit(50);
       if (completeIds.length > 0) {
@@ -874,14 +906,22 @@ function SidebarCalendar({ onSelectTask }: { onSelectTask: (id: string) => void 
       if (!currentUserId) return [];
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const { data } = await supabase
+      // Exclude completed/won't-do statuses
+      const { data: completeStatuses } = await supabase.from("task_statuses").select("id").eq("type", "complete");
+      const completeIds = (completeStatuses ?? []).map((s: any) => s.id);
+      let query = supabase
         .from("tasks")
         .select("id, title, due_date, task_number, projects!tasks_project_id_fkey(name, identifier_prefix), task_assignees!inner(user_id)")
         .eq("task_assignees.user_id", currentUserId)
         .gte("due_date", tomorrow)
         .lte("due_date", nextWeek)
+        .neq("triage_action", "kill")
         .order("due_date", { ascending: true })
         .limit(30);
+      if (completeIds.length > 0) {
+        for (const cid of completeIds) query = query.neq("status_id", cid);
+      }
+      const { data } = await query;
       return data ?? [];
     },
     enabled: !!currentUserId,

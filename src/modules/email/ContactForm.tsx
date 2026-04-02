@@ -1,5 +1,5 @@
 // src/modules/email/ContactForm.tsx
-// Modal form for creating a new contact
+// Modal form for creating a new contact (now creates crm_contacts)
 
 import { useState } from "react";
 import { X } from "lucide-react";
@@ -11,10 +11,7 @@ interface ContactFormProps {
 
 export function ContactForm({ onClose }: ContactFormProps) {
   const [email, setEmail] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [company, setCompany] = useState("");
-  const [domain, setDomain] = useState("");
+  const [name, setName] = useState("");
   const createContact = useCreateEmailContact();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,10 +20,7 @@ export function ContactForm({ onClose }: ContactFormProps) {
 
     await createContact.mutateAsync({
       email: email.trim(),
-      first_name: firstName.trim() || null,
-      last_name: lastName.trim() || null,
-      company: company.trim() || null,
-      domain: domain.trim() || null,
+      name: name.trim() || email.trim(),
     });
     onClose();
   };
@@ -56,56 +50,17 @@ export function ContactForm({ onClose }: ContactFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                First Name
-              </label>
-              <input
-                type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                Last Name
-              </label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                Company
-              </label>
-              <input
-                type="text"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                placeholder="Acme Corp"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                Domain
-              </label>
-              <input
-                type="text"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                placeholder="koi"
-              />
-            </div>
+          <div>
+            <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+              Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              placeholder="John Doe"
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
