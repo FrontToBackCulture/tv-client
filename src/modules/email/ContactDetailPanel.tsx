@@ -135,7 +135,7 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
             </div>
           </div>
           <DetailRow label="Source" value={contact.source || "—"} />
-          <DetailRow label="Added" value={formatDate(contact.created_at)} />
+          <DetailRow label="Added" value={formatDate(contact.created_at!)} />
         </div>
 
         {/* Groups */}

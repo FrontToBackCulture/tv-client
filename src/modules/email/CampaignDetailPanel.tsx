@@ -86,7 +86,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
 
   // Fetch contacts from the campaign's target group for preview selector
   const { data: groupContacts = [] } = useEmailContacts(
-    campaign?.group_id ? { groupId: campaign.group_id, status: "active" } : undefined
+    campaign?.group_id ? { groupId: campaign.group_id, edmStatus: "active" } : undefined
   );
 
   // For test send: all groups + contacts in selected test group

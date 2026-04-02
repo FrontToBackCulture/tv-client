@@ -80,7 +80,7 @@ export function useCreateContact() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: crmKeys.contacts() });
       queryClient.invalidateQueries({
-        queryKey: crmKeys.contactsByCompany(data.company_id),
+        queryKey: crmKeys.contactsByCompany(data.company_id!),
       });
     },
   });
@@ -115,7 +115,7 @@ export function useUpdateContact() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: crmKeys.contacts() });
       queryClient.invalidateQueries({
-        queryKey: crmKeys.contactsByCompany(data.company_id),
+        queryKey: crmKeys.contactsByCompany(data.company_id!),
       });
       queryClient.invalidateQueries({ queryKey: crmKeys.contact(data.id) });
     },

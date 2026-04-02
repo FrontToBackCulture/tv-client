@@ -101,7 +101,7 @@ export function ContactListView({ contacts, onContactUpdated }: ContactListViewP
       {editingContact && (
         <ContactForm
           contact={editingContact}
-          companyId={editingContact.company_id}
+          companyId={editingContact.company_id!}
           onClose={() => setEditingContact(null)}
           onSaved={() => {
             setEditingContact(null);

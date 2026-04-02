@@ -319,7 +319,7 @@ async function gatherRecentEmails(): Promise<string | null> {
   }
 }
 
-async function gatherProjectUpdates(userId: string): Promise<string | null> {
+async function gatherProjectUpdates(_userId: string): Promise<string | null> {
   const { data: projects } = await supabase
     .from("projects")
     .select("id, name")
@@ -406,7 +406,7 @@ function formatTimeAgo(isoDate: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-async function gatherContext(userId: string, sources: AdvisorSources): Promise<GatheredContext> {
+async function gatherContext(userId: string, sources: DioSources): Promise<GatheredContext> {
   const results = await Promise.allSettled([
     sources.tasks ? gatherMyTasks(userId).then(buildPromptData) : Promise.resolve(null),
     sources.deals ? gatherActiveDeals() : Promise.resolve(null),
@@ -1037,7 +1037,7 @@ export function useTaskAdvisor() {
           if (!auto.enabled) continue;
           if (!isWithinActiveHours(auto)) continue;
           if (!isDue(auto)) continue;
-          await runDioAutomation(auto, queryClient, userId, userName);
+          await runDioAutomation(auto, queryClient, userId!, userName);
         }
         queryClient.invalidateQueries({ queryKey: ["dio-automations"] });
       } catch (err) {
