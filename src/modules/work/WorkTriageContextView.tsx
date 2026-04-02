@@ -83,7 +83,7 @@ function useContextWeights() {
 
 export function TriageContextView() {
   const qc = useQueryClient();
-  const { data: contexts = [], isLoading } = useTriageContexts();
+  const { data: contexts = [] } = useTriageContexts();
   const { data: weights = DEFAULT_WEIGHTS } = useContextWeights();
   const { data: teams = [] } = useTeams();
   const users = useUsers();
@@ -156,7 +156,6 @@ export function TriageContextView() {
     return map;
   }, [contexts]);
 
-  const totalWeight = Object.values(localWeights).reduce((a, b) => a + b, 0);
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -430,7 +429,7 @@ function ContextForm({ level, initial, onSave, onCancel, companies, projects, te
     initial?.match_company_id || initial?.match_project_id || initial?.match_team_id || initial?.match_user_id || ""
   );
 
-  const entityOptions = useMemo(() => {
+  const entityOptions = useMemo((): { id: string; label: string }[] => {
     switch (level) {
       case "customer": return companies.map(c => ({ id: c.id, label: c.name }));
       case "product": return projects.map(p => ({ id: p.id, label: p.name }));

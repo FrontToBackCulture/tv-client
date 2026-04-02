@@ -51,7 +51,7 @@ interface SkillAutomationCardProps {
 }
 
 export function SkillAutomationCard({
-  job, onToggle, onRunNow, onStop, onEdit, onDelete,
+  job, onToggle, onRunNow, onStop, onEdit: _onEdit, onDelete,
 }: SkillAutomationCardProps) {
   const runningInfo = useRunningJobsStore((s) => s.runningJobs[job.id]);
   const isRunning = !!runningInfo || job.last_run_status === "running";
@@ -278,7 +278,7 @@ function InstructionPanel({ job, onSave }: { job: Job; onSave: (f: any) => void 
   const { data: bots } = useBots();
   const currentBotName = job.skill_refs?.[0]?.bot ?? bots?.[0]?.name ?? null;
   const [botName, setBotName] = useState(currentBotName);
-  const activeBot = bots?.find((b) => b.name === botName) ?? null;
+
 
   const [model, setModel] = useState(job.model);
   const [additional, setAdditional] = useState(

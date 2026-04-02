@@ -8,12 +8,10 @@ import {
   Loader2,
   ChevronDown,
   ChevronRight,
-  Play,
   Image as ImageIcon,
   Copy,
   Check,
 } from "lucide-react";
-import { cn } from "../../lib/cn";
 
 interface PresetOutput {
   file: string;

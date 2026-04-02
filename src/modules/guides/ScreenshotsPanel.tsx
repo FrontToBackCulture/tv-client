@@ -46,7 +46,7 @@ const GUIDES_IMAGES_REL = "Code/SkyNet/tv-website/public/images/guides";
 
 export function ScreenshotsPanel() {
   const [files, setFiles] = useState<ScreenshotFile[]>([]);
-  const [manifest, setManifest] = useState<Manifest | null>(null);
+  const [_manifest, setManifest] = useState<Manifest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");

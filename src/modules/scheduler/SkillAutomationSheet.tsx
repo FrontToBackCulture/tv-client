@@ -2,7 +2,7 @@
 // Simplified wrapper over the jobs table — always uses skill picker mode
 
 import { useState, useMemo, useEffect } from "react";
-import { X, ChevronDown, Puzzle } from "lucide-react";
+import { X, Puzzle } from "lucide-react";
 import type { Job, JobInput, SkillRef } from "../../hooks/scheduler";
 import { useBots, useBotSkills, type BotSkill } from "../../hooks/useBotSkills";
 import { Button, IconButton } from "../../components/ui";

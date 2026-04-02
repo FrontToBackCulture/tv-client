@@ -1585,7 +1585,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const referralContactNames = useMemo(() => {
     const names = new Set<string>();
     // Partner company contacts
-    allContacts.filter(c => partnerCompanyIds.has(c.company_id)).forEach(c => names.add(c.name));
+    allContacts.filter(c => c.company_id && partnerCompanyIds.has(c.company_id)).forEach(c => names.add(c.name));
     // Existing referred_by values from all companies (so previous referrals stay selectable)
     allCompanies.forEach(c => { if ((c as any).referred_by) names.add((c as any).referred_by); });
     return [...names].sort();

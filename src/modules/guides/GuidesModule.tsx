@@ -8,7 +8,6 @@ import {
   EyeOff,
   Trash2,
   ExternalLink,
-  BookOpen,
   Loader2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";

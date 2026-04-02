@@ -588,8 +588,8 @@ export function MetadataView() {
         const existing = emailMap.get(key);
         if (existing) {
           dupes.push({
-            nameA: existing.name, emailA: existing.email ?? "", companyA: companyName(existing.company_id),
-            nameB: c.name, emailB: c.email ?? "", companyB: companyName(c.company_id),
+            nameA: existing.name, emailA: existing.email ?? "", companyA: companyName(existing.company_id!),
+            nameB: c.name, emailB: c.email ?? "", companyB: companyName(c.company_id!),
             matchType: existing.company_id === c.company_id ? "Same email, same company" : "Same email, different company",
           });
         } else {
@@ -606,8 +606,8 @@ export function MetadataView() {
           const already = dupes.some(d => (d.emailA === existing.email && d.emailB === c.email) || (d.emailA === c.email && d.emailB === existing.email));
           if (!already) {
             dupes.push({
-              nameA: existing.name, emailA: existing.email ?? "", companyA: companyName(existing.company_id),
-              nameB: c.name, emailB: c.email ?? "", companyB: companyName(c.company_id),
+              nameA: existing.name, emailA: existing.email ?? "", companyA: companyName(existing.company_id!),
+              nameB: c.name, emailB: c.email ?? "", companyB: companyName(c.company_id!),
               matchType: "Same name, same company",
             });
           }
@@ -1300,7 +1300,7 @@ export function MetadataView() {
                         const partner = partners.find(p => p.id === v);
                         await updateEntity("crm_companies", selectedCompany.id, "referred_by", partner ? partner.name : null);
                       }
-                    }} companyId={selectedCompany.id} contacts={contacts} />
+                    }} companyId={selectedCompany.id as string} contacts={contacts as { email: string; company_id: string }[]} />
                     {/* Contacts */}
                     <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                       <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Contacts</h3>
