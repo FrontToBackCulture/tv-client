@@ -164,7 +164,7 @@ export function SkillAutomationSheet({ job, onSubmit, onClose, isLoading }: Skil
       {/* Sheet */}
       <div
         className={cn(
-          "fixed inset-y-0 right-0 w-[480px] bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl z-50 flex flex-col transition-transform duration-200 ease-out",
+          "fixed inset-y-0 right-0 w-[480px] bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800 shadow-lg z-50 flex flex-col transition-transform duration-200 ease-out",
           mounted ? "translate-x-0" : "translate-x-full",
         )}
       >
@@ -230,7 +230,7 @@ export function SkillAutomationSheet({ job, onSubmit, onClose, isLoading }: Skil
             )}
 
             {skills && skills.length > 0 && (
-              <div className="max-h-[200px] overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg divide-y divide-zinc-100 dark:divide-zinc-800">
+              <div className="max-h-[200px] overflow-y-auto border border-zinc-200 dark:border-zinc-800 rounded-lg divide-y divide-zinc-100 dark:divide-zinc-800">
                 {skills.map((skill) => (
                   <label
                     key={skill.slug}
@@ -240,7 +240,7 @@ export function SkillAutomationSheet({ job, onSubmit, onClose, isLoading }: Skil
                       type="checkbox"
                       checked={selectedSlugs.has(skill.slug)}
                       onChange={() => toggleSkill(skill.slug)}
-                      className="mt-0.5 rounded border-zinc-300 text-teal-600 focus:ring-teal-500"
+                      className="mt-0.5 rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -288,7 +288,7 @@ export function SkillAutomationSheet({ job, onSubmit, onClose, isLoading }: Skil
                     "px-2 py-1 text-xs rounded-md border transition-colors",
                     cronExpression === p.value
                       ? "border-teal-500 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
-                      : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800",
+                      : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800",
                   )}
                 >
                   {p.label}

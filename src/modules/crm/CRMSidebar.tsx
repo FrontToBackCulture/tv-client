@@ -58,7 +58,7 @@ export function CRMSidebar({
                 className={`flex items-center gap-2 w-full text-left px-3 py-1.5 rounded transition-colors ${
                   isActive
                     ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-300"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-zinc-300"
                 }`}
               >
                 <Icon
@@ -93,7 +93,7 @@ export function CRMSidebar({
               onChange={(e) =>
                 onFiltersChange({ ...filters, search: e.target.value || undefined })
               }
-              className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             />
           </div>
 

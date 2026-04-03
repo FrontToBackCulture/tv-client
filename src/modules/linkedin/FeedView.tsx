@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Heart, MessageCircle, Share2, Trash2, RefreshCw, Loader2, Globe, Users, AlertTriangle } from "lucide-react";
 import { Button } from "../../components/ui";
+import { formatError } from "../../lib/formatError";
 import { useLinkedInPosts, useDeleteLinkedInPost, LinkedInPost } from "../../hooks/useLinkedIn";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -23,11 +24,7 @@ export function FeedView() {
   }
 
   // Check if error is a 403 (Community Management API not available)
-  const errorMsg = error
-    ? typeof error === 'object' && error !== null && 'message' in error
-      ? (error as any).message
-      : String(error)
-    : "";
+  const errorMsg = error ? formatError(error) : "";
   const isForbidden = errorMsg.includes("403") || errorMsg.includes("Not enough permissions");
 
   if (error) {
@@ -118,7 +115,7 @@ function PostCard({ post }: { post: LinkedInPost }) {
     : "";
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg p-4">
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 text-xs text-zinc-400">
@@ -138,7 +135,7 @@ function PostCard({ post }: { post: LinkedInPost }) {
         <button
           onClick={handleDelete}
           disabled={deletePost.isPending}
-          className={`p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors ${
+          className={`p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${
             confirmDelete ? "text-red-500" : "text-zinc-400 hover:text-zinc-600"
           }`}
           title={confirmDelete ? "Click again to confirm" : "Delete post"}

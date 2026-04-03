@@ -4,6 +4,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { invoke } from "@tauri-apps/api/core";
+import { formatError } from "../lib/formatError";
 
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = import.meta.env.VITE_GITHUB_CLIENT_SECRET;
@@ -180,7 +181,7 @@ export const useAuth = create<AuthState>()(
           });
         } catch (error) {
           set({
-            error: error instanceof Error ? error.message : String(error),
+            error: formatError(error),
             isLoading: false,
           });
         }
@@ -213,7 +214,7 @@ export const useAuth = create<AuthState>()(
           });
         } catch (error) {
           set({
-            error: error instanceof Error ? error.message : String(error),
+            error: formatError(error),
             isLoading: false,
           });
         }

@@ -274,13 +274,13 @@ export function ScreenshotsPanel() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search screenshots..."
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
           <select
             value={domainFilter}
             onChange={(e) => setDomainFilter(e.target.value)}
-            className="px-2.5 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="px-2.5 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
           >
             <option value="all">All Domains</option>
             {domains.map((d) => (
@@ -290,7 +290,7 @@ export function ScreenshotsPanel() {
           <select
             value={presetFilter}
             onChange={(e) => setPresetFilter(e.target.value)}
-            className="px-2.5 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="px-2.5 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
           >
             <option value="all">All Presets</option>
             {presets.map((p) => (
@@ -321,7 +321,7 @@ export function ScreenshotsPanel() {
               <div
                 key={file.name}
                 onClick={() => setSelectedFile(file)}
-                className="group cursor-pointer rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden hover:border-teal-400 dark:hover:border-teal-600 transition-colors"
+                className="group cursor-pointer rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden hover:border-teal-400 dark:hover:border-teal-600 transition-colors"
               >
                 <div className="aspect-video bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                   <img

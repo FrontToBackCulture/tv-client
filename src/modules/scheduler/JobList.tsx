@@ -59,7 +59,7 @@ export function JobList({
         ))}
       </div>
       {onAddNew && (
-        <div className="flex-shrink-0 p-2 border-t border-zinc-100 dark:border-zinc-800/50">
+        <div className="flex-shrink-0 p-2 border-t border-zinc-100 dark:border-zinc-800">
           <Button variant="ghost" icon={Plus} onClick={onAddNew} className="w-full justify-center">
             New Job
           </Button>
@@ -96,7 +96,7 @@ function JobRow({
       <div
         onClick={() => onSelect(job.id)}
         className={cn(
-          "flex items-center gap-2 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors",
+          "flex items-center gap-2 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 cursor-pointer transition-colors",
           "hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
           isSelected && "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
         )}
@@ -145,7 +145,7 @@ function JobRow({
     <div
       onClick={() => onSelect(job.id)}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors",
+        "flex items-center gap-3 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 cursor-pointer transition-colors",
         "hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
         isSelected && "bg-teal-50 dark:bg-teal-950/30"
       )}

@@ -9,8 +9,13 @@ import {
   Trash2,
   ExternalLink,
   Loader2,
+  BookOpen,
+  Camera,
+  Terminal,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { PageHeader } from "../../components/PageHeader";
+import { ViewTab } from "../../components/ViewTab";
 import { useGuides, useCreateGuide, useUpdateGuide, useDeleteGuide } from "./useGuides";
 import { GuideEditor } from "./GuideEditor";
 import { ScreenshotsPanel } from "./ScreenshotsPanel";
@@ -106,24 +111,14 @@ export function GuidesModule() {
   if (tab === "screenshots" || tab === "scripts") {
     return (
       <div className="h-full flex flex-col">
-        <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 px-4 py-3">
-          <div className="flex items-center gap-4">
-            {(["guides", "screenshots", "scripts"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={cn(
-                  "text-sm font-medium pb-1 transition-colors capitalize",
-                  tab === t
-                    ? "text-zinc-800 dark:text-zinc-200 border-b-2 border-teal-500"
-                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                )}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
+        <PageHeader
+          description="Author and publish help guides, manage screenshots, and maintain demo scripts."
+          tabs={<>
+            <ViewTab icon={BookOpen} label="Guides" active={false} onClick={() => setTab("guides")} />
+            <ViewTab icon={Camera} label="Screenshots" active={tab === "screenshots"} onClick={() => setTab("screenshots")} />
+            <ViewTab icon={Terminal} label="Scripts" active={tab === "scripts"} onClick={() => setTab("scripts")} />
+          </>}
+        />
         <div className="flex-1 overflow-hidden">
           {tab === "screenshots" ? <ScreenshotsPanel /> : <ScriptsPanel />}
         </div>
@@ -133,28 +128,14 @@ export function GuidesModule() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 px-4 py-3">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-4">
-              {(["guides", "screenshots", "scripts"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={cn(
-                    "text-sm font-medium pb-1 transition-colors capitalize",
-                    tab === t
-                      ? "text-zinc-800 dark:text-zinc-200 border-b-2 border-teal-500"
-                      : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                  )}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs text-zinc-400">({guides.length})</span>
-          </div>
+      <PageHeader
+        description="Author and publish help guides, manage screenshots, and maintain demo scripts."
+        tabs={<>
+          <ViewTab icon={BookOpen} label="Guides" active={tab === "guides"} onClick={() => setTab("guides")} badge={guides.length} />
+          <ViewTab icon={Camera} label="Screenshots" active={false} onClick={() => setTab("screenshots")} />
+          <ViewTab icon={Terminal} label="Scripts" active={false} onClick={() => setTab("scripts")} />
+        </>}
+        actions={
           <button
             onClick={handleCreate}
             disabled={createGuide.isPending}
@@ -163,7 +144,10 @@ export function GuidesModule() {
             <Plus size={14} />
             New Guide
           </button>
-        </div>
+        }
+      />
+      {/* Filter bar */}
+      <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-sm">
             <Search
@@ -175,7 +159,7 @@ export function GuidesModule() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search guides..."
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
           <div className="flex items-center gap-1">
@@ -198,7 +182,7 @@ export function GuidesModule() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-2.5 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="px-2.5 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
               <option value="all">All Categories</option>
               {categories.map((cat) => (
@@ -236,7 +220,7 @@ export function GuidesModule() {
                 <tr
                   key={guide.id}
                   onClick={() => setSelectedId(guide.id)}
-                  className="border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 cursor-pointer transition-colors"
+                  className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 cursor-pointer transition-colors"
                 >
                   <td className="px-4 py-2.5">
                     <span className="font-medium text-zinc-800 dark:text-zinc-200 truncate block">

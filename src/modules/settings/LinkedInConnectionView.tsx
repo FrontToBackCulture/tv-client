@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle, XCircle, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "../../components/ui";
+import { formatError } from "../../lib/formatError";
 import { useLinkedInAuth, useLinkedInLogin, useLinkedInLogout } from "../../hooks/useLinkedIn";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -17,7 +18,7 @@ export function LinkedInConnectionView() {
     try {
       await logout.mutateAsync();
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     }
   };
 
@@ -35,7 +36,7 @@ export function LinkedInConnectionView() {
       await logout.mutateAsync();
       await login.mutateAsync({ clientId, clientSecret });
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
       refetch();
     }
   };
@@ -65,7 +66,7 @@ export function LinkedInConnectionView() {
       </div>
 
       {/* Connection status */}
-      <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900">
+      <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {isConnected ? (

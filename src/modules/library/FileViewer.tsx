@@ -19,6 +19,7 @@ import { ExcalidrawEditor } from "../gallery/ExcalidrawEditor";
 import { IntercomModal } from "./IntercomModal";
 import { PortalPublishModal } from "./PortalPublishModal";
 import { buildDomainUrl, getDomainLinkLabel } from "../../lib/domainUrl";
+import { formatError } from "../../lib/formatError";
 import { supabase } from "../../lib/supabase";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
@@ -383,9 +384,9 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     } catch (err) {
       updateJob(jobId, {
         status: "failed",
-        message: String(err)
+        message: formatError(err)
       });
-      showToast(`Generation failed: ${err}`, "error");
+      showToast(`Generation failed: ${formatError(err)}`, "error");
     } finally {
       setIsGenerating(false);
     }
@@ -536,9 +537,9 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     } catch (err) {
       updateJob(jobId, {
         status: "failed",
-        message: String(err)
+        message: formatError(err)
       });
-      showToast(`Generation failed: ${err}`, "error");
+      showToast(`Generation failed: ${formatError(err)}`, "error");
     } finally {
       setIsGenerating(false);
     }
@@ -592,9 +593,9 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     } catch (err) {
       updateJob(jobId, {
         status: "failed",
-        message: String(err)
+        message: formatError(err)
       });
-      showToast(`PDF export failed: ${err}`, "error");
+      showToast(`PDF export failed: ${formatError(err)}`, "error");
     } finally {
       setIsGenerating(false);
     }
@@ -650,7 +651,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           {editAction && (
             <button
               onClick={editAction}
-              className="px-2.5 py-1 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-teal-300 dark:hover:border-teal-700 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+              className="px-2.5 py-1 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-teal-300 dark:hover:border-teal-700 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
             >
               Edit
             </button>
@@ -661,7 +662,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
             className={`relative p-1.5 rounded-md transition-colors ${
               showDiscussions
                 ? "text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
             }`}
           >
             <MessageSquare size={15} />
@@ -674,7 +675,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
           <button
             onClick={handleRefresh}
             title="Refresh file content"
-            className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
           >
             <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
           </button>
@@ -1061,7 +1062,7 @@ function ExcelViewer({ path, filename }: { path: string; filename: string }) {
         const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(urlData.publicUrl)}`;
         if (!cancelled) setViewerUrl(officeUrl);
       } catch (err) {
-        if (!cancelled) setError(String(err));
+        if (!cancelled) setError(formatError(err));
       } finally {
         if (!cancelled) setLoading(false);
       }

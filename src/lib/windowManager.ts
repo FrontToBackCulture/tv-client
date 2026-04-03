@@ -19,7 +19,6 @@ const moduleLabels: Record<ModuleId, string> = {
   analytics: "Analytics",
   product: "Product",
   gallery: "Gallery",
-  bot: "Bots",
   skills: "Skills",
   portal: "Portal",
   scheduler: "Scheduler",

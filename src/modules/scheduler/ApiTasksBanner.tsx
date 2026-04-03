@@ -9,7 +9,7 @@ export function ApiTasksBanner() {
   if (running.length === 0) return null;
 
   return (
-    <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50 px-4 py-2 space-y-1.5">
+    <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-4 py-2 space-y-1.5">
       {running.map((task) => (
         <TaskRow key={task.id} task={task} />
       ))}

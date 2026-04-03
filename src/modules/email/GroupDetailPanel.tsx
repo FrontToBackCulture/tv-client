@@ -53,7 +53,7 @@ export function GroupDetailPanel({ groupId, onClose }: GroupDetailPanelProps) {
 
   if (groupLoading) {
     return (
-      <div className="w-[420px] border-l border-zinc-100 dark:border-zinc-800/50 flex items-center justify-center text-xs text-zinc-400">
+      <div className="border-l border-zinc-100 dark:border-zinc-800 flex items-center justify-center text-xs text-zinc-400">
         Loading...
       </div>
     );
@@ -62,9 +62,9 @@ export function GroupDetailPanel({ groupId, onClose }: GroupDetailPanelProps) {
   if (!group) return null;
 
   return (
-    <div className="w-[420px] border-l border-zinc-100 dark:border-zinc-800/50 flex flex-col bg-white dark:bg-zinc-950 overflow-auto">
+    <div className="border-l border-zinc-100 dark:border-zinc-800 flex flex-col bg-white dark:bg-zinc-950 overflow-auto">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2 min-w-0">
           <FolderOpen size={14} className="flex-shrink-0 text-zinc-400" />
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 truncate">
@@ -107,7 +107,7 @@ export function GroupDetailPanel({ groupId, onClose }: GroupDetailPanelProps) {
             </button>
             <button
               onClick={() => setShowDeleteConfirm(false)}
-              className="px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+              className="px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-md transition-colors"
             >
               Cancel
             </button>
@@ -145,7 +145,7 @@ export function GroupDetailPanel({ groupId, onClose }: GroupDetailPanelProps) {
 
           {/* Add contact picker */}
           {showAddPicker && (
-            <div className="mb-3 border border-zinc-200 dark:border-zinc-700 rounded-md overflow-hidden">
+            <div className="mb-3 border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
               <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-100 dark:border-zinc-800">
                 <Search size={11} className="text-zinc-400 flex-shrink-0" />
                 <input

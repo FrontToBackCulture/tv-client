@@ -1,174 +1,132 @@
-// Automations tab — DIO automations (Data → Instruction → Output) + Skill automations
+// Automations tab — visual node canvas for DIO + Skill automations
 
 import { useState, useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
-import { useCurrentUserId, useUsers } from "../../hooks/work/useUsers";
 import {
-  triggerDioAutomation,
+  useAutomations,
+  useAutomationNodes,
+  useAutomationEdges,
+  useCreateAutomation,
+  useRunningJobsStore,
+  useCreateJob,
+} from "../../hooks/scheduler";
+import {
   DEFAULT_MODEL,
   DEFAULT_SOURCES,
   DEFAULT_THREAD_TITLE_NEW,
 } from "../../hooks/chat/useTaskAdvisor";
-import { useDioAutomations, useCreateDio } from "../../hooks/chat/useDioAutomations";
-import {
-  useJobs,
-  useCreateJob,
-  useUpdateJob,
-  useToggleJob,
-  useRunJob,
-  useStopJob,
-  useDeleteJob,
-  type Job,
-  type JobInput,
-} from "../../hooks/scheduler";
-import { DioAutomationCard } from "./DioAutomationCard";
-import { SkillAutomationCard } from "./SkillAutomationCard";
-import { SkillAutomationSheet } from "./SkillAutomationSheet";
-import { Button } from "../../components/ui";
+import { useCreateDio } from "../../hooks/chat/useDioAutomations";
+import { AutomationList } from "./canvas/AutomationList";
+import { AutomationCanvas } from "./canvas/AutomationCanvas";
+import { AutomationCanvasHeader } from "./canvas/AutomationCanvasHeader";
+import { NodeConfigPanel } from "./canvas/NodeConfigPanel";
+import { EmptyCanvasState } from "./canvas/EmptyCanvasState";
+import type { AutomationGraph, AutomationNodeRow } from "./canvas/types";
 
 export function AutomationsView() {
-  const queryClient = useQueryClient();
-  const userId = useCurrentUserId();
-  const { data: allUsers = [] } = useUsers();
-  const userName = allUsers.find((u) => u.id === userId)?.name || "user";
+  // Automations list
+  const { data: automations = [], isLoading } = useAutomations();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<AutomationNodeRow | null>(null);
 
-  // DIO automations
-  const { data: dioAutomations = [] } = useDioAutomations();
+  // Load nodes + edges for selected automation
+  const { data: nodes = [] } = useAutomationNodes(selectedId);
+  const { data: edges = [] } = useAutomationEdges(selectedId);
+
+  // Build the full graph for the selected automation
+  const selectedAutomation: AutomationGraph | null = (() => {
+    const auto = automations.find((a) => a.id === selectedId);
+    if (!auto) return null;
+    return { ...auto, nodes, edges };
+  })();
+
+  // Running state
+  const runningJobs = useRunningJobsStore((s) => s.runningJobs);
+  const isRunning = selectedAutomation?.job_id
+    ? !!runningJobs[selectedAutomation.job_id] || selectedAutomation.last_run_status === "running"
+    : false;
+
+  // Create mutations
+  const createAutomation = useCreateAutomation();
   const createDio = useCreateDio();
-  const [runningDioId, setRunningDioId] = useState<string | null>(null);
-
-  async function handleRunDio(id: string) {
-    if (!userId) return;
-    setRunningDioId(id);
-    try {
-      await triggerDioAutomation(id, queryClient, userId, userName);
-    } finally {
-      setRunningDioId(null);
-    }
-  }
-
-  function handleNewDio() {
-    createDio.mutate({
-      name: "New Automation",
-      description: null,
-      enabled: true,
-      interval_hours: 2,
-      sources: DEFAULT_SOURCES,
-      model: DEFAULT_MODEL,
-      post_mode: "new_thread",
-      thread_title: DEFAULT_THREAD_TITLE_NEW,
-    });
-  }
-
-  // Skill automations
-  const { data: jobs = [] } = useJobs();
   const createJob = useCreateJob();
-  const updateJob = useUpdateJob();
-  const toggleJob = useToggleJob();
-  const runJob = useRunJob();
-  const stopJob = useStopJob();
-  const deleteJob = useDeleteJob();
-  const [showSheet, setShowSheet] = useState(false);
-  const [editingJob, setEditingJob] = useState<Job | null>(null);
 
-  const handleCreateOrUpdateJob = useCallback((input: JobInput) => {
-    if (editingJob) {
-      updateJob.mutate({ id: editingJob.id, input }, { onSuccess: () => { setShowSheet(false); setEditingJob(null); } });
-    } else {
-      createJob.mutate(input, { onSuccess: () => setShowSheet(false) });
+  const handleNew = useCallback(async (type: "dio" | "skill") => {
+    try {
+      if (type === "dio") {
+        // Create backing DIO row first, then automation graph
+        const dioRow = await createDio.mutateAsync({
+          name: "New DIO Automation",
+          enabled: true,
+          interval_hours: 2,
+          sources: DEFAULT_SOURCES,
+          model: DEFAULT_MODEL,
+          post_mode: "new_thread",
+          thread_title: DEFAULT_THREAD_TITLE_NEW,
+        });
+        const autoId = await createAutomation.mutateAsync({
+          name: "New DIO Automation",
+          automation_type: "dio",
+          dio_id: dioRow.id,
+        });
+        setSelectedId(autoId);
+      } else {
+        // Create backing job row first
+        const jobRow = await createJob.mutateAsync({
+          name: "New Skill Automation",
+          skill_prompt: "",
+          model: "sonnet",
+          enabled: true,
+        });
+        const autoId = await createAutomation.mutateAsync({
+          name: "New Skill Automation",
+          automation_type: "skill",
+          job_id: jobRow.id,
+        });
+        setSelectedId(autoId);
+      }
+    } catch (e) {
+      console.error("Failed to create automation:", e);
     }
-  }, [editingJob, createJob, updateJob]);
+  }, [createDio, createJob, createAutomation]);
+
+  // When selecting a different automation, close the config panel
+  const handleSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    setSelectedNode(null);
+  }, []);
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6 space-y-8">
-        {/* DIO Automations */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                Data → Instruction → Output
-              </h2>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                Lightweight automations that gather data, compose a message via Claude, and post to Chat.
-              </p>
-            </div>
-            <Button icon={Plus} onClick={handleNewDio} loading={createDio.isPending}>
-              New
-            </Button>
-          </div>
+    <div className="flex-1 flex overflow-hidden">
+      <AutomationList
+        automations={automations}
+        isLoading={isLoading}
+        selectedId={selectedId}
+        onSelect={handleSelect}
+        onNew={handleNew}
+      />
 
-          {dioAutomations.length === 0 ? (
-            <div className="border border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg p-8 text-center">
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">No automations yet.</p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                Create one to periodically review tasks, deals, emails, or projects and get a check-in in Chat.
-              </p>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {selectedAutomation ? (
+          <>
+            <AutomationCanvasHeader automation={selectedAutomation} onDeleted={() => { setSelectedId(null); setSelectedNode(null); }} />
+            <div className="flex-1 relative overflow-hidden">
+              <AutomationCanvas
+                key={selectedAutomation.id}
+                automation={selectedAutomation}
+                isRunning={isRunning}
+                onNodeSelect={setSelectedNode}
+              />
+              <NodeConfigPanel
+                node={selectedNode}
+                automation={selectedAutomation}
+                onClose={() => setSelectedNode(null)}
+              />
             </div>
-          ) : (
-            <div className="space-y-3">
-              {dioAutomations.map((auto) => (
-                <DioAutomationCard
-                  key={auto.id}
-                  automation={auto}
-                  onRunNow={handleRunDio}
-                  running={runningDioId === auto.id}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Skill Automations */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                Skill Automations
-              </h2>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                Scheduled skills that run via Claude CLI with full MCP tool access.
-              </p>
-            </div>
-            <Button icon={Plus} onClick={() => { setEditingJob(null); setShowSheet(true); }}>
-              New
-            </Button>
-          </div>
-
-          {jobs.length === 0 ? (
-            <div className="border border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg p-8 text-center">
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">No skill automations yet.</p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                Create one to run skills like SOD checks, drive file monitoring, or custom reports on a schedule.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {jobs.map((job) => (
-                <SkillAutomationCard
-                  key={job.id}
-                  job={job}
-                  onToggle={(id, enabled) => toggleJob.mutate({ id, enabled })}
-                  onRunNow={(id) => runJob.mutate(id)}
-                  onStop={(runId) => stopJob.mutate(runId)}
-                  onEdit={(j) => { setEditingJob(j); setShowSheet(true); }}
-                  onDelete={(id) => deleteJob.mutate(id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+          </>
+        ) : (
+          <EmptyCanvasState />
+        )}
       </div>
-
-      {showSheet && (
-        <SkillAutomationSheet
-          job={editingJob}
-          onSubmit={handleCreateOrUpdateJob}
-          onClose={() => { setShowSheet(false); setEditingJob(null); }}
-          isLoading={createJob.isPending || updateJob.isPending}
-        />
-      )}
     </div>
   );
 }

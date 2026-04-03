@@ -128,7 +128,7 @@ function DomainMcpRow({ domain }: { domain: DiscoveredDomain }) {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://your-domain.val.run/mcp/sql"
-            className="w-full px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 font-mono"
+            className="w-full px-3 py-1.5 text-sm border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 font-mono"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSave();

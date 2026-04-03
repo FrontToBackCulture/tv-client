@@ -45,6 +45,7 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
   onDeleted: () => void;
 }) {
   const [editing, setEditing] = useState<Record<string, boolean>>({});
+  const [isDeleting, setIsDeleting] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const { data: users = [] } = useUsers();
   const projectIds = useMemo(() => projects.map(p => p.id), [projects]);
@@ -86,10 +87,15 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
 
   const deleteInitiative = async () => {
     if (!confirm(`Delete initiative "${initiative.name}"? Projects will be unlinked but not deleted.`)) return;
-    const { supabase } = await import("../../lib/supabase");
-    await supabase.from("initiative_projects").delete().eq("initiative_id", initiative.id);
-    await supabase.from("initiatives").delete().eq("id", initiative.id);
-    onDeleted();
+    setIsDeleting(true);
+    try {
+      const { supabase } = await import("../../lib/supabase");
+      await supabase.from("initiative_projects").delete().eq("initiative_id", initiative.id);
+      await supabase.from("initiatives").delete().eq("id", initiative.id);
+      onDeleted();
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Compute status/health/target from projects
@@ -253,7 +259,7 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
               value={commsFilter}
               onChange={(e) => setCommsFilter(e.target.value)}
               placeholder="Filter emails & WhatsApp..."
-              className="w-full text-xs pl-7 pr-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 outline-none focus:border-teal-400 dark:focus:border-teal-500 transition-colors"
+              className="w-full text-xs pl-7 pr-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 outline-none focus:ring-2 focus:ring-teal-500/30 transition-colors"
             />
             {commsFilter && (
               <button onClick={() => setCommsFilter("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 text-[10px]">
@@ -335,7 +341,7 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
                       )}
                     </button>
                     {isExpanded && (
-                      <div className="px-3 pb-3 pt-1 text-xs space-y-2 border-t border-zinc-50 dark:border-zinc-800/50">
+                      <div className="px-3 pb-3 pt-1 text-xs space-y-2 border-t border-zinc-50 dark:border-zinc-800">
                         <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">{ws.summary}</p>
                         {ws.key_topics && ws.key_topics.length > 0 && (
                           <div className="flex items-start gap-1.5">
@@ -380,10 +386,11 @@ function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
       <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
         <button
           onClick={deleteInitiative}
-          className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded px-2 py-1.5 transition-colors"
+          disabled={isDeleting}
+          className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded px-2 py-1.5 transition-colors disabled:opacity-50"
         >
           <Trash2 size={12} />
-          Delete Initiative
+          {isDeleting ? "Deleting..." : "Delete Initiative"}
         </button>
       </div>
     </div>
@@ -824,7 +831,7 @@ export function DashboardView({
           {editingTypeId === p.id ? (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setEditingTypeId(null)} />
-              <div className="absolute mt-5 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[100px]">
+              <div className="absolute mt-5 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[100px]">
                 {(["work", "deal"] as const).map(t => (
                   <button key={t} onClick={() => { onUpdateProject?.(p.id, { project_type: t }); setEditingTypeId(null); }}
                     className={`w-full text-left px-3 py-1 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 ${(p.project_type || "work") === t ? "font-medium text-teal-600" : ""}`}
@@ -862,7 +869,7 @@ export function DashboardView({
           {editingStatusId === p.id ? (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setEditingStatusId(null)} />
-              <div className="absolute mt-5 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[110px]">
+              <div className="absolute mt-5 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[110px]">
                 {(["planned", "active", "completed", "paused"] as ProjectStatus[]).map(s => (
                   <button key={s} onClick={() => { onUpdateProject?.(p.id, { status: s }); setEditingStatusId(null); }}
                     className={`w-full text-left px-3 py-1 text-xs flex items-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 ${p.status === s ? "font-medium" : ""}`}
@@ -894,12 +901,12 @@ export function DashboardView({
       {/* Body: tree (left) + detail (right) */}
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT: Project tree */}
-        <div className="flex-shrink-0 flex flex-col border-r border-zinc-100 dark:border-zinc-800/50 transition-all duration-200" style={{ width: sidebarCollapsed ? 40 : sidebarWidth }}>
+        <div className="flex-shrink-0 flex flex-col border-r border-zinc-100 dark:border-zinc-800 transition-all duration-200" style={{ width: sidebarCollapsed ? 40 : sidebarWidth }}>
           {sidebarCollapsed ? (
             <div className="flex flex-col items-center py-2">
               <button
                 onClick={() => setSidebarCollapsed(false)}
-                className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                 title="Expand panel"
               >
                 <PanelLeftOpen size={14} />
@@ -908,7 +915,7 @@ export function DashboardView({
           ) : (
           <>
           {/* Tree header */}
-          <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50">
+          <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center gap-2 px-3 py-1.5">
               {/* Collapse panel */}
               <button
@@ -945,7 +952,7 @@ export function DashboardView({
                   "flex items-center gap-1 text-[10px] transition-colors flex-shrink-0 px-1.5 py-0.5 rounded",
                   hideCompleted
                     ? "text-teal-600 bg-teal-50 dark:text-teal-400 dark:bg-teal-950/40"
-                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 )}
                 title={hideCompleted ? "Show completed projects" : "Hide completed projects"}
               >
@@ -1015,7 +1022,7 @@ export function DashboardView({
             <div>
               <button
                 onClick={() => toggleGroup("__unassigned")}
-                className="w-full flex items-center gap-1.5 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors border-t border-zinc-100 dark:border-zinc-800/50"
+                className="w-full flex items-center gap-1.5 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors border-t border-zinc-100 dark:border-zinc-800"
               >
                 {!collapsedGroups.has("__unassigned") ? <ChevronDown size={10} className="text-zinc-400" /> : <ChevronRight size={10} className="text-zinc-400" />}
                 <span className="w-2 h-2 rounded-full bg-zinc-300 flex-shrink-0" />
@@ -1071,7 +1078,7 @@ export function DashboardView({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }} />
           <div
-            className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px] max-h-[300px] overflow-y-auto"
+            className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[180px] max-h-[300px] overflow-y-auto"
             style={{
               left: Math.min(contextMenu.x, window.innerWidth - 200),
               top: contextMenu.y + 300 > window.innerHeight ? contextMenu.y - Math.min(300, (initiatives.length + 2) * 32) : contextMenu.y,

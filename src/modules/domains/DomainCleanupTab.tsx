@@ -25,6 +25,7 @@ import {
   Code,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { formatError } from "../../lib/formatError";
 import { Button } from "../../components/ui";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
@@ -216,7 +217,7 @@ const STATUS_BADGE: Record<string, { bg: string; text: string }> = {
 
 function StatPill({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (
-    <div className="px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
+    <div className="px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
       <div className={cn("text-lg font-bold", color || "text-zinc-800 dark:text-zinc-200")}>{value}</div>
       <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{label}</div>
     </div>
@@ -292,7 +293,7 @@ function DependencyTreeNode({
         )}
       </div>
       {expanded && hasChildren && (
-        <div className="border-l border-zinc-200 dark:border-zinc-700 ml-1.5">
+        <div className="border-l border-zinc-200 dark:border-zinc-800 ml-1.5">
           {childEdges.map((edge) => {
             const childResource = resources[edge.id];
             if (!childResource) {
@@ -522,14 +523,15 @@ async function launchCalcToSqlRun(
       request: {
         prompt,
         allowed_tools: ["mcp__tv-mcp__execute-val-sql"],
-        model: "sonnet",
+        model: "opus",
         cwd: globalPath,
       },
     });
   } catch (e) {
-    addEvent(runId, { type: "error", content: String(e), timestamp: Date.now() });
-    completeRun(runId, String(e), true, 0, 0);
-    updateJob(runId, { status: "failed", message: String(e).slice(0, 100) });
+    const msg = formatError(e);
+    addEvent(runId, { type: "error", content: msg, timestamp: Date.now() });
+    completeRun(runId, msg, true, 0, 0);
+    updateJob(runId, { status: "failed", message: msg.slice(0, 100) });
   } finally {
     unlisten();
   }
@@ -555,6 +557,7 @@ export function DomainCleanupTab({ domainName, globalPath }: DomainCleanupTabPro
   const [selectedResource, setSelectedResource] = useState<string | null>(null);
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [calcSearchQuery, setCalcSearchQuery] = useState("");
   const { addJob, updateJob } = useJobsStore();
   const { createRun, addEvent, completeRun, expandRun } = useClaudeRunStore();
 
@@ -579,7 +582,7 @@ export function DomainCleanupTab({ domainName, globalPath }: DomainCleanupTabPro
         setError("No cleanup data found. Run 'Compute Dependencies' to generate it.");
       }
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       setLoading(false);
     }
@@ -601,7 +604,7 @@ export function DomainCleanupTab({ domainName, globalPath }: DomainCleanupTabPro
       setComputeStep("Loading results...");
       await loadData();
     } catch (e) {
-      setError(`Computation failed: ${String(e)}`);
+      setError(`Computation failed: ${formatError(e)}`);
     } finally {
       setComputing(false);
       setComputeStep(null);
@@ -869,7 +872,7 @@ export function DomainCleanupTab({ domainName, globalPath }: DomainCleanupTabPro
             </div>
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-700 text-left">
+                <tr className="border-b border-zinc-200 dark:border-zinc-800 text-left">
                   <th className="py-2 pr-3 text-xs font-medium text-zinc-500 uppercase">Workflow</th>
                   <th className="py-2 pr-3 text-xs font-medium text-zinc-500 uppercase">Cron</th>
                   <th className="py-2 pr-3 text-xs font-medium text-zinc-500 uppercase">Frequency</th>
@@ -943,7 +946,7 @@ export function DomainCleanupTab({ domainName, globalPath }: DomainCleanupTabPro
                     placeholder="Search resources..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400"
+                    className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400"
                   />
                 </div>
               </div>
@@ -1093,7 +1096,7 @@ export function DomainCleanupTab({ domainName, globalPath }: DomainCleanupTabPro
                   placeholder="Search candidates..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400"
+                  className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400"
                 />
               </div>
               <Button onClick={selectAllFiltered} variant="ghost" icon={CheckSquare}>
@@ -1121,7 +1124,7 @@ export function DomainCleanupTab({ domainName, globalPath }: DomainCleanupTabPro
                   <div
                     key={c.id}
                     className={cn(
-                      "flex items-start gap-3 px-3 py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 border-l-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer",
+                      "flex items-start gap-3 px-3 py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 border-l-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer",
                       severityColors[c.severity],
                       selectedCandidates.has(c.id) && "bg-teal-50/50 dark:bg-teal-900/10"
                     )}
@@ -1198,10 +1201,21 @@ export function DomainCleanupTab({ domainName, globalPath }: DomainCleanupTabPro
               </p>
             </div>
 
+            <div className="mb-3 relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search tables..."
+                value={calcSearchQuery}
+                onChange={(e) => setCalcSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400"
+              />
+            </div>
+
             {(deps.summary.heavy_calc_tables ?? []).length > 0 ? (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-200 dark:border-zinc-700 text-left">
+                  <tr className="border-b border-zinc-200 dark:border-zinc-800 text-left">
                     <th className="py-2 pr-3 text-xs font-medium text-zinc-500 uppercase">Table</th>
                     <th className="py-2 pr-3 text-xs font-medium text-zinc-500 uppercase">Columns</th>
                     <th className="py-2 pr-3 text-xs font-medium text-zinc-500 uppercase">Calc Fields</th>
@@ -1211,7 +1225,7 @@ export function DomainCleanupTab({ domainName, globalPath }: DomainCleanupTabPro
                   </tr>
                 </thead>
                 <tbody>
-                  {(deps.summary.heavy_calc_tables ?? []).map((t) => {
+                  {(deps.summary.heavy_calc_tables ?? []).filter((t) => !calcSearchQuery || t.name.toLowerCase().includes(calcSearchQuery.toLowerCase()) || t.id.toLowerCase().includes(calcSearchQuery.toLowerCase())).map((t) => {
                     const tableRecency = recency?.tables[t.id];
                     const EXPENSIVE_RULES = ["vlookup", "rollup", "linked", "aggregate"];
                     const hasExpensiveRule = Object.keys(t.rules).some((r) => EXPENSIVE_RULES.includes(r));

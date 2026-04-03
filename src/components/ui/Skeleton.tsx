@@ -29,7 +29,7 @@ export function ListSkeleton({ rows = 5 }: { rows?: number }) {
 /** Skeleton for card grids. */
 export function CardSkeleton() {
   return (
-    <div className="p-4 border border-zinc-200 dark:border-zinc-700 rounded-lg space-y-3">
+    <div className="p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg space-y-3">
       <Skeleton className="h-4 w-2/3" />
       <Skeleton className="h-3 w-full" />
       <Skeleton className="h-3 w-4/5" />

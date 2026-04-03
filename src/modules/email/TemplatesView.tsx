@@ -68,8 +68,8 @@ export function TemplatesView() {
   return (
     <div className="h-full flex">
       {/* Template list */}
-      <div className="w-[220px] flex-shrink-0 border-r border-zinc-100 dark:border-zinc-800/50 flex flex-col">
-        <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="w-[220px] flex-shrink-0 border-r border-zinc-100 dark:border-zinc-800 flex flex-col">
+        <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800">
           <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
             Templates
           </h3>
@@ -103,7 +103,7 @@ export function TemplatesView() {
         {selected ? (
           <>
             {/* Top bar: name + toggle + actions */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800">
               <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-100 capitalize">
                 {selected.displayName}
               </h3>
@@ -150,7 +150,7 @@ export function TemplatesView() {
                   viewMode === "preview" ? (
                     <div className="flex justify-center p-6">
                       <div
-                        className="w-[620px] bg-white rounded-lg shadow-sm overflow-hidden email-preview-scope"
+                        className="w-[620px] bg-white dark:bg-zinc-900 rounded-lg shadow-sm overflow-hidden email-preview-scope"
                         dangerouslySetInnerHTML={{ __html: selected.html }}
                       />
                     </div>
@@ -168,9 +168,9 @@ export function TemplatesView() {
 
               {/* Metadata sidebar */}
               {selected.html && (
-                <div className="w-[200px] flex-shrink-0 border-l border-zinc-100 dark:border-zinc-800/50 overflow-auto">
+                <div className="w-[200px] flex-shrink-0 border-l border-zinc-100 dark:border-zinc-800 overflow-auto">
                   {/* File info */}
-                  <div className="px-3 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+                  <div className="px-3 py-3 border-b border-zinc-100 dark:border-zinc-800">
                     <h4 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
                       File
                     </h4>

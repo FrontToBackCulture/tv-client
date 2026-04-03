@@ -58,7 +58,7 @@ export function FolderPathsView() {
                 type="text"
                 value={config[key]}
                 onChange={(e) => setFolderName(key, e.target.value)}
-                className="flex-1 px-3 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm placeholder:text-zinc-400"
+                className="flex-1 px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm placeholder:text-zinc-400"
               />
               {isModified && (
                 <button

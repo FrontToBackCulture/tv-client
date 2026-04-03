@@ -161,7 +161,7 @@ export function TriageContextView() {
     <div className="flex-1 overflow-y-auto p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-zinc-100">Triage Context</h1>
+        <h1 className="text-lg font-semibold text-zinc-100">Triage Context</h1>
         <p className="text-xs text-zinc-500 mt-1">Context feeds into Rust scoring + Claude AI summary at every triage level</p>
       </div>
 
@@ -203,7 +203,7 @@ export function TriageContextView() {
                   setLocalWeights(prev => ({ ...prev, [l.key]: parseInt(e.target.value) || 0 }));
                   setWeightsDirty(true);
                 }}
-                className="w-10 bg-zinc-800 border border-zinc-700 rounded text-center text-[11px] font-mono text-zinc-300 py-0.5 focus:border-teal-500 outline-none"
+                className="w-10 bg-zinc-800 border border-zinc-700 rounded text-center text-[11px] font-mono text-zinc-300 py-0.5 focus:ring-2 focus:ring-teal-500/30 outline-none"
               />
               <span className="text-zinc-600">%</span>
             </div>
@@ -322,7 +322,7 @@ function CompanyContextEditor({ entry, onSave }: {
         value={text}
         onChange={e => { setText(e.target.value); setDirty(true); }}
         placeholder="Set company-wide strategic context..."
-        className="w-full min-h-[80px] bg-zinc-800/50 border border-zinc-700 rounded-lg text-[13px] text-zinc-200 p-3 resize-y outline-none focus:border-teal-500 placeholder:text-zinc-600"
+        className="w-full min-h-[80px] bg-zinc-800/50 border border-zinc-700 rounded-lg text-[13px] text-zinc-200 p-3 resize-y outline-none focus:ring-2 focus:ring-teal-500/30 placeholder:text-zinc-600"
       />
       <div className="flex items-center justify-between mt-2">
         <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -330,7 +330,7 @@ function CompanyContextEditor({ entry, onSave }: {
           <input
             type="number" min={-20} max={20} value={boost}
             onChange={e => { setBoost(parseInt(e.target.value) || 0); setDirty(true); }}
-            className="w-12 bg-zinc-800 border border-zinc-700 rounded text-center text-[11px] font-mono text-zinc-300 py-0.5 outline-none focus:border-teal-500"
+            className="w-12 bg-zinc-800 border border-zinc-700 rounded text-center text-[11px] font-mono text-zinc-300 py-0.5 outline-none focus:ring-2 focus:ring-teal-500/30"
           />
           {entry?.updated_at && (
             <span className="text-zinc-600 ml-2">Updated {new Date(entry.updated_at).toLocaleDateString()}</span>
@@ -473,7 +473,7 @@ function ContextForm({ level, initial, onSave, onCancel, companies, projects, te
             <select
               value={matchId}
               onChange={e => handleEntityChange(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded text-[13px] text-zinc-200 py-1.5 px-2 outline-none focus:border-teal-500 appearance-none"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded text-[13px] text-zinc-200 py-1.5 px-2 outline-none focus:ring-2 focus:ring-teal-500/30 appearance-none"
             >
               <option value="">Select...</option>
               {entityOptions.map(e => (
@@ -489,7 +489,7 @@ function ContextForm({ level, initial, onSave, onCancel, companies, projects, te
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="Display name"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded text-[13px] text-zinc-200 py-1.5 px-2 outline-none focus:border-teal-500"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded text-[13px] text-zinc-200 py-1.5 px-2 outline-none focus:ring-2 focus:ring-teal-500/30"
           />
         </div>
         {/* Boost */}
@@ -498,7 +498,7 @@ function ContextForm({ level, initial, onSave, onCancel, companies, projects, te
           <input
             type="number" min={0} max={20} value={boost}
             onChange={e => setBoost(parseInt(e.target.value) || 0)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded text-center text-[13px] font-mono text-zinc-200 py-1.5 outline-none focus:border-teal-500"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded text-center text-[13px] font-mono text-zinc-200 py-1.5 outline-none focus:ring-2 focus:ring-teal-500/30"
           />
         </div>
         {/* Suppress toggle */}
@@ -521,7 +521,7 @@ function ContextForm({ level, initial, onSave, onCancel, companies, projects, te
           onChange={e => setText(e.target.value)}
           placeholder="What should triage know about this context?"
           rows={2}
-          className="w-full bg-zinc-800 border border-zinc-700 rounded text-[13px] text-zinc-200 p-2 resize-y outline-none focus:border-teal-500 placeholder:text-zinc-600"
+          className="w-full bg-zinc-800 border border-zinc-700 rounded text-[13px] text-zinc-200 p-2 resize-y outline-none focus:ring-2 focus:ring-teal-500/30 placeholder:text-zinc-600"
         />
       </div>
       {/* Actions */}

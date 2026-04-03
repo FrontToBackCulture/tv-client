@@ -92,7 +92,7 @@ export function ChangelogList({
             key={entry.id}
             onClick={() => onSelect(entry.id)}
             className={cn(
-              "w-full text-left px-3 py-3 border-b border-zinc-100 dark:border-zinc-800/50 transition-colors",
+              "w-full text-left px-3 py-3 border-b border-zinc-100 dark:border-zinc-800 transition-colors",
               "hover:bg-zinc-50 dark:hover:bg-zinc-900/50",
               selectedId === entry.id &&
                 "bg-teal-50 dark:bg-teal-500/10 border-l-2 border-l-teal-500"

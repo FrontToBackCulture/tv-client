@@ -170,7 +170,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       placeholder="Site name"
-                      className="w-full px-2.5 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                      className="w-full px-2.5 py-1.5 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
                       autoFocus
                     />
                   </div>
@@ -183,7 +183,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                       value={editSlug}
                       onChange={(e) => setEditSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
                       placeholder="slug"
-                      className="w-full px-2.5 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono"
+                      className="w-full px-2.5 py-1.5 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono"
                     />
                   </div>
                 </div>
@@ -196,7 +196,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                     value={editUrl}
                     onChange={(e) => setEditUrl(e.target.value)}
                     placeholder="https://example.com (optional)"
-                    className="w-full px-2.5 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono"
+                    className="w-full px-2.5 py-1.5 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono"
                   />
                 </div>
                 <div className="flex items-center gap-2 pt-1">
@@ -257,7 +257,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                     >
                       <span
                         className={cn(
-                          "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform",
+                          "absolute top-0.5 w-4 h-4 rounded-full bg-white dark:bg-zinc-200 shadow-sm transition-transform",
                           enabled ? "translate-x-[18px]" : "translate-x-0.5"
                         )}
                       />
@@ -296,13 +296,13 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                       type="color"
                       value={brandPrimary}
                       onChange={(e) => { setBrandPrimary(e.target.value); markBrandingDirty(); }}
-                      className="w-8 h-8 rounded border border-zinc-300 dark:border-zinc-700 cursor-pointer p-0.5"
+                      className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-800 cursor-pointer p-0.5"
                     />
                     <input
                       type="text"
                       value={brandPrimary}
                       onChange={(e) => { setBrandPrimary(e.target.value); markBrandingDirty(); }}
-                      className="flex-1 px-2 py-1.5 text-xs font-mono border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                      className="flex-1 px-2 py-1.5 text-xs font-mono border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
                     />
                   </div>
                 </div>
@@ -315,13 +315,13 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                       type="color"
                       value={brandAccent}
                       onChange={(e) => { setBrandAccent(e.target.value); markBrandingDirty(); }}
-                      className="w-8 h-8 rounded border border-zinc-300 dark:border-zinc-700 cursor-pointer p-0.5"
+                      className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-800 cursor-pointer p-0.5"
                     />
                     <input
                       type="text"
                       value={brandAccent}
                       onChange={(e) => { setBrandAccent(e.target.value); markBrandingDirty(); }}
-                      className="flex-1 px-2 py-1.5 text-xs font-mono border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                      className="flex-1 px-2 py-1.5 text-xs font-mono border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
                     />
                   </div>
                 </div>
@@ -337,7 +337,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                   value={brandLogo}
                   onChange={(e) => { setBrandLogo(e.target.value); markBrandingDirty(); }}
                   placeholder="https://example.com/logo.png (optional)"
-                  className="w-full px-2.5 py-1.5 text-xs border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono placeholder:text-zinc-400"
+                  className="w-full px-2.5 py-1.5 text-xs border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono placeholder:text-zinc-400"
                 />
               </div>
 
@@ -351,7 +351,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                   value={brandGreeting}
                   onChange={(e) => { setBrandGreeting(e.target.value); markBrandingDirty(); }}
                   placeholder="Hey there \u{1F44B}"
-                  className="w-full px-2.5 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                  className="w-full px-2.5 py-1.5 text-sm border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                 />
               </div>
 
@@ -365,7 +365,7 @@ function PortalSiteCard({ site }: { site: PortalSite }) {
                   value={brandSubtext}
                   onChange={(e) => { setBrandSubtext(e.target.value); markBrandingDirty(); }}
                   placeholder="What can we help with?"
-                  className="w-full px-2.5 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                  className="w-full px-2.5 py-1.5 text-sm border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                 />
               </div>
 
@@ -453,7 +453,7 @@ export function PortalSettingsView() {
                   value={newName}
                   onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="My Company"
-                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                  className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
                   autoFocus
                 />
               </div>
@@ -464,7 +464,7 @@ export function PortalSettingsView() {
                   value={newSlug}
                   onChange={(e) => setNewSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
                   placeholder="my-company"
-                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono"
+                  className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono"
                 />
               </div>
             </div>
@@ -475,7 +475,7 @@ export function PortalSettingsView() {
                 value={newUrl}
                 onChange={(e) => setNewUrl(e.target.value)}
                 placeholder="https://example.com (optional)"
-                className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono"
+                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono"
               />
             </div>
             <div className="flex items-center gap-2 pt-1">

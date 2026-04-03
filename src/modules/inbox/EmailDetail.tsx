@@ -205,7 +205,7 @@ export function EmailDetail({
                 {email.attachments.map((att, idx) => (
                   <button
                     key={idx}
-                    className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:border-teal-500 transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:border-teal-500 transition-colors"
                   >
                     <Paperclip size={14} className="text-zinc-400" />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300">

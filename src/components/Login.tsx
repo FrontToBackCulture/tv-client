@@ -47,7 +47,7 @@ export function Login() {
           </div>
 
           {/* Login Card */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 p-6">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 p-6">
             <div className="text-center mb-6">
               <h2 className="text-lg font-medium text-zinc-900 dark:text-white">
                 Welcome back
@@ -88,7 +88,7 @@ export function Login() {
               {/* Divider */}
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-zinc-200 dark:border-zinc-700" />
+                  <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
                 </div>
                 <div className="relative flex justify-center text-xs">
                   <span className="px-2 bg-white dark:bg-zinc-900 text-zinc-400">or</span>
@@ -121,7 +121,7 @@ export function Login() {
             {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-zinc-200 dark:border-zinc-700" />
+                <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
               </div>
               <div className="relative flex justify-center text-xs">
                 <span className="px-2 bg-white dark:bg-zinc-900 text-zinc-400">

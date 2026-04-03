@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
+import { PageHeader } from "../../components/PageHeader";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useSources, useSyncSource, useSyncAllP1, useClassifyJobs } from "../../hooks/public-data";
 import { useIngestionLogs } from "../../hooks/public-data";
@@ -35,14 +36,14 @@ export function PublicDataModule() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 px-4">
-        <div className="flex">
+      <PageHeader
+        description="Public data sources — government registries, incentive databases, and industry datasets."
+        tabs={<>
           <ViewTab label="Sources" icon={Database} active={activeView === "sources"} onClick={() => setActiveView("sources")} />
           <ViewTab label="History" icon={Clock} active={activeView === "history"} onClick={() => setActiveView("history")} />
-        </div>
-        <SyncAllButton />
-      </div>
+        </>}
+        actions={<SyncAllButton />}
+      />
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">

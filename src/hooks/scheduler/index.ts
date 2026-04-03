@@ -23,3 +23,15 @@ export {
 } from "./useSchedulerEvents";
 export { useApiTasks, type ApiTask } from "./useApiTasks";
 export { useApiTaskLogs, type ApiTaskLog } from "./useApiTaskLogs";
+export {
+  useAutomations,
+  useAutomationNodes,
+  useAutomationEdges,
+  useUpdateAutomation,
+  useToggleAutomation,
+  useUpdateAutomationNode,
+  useUpdateNodePosition,
+  useUpdateViewport,
+  useCreateAutomation,
+  useDeleteAutomation,
+} from "./useAutomations";

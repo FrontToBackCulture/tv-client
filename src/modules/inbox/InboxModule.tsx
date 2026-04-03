@@ -17,6 +17,7 @@ import { useOutlookSync } from "../../hooks/useOutlookSync";
 import { cn } from "../../lib/cn";
 import { RefreshCw, PanelLeftOpen } from "lucide-react";
 import { Button } from "../../components/ui";
+import { PageHeader } from "../../components/PageHeader";
 import { DetailLoading } from "../../components/ui/DetailStates";
 import { InboxSidebar } from "./InboxSidebar";
 import { EmailList } from "./EmailList";
@@ -160,7 +161,7 @@ export function InboxModule() {
       <div className="h-full flex">
         {sidebarCollapsed ? (
           <div className="w-10 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center py-2">
-            <button onClick={toggleSidebar} className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title="Expand panel">
+            <button onClick={toggleSidebar} className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors" title="Expand panel">
               <PanelLeftOpen size={14} />
             </button>
           </div>
@@ -216,6 +217,10 @@ export function InboxModule() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+      <PageHeader
+        description="Emails synced from Outlook — filter by folder, category, or status. Click to read, archive, or follow up."
+      />
+
       {/* Sync status bar */}
       {(isAnySyncing || syncErrorMsg) && (
         <div className={cn(
@@ -249,7 +254,7 @@ export function InboxModule() {
         {/* Sidebar */}
         {sidebarCollapsed ? (
           <div className="w-10 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center py-2">
-            <button onClick={toggleSidebar} className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title="Expand panel">
+            <button onClick={toggleSidebar} className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors" title="Expand panel">
               <PanelLeftOpen size={14} />
             </button>
           </div>

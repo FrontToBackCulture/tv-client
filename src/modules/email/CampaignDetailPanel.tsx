@@ -164,7 +164,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
 
   if (isLoading) {
     return (
-      <div className="w-[420px] border-l border-zinc-100 dark:border-zinc-800/50 flex items-center justify-center text-xs text-zinc-400">
+      <div className="border-l border-zinc-100 dark:border-zinc-800 flex items-center justify-center text-xs text-zinc-400">
         Loading...
       </div>
     );
@@ -177,9 +177,9 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
   const missingApiUrl = !apiBaseUrl;
 
   return (
-    <div className="w-[420px] border-l border-zinc-100 dark:border-zinc-800/50 flex flex-col bg-white dark:bg-zinc-950 overflow-auto">
+    <div className="border-l border-zinc-100 dark:border-zinc-800 flex flex-col bg-white dark:bg-zinc-950 overflow-auto">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2 min-w-0">
           <Send size={14} className="flex-shrink-0 text-zinc-400" />
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 truncate">
@@ -294,7 +294,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                     try {
                       await invoke("email_upload_report", { campaignId, knowledgePath: knowledgePath || "" });
                       queryClient.invalidateQueries({ queryKey: emailKeys.campaign(campaignId) });
-                    } catch (e: any) { setUploadError(e?.message || String(e)); }
+                    } catch (e: any) { setUploadError(formatError(e)); }
                     finally { setUploadingReport(false); }
                   }}
                   disabled={uploadingReport}
@@ -311,7 +311,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                     try {
                       await invoke("email_clear_report", { campaignId });
                       queryClient.invalidateQueries({ queryKey: emailKeys.campaign(campaignId) });
-                    } catch (e: any) { setUploadError(e?.message || String(e)); }
+                    } catch (e: any) { setUploadError(formatError(e)); }
                   }}
                   className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 rounded transition-colors"
                   title="Remove report and delete from S3"
@@ -356,7 +356,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                 onChange={(e) => setCustomTokens((prev) => ({ ...prev, [key]: e.target.value }))}
                 onBlur={() => saveTokens(customTokens)}
                 onKeyDown={(e) => { if (e.key === "Enter") saveTokens(customTokens); }}
-                className="w-full text-xs px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500"
+                className="w-full text-xs px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
               />
             </div>
           ))}
@@ -448,7 +448,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
 
         {/* Test email form */}
         {showTestForm && (
-          <div className="rounded-md bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-3 space-y-2">
+          <div className="rounded-md bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
             <p className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
               Send a test email (no tracking, [TEST] prefix)
             </p>
@@ -457,7 +457,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
               <select
                 value={testGroupId}
                 onChange={(e) => { setTestGroupId(e.target.value); setTestEmail(""); }}
-                className="w-full px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="w-full px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
               >
                 <option value="">Pick from group...</option>
                 {allGroups.map((g) => (
@@ -473,7 +473,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                       className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                         testEmail === c.email
                           ? "border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
-                          : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600"
+                          : "border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:border-zinc-200 dark:hover:border-zinc-600"
                       }`}
                     >
                       {c.name?.split(" ")[0] || c.email.split("@")[0]}
@@ -488,7 +488,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                 value={testEmail}
                 onChange={(e) => setTestEmail(e.target.value)}
                 placeholder="or type an email..."
-                className="flex-1 px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="flex-1 px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
               <button
                 onClick={() => {
@@ -551,7 +551,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
         {/* Send Confirmation Dialog */}
         {sendConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 p-6 max-w-md w-full mx-4">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 max-w-md w-full mx-4">
               <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">
                 Send Campaign?
               </h3>
@@ -607,7 +607,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
           <div>
             <button
               onClick={() => setShowFullPreview(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-md transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-md transition-colors"
             >
               <Maximize2 size={14} />
               Open Full Preview
@@ -621,11 +621,11 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
             <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">
               Recipients ({recipients.length})
             </h3>
-            <div className="border border-zinc-200 dark:border-zinc-700 rounded-md overflow-hidden">
+            <div className="border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
               <div className="max-h-48 overflow-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+                    <tr className="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800">
                       <th className="text-left px-3 py-1.5 text-[10px] font-medium text-zinc-500">Email</th>
                       <th className="text-right px-3 py-1.5 text-[10px] font-medium text-zinc-500">Status</th>
                     </tr>
@@ -657,7 +657,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-auto">
           <div className="my-8 w-[700px] max-w-[95vw]">
             {/* Modal header */}
-            <div className="flex items-center justify-between bg-white dark:bg-zinc-900 rounded-t-lg px-5 py-3 border-b border-zinc-200 dark:border-zinc-700">
+            <div className="flex items-center justify-between bg-white dark:bg-zinc-900 rounded-t-lg px-5 py-3 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center gap-3">
                 <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
                   Preview: {campaign.name}
@@ -668,7 +668,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                     <select
                       value={previewContactId}
                       onChange={(e) => setPreviewContactId(e.target.value)}
-                      className="text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 text-zinc-600 dark:text-zinc-400 focus:outline-none"
+                      className="text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-zinc-600 dark:text-zinc-400 focus:outline-none"
                     >
                       <option value="">Default tokens</option>
                       {groupContacts.map((c: EmailContact) => (
@@ -688,10 +688,10 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
               </button>
             </div>
             {/* Email render */}
-            <div className="bg-white rounded-b-lg overflow-hidden shadow-xl">
+            <div className="bg-white dark:bg-zinc-900 rounded-b-lg overflow-hidden shadow-lg">
               <iframe
                 srcDoc={previewHtml}
-                className="w-full bg-white border-0"
+                className="w-full bg-white dark:bg-zinc-900 border-0"
                 style={{ height: "85vh" }}
                 sandbox="allow-scripts"
                 title={`Preview: ${campaign.name}`}
@@ -777,7 +777,7 @@ function ReportPickerNode({
       <div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+          className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
           style={{ paddingLeft: `${indent}px` }}
         >
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -849,10 +849,10 @@ function ReportFilePicker({
     <>
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-8">
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg w-full max-w-md max-h-[70vh] flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Select Report File</h3>
-            <button onClick={onClose} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400">
+            <button onClick={onClose} className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400">
               <X size={14} />
             </button>
           </div>
@@ -944,7 +944,7 @@ function EditableCategory({
             onBlur={handleCommit}
             onKeyDown={handleKeyDown}
             placeholder="e.g., Reports, Newsletter"
-            className="text-xs text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="text-xs text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-teal-500"
           />
           <datalist id="campaign-categories-detail">
             {suggestions.map((c) => (
@@ -984,7 +984,7 @@ function EditableBcc({
       <select
         value={value}
         onChange={(e) => onSave(e.target.value)}
-        className="text-xs text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 w-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+        className="text-xs text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 w-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
       >
         <option value="">— none</option>
         {thinkvalContacts.map((c: EmailContact) => (
@@ -1018,7 +1018,7 @@ function EditableSender({
           const [name, email] = e.target.value.split("||");
           if (name && email) onSave(name, email);
         }}
-        className="text-xs text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 w-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+        className="text-xs text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 w-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
       >
         {!senderOptions.some((u) => u.email === fromEmail) && (
           <option value="">{fromName} &lt;{fromEmail}&gt;</option>
@@ -1048,7 +1048,7 @@ function EditableGroup({
       <select
         value={value}
         onChange={(e) => onSave(e.target.value)}
-        className="text-xs text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 w-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+        className="text-xs text-zinc-700 dark:text-zinc-300 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 w-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
       >
         <option value="">— none</option>
         {groups.map((g) => (

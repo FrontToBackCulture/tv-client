@@ -499,6 +499,7 @@ fn main() {
             // Settings - VAL credentials
             commands::settings::settings_get_val_credentials,
             commands::settings::settings_import_val_credentials,
+            commands::settings::settings_switch_workspace,
             // Outlook - Auth
             commands::outlook::auth::outlook_auth_start,
             commands::outlook::auth::outlook_auth_check,

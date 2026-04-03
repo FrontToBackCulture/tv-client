@@ -19,6 +19,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "../../lib/cn";
+import { formatError } from "../../lib/formatError";
 import { toast } from "../../stores/toastStore";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -134,19 +135,6 @@ const LIVE_TEST_DEPENDENCIES: Record<string, { keys: string[]; label: string }> 
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function errStr(e: unknown): string {
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message;
-  if (e && typeof e === "object") {
-    const obj = e as Record<string, unknown>;
-    // Tauri CommandError: { code: "...", message: "..." }
-    if (typeof obj.message === "string") return obj.message;
-    // Nested error object
-    if (typeof obj.error === "string") return obj.error;
-    return JSON.stringify(e);
-  }
-  return String(e);
-}
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
@@ -190,7 +178,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
         ),
       );
     } catch (e: unknown) {
-      toast.error(`Failed to save: ${errStr(e)}`);
+      toast.error(`Failed to save: ${formatError(e)}`);
     } finally {
       setSavingKey(false);
     }
@@ -226,7 +214,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
       );
     } catch (e: unknown) {
       console.error("[claude-install] Raw error:", e);
-      toast.error(`Install failed: ${errStr(e)}`);
+      toast.error(`Install failed: ${formatError(e)}`);
     } finally {
       setInstallingClaude(false);
     }
@@ -279,7 +267,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
           : "MCP server not running — bot panel will not work. Restart the app.",
       });
     } catch (e) {
-      add({ id: "mcp-server", label: "MCP Server (Bot Panel)", group: "Infrastructure", status: "fail", detail: `Error: ${errStr(e)}. Restart the app.` });
+      add({ id: "mcp-server", label: "MCP Server (Bot Panel)", group: "Infrastructure", status: "fail", detail: `Error: ${formatError(e)}. Restart the app.` });
     }
 
     // 1c. Claude CLI
@@ -395,7 +383,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
         });
       }
     } catch (e) {
-      add({ id: "claude-binary", label: "tv-mcp Binary", group: "Infrastructure", status: "warn", detail: `Could not check: ${errStr(e)}`, fix: { kind: "navigate", view: "claude", label: "Go to Claude Code" } });
+      add({ id: "claude-binary", label: "tv-mcp Binary", group: "Infrastructure", status: "warn", detail: `Could not check: ${formatError(e)}`, fix: { kind: "navigate", view: "claude", label: "Go to Claude Code" } });
     }
 
     // 1e. MCP Troubleshooting — only show if there are issues
@@ -442,7 +430,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
         });
       }
     } catch (e) {
-      add({ id: "keys-error", label: "Settings", group: "Credentials", status: "fail", detail: `Could not load keys: ${errStr(e)}`, fix: { kind: "navigate", view: "keys", label: "API Keys" } });
+      add({ id: "keys-error", label: "Settings", group: "Credentials", status: "fail", detail: `Could not load keys: ${formatError(e)}`, fix: { kind: "navigate", view: "keys", label: "API Keys" } });
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -503,7 +491,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
           add({ id: testId, label, group: "Services", status: "pass", detail });
         }
       } catch (e) {
-        add({ id: testId, label, group: "Services", status: "fail", detail: `${errStr(e)}`, fix: { kind: "navigate", view: "keys", label: "API Keys" } });
+        add({ id: testId, label, group: "Services", status: "fail", detail: `${formatError(e)}`, fix: { kind: "navigate", view: "keys", label: "API Keys" } });
       }
     }
 
@@ -533,7 +521,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
         });
       }
     } catch (e) {
-      add({ id: "outlook", label: "Outlook Email", group: "Services", status: "warn", detail: `Could not check: ${errStr(e)}` });
+      add({ id: "outlook", label: "Outlook Email", group: "Services", status: "warn", detail: `Could not check: ${formatError(e)}` });
     }
 
     // 3c. Scheduler
@@ -549,7 +537,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
           : "No scheduled jobs configured — set up in Scheduler module for automated tasks",
       });
     } catch (e) {
-      add({ id: "scheduler", label: "Scheduler", group: "Services", status: "warn", detail: `Could not check: ${errStr(e)}` });
+      add({ id: "scheduler", label: "Scheduler", group: "Services", status: "warn", detail: `Could not check: ${formatError(e)}` });
     }
 
     // 3d. AWS (S3 connectivity)
@@ -603,7 +591,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
             add({ id: "email-campaigns", label: "Email API (tv-api)", group: "Services", status: "fail", detail: `Unreachable — ${baseUrl} returned HTTP ${healthRes.status}` });
           }
         } catch (e) {
-          add({ id: "email-campaigns", label: "Email API (tv-api)", group: "Services", status: "fail", detail: `Connection failed — ${errStr(e)}. Check if tv-api is running and the URL is correct.` });
+          add({ id: "email-campaigns", label: "Email API (tv-api)", group: "Services", status: "fail", detail: `Connection failed — ${formatError(e)}. Check if tv-api is running and the URL is correct.` });
         }
       }
     }
@@ -625,7 +613,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
         fix: domains.length > 0 ? undefined : { kind: "navigate", view: "val", label: "VAL Credentials" },
       });
     } catch (e) {
-      add({ id: "val-domains", label: "VAL Domains", group: "VAL Configuration", status: "warn", detail: `Could not load: ${errStr(e)}`, fix: { kind: "navigate", view: "val", label: "VAL Credentials" } });
+      add({ id: "val-domains", label: "VAL Domains", group: "VAL Configuration", status: "warn", detail: `Could not load: ${formatError(e)}`, fix: { kind: "navigate", view: "val", label: "VAL Credentials" } });
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -668,7 +656,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
         detail: `${tools.length} MCP tools available`,
       });
     } catch (e) {
-      add({ id: "tools-error", label: "Tool Registry", group: "Tools", status: "fail", detail: `Could not list tools: ${errStr(e)}. Restart the app.` });
+      add({ id: "tools-error", label: "Tool Registry", group: "Tools", status: "fail", detail: `Could not list tools: ${formatError(e)}. Restart the app.` });
     }
 
     setRunning(false);
@@ -695,7 +683,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
       // Re-run diagnostics after import
       setTimeout(() => runDiagnostics(), 500);
     } catch (e: unknown) {
-      toast.error(`Import failed: ${errStr(e)}`);
+      toast.error(`Import failed: ${formatError(e)}`);
     } finally {
       setImporting(false);
     }
@@ -755,7 +743,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
 
       {/* Summary */}
       {hasRun && !running && (
-        <div className="flex items-center gap-4 mb-4 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
+        <div className="flex items-center gap-4 mb-4 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
           <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 size={12} /> {passCount}/{totalChecks} passed
           </span>
@@ -799,7 +787,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
             const isExpanded = expandedGroups.has(groupName) || groupFails > 0 || groupWarns > 0 || running;
 
             return (
-              <div key={groupName} className="rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+              <div key={groupName} className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
                 <button
                   onClick={() => toggleGroup(groupName)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
@@ -836,7 +824,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
                     {items.map((item) => (
                       <div
                         key={item.id}
-                        className="px-3 py-1.5 text-xs border-b last:border-b-0 border-zinc-50 dark:border-zinc-800/50"
+                        className="px-3 py-1.5 text-xs border-b last:border-b-0 border-zinc-50 dark:border-zinc-800"
                       >
                         <div className="flex items-start gap-2">
                           <StatusIcon status={item.status} />
@@ -904,7 +892,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
                               }}
                               placeholder={`Paste ${item.label} value...`}
                               autoFocus
-                              className="flex-1 px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
+                              className="flex-1 px-2 py-1 text-xs rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
                             />
                             <button
                               onClick={() => handleSaveKey((item.fix as { kind: "set-key"; keyName: string }).keyName)}
@@ -945,7 +933,7 @@ function StatusIcon({ status }: { status: CheckStatus }) {
     case "warn":
       return <AlertTriangle size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />;
     case "skip":
-      return <div className="w-[13px] h-[13px] rounded-full border border-zinc-300 dark:border-zinc-600 flex-shrink-0 mt-0.5" />;
+      return <div className="w-[13px] h-[13px] rounded-full border border-zinc-200 dark:border-zinc-800 flex-shrink-0 mt-0.5" />;
     case "running":
       return <Loader2 size={13} className="text-zinc-400 animate-spin flex-shrink-0 mt-0.5" />;
     default:

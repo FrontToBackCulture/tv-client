@@ -33,6 +33,7 @@ import {
   useInitiativeProjects,
 } from "../work/WorkViews";
 import { ViewTab } from "../../components/ViewTab";
+import { PageHeader } from "../../components/PageHeader";
 import { MetadataView } from "./MetadataView";
 import { ProjectsGrid } from "./ProjectsGrid";
 import { ProjectView } from "../work/WorkProjectView";
@@ -86,7 +87,7 @@ function TabGroup({ label, tabs, activeView, onSelect }: {
         {/* Collapse handle — group label */}
         <button
           onClick={() => setManualExpand(false)}
-          className="text-[9px] font-semibold uppercase tracking-[0.06em] text-zinc-600 dark:text-zinc-600 hover:text-zinc-400 dark:hover:text-zinc-400 px-1.5 h-full flex items-center transition-colors cursor-pointer select-none"
+          className="text-[9px] font-semibold uppercase tracking-[0.06em] text-zinc-400 dark:text-zinc-500 hover:text-zinc-500 dark:hover:text-zinc-400 px-1.5 h-full flex items-center transition-colors cursor-pointer select-none"
           title={`Collapse ${label}`}
         >
           {label}
@@ -111,8 +112,8 @@ function TabGroup({ label, tabs, activeView, onSelect }: {
       onClick={() => setManualExpand(true)}
       className={`flex items-center gap-1 px-2.5 py-1 h-full text-[11px] font-medium transition-colors border-b-2 cursor-pointer select-none ${
         activeTab
-          ? "border-teal-500 text-zinc-100"
-          : "border-transparent text-zinc-500 dark:text-zinc-500 hover:text-zinc-300 dark:hover:text-zinc-400"
+          ? "border-teal-600 text-teal-700 dark:text-teal-400 dark:border-teal-500"
+          : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
       }`}
       title={`Expand ${label}: ${tabs.map(t => t.label).join(", ")}`}
     >
@@ -166,7 +167,7 @@ export function ProjectsModule() {
   const { data: projects = [], refetch: refetchProjects } = useProjects();
   // All projects across all types (for "All" view)
   const { data: allProjects = [], refetch: refetchAllProjects } = useProjects("all");
-  const { data: allTasks = [], refetch: refetchTasks } = useAllTasks();
+  const { data: allTasks = [], isLoading: tasksLoading, refetch: refetchTasks } = useAllTasks();
   const { data: initiatives = [], refetch: refetchInitiatives } = useInitiatives();
   const { data: initiativeLinks = [], refetch: refetchInitiativeLinks } = useInitiativeProjects();
   const { data: users = [] } = useUsers();
@@ -378,22 +379,17 @@ export function ProjectsModule() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Header */}
-      <div className="flex-shrink-0 px-4 pt-3 pb-1">
-        <p className="text-xs text-zinc-400">
-          {view === "crm-dashboard"
+      <PageHeader
+        description={
+          view === "crm-dashboard"
             ? "Pipeline overview — action queue, stage summary, and upcoming closes at a glance."
             : view === "pipeline"
             ? "Track deals through pipeline stages — drag cards between columns to update deal progress."
             : allSubView === "manage"
             ? "Full grid view of all projects — sort, filter, group, and bulk edit. Use Layouts to save custom views."
-            : "Browse projects grouped by initiative — expand to see tasks, click to open project details."}
-        </p>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex-shrink-0 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <div className="flex items-center overflow-x-auto">
+            : "Browse projects grouped by initiative — expand to see tasks, click to open project details."
+        }
+        tabs={<>
           <TabGroup
             label="Projects"
             tabs={[
@@ -403,9 +399,7 @@ export function ProjectsModule() {
             activeView={view}
             onSelect={(v, sub) => { handleViewChange(v); if (sub) setAllSubView(sub as any); }}
           />
-
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
-
           <TabGroup
             label="Tasks"
             tabs={[
@@ -417,9 +411,7 @@ export function ProjectsModule() {
             activeView={view}
             onSelect={(v) => handleViewChange(v)}
           />
-
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
-
           <TabGroup
             label="CRM"
             tabs={[
@@ -429,21 +421,14 @@ export function ProjectsModule() {
             activeView={view}
             onSelect={(v) => handleViewChange(v)}
           />
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-          {isWorkView && (
-            <>
-              <NotionSyncStatus />
-              <Button onClick={() => setShowInitiativeForm(true)} icon={Target} variant="ghost">New Initiative</Button>
-              <Button onClick={() => setShowProjectForm(true)} icon={FolderPlus} variant="ghost">New Project</Button>
-              <Button onClick={handleCreateTask} disabled={projects.length === 0} icon={Plus}>New Task</Button>
-            </>
-          )}
-
-        </div>
-      </div>
+        </>}
+        actions={isWorkView ? <>
+          <NotionSyncStatus />
+          <Button onClick={() => setShowInitiativeForm(true)} icon={Target} variant="ghost">New Initiative</Button>
+          <Button onClick={() => setShowProjectForm(true)} icon={FolderPlus} variant="ghost">New Project</Button>
+          <Button onClick={handleCreateTask} disabled={projects.length === 0} icon={Plus}>New Task</Button>
+        </> : undefined}
+      />
 
       {/* Content area */}
       <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
@@ -522,22 +507,22 @@ export function ProjectsModule() {
 
         {/* ---- Work Views ---- */}
         {view === "inbox" && (
-          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
-            <InboxView allTasks={allTasks} projects={projects} initiatives={initiatives} initiativeLinks={initiativeLinks} onSelectTask={handleSelectTask} />
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800" : "flex-1"}`}>
+            <InboxView allTasks={allTasks} projects={projects} initiatives={initiatives} initiativeLinks={initiativeLinks} onSelectTask={handleSelectTask} isLoading={tasksLoading} />
           </div>
         )}
         {view === "my-tasks" && (
-          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800" : "flex-1"}`}>
             <MyTasksView allTasks={allTasks} users={users} currentUserId={currentUserId} onSelectTask={handleSelectTask} initiatives={initiatives} initiativeLinks={initiativeLinks} />
           </div>
         )}
         {view === "team-tasks" && (
-          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800" : "flex-1"}`}>
             <TeamTasksView allTasks={allTasks} users={users} onSelectTask={handleSelectTask} initiatives={initiatives} initiativeLinks={initiativeLinks} />
           </div>
         )}
         {view === "capacity" && (
-          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800" : "flex-1"}`}>
             <BandwidthView allTasks={allTasks} users={users} onSelectTask={handleSelectTask} initiatives={initiatives} initiativeLinks={initiativeLinks} />
           </div>
         )}
@@ -547,17 +532,17 @@ export function ProjectsModule() {
           </div>
         )}
         {showProjectView && (
-          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800" : "flex-1"}`}>
             <ProjectView project={selectedProject} allTasks={allTasks} users={users} onSelectTask={handleSelectTask} onBack={handleBackFromProject} onCreateTask={handleCreateTask} />
           </div>
         )}
         {view === "board" && (
-          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800" : "flex-1"}`}>
             <BoardView projects={projects} initiatives={initiatives} initiativeLinks={initiativeLinks} onSelectTask={handleSelectTask} />
           </div>
         )}
         {view === "tracker" && (
-          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800/50" : "flex-1"}`}>
+          <div className={`flex flex-col overflow-hidden ${selectedTaskId ? "flex-1 border-r border-zinc-100 dark:border-zinc-800" : "flex-1"}`}>
             <TrackerView allTasks={allTasks} projects={projects} initiatives={initiatives} initiativeLinks={initiativeLinks} onSelectTask={handleSelectTask} />
           </div>
         )}

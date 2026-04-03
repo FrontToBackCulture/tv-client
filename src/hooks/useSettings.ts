@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { formatError } from "../lib/formatError";
 
 // Key names (must match Rust constants)
 export const API_KEYS = {
@@ -65,7 +66,7 @@ export function useSettings() {
       setStatus(statusResult);
       setKeys(keysResult);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatError(e));
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,7 @@ export function useSettings() {
         await invoke("settings_set_key", { keyName, value });
         await refresh();
       } catch (e) {
-        throw new Error(e instanceof Error ? e.message : String(e));
+        throw new Error(formatError(e));
       }
     },
     [refresh]
@@ -95,7 +96,7 @@ export function useSettings() {
         await invoke("settings_delete_key", { keyName });
         await refresh();
       } catch (e) {
-        throw new Error(e instanceof Error ? e.message : String(e));
+        throw new Error(formatError(e));
       }
     },
     [refresh]

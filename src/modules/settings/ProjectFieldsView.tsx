@@ -183,12 +183,12 @@ export function ProjectFieldsView() {
                   placeholder="Field name..."
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddCustomField(); if (e.key === "Escape") setShowAddField(false); }}
-                  className="flex-1 text-sm px-2.5 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:border-teal-500"
+                  className="flex-1 text-sm px-2.5 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500/30"
                 />
                 <select
                   value={newFieldType}
                   onChange={(e) => setNewFieldType(e.target.value as FieldType)}
-                  className="text-sm px-2 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:border-teal-500"
+                  className="text-sm px-2 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500/30"
                 >
                   {FIELD_TYPES.map((t) => (
                     <option key={t} value={t}>{FIELD_TYPE_CONFIG[t].label}</option>
@@ -358,7 +358,7 @@ function FieldRow({
         >
           <span
             className={cn(
-              "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
+              "inline-block h-3.5 w-3.5 rounded-full bg-white dark:bg-zinc-200 transition-transform",
               enabled ? "translate-x-4" : "translate-x-0.5"
             )}
           />
@@ -415,7 +415,7 @@ function FieldRow({
                         onUpdateOptions(updated);
                       }}
                       placeholder="value"
-                      className="w-28 text-xs px-2 py-1 border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 outline-none focus:border-teal-500 font-mono"
+                      className="w-28 text-xs px-2 py-1 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 outline-none focus:ring-2 focus:ring-teal-500/30 font-mono"
                     />
                     <input
                       type="text"
@@ -426,7 +426,7 @@ function FieldRow({
                         onUpdateOptions(updated);
                       }}
                       placeholder="Label"
-                      className="flex-1 text-xs px-2 py-1 border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 outline-none focus:border-teal-500"
+                      className="flex-1 text-xs px-2 py-1 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 outline-none focus:ring-2 focus:ring-teal-500/30"
                     />
                     <button
                       onClick={() => {

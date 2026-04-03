@@ -2,6 +2,7 @@
 // Workspace detail: artifact tree (left) + file preview / sessions (right)
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { BackButton } from "../../components/BackButton";
 import {
   ArrowLeft, FileText, Puzzle, Building2, Code2,
   BarChart3, ListChecks, Globe, FileSpreadsheet, ChevronDown,
@@ -189,7 +190,7 @@ function FileTreeNode({
       <div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1.5 w-full text-left py-0.5 px-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+          className="flex items-center gap-1.5 w-full text-left py-0.5 px-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
           style={{ paddingLeft: `${depth * 14 + 4}px` }}
         >
           {expanded ? <ChevronDown size={11} className="text-zinc-400" /> : <ChevronRight size={11} className="text-zinc-400" />}
@@ -214,7 +215,7 @@ function FileTreeNode({
         "flex items-center gap-1.5 w-full text-left py-0.5 px-1 rounded transition-colors",
         isSelected
           ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
-          : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400"
+          : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400"
       )}
       style={{ paddingLeft: `${depth * 14 + 18}px` }}
     >
@@ -281,7 +282,7 @@ function ArtifactTreeItem({
           "flex items-center gap-1.5 px-2 py-1 rounded transition-colors cursor-pointer",
           isSelected
             ? "bg-teal-50 dark:bg-teal-950/30"
-            : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
         )}
       >
         {isFolder ? (
@@ -378,7 +379,7 @@ function TaskArtifactItem({
           "flex items-center gap-1.5 px-2 py-1 rounded transition-colors cursor-pointer",
           isSelected
             ? "bg-teal-50 dark:bg-teal-950/30"
-            : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
         )}
       >
         <span className="w-[11px]" />
@@ -449,7 +450,7 @@ function CrmDealArtifactItem({
           "flex items-center gap-1.5 px-2 py-1 rounded transition-colors cursor-pointer",
           isSelected
             ? "bg-teal-50 dark:bg-teal-950/30"
-            : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
         )}
       >
         <span className="w-[11px]" />
@@ -510,7 +511,7 @@ function CrmCompanyArtifactItem({
           "flex items-center gap-1.5 px-2 py-1 rounded transition-colors cursor-pointer",
           isSelected
             ? "bg-teal-50 dark:bg-teal-950/30"
-            : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
         )}
       >
         <span className="w-[11px]" />
@@ -1100,7 +1101,7 @@ function PickerNode({
     return (
       <div>
         <div
-          className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
           style={{ paddingLeft: `${indent}px` }}
         >
           <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1.5 flex-1 text-left min-w-0">
@@ -1146,7 +1147,7 @@ function PickerNode({
   return (
     <button
       onClick={() => onSelect(node.path, false)}
-      className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+      className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
       style={{ paddingLeft: `${indent + 16}px` }}
     >
       <Icon size={14} />
@@ -1199,10 +1200,10 @@ function ArtifactPickerModal({
     <>
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-8">
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg w-full max-w-md max-h-[70vh] flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Add Artifact</h3>
-            <button onClick={onClose} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400">
+            <button onClick={onClose} className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400">
               <X size={14} />
             </button>
           </div>
@@ -1912,11 +1913,9 @@ Write a brief current state summary. No bullet points, just a natural sentence o
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50 px-4 py-2.5">
+      <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-4 py-2.5">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400">
-            <ArrowLeft size={16} />
-          </button>
+          <BackButton onClick={onBack} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate">
@@ -1946,7 +1945,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                 {showStatusMenu && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
-                    <div className="absolute top-full left-0 mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]">
+                    <div className="absolute top-full left-0 mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[120px]">
                       {Object.entries(WORKSPACE_STATUS_LABELS).map(([key, label]) => {
                         const c = WORKSPACE_STATUS_COLORS[key] || "#6B7280";
                         const isActive = workspace.status === key;
@@ -2001,7 +2000,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
       {/* Body: artifacts left, preview/sessions right */}
       <div className="flex-1 overflow-hidden flex">
         {/* LEFT: Artifacts tree */}
-        <div className="flex-shrink-0 border-r border-zinc-100 dark:border-zinc-800/50 flex flex-col" style={{ width: sidebarWidth }}>
+        <div className="flex-shrink-0 border-r border-zinc-100 dark:border-zinc-800 flex flex-col" style={{ width: sidebarWidth }}>
           {/* Overview button */}
           <button
             onClick={() => setSelection(null)}
@@ -2009,7 +2008,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
               "flex-shrink-0 w-full text-left px-3 py-2 text-xs font-medium border-b transition-colors",
               !selection
                 ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/50"
-                : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 border-zinc-100 dark:border-zinc-800/50"
+                : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 border-zinc-100 dark:border-zinc-800"
             )}
           >
             Project Details
@@ -2112,7 +2111,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
             )}
 
             {/* Sessions below artifacts */}
-            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
               <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
                 Sessions ({sessions.length})
               </h3>
@@ -2133,7 +2132,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
             </div>
 
             {/* Discussion */}
-            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
               <button
                 onClick={() => setSelection({ type: "discussion" })}
                 className={cn(
@@ -2155,7 +2154,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
 
             {/* Deal metadata — hidden from project details pane, managed via CRM */}
             {false && isDeal && companyId && (
-              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                 <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
                   Deal Info
                 </h3>
@@ -2188,7 +2187,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
 
             {/* Contacts (for deals with a company) */}
             {isDeal && companyId && contacts.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                 <button
                   onClick={() => setContactsExpanded(!contactsExpanded)}
                   className="flex items-center gap-1 w-full text-left mb-1.5"
@@ -2238,7 +2237,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
         <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col">
           {/* Close bar — shown when viewing a file/session/entity so user can return to project details */}
           {selection && selection.type !== "discussion" && (
-            <div className="flex-shrink-0 flex items-center justify-between px-3 py-1 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/80 dark:bg-zinc-900/50">
+            <div className="flex-shrink-0 flex items-center justify-between px-3 py-1 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50">
               <button
                 onClick={() => setSelection(null)}
                 className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
@@ -2517,7 +2516,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         value={taskSearch}
                         onChange={(e) => { setTaskSearch(e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
                         placeholder="Search tasks..."
-                        className="text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 outline-none max-w-[200px] focus:border-teal-400 dark:focus:border-teal-600 transition-colors"
+                        className="text-xs border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 outline-none max-w-[200px] focus:ring-2 focus:ring-teal-500/30 transition-colors"
                       />
                       {/* Status filter */}
                       <select
@@ -2526,7 +2525,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
                           filterStatus !== null
                             ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                            : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                            : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
                         }`}
                       >
                         <option value="">Status</option>
@@ -2541,7 +2540,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
                           filterPriority !== null
                             ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                            : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                            : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
                         }`}
                       >
                         <option value="">Priority</option>
@@ -2556,7 +2555,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
                           filterAssignee !== null
                             ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                            : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                            : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
                         }`}
                       >
                         <option value="">Assignee</option>
@@ -2572,7 +2571,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                           className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
                             filterCompany !== null
                               ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                              : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                              : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
                           }`}
                         >
                           <option value="">Company</option>
@@ -2588,7 +2587,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
                           filterDueDate !== null
                             ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                            : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+                            : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
                         }`}
                       >
                         <option value="">Due Date</option>
@@ -2641,7 +2640,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                   setSelectedTaskIds(new Set());
                                 }
                               }}
-                              className="w-3.5 h-3.5 rounded border-zinc-300 text-teal-600 cursor-pointer"
+                              className="w-3.5 h-3.5 rounded border-zinc-200 dark:border-zinc-800 text-teal-600 cursor-pointer"
                             />
                           </th>
                           <th className="text-left px-3 py-2 font-medium text-zinc-400 w-8"></th>
@@ -2702,7 +2701,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 onClick={() => setTaskDetailId(task.id)}
                                 onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY }); setTaskProjectSearch(""); }}
                                 className={cn(
-                                  "border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors group",
+                                  "border-b border-zinc-100 dark:border-zinc-800 cursor-pointer transition-colors group",
                                   selectedTaskIds.has(task.id)
                                     ? "bg-teal-50 dark:bg-teal-950/20"
                                     : taskDetailId === task.id
@@ -2723,7 +2722,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                         return next;
                                       });
                                     }}
-                                    className="w-3.5 h-3.5 rounded border-zinc-300 text-teal-600 cursor-pointer"
+                                    className="w-3.5 h-3.5 rounded border-zinc-200 dark:border-zinc-800 text-teal-600 cursor-pointer"
                                   />
                                 </td>
                                 {/* Status */}
@@ -3095,11 +3094,11 @@ Write a brief current state summary. No bullet points, just a natural sentence o
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setTaskContextMenu(null); setContextMenuTab("milestone"); }} onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu(null); setContextMenuTab("milestone"); }} />
           <div
-            className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl min-w-[260px] max-h-[340px] flex flex-col overflow-hidden"
+            className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg min-w-[260px] max-h-[340px] flex flex-col overflow-hidden"
             style={{ left: taskContextMenu.x, top: Math.min(taskContextMenu.y, window.innerHeight - 360) }}
           >
             {/* Tabs */}
-            <div className="flex border-b border-zinc-200 dark:border-zinc-700">
+            <div className="flex border-b border-zinc-200 dark:border-zinc-800">
               {milestones.length > 0 && (
                 <button
                   onClick={() => setContextMenuTab("milestone")}
@@ -3263,7 +3262,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                     value={taskProjectSearch}
                     onChange={(e) => setTaskProjectSearch(e.target.value)}
                     placeholder="Search projects..."
-                    className="text-xs w-full border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 bg-zinc-50 dark:bg-zinc-800 outline-none"
+                    className="text-xs w-full border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 bg-zinc-50 dark:bg-zinc-800 outline-none"
                     autoFocus
                   />
                 </div>
@@ -3315,7 +3314,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
 
       {/* Bulk selection action bar */}
       {selectedTaskIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 dark:bg-zinc-800 text-white rounded-xl shadow-2xl px-4 py-2.5 flex items-center gap-3 text-xs">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 dark:bg-zinc-800 text-white rounded-lg shadow-lg px-4 py-2.5 flex items-center gap-3 text-xs">
           <span className="font-medium">{selectedTaskIds.size} task{selectedTaskIds.size > 1 ? "s" : ""} selected</span>
           <div className="w-px h-4 bg-zinc-700" />
           <button
@@ -3338,10 +3337,10 @@ Write a brief current state summary. No bullet points, just a natural sentence o
         <>
           <div className="fixed inset-0 z-50" onClick={() => setBulkProjectMenu(null)} />
           <div
-            className="fixed z-[60] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl min-w-[280px] max-h-[320px] flex flex-col overflow-hidden"
+            className="fixed z-[60] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg min-w-[280px] max-h-[320px] flex flex-col overflow-hidden"
             style={{ left: Math.min(bulkProjectMenu.x, window.innerWidth - 300), top: Math.max(40, bulkProjectMenu.y) }}
           >
-            <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 flex items-center gap-2">
+            <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2">
               <Folder size={12} className="text-teal-600" />
               <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">Move {selectedTaskIds.size} task{selectedTaskIds.size > 1 ? "s" : ""} to...</span>
             </div>
@@ -3351,7 +3350,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                 value={bulkProjectSearch}
                 onChange={(e) => setBulkProjectSearch(e.target.value)}
                 placeholder="Search projects..."
-                className="text-xs w-full border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 bg-zinc-50 dark:bg-zinc-800 outline-none"
+                className="text-xs w-full border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 bg-zinc-50 dark:bg-zinc-800 outline-none"
                 autoFocus
               />
             </div>
@@ -3412,7 +3411,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
       {taskDetailId && (
         <>
           <div className="fixed inset-0 z-30 bg-black/10" onClick={() => setTaskDetailId(null)} />
-          <div className="fixed right-0 top-0 bottom-0 z-40 w-[600px] shadow-xl border-l border-zinc-200 dark:border-zinc-800">
+          <div className="fixed right-0 top-0 bottom-0 z-40 w-[600px] shadow-lg border-l border-zinc-200 dark:border-zinc-800">
             <TaskDetailPanel
               taskId={taskDetailId}
               onClose={() => setTaskDetailId(null)}

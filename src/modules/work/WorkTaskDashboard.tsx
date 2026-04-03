@@ -16,6 +16,7 @@ import type { InitiativeProjectLink } from "./workViewsShared";
 import { toast } from "../../stores/toastStore";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
+import { formatError } from "../../lib/formatError";
 import { useTeams } from "../../hooks/work/useTeams";
 
 // ─── Task Triage Types & Hooks ───────────────────────────────────────────
@@ -314,7 +315,7 @@ export function _DoTodayRow({ task, onSelect, contextLabel, onDeferred, onReject
           {deferring ? "..." : `Defer to ${formatShortDate(deferDate)}`}
         </button>
         {onReject && (
-          <button onClick={onReject} className="px-2 py-0.5 rounded text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium transition-colors flex-shrink-0">
+          <button onClick={onReject} className="px-2 py-0.5 rounded text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 font-medium transition-colors flex-shrink-0">
             Keep
           </button>
         )}
@@ -360,7 +361,7 @@ function TaskDashboardSkeleton() {
   return (
     <div className="h-full flex flex-col animate-pulse">
       {/* Stats skeleton */}
-      <div className="flex-shrink-0 flex items-center gap-6 px-4 py-4 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 flex items-center gap-6 px-4 py-4 border-b border-zinc-100 dark:border-zinc-800">
         {[1, 2, 3, 4].map(i => (
           <div key={i} className="flex items-center gap-2">
             <div className="w-10 h-8 rounded bg-zinc-200 dark:bg-zinc-800" />
@@ -372,7 +373,7 @@ function TaskDashboardSkeleton() {
         ))}
       </div>
       {/* Today skeleton */}
-      <div className="flex-shrink-0 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-4 h-4 rounded bg-emerald-200 dark:bg-emerald-900/30" />
           <div className="w-16 h-3 rounded bg-emerald-200 dark:bg-emerald-900/30" />
@@ -651,7 +652,7 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
   return (
     <div className="h-full flex flex-col">
       {/* Stats */}
-      <div className="flex-shrink-0 flex items-center gap-4 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 flex items-center gap-4 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{completedToday}</span>
           <span className="text-[10px] text-zinc-400 leading-tight">done<br/>today</span>
@@ -678,20 +679,20 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
         )}
         <button
           onClick={() => setShowChangesPanel(!showChangesPanel)}
-          className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md transition-colors ${showChangesPanel ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+          className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md transition-colors ${showChangesPanel ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"}`}
           title="Recent Changes"
         >
           <Clock size={12} />
           {recentChanges.length > 0 && <span className="font-medium">{recentChanges.length}</span>}
         </button>
         <label className="flex items-center gap-1 text-[10px] text-zinc-400 cursor-pointer">
-          <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500 w-3 h-3" />
+          <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500 w-3 h-3" />
           Notion
         </label>
       </div>
 
       {/* Tabs */}
-      <div className="flex-shrink-0 flex items-center gap-0 px-4 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 flex items-center gap-0 px-4 border-b border-zinc-100 dark:border-zinc-800">
         {(["strategy", "tasks"] as const).map(tab => (
           <button
             key={tab}
@@ -803,7 +804,7 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
                           next.has(t.id) ? next.delete(t.id) : next.add(t.id);
                           setSelectedTaskIds(next);
                         }}
-                        className="w-3 h-3 rounded border-zinc-300 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
+                        className="w-3 h-3 rounded border-zinc-200 dark:border-zinc-800 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
                         onClick={(e) => e.stopPropagation()}
                       />
                       <TaskRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />
@@ -828,7 +829,7 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
             <div className="ml-2 border-l-2 border-amber-100 dark:border-amber-900/30 pl-2">
               {noDueDateTasks.map(t => (
                 <div key={t.id} className="flex items-center gap-1">
-                  <input type="checkbox" checked={selectedTaskIds.has(t.id)} onChange={() => toggleSelect(t.id)} className="w-3 h-3 rounded border-zinc-300 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()} />
+                  <input type="checkbox" checked={selectedTaskIds.has(t.id)} onChange={() => toggleSelect(t.id)} className="w-3 h-3 rounded border-zinc-200 dark:border-zinc-800 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()} />
                   <NeedsDueDateRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} onUpdated={() => queryClient.invalidateQueries({ queryKey: ["work"] })} />
                 </div>
               ))}
@@ -862,7 +863,7 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
             <div className="ml-2 border-l-2 border-amber-100 dark:border-amber-900/30 pl-2">
               {staleTasks.map(t => (
                 <div key={t.id} className="group flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 rounded">
-                  <input type="checkbox" checked={selectedTaskIds.has(t.id)} onChange={() => toggleSelect(t.id)} className="w-3 h-3 rounded border-zinc-300 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()} />
+                  <input type="checkbox" checked={selectedTaskIds.has(t.id)} onChange={() => toggleSelect(t.id)} className="w-3 h-3 rounded border-zinc-200 dark:border-zinc-800 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()} />
                   <TaskRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />
                   <span className="text-[10px] text-amber-500 flex-shrink-0">{daysAgo(t.updated_at)}d ago</span>
                   <button
@@ -912,7 +913,7 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
       {/* Recent Changes Side Panel */}
       {showChangesPanel && (
         <div className="flex-shrink-0 w-80 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center gap-2">
               <Clock size={14} className="text-purple-500" />
               <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Recent Changes</span>
@@ -920,7 +921,7 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 font-medium">{recentChanges.length}</span>
               )}
             </div>
-            <button onClick={() => setShowChangesPanel(false)} className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <button onClick={() => setShowChangesPanel(false)} className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
               <X size={14} />
             </button>
           </div>
@@ -1016,7 +1017,7 @@ function NeedsDueDateRow({ task, onSelect, contextLabel, onUpdated }: {
         type="date"
         value={dateValue}
         onChange={(e) => setDateValue(e.target.value)}
-        className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-transparent text-zinc-600 dark:text-zinc-400 w-28 flex-shrink-0"
+        className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 bg-transparent text-zinc-600 dark:text-zinc-400 w-28 flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
       />
       {dateValue && (
@@ -1238,7 +1239,7 @@ function PlansBanner({ currentUserName }: { currentUserName: string | null }) {
   );
 
   return (
-    <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
+    <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 w-full"
@@ -1508,7 +1509,7 @@ ${taskFilter}${existingTriageContext}`;
         toast.error(`Triage failed: ${errMsg}`);
       }
     } catch (err: any) {
-      updateJob(jobId, { status: "failed", message: err?.message || String(err) });
+      updateJob(jobId, { status: "failed", message: formatError(err) });
     }
   }, [view, addJob, updateJob, queryClient, triageConfig, tasks, claudeRunStore]);
 
@@ -1517,7 +1518,7 @@ ${taskFilter}${existingTriageContext}`;
   const timeAgo = lastRun?.created_at ? formatTimeAgo(new Date(lastRun.created_at)) : null;
 
   return (
-    <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30">
+    <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
       <div className="flex items-center gap-3">
         <Zap size={12} className="text-amber-500" />
         <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400">Triage</span>
@@ -1665,7 +1666,7 @@ function StatusGroupedTasks({ tasks, onSelectTask, contextLabels, rowComponent, 
                   type="checkbox"
                   checked={selectedTaskIds?.has(t.id) ?? false}
                   onChange={() => onToggleSelect(t.id)}
-                  className="w-3 h-3 rounded border-zinc-300 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
+                  className="w-3 h-3 rounded border-zinc-200 dark:border-zinc-800 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
                   onClick={(e) => e.stopPropagation()}
                 />
               )}
@@ -1842,7 +1843,7 @@ function PersonSection({ user, tasks, onSelectTask, contextLabels, defaultOpen =
                   jobStore.updateJob(jobId, { status: "failed", message: "No result" });
                 }
               } catch (err: any) {
-                jobStore.updateJob(jobId, { status: "failed", message: err?.message || String(err) });
+                jobStore.updateJob(jobId, { status: "failed", message: formatError(err) });
               }
             }}
           >
@@ -2142,7 +2143,7 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
   return (
     <div className="h-full flex flex-col">
       {/* Stats */}
-      <div className="flex-shrink-0 flex items-center gap-4 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 flex items-center gap-4 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <span className={`text-2xl font-bold ${totalOverdue > 0 ? "text-red-500" : "text-emerald-500"}`}>{totalOverdue}</span>
           <span className="text-[10px] text-zinc-400 leading-tight">overdue<br/>{totalOverdue === 0 ? "clear!" : "across team"}</span>
@@ -2165,21 +2166,21 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
         </div>
         <div className="flex-1" />
         <label className="flex items-center gap-1 text-[10px] text-zinc-400 cursor-pointer">
-          <input type="checkbox" checked={showStale} onChange={(e) => setShowStale(e.target.checked)} className="rounded border-zinc-300 text-amber-600 focus:ring-amber-500 w-3 h-3" />
+          <input type="checkbox" checked={showStale} onChange={(e) => setShowStale(e.target.checked)} className="rounded border-zinc-200 dark:border-zinc-800 text-amber-600 focus:ring-amber-500 w-3 h-3" />
           Stale ({staleCount})
         </label>
         <label className="flex items-center gap-1 text-[10px] text-zinc-400 cursor-pointer">
-          <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500 w-3 h-3" />
+          <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500 w-3 h-3" />
           Notion
         </label>
       </div>
 
       {/* Team + Person filter + sort */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50 flex-wrap">
+      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 flex-wrap">
         <button
           onClick={() => { setSelectedPersonIds(new Set()); setSelectedTeamId(null); }}
           className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-            selectedPersonIds.size === 0 && !selectedTeamId ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            selectedPersonIds.size === 0 && !selectedTeamId ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
           }`}
         >All</button>
         {teams.map(team => (
@@ -2195,7 +2196,7 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
               }
             }}
             className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors flex items-center gap-1 ${
-              selectedTeamId === team.id ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 ring-1 ring-violet-300 dark:ring-violet-700" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              selectedTeamId === team.id ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 ring-1 ring-violet-300 dark:ring-violet-700" : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
             }`}
           >
             {team.color && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: team.color }} />}
@@ -2222,7 +2223,7 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
                 setSelectedTeamId(null);
               }}
               className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors flex items-center gap-1 ${
-                selectedPersonIds.has(id) ? "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                selectedPersonIds.has(id) ? "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
               }`}
             >
               <span className="w-4 h-4 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-bold text-zinc-600 dark:text-zinc-400">
@@ -2258,7 +2259,7 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
             key={s}
             onClick={() => setSortBy(s)}
             className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${
-              sortBy === s ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              sortBy === s ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
             }`}
           >
             {s === "overdue" ? "Overdue" : s === "tasks" ? "Tasks" : "Name"}
@@ -2267,7 +2268,7 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
       </div>
 
       {/* Tabs */}
-      <div className="flex-shrink-0 flex items-center gap-0 px-4 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 flex items-center gap-0 px-4 border-b border-zinc-100 dark:border-zinc-800">
         {(["strategy", "people"] as const).map(tab => (
           <button
             key={tab}
@@ -2293,7 +2294,7 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
       {/* People Tab */}
       {teamTab === "people" && (<>
       {/* Task filter bar */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800/50 flex-wrap">
+      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800 flex-wrap">
         <Filter size={11} className="text-zinc-500" />
         <span className="text-[10px] text-zinc-500">Filter:</span>
         {(["do_now", "do_this_week", "defer", "untriaged"] as const).map(action => {
@@ -2304,7 +2305,7 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
             <button key={action} onClick={() => {
               setActionFilter(prev => { const next = new Set(prev); next.has(action) ? next.delete(action) : next.add(action); return next; });
             }}
-              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${active ? `${style.bg} ${style.text} ring-1 ring-current/20` : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${active ? `${style.bg} ${style.text} ring-1 ring-current/20` : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"}`}
             >
               {label}
             </button>
@@ -2312,13 +2313,13 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
         })}
         <span className="text-zinc-300 dark:text-zinc-700">|</span>
         <select value={companyFilter || ""} onChange={e => setCompanyFilter(e.target.value || null)}
-          className="text-[10px] bg-transparent border border-zinc-200 dark:border-zinc-700 rounded px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 outline-none focus:border-teal-500">
+          className="text-[10px] bg-transparent border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 outline-none focus:ring-2 focus:ring-teal-500/30">
           <option value="">All Companies</option>
           {filterOptions.companies.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
         {filterOptions.contexts.length > 0 && (
           <select value={contextFilter || ""} onChange={e => setContextFilter(e.target.value || null)}
-            className="text-[10px] bg-transparent border border-zinc-200 dark:border-zinc-700 rounded px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 outline-none focus:border-teal-500">
+            className="text-[10px] bg-transparent border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 outline-none focus:ring-2 focus:ring-teal-500/30">
             <option value="">All Contexts</option>
             {filterOptions.contexts.map(c => <option key={c} value={c}>{c}</option>)}
           </select>

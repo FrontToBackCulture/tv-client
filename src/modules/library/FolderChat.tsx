@@ -66,7 +66,7 @@ function MessageBubble({
               <button
                 key={i}
                 onClick={() => onSourceClick(source.path)}
-                className="text-xs px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-500/50 transition-colors"
+                className="text-xs px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-500/50 transition-colors"
               >
                 {source.title}
               </button>
@@ -127,7 +127,7 @@ export function FolderChat({ folderPath, folderName, onFileClick }: FolderChatPr
                   key={q}
                   onClick={() => handleSubmit(undefined, q)}
                   disabled={isLoading}
-                  className="px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-full text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-200 hover:border-zinc-200 dark:hover:border-zinc-600 transition-colors disabled:opacity-50"
                 >
                   {q}
                 </button>
@@ -170,7 +170,7 @@ export function FolderChat({ folderPath, folderName, onFileClick }: FolderChatPr
             className={cn(
               "w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 pr-12",
               "text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-600 resize-none",
-              "focus:outline-none focus:border-teal-500",
+              "focus:outline-none focus:ring-2 focus:ring-teal-500/30",
               "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           />

@@ -24,7 +24,7 @@ export function EmptyInbox({ onRefresh, onSetup, message, isSyncing, syncError, 
             <Mail size={32} className="text-zinc-400" />
           )}
         </div>
-        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
           {isSyncing ? "Syncing emails..." : "No emails yet"}
         </h2>
         <p className="text-zinc-500 mb-6">

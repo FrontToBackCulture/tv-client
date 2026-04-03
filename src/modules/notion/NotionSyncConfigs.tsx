@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button, IconButton } from "../../components/ui";
 import { toast } from "../../stores/toastStore";
+import { formatError } from "../../lib/formatError";
 import {
   useNotionSyncConfigs,
   useUpdateSyncConfig,
@@ -109,7 +110,7 @@ export function NotionSyncConfigs() {
             type="date"
             value={initialSyncDate}
             onChange={(e) => setInitialSyncDate(e.target.value)}
-            className="text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-transparent text-zinc-600 dark:text-zinc-400"
+            className="text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-800 bg-transparent text-zinc-600 dark:text-zinc-400"
           />
           <Button
             variant="secondary"
@@ -123,8 +124,7 @@ export function NotionSyncConfigs() {
                   toast.update(toastId, { type: "success", message: `Initial sync done: ${created} created, ${updated} updated`, duration: 8000 });
                 },
                 onError: (err: any) => {
-                  const msg = err?.message || (typeof err === "object" ? JSON.stringify(err) : String(err));
-                  toast.update(toastId, { type: "error", message: `Initial sync failed: ${msg}`, duration: 8000 });
+                  toast.update(toastId, { type: "error", message: `Initial sync failed: ${formatError(err)}`, duration: 8000 });
                 },
               });
             }}
@@ -143,7 +143,7 @@ export function NotionSyncConfigs() {
       )}
 
       {!isLoading && configs.length === 0 && (
-        <div className="text-center py-12 border border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg">
+        <div className="text-center py-12 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
           <Cloud size={32} className="mx-auto text-zinc-400 mb-3" />
           <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">
             No Notion syncs configured
@@ -167,7 +167,7 @@ export function NotionSyncConfigs() {
                 <div
                   className={`flex items-center justify-between px-4 py-3 rounded-lg border ${
                     enabled
-                      ? "border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800"
+                      ? "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800"
                       : "border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 opacity-60"
                   } ${isEditing ? "rounded-b-none" : ""}`}
                 >
@@ -313,9 +313,9 @@ function ConfigEditor({
   };
 
   return (
-    <div className="border border-t-0 border-zinc-200 dark:border-zinc-700 rounded-b-lg bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
+    <div className="border border-t-0 border-zinc-200 dark:border-zinc-800 rounded-b-lg bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
       {/* Tab bar + actions */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-700">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setTab("mapping")}
@@ -400,7 +400,7 @@ function ConfigEditor({
               onChange={(e) => setFilterJson(e.target.value)}
               rows={12}
               spellCheck={false}
-              className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
               placeholder='{"property": "Status", "status": {"does_not_equal": "Done"}}'
             />
 

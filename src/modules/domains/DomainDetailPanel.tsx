@@ -14,6 +14,7 @@ import {
   useUpdateDomainType,
   useAiTableCoverage,
 } from "../../hooks/val-sync";
+import { formatError } from "../../lib/formatError";
 import { StatusChip } from "./StatusChip";
 import {
   X,
@@ -167,7 +168,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         });
       },
       onError: (err) => {
-        updateJob(jobId, { status: "failed", message: String(err) });
+        updateJob(jobId, { status: "failed", message: formatError(err) });
       },
     });
   };
@@ -214,7 +215,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         statusQuery.refetch();
       },
       onError: (err) => {
-        updateJob(jobId, { status: "failed", message: String(err) });
+        updateJob(jobId, { status: "failed", message: formatError(err) });
       },
     });
   };
@@ -239,7 +240,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
           statusQuery.refetch();
         },
         onError: (err) => {
-          updateJob(jobId, { status: "failed", message: String(err) });
+          updateJob(jobId, { status: "failed", message: formatError(err) });
         },
       }
     );
@@ -334,12 +335,12 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                 {/* Stat pills */}
                 <div className="flex items-center gap-2 mt-2">
                   {discoveredDomain.artifact_count != null && discoveredDomain.artifact_count > 0 && (
-                    <span className="px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-600 dark:text-zinc-400">
+                    <span className="px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
                       <Zap size={10} className="inline mr-1 -mt-0.5" />
                       {discoveredDomain.artifact_count.toLocaleString()} Artifacts
                     </span>
                   )}
-                  <span className="px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-600 dark:text-zinc-400">
+                  <span className="px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
                     <RefreshCw size={10} className="inline mr-1 -mt-0.5" />
                     {formatRelativeShort(discoveredDomain.last_sync)}
                   </span>
@@ -362,30 +363,30 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                     <button
                       onClick={() => setSyncMenuOpen(!syncMenuOpen)}
                       disabled={isSyncing}
-                      className="px-1.5 py-1.5 border-l border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-r-md disabled:opacity-50 transition-colors"
+                      className="px-1.5 py-1.5 border-l border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-r-md disabled:opacity-50 transition-colors"
                     >
                       <ChevronDown size={12} className={cn("transition-transform", syncMenuOpen && "rotate-180")} />
                     </button>
                   </div>
                   {syncMenuOpen && (
-                    <div className="absolute top-full right-0 mt-1 z-20 min-w-[200px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1">
+                    <div className="absolute top-full right-0 mt-1 z-20 min-w-[200px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md shadow-lg py-1">
                       <div className="px-3 py-1 text-xs text-zinc-400 uppercase tracking-wider">Sync Individual</div>
                       {Object.entries(ARTIFACT_LABELS).map(([type, label]) => (
                         <button
                           key={type}
                           onClick={() => { handleSyncArtifact(type); setSyncMenuOpen(false); }}
                           disabled={isSyncing}
-                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50"
                         >
                           {label}
                         </button>
                       ))}
-                      <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                      <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
                       <div className="px-3 py-1 text-xs text-zinc-400 uppercase tracking-wider">Export</div>
                       <button
                         onClick={() => { handleExportAiTableCoverage(); setSyncMenuOpen(false); }}
                         disabled={tableCoverageMutation.isPending}
-                        className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+                        className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50"
                       >
                         {tableCoverageMutation.isPending ? "Exporting..." : "AI Table Coverage"}
                       </button>
@@ -550,7 +551,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                                 </td>
                               </tr>
                             )}
-                            <tr className="border-t border-zinc-100 dark:border-zinc-800/50">
+                            <tr className="border-t border-zinc-100 dark:border-zinc-800">
                               <td className="py-2">
                                 <div className="text-zinc-700 dark:text-zinc-300">{row.label}</div>
                                 {meta?.description && (
@@ -608,7 +609,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                                 "border-t",
                                 !output.exists
                                   ? "border-amber-200 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-900/10"
-                                  : "border-zinc-100 dark:border-zinc-800/50",
+                                  : "border-zinc-100 dark:border-zinc-800",
                                 output.exists && !output.is_folder && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900"
                               )}
                               onClick={() => { if (output.exists && !output.is_folder) openPanel(output.path, output.name); }}
@@ -702,7 +703,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                         value={credEmail}
                         onChange={(e) => setCredEmail(e.target.value)}
                         placeholder="Email"
-                        className="w-full px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                        className="w-full px-3 py-1.5 text-sm border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                         autoFocus
                       />
                       <div className="relative">
@@ -711,7 +712,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                           value={credPassword}
                           onChange={(e) => setCredPassword(e.target.value)}
                           placeholder="Password"
-                          className="w-full px-3 py-1.5 pr-8 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                          className="w-full px-3 py-1.5 pr-8 text-sm border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                         />
                         <button
                           type="button"
@@ -843,7 +844,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                       value={credEmail}
                       onChange={(e) => setCredEmail(e.target.value)}
                       placeholder="Email"
-                      className="w-full px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                      className="w-full px-3 py-1.5 text-sm border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                       autoFocus
                     />
                     <div className="relative">
@@ -852,7 +853,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                         value={credPassword}
                         onChange={(e) => setCredPassword(e.target.value)}
                         placeholder="Password"
-                        className="w-full px-3 py-1.5 pr-8 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                        className="w-full px-3 py-1.5 pr-8 text-sm border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                       />
                       <button
                         type="button"
@@ -970,7 +971,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                                 </td>
                               </tr>
                             )}
-                            <tr className="border-t border-zinc-100 dark:border-zinc-800/50">
+                            <tr className="border-t border-zinc-100 dark:border-zinc-800">
                               <td className="py-2">
                                 <div className="text-zinc-700 dark:text-zinc-300">{row.label}</div>
                                 {meta?.description && (

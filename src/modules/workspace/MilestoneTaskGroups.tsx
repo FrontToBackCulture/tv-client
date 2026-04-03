@@ -97,7 +97,7 @@ export function MilestoneTaskGroups({
 
   const renderHeader = () => (
     <thead>
-      <tr className="border-b border-zinc-100 dark:border-zinc-800/50">
+      <tr className="border-b border-zinc-100 dark:border-zinc-800">
         <th style={{ width: 36 }} />
         <th className={thClass} style={{ width: 72 }} onClick={() => handleSort("id")}>ID<SortIndicator col="id" /></th>
         <th className={thClass} onClick={() => handleSort("title")}>Title<SortIndicator col="title" /></th>
@@ -120,7 +120,7 @@ export function MilestoneTaskGroups({
         onClick={() => onSelectTask(task.id)}
         onContextMenu={(e) => { e.preventDefault(); onContextMenu(task.id, e.clientX, e.clientY); }}
         className={cn(
-          "border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer transition-colors group",
+          "border-b border-zinc-100 dark:border-zinc-800 cursor-pointer transition-colors group",
           taskDetailId === task.id ? "bg-teal-50/50 dark:bg-teal-950/20" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30",
         )}
       >

@@ -89,9 +89,9 @@ export function AddToDataModelDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden animate-modal-in">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg w-full max-w-md mx-4 overflow-hidden animate-modal-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-teal-600 dark:text-teal-400" />
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
@@ -140,13 +140,13 @@ export function AddToDataModelDialog({
               }}
               onFocus={() => setShowEntityDropdown(true)}
               placeholder="e.g., receipts, payments"
-              className="w-full px-3 py-2 text-sm rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 text-sm rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
               autoFocus
             />
             {showEntityDropdown && filteredEntities.length > 0 && (
               <div
                 ref={dropdownRef}
-                className="absolute left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg z-10"
+                className="absolute left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg z-10"
               >
                 {filteredEntities.map((name) => (
                   <button
@@ -155,7 +155,7 @@ export function AddToDataModelDialog({
                       setEntityName(name);
                       setShowEntityDropdown(false);
                     }}
-                    className="w-full px-3 py-1.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                    className="w-full px-3 py-1.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                   >
                     {name}
                   </button>
@@ -174,7 +174,7 @@ export function AddToDataModelDialog({
               value={modelName}
               onChange={(e) => setModelName(e.target.value)}
               placeholder="e.g., udt, un"
-              className="w-full px-3 py-2 text-sm rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 text-sm rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             />
           </div>
 
@@ -202,7 +202,7 @@ export function AddToDataModelDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
           <Button variant="ghost" onClick={onClose}>
             {createSchema.isSuccess ? "Close" : "Cancel"}
           </Button>

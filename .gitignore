@@ -25,3 +25,4 @@ npm-debug.log*
 src-tauri/Cargo.lock
 src-tauri/binaries/
 .vercel
+tv-client-backup.dump

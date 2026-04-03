@@ -47,7 +47,7 @@ export function ImportModal({ onClose }: ImportModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-[560px] max-h-[90vh] overflow-auto">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg w-[560px] max-h-[90vh] overflow-auto">
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Import Contacts</h2>
           <button onClick={onClose} className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded">
@@ -128,7 +128,7 @@ export function ImportModal({ onClose }: ImportModalProps) {
 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-8 border-2 border-dashed border-zinc-200 dark:border-zinc-700 rounded-lg text-center hover:border-teal-500 transition-colors"
+                  className="w-full py-8 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg text-center hover:border-teal-500 transition-colors"
                 >
                   <Upload size={20} className="mx-auto mb-2 text-zinc-400" />
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -142,7 +142,7 @@ export function ImportModal({ onClose }: ImportModalProps) {
                   <p className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
                     Preview ({lines.length - 1} rows)
                   </p>
-                  <div className="overflow-auto max-h-40 border border-zinc-200 dark:border-zinc-700 rounded-md">
+                  <div className="overflow-auto max-h-40 border border-zinc-200 dark:border-zinc-800 rounded-md">
                     <table className="w-full text-[10px]">
                       <tbody>
                         {previewRows.map((row, i) => (
@@ -176,7 +176,7 @@ export function ImportModal({ onClose }: ImportModalProps) {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                  className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-md transition-colors"
                 >
                   Cancel
                 </button>

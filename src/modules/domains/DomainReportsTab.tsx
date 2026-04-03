@@ -28,7 +28,7 @@ export function DomainReportsTab({ reportsPath, domainName }: DomainReportsTabPr
   if (dirQuery.isError || !dirQuery.data || dirQuery.data.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg p-8 max-w-md text-center">
+        <div className="border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg p-8 max-w-md text-center">
           <FileBarChart size={32} className="mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
           <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
             No reports found

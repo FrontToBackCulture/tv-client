@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Button, IconButton, SectionLoading, ErrorBanner } from "../../components/ui";
+import { formatError } from "../../lib/formatError";
 
 interface KeyEditorProps {
   keyInfo: ApiKeyInfo;
@@ -117,7 +118,7 @@ function KeyEditor({ keyInfo, onSave, onDelete }: KeyEditorProps) {
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder="Enter API key..."
-              className="w-full px-3 py-2 pr-10 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm"
+              className="w-full px-3 py-2 pr-10 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm"
               autoFocus
             />
             <IconButton
@@ -174,7 +175,7 @@ function SesConnectionTest() {
         success: false,
         verified_email: null,
         send_result: null,
-        error: e?.message || String(e),
+        error: formatError(e),
       });
     } finally {
       setTesting(false);
@@ -213,7 +214,7 @@ function SesConnectionTest() {
           value={testEmail}
           onChange={(e) => setTestEmail(e.target.value)}
           placeholder="recipient@example.com"
-          className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm"
+          className="flex-1 px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm"
         />
         <Button
           icon={Send}
@@ -275,7 +276,7 @@ export function ApiKeysView() {
     } catch (e) {
       setImportExportMsg({
         type: "error",
-        text: e instanceof Error ? e.message : String(e),
+        text: formatError(e),
       });
     } finally {
       setBusy(false);
@@ -306,7 +307,7 @@ export function ApiKeysView() {
     } catch (e) {
       setImportExportMsg({
         type: "error",
-        text: e instanceof Error ? e.message : String(e),
+        text: formatError(e),
       });
     } finally {
       setBusy(false);

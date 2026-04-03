@@ -141,7 +141,7 @@ export function DioAutomationCard({ automation, onRunNow, running }: DioAutomati
                   setSources(next);
                   save({ sources: next });
                 }}
-                className="mt-0.5 rounded border-zinc-300 dark:border-zinc-600 text-teal-600 focus:ring-teal-500"
+                className="mt-0.5 rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500"
               />
               <div>
                 <div className="text-sm text-zinc-800 dark:text-zinc-200">{label}</div>
@@ -160,7 +160,7 @@ export function DioAutomationCard({ automation, onRunNow, running }: DioAutomati
             <select
               value={model}
               onChange={(e) => { setModel(e.target.value); save({ model: e.target.value }); }}
-              className="w-full text-sm rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5"
+              className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5"
             >
               {MODEL_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
@@ -178,7 +178,7 @@ export function DioAutomationCard({ automation, onRunNow, running }: DioAutomati
               onBlur={() => save({ system_prompt: systemPrompt || null })}
               placeholder={DEFAULT_SYSTEM_PROMPT}
               rows={12}
-              className="w-full text-xs rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-2 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-y"
+              className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-2 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-y"
             />
             <div className="text-xs text-zinc-500 dark:text-zinc-400">Leave empty for default. Saved on blur.</div>
           </div>
@@ -194,7 +194,7 @@ export function DioAutomationCard({ automation, onRunNow, running }: DioAutomati
             <select
               value={botAuthor}
               onChange={(e) => { setBotAuthor(e.target.value); save({ bot_author: e.target.value }); }}
-              className="w-full text-sm rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5"
+              className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5"
             >
               {bots?.map((b) => {
                 const botName = b.path.split("/").filter(Boolean).pop() || `bot-${b.name}`;
@@ -216,7 +216,7 @@ export function DioAutomationCard({ automation, onRunNow, running }: DioAutomati
                 onClick={() => { setPostMode(value); save({ post_mode: value }); }}
                 className={cn(
                   "flex-1 rounded-md border px-3 py-2 text-left transition-colors",
-                  postMode === value ? "border-teal-500 bg-teal-50 dark:bg-teal-950/30" : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600",
+                  postMode === value ? "border-teal-500 bg-teal-50 dark:bg-teal-950/30" : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-200 dark:hover:border-zinc-600",
                 )}
               >
                 <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{label}</div>
@@ -233,7 +233,7 @@ export function DioAutomationCard({ automation, onRunNow, running }: DioAutomati
               onChange={(e) => setThreadTitle(e.target.value)}
               onBlur={() => save({ thread_title: threadTitle || null })}
               placeholder={postMode === "same_thread" ? DEFAULT_THREAD_TITLE_SAME : DEFAULT_THREAD_TITLE_NEW}
-              className="w-full text-sm rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+              className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
             />
             <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
               Variables: <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 rounded">{"{date}"}</code>{" "}
@@ -247,9 +247,9 @@ export function DioAutomationCard({ automation, onRunNow, running }: DioAutomati
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Thread ID</label>
               <div className="flex gap-2">
                 <input type="text" value={threadId} onChange={(e) => setThreadId(e.target.value)} onBlur={() => save({ thread_id: threadId })}
-                  className="flex-1 text-xs rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2.5 py-1.5 text-zinc-900 dark:text-zinc-100 font-mono" />
+                  className="flex-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 px-2.5 py-1.5 text-zinc-900 dark:text-zinc-100 font-mono" />
                 <button onClick={() => { const newId = `dio:${automation.id}:${Date.now()}`; setThreadId(newId); save({ thread_id: newId }); }}
-                  className="text-xs px-2.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
+                  className="text-xs px-2.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-200 dark:hover:border-zinc-600 transition-colors">
                   Reset
                 </button>
               </div>

@@ -316,7 +316,7 @@ export function DataModelTabView() {
               placeholder="Search entities..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-7 py-1.5 text-sm rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full pl-8 pr-7 py-1.5 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             {search && (
               <button
@@ -338,7 +338,7 @@ export function DataModelTabView() {
               "w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors border-b border-zinc-200 dark:border-zinc-800",
               isFieldMaster
                 ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
             )}
           >
             <Layers size={14} className="flex-shrink-0" />
@@ -479,7 +479,7 @@ export function DataModelTabView() {
                 <button
                   onClick={handleGenerateMd}
                   disabled={generateMdMutation.isPending}
-                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
                 >
                   <FileText size={14} />
                   {generateMdMutation.isPending ? "Generating..." : "Generate schema.md"}
@@ -514,7 +514,7 @@ export function DataModelTabView() {
             </div>
 
             {/* Detail tabs */}
-            <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-4">
+            <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800 mb-4">
               {([
                 { key: "schema" as const, label: "Schema", count: schemaData?.fields.length },
                 { key: "domains" as const, label: "Domains", count: domainsData?.domains.length },
@@ -550,10 +550,10 @@ export function DataModelTabView() {
             {detailTab === "domains" && (
               <>
                 {domainsData && domainsData.domains.length > 0 ? (
-                  <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700">
+                        <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
                           <th className="w-6 px-1 py-2" />
                           <th className="text-left px-3 py-2 font-medium text-zinc-500">Domain</th>
                           <th className="text-left px-3 py-2 font-medium text-zinc-500">Status</th>
@@ -587,14 +587,14 @@ export function DataModelTabView() {
                       </tbody>
                     </table>
                     {domainsData.reference_domain && (
-                      <div className="px-3 py-2 text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700">
+                      <div className="px-3 py-2 text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800">
                         Reference: {domainsData.reference_domain}
                       </div>
                     )}
                   </div>
                 ) : (
                   !domainsQuery.isLoading && (
-                    <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-8 text-center text-zinc-400 text-sm">
+                    <div className="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-8 text-center text-zinc-400 text-sm">
                       No domain data yet. Click "Scan Domains" to discover which
                       domains have this table.
                     </div>
@@ -621,7 +621,7 @@ export function DataModelTabView() {
                     )}
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-8 text-center text-zinc-400 text-sm">
+                  <div className="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-8 text-center text-zinc-400 text-sm">
                     No categorical data yet. Run "Scan Domains" to collect categorical values.
                   </div>
                 )}
@@ -719,7 +719,7 @@ function ConformanceDetails({
   domainName: string;
 }) {
   return (
-    <div className="bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-200 dark:border-zinc-700 px-6 py-4 space-y-4">
+    <div className="bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-200 dark:border-zinc-800 px-6 py-4 space-y-4">
       {/* Summary line */}
       <div className="flex items-center gap-4 text-xs text-zinc-500">
         <span>
@@ -780,10 +780,10 @@ function ConformanceDetails({
               Same column, different position
             </span>
           </div>
-          <div className="border border-zinc-200 dark:border-zinc-700 rounded-md overflow-hidden">
+          <div className="border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+                <tr className="bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800">
                   <th className="text-left px-3 py-1.5 font-medium text-zinc-500">Column</th>
                   <th className="text-left px-3 py-1.5 font-medium text-zinc-500">DB Column</th>
                   <th className="text-center px-3 py-1.5 font-medium text-zinc-500">Ref Position</th>
@@ -842,7 +842,7 @@ function EntitySidebarItem({
 
   return (
     <div className="group/entity">
-      <div className="flex items-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+      <div className="flex items-center hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
         <button
           onClick={onToggle}
           className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm min-w-0"
@@ -887,7 +887,7 @@ function EntitySidebarItem({
               "w-full flex items-start gap-2 pl-10 pr-3 py-1.5 text-sm transition-colors",
               selectedModel === model.name
                 ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
             )}
           >
             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
@@ -967,7 +967,7 @@ function StatCard({
   accent?: "green" | "blue";
 }) {
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3">
+    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
       <div className="text-xs text-zinc-500 mb-1">{label}</div>
       <div
         className={cn(
@@ -1110,7 +1110,7 @@ function CategoricalFieldRow({
   const domainCount = Object.keys(field.by_domain).length;
 
   return (
-    <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+    <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
@@ -1137,7 +1137,7 @@ function CategoricalFieldRow({
       </button>
 
       {expanded && (
-        <div className="border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/30 px-3 py-2 text-sm">
+        <div className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/30 px-3 py-2 text-sm">
           <div className="space-y-3">
             {Object.entries(field.by_domain)
               .sort(([a], [b]) => a.localeCompare(b))
@@ -1155,7 +1155,7 @@ function CategoricalFieldRow({
                     {values.map((v) => (
                       <span
                         key={v.value}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded border bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded border bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300"
                       >
                         {v.value}
                         <span className="text-zinc-400 tabular-nums">

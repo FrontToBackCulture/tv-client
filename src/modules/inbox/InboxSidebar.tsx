@@ -138,7 +138,7 @@ export function InboxSidebar({
               "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
               selectedFolder === folder.id && !selectedCategory && !selectedStatus
                 ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
             )}
           >
             <folder.icon size={16} />
@@ -167,7 +167,7 @@ export function InboxSidebar({
               "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
               selectedCategory === cat.id
                 ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
             )}
           >
             <cat.icon size={16} className={cat.color} />
@@ -192,7 +192,7 @@ export function InboxSidebar({
             "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
             selectedStatus === "archived"
               ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-              : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
           )}
         >
           <Archive size={16} />

@@ -3,6 +3,7 @@
 
 import { useState, useMemo } from "react";
 import { Plus, Users } from "lucide-react";
+import { SectionToolbar } from "../../components/SectionToolbar";
 import { useEmailGroups } from "../../hooks/email";
 import type { EmailGroupWithCount } from "../../lib/email/types";
 import { EmailTreeSidebar, type GroupByOption, type TreeSelection } from "./EmailTreeSidebar";
@@ -86,17 +87,17 @@ export function GroupsView({ selectedId, onSelect, onNewGroup }: GroupsViewProps
 
       {/* List */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50">
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {filtered.length}{treeSelection.groupValue ? ` in ${activeOption.getLabel?.(treeSelection.groupValue) ?? treeSelection.groupValue}` : ""} group{filtered.length !== 1 ? "s" : ""}
-          </p>
-          <button
-            onClick={onNewGroup}
-            className="p-1.5 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
-          >
-            <Plus size={14} />
-          </button>
-        </div>
+        <SectionToolbar
+          subtitle={`${filtered.length}${treeSelection.groupValue ? ` in ${activeOption.getLabel?.(treeSelection.groupValue) ?? treeSelection.groupValue}` : ""} group${filtered.length !== 1 ? "s" : ""}`}
+          actions={
+            <button
+              onClick={onNewGroup}
+              className="p-1.5 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+            >
+              <Plus size={14} />
+            </button>
+          }
+        />
 
         <div className="flex-1 overflow-auto">
           {isLoading ? (

@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { formatError } from "../lib/formatError";
 
 export interface ChatMessage {
   id: string;
@@ -74,7 +75,7 @@ export function useFolderChat(folderPath: string): UseFolderChatReturn {
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : String(error)}`,
+        content: `Sorry, I encountered an error: ${formatError(error)}`,
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { MessageSquare, AlertTriangle, Megaphone, BookOpen } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
+import { PageHeader } from "../../components/PageHeader";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { ConversationsView } from "./ConversationsView";
 import { AnnouncementsView } from "./AnnouncementsView";
@@ -82,33 +83,35 @@ export function PortalModule() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Tab bar */}
-      <div className="flex-shrink-0 flex items-center border-b border-zinc-200 dark:border-zinc-800 px-2">
-        <ViewTab
-          icon={MessageSquare}
-          label="Conversations"
-          active={activeView === "conversations"}
-          onClick={() => setActiveView("conversations")}
-        />
-        <ViewTab
-          icon={Megaphone}
-          label="Announcements"
-          active={activeView === "announcements"}
-          onClick={() => setActiveView("announcements")}
-        />
-        <ViewTab
-          icon={AlertTriangle}
-          label="Incidents"
-          active={activeView === "incidents"}
-          onClick={() => setActiveView("incidents")}
-        />
-        <ViewTab
-          icon={BookOpen}
-          label="Help Center"
-          active={activeView === "help"}
-          onClick={() => setActiveView("help")}
-        />
-      </div>
+      <PageHeader
+        description="Client portal — manage conversations, announcements, and help center content."
+        tabs={<>
+          <ViewTab
+            icon={MessageSquare}
+            label="Conversations"
+            active={activeView === "conversations"}
+            onClick={() => setActiveView("conversations")}
+          />
+          <ViewTab
+            icon={Megaphone}
+            label="Announcements"
+            active={activeView === "announcements"}
+            onClick={() => setActiveView("announcements")}
+          />
+          <ViewTab
+            icon={AlertTriangle}
+            label="Incidents"
+            active={activeView === "incidents"}
+            onClick={() => setActiveView("incidents")}
+          />
+          <ViewTab
+            icon={BookOpen}
+            label="Help Center"
+            active={activeView === "help"}
+            onClick={() => setActiveView("help")}
+          />
+        </>}
+      />
 
       {/* Content */}
       <div ref={containerRef} className="flex-1 flex overflow-hidden">

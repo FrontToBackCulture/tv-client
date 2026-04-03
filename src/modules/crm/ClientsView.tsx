@@ -133,14 +133,14 @@ export function ClientsView({ selectedId, onSelect }: ClientsViewProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
               Clients
             </h1>
             <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-              {companies.length} active clients
+              {isLoading ? "Loading..." : `${companies.length} active clients`}
             </p>
           </div>
         </div>
@@ -273,7 +273,7 @@ function ClientList({
                   height: CLIENT_HEADER_HEIGHT,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
-                className="px-3 py-1.5 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800/50 z-10"
+                className="px-3 py-1.5 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800 z-10"
               >
                 <div className="flex items-center gap-1.5">
                   <div className={`w-1.5 h-1.5 rounded-full ${item.dotColor}`} />

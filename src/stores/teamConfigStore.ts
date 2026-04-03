@@ -4,6 +4,7 @@
 
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
+import { formatError } from "../lib/formatError";
 import { useAuth } from "./authStore";
 import type { ModuleId } from "./appStore";
 
@@ -134,7 +135,7 @@ export const useTeamConfigStore = create<TeamConfigState>((set, get) => ({
       set({ config, isLoaded: true, error: null });
     } catch (err) {
       console.error("Failed to load team config:", err);
-      set({ isLoaded: true, error: String(err) });
+      set({ isLoaded: true, error: formatError(err) });
     }
   },
 

@@ -188,7 +188,7 @@ export function CrossDomainReportsView() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Filter..."
-              className="w-full pl-7 pr-6 py-1 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full pl-7 pr-6 py-1 text-xs rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
@@ -254,14 +254,14 @@ export function CrossDomainReportsView() {
                 <>
                   <button
                     onClick={handleCopyUrl}
-                    className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
                   >
                     {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
                     {copied ? "Copied" : "Copy URL"}
                   </button>
                   <button
                     onClick={() => window.open(s3Url, "_blank")}
-                    className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
                   >
                     <ExternalLink size={12} />
                     Open
@@ -274,7 +274,7 @@ export function CrossDomainReportsView() {
               {selectedFile.type === "sod" ? (
                 <iframe
                   src={convertFileSrc(selectedFile.path)}
-                  className="w-full h-full border-0 bg-white"
+                  className="w-full h-full border-0 bg-white dark:bg-zinc-900"
                   title="Report preview"
                   sandbox="allow-same-origin"
                 />

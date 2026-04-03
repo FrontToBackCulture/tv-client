@@ -145,7 +145,7 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
 
   return (
     <div
-      className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg min-w-[240px]"
+      className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg min-w-[240px]"
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
@@ -175,10 +175,10 @@ const TagsCellEditor = forwardRef<unknown, ICellEditorParams>((props, ref) => {
         onKeyDown={handleKeyDown}
         onFocus={() => setShowSuggestions(true)}
         placeholder="Type to add..."
-        className="w-full px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:border-teal-500"
+        className="w-full px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500/30"
       />
       {showSuggestions && filteredSuggestions.length > 0 && (
-        <div className="mt-1 max-h-[120px] overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800">
+        <div className="mt-1 max-h-[120px] overflow-y-auto border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800">
           {filteredSuggestions.map((suggestion) => (
             <button
               key={suggestion}
@@ -457,7 +457,7 @@ export function FieldMasterGrid({ entitiesPath }: FieldMasterGridProps) {
             All Fields
           </h2>
         </div>
-        <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-8 text-center">
+        <div className="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-8 text-center">
           <p className="text-sm text-zinc-500 mb-4">
             No field master found. Build one to see all fields across entities.
           </p>
@@ -506,7 +506,7 @@ export function FieldMasterGrid({ entitiesPath }: FieldMasterGridProps) {
           <select
             value={entityFilter}
             onChange={(e) => setEntityFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+            className="px-2 py-1.5 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
           >
             <option value="all">All entities</option>
             {entityNames.map((name) => (
@@ -520,7 +520,7 @@ export function FieldMasterGrid({ entitiesPath }: FieldMasterGridProps) {
           <button
             onClick={() => buildMutation.mutate(entitiesPath)}
             disabled={buildMutation.isPending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
           >
             {buildMutation.isPending ? (
               <Loader2 size={14} className="animate-spin" />
@@ -565,7 +565,7 @@ export function FieldMasterGrid({ entitiesPath }: FieldMasterGridProps) {
 
       {/* Grid */}
       <div
-        className={`${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"} field-master-grid border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden`}
+        className={`${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"} field-master-grid border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden`}
         style={{ ...gridStyle, width: "100%" }}
       >
         <style>{`

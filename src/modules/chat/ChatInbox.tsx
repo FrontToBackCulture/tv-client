@@ -1,6 +1,6 @@
 // Left panel — thread inbox with entity-type accents, unread tracking, pin & delete
 
-import { Plus, MessageSquare, Hash, Building2, CheckSquare, FolderOpen, Briefcase, FileText, Globe, Mail, Search, Pin, Trash2 } from "lucide-react";
+import { Plus, MessageSquare, Hash, Building2, CheckSquare, FolderOpen, Briefcase, FileText, Globe, Mail, Search, Pin, Trash2, Loader2 } from "lucide-react";
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { Thread } from "../../hooks/chat";
@@ -112,6 +112,8 @@ interface ChatInboxProps {
   readPositions: Map<string, string>;
   selectedThreadId: string | null;
   currentUser: string;
+  isLoading?: boolean;
+  deletingThreadId?: string | null;
   onSelect: (thread: Thread) => void;
   onNewThread: () => void;
   onDeleteThread: (thread: Thread) => void;
@@ -122,6 +124,8 @@ export function ChatInbox({
   readPositions,
   selectedThreadId,
   currentUser,
+  isLoading,
+  deletingThreadId,
   onSelect,
   onNewThread,
   onDeleteThread,
@@ -219,7 +223,11 @@ export function ChatInbox({
 
       {/* Thread list */}
       <div className="flex-1 overflow-auto scrollbar-auto-hide px-1.5 pb-1.5">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 size={18} className="animate-spin text-[var(--text-muted)]" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
             <div className="w-10 h-10 rounded-xl bg-[var(--bg-muted)] dark:bg-[var(--bg-muted)] flex items-center justify-center mb-3">
               <MessageSquare size={18} className="text-[var(--text-muted)]" />
@@ -316,7 +324,7 @@ export function ChatInbox({
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDelete(null)}>
           <div className="absolute inset-0 bg-black/30 dark:bg-black/50" />
           <div
-            className="relative bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] rounded-2xl shadow-xl w-full max-w-[340px] border border-[var(--border-default)] p-5 animate-fade-slide-in"
+            className="relative bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] rounded-2xl shadow-lg w-full max-w-[340px] border border-[var(--border-default)] p-5 animate-fade-slide-in"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-heading text-[15px] text-[var(--text-primary)] mb-2">Delete thread?</h3>
@@ -335,9 +343,10 @@ export function ChatInbox({
                   onDeleteThread(confirmDelete);
                   setConfirmDelete(null);
                 }}
-                className="px-3 py-1.5 text-[12px] font-semibold text-white bg-[var(--color-error)] hover:opacity-90 rounded-lg transition-all"
+                disabled={deletingThreadId === confirmDelete.entity_id}
+                className="px-3 py-1.5 text-[12px] font-semibold text-white bg-[var(--color-error)] hover:opacity-90 rounded-lg transition-all disabled:opacity-50"
               >
-                Delete
+                {deletingThreadId === confirmDelete.entity_id ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>

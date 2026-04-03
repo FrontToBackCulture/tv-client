@@ -57,8 +57,8 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
         className={cn(
           "flex items-center gap-2 rounded-lg transition-colors",
           collapsed
-            ? "p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            : "w-full px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            ? "p-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+            : "w-full px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
         )}
         title={collapsed ? userInfo.name : undefined}
       >
@@ -101,7 +101,7 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
       {showDropdown && (
         <div
           className={cn(
-            "absolute z-50 bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden",
+            "absolute z-50 bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden",
             collapsed ? "left-full ml-2 bottom-0 w-64" : "left-0 right-0 bottom-full mb-2"
           )}
         >
@@ -153,7 +153,7 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
           <div className="p-2">
             <button
               onClick={() => setShowDropdown(false)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
             >
               <User size={16} />
               Profile
@@ -163,7 +163,7 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
                 setShowDropdown(false);
                 openSettings();
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
             >
               <Settings size={16} />
               Settings

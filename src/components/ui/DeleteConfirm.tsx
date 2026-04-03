@@ -17,7 +17,7 @@ export function DeleteConfirm({
 }: DeleteConfirmProps) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 max-w-sm w-full mx-4 shadow-xl animate-modal-in">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 max-w-sm w-full mx-4 shadow-lg animate-modal-in">
         <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
           {title}
         </h3>

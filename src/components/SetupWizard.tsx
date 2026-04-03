@@ -16,6 +16,7 @@ import {
   Settings,
 } from "lucide-react";
 import { cn } from "../lib/cn";
+import { formatError } from "../lib/formatError";
 import { useAppStore } from "../stores/appStore";
 
 // ── Types ────────────────────────────────────────────────
@@ -103,7 +104,7 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
       const status = await invoke<ClaudeMcpStatus>("claude_mcp_status");
       setMcpStatus(status);
     } catch (e) {
-      setMcpError(e instanceof Error ? e.message : String(e));
+      setMcpError(formatError(e));
     } finally {
       setMcpLoading(false);
     }
@@ -116,7 +117,7 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
       const status = await invoke<ClaudeMcpStatus>("claude_mcp_install");
       setMcpStatus(status);
     } catch (e) {
-      setMcpError(e instanceof Error ? e.message : String(e));
+      setMcpError(formatError(e));
     } finally {
       setMcpInstalling(false);
     }
@@ -361,7 +362,7 @@ function CliStep({
             <button
               onClick={onCheck}
               disabled={checking}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors disabled:opacity-50"
             >
               {checking ? (
                 <Loader2 size={14} className="animate-spin" />

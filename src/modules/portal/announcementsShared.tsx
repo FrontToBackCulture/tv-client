@@ -5,6 +5,7 @@ import { X, Trash2, Save, ChevronDown } from "lucide-react";
 import { usePortalSites } from "../../hooks/portal";
 import { cn } from "../../lib/cn";
 import { Button, IconButton } from "../../components/ui";
+import { SectionToolbar } from "../../components/SectionToolbar";
 
 export function DetailHeader({
   title,
@@ -22,42 +23,41 @@ export function DetailHeader({
   onClose: () => void;
 }) {
   return (
-    <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {title}
+    <SectionToolbar
+      title={title}
+      actions={
+        <div className="flex items-center gap-1.5">
+          <Button
+            icon={Save}
+            onClick={onSave}
+            disabled={!dirty || saving}
+            loading={saving}
+            variant={dirty ? "primary" : "secondary"}
+            className="text-xs"
+          >
+            {saving ? "Saving..." : "Save"}
+          </Button>
+          <IconButton
+            icon={Trash2}
+            size={14}
+            variant="danger"
+            label="Delete"
+            onClick={onDelete}
+          />
+          <IconButton
+            icon={X}
+            label="Close"
+            onClick={onClose}
+          />
+        </div>
+      }
+    >
+      {dirty && (
+        <span className="text-xs text-amber-500 font-medium">
+          unsaved
         </span>
-        {dirty && (
-          <span className="text-xs text-amber-500 font-medium">
-            unsaved
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-1.5">
-        <Button
-          icon={Save}
-          onClick={onSave}
-          disabled={!dirty || saving}
-          loading={saving}
-          variant={dirty ? "primary" : "secondary"}
-          className="text-xs"
-        >
-          {saving ? "Saving..." : "Save"}
-        </Button>
-        <IconButton
-          icon={Trash2}
-          size={14}
-          variant="danger"
-          label="Delete"
-          onClick={onDelete}
-        />
-        <IconButton
-          icon={X}
-          label="Close"
-          onClick={onClose}
-        />
-      </div>
-    </div>
+      )}
+    </SectionToolbar>
   );
 }
 
@@ -112,7 +112,7 @@ export function SiteTargeting({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+        className="w-full flex items-center justify-between px-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
       >
         <span>
           {value.length === 0
@@ -124,7 +124,7 @@ export function SiteTargeting({
         <ChevronDown size={12} />
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg">
+        <div className="absolute z-20 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md shadow-lg">
           <button
             onClick={() => {
               onChange([]);
@@ -151,7 +151,7 @@ export function SiteTargeting({
                   "w-3 h-3 border rounded-sm flex items-center justify-center",
                   value.includes(site.id)
                     ? "border-teal-500 bg-teal-500"
-                    : "border-zinc-300 dark:border-zinc-600"
+                    : "border-zinc-200 dark:border-zinc-800"
                 )}
               >
                 {value.includes(site.id) && (

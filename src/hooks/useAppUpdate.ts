@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { formatError } from "../lib/formatError";
 
 const WHATS_NEW_KEY = "tv-client-whats-new";
 const LAST_VERSION_KEY = "tv-client-last-version";
@@ -116,7 +117,7 @@ export function useAppUpdate(): UpdateState {
       }
     } catch (e) {
       console.warn("[updater] Check failed:", e);
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatError(e));
     }
   }, []);
 
@@ -165,11 +166,11 @@ export function useAppUpdate(): UpdateState {
         await relaunch();
       } catch (e) {
         console.error("[updater] Relaunch failed:", e);
-        setError(`Update installed but restart failed: ${e instanceof Error ? e.message : String(e)}. Please quit and reopen the app.`);
+        setError(`Update installed but restart failed: ${formatError(e)}. Please quit and reopen the app.`);
       }
     } catch (e) {
       console.error("[updater] Install failed:", e);
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatError(e));
       setDownloading(false);
     }
   }, []);

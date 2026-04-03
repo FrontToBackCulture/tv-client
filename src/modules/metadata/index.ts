@@ -1,1 +1,0 @@
-export { MetadataModule } from "./MetadataModule";

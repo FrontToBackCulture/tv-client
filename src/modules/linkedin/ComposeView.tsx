@@ -54,7 +54,7 @@ export function ComposeView() {
 
         {/* Composer */}
         {showPreview ? (
-          <div className="min-h-[200px] p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+          <div className="min-h-[200px] p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg">
             <div className="whitespace-pre-wrap text-sm text-zinc-900 dark:text-zinc-100">
               {text || <span className="text-zinc-400 italic">Nothing to preview</span>}
             </div>
@@ -65,7 +65,7 @@ export function ComposeView() {
             onChange={(e) => setText(e.target.value)}
             placeholder="What do you want to talk about?"
             rows={8}
-            className="w-full p-4 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg resize-none focus:outline-none focus:border-teal-500 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+            className="w-full p-4 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/30 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
           />
         )}
 
@@ -77,7 +77,7 @@ export function ComposeView() {
               onClick={() =>
                 setVisibility(visibility === "PUBLIC" ? "CONNECTIONS" : "PUBLIC")
               }
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
             >
               {visibility === "PUBLIC" ? (
                 <>

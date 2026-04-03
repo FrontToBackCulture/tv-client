@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { X, BookOpen, Trash2, ExternalLink } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { formatError } from "../../lib/formatError";
 import { Button, IconButton, FormField, Select } from "../../components/ui";
 import { InlineLoading, ErrorBanner } from "../../components/ui/DetailStates";
 
@@ -79,7 +80,7 @@ export function IntercomModal({
         setSelectedCollectionId(result[0].id);
       }
     } catch (err) {
-      setError(String(err));
+      setError(formatError(err));
     } finally {
       setLoadingCollections(false);
     }
@@ -106,7 +107,7 @@ export function IntercomModal({
       onPublished(article.id, article.url || "");
       onClose();
     } catch (err) {
-      setError(String(err));
+      setError(formatError(err));
     } finally {
       setLoading(false);
     }
@@ -135,7 +136,7 @@ export function IntercomModal({
       onPublished(article.id, article.url || "");
       onClose();
     } catch (err) {
-      setError(String(err));
+      setError(formatError(err));
     } finally {
       setLoading(false);
     }
@@ -160,7 +161,7 @@ export function IntercomModal({
       onDeleted();
       onClose();
     } catch (err) {
-      setError(String(err));
+      setError(formatError(err));
     } finally {
       setLoading(false);
       setConfirmDelete(false);
@@ -171,9 +172,9 @@ export function IntercomModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden animate-modal-in">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg w-full max-w-md mx-4 overflow-hidden animate-modal-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
@@ -233,7 +234,7 @@ export function IntercomModal({
                   "px-3 py-1.5 text-xs rounded border transition-colors",
                   publishState === "published"
                     ? "bg-teal-50 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300"
-                    : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 )}
               >
                 Published
@@ -244,7 +245,7 @@ export function IntercomModal({
                   "px-3 py-1.5 text-xs rounded border transition-colors",
                   publishState === "draft"
                     ? "bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
-                    : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 )}
               >
                 Draft
@@ -271,7 +272,7 @@ export function IntercomModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
           <div>
             {isUpdateMode && !confirmDelete && (
               <Button variant="ghost" icon={Trash2} onClick={() => setConfirmDelete(true)} disabled={loading} className="text-red-500 hover:text-red-600">

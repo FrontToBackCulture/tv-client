@@ -2,10 +2,10 @@
 // Domains module — two-level navigation: All Domains (tabbed) → Single Domain detail
 
 import { useState, useCallback, useEffect } from "react";
+import { BackButton } from "../../components/BackButton";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import {
   ArrowLeft,
-  ChevronRight,
   Globe,
   HardDrive,
   FileText,
@@ -16,6 +16,7 @@ import {
   HeartPulse,
 } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
+import { PageHeader } from "../../components/PageHeader";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useNotificationNavStore } from "../../stores/notificationNavStore";
 import { useDiscoverDomains } from "../../hooks/val-sync";
@@ -164,7 +165,7 @@ export function DomainsModule() {
         <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
           <button
             onClick={handleExitReview}
-            className="flex items-center gap-1.5 px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
           >
             <ArrowLeft size={14} />
             Back to {reviewingDomain}
@@ -192,17 +193,8 @@ export function DomainsModule() {
     return (
       <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
         {/* Breadcrumb */}
-        <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center gap-1.5">
-          <button
-            onClick={handleBackToOverview}
-            className="text-sm text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
-          >
-            Domains
-          </button>
-          <ChevronRight size={12} className="text-zinc-300 dark:text-zinc-600" />
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            {selectedDomain}
-          </span>
+        <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-1.5">
+          <BackButton onClick={handleBackToOverview} parentLabel="Domains" title={selectedDomain} />
         </div>
 
         {/* Domain detail */}
@@ -224,10 +216,9 @@ export function DomainsModule() {
   // ── Level 1: All Domains (tabbed) ──
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Description */}
-      <div className="flex-shrink-0 px-4 pt-3 pb-1">
-        <p className="text-xs text-zinc-400">
-          {activeTab === "overview" ? "All connected VAL domains — sync data, manage credentials, and monitor sync status."
+      <PageHeader
+        description={
+          activeTab === "overview" ? "All connected VAL domains — sync data, manage credentials, and monitor sync status."
             : activeTab === "data-models" ? "Cross-domain view of all table schemas — compare, classify, and manage data models across domains."
             : activeTab === "queries" ? "Cross-domain view of all saved queries — review SQL, check dashboard usage, and manage portal visibility."
             : activeTab === "workflows" ? "Cross-domain view of all automation workflows — review triggers, actions, and execution status."
@@ -235,69 +226,19 @@ export function DomainsModule() {
             : activeTab === "drive" ? "Browse VAL Drive folders across domains — view uploaded files and workflow file processing."
             : activeTab === "reports" ? "Generated reports across all domains — HTML reports, analysis outputs, and documentation."
             : activeTab === "health" ? "Domain health scoreboard — workflow failures, stale jobs, mapping duplicates, and error patterns across all production domains."
-            : ""}
-        </p>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <ViewTab
-          label="Overview"
-          icon={Globe}
-          active={activeTab === "overview"}
-          onClick={() => setActiveTab("overview")}
-          data-help-id="domains-tab-overview"
-        />
-        <ViewTab
-          label="Data Models"
-          icon={Database}
-          active={activeTab === "data-models"}
-          onClick={() => setActiveTab("data-models")}
-          data-help-id="domains-tab-data-models"
-        />
-        <ViewTab
-          label="Queries"
-          icon={Search}
-          active={activeTab === "queries"}
-          onClick={() => setActiveTab("queries")}
-          data-help-id="domains-tab-queries"
-        />
-        <ViewTab
-          label="Workflows"
-          icon={Workflow}
-          active={activeTab === "workflows"}
-          onClick={() => setActiveTab("workflows")}
-          data-help-id="domains-tab-workflows"
-        />
-        <ViewTab
-          label="Dashboards"
-          icon={BarChart3}
-          active={activeTab === "dashboards"}
-          onClick={() => setActiveTab("dashboards")}
-          data-help-id="domains-tab-dashboards"
-        />
-        <ViewTab
-          label="Drive"
-          icon={HardDrive}
-          active={activeTab === "drive"}
-          onClick={() => setActiveTab("drive")}
-          data-help-id="domains-tab-drive"
-        />
-        <ViewTab
-          label="Reports"
-          icon={FileText}
-          active={activeTab === "reports"}
-          onClick={() => setActiveTab("reports")}
-          data-help-id="domains-tab-reports"
-        />
-        <ViewTab
-          label="Health"
-          icon={HeartPulse}
-          active={activeTab === "health"}
-          onClick={() => setActiveTab("health")}
-          data-help-id="domains-tab-health"
-        />
-      </div>
+            : undefined
+        }
+        tabs={<>
+          <ViewTab label="Overview" icon={Globe} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} data-help-id="domains-tab-overview" />
+          <ViewTab label="Data Models" icon={Database} active={activeTab === "data-models"} onClick={() => setActiveTab("data-models")} data-help-id="domains-tab-data-models" />
+          <ViewTab label="Queries" icon={Search} active={activeTab === "queries"} onClick={() => setActiveTab("queries")} data-help-id="domains-tab-queries" />
+          <ViewTab label="Workflows" icon={Workflow} active={activeTab === "workflows"} onClick={() => setActiveTab("workflows")} data-help-id="domains-tab-workflows" />
+          <ViewTab label="Dashboards" icon={BarChart3} active={activeTab === "dashboards"} onClick={() => setActiveTab("dashboards")} data-help-id="domains-tab-dashboards" />
+          <ViewTab label="Drive" icon={HardDrive} active={activeTab === "drive"} onClick={() => setActiveTab("drive")} data-help-id="domains-tab-drive" />
+          <ViewTab label="Reports" icon={FileText} active={activeTab === "reports"} onClick={() => setActiveTab("reports")} data-help-id="domains-tab-reports" />
+          <ViewTab label="Health" icon={HeartPulse} active={activeTab === "health"} onClick={() => setActiveTab("health")} data-help-id="domains-tab-health" />
+        </>}
+      />
 
       {/* Tab content */}
       <div className="flex-1 flex overflow-hidden">

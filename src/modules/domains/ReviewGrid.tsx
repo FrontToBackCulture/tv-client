@@ -366,7 +366,7 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
       {/* Header - hide in review mode since parent provides header */}
       {!reviewMode && isTable && (
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Data Models Index</h2>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Data Models Index</h2>
           <p className="text-sm text-zinc-500">
             {domainName} • {rows.length} tables • {rows.length > 0 ? Math.round((rows.filter(t => t.hasOverview).length / rows.length) * 100) : 0}% documented
           </p>

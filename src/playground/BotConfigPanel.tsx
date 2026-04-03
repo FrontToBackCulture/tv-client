@@ -253,7 +253,7 @@ function CollapsibleSection({
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                className="w-full h-[400px] text-xs font-mono bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500 resize-y"
+                className="w-full h-[400px] text-xs font-mono bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-y"
                 onKeyDown={(e) => {
                   if (e.key === "s" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
@@ -272,7 +272,7 @@ function CollapsibleSection({
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
                 >
                   Cancel
                 </button>
@@ -286,7 +286,7 @@ function CollapsibleSection({
               </pre>
               <button
                 onClick={handleEdit}
-                className="absolute top-2 right-2 p-1.5 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                className="absolute top-2 right-2 p-1.5 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all shadow-sm"
                 title="Edit section"
               >
                 <Pencil size={12} />
@@ -399,7 +399,7 @@ function SkillsTableEditor({
               placeholder="Filter..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-[120px] pl-5 pr-5 py-0.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:border-teal-500 focus:w-[160px] transition-all"
+              className="w-[120px] pl-5 pr-5 py-0.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:w-[160px] transition-all"
             />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
@@ -413,7 +413,7 @@ function SkillsTableEditor({
               "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors",
               showAddPicker
                 ? "bg-teal-50 dark:bg-teal-900/20 text-teal-600 border border-teal-300 dark:border-teal-700"
-                : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 hover:border-teal-300 hover:text-teal-600"
+                : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-800 hover:border-teal-300 hover:text-teal-600"
             )}
           >
             <Plus size={11} />
@@ -437,7 +437,7 @@ function SkillsTableEditor({
                 value={addSearch}
                 onChange={(e) => setAddSearch(e.target.value)}
                 autoFocus
-                className="w-[140px] pl-5 pr-2 py-0.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:border-teal-500 transition-all"
+                className="w-[140px] pl-5 pr-2 py-0.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 transition-all"
               />
             </div>
           </div>
@@ -487,17 +487,17 @@ function SkillsTableEditor({
                     <input
                       value={editDraft.name}
                       onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
-                      className="text-xs font-mono bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-1.5 py-1 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500 mr-2"
+                      className="text-xs font-mono bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-1 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mr-2"
                     />
                     <input
                       value={editDraft.description}
                       onChange={(e) => setEditDraft({ ...editDraft, description: e.target.value })}
-                      className="text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-1.5 py-1 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500 mr-2"
+                      className="text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-1 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mr-2"
                     />
                     <input
                       value={editDraft.trigger}
                       onChange={(e) => setEditDraft({ ...editDraft, trigger: e.target.value })}
-                      className="text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-1.5 py-1 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500 mr-2"
+                      className="text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-1 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mr-2"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleSaveEdit();
                         if (e.key === "Escape") handleCancelEdit();

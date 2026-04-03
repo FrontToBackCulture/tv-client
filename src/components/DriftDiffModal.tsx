@@ -194,7 +194,7 @@ export function DriftDiffModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 pb-6">
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-5xl max-h-full flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-5xl max-h-full flex flex-col rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
         {/* Header */}
         <div className="flex-shrink-0 px-5 py-3 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center justify-between gap-3">
@@ -205,7 +205,7 @@ export function DriftDiffModal({
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
             >
               <X size={16} />
             </button>
@@ -243,13 +243,13 @@ export function DriftDiffModal({
                 const sideBySide = hasHunks ? buildSideBySideLines(f.hunks!) : [];
 
                 return (
-                  <div key={f.path} className="rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                  <div key={f.path} className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
                     <div
                       role={hasHunks ? "button" : undefined}
                       onClick={hasHunks ? () => toggleExpand(f.path) : undefined}
                       className={cn(
                         "flex items-center gap-2 px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-800/50",
-                        hasHunks && "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        hasHunks && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                       )}
                     >
                       {hasHunks && (
@@ -265,22 +265,22 @@ export function DriftDiffModal({
 
                     {isExpanded && hasHunks && (
                       <div className="overflow-x-auto">
-                        <div className="grid grid-cols-2 border-b border-zinc-200 dark:border-zinc-700 text-[10px] font-medium text-zinc-400">
-                          <div className="px-3 py-1 border-r border-zinc-200 dark:border-zinc-700 bg-red-50/50 dark:bg-red-900/10">{leftLabel}</div>
+                        <div className="grid grid-cols-2 border-b border-zinc-200 dark:border-zinc-800 text-[10px] font-medium text-zinc-400">
+                          <div className="px-3 py-1 border-r border-zinc-200 dark:border-zinc-800 bg-red-50/50 dark:bg-red-900/10">{leftLabel}</div>
                           <div className="px-3 py-1 bg-emerald-50/50 dark:bg-emerald-900/10">{rightLabel}</div>
                         </div>
                         {sideBySide.map((hunkPairs, hi) => (
                           <div key={hi}>
                             {hi > 0 && (
-                              <div className="grid grid-cols-2 border-t border-zinc-200 dark:border-zinc-700">
-                                <div className="px-3 py-0.5 text-[10px] text-zinc-300 dark:text-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 border-r border-zinc-200 dark:border-zinc-700">···</div>
+                              <div className="grid grid-cols-2 border-t border-zinc-200 dark:border-zinc-800">
+                                <div className="px-3 py-0.5 text-[10px] text-zinc-300 dark:text-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 border-r border-zinc-200 dark:border-zinc-800">···</div>
                                 <div className="px-3 py-0.5 text-[10px] text-zinc-300 dark:text-zinc-600 bg-zinc-50 dark:bg-zinc-800/50">···</div>
                               </div>
                             )}
                             {hunkPairs.map((pair, pi) => (
                               <div key={pi} className="grid grid-cols-2 text-[11px] font-mono leading-relaxed">
                                 <div className={cn(
-                                  "px-3 py-0.5 whitespace-pre-wrap break-all border-r border-zinc-200 dark:border-zinc-700 min-h-[1.5em]",
+                                  "px-3 py-0.5 whitespace-pre-wrap break-all border-r border-zinc-200 dark:border-zinc-800 min-h-[1.5em]",
                                   pair.left?.kind === "remove" && "bg-red-50 dark:bg-red-900/15 text-red-800 dark:text-red-300",
                                   pair.left?.kind === "context" && "text-zinc-500 dark:text-zinc-400",
                                   !pair.left && "bg-zinc-50 dark:bg-zinc-800/30"
@@ -341,7 +341,7 @@ export function DriftDiffModal({
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all",
                   aiLoading || aiSummary
-                    ? "border-zinc-200 dark:border-zinc-700 text-zinc-400 cursor-not-allowed"
+                    ? "border-zinc-200 dark:border-zinc-800 text-zinc-400 cursor-not-allowed"
                     : "border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                 )}
               >

@@ -958,7 +958,7 @@ ${activePrompt}`;
                   setSelectedSkill(e.target.value || null);
                   setSelectedTemplate(null);
                 }}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
               >
                 <option value="">Select a skill...</option>
                 {skillsWithPrompts.map((slug) => (
@@ -995,7 +995,7 @@ ${activePrompt}`;
                         "w-full text-left px-3 py-2 rounded-lg border transition-colors",
                         selectedTemplate === t.name
                           ? "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/30"
-                          : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700",
+                          : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-200 dark:hover:border-zinc-700",
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -1117,7 +1117,7 @@ ${activePrompt}`;
                         setIsEditing(true);
                         if (editedPrompt === null) setEditedPrompt(resolvedPrompt);
                       }}
-                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                       title="Edit prompt directly"
                     >
                       <Pencil size={10} />
@@ -1135,7 +1135,7 @@ ${activePrompt}`;
                   {hasEdits && (
                     <button
                       onClick={handleResetPrompt}
-                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                       title="Reset to template"
                     >
                       <RotateCcw size={10} />
@@ -1166,7 +1166,7 @@ ${activePrompt}`;
                 <textarea
                   value={editedPrompt ?? resolvedPrompt}
                   onChange={(e) => setEditedPrompt(e.target.value)}
-                  className="flex-1 min-h-[200px] text-sm font-mono whitespace-pre-wrap text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900 rounded-lg border-2 border-teal-300 dark:border-teal-700 p-4 leading-relaxed focus:outline-none focus:border-teal-500 resize-none"
+                  className="flex-1 min-h-[200px] text-sm font-mono whitespace-pre-wrap text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900 rounded-lg border-2 border-teal-300 dark:border-teal-700 p-4 leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"
                   spellCheck={false}
                 />
               ) : (
@@ -1290,7 +1290,7 @@ function SimpleField({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
         >
           <option value="">Select domain...</option>
           {domains.map((d) => (
@@ -1313,7 +1313,7 @@ function SimpleField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Auto-filled from domain"
-          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
         />
       </div>
     );
@@ -1326,7 +1326,7 @@ function SimpleField({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
       />
     </div>
   );
@@ -1354,7 +1354,7 @@ function DateRangeField({
   const isCustom = selectedPreset === "custom";
 
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-2.5">
+    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-2.5">
       <label className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1.5 flex items-center gap-1 block">
         <Calendar size={10} />
         {field.label}
@@ -1364,7 +1364,7 @@ function DateRangeField({
       <select
         value={selectedPreset}
         onChange={(e) => onPresetChange(e.target.value)}
-        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
       >
         {Object.entries(RANGE_PRESETS).map(([key, { label }]) => (
           <option key={key} value={key}>{label}</option>
@@ -1381,7 +1381,7 @@ function DateRangeField({
               type="date"
               value={startValue}
               onChange={(e) => onStartChange(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
           <div>
@@ -1390,7 +1390,7 @@ function DateRangeField({
               type="date"
               value={endValue}
               onChange={(e) => onEndChange(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
         </div>
@@ -1431,7 +1431,7 @@ function SingleDateField({
       <select
         value={selectedPreset}
         onChange={(e) => onPresetChange(e.target.value)}
-        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
       >
         {Object.entries(SINGLE_DATE_PRESETS).map(([key, { label }]) => (
           <option key={key} value={key}>{label}</option>
@@ -1445,7 +1445,7 @@ function SingleDateField({
           type="date"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="mt-1.5 w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="mt-1.5 w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
         />
       ) : (
         <p className="mt-1 text-[10px] font-mono text-teal-600 dark:text-teal-400">{value}</p>
@@ -1520,7 +1520,7 @@ function SavedConfigsTree({ configs, loading, registry, activeSkill, activeTempl
                     "w-full flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md transition-colors",
                     activeSkill === skill
                       ? "text-teal-600 dark:text-teal-400"
-                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
+                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
                   )}
                 >
                   <ChevronRight
@@ -1546,7 +1546,7 @@ function SavedConfigsTree({ configs, loading, registry, activeSkill, activeTempl
                         "w-full flex items-center gap-1.5 px-2 py-1 text-[11px] rounded-md transition-colors",
                         isActiveTemplate
                           ? "text-teal-600 dark:text-teal-400 font-medium"
-                          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
+                          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
                       )}
                     >
                       <ChevronRight
@@ -1587,7 +1587,7 @@ function SavedConfigsTree({ configs, loading, registry, activeSkill, activeTempl
                                 "px-2 py-0.5 text-[10px] rounded-full border transition-colors",
                                 isActive
                                   ? "bg-teal-100 dark:bg-teal-900/40 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 font-medium"
-                                  : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-teal-300 dark:hover:border-teal-600 hover:text-teal-600 dark:hover:text-teal-400",
+                                  : "border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:border-teal-300 dark:hover:border-teal-600 hover:text-teal-600 dark:hover:text-teal-400",
                               )}
                             >
                               {chipLabel}

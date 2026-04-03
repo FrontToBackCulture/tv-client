@@ -51,7 +51,7 @@ export function DeploymentListView({ search, selectedId, onSelect }: DeploymentL
               key={deployment.id}
               onClick={() => onSelect(deployment.id)}
               className={cn(
-                "w-full flex items-center px-4 py-2.5 text-left border-b border-zinc-100 dark:border-zinc-800/50 transition-colors",
+                "w-full flex items-center px-4 py-2.5 text-left border-b border-zinc-100 dark:border-zinc-800 transition-colors",
                 deployment.id === selectedId
                   ? "bg-teal-500/5 dark:bg-teal-500/10"
                   : "hover:bg-zinc-50 dark:hover:bg-zinc-900/50"

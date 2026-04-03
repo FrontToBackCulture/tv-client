@@ -28,6 +28,7 @@ import { useAuth } from "../../stores/authStore";
 import { useTeamConfigStore } from "../../stores/teamConfigStore";
 import { cn } from "../../lib/cn";
 import { IconButton } from "../../components/ui";
+import { PageHeader } from "../../components/PageHeader";
 
 import { ApiKeysView } from "./ApiKeysView";
 import { BotsPathView } from "./BotsPathView";
@@ -169,9 +170,9 @@ export function SettingsModal() {
       />
 
       {/* Modal */}
-      <div className="relative max-w-6xl w-full mx-4 h-[80vh] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl overflow-hidden flex flex-col animate-modal-in">
+      <div className="relative max-w-6xl w-full mx-4 h-[80vh] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-lg overflow-hidden flex flex-col animate-modal-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
           <div className="flex items-center gap-2">
             <Settings size={16} className="text-zinc-500" />
             <span className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
@@ -181,6 +182,7 @@ export function SettingsModal() {
           <IconButton icon={X} label="Close settings" onClick={closeSettings} />
         </div>
 
+        <PageHeader description="API keys, credentials, sync paths, and platform configuration." />
         {/* Body: sidebar + content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Sidebar */}
@@ -204,7 +206,7 @@ export function SettingsModal() {
                             "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors",
                             isActive
                               ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
-                              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                           )}
                         >
                           <Icon size={16} className="flex-shrink-0" />

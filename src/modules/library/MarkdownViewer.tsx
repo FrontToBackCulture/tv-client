@@ -108,7 +108,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
       {/* Collapsed view - just title/summary */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-start gap-2 p-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+        className="w-full flex items-start gap-2 p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         {expanded ? (
           <ChevronDown size={14} className="mt-0.5 text-zinc-400 flex-shrink-0" />
@@ -280,7 +280,7 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
 
           // Blockquote
           blockquote: ({ children }: ChildrenProps) => (
-            <blockquote className="border-l-4 border-zinc-300 dark:border-zinc-700 pl-4 italic text-zinc-500 dark:text-zinc-400 my-4">
+            <blockquote className="border-l-4 border-zinc-200 dark:border-zinc-800 pl-4 italic text-zinc-500 dark:text-zinc-400 my-4">
               {children}
             </blockquote>
           ),
@@ -288,7 +288,7 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
           // Tables
           table: ({ children }: ChildrenProps) => (
             <div className="overflow-x-auto my-4">
-              <table className="min-w-full border-collapse border border-zinc-300 dark:border-zinc-700">
+              <table className="min-w-full border-collapse border border-zinc-200 dark:border-zinc-800">
                 {children}
               </table>
             </div>
@@ -297,12 +297,12 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
             <thead className="bg-zinc-100 dark:bg-zinc-800">{children}</thead>
           ),
           th: ({ children }: ChildrenProps) => (
-            <th className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-left font-semibold text-zinc-800 dark:text-zinc-200">
+            <th className="px-4 py-2 border border-zinc-200 dark:border-zinc-800 text-left font-semibold text-zinc-800 dark:text-zinc-200">
               {children}
             </th>
           ),
           td: ({ children }: ChildrenProps) => (
-            <td className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300">
+            <td className="px-4 py-2 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300">
               {children}
             </td>
           ),
@@ -315,7 +315,7 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
               return (
                 <video
                   controls
-                  className="w-full rounded-lg my-4 border border-zinc-200 dark:border-zinc-700"
+                  className="w-full rounded-lg my-4 border border-zinc-200 dark:border-zinc-800"
                   src={resolvedSrc}
                 >
                   {alt}
@@ -326,13 +326,13 @@ export function MarkdownViewer({ content, filename, basePath }: MarkdownViewerPr
               <img
                 src={resolvedSrc}
                 alt={alt || ""}
-                className="rounded-lg my-4 w-full border border-zinc-200 dark:border-zinc-700"
+                className="rounded-lg my-4 w-full border border-zinc-200 dark:border-zinc-800"
               />
             );
           },
 
           // Horizontal rule
-          hr: () => <hr className="border-zinc-300 dark:border-zinc-700 my-6" />,
+          hr: () => <hr className="border-zinc-200 dark:border-zinc-800 my-6" />,
 
           // Strong and emphasis
           strong: ({ children }: ChildrenProps) => (

@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import {
-  ArrowLeft, Calendar, User, MessageSquare,
+  Calendar, User, MessageSquare,
 } from "lucide-react";
+import { BackButton } from "../../components/BackButton";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
 import type { TaskWithRelations, Project, User as WorkUser } from "../../lib/work/types";
@@ -88,14 +89,9 @@ export function ProjectView({
   return (
     <div className="h-full flex flex-col">
       {/* Project header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-3 mb-2">
-          <button
-            onClick={onBack}
-            className="p-1 -ml-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <ArrowLeft size={16} />
-          </button>
+          <BackButton onClick={onBack} />
           <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color || "#6B7280" }} />
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{project.name}</h2>
         </div>
@@ -129,7 +125,7 @@ export function ProjectView({
                 className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
                   groupBy === g
                     ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 }`}
               >
                 {g.charAt(0).toUpperCase() + g.slice(1)}
@@ -141,7 +137,7 @@ export function ProjectView({
               className={`relative p-1 rounded transition-colors ${
                 showDiscussions
                   ? "text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950"
-                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
               }`}
               title="Discussion"
             >
@@ -164,7 +160,7 @@ export function ProjectView({
           )}
           {groups.map(([key, group]) => (
             <div key={key}>
-              <div className="sticky top-0 z-10 flex items-center gap-2 px-6 py-2 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800/50">
+              <div className="sticky top-0 z-10 flex items-center gap-2 px-6 py-2 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800">
                 {groupBy === "status" && group.statusType && (
                   <StatusIcon type={group.statusType as StatusType} color={group.color || "#6B7280"} size={13} />
                 )}

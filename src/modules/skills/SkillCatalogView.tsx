@@ -4,6 +4,8 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Search, Activity, Bot, Boxes, CheckCircle2, AlertTriangle, Clock, GripVertical, ChevronRight, Plus, X, ChevronsUpDown, ChevronsDownUp, ShieldCheck, LayoutDashboard, Table2, Zap } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
+import { PageHeader } from "../../components/PageHeader";
+import { ResizablePanel } from "../../components/ResizablePanel";
 import { cn } from "../../lib/cn";
 import { toSGTDateString } from "../../lib/date";
 import {
@@ -52,7 +54,6 @@ export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewPr
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [reviewSelectedSlug, setReviewSelectedSlug] = useState<string | null>(null);
-  const [reviewPanelWidth, setReviewPanelWidth] = useState(600);
   const [view, setView] = usePersistedModuleView<"catalog" | "review" | "prompt-builder">("skills", "catalog");
   const [search, setSearch] = useState("");
   const [activeCategory, _setActiveCategory] = useState("all");
@@ -318,28 +319,6 @@ export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewPr
   }, [sidebarWidth]);
 
 
-  // Review panel resize handle — uses document-level mouse events for reliability in Tauri webview
-  const handleReviewPanelResizeDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX;
-    const startWidth = reviewPanelWidth;
-
-    const onMove = (ev: MouseEvent) => {
-      const delta = startX - ev.clientX;
-      setReviewPanelWidth(Math.max(400, Math.min(1000, startWidth + delta)));
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }, [reviewPanelWidth]);
 
   // Build level-aware key sets for collapse controls
   const groupKeysByLevel = useMemo(() => {
@@ -416,23 +395,20 @@ export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewPr
 
   return (
     <div className="h-full flex flex-col">
-      {/* Description */}
-      <div className="flex-shrink-0 px-4 pt-3 pb-1">
-        <p className="text-xs text-zinc-400">
-          {view === "catalog"
+      <PageHeader
+        description={
+          view === "catalog"
             ? "Browse all skills by category — click to view details, right-click to move between categories. Assign skills to domains from the domain AI tab."
             : view === "review"
             ? "Full grid view of all skills — sort, filter, and review metadata. Click a row to see the SKILL.md preview."
-            : "Build and manage reusable prompt templates for report-generation skills — configure baseline, monthly, and year-in-review prompts."}
-        </p>
-      </div>
-
-      {/* Top tab bar — always visible */}
-      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <ViewTab label="Browse" icon={LayoutDashboard} active={view === "catalog"} onClick={() => setView("catalog")} />
-        <ViewTab label="Manage" icon={Table2} active={view === "review"} onClick={() => setView("review")} />
-        <ViewTab label="Prompt Builder" icon={Zap} active={view === "prompt-builder"} onClick={() => setView("prompt-builder")} />
-      </div>
+            : "Build and manage reusable prompt templates for report-generation skills — configure baseline, monthly, and year-in-review prompts."
+        }
+        tabs={<>
+          <ViewTab label="Browse" icon={LayoutDashboard} active={view === "catalog"} onClick={() => setView("catalog")} />
+          <ViewTab label="Manage" icon={Table2} active={view === "review"} onClick={() => setView("review")} />
+          <ViewTab label="Prompt Builder" icon={Zap} active={view === "prompt-builder"} onClick={() => setView("prompt-builder")} />
+        </>}
+      />
 
       {/* Search + filters (only in catalog/dashboard view) */}
       {view === "catalog" && <SkillFilterBar
@@ -448,7 +424,7 @@ export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewPr
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[200px] max-h-[calc(100vh-8px)] overflow-y-auto"
+          className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[200px] max-h-[calc(100vh-8px)] overflow-y-auto"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -556,22 +532,22 @@ export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewPr
                   {showCollapseMenu && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowCollapseMenu(false)} />
-                      <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1">
+                      <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
                         <button
                           onClick={() => { collapseToLevel(1); setShowCollapseMenu(false); }}
-                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                         >
                           Level 1 (Root)
                         </button>
                         <button
                           onClick={() => { collapseToLevel(2); setShowCollapseMenu(false); }}
-                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                         >
                           Level 2
                         </button>
                         <button
                           onClick={() => { collapseToLevel(3); setShowCollapseMenu(false); }}
-                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                          className="w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                         >
                           Level 3
                         </button>
@@ -624,7 +600,7 @@ export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewPr
         {view === "catalog" && (
           <div
             onPointerDown={handleResizePointerDown}
-            className="w-2 flex-shrink-0 cursor-col-resize group flex items-center justify-center border-r border-zinc-100 dark:border-zinc-800/50 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
+            className="w-2 flex-shrink-0 cursor-col-resize group flex items-center justify-center border-r border-zinc-100 dark:border-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
           >
             <GripVertical size={10} className="text-zinc-300 dark:text-zinc-600 group-hover:text-teal-500 transition-colors" />
           </div>
@@ -663,24 +639,16 @@ export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewPr
               />
             </div>
             {reviewSelectedSlug && reviewSkill && (
-              <div className="flex flex-shrink-0 animate-slide-in" style={{ width: reviewPanelWidth }}>
-                <div
-                  onMouseDown={handleReviewPanelResizeDown}
-                  className="w-2 flex-shrink-0 cursor-col-resize group flex items-center justify-center border-l border-zinc-200 dark:border-zinc-700 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors touch-none"
-                >
-                  <GripVertical size={10} className="text-zinc-300 dark:text-zinc-600 group-hover:text-teal-500 transition-colors" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <SkillDetailPanel
-                    key={reviewSelectedSlug}
-                    slug={reviewSelectedSlug}
-                    skill={reviewSkill}
-                    registry={registry}
-                    driftStatuses={reviewDriftStatuses}
-                    onClose={() => setReviewSelectedSlug(null)}
-                  />
-                </div>
-              </div>
+              <ResizablePanel storageKey="tv-skill-review-detail-width" defaultWidth={600} minWidth={400} maxWidth={1000}>
+                <SkillDetailPanel
+                  key={reviewSelectedSlug}
+                  slug={reviewSelectedSlug}
+                  skill={reviewSkill}
+                  registry={registry}
+                  driftStatuses={reviewDriftStatuses}
+                  onClose={() => setReviewSelectedSlug(null)}
+                />
+              </ResizablePanel>
             )}
           </div>
         ) : (
@@ -1373,7 +1341,7 @@ function SkillFilterBar({
   const chipActive = "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 ring-1 ring-teal-200 dark:ring-teal-800";
 
   return (
-    <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50">
+    <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800">
       {/* Row 1: Search + Sort */}
       <div className="flex items-center gap-2 px-4 py-2">
         <div className="relative flex-1">
@@ -1382,13 +1350,13 @@ function SkillFilterBar({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search skills..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
           />
         </div>
         <select
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value as SortOption)}
-          className="text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+          className="text-xs px-2 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
         >
           <option value="name">Sort: Name</option>
           <option value="modified">Sort: Modified</option>
@@ -1442,11 +1410,11 @@ function SkillFilterBar({
         {datePreset === "custom" && (
           <div className="flex items-center gap-1">
             <input type="date" value={modFrom} onChange={(e) => onModFromChange(e.target.value)} max={modTo || undefined}
-              className="text-[11px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+              className="text-[11px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
             />
             <span className="text-[11px] text-zinc-400">–</span>
             <input type="date" value={modTo} onChange={(e) => onModToChange(e.target.value)} min={modFrom || undefined}
-              className="text-[11px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+              className="text-[11px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
             />
           </div>
         )}

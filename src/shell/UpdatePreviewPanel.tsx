@@ -14,8 +14,8 @@ export function UpdatePreviewPanel({ version, notes, onInstall, onClose }: Updat
     .filter(Boolean);
 
   return (
-    <div className="absolute bottom-full left-0 mb-1 w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden animate-modal-in">
-      <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
+    <div className="absolute bottom-full left-0 mb-1 w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden animate-modal-in">
+      <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">
         <span className="font-medium text-zinc-900 dark:text-zinc-100 text-sm">
           v{version} available
         </span>
@@ -36,7 +36,7 @@ export function UpdatePreviewPanel({ version, notes, onInstall, onClose }: Updat
         )}
       </div>
 
-      <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+      <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <button
           onClick={onClose}
           className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"

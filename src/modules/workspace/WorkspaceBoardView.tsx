@@ -215,8 +215,8 @@ export function WorkspaceBoardView({ workspaces, onSelect, onStatusChange }: Pro
                   : isColTarget
                     ? "border-blue-300 dark:border-blue-700 bg-blue-50/30 dark:bg-blue-950/20"
                     : isColSource
-                      ? "opacity-50 border-zinc-200 dark:border-zinc-700"
-                      : "bg-zinc-50 dark:bg-zinc-900/50 border-zinc-100 dark:border-zinc-800/50"
+                      ? "opacity-50 border-zinc-200 dark:border-zinc-800"
+                      : "bg-zinc-50 dark:bg-zinc-900/50 border-zinc-100 dark:border-zinc-800"
               )}
             >
               {/* Column header */}

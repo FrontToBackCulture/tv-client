@@ -89,7 +89,7 @@ function FileCard({
     <button
       onClick={onClick}
       onDoubleClick={onDoubleClick}
-      className="w-full text-left p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:border-teal-500/50 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-all group"
+      className="w-full text-left p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:border-teal-500/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all group"
     >
       <div className="flex items-start gap-3">
         <FileIcon filename={file.name} />
@@ -122,7 +122,7 @@ function SubfolderCard({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:border-teal-500/50 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-all group"
+      className="w-full text-left p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:border-teal-500/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all group"
     >
       <div className="flex items-center gap-3">
         <FolderOpen size={20} className="text-teal-500 dark:text-teal-400 flex-shrink-0" />

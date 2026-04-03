@@ -70,7 +70,7 @@ export function BotsPathView() {
             value={botsPath}
             onChange={(e) => setBotsPath(e.target.value)}
             placeholder="/path/to/tv-knowledge/_team"
-            className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm placeholder:text-zinc-400"
+            className="flex-1 px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm placeholder:text-zinc-400"
           />
           <IconButton icon={FolderOpen} label="Browse..." onClick={handleBrowseBots} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 p-2" />
           {botsPath && (
@@ -100,7 +100,7 @@ export function BotsPathView() {
             value={sessionsPath}
             onChange={(e) => setSessionsPath(e.target.value)}
             placeholder="/path/to/tv-knowledge/_team/melvin/sessions"
-            className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm placeholder:text-zinc-400"
+            className="flex-1 px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-sm placeholder:text-zinc-400"
           />
           <IconButton icon={FolderOpen} label="Browse..." onClick={handleBrowseSessions} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 p-2" />
           {sessionsPath && (

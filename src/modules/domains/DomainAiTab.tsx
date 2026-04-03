@@ -560,7 +560,7 @@ function S3FilesView({ files, localCount, s3Count }: { files: S3FileStatus[]; lo
         </thead>
         <tbody>
           {files.map((f) => (
-            <tr key={f.path} className="border-t border-zinc-100 dark:border-zinc-800/50">
+            <tr key={f.path} className="border-t border-zinc-100 dark:border-zinc-800">
               <td className="py-2 font-mono text-zinc-700 dark:text-zinc-300 text-xs">{f.path}</td>
               <td className="py-2 text-center">
                 {f.in_local ? <CheckCircle2 size={13} className="inline text-green-500" /> : <AlertCircle size={13} className="inline text-red-400" />}

@@ -137,7 +137,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
           return (
             <div
               key={task.id}
-              className={`px-3 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700/50 ${
+              className={`px-3 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800 ${
                 isCompleted ? "opacity-60" : ""
               }`}
             >
@@ -210,7 +210,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
               createMutation.mutate(formData);
             }
           }}
-          className="mt-3 p-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700"
+          className="mt-3 p-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800"
         >
           <div className="space-y-3">
             <div>
@@ -224,7 +224,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                   setFormData({ ...formData, title: e.target.value })
                 }
                 placeholder="Follow up with contact..."
-                className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                 autoFocus
               />
             </div>
@@ -239,7 +239,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                 }
                 placeholder="Additional details..."
                 rows={2}
-                className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
               />
             </div>
             <div className="flex gap-3">
@@ -253,7 +253,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                   onChange={(e) =>
                     setFormData({ ...formData, dueDate: e.target.value })
                   }
-                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                 />
               </div>
               <div className="flex-1">
@@ -265,7 +265,7 @@ export function DealTasks({ dealId, dealName, onTaskCreated }: DealTasksProps) {
                   onChange={(e) =>
                     setFormData({ ...formData, priority: Number(e.target.value) })
                   }
-                  className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                 >
                   <option value={0}>None</option>
                   <option value={1}>Urgent</option>

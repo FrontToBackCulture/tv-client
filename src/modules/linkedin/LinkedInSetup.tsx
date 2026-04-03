@@ -54,7 +54,7 @@ export function LinkedInSetup() {
       await login.mutateAsync({ clientId, clientSecret });
     } catch (e) {
       setState("error");
-      setErrorMsg(String(e));
+      setErrorMsg(formatError(e));
     }
   };
 
@@ -66,7 +66,7 @@ export function LinkedInSetup() {
           <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
             <CheckCircle size={32} className="text-green-600 dark:text-green-400" />
           </div>
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
             Connected to LinkedIn
           </h2>
           <p className="text-zinc-500">
@@ -95,7 +95,7 @@ export function LinkedInSetup() {
           <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
             <Linkedin size={32} className="text-blue-600 dark:text-blue-400" />
           </div>
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
             Connect LinkedIn
           </h2>
           {state === "ready" ? (
@@ -122,7 +122,7 @@ export function LinkedInSetup() {
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
                   placeholder="LinkedIn App Client ID"
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                 />
               </div>
               <div>
@@ -134,7 +134,7 @@ export function LinkedInSetup() {
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
                   placeholder="LinkedIn App Client Secret"
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                 />
               </div>
             </>

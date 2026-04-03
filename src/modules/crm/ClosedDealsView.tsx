@@ -101,7 +101,7 @@ export function ClosedDealsView({ selectedId, onSelect }: ClosedDealsViewProps) 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
         <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Closed Deals</h1>
 
         {/* Won / Lost sub-tabs */}

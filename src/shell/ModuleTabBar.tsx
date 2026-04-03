@@ -10,7 +10,6 @@ import {
   Mail,
   Globe,
   Boxes,
-  Bot,
   Puzzle,
   Clock,
   GitBranch,
@@ -49,7 +48,6 @@ const moduleIcons: Record<ModuleId, LucideIcon> = {
   analytics: Activity,
   product: Boxes,
   gallery: GalleryHorizontalEnd,
-  bot: Bot,
   skills: Puzzle,
   portal: Headset,
   scheduler: Clock,
@@ -78,7 +76,6 @@ const moduleLabels: Record<ModuleId, string> = {
   analytics: "Analytics",
   product: "Product",
   gallery: "Gallery",
-  bot: "Bots",
   skills: "Skills",
   portal: "Portal",
   scheduler: "Scheduler",
@@ -288,26 +285,26 @@ function TabContextMenu({
   return (
     <div
       ref={ref}
-      className="fixed z-50 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[160px]"
+      className="fixed z-50 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[160px]"
       style={{ left: menu.x, top: menu.y }}
     >
       {canClose && (
         <button
           onClick={onClose}
-          className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+          className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
         >
           Close
         </button>
       )}
       <button
         onClick={onCloseOthers}
-        className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+        className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
       >
         Close Others
       </button>
       <button
         onClick={onCloseRight}
-        className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+        className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
       >
         Close to the Right
       </button>

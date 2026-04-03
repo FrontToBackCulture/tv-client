@@ -56,7 +56,7 @@ export function TagsInput({
 
   return (
     <div className="relative">
-      <div className="flex flex-wrap gap-1 p-1.5 min-h-[32px] rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800">
+      <div className="flex flex-wrap gap-1 p-1.5 min-h-[32px] rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800">
         {tags.map((tag) => (
           <span
             key={tag}
@@ -86,13 +86,13 @@ export function TagsInput({
         />
       </div>
       {showSuggestions && filteredSuggestions.length > 0 && (
-        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg max-h-40 overflow-auto">
+        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg max-h-40 overflow-auto">
           {filteredSuggestions.map((suggestion) => (
             <button
               key={suggestion}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => addTag(suggestion)}
-              className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-800 dark:text-zinc-200"
             >
               {suggestion}
             </button>
@@ -166,20 +166,20 @@ export function ComboBox({
         onFocus={() => setIsOpen(true)}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className="w-full text-xs px-2 py-1.5 pr-6 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400"
+        className="w-full text-xs px-2 py-1.5 pr-6 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400"
       />
       <ChevronDown
         size={12}
         className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
       />
       {isOpen && (
-        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg max-h-40 overflow-auto">
+        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg max-h-40 overflow-auto">
           {/* Clear option */}
           {value && (
             <button
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
-              className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 italic border-b border-zinc-100 dark:border-zinc-700"
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-500 italic border-b border-zinc-100 dark:border-zinc-700"
             >
               Clear selection
             </button>
@@ -191,7 +191,7 @@ export function ComboBox({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(opt)}
                 className={cn(
-                  "w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-100 dark:hover:bg-zinc-700",
+                  "w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
                   opt === value
                     ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
                     : "text-zinc-800 dark:text-zinc-200"
@@ -204,7 +204,7 @@ export function ComboBox({
             <button
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(inputValue.trim())}
-              className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-teal-600 dark:text-teal-400"
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-teal-600 dark:text-teal-400"
             >
               Add "{inputValue.trim()}"
             </button>

@@ -167,7 +167,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Search Form */}
-      <div className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <h1 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
             Apollo Prospect Search
@@ -220,7 +220,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
             onChange={(e) => setTitles(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Job titles (comma-sep)"
-            className="px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
+            className="px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
           />
           <input
             type="text"
@@ -228,7 +228,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
             onChange={(e) => setOrgName(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Company name"
-            className="px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
+            className="px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
           />
           <input
             type="text"
@@ -236,7 +236,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
             onChange={(e) => setLocations(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Locations (comma-sep)"
-            className="px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
+            className="px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
           />
         </div>
 
@@ -247,14 +247,14 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
             onChange={(e) => setKeywords(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Keywords"
-            className="flex-1 px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
+            className="flex-1 px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
           />
           <input
             type="text"
             value={importTags}
             onChange={(e) => setImportTags(e.target.value)}
             placeholder="Import tags (comma-sep)"
-            className="w-40 px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
+            className="w-40 px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md outline-none focus:ring-1 focus:ring-teal-500"
           />
           <button
             onClick={handleSearch}
@@ -276,7 +276,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
               className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                 seniorities.includes(opt.value)
                   ? "bg-teal-500 text-white border-teal-500"
-                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-teal-300"
+                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:border-teal-300"
               }`}
             >
               {opt.label}
@@ -290,7 +290,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
               className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                 employeeRanges.includes(opt.value)
                   ? "bg-teal-500 text-white border-teal-500"
-                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-teal-300"
+                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:border-teal-300"
               }`}
             >
               {opt.label}
@@ -308,7 +308,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
               className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                 emailStatuses.includes(opt.value)
                   ? "bg-teal-500 text-white border-teal-500"
-                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-teal-300"
+                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:border-teal-300"
               }`}
             >
               {opt.label}
@@ -322,7 +322,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
               className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                 departments.includes(opt.value)
                   ? "bg-teal-500 text-white border-teal-500"
-                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-teal-300"
+                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:border-teal-300"
               }`}
             >
               {opt.label}
@@ -362,7 +362,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
         {data && data.people.length > 0 && (
           <>
             {/* Header row */}
-            <div className="flex items-center px-4 py-2 text-[10px] font-medium text-zinc-400 uppercase tracking-wider border-b border-zinc-100 dark:border-zinc-800/50 sticky top-0 bg-white dark:bg-zinc-950 z-10">
+            <div className="flex items-center px-4 py-2 text-[10px] font-medium text-zinc-400 uppercase tracking-wider border-b border-zinc-100 dark:border-zinc-800 sticky top-0 bg-white dark:bg-zinc-950 z-10">
               <div className="w-8 flex-shrink-0">
                 <input
                   type="checkbox"
@@ -392,7 +392,7 @@ export function ProspectsView({ onSelect }: ProspectsViewProps) {
             ))}
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100 dark:border-zinc-800/50">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100 dark:border-zinc-800">
               <span className="text-xs text-zinc-400">
                 {data.total_entries.toLocaleString()} results — page {page}
               </span>

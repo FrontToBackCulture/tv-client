@@ -3,7 +3,6 @@
 import { useState, useCallback, useRef, useEffect, memo } from "react";
 import { createPortal } from "react-dom";
 import {
-  LayoutDashboard,
   ChevronDown, Filter,
   Target,
   Check,
@@ -99,24 +98,8 @@ export function useInitiativeProjects() {
 // ============================
 // Shared UI
 // ============================
-export function ViewTab({ label, icon: Icon, active, onClick, "data-help-id": helpId }: {
-  label: string; icon: typeof LayoutDashboard; active: boolean; onClick: () => void; "data-help-id"?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      data-help-id={helpId}
-      className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors ${
-        active
-          ? "border-teal-600 text-teal-700 dark:text-teal-400 dark:border-teal-500"
-          : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-      }`}
-    >
-      <Icon size={14} />
-      {label}
-    </button>
-  );
-}
+// ViewTab is now in components/ViewTab.tsx — re-export for backward compat
+export { ViewTab } from "../../components/ViewTab";
 
 export function HealthBadge({ health }: { health: string | null }) {
   if (!health) return null;
@@ -206,7 +189,7 @@ export function ScopeFilterBar({
   const closeAll = () => { setInitDdOpen(false); setProjDdOpen(false); setTeamDdOpen(false); };
 
   return (
-    <div className="flex-shrink-0 flex items-center gap-2 px-6 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+    <div className="flex-shrink-0 flex items-center gap-2 px-6 py-3 border-b border-zinc-100 dark:border-zinc-800">
       <Filter size={12} className="text-zinc-400" />
       <span className="text-xs text-zinc-400 uppercase tracking-wide">Scope:</span>
 
@@ -224,7 +207,7 @@ export function ScopeFilterBar({
           <ChevronDown size={10} />
         </button>
         {initDdOpen && (
-          <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-lg py-1 min-w-[180px]">
+          <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-lg py-1 min-w-[180px]">
             <button
               onClick={() => { onInitiativeChange(null); onProjectChange(null); setInitDdOpen(false); }}
               className="w-full px-3 py-1.5 text-xs text-left text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
@@ -266,7 +249,7 @@ export function ScopeFilterBar({
           <ChevronDown size={10} />
         </button>
         {projDdOpen && (
-          <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-lg py-1 min-w-[180px]">
+          <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-lg py-1 min-w-[180px]">
             <button
               onClick={() => { onProjectChange(null); setProjDdOpen(false); }}
               className="w-full px-3 py-1.5 text-xs text-left text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
@@ -309,7 +292,7 @@ export function ScopeFilterBar({
             <ChevronDown size={10} />
           </button>
           {teamDdOpen && (
-            <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-lg py-1 min-w-[180px]">
+            <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-lg py-1 min-w-[180px]">
               <button
                 onClick={() => { onTeamChange(null); setTeamDdOpen(false); }}
                 className="w-full px-3 py-1.5 text-xs text-left text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
@@ -380,7 +363,7 @@ function InlineDropdown({ anchorRef, open, onClose, children }: {
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[9999] py-1 min-w-[140px] max-h-[240px] overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-xl"
+      className="fixed z-[9999] py-1 min-w-[140px] max-h-[240px] overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 shadow-lg"
       style={{ top: pos.top, left: pos.left }}
     >
       {children}
@@ -393,7 +376,7 @@ function DropdownItem({ selected, onClick, children }: { selected?: boolean; onC
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors ${selected ? "text-teal-600 dark:text-teal-400 font-medium" : "text-zinc-700 dark:text-zinc-300"}`}
+      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${selected ? "text-teal-600 dark:text-teal-400 font-medium" : "text-zinc-700 dark:text-zinc-300"}`}
     >
       {children}
       {selected && <Check size={12} className="ml-auto" />}
@@ -701,7 +684,7 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel }: {
             onChange={(e) => setCompanySearch(e.target.value)}
             placeholder="Search..."
             autoFocus
-            className="w-full text-xs px-2 py-1 rounded bg-zinc-700 text-zinc-200 border border-zinc-600 outline-none focus:border-teal-500 placeholder-zinc-500"
+            className="w-full text-xs px-2 py-1 rounded bg-zinc-700 text-zinc-200 border border-zinc-600 outline-none focus:ring-2 focus:ring-teal-500/30 placeholder-zinc-500"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

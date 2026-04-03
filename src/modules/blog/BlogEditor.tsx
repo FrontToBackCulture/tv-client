@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import {
-  ArrowLeft,
   Save,
   Eye,
   EyeOff,
@@ -10,6 +9,7 @@ import {
   ExternalLink,
   Pencil,
 } from "lucide-react";
+import { BackButton } from "../../components/BackButton";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { readTextFile } from "@tauri-apps/plugin-fs";
@@ -131,12 +131,7 @@ export function BlogEditor({ article, onBack, onSave }: BlogEditorProps) {
       {/* Top bar */}
       <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-          >
-            <ArrowLeft size={16} />
-          </button>
+          <BackButton onClick={onBack} />
           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate max-w-md">
             {article.title}
           </span>
@@ -268,7 +263,7 @@ export function BlogEditor({ article, onBack, onSave }: BlogEditorProps) {
                         </a>
                       ),
                       blockquote: ({ node, ...props }) => (
-                        <div className="my-10 pl-6 border-l-4 border-zinc-300 dark:border-zinc-600">
+                        <div className="my-10 pl-6 border-l-4 border-zinc-200 dark:border-zinc-800">
                           <blockquote className="text-xl text-zinc-500 dark:text-zinc-400 leading-[1.7] italic" {...props} />
                         </div>
                       ),
@@ -281,7 +276,7 @@ export function BlogEditor({ article, onBack, onSave }: BlogEditorProps) {
                           <code className="block bg-zinc-100 dark:bg-zinc-800 p-4 rounded-lg text-sm overflow-x-auto font-mono text-zinc-800 dark:text-zinc-200" {...rest}>{children}</code>
                         );
                       },
-                      hr: () => <hr className="my-10 border-zinc-200 dark:border-zinc-700" />,
+                      hr: () => <hr className="my-10 border-zinc-200 dark:border-zinc-800" />,
                       img: (props) => {
                         const { src, alt } = props as { node?: unknown; src?: string; alt?: string };
                         return (
@@ -354,7 +349,7 @@ export function BlogEditor({ article, onBack, onSave }: BlogEditorProps) {
                     type="color"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-700 cursor-pointer"
+                    className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-800 cursor-pointer"
                   />
                   <input
                     value={color}

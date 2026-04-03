@@ -22,7 +22,7 @@ function JobRow({ job }: { job: BackgroundJob }) {
   const isCompleted = job.status === "completed";
 
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50 ${isRunning ? "bg-blue-50/30 dark:bg-blue-900/5" : ""}`}>
+    <div className={`flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 ${isRunning ? "bg-blue-50/30 dark:bg-blue-900/5" : ""}`}>
       {/* Status icon */}
       {isRunning && <Loader2 size={16} className="text-blue-500 animate-spin flex-shrink-0" />}
       {isCompleted && <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" />}

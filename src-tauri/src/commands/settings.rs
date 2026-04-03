@@ -103,7 +103,20 @@ pub fn load_settings() -> CmdResult<Settings> {
         return Ok(Settings::default());
     }
     let content = fs::read_to_string(&path)?;
-    let settings = serde_json::from_str(&content)?;
+    let mut settings: Settings = serde_json::from_str(&content)?;
+
+    // One-time migration: Mumbai → Singapore Supabase (April 2026)
+    let old_url = "https://sabrnwuhgkqfwunbrnrt.supabase.co";
+    let new_url = "https://cqwcaeffzanfqsxlspig.supabase.co";
+    let new_anon_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2NhZWZmemFuZnFzeGxzcGlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzE2MzIsImV4cCI6MjA5MDcwNzYzMn0.4UjeZdVjB7z-_sTWP6BRqHINkpTxA6jhP6ZabvKQC_0";
+
+    if settings.keys.get(KEY_SUPABASE_URL).map(|v| v.as_str()) == Some(old_url) {
+        settings.keys.insert(KEY_SUPABASE_URL.to_string(), new_url.to_string());
+        settings.keys.insert(KEY_SUPABASE_ANON_KEY.to_string(), new_anon_key.to_string());
+        // Persist so this only runs once
+        let _ = save_settings(&settings);
+    }
+
     Ok(settings)
 }
 
@@ -453,6 +466,21 @@ pub fn settings_import_from_file(file_path: String) -> CmdResult<Vec<String>> {
 
     save_settings(&settings)?;
     Ok(imported)
+}
+
+/// Atomically write multiple settings keys at once.
+/// Used by workspace switching to update supabase_url + supabase_anon_key (and
+/// any workspace-specific API keys) in a single disk write, preventing a race
+/// where a Tauri command fires between writing the URL and the key.
+#[command]
+pub fn settings_switch_workspace(keys: HashMap<String, String>) -> CmdResult<usize> {
+    let mut settings = load_settings()?;
+    let count = keys.len();
+    for (k, v) in keys {
+        settings.keys.insert(k, v);
+    }
+    save_settings(&settings)?;
+    Ok(count)
 }
 
 /// Export all settings to a JSON file

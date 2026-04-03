@@ -80,7 +80,7 @@ export function ReportsTabView() {
     <div className="flex-1 flex overflow-hidden">
       {/* Report list */}
       <div className="w-72 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto">
-        <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
+        <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
           <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
             Reports ({reports.length})
           </h3>
@@ -141,7 +141,7 @@ export function ReportsTabView() {
               </span>
               <button
                 onClick={handleCopyUrl}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
                 title="Copy S3 URL"
               >
                 {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
@@ -149,7 +149,7 @@ export function ReportsTabView() {
               </button>
               <button
                 onClick={handleOpenExternal}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
                 title="Open in browser"
               >
                 <ExternalLink size={12} />
@@ -159,7 +159,7 @@ export function ReportsTabView() {
             {/* iframe */}
             <iframe
               src={iframeSrc}
-              className="flex-1 w-full bg-white"
+              className="flex-1 w-full bg-white dark:bg-zinc-900"
               title="Report preview"
               sandbox="allow-same-origin"
             />

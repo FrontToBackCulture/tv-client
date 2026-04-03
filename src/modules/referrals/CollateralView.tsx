@@ -48,7 +48,7 @@ export function CollateralView() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
         <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           Partner Collateral
         </h1>
@@ -85,21 +85,21 @@ export function CollateralView() {
                       type="text"
                       value={editForm.title}
                       onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
-                      className="w-full text-sm font-medium px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full text-sm font-medium px-2 py-1 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Title"
                     />
                     <input
                       type="text"
                       value={editForm.description}
                       onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
-                      className="w-full text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Description (what this deck covers)"
                     />
                     <input
                       type="text"
                       value={editForm.guidance}
                       onChange={(e) => setEditForm((f) => ({ ...f, guidance: e.target.value }))}
-                      className="w-full text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Guidance (when to send this deck)"
                     />
                     <div className="flex gap-1.5 pt-1">
@@ -159,14 +159,14 @@ export function CollateralView() {
                         href={`${websiteUrl}/d/${deck.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                         title="Preview deck"
                       >
                         <ExternalLink size={14} className="text-zinc-400" />
                       </a>
                       <button
                         onClick={() => handleStartEdit(deck)}
-                        className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                         title="Edit metadata"
                       >
                         <Pencil size={14} className="text-zinc-400" />
@@ -174,7 +174,7 @@ export function CollateralView() {
                       <button
                         onClick={() => handleTogglePublished(deck)}
                         disabled={updateDeck.isPending}
-                        className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                         title={deck.published ? "Unpublish" : "Publish"}
                       >
                         {deck.published ? (

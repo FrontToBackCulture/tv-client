@@ -144,7 +144,7 @@ export function CSVViewer({ content }: CSVViewerProps) {
                   key={idx}
                   onClick={() => handleSort(idx)}
                   className={cn(
-                    "px-3 py-2 text-left text-xs font-medium text-zinc-600 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors",
+                    "px-3 py-2 text-left text-xs font-medium text-zinc-600 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors",
                     sortColumn === idx && "text-teal-600 dark:text-teal-400"
                   )}
                 >
@@ -168,15 +168,15 @@ export function CSVViewer({ content }: CSVViewerProps) {
             {sortedRows.map((row, rowIdx) => (
               <tr
                 key={rowIdx}
-                className="hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors"
+                className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
               >
-                <td className="px-3 py-1.5 text-zinc-500 dark:text-zinc-600 border-b border-zinc-100 dark:border-zinc-800/50">
+                <td className="px-3 py-1.5 text-zinc-500 dark:text-zinc-600 border-b border-zinc-100 dark:border-zinc-800">
                   {rowIdx + 1}
                 </td>
                 {headers.map((_, colIdx) => (
                   <td
                     key={colIdx}
-                    className="px-3 py-1.5 text-zinc-800 dark:text-zinc-300 border-b border-zinc-100 dark:border-zinc-800/50 max-w-xs truncate"
+                    className="px-3 py-1.5 text-zinc-800 dark:text-zinc-300 border-b border-zinc-100 dark:border-zinc-800 max-w-xs truncate"
                     title={row[colIdx] || ""}
                   >
                     {row[colIdx] || ""}

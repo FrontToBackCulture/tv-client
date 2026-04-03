@@ -37,7 +37,7 @@ export function ViewerLayout({
         {/* Title row */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
+            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
             {subtitle && (
               <p className="text-sm text-zinc-500 mt-0.5">{subtitle}</p>
             )}
@@ -102,7 +102,7 @@ export function DataSourcesTab({ sources, basePath }: DataSourcesTabProps) {
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Sources List */}
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Data Sources</h3>
             <p className="text-xs text-zinc-500 mt-0.5">
@@ -138,7 +138,7 @@ export function DataSourcesTab({ sources, basePath }: DataSourcesTabProps) {
         </div>
 
         {/* Base Path Info */}
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
           <div className="text-xs text-zinc-500 mb-1">Base Path</div>
           <code className="text-xs text-zinc-600 dark:text-zinc-400 font-mono bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded block overflow-x-auto">
             {basePath}

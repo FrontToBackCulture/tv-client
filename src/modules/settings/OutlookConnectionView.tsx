@@ -71,7 +71,7 @@ export function OutlookConnectionView() {
       await invoke("settings_set_key", { keyName: "ms_graph_client_secret", value: clientSecret });
       await login.mutateAsync({ clientId, tenantId, clientSecret });
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     }
   };
 
@@ -80,7 +80,7 @@ export function OutlookConnectionView() {
     try {
       await logout.mutateAsync();
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     }
   };
 
@@ -94,7 +94,7 @@ export function OutlookConnectionView() {
       await logout.mutateAsync();
       await login.mutateAsync({ clientId, tenantId, clientSecret });
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
       refetchAuth();
     }
   };
@@ -133,7 +133,7 @@ export function OutlookConnectionView() {
           ================================================================ */}
       {!isConnected && (
         <>
-          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900">
+          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
             <div className="flex items-center gap-3 mb-4">
               <XCircle size={20} className="text-zinc-400" />
               <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Not connected</p>
@@ -163,7 +163,7 @@ export function OutlookConnectionView() {
                         value={tenantId}
                         onChange={(e) => setTenantId(e.target.value)}
                         placeholder='e.g., "common" or your-tenant-id'
-                        className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                       />
                     </div>
                     <div>
@@ -173,7 +173,7 @@ export function OutlookConnectionView() {
                         value={clientId}
                         onChange={(e) => setClientId(e.target.value)}
                         placeholder="Azure AD Application (client) ID"
-                        className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                       />
                     </div>
                     <div>
@@ -183,7 +183,7 @@ export function OutlookConnectionView() {
                         value={clientSecret}
                         onChange={(e) => setClientSecret(e.target.value)}
                         placeholder="Azure AD Application client secret"
-                        className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-teal-500"
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                       />
                     </div>
                   </>
@@ -231,7 +231,7 @@ export function OutlookConnectionView() {
           </div>
 
           {/* Initial sync controls */}
-          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900">
+          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">Initial Sync</h3>
             <p className="text-xs text-zinc-500 mb-4">
               Fetch your email and calendar history. This only runs once.
@@ -242,7 +242,7 @@ export function OutlookConnectionView() {
               <select
                 value={syncMonths}
                 onChange={(e) => setSyncMonths(parseInt(e.target.value))}
-                className="text-sm px-2 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                className="text-sm px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
               >
                 <option value={1}>1 month</option>
                 <option value={3}>3 months</option>
@@ -289,7 +289,7 @@ export function OutlookConnectionView() {
       {isConnected && initialSyncDone && (
         <>
           {/* Connection status */}
-          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900">
+          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CheckCircle size={20} className="text-green-500" />
@@ -307,7 +307,7 @@ export function OutlookConnectionView() {
           </div>
 
           {/* Sync status */}
-          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900">
+          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">Sync Status</h3>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
@@ -345,7 +345,7 @@ export function OutlookConnectionView() {
                 <select
                   value={syncMonths}
                   onChange={(e) => setSyncMonths(parseInt(e.target.value))}
-                  className="text-sm px-2 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                  className="text-sm px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                 >
                   <option value={1}>1 month</option>
                   <option value={3}>3 months</option>

@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { PageHeader } from "../../components/PageHeader";
 import {
   useFeedCards,
   useMarkSeen,
@@ -530,6 +531,7 @@ export function HomeModule() {
 
   return (
     <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-950">
+      <PageHeader description="Daily briefing of activity across your platform, team, and skills." />
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
         <div className="flex items-center gap-4">

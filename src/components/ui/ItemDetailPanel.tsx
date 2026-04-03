@@ -35,7 +35,7 @@ export function ItemDetailPanel({ open, onClose, title, children }: ItemDetailPa
       {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed right-0 top-0 bottom-0 w-[520px] max-w-[90vw] z-50 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+        className="fixed right-0 top-0 bottom-0 w-[520px] max-w-[90vw] z-50 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 shadow-lg flex flex-col animate-in slide-in-from-right duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
@@ -44,7 +44,7 @@ export function ItemDetailPanel({ open, onClose, title, children }: ItemDetailPa
           </h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            className="p-1.5 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
           >
             <X size={16} />
           </button>

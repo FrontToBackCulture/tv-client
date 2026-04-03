@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Send, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { Button, IconButton } from "../../components/ui";
+import { SectionToolbar } from "../../components/SectionToolbar";
 import {
   useConversation,
   useMessages,
@@ -81,36 +82,30 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
-            {conversation?.customer_name || "Anonymous"}
+      <SectionToolbar
+        title={conversation?.customer_name || "Anonymous"}
+        subtitle={conversation?.customer_email || undefined}
+        actions={
+          <div className="flex items-center gap-1.5">
+            {conversation?.status !== "resolved" &&
+              conversation?.status !== "closed" && (
+                <Button
+                  variant="ghost"
+                  icon={CheckCircle}
+                  onClick={handleResolve}
+                  className="text-xs text-green-600 dark:text-green-400"
+                >
+                  Resolve
+                </Button>
+              )}
+            <IconButton
+              icon={X}
+              label="Close"
+              onClick={onClose}
+            />
           </div>
-          {conversation?.customer_email && (
-            <div className="text-xs text-zinc-400 truncate">
-              {conversation.customer_email}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {conversation?.status !== "resolved" &&
-            conversation?.status !== "closed" && (
-              <Button
-                variant="ghost"
-                icon={CheckCircle}
-                onClick={handleResolve}
-                className="text-xs text-green-600 dark:text-green-400"
-              >
-                Resolve
-              </Button>
-            )}
-          <IconButton
-            icon={X}
-            label="Close"
-            onClick={onClose}
-          />
-        </div>
-      </div>
+        }
+      />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -134,7 +129,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
               "flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border transition-colors",
               isInternal
                 ? "border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10"
-                : "border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:border-zinc-400"
+                : "border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:border-zinc-400"
             )}
           >
             {isInternal ? <EyeOff size={11} /> : <Eye size={11} />}
@@ -161,7 +156,7 @@ export function ChatPanel({ conversationId, onClose }: ChatPanelProps) {
               "flex-1 px-3 py-2 text-sm border rounded-lg resize-none bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none",
               isInternal
                 ? "border-amber-300 dark:border-amber-500/40 focus:border-amber-500"
-                : "border-zinc-200 dark:border-zinc-700 focus:border-teal-500"
+                : "border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-teal-500/30"
             )}
           />
           <Button

@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { formatError } from "../lib/formatError";
 
 interface TerminalInfo {
   id: string;
@@ -63,7 +64,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
 
         return info.id;
       } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : String(e);
+        const errorMsg = formatError(e);
         setError(errorMsg);
         throw e;
       }

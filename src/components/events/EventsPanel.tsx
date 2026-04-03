@@ -63,7 +63,7 @@ function MatchBadge({ method }: { method: string | null }) {
 function EventRow({ event, onUnlink, onClick }: { event: LinkedEvent; onUnlink: (id: string) => void; onClick: () => void }) {
   return (
     <div
-      className="group flex items-start gap-3 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors cursor-pointer"
+      className="group flex items-start gap-3 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors cursor-pointer"
       onClick={onClick}
     >
       <div className="mt-0.5">
@@ -199,7 +199,7 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
           <select
             value={lookbackMonths}
             onChange={(e) => setLookbackMonths(parseInt(e.target.value))}
-            className="text-[10px] px-1.5 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+            className="text-[10px] px-1.5 py-1 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
           >
             <option value={1}>Last 1 month</option>
             <option value={3}>Last 3 months</option>
@@ -228,7 +228,7 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search events..."
-              className="w-full pl-8 pr-8 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+              className="w-full pl-8 pr-8 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:ring-2 focus:ring-teal-500/30"
             />
             {searchQuery && (
               <button
@@ -291,13 +291,13 @@ export function EventsPanel({ entityType, entityId }: EventsPanelProps) {
               newCandidates.map((c) => (
                 <label
                   key={c.eventId}
-                  className="flex items-start gap-3 px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors"
+                  className="flex items-start gap-3 px-4 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors"
                 >
                   <input
                     type="checkbox"
                     checked={selected.has(c.eventId)}
                     onChange={() => toggleSelect(c.eventId)}
-                    className="mt-1 rounded border-zinc-300 dark:border-zinc-600 text-teal-600 focus:ring-teal-500"
+                    className="mt-1 rounded border-zinc-200 dark:border-zinc-600 text-teal-600 focus:ring-teal-500"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">

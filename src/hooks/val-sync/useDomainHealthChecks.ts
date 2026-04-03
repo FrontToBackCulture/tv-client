@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useRef, useState } from "react";
 import { useJobsStore } from "../../stores/jobsStore";
+import { formatError } from "../../lib/formatError";
 import { supabase } from "../../lib/supabase";
 import { toSGTDateString } from "../../lib/date";
 import type { SyncAllDomainsProgress, SyncResult } from "./types";
@@ -189,7 +190,7 @@ export function useDomainHealthCheckRunner() {
                   domain,
                   check_type: check.type,
                   status: "error",
-                  details: { error: err instanceof Error ? err.message : String(err) },
+                  details: { error: formatError(err) },
                   checked_at: now,
                 });
               }
@@ -207,7 +208,7 @@ export function useDomainHealthCheckRunner() {
                   domain,
                   check_type: check.type,
                   status: "error",
-                  details: { error: err instanceof Error ? err.message : String(err) },
+                  details: { error: formatError(err) },
                   checked_at: now,
                 });
               }
@@ -227,7 +228,7 @@ export function useDomainHealthCheckRunner() {
                     domain,
                     check_type: check.type,
                     status: "error",
-                    details: { error: err instanceof Error ? err.message : String(err) },
+                    details: { error: formatError(err) },
                     checked_at: now,
                   });
                 }
@@ -238,7 +239,7 @@ export function useDomainHealthCheckRunner() {
                   domain,
                   check_type: check.type,
                   status: "error",
-                  details: { error: err instanceof Error ? err.message : String(err) },
+                  details: { error: formatError(err) },
                   checked_at: now,
                 });
               }

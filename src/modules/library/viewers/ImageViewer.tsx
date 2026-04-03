@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ZoomIn, ZoomOut, Maximize2, Minimize2, Image } from "lucide-react";
 import { DetailLoading } from "../../../components/ui/DetailStates";
+import { formatError } from "../../../lib/formatError";
 
 
 interface ImageViewerProps {
@@ -47,7 +48,7 @@ export function ImageViewer({ path, filename, refreshKey }: ImageViewerProps) {
         const mimeType = getMimeType(filename);
         setImageData(`data:${mimeType};base64,${base64}`);
       } catch (err) {
-        setError(String(err));
+        setError(formatError(err));
       } finally {
         setIsLoading(false);
       }

@@ -19,6 +19,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../../lib/cn";
+import { PageHeader } from "../../components/PageHeader";
+import { ViewTab } from "../../components/ViewTab";
 import { Button, IconButton } from "../../components/ui";
 import { SectionLoading } from "../../components/ui/DetailStates";
 import {
@@ -151,7 +153,7 @@ function SidebarFolder({
           setManualExpanded(true);
         }}
         className={cn(
-          "w-full flex items-center gap-1 py-1 px-1 text-sm rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors group",
+          "w-full flex items-center gap-1 py-1 px-1 text-sm rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors group",
           isActive && "bg-zinc-200 dark:bg-zinc-800 font-medium"
         )}
         style={{ paddingLeft: `${depth * 14 + 4}px` }}
@@ -202,7 +204,7 @@ function SidebarFolder({
                 key={obj.key}
                 onClick={() => onSelectFile(obj)}
                 className={cn(
-                  "w-full flex items-center gap-1.5 py-1 px-1 text-sm rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors",
+                  "w-full flex items-center gap-1.5 py-1 px-1 text-sm rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors",
                   isFileSelected && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                 )}
                 style={{ paddingLeft: `${(depth + 1) * 14 + 4}px` }}
@@ -454,26 +456,20 @@ export function S3BrowserModule() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header: scope tabs */}
-      <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center gap-4 px-4 pt-3 pb-0">
+      <PageHeader
+        description="Browse and manage files across S3 buckets."
+        tabs={<>
           {SCOPES.map((scope) => (
-            <button
+            <ViewTab
               key={scope.id}
+              icon={Folder}
+              label={scope.label}
+              active={activeScope.id === scope.id}
               onClick={() => switchScope(scope)}
-              className={cn(
-                "flex items-center gap-1.5 px-1 pb-2 text-sm font-medium border-b-2 transition-colors",
-                activeScope.id === scope.id
-                  ? "border-teal-500 text-teal-600 dark:text-teal-400"
-                  : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              )}
-              title={scope.description}
-            >
-              {scope.label}
-            </button>
+            />
           ))}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Body: sidebar + content */}
       <div className="flex-1 flex overflow-hidden">
@@ -514,7 +510,7 @@ export function S3BrowserModule() {
                 <button
                   onClick={() => navigate(activeScope.rootPrefix)}
                   className={cn(
-                    "w-full flex items-center gap-1.5 py-1.5 px-2 text-sm font-medium rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors",
+                    "w-full flex items-center gap-1.5 py-1.5 px-2 text-sm font-medium rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors",
                     prefix === activeScope.rootPrefix && !selectedFile && "bg-zinc-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
                   )}
                 >
@@ -547,7 +543,7 @@ export function S3BrowserModule() {
                       key={obj.key}
                       onClick={() => handleSelectFile(obj)}
                       className={cn(
-                        "w-full flex items-center gap-1.5 py-1 px-2 text-sm rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors",
+                        "w-full flex items-center gap-1.5 py-1 px-2 text-sm rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors",
                         isFileSelected && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                       )}
                       style={{ paddingLeft: "18px" }}

@@ -86,7 +86,7 @@ export function EmailTreeSidebar<T>({
   }, [items, activeOption]);
 
   return (
-    <div className="w-52 flex-shrink-0 border-r border-zinc-100 dark:border-zinc-800/50 flex flex-col bg-zinc-50/50 dark:bg-zinc-950/50">
+    <div className="w-52 flex-shrink-0 border-r border-zinc-100 dark:border-zinc-800 flex flex-col bg-zinc-50/50 dark:bg-zinc-950/50">
       {/* Header */}
       <div className="flex-shrink-0 px-3 pt-3 pb-2 space-y-2">
         <div className="flex items-center justify-between">
@@ -104,7 +104,7 @@ export function EmailTreeSidebar<T>({
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-7 pr-2 py-1 text-[11px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="w-full pl-7 pr-2 py-1 text-[11px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
           />
         </div>
 
@@ -118,7 +118,7 @@ export function EmailTreeSidebar<T>({
                 onGroupByChange(e.target.value);
                 onSelectionChange({ groupValue: null });
               }}
-              className="flex-1 px-1.5 py-0.5 text-[10px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-zinc-600 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="flex-1 px-1.5 py-0.5 text-[10px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
               {groupByOptions.map((o) => (
                 <option key={o.key} value={o.key}>

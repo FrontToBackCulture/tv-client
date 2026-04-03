@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import { publicDataKeys } from "./keys";
 import { useJobsStore } from "../../stores/jobsStore";
+import { formatError } from "../../lib/formatError";
 import type { DataSource, IngestionResult } from "../../lib/public-data/types";
 
 export function useSources(domain?: string) {
@@ -68,7 +69,7 @@ export function useSyncSource() {
         }
         return data.results;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = formatError(err);
         updateJob(jobId, { status: "failed", message: msg });
         throw err;
       }
@@ -121,7 +122,7 @@ export function useSyncAllP1() {
         }
         return results;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = formatError(err);
         updateJob(jobId, { status: "failed", message: msg });
         throw err;
       }

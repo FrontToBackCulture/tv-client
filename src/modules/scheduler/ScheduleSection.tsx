@@ -64,7 +64,7 @@ export function ScheduleSection({ cron, onCronChange, activeHours, onActiveHours
               className={cn("px-2.5 py-1 text-xs rounded-md border transition-colors",
                 cron === p.cron
                   ? "border-teal-500 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
-                  : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800")}>
+                  : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800")}>
               {p.label}
             </button>
           ))}
@@ -79,18 +79,18 @@ export function ScheduleSection({ cron, onCronChange, activeHours, onActiveHours
           <button type="button" role="switch" aria-checked={activeHoursEnabled} onClick={toggleActiveHours}
             className={cn("relative inline-flex h-3.5 w-7 shrink-0 items-center rounded-full transition-colors",
               activeHoursEnabled ? "bg-teal-600" : "bg-zinc-300 dark:bg-zinc-600")}>
-            <span className={cn("inline-block h-2.5 w-2.5 rounded-full bg-white transition-transform", activeHoursEnabled ? "translate-x-3.5" : "translate-x-0.5")} />
+            <span className={cn("inline-block h-2.5 w-2.5 rounded-full bg-white dark:bg-zinc-200 transition-transform", activeHoursEnabled ? "translate-x-3.5" : "translate-x-0.5")} />
           </button>
         </div>
         {activeHoursEnabled ? (
           <div className="flex items-center gap-1.5">
             <select value={activeStart} onChange={(e) => changeStart(Number(e.target.value))}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-1.5 py-1.5 text-xs">
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-1.5 py-1.5 text-xs">
               {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, "0")}:00</option>)}
             </select>
             <span className="text-zinc-500 dark:text-zinc-400 text-xs">–</span>
             <select value={activeEnd} onChange={(e) => changeEnd(Number(e.target.value))}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-1.5 py-1.5 text-xs">
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-1.5 py-1.5 text-xs">
               {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, "0")}:00</option>)}
             </select>
             <span className="text-zinc-500 dark:text-zinc-400 text-[10px]">SGT</span>

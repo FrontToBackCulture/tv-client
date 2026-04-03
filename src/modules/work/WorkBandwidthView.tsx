@@ -425,7 +425,7 @@ export function BandwidthView({ allTasks, users, onSelectTask, initiatives, init
   return (
     <div className="h-full flex flex-col">
       {/* Stats bar */}
-      <div className="flex-shrink-0 grid grid-cols-5 gap-3 p-4 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 grid grid-cols-5 gap-3 p-4 border-b border-zinc-100 dark:border-zinc-800">
         <Stat label="Active" value={teamStats.totalActive} icon={Users} color="#0D7680" />
         <Stat label="Overdue" value={teamStats.totalOverdue} icon={AlertTriangle} color={teamStats.totalOverdue > 0 ? "#EF4444" : "#9CA3AF"} />
         <Stat label="Stale (7d+)" value={teamStats.totalStale} icon={Clock} color={teamStats.totalStale > 0 ? "#F59E0B" : "#9CA3AF"} />
@@ -439,7 +439,7 @@ export function BandwidthView({ allTasks, users, onSelectTask, initiatives, init
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-4">
           <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Team Bandwidth</span>
           {/* Legend */}
@@ -451,11 +451,11 @@ export function BandwidthView({ allTasks, users, onSelectTask, initiatives, init
         </div>
         <div className="flex items-center gap-4">
           <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
-            <input type="checkbox" checked={showStale} onChange={(e) => setShowStale(e.target.checked)} className="rounded border-zinc-300 text-amber-600 focus:ring-amber-500" />
+            <input type="checkbox" checked={showStale} onChange={(e) => setShowStale(e.target.checked)} className="rounded border-zinc-200 dark:border-zinc-800 text-amber-600 focus:ring-amber-500" />
             Show Stale ({staleCount})
           </label>
           <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
-            <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500" />
+            <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500" />
             Include Notion
           </label>
         </div>

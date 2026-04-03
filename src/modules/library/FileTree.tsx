@@ -173,7 +173,7 @@ function ContextMenu({
       <div className="fixed inset-0 z-40" onClick={onClose} />
       {/* Menu */}
       <div
-        className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px]"
+        className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[180px]"
         style={{ left: x, top: y }}
       >
         {onOpenInNewTab && (
@@ -183,7 +183,7 @@ function ContextMenu({
                 onOpenInNewTab();
                 onClose();
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
             >
               <ExternalLink size={14} />
               Open in New Tab
@@ -196,7 +196,7 @@ function ContextMenu({
             onToggleFavorite();
             onClose();
           }}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <Star size={14} className={isFavorite ? "text-yellow-500 fill-yellow-500" : ""} />
           {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
@@ -206,14 +206,14 @@ function ContextMenu({
         <div className="relative">
           <button
             onClick={() => setShowWorkspaces(!showWorkspaces)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
           >
             <Briefcase size={14} />
             Add to Workspace
             <ChevronRight size={12} className="ml-auto text-zinc-400" />
           </button>
           {showWorkspaces && (
-            <div className="absolute left-full top-0 ml-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[200px] max-h-[300px] overflow-y-auto z-50">
+            <div className="absolute left-full top-0 ml-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[200px] max-h-[300px] overflow-y-auto z-50">
               {allWorkspaces.length === 0 ? (
                 <p className="px-3 py-2 text-xs text-zinc-400">No open workspaces</p>
               ) : (
@@ -221,7 +221,7 @@ function ContextMenu({
                   <button
                     key={ws.id}
                     onClick={() => handleAddToWorkspace(ws.id)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
                   >
                     <Briefcase size={12} className="text-teal-500 flex-shrink-0" />
                     <span className="truncate">{ws.title}</span>
@@ -235,14 +235,14 @@ function ContextMenu({
         <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
         <button
           onClick={handleCopyPath}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <Copy size={14} />
           Copy Path
         </button>
         <button
           onClick={handleShowInFinder}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <FolderOpen size={14} />
           Show in Finder
@@ -250,7 +250,7 @@ function ContextMenu({
         {!isDirectory && (
           <button
             onClick={handleOpenWithDefault}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
           >
             <ExternalLink size={14} />
             Open with Default App
@@ -327,7 +327,7 @@ export function FileTree({ node, selectedPath, onSelect, onPinSelect, level }: F
         onContextMenu={handleContextMenu}
         className={cn(
           "group flex items-center gap-1.5 px-2 py-1.5 cursor-pointer transition-colors",
-          "hover:bg-zinc-100 dark:hover:bg-zinc-800",
+          "hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
           isSelected && "bg-zinc-200 dark:bg-zinc-800 text-teal-600 dark:text-teal-400"
         )}
         style={{ paddingLeft: `${level * 12 + 8}px` }}

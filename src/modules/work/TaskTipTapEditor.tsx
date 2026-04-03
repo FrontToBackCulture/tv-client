@@ -320,7 +320,7 @@ function EditorToolbar({ editor, uploading, onImageClick }: { editor: any; uploa
     `w-7 h-7 flex items-center justify-center rounded transition-colors ${
       active
         ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-        : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
     }`;
 
   return (

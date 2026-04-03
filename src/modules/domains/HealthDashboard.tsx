@@ -193,7 +193,7 @@ function HealthDetailPanel({
 
       {/* AI Summary */}
       {result.status !== "pass" && (
-        <div className="mb-3 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+        <div className="mb-3 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 p-3">
           <div className="flex items-center gap-1.5 mb-1.5">
             <Sparkles size={12} className="text-amber-500" />
             <span className="text-xs font-medium text-zinc-500">AI Summary</span>
@@ -260,7 +260,7 @@ function RawDetails({ result }: { result: HealthCheckResult }) {
             <>
               <p className="text-xs text-zinc-500">{details.count as number} failure(s) in last 7 days</p>
               {(details.failures as Record<string, unknown>[]).map((f, i) => (
-                <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-700">
+                <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-800">
                   <span className="font-medium text-zinc-700 dark:text-zinc-300">{String(f.job_name)}</span>
                   <p className="text-zinc-500 mt-0.5 font-mono truncate">{String(f.error || "No error message")}</p>
                 </div>
@@ -273,7 +273,7 @@ function RawDetails({ result }: { result: HealthCheckResult }) {
             <>
               <p className="text-xs text-zinc-500">{details.count as number} stale job(s)</p>
               {(details.stale_jobs as Record<string, unknown>[]).map((j, i) => (
-                <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-700">
+                <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-800">
                   <span className="font-medium text-zinc-700 dark:text-zinc-300">{String(j.name)}</span>
                   <span className="text-zinc-400 ml-2">
                     {j.hours_since_last_run != null ? `${j.hours_since_last_run}h since last run` : "Never run"}
@@ -291,7 +291,7 @@ function RawDetails({ result }: { result: HealthCheckResult }) {
               </p>
               {Array.isArray(details.duplicates) &&
                 (details.duplicates as Record<string, unknown>[]).map((d, i) => (
-                  <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-700">
+                  <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-800">
                     <span className="font-medium text-zinc-700 dark:text-zinc-300">{String(d.platform)}</span>
                     <span className="text-zinc-400 ml-2">{String(d.table)}</span>
                     <span className="text-zinc-500 ml-2">
@@ -307,7 +307,7 @@ function RawDetails({ result }: { result: HealthCheckResult }) {
             <>
               <p className="text-xs text-zinc-500">{details.pattern_count as number} recurring pattern(s)</p>
               {(details.patterns as Record<string, unknown>[]).map((p, i) => (
-                <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-700">
+                <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-800">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-zinc-700 dark:text-zinc-300">{String(p.job_name)}</span>
                     <span className="text-red-500 font-medium">{String(p.occurrences)}x</span>
@@ -325,7 +325,7 @@ function RawDetails({ result }: { result: HealthCheckResult }) {
                 {details.count as number} failed operation(s) across {details.tables_affected as number} table(s)
               </p>
               {(details.failures as Record<string, unknown>[]).map((f, i) => (
-                <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-700">
+                <div key={i} className="text-xs bg-white dark:bg-zinc-800 rounded px-2 py-1.5 border border-zinc-200 dark:border-zinc-800">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-zinc-700 dark:text-zinc-300">{String(f.table)}</span>
                     <span className="text-red-500 font-medium">{String(f.count)}x</span>
@@ -360,7 +360,7 @@ function CheckInfoModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 dark:bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
@@ -507,7 +507,7 @@ export function HealthDashboard() {
   return (
     <div className="h-full flex flex-col">
       {/* Summary bar */}
-      <div className="flex-shrink-0 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center justify-between">
+      <div className="flex-shrink-0 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
             size="sm"
@@ -582,7 +582,7 @@ export function HealthDashboard() {
               {productionDomains.map((domain) => (
                 <tr
                   key={domain.domain}
-                  className="group border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+                  className="group border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
                 >
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-1.5">

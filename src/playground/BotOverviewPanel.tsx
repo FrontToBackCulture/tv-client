@@ -43,7 +43,7 @@ function StatPill({ icon: Icon, label, count, color, clickable }: { icon: typeof
   return (
     <div className={cn(
       "flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800",
-      clickable && "hover:border-zinc-300 dark:hover:border-zinc-700 cursor-pointer transition-colors"
+      clickable && "hover:border-zinc-200 dark:hover:border-zinc-700 cursor-pointer transition-colors"
     )}>
       <Icon size={13} className={color} />
       <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">{count}</span>
@@ -208,7 +208,7 @@ export function BotOverview({
   return (
     <div className="px-6 pb-6">
       {/* Profile Header — full width */}
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden mb-6">
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden mb-6">
           <div className={cn("h-1.5", colors.dot.replace("bg-", "bg-gradient-to-r from-").replace("-500", "-400") + " to-" + colors.dot.replace("bg-", "").replace("-500", "-600"))} />
           <div className="px-5 py-4">
             <div className="flex items-start gap-4">
@@ -275,7 +275,7 @@ export function BotOverview({
 
         {/* Skill Assignment Panel */}
         {showAssignSkills && availableBotSkills.length > 0 && (
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 space-y-3 mb-6">
+          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 space-y-3 mb-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles size={14} className="text-violet-500" />
@@ -402,7 +402,7 @@ export function BotOverview({
                           placeholder="Search..."
                           value={skillSearch}
                           onChange={(e) => setSkillSearch(e.target.value)}
-                          className="w-[100px] pl-5 pr-5 py-0.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:border-teal-500 focus:w-[140px] transition-all"
+                          className="w-[100px] pl-5 pr-5 py-0.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:w-[140px] transition-all"
                         />
                         {skillSearch && (
                           <button onClick={() => setSkillSearch("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
@@ -486,7 +486,7 @@ export function BotOverview({
                           className={cn(
                             "text-left px-4 py-3 rounded-lg border bg-white dark:bg-zinc-900 hover:shadow-sm transition-all cursor-pointer group",
                             skill.status === "active"
-                              ? "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
+                              ? "border-zinc-200 dark:border-zinc-800 hover:border-zinc-200 dark:hover:border-zinc-700"
                               : "border-zinc-200/60 dark:border-zinc-800/60 opacity-60 hover:opacity-80"
                           )}
                         >
@@ -582,7 +582,7 @@ export function BotOverview({
                       <button
                         key={s.path}
                         onClick={() => onSessionClick(s)}
-                        className="w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-sm transition-all cursor-pointer group"
+                        className="w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-200 dark:hover:border-zinc-700 hover:shadow-sm transition-all cursor-pointer group"
                       >
                         <div className="w-2 h-2 rounded-full bg-zinc-300 dark:bg-zinc-700 mt-1.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">

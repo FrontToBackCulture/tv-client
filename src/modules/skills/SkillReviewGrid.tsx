@@ -18,6 +18,7 @@ import {
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
+import { formatError } from "../../lib/formatError";
 import {
   Search,
   Download,
@@ -653,7 +654,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
 
       toast.update(syncId, { type: "success", message: `Synced ${rows.length} skills`, duration: 3000 });
     } catch (err) {
-      toast.update(syncId, { type: "error", message: `Sync failed: ${err instanceof Error ? err.message : String(err)}`, duration: 5000 });
+      toast.update(syncId, { type: "error", message: `Sync failed: ${formatError(err)}`, duration: 5000 });
     }
   }, [skillInit, queryClient]);
 
@@ -1049,7 +1050,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
 
       toast.success(`Uploaded to S3 (${(result.size_bytes / 1024).toFixed(0)} KB)`);
     } catch (err) {
-      toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(`Upload failed: ${formatError(err)}`);
     }
   }, [updateSkill]);
 
@@ -1171,7 +1172,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
               placeholder="Quick filter..."
               value={quickFilter}
               onChange={(e) => setQuickFilter(e.target.value)}
-              className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             />
           </div>
 
@@ -1180,7 +1181,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
             className={cn(
               "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap",
               hideDeleted
-                ? "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                ? "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 : "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50"
             )}
             title={hideDeleted ? "Show deleted skills" : "Hide deleted skills"}
@@ -1194,7 +1195,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
             className={cn(
               "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap",
               hideDraft
-                ? "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                ? "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 : "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50"
             )}
             title={hideDraft ? "Show draft & inactive skills" : "Hide draft & inactive skills"}
@@ -1204,7 +1205,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
           </button>
 
           {/* Skill type filter */}
-          <div className="flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+          <div className="flex items-center rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
             {(["all", "report", "diagnostic", "chat"] as const).map((type) => {
               const active = typeFilter === type;
               const colors: Record<string, string> = {
@@ -1238,50 +1239,50 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
           <div className="relative">
             <button
               onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               title="Layouts & view options"
             >
               <Bookmark size={14} /> Layouts
             </button>
             {showLayoutMenu && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1">
+              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
                 <button
                   onClick={() => { applyFlatLayout(); setShowLayoutMenu(false); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
                   <Columns size={13} /> Flat View
                 </button>
                 <button
                   onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
                   <ChevronsLeftRight size={13} /> Auto-fit Columns
                 </button>
                 <button
                   onClick={() => { resetLayout(); setShowLayoutMenu(false); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
                   <RotateCcw size={13} /> Reset to Default
                 </button>
 
-                <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
 
                 <button
                   onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
                   <span className="text-green-600 dark:text-green-400">+</span>
                   Save current layout...
                 </button>
                 {Object.keys(savedLayouts).length > 0 && (
                   <>
-                    <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                    <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
                     <div className="px-3 py-1 text-xs font-medium text-zinc-500">Saved Layouts</div>
                     {Object.keys(savedLayouts).map((name) => (
                       <div
                         key={name}
                         onClick={() => loadLayout(name)}
-                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group"
                       >
                         <span className="truncate flex items-center gap-1.5">
                           {defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
@@ -1320,7 +1321,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
             className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
               wrapNotes
                 ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
-                : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
             }`}
             title={wrapNotes ? "Click to truncate text" : "Click to wrap text"}
           >
@@ -1331,14 +1332,14 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
           <div className="relative">
             <button
               onClick={() => setActionsMenuOpen(!actionsMenuOpen)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             >
               <RefreshCw size={14} />
               Actions
               <ChevronDown size={12} className={cn("transition-transform", actionsMenuOpen && "rotate-180")} />
             </button>
             {actionsMenuOpen && (
-              <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1.5">
+              <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1.5">
                 <button
                   onClick={() => { handleSkillInit(); setActionsMenuOpen(false); }}
                   disabled={skillInit.isPending}
@@ -1388,7 +1389,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
             className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
               isFullscreen
                 ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
-                : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
             }`}
             title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
           >
@@ -1452,7 +1453,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
       {/* Save Layout Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 animate-fade-in">
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-700 animate-modal-in">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-800 animate-modal-in">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Save Layout</h3>
             <input
               type="text"
@@ -1463,7 +1464,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
                 else if (e.key === "Escape") { setShowSaveDialog(false); setNewLayoutName(""); }
               }}
               placeholder="Enter layout name..."
-              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500 mb-4"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mb-4"
               autoFocus
             />
             <div className="flex justify-end gap-2">

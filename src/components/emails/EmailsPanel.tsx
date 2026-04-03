@@ -49,7 +49,7 @@ function MatchBadge({ method }: { method: string | null }) {
 function EmailRow({ email, onUnlink, onClick }: { email: LinkedEmail; onUnlink: (id: string) => void; onClick: () => void }) {
   return (
     <div
-      className="group flex items-start gap-3 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors cursor-pointer"
+      className="group flex items-start gap-3 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors cursor-pointer"
       onClick={onClick}
     >
       <div className="mt-0.5">
@@ -201,7 +201,7 @@ export function EmailsPanel({ entityType, entityId }: EmailsPanelProps) {
           <select
             value={lookbackMonths}
             onChange={(e) => setLookbackMonths(parseInt(e.target.value))}
-            className="text-[10px] px-1.5 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+            className="text-[10px] px-1.5 py-1 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
           >
             <option value={1}>Last 1 month</option>
             <option value={3}>Last 3 months</option>
@@ -230,7 +230,7 @@ export function EmailsPanel({ entityType, entityId }: EmailsPanelProps) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search emails..."
-              className="w-full pl-8 pr-8 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+              className="w-full pl-8 pr-8 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:ring-2 focus:ring-teal-500/30"
             />
             {searchQuery && (
               <button
@@ -295,13 +295,13 @@ export function EmailsPanel({ entityType, entityId }: EmailsPanelProps) {
               newCandidates.map((c) => (
                 <label
                   key={c.email_id}
-                  className="flex items-start gap-3 px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors"
+                  className="flex items-start gap-3 px-4 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors"
                 >
                   <input
                     type="checkbox"
                     checked={selected.has(c.email_id)}
                     onChange={() => toggleSelect(c.email_id)}
-                    className="mt-1 rounded border-zinc-300 dark:border-zinc-600 text-teal-600 focus:ring-teal-500"
+                    className="mt-1 rounded border-zinc-200 dark:border-zinc-600 text-teal-600 focus:ring-teal-500"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -350,7 +350,7 @@ export function EmailsPanel({ entityType, entityId }: EmailsPanelProps) {
             {/* Correspondence section */}
             {correspondenceEmails.length > 0 && (
               <div>
-                <div className="sticky top-0 z-10 flex items-center gap-1.5 px-4 py-1.5 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800/50">
+                <div className="sticky top-0 z-10 flex items-center gap-1.5 px-4 py-1.5 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800">
                   <Mail size={11} className="text-zinc-400" />
                   <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                     Correspondence
@@ -368,7 +368,7 @@ export function EmailsPanel({ entityType, entityId }: EmailsPanelProps) {
             {/* Campaigns section */}
             {campaignEmails.length > 0 && (
               <div>
-                <div className="sticky top-0 z-10 flex items-center gap-1.5 px-4 py-1.5 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800/50">
+                <div className="sticky top-0 z-10 flex items-center gap-1.5 px-4 py-1.5 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800">
                   <Send size={11} className="text-purple-400" />
                   <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                     Campaigns

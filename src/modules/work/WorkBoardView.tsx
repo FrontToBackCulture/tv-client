@@ -1,7 +1,7 @@
 // WorkViews: Board View
 
 import { useState, useMemo } from "react";
-import { Calendar } from "lucide-react";
+import { Calendar, Loader2 } from "lucide-react";
 import {
   useStatuses, useTasks,
 } from "../../hooks/work";
@@ -45,8 +45,9 @@ export function BoardView({
     return filteredProjects[0]?.id || null;
   }, [filterProjectId, filteredProjects]);
 
-  const { data: statuses = [] } = useStatuses();
-  const { data: tasks = [] } = useTasks(effectiveProjectId);
+  const { data: statuses = [], isLoading: statusesLoading } = useStatuses();
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks(effectiveProjectId);
+  const boardLoading = statusesLoading || tasksLoading;
 
   const statusesByType = useMemo(() => {
     const map = new Map<StatusType, TaskStatus[]>();
@@ -81,7 +82,11 @@ export function BoardView({
       />
 
       <div className="flex-1 flex gap-0 overflow-x-auto p-4">
-        {BOARD_COLUMNS.map(col => {
+        {boardLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <Loader2 size={18} className="animate-spin text-zinc-400" />
+          </div>
+        ) : BOARD_COLUMNS.map(col => {
           const colStatuses = statusesByType.get(col.type) || [];
           const colTasks = tasksByStatusType.get(col.type) || [];
           const colColor = colStatuses[0]?.color || "#6B7280";
@@ -104,7 +109,7 @@ export function BoardView({
                   <div
                     key={task.id}
                     onClick={() => onSelectTask(task.id)}
-                    className="p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors cursor-pointer"
+                    className="p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-200 dark:hover:border-zinc-700 transition-colors cursor-pointer"
                   >
                     <div className="flex items-start gap-1.5">
                       <div className="pt-0.5 flex-shrink-0">

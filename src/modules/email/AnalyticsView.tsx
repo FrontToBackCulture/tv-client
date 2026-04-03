@@ -15,7 +15,7 @@ export function AnalyticsView({ onSelectCampaign }: AnalyticsViewProps) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
         <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Analytics</h1>
         <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
           {campaigns.length} sent campaigns

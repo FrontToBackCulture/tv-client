@@ -129,7 +129,7 @@ export function NotionFieldMapper({
                 onChange={(e) =>
                   updateMapping(field.value as WorkTaskField, e.target.value)
                 }
-                className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
               >
                 <option value="">— Skip —</option>
                 {notionProperties.map((p) => (
@@ -143,7 +143,7 @@ export function NotionFieldMapper({
               <span className="text-zinc-400 text-sm">→</span>
 
               {/* Work task field (fixed label) */}
-              <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+              <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800">
                 <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {field.label}
                 </span>
@@ -269,7 +269,7 @@ function ValueMapper({
   };
 
   return (
-    <div className="ml-8 pl-4 border-l-2 border-zinc-200 dark:border-zinc-700 space-y-1">
+    <div className="ml-8 pl-4 border-l-2 border-zinc-200 dark:border-zinc-800 space-y-1">
       <div className="flex items-center justify-between">
         <span className="text-xs text-zinc-400">Value mapping:</span>
         {unmappedCount > 0 && (
@@ -301,7 +301,7 @@ function ValueMapper({
               }
               onChange(next);
             }}
-            className="px-2 py-1 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+            className="px-2 py-1 text-xs rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
           >
             <option value="">— Skip —</option>
             {options.map((o) => (
@@ -333,7 +333,7 @@ function ValueMapper({
             onChange={(e) => setNewNotionName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleAddEntry(); }}
             placeholder="Notion person name..."
-            className="flex-1 px-2 py-1 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400"
+            className="flex-1 px-2 py-1 text-xs rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400"
           />
           <button
             onClick={handleAddEntry}

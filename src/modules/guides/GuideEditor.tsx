@@ -207,7 +207,7 @@ export function GuideEditor({ guide, onBack, onSave }: GuideEditorProps) {
                         </a>
                       ),
                       blockquote: ({ node, ...props }) => (
-                        <div className="my-10 pl-6 border-l-4 border-zinc-300 dark:border-zinc-600">
+                        <div className="my-10 pl-6 border-l-4 border-zinc-200 dark:border-zinc-800">
                           <blockquote className="text-xl text-zinc-500 dark:text-zinc-400 leading-[1.7] italic" {...props} />
                         </div>
                       ),
@@ -220,7 +220,7 @@ export function GuideEditor({ guide, onBack, onSave }: GuideEditorProps) {
                           <code className="block bg-zinc-100 dark:bg-zinc-800 p-4 rounded-lg text-sm overflow-x-auto font-mono text-zinc-800 dark:text-zinc-200" {...rest}>{children}</code>
                         );
                       },
-                      hr: () => <hr className="my-10 border-zinc-200 dark:border-zinc-700" />,
+                      hr: () => <hr className="my-10 border-zinc-200 dark:border-zinc-800" />,
                       img: (props) => {
                         const { src, alt } = props as { node?: unknown; src?: string; alt?: string };
                         return (
@@ -235,8 +235,8 @@ export function GuideEditor({ guide, onBack, onSave }: GuideEditorProps) {
                         </div>
                       ),
                       thead: ({ node, ...props }) => <thead className="bg-zinc-100 dark:bg-zinc-800" {...props} />,
-                      th: ({ node, ...props }) => <th className="px-4 py-3 text-left font-semibold text-zinc-800 dark:text-zinc-200 border-b border-zinc-200 dark:border-zinc-700" {...props} />,
-                      td: ({ node, ...props }) => <td className="px-4 py-3 text-zinc-800 dark:text-zinc-200 border-b border-zinc-200 dark:border-zinc-700" {...props} />,
+                      th: ({ node, ...props }) => <th className="px-4 py-3 text-left font-semibold text-zinc-800 dark:text-zinc-200 border-b border-zinc-200 dark:border-zinc-800" {...props} />,
+                      td: ({ node, ...props }) => <td className="px-4 py-3 text-zinc-800 dark:text-zinc-200 border-b border-zinc-200 dark:border-zinc-800" {...props} />,
                     }}
                   >
                     {content}

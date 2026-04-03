@@ -308,7 +308,7 @@ export function TaskDetailPanel({
                   setTitleValue(task.title);
                   setEditingTitle(true);
                 }}
-                className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 cursor-text hover:bg-zinc-100 dark:hover:bg-zinc-900/50 px-1 -mx-1 rounded"
+                className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 cursor-text hover:bg-zinc-50 dark:hover:bg-zinc-800/50 px-1 -mx-1 rounded"
               >
                 {task.title}
               </h1>
@@ -324,7 +324,7 @@ export function TaskDetailPanel({
                 <select
                   value={task.status_id || ""}
                   onChange={(e) => handleUpdateField("status_id", e.target.value)}
-                  className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                  className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
                 >
                   {(() => {
                     const typeLabels: Record<string, string> = { todo: "To-do", in_progress: "In Progress", complete: "Complete" };
@@ -362,7 +362,7 @@ export function TaskDetailPanel({
                 <select
                   value={task.priority ?? Priority.None}
                   onChange={(e) => handleUpdateField("priority", parseInt(e.target.value))}
-                  className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                  className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
                 >
                   {Object.entries(PriorityLabels).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -406,7 +406,7 @@ export function TaskDetailPanel({
                       className={`text-xs px-2 py-0.5 rounded-full border transition ${
                         selected
                           ? "bg-teal-50 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300"
-                          : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300"
+                          : "border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:border-zinc-200 dark:hover:border-zinc-700"
                       }`}
                     >
                       {u.name}
@@ -428,7 +428,7 @@ export function TaskDetailPanel({
                   onChange={(e) =>
                     handleUpdateField("milestone_id", e.target.value || null)
                   }
-                  className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                  className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
                 >
                   <option value="">No milestone</option>
                   {milestones.map((m) => (
@@ -457,12 +457,12 @@ export function TaskDetailPanel({
                       e.target.value ? `${e.target.value}T00:00:00Z` : null
                     )
                   }
-                  className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none cursor-pointer transition-colors"
+                  className="flex-1 px-2 py-1.5 text-sm rounded-md bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none cursor-pointer transition-colors"
                 />
                 {task.due_date && (
                   <button
                     onClick={() => handleUpdateField("due_date", null)}
-                    className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 transition-colors"
+                    className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400 hover:text-zinc-600 transition-colors"
                     title="Clear due date"
                   >
                     <X size={12} />
@@ -482,7 +482,7 @@ export function TaskDetailPanel({
                   <select
                     value={task.task_type || "general"}
                     onChange={(e) => handleUpdateField("task_type", e.target.value)}
-                    className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                    className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
                   >
                     <option value="general">General</option>
                     <option value="target">Target</option>
@@ -534,7 +534,7 @@ export function TaskDetailPanel({
                         console.error("Failed to update company:", error);
                       }
                     }}
-                    className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                    className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
                   >
                     <option value="">No company</option>
                     {companies.map((c) => (
@@ -557,7 +557,7 @@ export function TaskDetailPanel({
                   <select
                     value={(task as any).contact_id || ""}
                     onChange={(e) => handleUpdateField("contact_id", e.target.value || null)}
-                    className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
+                    className="w-full px-2 py-1.5 pr-7 text-sm rounded-md bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 border-none appearance-none cursor-pointer transition-colors"
                   >
                     <option value="">No contact</option>
                     {contacts

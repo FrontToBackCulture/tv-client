@@ -16,6 +16,7 @@ import {
 import { useDomainHealthCheckRunner } from "../../hooks/val-sync/useDomainHealthChecks";
 import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useJobsStore } from "../../stores/jobsStore";
+import { formatError } from "../../lib/formatError";
 import { useDomainArtifactsRebuild } from "../../hooks/useDomainArtifactsRebuild";
 import {
   Search,
@@ -101,7 +102,7 @@ function DropdownMenu({
   }, []);
 
   const colorClasses = {
-    zinc: "text-zinc-600 hover:text-zinc-500 border-zinc-300 dark:border-zinc-700",
+    zinc: "text-zinc-600 hover:text-zinc-500 border-zinc-200 dark:border-zinc-800",
     teal: "text-teal-600 hover:text-teal-500 border-teal-300 dark:border-teal-800",
     violet: "text-violet-600 hover:text-violet-500 border-violet-300 dark:border-violet-800",
   };
@@ -121,14 +122,14 @@ function DropdownMenu({
         <ChevronDown size={10} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-20 min-w-[220px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1">
+        <div className="absolute top-full left-0 mt-1 z-20 min-w-[220px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md shadow-lg py-1">
           {items.map((item, i) => (
             <button
               key={i}
               onClick={() => { item.onClick(); setOpen(false); }}
               disabled={disabled}
               title={item.tooltip}
-              className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-2"
+              className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50 flex items-center gap-2"
             >
               {item.isRunning && <Loader2 size={10} className="animate-spin" />}
               {item.label}
@@ -192,7 +193,7 @@ function DomainCard({
               "p-1 rounded transition-colors",
               copied
                 ? "text-green-500"
-                : "text-zinc-300 dark:text-zinc-600 hover:text-teal-500 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                : "text-zinc-300 dark:text-zinc-600 hover:text-teal-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
             )}
           >
             {copied ? <Check size={13} /> : <FolderOpen size={13} />}
@@ -270,8 +271,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
       const warningText = result.warnings.length > 0 ? ` | Warnings: ${result.warnings.join("; ")}` : "";
       updateJob(jobId, { status: "completed", progress: 100, message: `Synced ${result.rows_upserted} page views${warningText}` });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : typeof e === "object" && e !== null ? JSON.stringify(e) : String(e);
-      updateJob(jobId, { status: "failed", progress: 100, message: msg });
+      updateJob(jobId, { status: "failed", progress: 100, message: formatError(e) });
     } finally {
       setIsGa4Syncing(false);
     }
@@ -417,7 +417,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header: stats + search + batch controls */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 px-6 pt-5 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
         {/* Title row */}
         <div className="flex items-center justify-between">
           <div>
@@ -438,7 +438,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search domains..."
-              className="w-full pl-7 pr-2 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:border-teal-500"
+              className="w-full pl-7 pr-2 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             />
           </div>
         </div>
@@ -466,7 +466,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
               "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border transition-colors",
               isGa4Syncing
                 ? "border-purple-400 text-purple-600 bg-purple-50 dark:bg-purple-900/20"
-                : "border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                : "border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
               anyRunning && !isGa4Syncing && "opacity-50 cursor-not-allowed"
             )}
           >

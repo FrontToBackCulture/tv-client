@@ -57,9 +57,9 @@ export function TaskFieldsView() {
       </div>
 
       {/* Field list */}
-      <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
         {/* Common fields */}
-        <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-200 dark:border-zinc-700">
+        <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-200 dark:border-zinc-800">
           Common Fields
         </div>
         {fields.filter(f => COMMON_TASK_FIELDS.some(c => c.key === f.key)).map((field) => (
@@ -73,7 +73,7 @@ export function TaskFieldsView() {
         {/* Deal fields (only shown when deal type is selected) */}
         {activeType === "deal" && (
           <>
-            <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider border-t border-b border-zinc-200 dark:border-zinc-700">
+            <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider border-t border-b border-zinc-200 dark:border-zinc-800">
               Deal Fields
             </div>
             {fields.filter(f => DEAL_TASK_FIELDS.some(d => d.key === f.key)).map((field) => (

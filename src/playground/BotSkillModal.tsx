@@ -118,7 +118,7 @@ export function SkillModal({
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={handleClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-5xl max-h-full flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden animate-modal-in">
+      <div className="relative w-full max-w-5xl max-h-full flex flex-col rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden animate-modal-in">
         {/* Header */}
         <div className="flex-shrink-0 px-5 py-3 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-start justify-between gap-3">
@@ -141,7 +141,7 @@ export function SkillModal({
                     {SKILL_STATUS_CONFIG[currentStatus].label}
                   </button>
                   {showStatusMenu && (
-                    <div className="absolute top-full left-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden z-10">
+                    <div className="absolute top-full left-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden z-10">
                       {(["active", "test", "review", "draft", "inactive", "deprecated"] as SkillStatus[]).map((s) => (
                         <button
                           key={s}
@@ -181,7 +181,7 @@ export function SkillModal({
             </div>
             <button
               onClick={handleClose}
-              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+              className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors flex-shrink-0"
             >
               <X size={16} />
             </button>
@@ -347,7 +347,7 @@ function TreeFileItem({
         "w-full text-left flex items-center gap-1.5 px-3 py-1 text-xs transition-colors",
         isSelected
           ? "bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 font-medium"
-          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
       )}
     >
       <FileText size={12} className={cn("flex-shrink-0", isSkillMd ? "text-amber-500" : isSelected ? "text-teal-500" : "text-zinc-400")} />
@@ -381,7 +381,7 @@ function TreeFolder({
         onClick={() => setExpanded(!expanded)}
         className={cn(
           "w-full text-left flex items-center gap-1.5 px-3 py-1 text-xs transition-colors",
-          "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+          "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
         )}
       >
         <ChevronRight size={10} className={cn("flex-shrink-0 text-zinc-400 transition-transform", expanded && "rotate-90")} />

@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Boxes, Package, Tags, Plug, Layers } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
+import { PageHeader } from "../../components/PageHeader";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useProductStats } from "../../hooks/product";
 import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
@@ -133,14 +134,16 @@ export function ProductModule() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Tab bar */}
-      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <ViewTab label="Platform" icon={Boxes} active={activeTab === "platform"} onClick={() => handleTabChange("platform")} data-help-id="product-tab-platform" />
-        <ViewTab label="Solutions" icon={Package} active={activeTab === "solutions"} onClick={() => handleTabChange("solutions")} data-help-id="product-tab-solutions" />
-        <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-model"} onClick={() => handleTabChange("data-model")} data-help-id="product-tab-data-model" />
-        <ViewTab label="Connectors" icon={Plug} active={activeTab === "connectors"} onClick={() => handleTabChange("connectors")} data-help-id="product-tab-connectors" />
-        <ViewTab label="Categories" icon={Tags} active={activeTab === "category-library"} onClick={() => handleTabChange("category-library")} data-help-id="product-tab-categories" />
-      </div>
+      <PageHeader
+        description="Product catalogue — modules, solutions, connectors, data models, features, and releases."
+        tabs={<>
+          <ViewTab label="Platform" icon={Boxes} active={activeTab === "platform"} onClick={() => handleTabChange("platform")} data-help-id="product-tab-platform" />
+          <ViewTab label="Solutions" icon={Package} active={activeTab === "solutions"} onClick={() => handleTabChange("solutions")} data-help-id="product-tab-solutions" />
+          <ViewTab label="Data Model" icon={Layers} active={activeTab === "data-model"} onClick={() => handleTabChange("data-model")} data-help-id="product-tab-data-model" />
+          <ViewTab label="Connectors" icon={Plug} active={activeTab === "connectors"} onClick={() => handleTabChange("connectors")} data-help-id="product-tab-connectors" />
+          <ViewTab label="Categories" icon={Tags} active={activeTab === "category-library"} onClick={() => handleTabChange("category-library")} data-help-id="product-tab-categories" />
+        </>}
+      />
 
       {/* Content */}
       <div ref={containerRef} className="flex-1 flex overflow-hidden">

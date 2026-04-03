@@ -10,4 +10,8 @@ export const schedulerKeys = {
   status: () => [...schedulerKeys.all, "status"] as const,
   runSteps: (runId: string) =>
     [...schedulerKeys.all, "run-steps", runId] as const,
+  automations: () => [...schedulerKeys.all, "automations"] as const,
+  automation: (id: string) => [...schedulerKeys.all, "automation", id] as const,
+  automationNodes: (id: string) => [...schedulerKeys.all, "nodes", id] as const,
+  automationEdges: (id: string) => [...schedulerKeys.all, "edges", id] as const,
 };

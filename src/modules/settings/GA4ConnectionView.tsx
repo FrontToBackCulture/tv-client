@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle, XCircle, Loader2, AlertTriangle, RefreshCw, BarChart3 } from "lucide-react";
 import { Button } from "../../components/ui";
+import { formatError } from "../../lib/formatError";
 import { useGA4Auth, useGA4Login, useGA4Logout, useGA4Config } from "../../hooks/useGA4";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -32,7 +33,7 @@ export function GA4ConnectionView() {
 
       await login.mutateAsync({ clientId, clientSecret });
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
       refetchAuth();
     }
   };
@@ -42,7 +43,7 @@ export function GA4ConnectionView() {
     try {
       await logout.mutateAsync();
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     }
   };
 
@@ -60,7 +61,7 @@ export function GA4ConnectionView() {
       await logout.mutateAsync();
       await login.mutateAsync({ clientId, clientSecret });
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
       refetchAuth();
     }
   };
@@ -77,7 +78,7 @@ export function GA4ConnectionView() {
       }
       refetchConfig();
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       setSaving(false);
     }
@@ -106,7 +107,7 @@ export function GA4ConnectionView() {
       </div>
 
       {/* Connection status */}
-      <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900">
+      <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {isConnected ? (
@@ -142,7 +143,7 @@ export function GA4ConnectionView() {
               placeholder={config?.propertyId || "e.g. 385363937"}
               value={propertyId}
               onChange={(e) => setPropertyId(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+              className="w-full px-3 py-1.5 text-sm rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
             />
             {config?.propertyId && !propertyId && (
               <p className="text-xs text-zinc-400 mt-0.5">Current: {config.propertyId}</p>
@@ -155,7 +156,7 @@ export function GA4ConnectionView() {
               placeholder={config?.websitePropertyId || "e.g. 328465572"}
               value={websitePropertyId}
               onChange={(e) => setWebsitePropertyId(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+              className="w-full px-3 py-1.5 text-sm rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
             />
             {config?.websitePropertyId && !websitePropertyId && (
               <p className="text-xs text-zinc-400 mt-0.5">Current: {config.websitePropertyId}</p>

@@ -35,7 +35,6 @@ const allModules: ModuleInfo[] = [
   { id: "portal", label: "Portal", description: "Client portal management" },
   { id: "public-data", label: "Public Data", description: "Public data management" },
   { id: "skills", label: "Skills", description: "Skill registry, catalog, and prompt builder" },
-  { id: "bot", label: "Bots", description: "Bot management" },
   { id: "linkedin", label: "LinkedIn", description: "LinkedIn outreach" },
   { id: "product", label: "Product", description: "Product documentation" },
   { id: "scheduler", label: "Scheduler", description: "Task scheduler" },
@@ -134,7 +133,7 @@ function MemberModuleToggles({
               }`}
             >
               <span
-                className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                className={`inline-block h-3.5 w-3.5 rounded-full bg-white dark:bg-zinc-200 transition-transform ${
                   visible ? "translate-x-4" : "translate-x-0.5"
                 }`}
               />
@@ -200,7 +199,7 @@ function MemberIdentity({ login }: { login: string }) {
           type="text"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          className="text-xs px-2 py-1.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none border border-transparent focus:border-teal-500"
+          className="text-xs px-2 py-1.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none border border-transparent focus:ring-2 focus:ring-teal-500/30"
           placeholder="Display name..."
         />
         <span className="text-xs text-zinc-500">GitHub</span>
@@ -211,7 +210,7 @@ function MemberIdentity({ login }: { login: string }) {
             type="email"
             value={msEmail}
             onChange={(e) => setMsEmail(e.target.value)}
-            className="flex-1 text-xs px-2 py-1.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none border border-transparent focus:border-teal-500"
+            className="flex-1 text-xs px-2 py-1.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none border border-transparent focus:ring-2 focus:ring-teal-500/30"
             placeholder="name@company.com"
           />
           <button
@@ -280,7 +279,7 @@ function TeamsSection() {
       </div>
 
       {showNewTeam && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
           <input
             type="text"
             value={newTeamName}
@@ -326,7 +325,7 @@ function TeamsSection() {
                 </button>
                 <button
                   onClick={() => setExpandedTeamId(isExpanded ? null : team.id)}
-                  className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 dark:text-zinc-500"
+                  className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500"
                 >
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </button>
@@ -428,7 +427,7 @@ export function TeamView() {
                 </div>
                 <button
                   onClick={() => setExpandedLogin(isExpanded ? null : login)}
-                  className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 dark:text-zinc-500"
+                  className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500"
                 >
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </button>

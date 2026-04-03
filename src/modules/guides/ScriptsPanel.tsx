@@ -200,7 +200,7 @@ export function ScriptsPanel() {
                           return (
                             <div
                               key={output.file}
-                              className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-3"
+                              className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3"
                             >
                               <div className="flex items-start justify-between mb-1">
                                 <div>

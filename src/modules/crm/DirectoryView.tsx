@@ -60,7 +60,7 @@ export function DirectoryView({ selectedId, onSelect, onNewCompany }: DirectoryV
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Directory</h1>

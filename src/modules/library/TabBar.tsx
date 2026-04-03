@@ -184,7 +184,7 @@ function ContextMenu({ x, y, isPinned, onPin, onClose, onCloseOthers, onCloseAll
 
   return (
     <div
-      className="fixed z-50 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[140px]"
+      className="fixed z-50 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[140px]"
       style={{ left: x, top: y }}
     >
       {items.map((item) => (
@@ -194,7 +194,7 @@ function ContextMenu({ x, y, isPinned, onPin, onClose, onCloseOthers, onCloseAll
             e.stopPropagation();
             item.action();
           }}
-          className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+          className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
         >
           {item.label}
         </button>

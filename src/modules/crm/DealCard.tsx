@@ -268,7 +268,7 @@ export const DealCard = memo(function DealCard({
   // ---------------------------------------------------------------------------
   return (
     <>
-      <div className="px-3 py-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg group transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-600">
+      <div className="px-3 py-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg group transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md hover:border-zinc-200 dark:hover:border-zinc-600">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -324,7 +324,7 @@ export const DealCard = memo(function DealCard({
 
         {/* Linked Tasks */}
         {showTasks && deal.tasks && deal.tasks.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
+          <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2 mb-2">
               <ClipboardList size={12} className="text-zinc-500" />
               <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -364,7 +364,7 @@ export const DealCard = memo(function DealCard({
 
         {/* Discussion (collapsible) */}
         {showDiscussions && (
-          <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700 -mx-3 -mb-3">
+          <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800 -mx-3 -mb-3">
             <div className="h-[280px]">
               <DiscussionPanel
                 entityType="crm_deal"

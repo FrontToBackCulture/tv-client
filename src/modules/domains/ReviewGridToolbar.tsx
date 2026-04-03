@@ -223,7 +223,7 @@ export function ReviewGridToolbar({
               placeholder="Quick filter..."
               value={quickFilterText}
               onChange={(e) => setQuickFilterText(e.target.value)}
-              className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             />
           </div>
 
@@ -261,51 +261,51 @@ export function ReviewGridToolbar({
           <div className="relative">
             <button
               onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               title="Layouts & view options"
             >
               <Bookmark size={14} /> Layouts
             </button>
             {showLayoutMenu && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1">
+              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
                 {/* Quick actions */}
                 <button
                   onClick={() => { applyFlatLayout(); setShowLayoutMenu(false); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
                   <Columns size={13} /> Flat View
                 </button>
                 <button
                   onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
                   <ChevronsLeftRight size={13} /> Auto-fit Columns
                 </button>
                 <button
                   onClick={() => { resetLayout(); setShowLayoutMenu(false); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
                   <RotateCcw size={13} /> Reset to Default
                 </button>
 
-                <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
 
                 <button
                   onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
                   <span className="text-green-600 dark:text-green-400">+</span>
                   Save current layout...
                 </button>
                 {Object.keys(savedLayouts).length > 0 && (
                   <>
-                    <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                    <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
                     <div className="px-3 py-1 text-xs font-medium text-zinc-500">Saved Layouts</div>
                     {Object.keys(savedLayouts).map((name) => (
                       <div
                         key={name}
                         onClick={() => loadLayout(name)}
-                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group"
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group"
                       >
                         <span className="truncate flex items-center gap-1.5">
                           {defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
@@ -346,7 +346,7 @@ export function ReviewGridToolbar({
                 className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
                   wrapSummary
                     ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
-                    : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                    : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 }`}
                 title={wrapSummary ? "Click to truncate text" : "Click to wrap text"}
               >
@@ -363,7 +363,7 @@ export function ReviewGridToolbar({
                 className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
                   isFullscreen
                     ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
-                    : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                    : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 }`}
                 title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
               >
@@ -377,7 +377,7 @@ export function ReviewGridToolbar({
       {/* Save Layout Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 animate-fade-in">
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-700 animate-modal-in">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-800 animate-modal-in">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Save Layout</h3>
             <input
               type="text"
@@ -388,7 +388,7 @@ export function ReviewGridToolbar({
                 else if (e.key === "Escape") { setShowSaveDialog(false); setNewLayoutName(""); }
               }}
               placeholder="Enter layout name..."
-              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500 mb-4"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mb-4"
               autoFocus
             />
             <div className="flex justify-end gap-2">

@@ -29,7 +29,7 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
 
   if (isLoading) {
     return (
-      <div className="w-[420px] border-l border-zinc-100 dark:border-zinc-800/50 flex items-center justify-center text-xs text-zinc-400">
+      <div className="border-l border-zinc-100 dark:border-zinc-800 flex items-center justify-center text-xs text-zinc-400">
         Loading...
       </div>
     );
@@ -51,9 +51,9 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
   };
 
   return (
-    <div className="w-[420px] border-l border-zinc-100 dark:border-zinc-800/50 flex flex-col bg-white dark:bg-zinc-950 overflow-auto">
+    <div className="border-l border-zinc-100 dark:border-zinc-800 flex flex-col bg-white dark:bg-zinc-950 overflow-auto">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2 min-w-0">
           <Mail size={14} className="flex-shrink-0 text-zinc-400" />
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 truncate">
@@ -97,7 +97,7 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
                 <ChevronDown size={10} className="text-zinc-400" />
               </button>
               {showStatusPicker && (
-                <div className="absolute right-0 top-full mt-1 z-10 w-36 border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
+                <div className="absolute right-0 top-full mt-1 z-10 w-36 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
                   {CONTACT_STATUSES.map((s) => (
                     <button
                       key={s.value}
@@ -157,7 +157,7 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
 
           {/* Group picker dropdown */}
           {showGroupPicker && availableGroups.length > 0 && (
-            <div className="mb-2 border border-zinc-200 dark:border-zinc-700 rounded-md overflow-hidden">
+            <div className="mb-2 border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
               {availableGroups.map((group) => (
                 <button
                   key={group.id}
@@ -254,7 +254,7 @@ function EditableRow({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={handleCommit}
           onKeyDown={handleKeyDown}
-          className="text-xs text-right text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-0.5 w-48 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="text-xs text-right text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-0.5 w-48 focus:outline-none focus:ring-1 focus:ring-teal-500"
         />
       ) : (
         <button

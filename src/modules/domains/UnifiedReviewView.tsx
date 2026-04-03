@@ -652,20 +652,20 @@ export function UnifiedReviewView({
               <div className="relative group" data-help-id="review-fetch">
                 <button
                   disabled={isBatchRunning}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Database size={14} /> Fetch <ChevronDown size={12} />
                 </button>
-                <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
-                  <button onClick={handleFetchAllSamples} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1 hidden group-hover:block">
+                  <button onClick={handleFetchAllSamples} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50">
                     <div className="flex items-center gap-2"><Database size={13} /> Samples</div>
                     <div className="text-xs text-zinc-400 mt-0.5">Pull sample rows from each table</div>
                   </button>
-                  <button onClick={handleFetchAllCategorical} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                  <button onClick={handleFetchAllCategorical} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50">
                     <div className="flex items-center gap-2"><Tags size={13} /> Categorical</div>
                     <div className="text-xs text-zinc-400 mt-0.5">Fetch distinct values for categorical columns</div>
                   </button>
-                  <button onClick={handleFetchAllDetails} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                  <button onClick={handleFetchAllDetails} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50">
                     <div className="flex items-center gap-2"><RefreshCw size={13} /> Details</div>
                     <div className="text-xs text-zinc-400 mt-0.5">Load column metadata, calc fields, and dependencies</div>
                   </button>
@@ -680,16 +680,16 @@ export function UnifiedReviewView({
                 >
                   <Sparkles size={14} /> AI <ChevronDown size={12} />
                 </button>
-                <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1 hidden group-hover:block">
-                  <button onClick={handleDescribeAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1 hidden group-hover:block">
+                  <button onClick={handleDescribeAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50">
                     <div className="flex items-center gap-2"><Sparkles size={13} /> Describe All</div>
                     <div className="text-xs text-zinc-400 mt-0.5">AI-generate names and descriptions for each table</div>
                   </button>
-                  <button onClick={handleClassifyAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                  <button onClick={handleClassifyAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50">
                     <div className="flex items-center gap-2"><Tags size={13} /> Classify All</div>
                     <div className="text-xs text-zinc-400 mt-0.5">AI-classify data type, category, and usage status</div>
                   </button>
-                  <button onClick={handleGenerateAllOverviews} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50">
+                  <button onClick={handleGenerateAllOverviews} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50">
                     <div className="flex items-center gap-2"><FileText size={13} /> Generate Overviews</div>
                     <div className="text-xs text-zinc-400 mt-0.5">Build markdown documentation for each table</div>
                   </button>
@@ -709,7 +709,7 @@ export function UnifiedReviewView({
                 "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors",
                 isSyncing
                   ? "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
-                  : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
               {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
@@ -745,7 +745,7 @@ export function UnifiedReviewView({
         {selectedPath && (
           <div
             onMouseDown={handleMouseDown}
-            className="relative w-2 cursor-col-resize group flex-shrink-0 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+            className="relative w-2 cursor-col-resize group flex-shrink-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
           >
             <div
               className={cn(

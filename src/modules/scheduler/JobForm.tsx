@@ -165,7 +165,7 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-lg bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700">
+      <div className="w-full max-w-lg bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -258,7 +258,7 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
 
               {/* Skill checkboxes */}
               {skills && skills.length > 0 && (
-                <div className="max-h-[200px] overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg divide-y divide-zinc-100 dark:divide-zinc-800">
+                <div className="max-h-[200px] overflow-y-auto border border-zinc-200 dark:border-zinc-800 rounded-lg divide-y divide-zinc-100 dark:divide-zinc-800">
                   {skills.map((skill) => (
                     <label
                       key={skill.slug}
@@ -268,7 +268,7 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
                         type="checkbox"
                         checked={selectedSlugs.has(skill.slug)}
                         onChange={() => toggleSkill(skill.slug)}
-                        className="mt-0.5 rounded border-zinc-300 text-teal-600 focus:ring-teal-500"
+                        className="mt-0.5 rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -332,7 +332,7 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
                   className={`px-2 py-1 text-xs rounded-md border transition-colors ${
                     cronExpression === p.value
                       ? "border-teal-500 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
-                      : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                   }`}
                 >
                   {p.label}

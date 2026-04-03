@@ -103,7 +103,7 @@ export function SkillAutomationCard({
           <button type="button" role="switch" aria-checked={job.enabled}
             onClick={() => onToggle(job.id, !job.enabled)}
             className={cn("relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors", job.enabled ? "bg-teal-600" : "bg-zinc-300 dark:bg-zinc-600")}>
-            <span className={cn("inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform", job.enabled ? "translate-x-4" : "translate-x-0.5")} />
+            <span className={cn("inline-block h-3.5 w-3.5 rounded-full bg-white dark:bg-zinc-200 transition-transform", job.enabled ? "translate-x-4" : "translate-x-0.5")} />
           </button>
         </div>
       </div>
@@ -243,14 +243,14 @@ function SkillsPanel({ job, onSave }: { job: Job; onSave: (f: any) => void }) {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search skills..."
-        className="w-full text-xs rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+        className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
       />
 
       {filteredSkills.length > 0 ? (
-        <div className="max-h-[220px] overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg divide-y divide-zinc-100 dark:divide-zinc-800">
+        <div className="max-h-[220px] overflow-y-auto border border-zinc-200 dark:border-zinc-800 rounded-lg divide-y divide-zinc-100 dark:divide-zinc-800">
           {filteredSkills.map((skill) => (
             <label key={skill.slug} className="flex items-start gap-2.5 px-3 py-2 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-              <input type="checkbox" checked={selectedSlugs.has(skill.slug)} onChange={() => toggleSkill(skill.slug)} className="mt-0.5 rounded border-zinc-300 text-teal-600 focus:ring-teal-500" />
+              <input type="checkbox" checked={selectedSlugs.has(skill.slug)} onChange={() => toggleSkill(skill.slug)} className="mt-0.5 rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200">{skill.title}</span>
@@ -370,7 +370,7 @@ function OutputPanel({ job, onSave }: { job: Job; onSave: (f: any) => void }) {
             const bot = bots?.find((b) => (b.path.split("/").filter(Boolean).pop() || "") === e.target.value);
             if (bot) onSave({ bot_path: bot.path });
           }}
-          className="w-full text-sm rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5"
+          className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5"
         >
           {bots?.map((b) => {
               const botName = b.path.split("/").filter(Boolean).pop() || `bot-${b.name}`;
@@ -394,7 +394,7 @@ function OutputPanel({ job, onSave }: { job: Job; onSave: (f: any) => void }) {
               "flex-1 rounded-md border px-3 py-2 text-left transition-colors",
               value === "new_thread"
                 ? "border-teal-500 bg-teal-50 dark:bg-teal-950/30"
-                : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600",
+                : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-200 dark:hover:border-zinc-600",
             )}
           >
             <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{label}</div>
@@ -412,7 +412,7 @@ function OutputPanel({ job, onSave }: { job: Job; onSave: (f: any) => void }) {
           onChange={(e) => setThreadTitle(e.target.value)}
           onBlur={() => onSave({ slack_channel_name: threadTitle })}
           placeholder={`${job.name} — {date} at {time}`}
-          className="w-full text-sm rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+          className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
         />
         <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
           Variables: <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 rounded">{"{date}"}</code>{" "}

@@ -25,7 +25,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); toast.success("Copied"); setTimeout(() => setCopied(false), 1500); }}
-      className="flex-shrink-0 p-1 rounded text-zinc-400 hover:text-teal-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+      className="flex-shrink-0 p-1 rounded text-zinc-400 hover:text-teal-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
       title="Copy to clipboard"
     >
       {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
@@ -77,8 +77,8 @@ function SentEmailRow({ email, isExpanded, onToggle }: {
         </div>
       </button>
       {isExpanded && (
-        <div className="ml-4 mt-1 mb-2 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
-          <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 text-[10px] text-zinc-400 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+        <div className="ml-4 mt-1 mb-2 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800">
+          <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 text-[10px] text-zinc-400 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <span>From: {email.from_name} &lt;{email.from_email}&gt;</span>
             {tracking?.opened && (
               <span className="text-blue-500">
@@ -88,7 +88,7 @@ function SentEmailRow({ email, isExpanded, onToggle }: {
           </div>
           <iframe srcDoc={email.html_body} className="w-full border-0 bg-white dark:bg-zinc-900" style={{ height: "300px" }} sandbox="allow-same-origin" title={email.subject} />
           {tracking?.clicks && tracking.clicks.length > 0 && (
-            <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700">
+            <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800">
               <div className="text-[9px] font-medium text-zinc-400 mb-1">Link Clicks</div>
               {tracking.clicks.map((click, i) => (
                 <div key={i} className="text-[9px] text-zinc-500 flex items-center gap-2 py-0.5">
@@ -177,7 +177,7 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
               {contact.id.slice(0, 8)}
             </button>
           </div>
-          <button onClick={onClose} className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+          <button onClick={onClose} className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
             <X size={14} />
           </button>
         </div>
@@ -186,7 +186,7 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
           <select
             value={contact.prospect_stage || "new"}
             onChange={(e) => updateStage.mutate({ contactId, stage: e.target.value as ProspectStage })}
-            className="text-[10px] px-2 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="text-[10px] px-2 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
           >
             {PROSPECT_STAGES.map(s => (
               <option key={s.value} value={s.value}>{s.label}</option>
@@ -200,7 +200,7 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
                 onClose();
               }
             }}
-            className="ml-auto p-1 rounded text-zinc-400 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="ml-auto p-1 rounded text-zinc-400 hover:text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
             title="Remove from pipeline"
           >
             <UserMinus size={14} />
@@ -257,7 +257,7 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
                     "text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors border",
                     active
                       ? `${pt.bgColor} ${pt.textColor} border-current`
-                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-transparent hover:border-zinc-300 dark:hover:border-zinc-600",
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-transparent hover:border-zinc-200 dark:hover:border-zinc-600",
                   )}
                 >
                   {pt.label}
@@ -279,7 +279,7 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
                 updateContactField("prospect_type_reason", e.target.value);
               }
             }}
-            className="w-full text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1.5 mt-1 resize-none"
+            className="w-full text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1.5 mt-1 resize-none"
             rows={2}
           />
         </div>
@@ -325,7 +325,7 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
                 }}
                 rows={3}
                 placeholder="Message to send with connection request..."
-                className="w-full px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+                className="w-full px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
               />
             </div>
           )}
@@ -345,7 +345,7 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
                 }}
                 rows={3}
                 placeholder="Message to send via LinkedIn DM..."
-                className="w-full px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+                className="w-full px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
               />
             </div>
           )}
@@ -364,7 +364,7 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
               }}
               rows={4}
               placeholder="Draft email outreach message..."
-              className="w-full px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+              className="w-full px-2.5 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
             />
           </div>
         </div>
@@ -399,10 +399,10 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
                       <span className="text-[10px] text-zinc-300 dark:text-zinc-600">&gt;</span>
                     </div>
                   </div>
-                  <div className="border border-t-0 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                  <div className="border border-t-0 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
                     <iframe srcDoc={draft.html_body} className="w-full border-0" style={{ height: "300px" }} sandbox="allow-same-origin" title={draft.subject} />
                   </div>
-                  <div className="border border-t-0 border-zinc-200 dark:border-zinc-700 rounded-b-lg bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 space-y-2">
+                  <div className="border border-t-0 border-zinc-200 dark:border-zinc-800 rounded-b-lg bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 space-y-2">
                     <div className="flex items-center gap-2">
                       <input type="email" placeholder="Test email address..."
                         value={draftTestOpen === draft.id ? draftTestEmail : ""}
@@ -413,7 +413,7 @@ export function ProspectDetailPanel({ contactId, onClose }: ProspectDetailPanelP
                           const email = draftTestOpen === draft.id ? draftTestEmail : contact.email;
                           if (email) sendDraft.mutate({ draftId: draft.id, testEmail: email });
                         }} disabled={sendDraft.isPending}
-                        className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors whitespace-nowrap">
+                        className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50 transition-colors whitespace-nowrap">
                         <FlaskConical size={10} /> Send Test
                       </button>
                     </div>

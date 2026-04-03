@@ -176,7 +176,7 @@ export function FeedCardView({
       {/* ── Caption Zone (context below the post) ── */}
       <div
         className={cn(
-          "shrink-0 bg-white dark:bg-zinc-950 border-t border-zinc-100 dark:border-zinc-800/50 transition-all duration-300",
+          "shrink-0 bg-white dark:bg-zinc-950 border-t border-zinc-100 dark:border-zinc-800 transition-all duration-300",
           isActive ? "opacity-100" : "opacity-60"
         )}
       >

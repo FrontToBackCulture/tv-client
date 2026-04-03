@@ -17,8 +17,10 @@ import { CampaignForm } from "./CampaignForm";
 import { ImportModal } from "./ImportModal";
 import { Users, FolderOpen, Send, BarChart3, LayoutTemplate } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
+import { PageHeader } from "../../components/PageHeader";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useNotificationNavStore } from "../../stores/notificationNavStore";
+import { ResizablePanel } from "../../components/ResizablePanel";
 
 type EmailView = "contacts" | "groups" | "campaigns" | "templates" | "analytics";
 
@@ -72,16 +74,16 @@ export function EmailModule() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Tab bar */}
-      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <div className="flex">
+      <PageHeader
+        description="Email marketing — manage contacts, build groups, create campaigns, and track performance."
+        tabs={<>
           <ViewTab label="Contacts" icon={Users} active={activeView === "contacts"} onClick={() => setActiveView("contacts")} />
           <ViewTab label="Groups" icon={FolderOpen} active={activeView === "groups"} onClick={() => setActiveView("groups")} />
           <ViewTab label="Campaigns" icon={Send} active={activeView === "campaigns"} onClick={() => setActiveView("campaigns")} />
           <ViewTab label="Templates" icon={LayoutTemplate} active={activeView === "templates"} onClick={() => setActiveView("templates")} />
           <ViewTab label="Analytics" icon={BarChart3} active={activeView === "analytics"} onClick={() => setActiveView("analytics")} />
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Content + detail panel */}
       <div className="flex-1 flex overflow-hidden">
@@ -119,26 +121,32 @@ export function EmailModule() {
 
         {/* Detail panels */}
         {selectedContactId && activeView === "contacts" && (
-          <ContactDetailPanel
-            contactId={selectedContactId}
-            onClose={() => setSelectedContactId(null)}
-          />
+          <ResizablePanel storageKey="tv-email-detail-width" defaultWidth={420} minWidth={320} maxWidth={700}>
+            <ContactDetailPanel
+              contactId={selectedContactId}
+              onClose={() => setSelectedContactId(null)}
+            />
+          </ResizablePanel>
         )}
         {selectedGroupId && activeView === "groups" && (
-          <GroupDetailPanel
-            groupId={selectedGroupId}
-            onClose={() => setSelectedGroupId(null)}
-          />
+          <ResizablePanel storageKey="tv-email-detail-width" defaultWidth={420} minWidth={320} maxWidth={700}>
+            <GroupDetailPanel
+              groupId={selectedGroupId}
+              onClose={() => setSelectedGroupId(null)}
+            />
+          </ResizablePanel>
         )}
         {selectedCampaignId && activeView === "campaigns" && (
-          <CampaignDetailPanel
-            campaignId={selectedCampaignId}
-            onClose={() => setSelectedCampaignId(null)}
-            onEdit={(campaign) => {
-              setEditingCampaign(campaign);
-              setShowCampaignForm(true);
-            }}
-          />
+          <ResizablePanel storageKey="tv-email-detail-width" defaultWidth={420} minWidth={320} maxWidth={700}>
+            <CampaignDetailPanel
+              campaignId={selectedCampaignId}
+              onClose={() => setSelectedCampaignId(null)}
+              onEdit={(campaign) => {
+                setEditingCampaign(campaign);
+                setShowCampaignForm(true);
+              }}
+            />
+          </ResizablePanel>
         )}
       </div>
 

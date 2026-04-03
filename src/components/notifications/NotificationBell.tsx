@@ -232,7 +232,7 @@ export function NotificationBell({ collapsed = false, variant = "sidebar" }: Not
       {isOpen && (
         <div
           ref={panelRef}
-          className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl overflow-hidden w-[380px]"
+          className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden w-[380px]"
           style={{
             ...(panelPos.right !== undefined ? { right: panelPos.right } : { left: panelPos.left }),
             bottom: panelPos.bottom,
@@ -283,7 +283,7 @@ export function NotificationBell({ collapsed = false, variant = "sidebar" }: Not
               )}
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
               >
                 <X size={14} />
               </button>
@@ -312,7 +312,7 @@ export function NotificationBell({ collapsed = false, variant = "sidebar" }: Not
                   key={n.id}
                   onClick={() => handleNotificationClick(n.entity_type, n.entity_id)}
                   className={cn(
-                    "group flex items-start gap-2 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50 transition-colors cursor-pointer",
+                    "group flex items-start gap-2 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer",
                     !n.read
                       ? "bg-teal-50/40 dark:bg-teal-950/20 hover:bg-teal-50/70 dark:hover:bg-teal-950/40"
                       : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"

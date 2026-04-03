@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { ChevronLeft, ChevronRight, RefreshCw, Download, Video, MapPin, Users, Clock } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { PageHeader } from "../../components/PageHeader";
+import { SectionToolbar } from "../../components/SectionToolbar";
 import { useCalendarEvents, type CalendarEvent } from "../../hooks/useCalendar";
 import { useOutlookAuth, useCalendarSyncStart, useCalendarSyncStatus } from "../../hooks/useOutlook";
 import { EmptyInbox } from "../inbox/EmptyInbox";
@@ -94,7 +96,7 @@ export function CalendarModule() {
     };
   }, [currentDate, view]);
 
-  const { data: events = [] } = useCalendarEvents({
+  const { data: events = [], isFetching: eventsFetching } = useCalendarEvents({
     startTime,
     endTime,
     limit: 500,
@@ -132,62 +134,68 @@ export function CalendarModule() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+      <PageHeader description="Outlook calendar events synced to your workspace." />
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-700">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <button onClick={navigateBack} className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-              <ChevronLeft size={16} />
+      <SectionToolbar
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => syncStart.mutate()}
+              disabled={isSyncing}
+              title="Sync calendar"
+              className="p-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-500 disabled:opacity-50"
+            >
+              {isSyncing ? (
+                <RefreshCw size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
             </button>
-            <button onClick={navigateForward} className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-              <ChevronRight size={16} />
-            </button>
+            <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+              {(["week", "month"] as CalendarView[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={cn(
+                    "px-3 py-1 text-xs font-medium transition-colors",
+                    view === v
+                      ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                  )}
+                >
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{headerLabel}</h2>
-          <button
-            onClick={goToToday}
-            className="px-2 py-1 text-xs font-medium rounded-md border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            Today
+        }
+      >
+        <div className="flex items-center gap-1">
+          <button onClick={navigateBack} className="p-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400">
+            <ChevronLeft size={16} />
+          </button>
+          <button onClick={navigateForward} className="p-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400">
+            <ChevronRight size={16} />
           </button>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => syncStart.mutate()}
-            disabled={isSyncing}
-            title="Sync calendar"
-            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 disabled:opacity-50"
-          >
-            {isSyncing ? (
-              <RefreshCw size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}
-          </button>
-          <div className="flex rounded-lg border border-zinc-300 dark:border-zinc-600 overflow-hidden">
-            {(["week", "month"] as CalendarView[]).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={cn(
-                  "px-3 py-1 text-xs font-medium transition-colors",
-                  view === v
-                    ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                )}
-              >
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{headerLabel}</h2>
+        <button
+          onClick={goToToday}
+          className="px-2 py-1 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+        >
+          Today
+        </button>
+      </SectionToolbar>
 
       {/* Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Calendar grid */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto relative">
+          {eventsFetching && events.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center z-10">
+              <DetailLoading />
+            </div>
+          )}
           {view === "week" ? (
             <WeekView events={events} weekStart={weekStart} selectedEvent={selectedEvent} onSelectEvent={setSelectedEvent} />
           ) : (
@@ -306,7 +314,7 @@ function WeekView({
   return (
     <div className="flex flex-col min-h-full">
       {/* Day headers */}
-      <div className="flex border-b border-zinc-200 dark:border-zinc-700 sticky top-0 bg-white dark:bg-zinc-950 z-10">
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800 sticky top-0 bg-white dark:bg-zinc-950 z-10">
         <div className="w-16 flex-shrink-0" />
         {days.map((day, i) => {
           const isToday = isSameDay(day, today);
@@ -314,7 +322,7 @@ function WeekView({
             <div
               key={i}
               className={cn(
-                "flex-1 py-2 text-center border-l border-zinc-200 dark:border-zinc-700",
+                "flex-1 py-2 text-center border-l border-zinc-200 dark:border-zinc-800",
               )}
             >
               <div className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -338,12 +346,12 @@ function WeekView({
         const allDayEvents = events.filter((e) => e.isAllDay);
         if (allDayEvents.length === 0) return null;
         return (
-          <div className="flex border-b border-zinc-200 dark:border-zinc-700">
+          <div className="flex border-b border-zinc-200 dark:border-zinc-800">
             <div className="w-16 flex-shrink-0 py-1 px-2 text-xs text-zinc-400 text-right">all day</div>
             {days.map((day, i) => {
               const dayEvents = allDayEvents.filter((e) => isSameDay(parseLocalDate(e.startAt), day));
               return (
-                <div key={i} className="flex-1 border-l border-zinc-200 dark:border-zinc-700 py-1 px-0.5 space-y-0.5">
+                <div key={i} className="flex-1 border-l border-zinc-200 dark:border-zinc-800 py-1 px-0.5 space-y-0.5">
                   {dayEvents.map((e) => (
                     <button
                       key={e.id}
@@ -391,7 +399,7 @@ function WeekView({
             <div
               key={dayIdx}
               className={cn(
-                "flex-1 border-l border-zinc-200 dark:border-zinc-700 relative",
+                "flex-1 border-l border-zinc-200 dark:border-zinc-800 relative",
                 isSameDay(day, today) && "bg-teal-50/30 dark:bg-teal-900/10"
               )}
             >
@@ -489,7 +497,7 @@ function MonthView({
   return (
     <div className="flex flex-col h-full">
       {/* Day headers */}
-      <div className="grid grid-cols-7 border-b border-zinc-200 dark:border-zinc-700">
+      <div className="grid grid-cols-7 border-b border-zinc-200 dark:border-zinc-800">
         {dayNames.map((name) => (
           <div key={name} className="py-2 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400">
             {name}
@@ -560,7 +568,7 @@ function MonthView({
 
 function EventDetailPanel({ event, onClose }: { event: CalendarEvent; onClose: () => void }) {
   return (
-    <div className="w-[380px] flex-shrink-0 border-l border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 overflow-y-auto">
+    <div className="w-[380px] flex-shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 overflow-y-auto">
       <div className="p-4 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">

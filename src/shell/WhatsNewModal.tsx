@@ -107,7 +107,7 @@ export function WhatsNewModal() {
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in"
       onClick={(e) => { if (e.target === e.currentTarget) handleDismiss(); }}
     >
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl w-full max-w-xl max-h-[80vh] overflow-hidden animate-modal-in">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg w-full max-w-xl max-h-[80vh] overflow-hidden animate-modal-in">
         {/* Header */}
         <div className="relative px-6 pt-6 pb-4">
           <div className="flex items-start justify-between">

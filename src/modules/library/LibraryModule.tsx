@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Library, Search, X, File, Folder, FolderOpen, ChevronRight, ChevronDown, Loader2, Clock, PanelLeftOpen } from "lucide-react";
 import { SectionLoading } from "../../components/ui/DetailStates";
+import { PageHeader } from "../../components/PageHeader";
 import { invoke } from "@tauri-apps/api/core";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
@@ -223,14 +224,16 @@ export function LibraryModule() {
   }, [tabs, activeTabId, closeTab, setActiveTab, closeAllTabs]);
 
   return (
-    <div ref={containerRef} className="h-full flex bg-zinc-50 dark:bg-zinc-950">
+    <div ref={containerRef} className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
+      <PageHeader description="Browse, search, and edit files in your knowledge base." />
+      <div className="flex-1 flex overflow-hidden">
       {/* Sidebar with file tree */}
       <div className="flex-shrink-0 flex flex-col transition-all duration-200" style={{ width: sidebarCollapsed ? 40 : sidebarWidth }}>
         {sidebarCollapsed ? (
           <div className="flex flex-col items-center py-2">
             <button
               onClick={toggleSidebar}
-              className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
               title="Expand panel"
             >
               <PanelLeftOpen size={14} />
@@ -289,7 +292,7 @@ export function LibraryModule() {
               <div className="h-full flex items-center justify-center">
                 <div className="text-center">
                   <Library size={48} className="mx-auto mb-4 text-zinc-400 dark:text-zinc-700" />
-                  <h2 className="text-xl font-semibold text-zinc-600 dark:text-zinc-400">No Repository Selected</h2>
+                  <h2 className="text-lg font-semibold text-zinc-600 dark:text-zinc-400">No Repository Selected</h2>
                   <p className="text-sm text-zinc-500 dark:text-zinc-600 mt-2 max-w-md">
                     Add a repository using the dropdown in the sidebar.
                   </p>
@@ -299,7 +302,7 @@ export function LibraryModule() {
               <div className="h-full flex items-center justify-center">
                 <div className="text-center">
                   <Library size={48} className="mx-auto mb-4 text-zinc-400 dark:text-zinc-700" />
-                  <h2 className="text-xl font-semibold text-zinc-600 dark:text-zinc-400">Knowledge Base</h2>
+                  <h2 className="text-lg font-semibold text-zinc-600 dark:text-zinc-400">Knowledge Base</h2>
                   <p className="text-sm text-zinc-500 dark:text-zinc-600 mt-2 max-w-md">
                     Select a file or folder from the sidebar to view its contents.
                     <br />
@@ -329,6 +332,7 @@ export function LibraryModule() {
             </>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
@@ -461,7 +465,7 @@ function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: stri
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-zinc-900 dark:text-zinc-100"
         />
         {query && (
-          <button onClick={() => setQuery("")} className="p-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded">
+          <button onClick={() => setQuery("")} className="p-0.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded">
             <X size={12} className="text-zinc-500" />
           </button>
         )}
@@ -478,7 +482,7 @@ function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: stri
                 <button
                   key={r.path}
                   onClick={() => onSelect(r.path)}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
                 >
                   {r.is_directory ? (
                     <Folder size={14} className="flex-shrink-0 text-teal-500" />
@@ -508,7 +512,7 @@ function SplitPicker({ knowledgePath, onSelect, onClose }: { knowledgePath: stri
                     <button
                       key={f.path}
                       onClick={() => onSelect(f.path)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
                     >
                       <File size={14} className="flex-shrink-0 text-zinc-400" />
                       <span className="truncate">{f.name}</span>
@@ -572,7 +576,7 @@ function SplitPickerNode({ node, onSelect, level }: { node: TreeNode; onSelect: 
       <div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+          className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
           style={{ paddingLeft: `${indent}px` }}
         >
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -608,7 +612,7 @@ function SplitPickerNode({ node, onSelect, level }: { node: TreeNode; onSelect: 
   return (
     <button
       onClick={() => onSelect(node.path)}
-      className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+      className="w-full flex items-center gap-1.5 py-1 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
       style={{ paddingLeft: `${indent + 16}px` }}
     >
       <File size={14} className="flex-shrink-0 text-zinc-400" />

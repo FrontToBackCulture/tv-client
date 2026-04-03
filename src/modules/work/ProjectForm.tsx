@@ -260,7 +260,7 @@ export function ProjectForm({ project, onClose, onSaved }: ProjectFormProps) {
             type="color"
             value={formData.color || "#0D7680"}
             onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-            className="w-8 h-8 rounded cursor-pointer border border-zinc-200 dark:border-zinc-700"
+            className="w-8 h-8 rounded cursor-pointer border border-zinc-200 dark:border-zinc-800"
           />
           <span className="text-xs text-zinc-500 font-mono">{formData.color || "#0D7680"}</span>
         </div>

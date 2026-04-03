@@ -8,7 +8,6 @@ import {
   Mail,
   Globe,
   Boxes,
-  Bot,
   ExternalLink,
   Plus,
   LucideIcon,
@@ -106,7 +105,6 @@ const navSections: NavSection[] = [
 
 // Items hidden behind "More" flyout in Platform section
 const moreItems: NavItem[] = [
-  { id: "bot", icon: Bot, label: "Bots", shortcut: "\u23187" },
   { id: "linkedin", icon: Linkedin, label: "LinkedIn", shortcut: "" },
   { id: "product", icon: Boxes, label: "Product", shortcut: "\u23184" },
   { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "\u23189" },
@@ -177,7 +175,7 @@ function ActivityBarContextMenu({ menu, onClose, onModuleChange }: { menu: Conte
   return (
     <div
       ref={ref}
-      className="fixed z-50 min-w-[200px] bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xl py-1"
+      className="fixed z-50 min-w-[200px] bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg py-1"
       style={{ top: menu.y, left: menu.x }}
     >
       <button
@@ -379,7 +377,7 @@ function MoreFlyout({
 
       {open && (
         <div
-          className="fixed z-50 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xl py-1 min-w-[200px]"
+          className="fixed z-50 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg py-1 min-w-[200px]"
           style={{
             left: ref.current ? ref.current.getBoundingClientRect().right + 6 : 0,
             bottom: ref.current

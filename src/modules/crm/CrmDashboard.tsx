@@ -1,10 +1,10 @@
 // src/modules/crm/CrmDashboard.tsx
 // CRM Dashboard — action queue, pipeline summary, follow-ups
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useDealsWithTasks, useActivities } from "../../hooks/crm";
 import { DealWithTaskInfo, DEAL_STAGES, DEAL_SOLUTIONS } from "../../lib/crm/types";
-import { AlertTriangle, TrendingUp, Clock, Calendar, ClipboardList, DollarSign } from "lucide-react";
+import { AlertTriangle, TrendingUp, Clock, Calendar, ClipboardList, DollarSign, ChevronDown, ChevronRight } from "lucide-react";
 import { DetailLoading } from "../../components/ui/DetailStates";
 import { formatDateShort as formatDate, toSGTDateString } from "../../lib/date";
 
@@ -186,238 +186,234 @@ export function CrmDashboard({ onDealClick }: CrmDashboardProps) {
 
   if (isLoading) return <DetailLoading />;
 
+  const [showDetails, setShowDetails] = useState(false);
+  const lateStageCount = pipelineSummary.filter((s) => s.count > 0 && ["proposal", "negotiation"].includes(s.label.toLowerCase())).reduce((sum, s) => sum + s.count, 0);
+
   return (
     <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-zinc-950">
-      <div className="max-w-[1200px] mx-auto p-4 space-y-4">
+      <div className="max-w-[1000px] mx-auto p-6 space-y-6">
 
-        {/* Pipeline Summary Cards */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-            <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
-              <DollarSign size={12} />
-              <span>Total Pipeline</span>
-            </div>
-            <div className="text-2xl font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
-              ${(totalValue / 1000).toFixed(0)}K
-            </div>
-            <div className="text-xs text-zinc-400 mt-0.5">{deals.length} deals</div>
+        {/* Compact pipeline summary — inline stats */}
+        <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-2">
+            <DollarSign size={14} className="text-zinc-400" />
+            <span className="text-zinc-500">Pipeline</span>
+            <span className="font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">${(totalValue / 1000).toFixed(0)}K</span>
+            <span className="text-xs text-zinc-400">({deals.length})</span>
           </div>
-
-          <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-            <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
-              <TrendingUp size={12} />
-              <span>Weighted Pipeline</span>
-            </div>
-            <div className="text-2xl font-semibold text-teal-600 dark:text-teal-400 tabular-nums">
-              ${(weightedValue / 1000).toFixed(0)}K
-            </div>
-            <div className="text-xs text-zinc-400 mt-0.5">
-              {pipelineSummary.filter((s) => s.count > 0 && ["proposal", "negotiation"].includes(s.label.toLowerCase())).reduce((sum, s) => sum + s.count, 0)} in late stage
-            </div>
+          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700" />
+          <div className="flex items-center gap-2">
+            <TrendingUp size={14} className="text-teal-500" />
+            <span className="text-zinc-500">Weighted</span>
+            <span className="font-semibold text-teal-600 dark:text-teal-400 tabular-nums">${(weightedValue / 1000).toFixed(0)}K</span>
+            {lateStageCount > 0 && (
+              <span className="text-xs text-zinc-400">{lateStageCount} late stage</span>
+            )}
           </div>
+          {actionQueue.length > 0 && (
+            <>
+              <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700" />
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={14} className="text-orange-500" />
+                <span className="font-semibold text-orange-600 dark:text-orange-400 tabular-nums">{actionQueue.length}</span>
+                <span className="text-zinc-500">need attention</span>
+                {actionQueue.filter((a) => a.priority <= 2).length > 0 && (
+                  <span className="text-xs text-red-600 dark:text-red-400">({actionQueue.filter((a) => a.priority <= 2).length} critical)</span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
-          <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-            <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
-              <AlertTriangle size={12} />
-              <span>Needs Attention</span>
-            </div>
-            <div className="text-2xl font-semibold text-orange-600 dark:text-orange-400 tabular-nums">
-              {actionQueue.length}
-            </div>
-            <div className="text-xs text-zinc-400 mt-0.5">
-              {actionQueue.filter((a) => a.priority <= 2).length} critical
-            </div>
+        {/* Action Required — full width, primary focus */}
+        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+            <AlertTriangle size={14} className="text-orange-500" />
+            <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Action Required</span>
+            <span className="text-xs text-zinc-400 ml-auto">{actionQueue.length} deals</span>
+          </div>
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {actionQueue.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm text-zinc-400">
+                All clear — no deals need attention
+              </div>
+            ) : (
+              actionQueue.slice(0, 15).map(({ deal, reason, color }) => (
+                <button
+                  key={deal.id}
+                  onClick={() => onDealClick?.(deal)}
+                  className="w-full text-left px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="text-xs text-teal-600 dark:text-teal-400/80">
+                        {deal.company?.name || "Unknown"}
+                      </span>
+                      <p className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{deal.name}</p>
+                    </div>
+                    {deal.value && (
+                      <span className="text-xs font-medium text-zinc-500 flex-shrink-0 tabular-nums">
+                        ${(deal.value / 1000).toFixed(0)}K
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-xs mt-0.5 ${color}`}>{reason}</p>
+                </button>
+              ))
+            )}
+            {actionQueue.length > 15 && (
+              <div className="px-4 py-2 text-xs text-zinc-400 text-center">
+                +{actionQueue.length - 15} more
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {/* Left column */}
-          <div className="space-y-4">
-
-            {/* Action Required */}
-            <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
-                <AlertTriangle size={14} className="text-orange-500" />
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Action Required</span>
-                <span className="text-xs text-zinc-400 ml-auto">{actionQueue.length} deals</span>
-              </div>
-              <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {actionQueue.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-sm text-zinc-400">
-                    All clear — no deals need attention
-                  </div>
-                ) : (
-                  actionQueue.slice(0, 15).map(({ deal, reason, color }) => (
-                    <button
-                      key={deal.id}
-                      onClick={() => onDealClick?.(deal)}
-                      className="w-full text-left px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="text-xs text-teal-600 dark:text-teal-400/80">
-                            {deal.company?.name || "Unknown"}
-                          </span>
-                          <p className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{deal.name}</p>
-                        </div>
-                        {deal.value && (
-                          <span className="text-xs font-medium text-zinc-500 flex-shrink-0 tabular-nums">
-                            ${(deal.value / 1000).toFixed(0)}K
-                          </span>
-                        )}
-                      </div>
-                      <p className={`text-xs mt-0.5 ${color}`}>{reason}</p>
-                    </button>
-                  ))
-                )}
-                {actionQueue.length > 15 && (
-                  <div className="px-4 py-2 text-xs text-zinc-400 text-center">
-                    +{actionQueue.length - 15} more
-                  </div>
-                )}
-              </div>
+        {/* Closing Soon — full width */}
+        {upcomingCloses.length > 0 && (
+          <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+              <Calendar size={14} className="text-blue-500" />
+              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Closing Soon</span>
+              <span className="text-xs text-zinc-400 ml-auto">Next 14 days</span>
             </div>
-
-            {/* Upcoming Closes */}
-            <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
-                <Calendar size={14} className="text-blue-500" />
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Closing Soon</span>
-                <span className="text-xs text-zinc-400 ml-auto">Next 14 days</span>
-              </div>
-              <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {upcomingCloses.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-sm text-zinc-400">
-                    No deals closing in the next 2 weeks
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {upcomingCloses.map((deal) => (
+                <button
+                  key={deal.id}
+                  onClick={() => onDealClick?.(deal)}
+                  className="w-full text-left px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="text-xs text-teal-600 dark:text-teal-400/80">
+                        {deal.company?.name || "Unknown"}
+                      </span>
+                      <p className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{deal.name}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {deal.value && (
+                        <span className="text-xs font-medium text-zinc-500 tabular-nums">
+                          ${(deal.value / 1000).toFixed(0)}K
+                        </span>
+                      )}
+                      <span className="text-xs text-zinc-400 tabular-nums">
+                        {formatDate(deal.expected_close_date!)}
+                      </span>
+                    </div>
                   </div>
-                ) : (
-                  upcomingCloses.map((deal) => (
-                    <button
-                      key={deal.id}
-                      onClick={() => onDealClick?.(deal)}
-                      className="w-full text-left px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="text-xs text-teal-600 dark:text-teal-400/80">
-                            {deal.company?.name || "Unknown"}
-                          </span>
-                          <p className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{deal.name}</p>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {deal.value && (
-                            <span className="text-xs font-medium text-zinc-500 tabular-nums">
-                              ${(deal.value / 1000).toFixed(0)}K
-                            </span>
-                          )}
-                          <span className="text-xs text-zinc-400 tabular-nums">
-                            {formatDate(deal.expected_close_date!)}
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
+                </button>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* Right column */}
-          <div className="space-y-4">
+        {/* Pipeline Details — collapsed by default */}
+        <div>
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+          >
+            {showDetails ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span>Pipeline Details</span>
+          </button>
 
-            {/* Stage Funnel */}
-            <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
-                <TrendingUp size={14} className="text-teal-500" />
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Pipeline by Stage</span>
-              </div>
-              <div className="p-4 space-y-2">
-                {pipelineSummary.map((stage) => {
-                  const pct = totalValue > 0 ? (stage.value / totalValue) * 100 : 0;
-                  return (
-                    <div key={stage.value} className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 w-24 flex-shrink-0">
-                        <StageIndicator color={stage.color} />
-                        <span className="text-xs text-zinc-600 dark:text-zinc-400">{stage.label}</span>
+          {showDetails && (
+            <div className="grid grid-cols-3 gap-4 mt-3">
+              {/* Stage Funnel */}
+              <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                  <TrendingUp size={14} className="text-teal-500" />
+                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">By Stage</span>
+                </div>
+                <div className="p-4 space-y-2">
+                  {pipelineSummary.map((stage) => {
+                    const pct = totalValue > 0 ? (stage.value / totalValue) * 100 : 0;
+                    return (
+                      <div key={stage.value} className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 w-24 flex-shrink-0">
+                          <StageIndicator color={stage.color} />
+                          <span className="text-xs text-zinc-600 dark:text-zinc-400">{stage.label}</span>
+                        </div>
+                        <div className="flex-1 h-5 bg-zinc-100 dark:bg-zinc-800 rounded overflow-hidden">
+                          {pct > 0 && (
+                            <div
+                              className="h-full bg-teal-500/20 dark:bg-teal-500/30 rounded flex items-center px-2"
+                              style={{ width: `${Math.max(pct, 8)}%` }}
+                            >
+                              <span className="text-[10px] text-teal-700 dark:text-teal-300 tabular-nums whitespace-nowrap">
+                                {stage.count}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-xs text-zinc-500 tabular-nums w-16 text-right flex-shrink-0">
+                          {stage.value > 0 ? `$${(stage.value / 1000).toFixed(0)}K` : "—"}
+                        </span>
                       </div>
-                      <div className="flex-1 h-5 bg-zinc-100 dark:bg-zinc-800 rounded overflow-hidden">
-                        {pct > 0 && (
-                          <div
-                            className="h-full bg-teal-500/20 dark:bg-teal-500/30 rounded flex items-center px-2"
-                            style={{ width: `${Math.max(pct, 8)}%` }}
-                          >
-                            <span className="text-[10px] text-teal-700 dark:text-teal-300 tabular-nums whitespace-nowrap">
-                              {stage.count}
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Solution Breakdown */}
+              <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                  <ClipboardList size={14} className="text-purple-500" />
+                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">By Solution</span>
+                </div>
+                <div className="p-4 space-y-2">
+                  {solutionBreakdown.map((sln) => (
+                    <div key={sln.key} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <SolutionBadge color={sln.color} />
+                        <span className="text-xs text-zinc-600 dark:text-zinc-400">{sln.label}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-zinc-400 tabular-nums">{sln.count}</span>
+                        <span className="text-xs text-zinc-500 tabular-nums w-14 text-right">
+                          ${(sln.value / 1000).toFixed(0)}K
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent Activity */}
+              <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                  <Clock size={14} className="text-zinc-500" />
+                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Activity</span>
+                </div>
+                <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {recentActivities.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-sm text-zinc-400">
+                      No recent activities
+                    </div>
+                  ) : (
+                    recentActivities.slice(0, 8).map((activity) => (
+                      <div key={activity.id} className="px-4 py-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm text-zinc-800 dark:text-zinc-200 truncate">
+                              {activity.subject || activity.type}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <ActivityBadge type={activity.type} />
+                            <span className="text-xs text-zinc-400 tabular-nums">
+                              {activity.activity_date ? formatDate(activity.activity_date) : ""}
                             </span>
                           </div>
-                        )}
-                      </div>
-                      <span className="text-xs text-zinc-500 tabular-nums w-16 text-right flex-shrink-0">
-                        {stage.value > 0 ? `$${(stage.value / 1000).toFixed(0)}K` : "—"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Solution Breakdown */}
-            <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
-                <ClipboardList size={14} className="text-purple-500" />
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">By Solution</span>
-              </div>
-              <div className="p-4 space-y-2">
-                {solutionBreakdown.map((sln) => (
-                  <div key={sln.key} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <SolutionBadge color={sln.color} />
-                      <span className="text-xs text-zinc-600 dark:text-zinc-400">{sln.label}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-zinc-400 tabular-nums">{sln.count}</span>
-                      <span className="text-xs text-zinc-500 tabular-nums w-14 text-right">
-                        ${(sln.value / 1000).toFixed(0)}K
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
-                <Clock size={14} className="text-zinc-500" />
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Recent Activity</span>
-              </div>
-              <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {recentActivities.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-sm text-zinc-400">
-                    No recent activities
-                  </div>
-                ) : (
-                  recentActivities.slice(0, 8).map((activity) => (
-                    <div key={activity.id} className="px-4 py-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm text-zinc-800 dark:text-zinc-200 truncate">
-                            {activity.subject || activity.type}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <ActivityBadge type={activity.type} />
-                          <span className="text-xs text-zinc-400 tabular-nums">
-                            {activity.activity_date ? formatDate(activity.activity_date) : ""}
-                          </span>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

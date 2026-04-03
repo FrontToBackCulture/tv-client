@@ -56,7 +56,7 @@ export function HTMLViewer({ content, filename, refreshKey }: HTMLViewerProps) {
         {mode === "preview" ? (
           <iframe
             src={previewUrl}
-            className="w-full h-full border-0 bg-white"
+            className="w-full h-full border-0 bg-white dark:bg-zinc-900"
             sandbox="allow-same-origin allow-scripts"
             title={`Preview of ${filename}`}
           />

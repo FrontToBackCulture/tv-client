@@ -11,6 +11,7 @@ import { useBotSettingsStore } from "../stores/botSettingsStore";
 import { useViewContextStore } from "../stores/viewContextStore";
 import { useFolderFiles, FolderFile } from "../hooks/useFolderFiles";
 import { ViewTab } from "../components/ViewTab";
+import { PageHeader } from "../components/PageHeader";
 import { useSkillRegistry } from "../modules/skills/useSkillRegistry";
 
 import {
@@ -455,11 +456,13 @@ export function BotPlayground() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Tab bar */}
-      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <ViewTab label="Directory" icon={Users} active={activeView === "directory"} onClick={() => { setActiveView("directory"); }} />
-        <ViewTab label="Sessions" icon={Clock} active={activeView === "sessions"} onClick={() => { setActiveView("sessions"); setSelectedPath(null); setDetailView(null); setSessionDetailView(null); }} />
-      </div>
+      <PageHeader
+        description="Bot configuration and session history — manage bot profiles and review past conversations."
+        tabs={<>
+          <ViewTab label="Directory" icon={Users} active={activeView === "directory"} onClick={() => { setActiveView("directory"); }} />
+          <ViewTab label="Sessions" icon={Clock} active={activeView === "sessions"} onClick={() => { setActiveView("sessions"); setSelectedPath(null); setDetailView(null); setSessionDetailView(null); }} />
+        </>}
+      />
 
       {/* Content */}
       <div className="flex-1 flex overflow-hidden">

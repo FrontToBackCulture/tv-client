@@ -3,6 +3,7 @@
 
 import { useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { formatError } from "../lib/formatError";
 import { useHelpStore } from "../stores/helpStore";
 import { useAppStore } from "../stores/appStore";
 import { useViewContextStore } from "../stores/viewContextStore";
@@ -83,7 +84,7 @@ export function useHelpChat() {
         setTimeout(() => clearHighlight(), 4000);
       }
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = formatError(error);
       setError(errMsg);
       addMessage({
         id: (Date.now() + 1).toString(),

@@ -23,7 +23,7 @@ export function ApiTaskLogs() {
           logs.map((log) => {
             const isExpanded = expandedId === log.id;
             return (
-              <div key={log.id} className="border-b border-zinc-100 dark:border-zinc-800/50">
+              <div key={log.id} className="border-b border-zinc-100 dark:border-zinc-800">
                 <button
                   onClick={() => setExpandedId(isExpanded ? null : log.id)}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"

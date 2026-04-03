@@ -391,7 +391,7 @@ export function DriveTabView() {
           status: "error",
           files: [],
           staleCount: 0,
-          error: String(e),
+          error: formatError(e),
         });
       }
     }
@@ -536,7 +536,7 @@ export function DriveTabView() {
       {/* ── Left sidebar: domain list ── */}
       <div className="w-[220px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
         {/* Search + Scan All */}
-        <div className="p-2 border-b border-zinc-100 dark:border-zinc-800/50 space-y-1.5">
+        <div className="p-2 border-b border-zinc-100 dark:border-zinc-800 space-y-1.5">
           <div className="relative">
             <Search
               size={13}
@@ -547,7 +547,7 @@ export function DriveTabView() {
               placeholder="Filter domains..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-7 pr-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full pl-7 pr-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
           <div className="flex gap-1">
@@ -579,7 +579,7 @@ export function DriveTabView() {
                 "flex items-center justify-center px-1.5 py-1.5 text-xs rounded transition-colors border",
                 showScanConfig
                   ? "bg-teal-100 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700"
-                  : "bg-zinc-50 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  : "bg-zinc-50 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
               )}
               title="Scan configuration"
             >
@@ -677,7 +677,7 @@ export function DriveTabView() {
         ) : (
           <>
             {/* Breadcrumb */}
-            <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400 flex-shrink-0">
+            <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400 flex-shrink-0">
               <button
                 onClick={() => navigateToBreadcrumb(-1)}
                 className="hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors font-medium"
@@ -911,7 +911,7 @@ function ScanConfigPanel({
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center gap-3 flex-shrink-0">
+      <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
         <Settings2 size={14} className="text-teal-500" />
         <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Scan Configuration
@@ -920,7 +920,7 @@ function ScanConfigPanel({
           <button
             onClick={onSeed}
             disabled={isSeeding}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
           >
             {isSeeding ? (
               <Loader2 size={11} className="animate-spin" />
@@ -939,7 +939,7 @@ function ScanConfigPanel({
           </button>
           <button
             onClick={onClose}
-            className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+            className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
           >
             Close
           </button>
@@ -1000,7 +1000,7 @@ function ScanConfigPanel({
 
                 {/* Folder list */}
                 {!isCollapsed && (
-                  <div className="border-t border-zinc-100 dark:border-zinc-800/50">
+                  <div className="border-t border-zinc-100 dark:border-zinc-800">
                     {domainConfig.folders.map((folder) => (
                       <div
                         key={folder.folder_path}
@@ -1014,7 +1014,7 @@ function ScanConfigPanel({
                             type="checkbox"
                             checked={folder.enabled}
                             onChange={() => toggleFolder(domain, folder.folder_path)}
-                            className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500 flex-shrink-0"
+                            className="rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500 flex-shrink-0"
                           />
                           <span className="truncate text-zinc-700 dark:text-zinc-300">
                             {folder.folder_path}
@@ -1049,7 +1049,7 @@ function ScanConfigPanel({
 
                     {/* Add folder */}
                     {addingFolder === domain ? (
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/50">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800">
                         <input
                           type="text"
                           value={newFolderPath}
@@ -1062,7 +1062,7 @@ function ScanConfigPanel({
                             }
                           }}
                           placeholder="val_drive/..."
-                          className="flex-1 px-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          className="flex-1 px-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
                           autoFocus
                         />
                         <button
@@ -1084,7 +1084,7 @@ function ScanConfigPanel({
                     ) : (
                       <button
                         onClick={() => setAddingFolder(domain)}
-                        className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors border-t border-zinc-100 dark:border-zinc-800/50"
+                        className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors border-t border-zinc-100 dark:border-zinc-800"
                       >
                         <Plus size={10} />
                         Add folder
@@ -1143,7 +1143,7 @@ function ScanAllView({
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center gap-3 flex-shrink-0">
+      <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-3 flex-shrink-0">
         <ScanSearch size={14} className="text-teal-500" />
         <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Drive Scan — All Domains
@@ -1156,14 +1156,14 @@ function ScanAllView({
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={onRescan}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
           >
             <RefreshCw size={11} />
             Rescan
           </button>
           <button
             onClick={onClose}
-            className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+            className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
           >
             Close
           </button>
@@ -1171,7 +1171,7 @@ function ScanAllView({
       </div>
 
       {/* Summary stats */}
-      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center gap-6 text-xs flex-shrink-0">
+      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-6 text-xs flex-shrink-0">
         <div className="flex items-center gap-1.5">
           <span className="text-zinc-400">Domains:</span>
           <span className="font-medium text-zinc-700 dark:text-zinc-300">{results.length}</span>
@@ -1295,7 +1295,7 @@ function ScanDomainCard({
         <ChevronRight size={12} className="text-zinc-300 dark:text-zinc-600" />
       </button>
       {result.files.length > 0 && (
-        <div className="border-t border-zinc-100 dark:border-zinc-800/50">
+        <div className="border-t border-zinc-100 dark:border-zinc-800">
           {visibleFiles.map((f, i) => (
             <div
               key={i}
@@ -1363,7 +1363,7 @@ function FileRow({
     <div
       className={cn(
         "flex items-center gap-3 px-3 py-2 text-sm",
-        index > 0 && "border-t border-zinc-100 dark:border-zinc-800/50",
+        index > 0 && "border-t border-zinc-100 dark:border-zinc-800",
         stale && "bg-amber-50/50 dark:bg-amber-950/10"
       )}
     >

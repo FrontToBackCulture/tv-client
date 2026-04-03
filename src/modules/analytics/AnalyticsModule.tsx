@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import { BarChart3, Gauge, Globe } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
+import { PageHeader } from "../../components/PageHeader";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { usePlatformAnalytics, useWebsiteAnalytics } from "./useAnalytics";
 import { AnalyticsOverview } from "./AnalyticsOverview";
@@ -29,12 +30,14 @@ export function AnalyticsModule() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Tab bar */}
-      <div className="flex-shrink-0 flex items-center border-b border-zinc-100 dark:border-zinc-800/50 px-4">
-        <ViewTab label="Overview" icon={Gauge} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
-        <ViewTab label="Platform" icon={BarChart3} active={activeTab === "platform"} onClick={() => setActiveTab("platform")} />
-        <ViewTab label="Website" icon={Globe} active={activeTab === "website"} onClick={() => setActiveTab("website")} />
-      </div>
+      <PageHeader
+        description="GA4 usage analytics — identify unused pages, dashboards, and content across platform and website."
+        tabs={<>
+          <ViewTab label="Overview" icon={Gauge} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
+          <ViewTab label="Platform" icon={BarChart3} active={activeTab === "platform"} onClick={() => setActiveTab("platform")} />
+          <ViewTab label="Website" icon={Globe} active={activeTab === "website"} onClick={() => setActiveTab("website")} />
+        </>}
+      />
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">

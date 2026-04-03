@@ -97,7 +97,7 @@ export function AnalyticsTable({ pages, isLoading, source: _source, showDomain, 
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
-      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800">
         <div className="relative flex-1 max-w-xs">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
@@ -105,7 +105,7 @@ export function AnalyticsTable({ pages, isLoading, source: _source, showDomain, 
             placeholder="Search pages..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
           />
         </div>
 
@@ -129,7 +129,7 @@ export function AnalyticsTable({ pages, isLoading, source: _source, showDomain, 
           <select
             value={domainFilter}
             onChange={(e) => setDomainFilter(e.target.value)}
-            className="px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+            className="px-2 py-1 text-xs rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
           >
             <option value="all">All domains</option>
             {domains.map((d) => (

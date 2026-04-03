@@ -193,7 +193,7 @@ const TagsCellRenderer = (params: ICellRendererParams) => {
   }
 
   return (
-    <div ref={popupRef} className="absolute z-30 top-0 left-0 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg min-w-[240px]">
+    <div ref={popupRef} className="absolute z-30 top-0 left-0 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg min-w-[240px]">
       {/* Current tags */}
       <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
         {localTags.map((tag) => (
@@ -224,12 +224,12 @@ const TagsCellRenderer = (params: ICellRendererParams) => {
         onKeyDown={handleKeyDown}
         onFocus={() => setShowSuggestions(true)}
         placeholder="Type to add..."
-        className="w-full px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:border-teal-500"
+        className="w-full px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500/30"
       />
 
       {/* Suggestions dropdown */}
       {showSuggestions && filteredSuggestions.length > 0 && (
-        <div className="mt-1 max-h-[120px] overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800">
+        <div className="mt-1 max-h-[120px] overflow-y-auto border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800">
           {filteredSuggestions.map((suggestion) => (
             <button
               key={suggestion}
@@ -591,7 +591,7 @@ export function SchemaFieldsGrid({
         )}
       </div>
       <div
-        className={`${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"} schema-fields-grid border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden`}
+        className={`${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"} schema-fields-grid border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden`}
         style={{ ...gridStyle, width: "100%" }}
       >
         <style>{`

@@ -110,7 +110,7 @@ function MetadataBadge({ frontmatter }: { frontmatter: Frontmatter }) {
       {/* Collapsed view - just title/summary */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-start gap-2 p-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+        className="w-full flex items-start gap-2 p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         {expanded ? (
           <ChevronDown size={14} className="mt-0.5 text-zinc-400 flex-shrink-0" />
@@ -227,7 +227,7 @@ function TableOfContents({ items, editor, onClose }: { items: TocItem[]; editor:
               const el = node instanceof HTMLElement ? node : node.parentElement;
               el?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
-            className="block w-full text-left px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors truncate"
+            className="block w-full text-left px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors truncate"
             style={{ paddingLeft: `${(item.level - 1) * 12 + 12}px` }}
             title={item.text}
           >

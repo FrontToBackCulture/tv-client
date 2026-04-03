@@ -149,7 +149,7 @@ export function BotSkillInlineView({ skillPath, skillName, title, usage, onBack 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50 px-4 py-2.5">
+      <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-4 py-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <button
@@ -183,7 +183,7 @@ export function BotSkillInlineView({ skillPath, skillName, title, usage, onBack 
               {showStatusMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowStatusMenu(false)} />
-                  <div className="absolute top-full left-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden z-50">
+                  <div className="absolute top-full left-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden z-50">
                     {(["active", "test", "review", "draft", "inactive", "deprecated"] as SkillStatus[]).map((s) => (
                       <button
                         key={s}
@@ -222,7 +222,7 @@ export function BotSkillInlineView({ skillPath, skillName, title, usage, onBack 
       <div className="flex-1 flex overflow-hidden">
         {/* Left: file tree */}
         <div
-          className="flex-shrink-0 overflow-y-auto border-r border-zinc-100 dark:border-zinc-800/50 py-1"
+          className="flex-shrink-0 overflow-y-auto border-r border-zinc-100 dark:border-zinc-800 py-1"
           style={{ width: sidebarWidth }}
         >
           {loadingTree ? (
@@ -251,7 +251,7 @@ export function BotSkillInlineView({ skillPath, skillName, title, usage, onBack 
         {/* Right: content */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* Toolbar */}
-          <div className="flex-shrink-0 px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/30">
+          <div className="flex-shrink-0 px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/30">
             <span className="text-xs text-zinc-500 font-mono truncate">{selectedFileName}</span>
             <div className="flex items-center gap-0.5 flex-shrink-0">
               {viewMode === "edit" ? (

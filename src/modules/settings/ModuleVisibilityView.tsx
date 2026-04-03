@@ -25,7 +25,6 @@ const allModules: ModuleInfo[] = [
   { id: "blog", label: "Blog", description: "Blog article management" },
   { id: "gallery", label: "Gallery", description: "Media gallery and reports" },
   { id: "portal", label: "Portal", description: "Client portal management" },
-  { id: "bot", label: "Bots", description: "Bot management" },
   { id: "skills", label: "Skills", description: "Skill registry, catalog, and prompt builder" },
   { id: "product", label: "Product", description: "Product documentation" },
   { id: "scheduler", label: "Scheduler", description: "Task scheduler" },
@@ -68,7 +67,7 @@ export function ModuleVisibilityView() {
                 }`}
               >
                 <span
-                  className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                  className={`inline-block h-3.5 w-3.5 rounded-full bg-white dark:bg-zinc-200 transition-transform ${
                     visible ? "translate-x-4" : "translate-x-0.5"
                   }`}
                 />

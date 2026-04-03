@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Button, IconButton, SectionLoading, ErrorBanner } from "../../components/ui";
+import { formatError } from "../../lib/formatError";
 
 interface ClaudeMcpStatus {
   binary_installed: boolean;
@@ -35,7 +36,7 @@ export function ClaudeCodeSetupView() {
       const s = await invoke<ClaudeMcpStatus>("claude_mcp_status");
       setStatus(s);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatError(e));
     } finally {
       setLoading(false);
     }
@@ -52,7 +53,7 @@ export function ClaudeCodeSetupView() {
       const s = await invoke<ClaudeMcpStatus>("claude_mcp_install");
       setStatus(s);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatError(e));
     } finally {
       setInstalling(false);
     }
@@ -66,7 +67,7 @@ export function ClaudeCodeSetupView() {
       const s = await invoke<ClaudeMcpStatus>("claude_mcp_uninstall");
       setStatus(s);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatError(e));
     } finally {
       setUninstalling(false);
     }

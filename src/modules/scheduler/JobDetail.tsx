@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  Play, Clock, Terminal, Hash, Slack, Loader2, ArrowLeft,
+  Play, Clock, Terminal, Hash, Slack, Loader2,
   CheckCircle, XCircle, FileText, ChevronDown, ChevronRight, Pencil, Puzzle, Square,
 } from "lucide-react";
 import type { SchedulerJob, JobRun, RunStep } from "../../hooks/scheduler";
 import { useRunningJobsStore, useRunSteps } from "../../hooks/scheduler";
 import { cn } from "../../lib/cn";
-import { Button, IconButton } from "../../components/ui";
+import { Button } from "../../components/ui";
+import { BackButton } from "../../components/BackButton";
 
 interface JobDetailProps {
   job: SchedulerJob;
@@ -38,7 +39,7 @@ export function JobDetail({ job, runs, onRunNow, onEdit, onStopJob }: JobDetailP
   return (
     <div className="h-full flex flex-col overflow-y-auto">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{job.name}</h3>
           {isRunning ? (
@@ -82,7 +83,7 @@ export function JobDetail({ job, runs, onRunNow, onEdit, onStopJob }: JobDetailP
       </div>
 
       {/* Config */}
-      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 p-3 space-y-2">
         <div className="flex items-start gap-2">
           <Clock size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
@@ -198,8 +199,8 @@ function RunOutputViewer({ run, onBack }: { run: JobRun; onBack: () => void }) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
-        <IconButton icon={ArrowLeft} label="Back" onClick={onBack} />
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+        <BackButton onClick={onBack} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <RunStatusIcon status={run.status} />
@@ -244,7 +245,7 @@ function RunOutputViewer({ run, onBack }: { run: JobRun; onBack: () => void }) {
       <div className="flex-1 overflow-y-auto">
         {/* Steps breakdown (collapsible) */}
         {run.num_turns != null && run.num_turns > 0 && (
-          <div className="border-b border-zinc-100 dark:border-zinc-800/50">
+          <div className="border-b border-zinc-100 dark:border-zinc-800">
             <button
               onClick={() => setShowSteps(!showSteps)}
               className="w-full flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"

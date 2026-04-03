@@ -108,7 +108,7 @@ export function PipelineView({ selectedId, onSelect }: PipelineViewProps) {
         </div>
         {/* Add existing contact picker */}
         {showAddPicker && (
-          <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden">
+          <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
             <input
               ref={addInputRef}
               type="text"
@@ -130,7 +130,7 @@ export function PipelineView({ selectedId, onSelect }: PipelineViewProps) {
                       updateStage.mutate({ contactId: c.id, stage: "new" });
                       setAddSearch("");
                     }}
-                    className="w-full text-left px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors border-b border-zinc-50 dark:border-zinc-800/50 last:border-0"
+                    className="w-full text-left px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors border-b border-zinc-50 dark:border-zinc-800 last:border-0"
                   >
                     <div className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">{c.name}</div>
                     <div className="text-[10px] text-zinc-400">

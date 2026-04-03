@@ -89,7 +89,7 @@ export function SidePanel() {
         <div className="flex items-center gap-1 px-2 py-2 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
           <button
             onClick={openPicker}
-            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
             title="Search files"
           >
             <Search size={14} className="text-zinc-500" />
@@ -97,7 +97,7 @@ export function SidePanel() {
           {/* Clickable filename — opens picker to switch document */}
           <button
             onClick={openPicker}
-            className="flex-1 text-sm text-zinc-700 dark:text-zinc-300 truncate text-left px-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="flex-1 text-sm text-zinc-700 dark:text-zinc-300 truncate text-left px-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
             title="Click to change document"
           >
             {fileName || "No file selected"}
@@ -106,14 +106,14 @@ export function SidePanel() {
             <>
               <button
                 onClick={() => invoke("open_with_default_app", { path: filePath })}
-                className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                 title="Open with default app"
               >
                 <AppWindow size={14} className="text-zinc-500" />
               </button>
               <button
                 onClick={openPicker}
-                className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                 title="Change document"
               >
                 <Replace size={14} className="text-zinc-500" />
@@ -122,7 +122,7 @@ export function SidePanel() {
           )}
           <button
             onClick={closePanel}
-            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
             title="Close panel"
           >
             <X size={14} className="text-zinc-500" />
@@ -212,7 +212,7 @@ function Picker({ onSelect, onClose }: { onSelect: (path: string, name: string) 
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-zinc-900 dark:text-zinc-100"
         />
         {query && (
-          <button onClick={() => setQuery("")} className="p-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded">
+          <button onClick={() => setQuery("")} className="p-0.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded">
             <X size={12} className="text-zinc-500" />
           </button>
         )}
@@ -231,7 +231,7 @@ function Picker({ onSelect, onClose }: { onSelect: (path: string, name: string) 
                 <button
                   key={r.path}
                   onClick={() => selectFile(r.path)}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
                 >
                   <File size={14} className="flex-shrink-0 text-zinc-400" />
                   <span className="truncate" title={r.name}>{r.name}</span>
@@ -257,7 +257,7 @@ function Picker({ onSelect, onClose }: { onSelect: (path: string, name: string) 
                     <button
                       key={f.path}
                       onClick={() => selectFile(f.path)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
                     >
                       <File size={14} className="flex-shrink-0 text-zinc-400" />
                       <span className="truncate" title={f.name}>{f.name}</span>
@@ -322,7 +322,7 @@ function PickerTree({ root, initialFolder, onSelect }: { root: string; initialFo
       {!isAtRoot && (
         <button
           onClick={goUp}
-          className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left border-b border-zinc-100 dark:border-zinc-800"
+          className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left border-b border-zinc-100 dark:border-zinc-800"
         >
           <ChevronRight size={12} className="rotate-180" />
           <FolderOpen size={14} className="text-teal-500 flex-shrink-0" />
@@ -338,7 +338,7 @@ function PickerTree({ root, initialFolder, onSelect }: { root: string; initialFo
             <button
               key={node.path}
               onClick={() => openFolder(node.path)}
-              className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+              className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
             >
               <Folder size={14} className="text-teal-500 flex-shrink-0" />
               <span className="truncate" title={node.name}>{node.name}</span>
@@ -348,7 +348,7 @@ function PickerTree({ root, initialFolder, onSelect }: { root: string; initialFo
             <button
               key={node.path}
               onClick={() => onSelect(node.path)}
-              className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+              className="w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
             >
               <File size={14} className="flex-shrink-0 text-zinc-400" />
               <span className="truncate" title={node.name}>{node.name}</span>

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ArrowLeft, Clock, CheckCircle, XCircle, Loader2, Slack } from "lucide-react";
+import { Clock, CheckCircle, XCircle, Loader2, Slack } from "lucide-react";
+import { BackButton } from "../../components/BackButton";
 import type { JobRun } from "../../hooks/scheduler";
 import { cn } from "../../lib/cn";
-import { IconButton, SectionLoading } from "../../components/ui";
+import { SectionLoading } from "../../components/ui";
 
 interface RunHistoryProps {
   runs: JobRun[];
@@ -22,9 +23,9 @@ export function RunHistory({ runs, isLoading, onBack, title }: RunHistoryProps) 
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       {(onBack || title) && (
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
           {onBack && (
-            <IconButton icon={ArrowLeft} label="Back" onClick={onBack} />
+            <BackButton onClick={onBack} />
           )}
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {title ?? "Run History"}
@@ -42,7 +43,7 @@ export function RunHistory({ runs, isLoading, onBack, title }: RunHistoryProps) 
           runs.map((run) => {
             const isExpanded = expandedRunId === run.id;
             return (
-              <div key={run.id} className="border-b border-zinc-100 dark:border-zinc-800/50">
+              <div key={run.id} className="border-b border-zinc-100 dark:border-zinc-800">
                 <button
                   onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"

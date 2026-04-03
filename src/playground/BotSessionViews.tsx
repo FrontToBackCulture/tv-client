@@ -301,7 +301,7 @@ export function SessionsTimeline({
               "w-full text-left px-2.5 py-2 rounded-md transition-colors",
               selectedPath === s.path
                 ? "bg-teal-50 dark:bg-teal-950/30"
-                : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
             )}
           >
             <div className="flex items-center gap-1.5 mb-0.5">

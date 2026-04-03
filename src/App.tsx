@@ -14,9 +14,10 @@ import { InboxModule } from "./modules/inbox/InboxModule";
 
 // Lazy-loaded modules (loaded on first navigate — keeps initial bundle small)
 const LibraryModule = lazy(() => import("./modules/library/LibraryModule").then(m => ({ default: m.LibraryModule })));
-const MetadataModule = lazy(() => import("./modules/metadata").then(m => ({ default: m.MetadataModule })));
+const MetadataModule = lazy(() => import("./modules/projects/MetadataView").then(m => ({
+  default: () => <div className="h-full flex flex-col bg-white dark:bg-zinc-950"><div className="flex-1 overflow-hidden"><m.MetadataView /></div></div>,
+})));
 const CalendarModule = lazy(() => import("./modules/calendar").then(m => ({ default: m.CalendarModule })));
-const BotModule = lazy(() => import("./modules/bot/BotModule").then(m => ({ default: m.BotModule })));
 const DomainsModule = lazy(() => import("./modules/domains").then(m => ({ default: m.DomainsModule })));
 const AnalyticsModule = lazy(() => import("./modules/analytics").then(m => ({ default: m.AnalyticsModule })));
 const ProductModule = lazy(() => import("./modules/product/ProductModule").then(m => ({ default: m.ProductModule })));
@@ -35,6 +36,7 @@ const PublicDataModule = lazy(() => import("./modules/public-data/PublicDataModu
 const ChatModule = lazy(() => import("./modules/chat").then(m => ({ default: m.ChatModule })));
 const ReferralsModule = lazy(() => import("./modules/referrals/ReferralsModule").then(m => ({ default: m.ReferralsModule })));
 import { Login } from "./components/Login";
+import { WorkspacePicker } from "./components/WorkspacePicker";
 import { SetupWizard, isSetupComplete } from "./components/SetupWizard";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore, ModuleId } from "./stores/appStore";
@@ -45,8 +47,10 @@ import { useSidePanelStore } from "./stores/sidePanelStore";
 import { useHelpStore } from "./stores/helpStore";
 import { useAuth } from "./stores/authStore";
 import { useTeamConfigStore } from "./stores/teamConfigStore";
+import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRealtimeSync } from "./hooks/useRealtimeSync";
 import { openModuleInNewWindow } from "./lib/windowManager";
+import { initWorkspaceClient, isWorkspaceClientReady } from "./lib/supabase";
 import { Loader2 } from "lucide-react";
 import { ListSkeleton } from "./components/ui/Skeleton";
 
@@ -64,7 +68,6 @@ const modules: Record<ModuleId, React.ComponentType> = {
   analytics: AnalyticsModule,
   product: ProductModule,
   gallery: GalleryModule,
-  bot: BotModule,
   skills: SkillsModule,
   portal: PortalModule,
   scheduler: SchedulerModule,
@@ -100,7 +103,11 @@ export default function App() {
   const { user, isLoading, isInitialized, initialize } = useAuth();
   const loadTeamConfig = useTeamConfigStore((s) => s.loadConfig);
   const registerCurrentUser = useTeamConfigStore((s) => s.registerCurrentUser);
+  const wsWorkspaces = useWorkspaceStore((s) => s.workspaces);
+  const wsActiveId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const wsSelect = useWorkspaceStore((s) => s.selectWorkspace);
   const [setupDone, setSetupDone] = useState(isSetupComplete);
+  const [workspaceReady, setWorkspaceReady] = useState(false);
 
   // Keep appStore.activeModule in sync with tab store (for keyboard shortcuts, window title, etc.)
   useEffect(() => {
@@ -117,12 +124,36 @@ export default function App() {
     initialize();
   }, [initialize]);
 
-  // Initialize team config after auth
+  // Initialize workspace Supabase client from Tauri settings.
+  // This reads the stored supabase_url + supabase_anon_key and creates the
+  // dynamic client before any hooks try to query Supabase.
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+    if (isWorkspaceClientReady()) {
+      setWorkspaceReady(true);
+      return;
+    }
+    (async () => {
+      try {
+        const [url, anonKey] = await invoke<[string | null, string | null]>(
+          "settings_get_supabase_credentials",
+        );
+        if (url && anonKey) {
+          initWorkspaceClient(url, anonKey);
+          setWorkspaceReady(true);
+        }
+      } catch (err) {
+        console.error("Failed to load Supabase credentials from settings:", err);
+      }
+    })();
+  }, [user]);
+
+  // Initialize team config after auth + workspace client is ready
+  useEffect(() => {
+    if (user && workspaceReady) {
       loadTeamConfig().then(() => registerCurrentUser());
     }
-  }, [user, loadTeamConfig, registerCurrentUser]);
+  }, [user, workspaceReady, loadTeamConfig, registerCurrentUser]);
 
   // Auto-briefing: generate feed cards from system activity on load + interval
   useAutoBriefing();
@@ -136,7 +167,7 @@ export default function App() {
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeTab)) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "bot", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser", "linkedin", "referrals"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser", "linkedin", "referrals"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id));
       if (firstVisible) {
         openTab(firstVisible);
@@ -168,7 +199,6 @@ export default function App() {
           "product",
           "metadata",
           "gallery",
-          "bot",
           "skills",
           "scheduler",
         ];
@@ -270,8 +300,8 @@ export default function App() {
     }
   }, []);
 
-  // Show loading spinner while initializing auth
-  if (!isInitialized || isLoading) {
+  // Show loading spinner while initializing auth or workspace
+  if (!isInitialized || isLoading || (user && !workspaceReady)) {
     return (
       <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
         {/* Draggable title bar */}
@@ -304,6 +334,12 @@ export default function App() {
   // Show setup wizard on first run
   if (!setupDone) {
     return <SetupWizard onComplete={() => setSetupDone(true)} />;
+  }
+
+  // Show workspace picker when multiple workspaces exist and none is selected.
+  // This is only active once the gateway is configured and workspaces are loaded.
+  if (wsWorkspaces.length > 1 && !wsActiveId) {
+    return <WorkspacePicker workspaces={wsWorkspaces} onSelect={wsSelect} />;
   }
 
   return (

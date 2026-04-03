@@ -172,7 +172,7 @@ export function CompanyDetailPanel({
                 href={company.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors font-medium"
+                className="inline-flex items-center gap-1 text-xs px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors font-medium"
               >
                 <Globe size={14} />
                 Website
@@ -258,10 +258,10 @@ export function CompanyDetailPanel({
               {company.deals?.map((deal) => (
                 <div
                   key={deal.id}
-                  className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden"
+                  className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden"
                 >
                   <DealCard deal={deal} showTasks={false} onDealUpdated={() => refetch()} />
-                  <div className="border-t border-zinc-200 dark:border-zinc-700">
+                  <div className="border-t border-zinc-200 dark:border-zinc-800">
                     <DealTasks
                       dealId={deal.id}
                       dealName={deal.name}

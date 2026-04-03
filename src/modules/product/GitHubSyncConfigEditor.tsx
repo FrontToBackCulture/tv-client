@@ -156,21 +156,21 @@ function RepoSection({
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </button>
         <input
-          className="w-32 px-2 py-1 text-sm font-medium bg-transparent border-b border-zinc-300 dark:border-zinc-700 focus:border-teal-500 outline-none text-zinc-900 dark:text-zinc-100"
+          className="w-32 px-2 py-1 text-sm font-medium bg-transparent border-b border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-teal-500/30 outline-none text-zinc-900 dark:text-zinc-100"
           value={repo.owner}
           onChange={(e) => update("owner", e.target.value)}
           placeholder="owner"
         />
         <span className="text-zinc-400">/</span>
         <input
-          className="w-40 px-2 py-1 text-sm font-medium bg-transparent border-b border-zinc-300 dark:border-zinc-700 focus:border-teal-500 outline-none text-zinc-900 dark:text-zinc-100"
+          className="w-40 px-2 py-1 text-sm font-medium bg-transparent border-b border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-teal-500/30 outline-none text-zinc-900 dark:text-zinc-100"
           value={repo.repo}
           onChange={(e) => update("repo", e.target.value)}
           placeholder="repo"
         />
         <span className="text-xs text-zinc-500">(</span>
         <input
-          className="w-20 px-2 py-1 text-xs bg-transparent border-b border-zinc-300 dark:border-zinc-700 focus:border-teal-500 outline-none text-zinc-500"
+          className="w-20 px-2 py-1 text-xs bg-transparent border-b border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-teal-500/30 outline-none text-zinc-500"
           value={repo.branch}
           onChange={(e) => update("branch", e.target.value)}
           placeholder="branch"
@@ -326,7 +326,7 @@ function MappingRow({
         <div className="px-3 pb-3 space-y-2 border-t border-zinc-100 dark:border-zinc-800">
           <FieldRow label="Name">
             <input
-              className="w-full text-xs px-2 py-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-teal-500 text-zinc-900 dark:text-zinc-100"
+              className="w-full text-xs px-2 py-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded outline-none focus:ring-2 focus:ring-teal-500/30 text-zinc-900 dark:text-zinc-100"
               value={mapping.name || ""}
               onChange={(e) => update("name", e.target.value || undefined)}
             />
@@ -341,7 +341,7 @@ function MappingRow({
           </FieldRow>
           <FieldRow label="Knowledge Path">
             <input
-              className="w-full text-xs px-2 py-1 font-mono bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-teal-500 text-zinc-900 dark:text-zinc-100"
+              className="w-full text-xs px-2 py-1 font-mono bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded outline-none focus:ring-2 focus:ring-teal-500/30 text-zinc-900 dark:text-zinc-100"
               value={mapping.knowledgePath}
               onChange={(e) => update("knowledgePath", e.target.value)}
             />
@@ -480,7 +480,7 @@ function RulesSection({
           Rules ({rules.length})
         </span>
         <input
-          className="flex-1 text-xs px-2 py-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-teal-500 text-zinc-900 dark:text-zinc-100"
+          className="flex-1 text-xs px-2 py-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded outline-none focus:ring-2 focus:ring-teal-500/30 text-zinc-900 dark:text-zinc-100"
           placeholder="Filter rules by name, condition, or path..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -586,7 +586,7 @@ function RuleRow({
         <div className="px-3 pb-3 pt-1 space-y-2 border-t border-zinc-100 dark:border-zinc-800">
           <FieldRow label="Name">
             <input
-              className="w-full text-xs px-2 py-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-teal-500 text-zinc-900 dark:text-zinc-100"
+              className="w-full text-xs px-2 py-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded outline-none focus:ring-2 focus:ring-teal-500/30 text-zinc-900 dark:text-zinc-100"
               value={rule.name || ""}
               onChange={(e) => update("name", e.target.value || undefined)}
             />
@@ -621,7 +621,7 @@ function RuleRow({
           />
           <FieldRow label="pathMatches">
             <input
-              className="w-full text-xs px-2 py-1 font-mono bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-teal-500 text-zinc-900 dark:text-zinc-100"
+              className="w-full text-xs px-2 py-1 font-mono bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded outline-none focus:ring-2 focus:ring-teal-500/30 text-zinc-900 dark:text-zinc-100"
               value={rule.condition.pathMatches || ""}
               onChange={(e) =>
                 updateCondition(
@@ -635,7 +635,7 @@ function RuleRow({
 
           <FieldRow label="Target Path">
             <input
-              className="w-full text-xs px-2 py-1 font-mono bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-teal-500 text-zinc-900 dark:text-zinc-100"
+              className="w-full text-xs px-2 py-1 font-mono bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded outline-none focus:ring-2 focus:ring-teal-500/30 text-zinc-900 dark:text-zinc-100"
               value={rule.targetPath}
               onChange={(e) => update("targetPath", e.target.value)}
             />
@@ -706,7 +706,7 @@ function ConditionField({
         </div>
         {showMode && (
           <select
-            className="text-xs px-1 py-0.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-zinc-600 dark:text-zinc-400"
+            className="text-xs px-1 py-0.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-600 dark:text-zinc-400"
             value={mode || "any"}
             onChange={(e) =>
               onModeChange(
@@ -756,7 +756,7 @@ function ChipInput({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-1 px-2 py-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded min-h-[26px] cursor-text"
+      className="flex flex-wrap items-center gap-1 px-2 py-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded min-h-[26px] cursor-text"
       onClick={() => inputRef.current?.focus()}
     >
       {values.map((v, i) => (

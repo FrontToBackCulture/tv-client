@@ -34,7 +34,7 @@ export function ClosedDealsPanel({ isOpen, onClose }: ClosedDealsPanelProps) {
       />
 
       {/* Panel */}
-      <div className="fixed right-0 top-0 h-full w-[400px] bg-white dark:bg-zinc-900 shadow-xl z-50 flex flex-col border-l border-zinc-200 dark:border-zinc-800 animate-modal-in">
+      <div className="fixed right-0 top-0 h-full w-[400px] bg-white dark:bg-zinc-900 shadow-lg z-50 flex flex-col border-l border-zinc-200 dark:border-zinc-800 animate-modal-in">
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">Closed Deals</h2>

@@ -5,13 +5,16 @@
 
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "../lib/supabase";
+import { supabase, isWorkspaceClientReady } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export function useRealtimeSync() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    // Don't subscribe until a workspace client is active
+    if (!isWorkspaceClientReady()) return;
+
     const channels: RealtimeChannel[] = [];
 
     // Helper to reduce boilerplate

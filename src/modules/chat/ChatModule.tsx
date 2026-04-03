@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { MessageSquare, ArrowRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { PageHeader } from "../../components/PageHeader";
 import { useThreads, useChatReadPositions, useUpsertReadPosition, type Thread } from "../../hooks/chat";
 import { useCreateDiscussion } from "../../hooks/useDiscussions";
 import { supabase } from "../../lib/supabase";
@@ -15,7 +16,7 @@ import { ChatThreadView } from "./ChatThreadView";
 import { NewThreadModal } from "./NewThreadModal";
 
 export function ChatModule() {
-  const { data: threads = [] } = useThreads();
+  const { data: threads = [], isLoading: threadsLoading } = useThreads();
   const createMutation = useCreateDiscussion();
 
   // Resolve current user for read positions
@@ -62,7 +63,10 @@ export function ChatModule() {
 
   const queryClient = useQueryClient();
 
+  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
+
   async function handleDeleteThread(thread: Thread) {
+    setDeletingThreadId(thread.entity_id);
     // Delete all discussions for this entity
     const { error } = await supabase
       .from("discussions")
@@ -72,6 +76,7 @@ export function ChatModule() {
 
     if (error) {
       console.error("Failed to delete thread:", error);
+      setDeletingThreadId(null);
       return;
     }
 
@@ -84,6 +89,7 @@ export function ChatModule() {
     queryClient.invalidateQueries({ queryKey: ["discussions"] });
     queryClient.invalidateQueries({ queryKey: ["chat"] });
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    setDeletingThreadId(null);
   }
 
   async function handleCreateThread(params: {
@@ -124,7 +130,9 @@ export function ChatModule() {
   }
 
   return (
-    <div className="h-full flex bg-[var(--bg-page)] dark:bg-[var(--bg-page)]">
+    <div className="h-full flex flex-col bg-[var(--bg-page)] dark:bg-[var(--bg-page)]">
+      <PageHeader description="Team conversations anchored to entities, visible to everyone and AI." />
+      <div className="flex-1 flex overflow-hidden">
       {/* Left panel — inbox */}
       <div className="w-[280px] flex-shrink-0">
         <ChatInbox
@@ -132,6 +140,8 @@ export function ChatModule() {
           readPositions={readPositions}
           selectedThreadId={selectedThread?.id ?? null}
           currentUser={currentUser}
+          isLoading={threadsLoading}
+          deletingThreadId={deletingThreadId}
           onSelect={setSelectedThread}
           onNewThread={() => setShowNewThread(true)}
           onDeleteThread={handleDeleteThread}
@@ -178,6 +188,7 @@ export function ChatModule() {
           onCreate={handleCreateThread}
         />
       )}
+      </div>
     </div>
   );
 }

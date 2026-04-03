@@ -1,6 +1,7 @@
 // WorkViews: Inbox View
 
 import { useState, useMemo, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { StatusIcon, PriorityBars } from "./StatusIcon";
 import type { TaskWithRelations, Project, Initiative } from "../../lib/work/types";
@@ -12,13 +13,14 @@ import type { InitiativeProjectLink } from "./workViewsShared";
 import { useTeams } from "../../hooks/work/useTeams";
 
 export function InboxView({
-  allTasks, projects, initiatives, initiativeLinks, onSelectTask,
+  allTasks, projects, initiatives, initiativeLinks, onSelectTask, isLoading,
 }: {
   allTasks: TaskWithRelations[];
   projects: Project[];
   initiatives: Initiative[];
   initiativeLinks: InitiativeProjectLink[];
   onSelectTask: (id: string) => void;
+  isLoading?: boolean;
 }) {
   const [filterInitiativeId, setFilterInitiativeId] = useState<string | null>(null);
   const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
@@ -122,7 +124,7 @@ export function InboxView({
         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">What needs your attention</div>
         <div className="text-xs text-zinc-500 mt-0.5">{inboxTasks.length} items ranked by urgency</div>
       </div>
-      <InboxList inboxTasks={inboxTasks} urgencyLabel={urgencyLabel} onSelectTask={onSelectTask} />
+      <InboxList inboxTasks={inboxTasks} urgencyLabel={urgencyLabel} onSelectTask={onSelectTask} isLoading={isLoading} />
     </div>
   );
 }
@@ -130,11 +132,12 @@ export function InboxView({
 const ROW_HEIGHT = 40;
 
 function InboxList({
-  inboxTasks, urgencyLabel, onSelectTask,
+  inboxTasks, urgencyLabel, onSelectTask, isLoading,
 }: {
   inboxTasks: TaskWithRelations[];
   urgencyLabel: (task: TaskWithRelations) => { text: string; color: string };
   onSelectTask: (id: string) => void;
+  isLoading?: boolean;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -143,6 +146,14 @@ function InboxList({
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 size={18} className="animate-spin text-zinc-400" />
+      </div>
+    );
+  }
 
   if (inboxTasks.length === 0) {
     return (
@@ -170,7 +181,7 @@ function InboxList({
                 transform: `translateY(${virtualRow.start}px)`,
               }}
               onClick={() => onSelectTask(task.id)}
-              className="flex items-center gap-3 px-6 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors border-b border-zinc-100 dark:border-zinc-800/50"
+              className="flex items-center gap-3 px-6 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors border-b border-zinc-100 dark:border-zinc-800"
             >
               <span className="text-xs text-zinc-300 dark:text-zinc-600 tabular-nums w-5 text-right flex-shrink-0">
                 {virtualRow.index + 1}

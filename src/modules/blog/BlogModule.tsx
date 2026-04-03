@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { PageHeader } from "../../components/PageHeader";
 import { useBlogArticles, useCreateArticle, useUpdateArticle, useDeleteArticle } from "./useBlogArticles";
 import { BlogEditor } from "./BlogEditor";
 import type { BlogArticle } from "./types";
@@ -90,6 +91,7 @@ export function BlogModule() {
 
   return (
     <div className="h-full flex flex-col">
+      <PageHeader description="Create, edit, and publish blog articles for the website." />
       {/* Header */}
       <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 px-4 py-3">
         <div className="flex items-center justify-between mb-3">
@@ -120,7 +122,7 @@ export function BlogModule() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search articles..."
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
           <div className="flex items-center gap-1">
@@ -168,7 +170,7 @@ export function BlogModule() {
                 <tr
                   key={article.id}
                   onClick={() => setSelectedId(article.id)}
-                  className="border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 cursor-pointer transition-colors"
+                  className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 cursor-pointer transition-colors"
                 >
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">

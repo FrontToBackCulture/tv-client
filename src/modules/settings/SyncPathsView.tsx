@@ -181,7 +181,7 @@ function DomainSyncPathRow({
                     type="text"
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-xs"
+                    className="flex-1 px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono text-xs"
                     autoFocus
                   />
                   <IconButton icon={FolderOpen} size={14} label="Browse..." onClick={handleBrowse} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 p-2" />
@@ -204,7 +204,7 @@ function DomainSyncPathRow({
                 }}
                 title={currentPath}
               >
-                <div className="flex-1 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded font-mono text-xs text-zinc-700 dark:text-zinc-300 truncate hover:border-teal-400 dark:hover:border-teal-600 transition-colors">
+                <div className="flex-1 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded font-mono text-xs text-zinc-700 dark:text-zinc-300 truncate hover:border-teal-400 dark:hover:border-teal-600 transition-colors">
                   {currentPath}
                 </div>
                 <IconButton icon={FolderOpen} size={14} label="Browse..." onClick={(e) => { e.stopPropagation(); handleBrowse(); }} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 p-2" />
@@ -223,7 +223,7 @@ function DomainSyncPathRow({
                   — {category.description}
                 </span>
               </div>
-              <div className="space-y-0.5 bg-white dark:bg-zinc-900 rounded border border-zinc-200 dark:border-zinc-700">
+              <div className="space-y-0.5 bg-white dark:bg-zinc-900 rounded border border-zinc-200 dark:border-zinc-800">
                 {category.outputs.map((output) => (
                   <div
                     key={output.label}

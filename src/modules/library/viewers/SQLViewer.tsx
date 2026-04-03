@@ -164,7 +164,7 @@ export function SQLViewer({ content }: SQLViewerProps) {
       <div className="flex items-center justify-end mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
         >
           {copied ? <Check size={12} className="text-green-500 dark:text-green-400" /> : <Copy size={12} />}
           {copied ? "Copied" : "Copy"}

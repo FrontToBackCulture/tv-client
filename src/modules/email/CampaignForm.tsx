@@ -169,7 +169,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-[560px] max-h-[90vh] overflow-auto">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg w-[560px] max-h-[90vh] overflow-auto">
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
           <div>
             <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
@@ -196,7 +196,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   placeholder="e.g., March Newsletter"
                 />
               </div>
@@ -208,7 +208,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   placeholder="e.g., Your March update is here"
                 />
               </div>
@@ -223,7 +223,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                     setFromName(name ?? "");
                     setFromEmail(email ?? "");
                   }}
-                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
                   <option value="">Select a sender...</option>
                   {senderOptions.map((u) => (
@@ -240,7 +240,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                 <select
                   value={groupId}
                   onChange={(e) => setGroupId(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
                   <option value="">Select a group...</option>
                   {groups.map((g) => (
@@ -259,7 +259,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   list="campaign-categories"
-                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   placeholder="e.g., Reports, Newsletter, Onboarding"
                 />
                 <datalist id="campaign-categories">
@@ -313,7 +313,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                         className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] border rounded-md transition-colors capitalize ${
                           contentPath === f.relativePath
                             ? "bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400"
-                            : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-teal-500 hover:text-teal-600 dark:hover:text-teal-400"
+                            : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:border-teal-500 hover:text-teal-600 dark:hover:text-teal-400"
                         }`}
                       >
                         <FileText size={11} />
@@ -341,7 +341,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                     if (contentPath) setContentPath("");
                   }}
                   rows={12}
-                  className="w-full px-3 py-2 text-xs font-mono bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+                  className="w-full px-3 py-2 text-xs font-mono bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
                   placeholder="<html>..."
                 />
               </div>
@@ -350,10 +350,10 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                   <p className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
                     Preview
                   </p>
-                  <div className="border border-zinc-200 dark:border-zinc-700 rounded-md overflow-hidden">
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
                     <iframe
                       srcDoc={htmlBody}
-                      className="w-full h-48 bg-white"
+                      className="w-full h-48 bg-white dark:bg-zinc-900"
                       sandbox=""
                       title="Email preview"
                     />
@@ -398,7 +398,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
               {step > 1 && (
                 <button
                   onClick={() => setStep((step - 1) as Step)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-md transition-colors"
                 >
                   <ChevronLeft size={12} /> Back
                 </button>
@@ -408,7 +408,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-md transition-colors"
               >
                 Cancel
               </button>

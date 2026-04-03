@@ -81,7 +81,7 @@ export function TaskForm({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
       <div
-        className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-hidden animate-modal-in"
+        className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg w-full max-w-xl max-h-[90vh] overflow-hidden animate-modal-in"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -89,7 +89,7 @@ export function TaskForm({
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
             {isEditing ? "Edit Task" : "New Task"}
           </h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition">
             <X size={18} />
           </button>
         </div>
@@ -164,7 +164,7 @@ export function TaskForm({
                       className={`text-xs px-2 py-0.5 rounded-full border transition ${
                         selected
                           ? "bg-teal-50 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300"
-                          : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300"
+                          : "border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:border-zinc-200 dark:hover:border-zinc-700"
                       }`}
                     >
                       {u.name}
@@ -224,7 +224,7 @@ export function TaskForm({
                 type="checkbox"
                 checked={formData.requires_review || false}
                 onChange={e => setFormData({ ...formData, requires_review: e.target.checked })}
-                className="rounded border-zinc-300 dark:border-zinc-600 text-teal-500 focus:ring-teal-500"
+                className="rounded border-zinc-200 dark:border-zinc-800 text-teal-500 focus:ring-teal-500"
               />
               <span className="text-sm text-zinc-600 dark:text-zinc-400">Requires review before completion</span>
             </label>

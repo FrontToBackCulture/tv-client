@@ -14,6 +14,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Button, IconButton } from "../../components/ui";
 import { SectionLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
+import { formatError } from "../../lib/formatError";
 import { useFileTree, useReadFile, type TreeNode } from "../../hooks/useFiles";
 import { useKnowledgePaths, useFolderConfig } from "../../hooks/useKnowledgePaths";
 import { MarkdownViewer } from "../library/MarkdownViewer";
@@ -96,8 +97,8 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
           }
         },
         onError: (err) => {
-          updateJob(jobId, { status: "failed", message: String(err) });
-          toast.update(toastId, { type: "error", message: `Inspection failed: ${err}`, duration: 5000 });
+          updateJob(jobId, { status: "failed", message: formatError(err) });
+          toast.update(toastId, { type: "error", message: `Inspection failed: ${formatError(err)}`, duration: 5000 });
         },
       }
     );
@@ -179,7 +180,7 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
   return (
     <div className="h-full flex flex-col">
       {/* ── Header: name + slug + status + actions ── */}
-      <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50 px-4 py-2.5">
+      <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-4 py-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate">
@@ -213,7 +214,7 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
               {showStatusMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowStatusMenu(false)} />
-                  <div className="absolute top-full left-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden z-50">
+                  <div className="absolute top-full left-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden z-50">
                     {(["active", "test", "review", "draft", "inactive", "deprecated"] as SkillStatus[]).map((s) => {
                       const cfg = SKILL_STATUS_CONFIG[s];
                       return (
@@ -250,7 +251,7 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
                 "p-1 rounded transition-colors",
                 inspectMutation.isPending
                   ? "text-teal-500 cursor-wait"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
               )}
             >
               {inspectMutation.isPending
@@ -294,7 +295,7 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
 
       {/* ── Distribution panel (collapsible) ── */}
       {showDistPanel && (
-        <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800/50 max-h-[300px] overflow-y-auto">
+        <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 max-h-[300px] overflow-y-auto">
           <DistributionPanel
             slug={slug}
             skill={skill}
@@ -314,7 +315,7 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
         <div className="flex-1 flex overflow-hidden">
           {/* Left: file tree */}
           <div
-            className="flex-shrink-0 overflow-y-auto border-r border-zinc-100 dark:border-zinc-800/50 py-1"
+            className="flex-shrink-0 overflow-y-auto border-r border-zinc-100 dark:border-zinc-800 py-1"
             style={{ width: sidebarWidth }}
           >
             {tree?.children ? (
@@ -356,7 +357,7 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
             {/* Breadcrumb bar */}
             {selectedNode && (
-              <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30">
+              <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
                 <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate">
                   {selectedRelPath}
                 </span>
@@ -583,13 +584,13 @@ function FileTreeContextMenu({ x, y, path, isDirectory, onClose }: {
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px]"
+        className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[180px]"
         style={{ left: x, top: y }}
       >
         {!isDirectory && (
           <button
             onClick={handleOpenWithDefault}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
           >
             <AppWindow size={14} />
             Open with Default App
@@ -597,7 +598,7 @@ function FileTreeContextMenu({ x, y, path, isDirectory, onClose }: {
         )}
         <button
           onClick={handleShowInFinder}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <FolderOpen size={14} />
           Show in Finder
@@ -605,7 +606,7 @@ function FileTreeContextMenu({ x, y, path, isDirectory, onClose }: {
         <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
         <button
           onClick={handleCopyPath}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <Copy size={14} />
           Copy Path
@@ -796,7 +797,7 @@ function DistributeMenu({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute left-0 top-full mt-1 z-50 min-w-[220px] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xl py-1">
+      <div className="absolute left-0 top-full mt-1 z-50 min-w-[220px] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-lg py-1">
         <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Bots</div>
         {bots.map((bot) => {
           const alreadyDistributed = distributedBotPaths.has(bot.skills_path);
@@ -898,22 +899,22 @@ function DiffView({ oldValue, newValue }: { oldValue: string | null; newValue: s
   const maxLines = Math.max(oldLines.length, newLines.length);
 
   return (
-    <div className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden text-xs font-mono">
+    <div className="rounded-md border border-zinc-200 dark:border-zinc-800 overflow-hidden text-xs font-mono">
       {/* Header */}
-      <div className="flex border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
-        <div className="flex-1 px-2 py-1 text-zinc-500 font-medium border-r border-zinc-200 dark:border-zinc-700">Removed</div>
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+        <div className="flex-1 px-2 py-1 text-zinc-500 font-medium border-r border-zinc-200 dark:border-zinc-800">Removed</div>
         <div className="flex-1 px-2 py-1 text-zinc-500 font-medium">Added</div>
       </div>
       {/* Side-by-side lines */}
       <div className="flex">
         {/* Left: old */}
-        <div className="flex-1 min-w-0 border-r border-zinc-200 dark:border-zinc-700">
+        <div className="flex-1 min-w-0 border-r border-zinc-200 dark:border-zinc-800">
           {Array.from({ length: maxLines }, (_, i) => {
             const line = oldLines[i];
             const hasLine = i < oldLines.length && oldValue;
             return (
               <div key={`old-${i}`} className={cn("flex min-h-[20px]", hasLine ? "bg-red-50/60 dark:bg-red-900/10" : "")}>
-                <span className="w-6 flex-shrink-0 text-right pr-1 text-red-300 dark:text-red-700 select-none border-r border-zinc-200 dark:border-zinc-700 bg-red-50/40 dark:bg-red-900/15">{hasLine ? "−" : ""}</span>
+                <span className="w-6 flex-shrink-0 text-right pr-1 text-red-300 dark:text-red-700 select-none border-r border-zinc-200 dark:border-zinc-800 bg-red-50/40 dark:bg-red-900/15">{hasLine ? "−" : ""}</span>
                 <span className="px-2 py-px text-red-700 dark:text-red-400 whitespace-pre-wrap break-all">{line ?? ""}</span>
               </div>
             );
@@ -926,7 +927,7 @@ function DiffView({ oldValue, newValue }: { oldValue: string | null; newValue: s
             const hasLine = i < newLines.length && newValue;
             return (
               <div key={`new-${i}`} className={cn("flex min-h-[20px]", hasLine ? "bg-emerald-50/60 dark:bg-emerald-900/10" : "")}>
-                <span className="w-6 flex-shrink-0 text-right pr-1 text-emerald-300 dark:text-emerald-700 select-none border-r border-zinc-200 dark:border-zinc-700 bg-emerald-50/40 dark:bg-emerald-900/15">{hasLine ? "+" : ""}</span>
+                <span className="w-6 flex-shrink-0 text-right pr-1 text-emerald-300 dark:text-emerald-700 select-none border-r border-zinc-200 dark:border-zinc-800 bg-emerald-50/40 dark:bg-emerald-900/15">{hasLine ? "+" : ""}</span>
                 <span className="px-2 py-px text-emerald-700 dark:text-emerald-400 whitespace-pre-wrap break-all">{line ?? ""}</span>
               </div>
             );

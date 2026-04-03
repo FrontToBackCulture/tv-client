@@ -152,14 +152,14 @@ function FolderPickerField({ value, onSave }: { value: string | null | undefined
         )}
         <button
           onClick={() => setOpen(!open)}
-          className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-teal-500 transition-colors shrink-0"
+          className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400 hover:text-teal-500 transition-colors shrink-0"
           title="Browse folders"
         >
           <FolderOpen size={13} />
         </button>
       </div>
       {open && basePath && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg max-h-[300px] overflow-auto p-1">
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg max-h-[300px] overflow-auto p-1">
           <MiniTreeNode path={basePath} name={activeRepository?.name ?? "Library"} level={0} onSelect={(p) => { onSave(p); setOpen(false); }} />
         </div>
       )}
@@ -212,7 +212,7 @@ function EmailDomainsField({ value, companyId, contacts, onSave }: {
       <button
         onClick={autoPopulate}
         disabled={syncing}
-        className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-teal-500 transition-colors shrink-0 disabled:opacity-50"
+        className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400 hover:text-teal-500 transition-colors shrink-0 disabled:opacity-50"
         title="Auto-populate from contacts' emails"
       >
         <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
@@ -336,8 +336,8 @@ function SentEmailRow({ email, isExpanded, onToggle }: {
       </button>
       {/* Expanded preview + tracking details */}
       {isExpanded && (
-        <div className="ml-4 mt-1 mb-2 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
-          <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 text-[10px] text-zinc-400 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+        <div className="ml-4 mt-1 mb-2 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800">
+          <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 text-[10px] text-zinc-400 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <span>From: {email.from_name} &lt;{email.from_email}&gt;</span>
             {tracking?.opened && (
               <span className="text-blue-500">
@@ -354,7 +354,7 @@ function SentEmailRow({ email, isExpanded, onToggle }: {
           />
           {/* Click tracking details */}
           {tracking?.clicks && tracking.clicks.length > 0 && (
-            <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700">
+            <div className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800">
               <div className="text-[9px] font-medium text-zinc-400 mb-1">Link Clicks</div>
               {tracking.clicks.map((click, i) => (
                 <div key={i} className="text-[9px] text-zinc-500 flex items-center gap-2 py-0.5">
@@ -694,7 +694,7 @@ export function MetadataView() {
     { field: "stage", headerName: "Stage", width: 110, editable: true, filter: "agSetColumnFilter",
       cellEditor: "agSelectCellEditor", cellEditorParams: { values: COMPANY_STAGES.map(s => s.value) },
       cellRenderer: (p: any) => p.value ? <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium",
-        p.value === "client" ? "bg-emerald-50 text-emerald-700" : p.value === "prospect" ? "bg-zinc-100 text-zinc-600" : p.value === "opportunity" ? "bg-blue-50 text-blue-700" : "bg-zinc-100 text-zinc-500"
+        p.value === "client" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400" : p.value === "prospect" ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" : p.value === "opportunity" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
       )}>{p.value}</span> : null,
     },
     { field: "industry", headerName: "Industry", width: 120, editable: true, filter: "agSetColumnFilter" },
@@ -773,13 +773,13 @@ export function MetadataView() {
     { field: "status", headerName: "Status", width: 100, editable: true, filter: "agSetColumnFilter",
       cellEditor: "agSelectCellEditor", cellEditorParams: { values: ["planned", "active", "completed", "paused"] },
       cellRenderer: (p: any) => p.value ? <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium",
-        p.value === "active" ? "bg-emerald-50 text-emerald-700" : p.value === "planned" ? "bg-zinc-100 text-zinc-600" : p.value === "completed" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+        p.value === "active" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400" : p.value === "planned" ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" : p.value === "completed" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400" : "bg-amber-50 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400"
       )}>{p.value}</span> : null,
     },
     { field: "health", headerName: "Health", width: 90, editable: true, filter: "agSetColumnFilter",
       cellEditor: "agSelectCellEditor", cellEditorParams: { values: ["on_track", "at_risk", "off_track", ""] },
       cellRenderer: (p: any) => p.value ? <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium",
-        p.value === "on_track" ? "bg-emerald-50 text-emerald-700" : p.value === "at_risk" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600"
+        p.value === "on_track" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400" : p.value === "at_risk" ? "bg-amber-50 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400" : "bg-red-50 text-red-600 dark:bg-red-900/50 dark:text-red-400"
       )}>{p.value}</span> : null,
     },
     { field: "owner", headerName: "Owner", width: 120, editable: true, filter: "agSetColumnFilter" },
@@ -808,7 +808,7 @@ export function MetadataView() {
       ),
     },
     { field: "type", headerName: "Type", width: 80, filter: "agSetColumnFilter",
-      cellRenderer: (p: any) => p.value ? <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", p.value === "bot" ? "bg-purple-50 text-purple-600" : "bg-zinc-100 text-zinc-500")}>{p.value}</span> : null,
+      cellRenderer: (p: any) => p.value ? <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", p.value === "bot" ? "bg-purple-50 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400")}>{p.value}</span> : null,
     },
     { field: "email", headerName: "Email", width: 200, editable: true },
     { field: "github_username", headerName: "GitHub", width: 130 },
@@ -823,7 +823,7 @@ export function MetadataView() {
     { field: "value", headerName: "Value", width: 160, editable: true, filter: "agTextColumnFilter" },
     { field: "label", headerName: "Label", flex: 1, editable: true, filter: "agTextColumnFilter" },
     { field: "color", headerName: "Color", width: 100, editable: true,
-      cellRenderer: (p: any) => p.value ? <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: p.value }} /><span className="text-[10px] text-zinc-500">{p.value}</span></span> : null,
+      cellRenderer: (p: any) => p.value ? <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: p.value }} /><span className="text-[10px] text-zinc-500 dark:text-zinc-400">{p.value}</span></span> : null,
     },
     { field: "icon", headerName: "Icon", width: 100, editable: true },
     { field: "weight", headerName: "Weight", width: 80, editable: true, type: "numericColumn" },
@@ -838,7 +838,7 @@ export function MetadataView() {
       cellRenderer: (p: any) => p.value ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">{p.value}</span> : null,
     },
     { field: "color", headerName: "Color", width: 100, editable: true,
-      cellRenderer: (p: any) => p.value ? <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: p.value }} /><span className="text-[10px] text-zinc-500">{p.value}</span></span> : null,
+      cellRenderer: (p: any) => p.value ? <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: p.value }} /><span className="text-[10px] text-zinc-500 dark:text-zinc-400">{p.value}</span></span> : null,
     },
     { field: "sort_order", headerName: "Order", width: 70, editable: true, type: "numericColumn" },
   ], []);
@@ -849,7 +849,7 @@ export function MetadataView() {
     { field: "email", headerName: "Email", width: 200, editable: true, filter: "agTextColumnFilter" },
     { field: "phone", headerName: "Phone", width: 140, editable: true },
     { field: "active", headerName: "Active", width: 90, editable: true,
-      cellRenderer: (p: any) => p.value ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700">active</span> : <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-500">inactive</span>,
+      cellRenderer: (p: any) => p.value ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">active</span> : <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">inactive</span>,
       cellEditor: "agSelectCellEditor", cellEditorParams: { values: [true, false] },
     },
     { field: "code", headerName: "Code", width: 120, editable: false },
@@ -1003,7 +1003,7 @@ export function MetadataView() {
             <div className="flex flex-col items-center">
               <button
                 onClick={toggleSidebar}
-                className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                 title="Expand panel"
               >
                 <PanelLeftOpen size={14} />
@@ -1034,7 +1034,7 @@ export function MetadataView() {
                           "w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors",
                           subTab === tab.id
                             ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
-                            : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                            : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                         )}
                       >
                         <span className="truncate">{tab.label}</span>
@@ -1057,7 +1057,7 @@ export function MetadataView() {
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
                 <input type="text" placeholder="Filter..." value={quickFilter}
                   onChange={(e) => { setQuickFilter(e.target.value); gridRef.current?.api?.setGridOption("quickFilterText", e.target.value); }}
-                  className="w-48 px-2.5 py-1.5 pl-8 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-teal-500" />
+                  className="w-48 px-2.5 py-1.5 pl-8 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
               </div>
 
               {(isLookupTab || isTaskStatusTab || subTab === "partners" || subTab === "labels") && (
@@ -1067,7 +1067,7 @@ export function MetadataView() {
                     <Plus size={13} /> Add
                   </button>
                   <button onClick={handleDeleteSelected}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border border-zinc-300 dark:border-zinc-700 transition-colors">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border border-zinc-200 dark:border-zinc-800 transition-colors">
                     <Trash2 size={13} />
                   </button>
                 </>
@@ -1099,22 +1099,22 @@ export function MetadataView() {
               {/* Layouts dropdown */}
               <div className="relative">
                 <button onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
                   <Bookmark size={13} /> Layouts
                 </button>
                 {showLayoutMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 py-1">
-                    <button onClick={() => { applyFlatLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><Columns size={13} /> Flat View</button>
-                    <button onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><ChevronsLeftRight size={13} /> Auto-fit Columns</button>
-                    <button onClick={() => { resetLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><RotateCcw size={13} /> Reset to Default</button>
-                    <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
-                    <button onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2"><span className="text-green-600">+</span> Save current layout...</button>
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
+                    <button onClick={() => { applyFlatLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><Columns size={13} /> Flat View</button>
+                    <button onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><ChevronsLeftRight size={13} /> Auto-fit Columns</button>
+                    <button onClick={() => { resetLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><RotateCcw size={13} /> Reset to Default</button>
+                    <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+                    <button onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><span className="text-green-600">+</span> Save current layout...</button>
                     {Object.keys(savedLayouts).length > 0 && (
                       <>
-                        <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                        <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
                         <div className="px-3 py-1 text-xs font-medium text-zinc-500">Saved Layouts</div>
                         {Object.keys(savedLayouts).map(name => (
-                          <div key={name} onClick={() => loadLayout(name)} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-between cursor-pointer group">
+                          <div key={name} onClick={() => loadLayout(name)} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group">
                             <span className="truncate flex items-center gap-1.5">{defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500" />}{name}</span>
                             <div className="flex items-center gap-0.5">
                               <button onClick={(e) => { e.stopPropagation(); saveCurrentLayout(name); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500"><Save size={12} /></button>
@@ -1131,7 +1131,7 @@ export function MetadataView() {
 
               <button onClick={() => setWrapNotes(!wrapNotes)}
                 className={cn("flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-lg border transition-colors",
-                  wrapNotes ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                  wrapNotes ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 )} title={wrapNotes ? "Truncate text" : "Wrap text"}>
                 <WrapText size={13} />
               </button>
@@ -1140,7 +1140,7 @@ export function MetadataView() {
               <Button size="sm" icon={FileSpreadsheet} onClick={exportToExcel}>Excel</Button>
 
               <button onClick={() => setIsFullscreen(!isFullscreen)}
-                className={cn("p-1.5 rounded-lg border transition-colors", isFullscreen ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700")}>
+                className={cn("p-1.5 rounded-lg border transition-colors", isFullscreen ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700")}>
                 {isFullscreen ? <X size={14} /> : <Maximize2 size={14} />}
               </button>
             </div>
@@ -1261,9 +1261,9 @@ export function MetadataView() {
           <>
             <div onMouseDown={onResizeDown} className="w-1 flex-shrink-0 cursor-col-resize hover:bg-teal-500/30 active:bg-teal-500/50 transition-colors" />
             <div className="flex-shrink-0 overflow-y-auto border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950" style={{ width: detailWidth }}>
-              <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-100 dark:border-zinc-800">
                 <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Details</span>
-                <button onClick={() => setSelection(null)} className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"><X size={14} /></button>
+                <button onClick={() => setSelection(null)} className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"><X size={14} /></button>
               </div>
               <div className="p-4">
                 {/* Company */}
@@ -1342,8 +1342,8 @@ export function MetadataView() {
                         <p className="text-[11px] text-zinc-400 italic">No activities yet</p>
                       ) : activities.slice(0, 8).map(a => (
                         <div key={a.id} className="text-[11px] mb-1">
-                          <span className="text-[9px] px-1 rounded bg-zinc-100 text-zinc-500 mr-1">{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</span>
-                          {a.subject && <span className="text-zinc-600">{a.subject}</span>}
+                          <span className="text-[9px] px-1 rounded bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 mr-1">{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</span>
+                          {a.subject && <span className="text-zinc-600 dark:text-zinc-300">{a.subject}</span>}
                         </div>
                       ))}
                     </div>
@@ -1380,7 +1380,7 @@ export function MetadataView() {
                         <span className={`px-1.5 py-0.5 rounded ${
                           selectedContact.email_status === "verified" ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400" :
                           selectedContact.email_status === "guessed" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400" :
-                          "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
+                          "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
                         }`}>
                           Email: {selectedContact.email_status}
                         </span>
@@ -1419,8 +1419,8 @@ export function MetadataView() {
                         <p className="text-[11px] text-zinc-400 italic">No activities yet</p>
                       ) : activities.slice(0, 8).map(a => (
                         <div key={a.id} className="text-[11px] mb-1">
-                          <span className="text-[9px] px-1 rounded bg-zinc-100 text-zinc-500 mr-1">{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</span>
-                          {a.subject && <span className="text-zinc-600">{a.subject}</span>}
+                          <span className="text-[9px] px-1 rounded bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 mr-1">{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</span>
+                          {a.subject && <span className="text-zinc-600 dark:text-zinc-300">{a.subject}</span>}
                         </div>
                       ))}
                     </div>
@@ -1469,7 +1469,7 @@ export function MetadataView() {
                                 </div>
                               </div>
                               {/* Email preview */}
-                              <div className="border border-t-0 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                              <div className="border border-t-0 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
                                 <iframe
                                   srcDoc={draft.html_body}
                                   className="w-full border-0"
@@ -1479,7 +1479,7 @@ export function MetadataView() {
                                 />
                               </div>
                               {/* Actions */}
-                              <div className="border border-t-0 border-zinc-200 dark:border-zinc-700 rounded-b-lg bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 space-y-2">
+                              <div className="border border-t-0 border-zinc-200 dark:border-zinc-800 rounded-b-lg bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 space-y-2">
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="email"
@@ -1495,7 +1495,7 @@ export function MetadataView() {
                                       if (email) sendDraft.mutate({ draftId: draft.id, testEmail: email });
                                     }}
                                     disabled={sendDraft.isPending}
-                                    className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+                                    className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50 transition-colors whitespace-nowrap"
                                   >
                                     <FlaskConical size={10} /> Send Test
                                   </button>
@@ -1582,7 +1582,7 @@ export function MetadataView() {
                       {selectedUser.avatar_url && <img src={selectedUser.avatar_url} className="w-8 h-8 rounded-full" />}
                       <div>
                         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedUser.name}</h2>
-                        <span className={cn("text-[9px] px-1.5 rounded-full font-semibold uppercase", selectedUser.type === "bot" ? "bg-purple-50 text-purple-500" : "bg-zinc-100 text-zinc-400")}>{selectedUser.type}</span>
+                        <span className={cn("text-[9px] px-1.5 rounded-full font-semibold uppercase", selectedUser.type === "bot" ? "bg-purple-50 text-purple-500 dark:bg-purple-900/50 dark:text-purple-400" : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-400")}>{selectedUser.type}</span>
                       </div>
                     </div>
                     <FieldGrid fields={[
@@ -1605,7 +1605,7 @@ export function MetadataView() {
                       <Handshake size={18} className="text-teal-500" />
                       <div>
                         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{selectedPartner.name}</h2>
-                        <span className={cn("text-[9px] px-1.5 rounded-full font-semibold uppercase", selectedPartner.active ? "bg-emerald-50 text-emerald-500" : "bg-zinc-100 text-zinc-400")}>{selectedPartner.active ? "active" : "inactive"}</span>
+                        <span className={cn("text-[9px] px-1.5 rounded-full font-semibold uppercase", selectedPartner.active ? "bg-emerald-50 text-emerald-500 dark:bg-emerald-900/50 dark:text-emerald-400" : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-400")}>{selectedPartner.active ? "active" : "inactive"}</span>
                       </div>
                     </div>
                     <FieldGrid fields={[
@@ -1639,7 +1639,7 @@ export function MetadataView() {
                       {selectedLookup.color && <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedLookup.color }} />}
                       {selectedLookup.label}
                     </h2>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-medium">{selectedLookup.type}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-medium">{selectedLookup.type}</span>
                     <div className="mt-3">
                       <FieldGrid fields={[
                         { label: "Value", field: "value", value: selectedLookup.value },
@@ -1667,12 +1667,12 @@ export function MetadataView() {
       {/* Save Layout Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-700">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-800">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Save Layout</h3>
             <input type="text" value={newLayoutName} onChange={(e) => setNewLayoutName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && newLayoutName.trim()) saveCurrentLayout(newLayoutName); else if (e.key === "Escape") { setShowSaveDialog(false); setNewLayoutName(""); } }}
               placeholder="Enter layout name..." autoFocus
-              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-teal-500 mb-4" />
+              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mb-4" />
             <div className="flex justify-end gap-2">
               <Button variant="secondary" size="md" onClick={() => { setShowSaveDialog(false); setNewLayoutName(""); }}>Cancel</Button>
               <Button size="md" onClick={() => saveCurrentLayout(newLayoutName)} disabled={!newLayoutName.trim()}>Save</Button>

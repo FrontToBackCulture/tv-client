@@ -347,7 +347,7 @@ export function DetailsTab({
               {onReloadFromFile && (
                 <button
                   onClick={onReloadFromFile}
-                  className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                   title="Reload from file & push to grid"
                 >
                   <RefreshCw size={10} />
@@ -358,7 +358,7 @@ export function DetailsTab({
               {onSyncToGrid && (
                 <button
                   onClick={onSyncToGrid}
-                  className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                   title="Save & sync to grid"
                 >
                   <Upload size={10} />
@@ -376,7 +376,7 @@ export function DetailsTab({
                 value={rowData?.suggestedName ?? analysis?.suggestedName ?? ""}
                 onChange={(e) => onFieldChange("suggestedName", e.target.value || null)}
                 placeholder="Enter suggested name..."
-                className="w-full text-xs px-2 py-1.5 rounded bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:border-teal-500"
+                className="w-full text-xs px-2 py-1.5 rounded bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
               />
             </div>
 
@@ -388,7 +388,7 @@ export function DetailsTab({
                 value={rowData?.summaryShort ?? analysis?.summary?.short ?? ""}
                 onChange={(e) => onFieldChange("summaryShort", e.target.value || null)}
                 placeholder="One line description..."
-                className="w-full text-xs px-2 py-1.5 rounded bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:border-teal-500"
+                className="w-full text-xs px-2 py-1.5 rounded bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
               />
             </div>
 
@@ -400,7 +400,7 @@ export function DetailsTab({
                 onChange={(e) => onFieldChange("summaryFull", e.target.value || null)}
                 placeholder="2-3 sentence detailed description..."
                 rows={3}
-                className="w-full text-xs px-2 py-1.5 rounded bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:border-teal-500 resize-none"
+                className="w-full text-xs px-2 py-1.5 rounded bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"
               />
             </div>
 
@@ -414,7 +414,7 @@ export function DetailsTab({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
               <div>
                 <label className="text-xs text-zinc-500 block mb-1">Category</label>
                 <ComboBox
@@ -571,7 +571,7 @@ export function DetailsTab({
                 ) : null}
                 {/* Dropdown */}
                 {showFreshnessDropdown && dateColumns.length > 1 && (
-                  <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 py-1 min-w-[180px] max-h-[200px] overflow-y-auto">
+                  <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 py-1 min-w-[180px] max-h-[200px] overflow-y-auto">
                     {dateColumns.map((col) => (
                       <button
                         key={col.column}
@@ -580,7 +580,7 @@ export function DetailsTab({
                           onRefreshWithColumn?.(col.column);
                         }}
                         className={cn(
-                          "w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-between gap-2",
+                          "w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between gap-2",
                           col.column === details?.health?.freshnessColumn
                             ? "bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-400"
                             : "text-zinc-700 dark:text-zinc-300"
@@ -1020,7 +1020,7 @@ export function DetailsTab({
                       {isFieldsExpanded && rt.fields && rt.fields.length > 0 && (
                         <div className="ml-5 mb-2 pl-2 border-l-2 border-orange-200 dark:border-orange-900/50 space-y-1.5">
                           {rt.fields.map((field, fi) => (
-                            <div key={fi} className="text-xs py-1 border-b border-zinc-100 dark:border-zinc-800/50 last:border-0">
+                            <div key={fi} className="text-xs py-1 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
                               <div className="flex items-center justify-between">
                                 <span className="text-zinc-700 dark:text-zinc-300 font-medium">{field.fieldName}</span>
                                 <span className="text-orange-500 font-mono text-xs">{field.ruleType}</span>
@@ -1118,7 +1118,7 @@ export function DetailsTab({
                         <tr
                           key={i}
                           className={cn(
-                            "border-b border-zinc-100 dark:border-zinc-800/50 last:border-0",
+                            "border-b border-zinc-100 dark:border-zinc-800 last:border-0",
                             col.category === 'calculated' && "bg-orange-50/50 dark:bg-orange-900/10 cursor-pointer hover:bg-orange-100/50 dark:hover:bg-orange-900/20"
                           )}
                           onClick={col.category === 'calculated' ? toggleCalcExpand : undefined}

@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Globe, Star, Sparkles, Save, Loader2, Check, Trash2, Upload, ExternalLink, FileText } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
+import { formatError } from "../../lib/formatError";
 import { useSkillLibraryByFile, useUpsertSkillLibraryEntry, useDeleteSkillLibraryEntry } from "../../hooks/gallery/useSkillLibrary";
 import { useGenerateReportContent } from "../../hooks/gallery/useGenerateReportContent";
 import type { SkillExample } from "./useGallery";
@@ -131,8 +132,7 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
       });
       setDirty(false);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null && "message" in err ? (err as { message: string }).message : String(err);
-      setUploadError(msg);
+      setUploadError(formatError(err));
     } finally {
       setUploading(false);
     }
@@ -180,7 +180,7 @@ export function ReportDetailPanel({ example, htmlContent }: ReportDetailPanelPro
       <div
         onClick={() => setEditingField(field)}
         className={cn(
-          "text-sm leading-relaxed cursor-text rounded-lg px-1 -mx-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition",
+          "text-sm leading-relaxed cursor-text rounded-lg px-1 -mx-1 py-0.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition",
           value ? "text-zinc-800 dark:text-zinc-200" : "text-zinc-400 italic"
         )}
       >

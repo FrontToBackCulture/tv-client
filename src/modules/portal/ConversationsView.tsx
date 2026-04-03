@@ -74,7 +74,7 @@ export function ConversationsView({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search conversations..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500"
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
               />
             </div>
           </div>
@@ -94,7 +94,7 @@ export function ConversationsView({
                   "px-2 py-0.5 rounded-full border transition-colors capitalize",
                   (filters.status || "all") === s
                     ? "border-teal-500 text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10"
-                    : "border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-400"
+                    : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400"
                 )}
               >
                 {s}
@@ -111,7 +111,7 @@ export function ConversationsView({
                     site_id: e.target.value || undefined,
                   }))
                 }
-                className="px-2 py-0.5 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-500 bg-white dark:bg-zinc-900 text-xs"
+                className="px-2 py-0.5 rounded-full border border-zinc-200 dark:border-zinc-800 text-zinc-500 bg-white dark:bg-zinc-900 text-xs"
               >
                 <option value="">All sites</option>
                 {sites.map((s) => (
@@ -193,7 +193,7 @@ function ConversationRow({
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left px-3 py-3 border-b border-zinc-100 dark:border-zinc-800/50 transition-colors",
+        "w-full text-left px-3 py-3 border-b border-zinc-100 dark:border-zinc-800 transition-colors",
         "hover:bg-zinc-50 dark:hover:bg-zinc-900/50",
         isSelected &&
           "bg-teal-50 dark:bg-teal-500/10 border-l-2 border-l-teal-500"

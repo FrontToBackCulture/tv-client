@@ -18,6 +18,7 @@ import {
   useCreateSyncConfig,
 } from "../../hooks/useNotion";
 import { useProjects } from "../../hooks/work";
+import { formatError } from "../../lib/formatError";
 import { NotionFieldMapper } from "./NotionFieldMapper";
 import type {
   NotionDatabaseInfo,
@@ -99,7 +100,7 @@ export function NotionSyncSetup({ onClose, onSaved }: Props) {
       await createConfig.mutateAsync(data);
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatError(e));
     }
   };
 
@@ -180,7 +181,7 @@ export function NotionSyncSetup({ onClose, onSaved }: Props) {
                 type="text"
                 value={configName}
                 onChange={(e) => setConfigName(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                 placeholder="e.g., ThinkVAL Tasks DB"
               />
             </div>
@@ -232,7 +233,7 @@ export function NotionSyncSetup({ onClose, onSaved }: Props) {
               <select
                 value={targetProjectId}
                 onChange={(e) => setTargetProjectId(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
               >
                 <option value="">Select a project...</option>
                 {projects
@@ -256,7 +257,7 @@ export function NotionSyncSetup({ onClose, onSaved }: Props) {
                 value={filterJson}
                 onChange={(e) => setFilterJson(e.target.value)}
                 rows={6}
-                className="w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                className="w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                 placeholder='{"property": "Status", "status": {"does_not_equal": "Done"}}'
               />
               {filterJson && !parsedFilter && (
@@ -325,7 +326,7 @@ export function NotionSyncSetup({ onClose, onSaved }: Props) {
                   {preview.map((card) => (
                     <div
                       key={card.notion_page_id}
-                      className="px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700"
+                      className="px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800"
                     >
                       {card.title}
                     </div>
@@ -388,7 +389,7 @@ function DatabaseStep({
           value={searchQuery}
           onChange={(e) => onSearch(e.target.value)}
           placeholder="Search Notion databases..."
-          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
           autoFocus
         />
       </div>

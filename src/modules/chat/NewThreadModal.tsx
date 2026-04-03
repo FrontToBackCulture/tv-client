@@ -80,7 +80,7 @@ export function NewThreadModal({ onClose, onCreate }: NewThreadModalProps) {
 
       {/* Modal */}
       <div
-        className="relative bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] rounded-2xl shadow-xl w-full max-w-[440px] border border-[var(--border-default)] overflow-hidden animate-fade-slide-in"
+        className="relative bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] rounded-2xl shadow-lg w-full max-w-[440px] border border-[var(--border-default)] overflow-hidden animate-fade-slide-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

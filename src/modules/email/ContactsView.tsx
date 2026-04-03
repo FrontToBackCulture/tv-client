@@ -5,6 +5,7 @@ import { useState, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Upload, Pencil, Trash2 } from "lucide-react";
+import { SectionToolbar } from "../../components/SectionToolbar";
 import { useEmailContacts, useEmailGroups, useDeleteEmailContact } from "../../hooks/email";
 import { supabase } from "../../lib/supabase";
 import type { EmailContact } from "../../lib/email/types";
@@ -155,26 +156,26 @@ export function ContactsView({ selectedId, onSelect, onNewContact, onImport }: C
 
       {/* List */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50">
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {sorted.length}{treeSelection.groupValue ? ` in ${activeOption.getLabel?.(treeSelection.groupValue) ?? treeSelection.groupValue}` : ""} contact{sorted.length !== 1 ? "s" : ""}
-          </p>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={onImport}
-              className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              title="Import CSV"
-            >
-              <Upload size={14} />
-            </button>
-            <button
-              onClick={onNewContact}
-              className="p-1.5 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-        </div>
+        <SectionToolbar
+          subtitle={`${sorted.length}${treeSelection.groupValue ? ` in ${activeOption.getLabel?.(treeSelection.groupValue) ?? treeSelection.groupValue}` : ""} contact${sorted.length !== 1 ? "s" : ""}`}
+          actions={
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={onImport}
+                className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                title="Import CSV"
+              >
+                <Upload size={14} />
+              </button>
+              <button
+                onClick={onNewContact}
+                className="p-1.5 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          }
+        />
 
         <ContactList
           isLoading={isLoading}
@@ -250,7 +251,7 @@ function ContactList({
                 height: CONTACT_ROW_HEIGHT,
                 transform: `translateY(${virtualRow.start}px)`,
               }}
-              className="border-b border-zinc-100 dark:border-zinc-800/50"
+              className="border-b border-zinc-100 dark:border-zinc-800"
             >
               <ContactRow
                 contact={contact}
@@ -317,7 +318,7 @@ function ContactRow({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDeleteCancel(); }}
-            className="px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+            className="px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-md transition-colors"
           >
             Cancel
           </button>

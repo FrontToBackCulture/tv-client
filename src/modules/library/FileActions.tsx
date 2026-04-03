@@ -369,7 +369,7 @@ export function FileActions({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
+        <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 z-50">
           {items.map((item, index) => (
             <div key={index}>
               <button
@@ -381,7 +381,7 @@ export function FileActions({
                     ? "opacity-50 cursor-not-allowed"
                     : item.variant === "danger"
                     ? "text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20"
-                    : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 )}
               >
                 {item.loading ? (
@@ -406,7 +406,7 @@ export function FileActions({
                 <span className="flex-1">{item.label}</span>
               </button>
               {item.dividerAfter && (
-                <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
+                <div className="my-1 border-t border-zinc-200 dark:border-zinc-800" />
               )}
             </div>
           ))}

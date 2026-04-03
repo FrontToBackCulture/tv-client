@@ -480,7 +480,7 @@ export function ImageEditor({ item, onBack }: { item: GalleryItem; onBack: () =>
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAiGenerate(); } }}
                   placeholder="Try again with a different prompt..."
                   disabled={aiLoading}
-                  className="w-80 px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:opacity-50"
+                  className="w-80 px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:opacity-50"
                 />
               </div>
               <Button
@@ -569,7 +569,7 @@ export function ImageEditor({ item, onBack }: { item: GalleryItem; onBack: () =>
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAiGenerate(); } }}
                 placeholder={geminiKey ? "Describe what to change... (e.g. remove background, make grayscale)" : "Set Gemini API key in Settings to use AI editing"}
                 disabled={!geminiKey || aiLoading}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:opacity-50"
+                className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:opacity-50"
               />
             </div>
             <Button

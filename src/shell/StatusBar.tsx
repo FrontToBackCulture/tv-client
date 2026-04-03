@@ -6,40 +6,15 @@ import { useAppStore } from "../stores/appStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { useClaudeRunStore } from "../stores/claudeRunStore";
 import { cn } from "../lib/cn";
-import { Sun, Moon, Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, PanelRight, Code, ChevronDown, Wrench, Activity, Brain } from "lucide-react";
-import { useSidePanelStore } from "../stores/sidePanelStore";
+import { Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, Code, ChevronDown, Wrench, Activity, Brain, StopCircle } from "lucide-react";
 import { NotificationBell } from "../components/notifications/NotificationBell";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { useAppUpdate } from "../hooks/useAppUpdate";
 import { UpdatePreviewPanel } from "./UpdatePreviewPanel";
 import { triggerTaskAdvisor } from "../hooks/chat";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUserId, useUsers } from "../hooks/work/useUsers";
 
-interface ClaudeMcpStatus {
-  binary_installed: boolean;
-  binary_path: string;
-  config_exists: boolean;
-  config_has_tv_mcp: boolean;
-  platform: string;
-}
-
-type ClaudeState = "ready" | "partial" | "none";
-
-function useClaudeStatus(): ClaudeState {
-  const [state, setState] = useState<ClaudeState>("none");
-
-  useEffect(() => {
-    invoke<ClaudeMcpStatus>("claude_mcp_status")
-      .then((s) => {
-        if (s.binary_installed && s.config_has_tv_mcp) setState("ready");
-        else if (s.binary_installed || s.config_has_tv_mcp) setState("partial");
-        else setState("none");
-      })
-      .catch(() => setState("none"));
-  }, []);
-
-  return state;
-}
 
 function ElapsedTime({ startedAt }: { startedAt: Date }) {
   const [elapsed, setElapsed] = useState("");
@@ -59,10 +34,6 @@ function ElapsedTime({ startedAt }: { startedAt: Date }) {
 
 export function StatusBar() {
   const syncStatus = useAppStore((s) => s.syncStatus);
-  const theme = useAppStore((s) => s.theme);
-  const toggleTheme = useAppStore((s) => s.toggleTheme);
-  const openSettings = useAppStore((s) => s.openSettings);
-  const claudeState = useClaudeStatus();
   const runningJobs = useRunningJobs();
   const recentJobs = useRecentJobs(10);
   const clearCompleted = useJobsStore((s) => s.clearCompleted);
@@ -74,9 +45,6 @@ export function StatusBar() {
     hydrate();
   }, [hydrate]);
 
-  const sidePanelOpen = useSidePanelStore((s) => s.isOpen);
-  const togglePanel = useSidePanelStore((s) => s.togglePanel);
-  const activeModule = useAppStore((s) => s.activeModule);
   const queryClient = useQueryClient();
   const currentUserId = useCurrentUserId();
   const { data: sbUsers = [] } = useUsers();
@@ -111,8 +79,9 @@ export function StatusBar() {
 
   return (
     <div className="h-6 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex items-center px-3 text-xs text-zinc-500 relative select-none">
-      <div className="flex items-center gap-4">
-        <span>TV Desktop v{__APP_VERSION__}</span>
+      <div className="flex items-center gap-3">
+        <WorkspaceSwitcher />
+        <span className="text-zinc-400">v{__APP_VERSION__}</span>
         {import.meta.env.DEV && (
           <span className="px-1.5 py-0.5 rounded text-xs font-bold tracking-wider bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400">
             DEV
@@ -170,31 +139,11 @@ export function StatusBar() {
             {syncStatus === "error" && "Sync error"}
           </span>
         )}
-        <button
-          data-help-id="status-bar-claude"
-          onClick={() => openSettings("claude")}
-          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-          title="Claude Code status — click to open settings"
-        >
-          <span
-            className={cn(
-              "w-2 h-2 rounded-full",
-              claudeState === "ready" && "bg-green-500",
-              claudeState === "partial" && "bg-yellow-500",
-              claudeState === "none" && "bg-zinc-400"
-            )}
-          />
-          <span className={cn(
-            "text-xs",
-            claudeState === "ready" ? "text-zinc-600 dark:text-zinc-400" : "text-zinc-400"
-          )}>
-            Claude
-          </span>
-        </button>
       </div>
       <div className="flex-1" />
       <div className="flex items-center gap-4">
-        {/* Background Jobs Indicator - always visible */}
+        {/* Background Jobs Indicator - only visible when there are jobs */}
+        {(hasRunning || hasJobs) && (
         <div className="relative" ref={panelRef}>
             <button
               data-help-id="status-bar-jobs"
@@ -213,14 +162,9 @@ export function StatusBar() {
                     {runningJobs.length} job{runningJobs.length > 1 ? "s" : ""} running
                   </span>
                 </>
-              ) : hasJobs ? (
-                <>
-                  <CheckCircle2 size={12} className="text-green-500" />
-                  <span>Jobs</span>
-                </>
               ) : (
                 <>
-                  <CheckCircle2 size={12} className="text-zinc-400" />
+                  <CheckCircle2 size={12} className="text-green-500" />
                   <span>Jobs</span>
                 </>
               )}
@@ -228,8 +172,8 @@ export function StatusBar() {
 
             {/* Jobs Panel */}
             {showJobsPanel && (
-              <div className="absolute bottom-full right-0 mb-1 w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden animate-modal-in">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
+              <div className="absolute bottom-full right-0 mb-1 w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden animate-modal-in">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">
                   <span className="font-medium text-zinc-900 dark:text-zinc-100">
                     Background Jobs
                   </span>
@@ -288,7 +232,23 @@ export function StatusBar() {
                               {job.name}
                             </span>
                           </div>
-                          {job.status !== "running" && (
+                          {job.status === "running" ? (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await invoke("claude_run_cancel", { runId: job.id });
+                                  useJobsStore.getState().updateJob(job.id, { status: "failed", message: "Cancelled" });
+                                } catch {
+                                  // Run already finished — no state change needed
+                                }
+                              }}
+                              className="text-zinc-400 hover:text-red-500 flex-shrink-0"
+                              title="Cancel"
+                            >
+                              <StopCircle size={14} />
+                            </button>
+                          ) : (
                             <button
                               onClick={() => removeJob(job.id)}
                               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex-shrink-0"
@@ -332,17 +292,16 @@ export function StatusBar() {
                     setShowJobsPanel(false);
                     useAppStore.getState().openSettings("jobs");
                   }}
-                  className="w-full px-3 py-1.5 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-center border-t border-zinc-200 dark:border-zinc-700 transition-colors"
+                  className="w-full px-3 py-1.5 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-center border-t border-zinc-200 dark:border-zinc-800 transition-colors"
                 >
                   View All Jobs
                 </button>
               </div>
             )}
           </div>
+        )}
 
-        <span>⌘K for commands</span>
-
-        {/* Task Advisor — manual trigger */}
+        {/* Task Advisor */}
         <button
           onClick={async () => {
             if (advisorRunning || !currentUserId) return;
@@ -372,43 +331,6 @@ export function StatusBar() {
 
         {/* Notifications */}
         <NotificationBell variant="statusbar" />
-
-        {/* Doc panel toggle */}
-        {activeModule !== "library" && (
-          <button
-            onClick={togglePanel}
-            className={cn(
-              "flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors",
-              sidePanelOpen
-                ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                : "hover:bg-zinc-200 dark:hover:bg-zinc-800"
-            )}
-            title="Toggle Document Panel (⌘.)"
-          >
-            <PanelRight size={12} />
-            <span>Doc Panel</span>
-          </button>
-        )}
-
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          data-help-id="status-bar-theme"
-          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-        >
-          {theme === "dark" ? (
-            <>
-              <Moon size={12} className="text-zinc-400" />
-              <span className="text-zinc-400">Dark</span>
-            </>
-          ) : (
-            <>
-              <Sun size={12} className="text-amber-500" />
-              <span className="text-zinc-600">Light</span>
-            </>
-          )}
-        </button>
       </div>
 
       {/* Claude Output Drawer — slides up from status bar */}
@@ -427,7 +349,7 @@ export function StatusBar() {
         return (
           <div
             ref={drawerRef}
-            className="absolute bottom-6 right-0 left-0 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-700 shadow-lg flex flex-col"
+            className="absolute bottom-6 right-0 left-0 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 shadow-lg flex flex-col"
             style={{ height: "320px" }}
           >
             {/* Drawer header */}

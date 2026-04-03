@@ -90,7 +90,7 @@ export function BannersList({
             key={banner.id}
             onClick={() => onSelect(banner.id)}
             className={cn(
-              "w-full text-left px-3 py-3 border-b border-zinc-100 dark:border-zinc-800/50 transition-colors",
+              "w-full text-left px-3 py-3 border-b border-zinc-100 dark:border-zinc-800 transition-colors",
               "hover:bg-zinc-50 dark:hover:bg-zinc-900/50",
               selectedId === banner.id &&
                 "bg-teal-50 dark:bg-teal-500/10 border-l-2 border-l-teal-500"
@@ -262,14 +262,14 @@ export function BannerDetail({ id, onClose }: { id: string; onClose: () => void 
                 type="color"
                 value={form.bg_color || "#1E3A5F"}
                 onChange={(e) => set("bg_color", e.target.value)}
-                className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-700 cursor-pointer"
+                className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-800 cursor-pointer"
               />
               <input
                 type="text"
                 value={form.bg_color}
                 onChange={(e) => set("bg_color", e.target.value)}
                 placeholder="#1E3A5F"
-                className="flex-1 px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+                className="flex-1 px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
               />
             </div>
           </FormField>
@@ -280,14 +280,14 @@ export function BannerDetail({ id, onClose }: { id: string; onClose: () => void 
                 type="color"
                 value={form.text_color || "#ffffff"}
                 onChange={(e) => set("text_color", e.target.value)}
-                className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-700 cursor-pointer"
+                className="w-8 h-8 rounded border border-zinc-200 dark:border-zinc-800 cursor-pointer"
               />
               <input
                 type="text"
                 value={form.text_color}
                 onChange={(e) => set("text_color", e.target.value)}
                 placeholder="#ffffff"
-                className="flex-1 px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+                className="flex-1 px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
               />
             </div>
           </FormField>

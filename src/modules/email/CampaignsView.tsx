@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Plus, Pencil, Copy, Trash2, Tag, Check, X, ChevronRight, Clipboard } from "lucide-react";
+import { SectionToolbar } from "../../components/SectionToolbar";
 import { useEmailCampaigns, useDeleteEmailCampaign, useCloneEmailCampaign, useUpdateEmailCampaign } from "../../hooks/email";
 import { CAMPAIGN_STATUSES } from "../../lib/email/types";
 import type { EmailCampaignWithStats } from "../../lib/email/types";
@@ -156,17 +157,17 @@ export function CampaignsView({ selectedId, onSelect, onNewCampaign }: Campaigns
 
       {/* List */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800/50">
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {filtered.length}{treeSelection.groupValue ? ` in ${activeOption.getLabel?.(treeSelection.groupValue) ?? treeSelection.groupValue}` : ""} campaign{filtered.length !== 1 ? "s" : ""}
-          </p>
-          <button
-            onClick={onNewCampaign}
-            className="p-1.5 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
-          >
-            <Plus size={14} />
-          </button>
-        </div>
+        <SectionToolbar
+          subtitle={`${filtered.length}${treeSelection.groupValue ? ` in ${activeOption.getLabel?.(treeSelection.groupValue) ?? treeSelection.groupValue}` : ""} campaign${filtered.length !== 1 ? "s" : ""}`}
+          actions={
+            <button
+              onClick={onNewCampaign}
+              className="p-1.5 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+            >
+              <Plus size={14} />
+            </button>
+          }
+        />
 
         <div className="flex-1 overflow-auto">
           {isLoading ? (
@@ -185,7 +186,7 @@ export function CampaignsView({ selectedId, onSelect, onNewCampaign }: Campaigns
                     <div key={groupKey}>
                       <button
                         onClick={() => toggleGroup(groupKey)}
-                        className="w-full flex items-center gap-2 px-4 py-2 bg-zinc-50/80 dark:bg-zinc-900/40 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors sticky top-0 z-10"
+                        className="w-full flex items-center gap-2 px-4 py-2 bg-zinc-50/80 dark:bg-zinc-900/40 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors sticky top-0 z-10"
                       >
                         <ChevronRight
                           size={12}
@@ -311,7 +312,7 @@ function CampaignRow({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDeleteCancel(); }}
-            className="px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+            className="px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-md transition-colors"
           >
             Cancel
           </button>
@@ -464,7 +465,7 @@ function InlineCategoryPicker({
           "flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-medium rounded-full border transition-colors",
           value
             ? "bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/40"
-            : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-500",
+            : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:border-zinc-200 dark:hover:border-zinc-600 hover:text-zinc-500",
         )}
         title={value ? `Category: ${value}` : "Set category"}
       >
@@ -476,7 +477,7 @@ function InlineCategoryPicker({
       {open && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute left-0 top-full mt-1 z-20 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden"
+          className="absolute left-0 top-full mt-1 z-20 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden"
         >
           {/* Existing categories */}
           <div className="max-h-40 overflow-auto">
@@ -520,7 +521,7 @@ function InlineCategoryPicker({
                     if (e.key === "Escape") { setAdding(false); setNewValue(""); }
                   }}
                   placeholder="Category name..."
-                  className="flex-1 px-2 py-1 text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="flex-1 px-2 py-1 text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 />
                 <button
                   onClick={handleNewSubmit}

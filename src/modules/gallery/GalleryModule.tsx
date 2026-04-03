@@ -9,6 +9,8 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { Button, IconButton } from "../../components/ui";
 import { SectionLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
+import { PageHeader } from "../../components/PageHeader";
+import { ViewTab } from "../../components/ViewTab";
 import { useAppStore } from "../../stores/appStore";
 import { useGalleryScan, useSkillDemos, type GalleryTab, type GalleryItem, type SkillExample } from "./useGallery";
 import { useReadFile } from "../../hooks/useFiles";
@@ -19,6 +21,7 @@ import { useUpdateSkill, useSkills } from "../../hooks/skills/useSkills";
 import { ReportDetailPanel } from "./ReportDetailPanel";
 import { useSkillLibraryMap, useUpsertSkillLibraryEntry } from "../../hooks/gallery/useSkillLibrary";
 import { supabase } from "../../lib/supabase";
+import { formatError } from "../../lib/formatError";
 import { useQueryClient } from "@tanstack/react-query";
 import { skillLibraryKeys } from "../../hooks/gallery/keys";
 import { toast } from "../../stores/toastStore";
@@ -61,44 +64,38 @@ export function GalleryModule() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header: tabs + search */}
-      <div className="flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center gap-4 px-4 pt-3 pb-0">
+      <PageHeader
+        description="Images, drawings, and generated reports — browse, edit, and manage visual assets."
+        tabs={<>
           {TABS.map(t => (
-            <button
+            <ViewTab
               key={t.id}
+              icon={t.icon}
+              label={t.label}
+              badge={counts[t.id]}
+              active={tab === t.id}
               onClick={() => { setTab(t.id); setSearch(""); }}
-              className={cn(
-                "flex items-center gap-1.5 px-1 pb-2 text-sm font-medium border-b-2 transition-colors",
-                tab === t.id
-                  ? "border-teal-500 text-teal-600 dark:text-teal-400"
-                  : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              )}
-            >
-              <t.icon size={14} />
-              {t.label}
-              <span className="text-xs text-zinc-400 ml-0.5">({counts[t.id]})</span>
-            </button>
+            />
           ))}
-        </div>
-        {/* Hide filter bar when Reports grid view is active — grid has its own toolbar */}
-        {!(tab === "reports" && reportViewMode === "grid") && (
-          <div className="px-4 py-2">
-            <div className="relative max-w-md">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder={`Filter ${tab}...`}
-                className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              />
-              {search && (
-                <IconButton icon={X} size={12} label="Clear" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" />
-              )}
-            </div>
+        </>}
+      />
+      {/* Filter bar — hidden when Reports grid view is active (grid has its own toolbar) */}
+      {!(tab === "reports" && reportViewMode === "grid") && (
+        <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="relative max-w-md">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={`Filter ${tab}...`}
+              className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            />
+            {search && (
+              <IconButton icon={X} size={12} label="Clear" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" />
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -300,8 +297,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
         success++;
       } catch (err) {
         failed++;
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push(`${skill_slug}/${file_name}: ${msg}`);
+        errors.push(`${skill_slug}/${file_name}: ${formatError(err)}`);
       }
     }
     // Refetch skill library cache so grid picks up new S3 URLs before hiding progress
@@ -434,7 +430,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
 
   // View toggle button group (shared between both modes)
   const viewToggle = (
-    <div className="flex items-center rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+    <div className="flex items-center rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       <button
         onClick={() => onViewModeChange("cards")}
         className={cn(
@@ -477,11 +473,11 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
                 placeholder="Quick filter..."
                 value={gridQuickFilter}
                 onChange={(e) => setGridQuickFilter(e.target.value)}
-                className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
               />
             </div>
             {/* Type filter */}
-            <div className="flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+            <div className="flex items-center rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
               {(["all", "report", "diagnostic", "chat"] as const).map((type) => {
                 const active = typeFilter === type;
                 const colors: Record<string, string> = {
@@ -514,14 +510,14 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
             <div className="relative">
               <button
                 onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               >
                 <Bookmark size={14} /> Layouts
               </button>
               {showLayoutMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowLayoutMenu(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg py-1 min-w-[200px]">
+                  <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[200px]">
                     <button
                       onClick={() => {
                         const api = gridViewRef.current?.api;
@@ -552,7 +548,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
                     >
                       <RotateCcw size={13} /> Reset to Default
                     </button>
-                    <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                    <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
                     <button
                       onClick={() => { setShowSaveDialog(true); setShowLayoutMenu(false); }}
                       className="w-full text-left px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2"
@@ -561,7 +557,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
                     </button>
                     {Object.keys(savedLayouts).length > 0 && (
                       <>
-                        <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                        <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
                         <div className="px-3 py-1 text-[10px] text-zinc-400 uppercase tracking-wider">Saved Layouts</div>
                         {Object.keys(savedLayouts).map(name => (
                           <div key={name} className="flex items-center justify-between px-3 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 group cursor-pointer" onClick={() => { applyLayout(name); setShowLayoutMenu(false); }}>
@@ -593,7 +589,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
             <div className="relative">
               <button
                 onClick={() => setActionsMenuOpen(!actionsMenuOpen)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               >
                 <RefreshCw size={14} />
                 Actions
@@ -602,7 +598,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
               {actionsMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setActionsMenuOpen(false)} />
-                  <div className="absolute top-full right-0 mt-1 z-20 w-72 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1.5">
+                  <div className="absolute top-full right-0 mt-1 z-20 w-72 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1.5">
                     <button
                       onClick={() => { handleBulkUploadToS3(); setActionsMenuOpen(false); }}
                       disabled={isBulkUploading}
@@ -633,7 +629,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
             {/* Column toggle */}
             <button
               onClick={() => gridViewRef.current?.api?.openToolPanel("columns")}
-              className="flex items-center gap-1.5 p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-1.5 p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               title="Toggle columns"
             >
               <Columns3 size={14} />
@@ -642,7 +638,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
             {/* CSV */}
             <button
               onClick={() => gridViewRef.current?.api?.exportDataAsCsv()}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             >
               <Download size={14} /> CSV
             </button>
@@ -729,7 +725,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
         {/* Save Layout Dialog */}
         {showSaveDialog && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl p-6 w-80 border border-zinc-200 dark:border-zinc-700">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg p-6 w-80 border border-zinc-200 dark:border-zinc-800">
               <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">Save Layout</h3>
               <input
                 autoFocus
@@ -743,12 +739,12 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
                   }
                 }}
                 placeholder="Layout name..."
-                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-teal-500 mb-3"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mb-3"
               />
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => { setShowSaveDialog(false); setNewLayoutName(""); }}
-                  className="px-3 py-1.5 text-xs rounded-lg text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className="px-3 py-1.5 text-xs rounded-lg text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50"
                 >
                   Cancel
                 </button>
@@ -785,7 +781,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
         <div className="relative">
           <button
             onClick={() => setShowSortMenu(!showSortMenu)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-600 shadow-sm transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-zinc-200 dark:hover:border-zinc-600 shadow-sm transition-colors"
           >
             <ArrowUpDown size={12} />
             {sortLabels[sortBy]}
@@ -794,7 +790,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
           {showSortMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg py-1 min-w-[140px]">
+              <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[140px]">
                 {(["category", "name", "date"] as ReportSort[]).map(opt => (
                   <button
                     key={opt}
@@ -1250,7 +1246,7 @@ function ReportThumbnail({ example, pinned, isPublished, onTogglePin, onClick }:
   }, [htmlContent]);
 
   return (
-    <div ref={thumbRef} className="group relative rounded-xl border border-zinc-200/80 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-400/60 dark:hover:border-teal-600 shadow-sm hover:shadow-md transition-all duration-200">
+    <div ref={thumbRef} className="group relative rounded-lg border border-zinc-200/80 dark:border-zinc-800 overflow-hidden text-left hover:border-teal-400/60 dark:hover:border-teal-600 shadow-sm hover:shadow-md transition-all duration-200">
       {/* Pin button - top right corner */}
       {onTogglePin && (
         <button
@@ -1289,7 +1285,7 @@ function ReportThumbnail({ example, pinned, isPublished, onTogglePin, onClick }:
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
         </div>
-        <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50 bg-white dark:bg-zinc-950">
+        <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950">
           <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">{example.skill_name}</p>
           <p className="text-[10px] text-zinc-400 mt-0.5 truncate">{example.file_name}</p>
         </div>
@@ -1484,7 +1480,7 @@ function DeckThumbnail({ example, onClick }: { example: SkillExample; onClick: (
           )}
           <div className="absolute inset-0 bg-teal-600/0 group-hover:bg-teal-600/5 transition-colors pointer-events-none" />
         </div>
-        <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
+        <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800">
           <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{example.skill_name}</p>
           <p className="text-xs text-zinc-400 truncate">{example.file_name}</p>
         </div>
@@ -1583,7 +1579,7 @@ function FileCard({ item, onClick }: { item: GalleryItem; onClick: () => void })
         <FilePreview item={item} />
         <div className="absolute inset-0 bg-teal-600/0 group-hover:bg-teal-600/5 transition-colors" />
       </div>
-      <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
+      <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800">
         <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{item.file_name}</p>
         <p className="text-xs text-zinc-400 truncate">{item.folder}</p>
         <p className="text-[10px] text-zinc-300 dark:text-zinc-600 mt-0.5">

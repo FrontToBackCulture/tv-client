@@ -266,7 +266,7 @@ export function InitiativeForm({
             type="color"
             value={formData.color || "#0D7680"}
             onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-            className="w-8 h-8 rounded cursor-pointer border border-zinc-200 dark:border-zinc-700"
+            className="w-8 h-8 rounded cursor-pointer border border-zinc-200 dark:border-zinc-800"
           />
           <span className="text-xs text-zinc-500 font-mono">
             {formData.color || "#0D7680"}
@@ -279,7 +279,7 @@ export function InitiativeForm({
         {projects.length === 0 ? (
           <p className="text-xs text-zinc-400">No projects available</p>
         ) : (
-          <div className="space-y-1 max-h-[200px] overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-700 p-2">
+          <div className="space-y-1 max-h-[200px] overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-800 p-2">
             {projects.map((p) => {
               const isSelected = selectedProjectIds.includes(p.id);
               const isTaken = takenProjectIds.has(p.id);
@@ -299,7 +299,7 @@ export function InitiativeForm({
                     checked={isSelected}
                     disabled={isTaken}
                     onChange={() => !isTaken && toggleProject(p.id)}
-                    className="rounded border-zinc-300 text-teal-600 focus:ring-teal-500"
+                    className="rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500"
                   />
                   <span
                     className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
