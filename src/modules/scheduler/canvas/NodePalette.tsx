@@ -66,7 +66,7 @@ const NODE_OPTIONS: NodeOption[] = [
     label: "Output",
     icon: Send,
     accent: "text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-950/30",
-    defaultConfig: { output_type: "chat_thread", post_mode: "new_thread", thread_title: null, thread_id: null, bot_author: "bot-mel" },
+    defaultConfig: { output_type: "chat_thread", post_mode: "new_thread", thread_title: null, thread_id: null, bot_author: "bot-mel", aggregation_instructions: null },
   },
 ];
 
