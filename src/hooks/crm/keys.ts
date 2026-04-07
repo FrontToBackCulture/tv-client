@@ -45,7 +45,7 @@ export function useCRMRealtime() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "crm_deals" },
+        { event: "*", schema: "public", table: "projects", filter: "project_type=eq.deal" },
         () => {
           queryClient.invalidateQueries({ queryKey: crmKeys.deals() });
           queryClient.invalidateQueries({ queryKey: crmKeys.pipeline() });

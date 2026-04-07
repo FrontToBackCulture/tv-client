@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button, IconButton, SectionLoading } from "../../components/ui";
 import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { NoRepositoryEmptyState } from "./NoRepositoryEmptyState";
 import {
   useDiscoverDomains,
   useValCredentials,
@@ -213,14 +214,16 @@ export function ValCredentialsView() {
         </p>
       </div>
 
-      {domains.length === 0 && (
+      {domains.length === 0 && !domainsPath && (
+        <NoRepositoryEmptyState reason="VAL Credentials discovers which domains need login by scanning your repo's 0_Platform/domains folder." />
+      )}
+
+      {domains.length === 0 && domainsPath && (
         <div className="text-center py-8 text-zinc-500">
           <Database size={32} className="mx-auto mb-2 opacity-50" />
           <p className="text-sm">No domains discovered</p>
           <p className="text-xs text-zinc-400 mt-1">
-            {domainsPath
-              ? `No domain folders found at ${domainsPath}`
-              : "No repository selected"}
+            No domain folders found at {domainsPath}
           </p>
         </div>
       )}

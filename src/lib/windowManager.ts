@@ -27,10 +27,12 @@ const moduleLabels: Record<ModuleId, string> = {
   blog: "Blog",
   guides: "Guides",
   s3browser: "S3 Browser",
-  linkedin: "LinkedIn",
   prospecting: "Outbound",
   "public-data": "Public Data",
   referrals: "Referrals",
+  investment: "Investment",
+  "shared-inbox": "Shared Inboxes",
+  settings: "Settings",
 };
 
 export function openModuleInNewWindow(moduleId: ModuleId) {

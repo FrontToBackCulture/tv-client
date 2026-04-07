@@ -26,13 +26,15 @@ import { EmptyInbox } from "./EmptyInbox";
 import type { EmailCategory, EmailStatus } from "../../hooks/useOutlook";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useAppStore } from "../../stores/appStore";
+import { useModuleTabStore } from "../../stores/moduleTabStore";
 import { useCollapsiblePanel } from "../../hooks/useCollapsiblePanel";
 
 export function InboxModule() {
   // Auth state
   const { data: auth, isLoading: isLoadingAuth } = useOutlookAuth();
   const { data: syncStatus } = useSyncStatus();
-  const openSettings = useAppStore((s) => s.openSettings);
+  const setSettingsView = useAppStore((s) => s.setSettingsView);
+  const openTab = useModuleTabStore((s) => s.openTab);
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useCollapsiblePanel("tv-inbox-sidebar-collapsed");
 
   // Sync state
@@ -140,7 +142,7 @@ export function InboxModule() {
             ? "Connect your Outlook account in Settings to view emails."
             : "Run initial sync in Settings to populate your inbox."
         }
-        onSetup={() => openSettings("outlook")}
+        onSetup={() => { setSettingsView("outlook"); openTab("settings"); }}
       />
     );
   }

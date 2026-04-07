@@ -1547,6 +1547,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Post-ingestion: map SSIC→industry_tag and SSOC→role_category for new rows
+    try {
+      await supabase.rpc("map_new_job_postings");
+    } catch (_) {
+      // Non-critical — mapping can be run manually if this fails
+    }
+
     return new Response(JSON.stringify({ results }), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });

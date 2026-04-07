@@ -23,6 +23,7 @@ import { formatError } from "../../lib/formatError";
 import { supabase } from "../../lib/supabase";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
+import { workspaceLocalStorage } from "../../lib/workspaceScopedStorage";
 import { useNotificationNavStore } from "../../stores/notificationNavStore";
 
 interface FileViewerProps {
@@ -162,9 +163,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   // Extract portal_doc_id from frontmatter (markdown) or localStorage (html/excel)
   const portalDocId = useMemo(() => {
     if (fileType === "html" || fileType === "excel") {
-      try {
-        return localStorage.getItem(`portal_doc_id:${path}`) || undefined;
-      } catch { return undefined; }
+      return workspaceLocalStorage.get(`portal_doc_id:${path}`) || undefined;
     }
     if (!content) return undefined;
     const match = content.match(/^---\n([\s\S]*?)\n---/);
@@ -203,9 +202,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   // Handle portal publish: add portal_doc_id, portal_domain, portal_doc_type to frontmatter (or localStorage for non-md)
   const handlePortalPublished = useCallback(async (docId: string, domain: string | null, docType: string) => {
     if (fileType === "html" || fileType === "excel") {
-      try {
-        localStorage.setItem(`portal_doc_id:${path}`, docId);
-      } catch { /* ignore */ }
+      workspaceLocalStorage.set(`portal_doc_id:${path}`, docId);
       showToast("Published to Portal", "success");
       return;
     }
@@ -227,9 +224,7 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
   // Handle portal delete: remove portal fields from frontmatter (or localStorage for non-md)
   const handlePortalDeleted = useCallback(async () => {
     if (fileType === "html" || fileType === "excel") {
-      try {
-        localStorage.removeItem(`portal_doc_id:${path}`);
-      } catch { /* ignore */ }
+      workspaceLocalStorage.remove(`portal_doc_id:${path}`);
       showToast("Removed from Portal", "success");
       return;
     }

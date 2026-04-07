@@ -26,8 +26,6 @@ pub struct Job {
     pub model: String,
     pub max_budget: Option<f64>,
     pub allowed_tools: Vec<String>,
-    pub slack_webhook_url: Option<String>,
-    pub slack_channel_name: Option<String>,
     pub enabled: bool,
     #[serde(default = "default_true")]
     pub generate_report: bool,
@@ -48,12 +46,48 @@ pub struct Job {
 /// Backward-compatible alias
 pub type SchedulerJob = Job;
 
+/// Loop node config — iterates over data source records sequentially.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoopConfig {
+    pub mode: String, // "sequential"
+    pub item_variable: String, // e.g. "company"
+}
+
+/// Unified automation config — assembled from automations + automation_nodes tables.
+/// Replaces the old Job/DioAutomation split.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationConfig {
+    pub id: String,
+    pub name: String,
+    pub enabled: bool,
+    pub cron_expression: Option<String>,
+    pub active_hours: Option<String>,
+    // From ai_process node
+    pub model: String,
+    pub bot_path: Option<String>,
+    pub additional_instructions: Option<String>,
+    // From loop node
+    pub loop_config: Option<LoopConfig>,
+    // From output node
+    pub aggregation_instructions: Option<String>,
+    // From automations row
+    pub generate_report: bool,
+    pub report_prefix: Option<String>,
+    pub sod_reports_folder: Option<String>,
+    // Runtime
+    pub last_run_at: Option<DateTime<Utc>>,
+    pub last_run_status: Option<RunStatus>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobRun {
     pub id: String,
     pub job_id: String,
     pub job_name: String,
+    #[serde(default)]
+    pub automation_id: Option<String>,
     pub started_at: DateTime<Utc>,
     pub finished_at: Option<DateTime<Utc>>,
     pub duration_secs: Option<f64>,
@@ -61,7 +95,6 @@ pub struct JobRun {
     pub output: String,
     pub output_preview: String,
     pub error: Option<String>,
-    pub slack_posted: bool,
     pub trigger: RunTrigger,
     #[serde(default)]
     pub cost_usd: Option<f64>,
@@ -115,8 +148,6 @@ pub struct JobInput {
     pub model: Option<String>,
     pub max_budget: Option<f64>,
     pub allowed_tools: Option<Vec<String>>,
-    pub slack_webhook_url: Option<String>,
-    pub slack_channel_name: Option<String>,
     pub enabled: Option<bool>,
     pub generate_report: Option<bool>,
     pub report_prefix: Option<String>,

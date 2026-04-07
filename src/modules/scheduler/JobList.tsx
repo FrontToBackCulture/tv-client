@@ -190,11 +190,6 @@ function JobRow({
               {job.skill_refs.length} skill{job.skill_refs.length !== 1 ? "s" : ""}
             </span>
           )}
-          {job.slack_channel_name && (
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">
-              → {job.slack_channel_name}
-            </span>
-          )}
         </div>
       </div>
 

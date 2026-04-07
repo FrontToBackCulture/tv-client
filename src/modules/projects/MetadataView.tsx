@@ -29,9 +29,7 @@ import { useActivities } from "../../hooks/crm/useActivities";
 import { useInitiatives, useLabels, useUsers } from "../../hooks/work";
 import { COMPANY_STAGES, ACTIVITY_TYPES } from "../../lib/crm/types";
 import { useAllLookupValues } from "../../hooks/useLookupValues";
-import { Settings, FolderOpen, ChevronRight, ChevronDown, Folder, RefreshCw, Tags, Plus } from "lucide-react";
-import { useRepository } from "../../stores/repositoryStore";
-import { useFolderChildren } from "../../hooks/useFiles";
+import { Settings, ChevronRight, RefreshCw, Tags, Plus } from "lucide-react";
 import { useApolloRevealPhone } from "../../hooks/apollo/useApollo";
 import { useEmailDrafts, useSendDraft, useDeleteDraft, useUpdateDraft, useDraftTracking } from "../../hooks/email/useDrafts";
 
@@ -80,92 +78,8 @@ function EditField({ value, onSave, type = "text", options }: {
 
 // ── Mini folder tree for picker ────────────────────────────────────────────
 
-function MiniTreeNode({ path, name, level, onSelect }: {
-  path: string; name: string; level: number; onSelect: (relativePath: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(level === 0);
-  const { data } = useFolderChildren(path, expanded);
-  const { activeRepository } = useRepository();
-  const basePath = activeRepository?.path ?? "";
-  const dirs = (data ?? []).filter((c: { is_directory: boolean }) => c.is_directory).sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name));
-
-  const relativePath = basePath && path.startsWith(basePath) ? path.slice(basePath.length + 1) : path;
-
-  return (
-    <div>
-      <button
-        className="flex items-center gap-1 w-full text-left px-1 py-0.5 hover:bg-teal-50 dark:hover:bg-teal-950/30 rounded text-xs group"
-        onClick={() => setExpanded(!expanded)}
-        onDoubleClick={() => onSelect(relativePath)}
-      >
-        {dirs.length > 0 || !expanded ? (
-          expanded ? <ChevronDown size={10} className="text-zinc-400 shrink-0" /> : <ChevronRight size={10} className="text-zinc-400 shrink-0" />
-        ) : <span className="w-[10px] shrink-0" />}
-        <Folder size={12} className="text-zinc-400 shrink-0" />
-        <span className="truncate text-zinc-700 dark:text-zinc-300">{name}</span>
-        <button
-          onClick={(e) => { e.stopPropagation(); onSelect(relativePath); }}
-          className="ml-auto opacity-0 group-hover:opacity-100 text-[9px] px-1.5 py-0.5 bg-teal-500 text-white rounded transition-opacity shrink-0"
-        >
-          Select
-        </button>
-      </button>
-      {expanded && dirs.map((d: { path: string; name: string }) => (
-        <div key={d.path} style={{ paddingLeft: 12 }}>
-          <MiniTreeNode path={d.path} name={d.name} level={level + 1} onSelect={onSelect} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function FolderPickerField({ value, onSave }: { value: string | null | undefined; onSave: (val: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(value ?? ""));
-  const ref = useRef<HTMLInputElement>(null);
-  const { activeRepository } = useRepository();
-  const basePath = activeRepository?.path ?? "";
-
-  useEffect(() => { if (editing && ref.current) ref.current.focus(); }, [editing]);
-
-  return (
-    <div className="relative">
-      <div className="flex items-center gap-1">
-        {editing ? (
-          <input
-            ref={ref}
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => { setEditing(false); if (draft !== String(value ?? "")) onSave(draft); }}
-            onKeyDown={(e) => { if (e.key === "Enter") { setEditing(false); if (draft !== String(value ?? "")) onSave(draft); } if (e.key === "Escape") setEditing(false); }}
-            className="text-xs border border-teal-400 rounded px-1.5 py-1 bg-white dark:bg-zinc-900 outline-none flex-1"
-          />
-        ) : (
-          <button
-            onClick={() => { setDraft(String(value ?? "")); setEditing(true); }}
-            className="text-left flex-1 min-h-[20px] cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-950/20 rounded px-1.5 py-0.5 -mx-1 transition-colors border border-transparent hover:border-teal-200 dark:hover:border-teal-800"
-          >
-            {value ? <span className="text-zinc-700 dark:text-zinc-300 text-xs">{value}</span> : <span className="text-zinc-300 dark:text-zinc-600 text-xs">—</span>}
-          </button>
-        )}
-        <button
-          onClick={() => setOpen(!open)}
-          className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400 hover:text-teal-500 transition-colors shrink-0"
-          title="Browse folders"
-        >
-          <FolderOpen size={13} />
-        </button>
-      </div>
-      {open && basePath && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg max-h-[300px] overflow-auto p-1">
-          <MiniTreeNode path={basePath} name={activeRepository?.name ?? "Library"} level={0} onSelect={(p) => { onSave(p); setOpen(false); }} />
-        </div>
-      )}
-    </div>
-  );
-}
+// FolderPickerField is now shared — see src/components/ui/FolderPickerField.tsx
+import { FolderPickerField } from "../../components/ui/FolderPickerField";
 
 // ── Email domains field with auto-populate from contacts ──────────────────
 
@@ -221,7 +135,7 @@ function EmailDomainsField({ value, companyId, contacts, onSave }: {
   );
 }
 
-type FieldType = "text" | "textarea" | "select" | "folder_picker" | "email_domains";
+type FieldType = "text" | "textarea" | "select" | "folder_picker" | "email_domains" | "readonly";
 
 function RequestPhoneButton({ contactId, onSuccess }: { contactId: string; onSuccess: () => void }) {
   const revealPhone = useApolloRevealPhone();
@@ -255,7 +169,9 @@ function FieldGrid({ fields, onUpdate, companyId, contacts }: {
       {fields.map(({ label, field, value, type, options }) => (
         <div key={field} className="grid grid-cols-[120px,1fr] gap-2 items-start">
           <span className="text-zinc-400 py-1">{label}</span>
-          {type === "folder_picker" ? (
+          {type === "readonly" ? (
+            <span className="py-1 text-zinc-600 dark:text-zinc-400">{value || "—"}</span>
+          ) : type === "folder_picker" ? (
             <FolderPickerField value={value} onSave={(v) => onUpdate(field, v || null)} />
           ) : type === "email_domains" && companyId && contacts ? (
             <EmailDomainsField value={value} companyId={companyId} contacts={contacts as any} onSave={(v) => onUpdate(field, v || null)} />
@@ -722,8 +638,40 @@ export function MetadataView() {
         return true;
       },
     },
+    { field: "uen", headerName: "UEN", width: 130, editable: true, filter: "agTextColumnFilter" },
+    { field: "outlet_count", headerName: "Outlets", width: 80, editable: true, type: "numericColumn", filter: "agNumberColumnFilter" },
+    { field: "research_folder_path", headerName: "Researched", width: 100, filter: "agSetColumnFilter",
+      valueGetter: (p: any) => p.data?.research_folder_path ? "Yes" : "No",
+      cellRenderer: (p: any) => p.value === "Yes" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span> : null,
+    },
     { field: "contact_count", headerName: "Contacts", width: 80, type: "numericColumn" },
+    { field: "hiring_signals", headerName: "Hiring Signals", width: 200, hide: true,
+      valueGetter: (p: any) => {
+        const hs = p.data?.hiring_signals;
+        if (!hs) return "";
+        const jobs = hs.total_open_jobs || (hs.active_jobs?.length ?? 0);
+        if (!jobs) return "";
+        const roles = hs.active_jobs?.map((j: any) => j.title).join(", ") || "";
+        return `${jobs} job${jobs > 1 ? "s" : ""}: ${roles}`;
+      },
+    },
+    { field: "latest_job_posted", headerName: "Latest Job Posted", width: 120, hide: true,
+      valueGetter: (p: any) => {
+        const jobs = p.data?.hiring_signals?.active_jobs;
+        if (!jobs?.length) return null;
+        return jobs.reduce((latest: string, j: any) => j.posted > latest ? j.posted : latest, jobs[0].posted);
+      },
+      valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "",
+      comparator: (a: string | null, b: string | null) => {
+        if (!a && !b) return 0;
+        if (!a) return -1;
+        if (!b) return 1;
+        return a.localeCompare(b);
+      },
+      filter: "agDateColumnFilter",
+    },
     { field: "notes", headerName: "Notes", width: 200, editable: true, hide: true },
+    { field: "created_at", headerName: "Created", width: 100, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "" },
     { field: "updated_at", headerName: "Updated", width: 100, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "" },
   ], [partners]);
 
@@ -761,6 +709,12 @@ export function MetadataView() {
     },
     { field: "linkedin_url", headerName: "LinkedIn", width: 180, editable: true, hide: true },
     { field: "notes", headerName: "Notes", width: 200, editable: true, hide: true },
+    { field: "created_at", headerName: "Created", width: 120, filter: "agDateColumnFilter",
+      valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : "",
+    },
+    { field: "updated_at", headerName: "Updated", width: 120, filter: "agDateColumnFilter",
+      valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : "",
+    },
   ], [companies]);
 
   const contactRows = useMemo(() => contacts.map(c => ({
@@ -1293,6 +1247,8 @@ export function MetadataView() {
                       { label: "Source", field: "source", value: selectedCompany.source, type: "select", options: [{ value: "", label: "(none)" }, { value: "direct", label: "Direct" }, { value: "referral", label: "Referral" }, { value: "inbound", label: "Inbound" }, { value: "apollo", label: "Apollo" }, { value: "manual", label: "Manual" }, { value: "existing", label: "Existing" }] },
                       { label: "Referred By", field: "referred_by", value: selectedCompany.referred_by },
                       { label: "Partner", field: "partner_id", value: selectedCompany.partner_id, type: "select", options: [{ value: "", label: "(none)" }, ...partners.map(p => ({ value: p.id, label: p.name }))] },
+                      { label: "UEN", field: "uen", value: selectedCompany.uen },
+                      { label: "Outlets", field: "outlet_count", value: selectedCompany.outlet_count },
                       { label: "Notes", field: "notes", value: selectedCompany.notes, type: "textarea" },
                     ]} onUpdate={async (f, v) => {
                       await updateEntity("crm_companies", selectedCompany.id, f, v);
@@ -1301,6 +1257,36 @@ export function MetadataView() {
                         await updateEntity("crm_companies", selectedCompany.id, "referred_by", partner ? partner.name : null);
                       }
                     }} companyId={selectedCompany.id as string} contacts={contacts as { email: string; company_id: string }[]} />
+                    {/* Hiring Signals */}
+                    {(selectedCompany as any).hiring_signals?.active_jobs?.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                        <h3 className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider mb-2">
+                          Hiring Signals ({(selectedCompany as any).hiring_signals.active_jobs.length} open)
+                        </h3>
+                        <div className="space-y-2">
+                          {(selectedCompany as any).hiring_signals.active_jobs.map((job: any, i: number) => (
+                            <div key={i} className="rounded-md border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200">{job.title}</span>
+                                {job.url && (
+                                  <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-teal-500 hover:text-teal-600 shrink-0">MCF</a>
+                                )}
+                              </div>
+                              <div className="flex gap-3 mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
+                                {(job.salary_min || job.salary_max) && (
+                                  <span>${job.salary_min?.toLocaleString() || "?"} – ${job.salary_max?.toLocaleString() || "?"}</span>
+                                )}
+                                {job.role_category && <span className="capitalize">{job.role_category}</span>}
+                                {job.posted && <span>Posted {job.posted}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {(selectedCompany as any).hiring_signals.last_checked && (
+                          <p className="text-[10px] text-zinc-400 mt-2">Last checked: {new Date((selectedCompany as any).hiring_signals.last_checked).toLocaleDateString("en-SG", { day: "numeric", month: "short" })}</p>
+                        )}
+                      </div>
+                    )}
                     {/* Contacts */}
                     <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                       <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Contacts</h3>

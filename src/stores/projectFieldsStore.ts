@@ -2,7 +2,8 @@
 // Configurable project detail fields per project type
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 import { DEAL_STAGES, DEAL_SOLUTIONS } from "../lib/crm/types";
 
 export type FieldType = "text" | "number" | "date" | "select" | "multiselect" | "textarea";
@@ -207,7 +208,10 @@ export const useProjectFieldsStore = create<ProjectFieldsState>()(
         return get().deletedFields[projectType] ?? [];
       },
     }),
-    { name: "tv-client-project-fields" }
+    {
+      name: "tv-client-project-fields",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
+    }
   )
 );
 

@@ -1,8 +1,8 @@
 // Thread conversation view — messages with grouped authorship and entity context
 
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
-import { Hash, MessageSquare, Loader2, Sparkles, Brain } from "lucide-react";
-import { useRunningJobs } from "../../stores/jobsStore";
+import { Hash, MessageSquare, Loader2, Sparkles, Brain, Copy, Check } from "lucide-react";
+import { useClaudeRunStore } from "../../stores/claudeRunStore";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDiscussions, useCreateDiscussion, useUpdateDiscussion, useDeleteDiscussion } from "../../hooks/useDiscussions";
@@ -14,6 +14,11 @@ import { supabase } from "../../lib/supabase";
 import { DiscussionItem } from "../../components/discussions/DiscussionItem";
 import { ChatComposer } from "./ChatComposer";
 import { ChatEntityCard } from "./ChatEntityCard";
+import { SkillChips } from "./SkillChips";
+import { EntityRefProvider } from "./entityRefs/EntityRefContext";
+import { EntityActionSheet } from "./entityRefs/EntityActionSheet";
+import { useEntityRefs } from "./entityRefs/useEntityRefs";
+import type { EntityRef } from "./entityRefs/parseEntityRefs";
 import type { Thread } from "../../hooks/chat";
 
 function parseMentions(text: string): string[] {
@@ -38,7 +43,25 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
 
   const listRef = useRef<HTMLDivElement>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [prefillText, setPrefillText] = useState<string | null>(null);
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
+  const [copiedSession, setCopiedSession] = useState(false);
+  const [openEntity, setOpenEntity] = useState<EntityRef | null>(null);
+
+  // Batch-fetch entity data for all refs across all messages in this thread
+  const allBodies = useMemo(() => (discussions ?? []).map((d) => d.body).join("\n"), [discussions]);
+  const { data: entities } = useEntityRefs(allBodies);
+
+  const copySessionId = useCallback(async () => {
+    if (!thread.session_id) return;
+    try {
+      await navigator.clipboard.writeText(thread.session_id);
+      setCopiedSession(true);
+      setTimeout(() => setCopiedSession(false), 1500);
+    } catch (err) {
+      console.error("Failed to copy session id:", err);
+    }
+  }, [thread.session_id]);
 
   const authUser = useAuth((s) => s.user);
   const { data: allUsers = [] } = useUsers();
@@ -231,7 +254,8 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
   const threadTitle = thread.title || thread.body.slice(0, 60) || "Untitled thread";
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-page)] dark:bg-[var(--bg-page)]">
+    <EntityRefProvider entities={entities} onOpen={(ref) => setOpenEntity(ref)}>
+    <div className="relative flex flex-col h-full bg-[var(--bg-page)] dark:bg-[var(--bg-page)]">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-[var(--border-default)] bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] flex-shrink-0">
         <div className="w-7 h-7 rounded-lg bg-[var(--bg-muted)] dark:bg-[var(--bg-muted)] flex items-center justify-center flex-shrink-0">
@@ -263,6 +287,20 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
               <span className="text-[10px] text-[var(--text-muted)]">
                 {discussions.length} message{discussions.length !== 1 ? "s" : ""}
               </span>
+            )}
+            {thread.session_id && (
+              <button
+                onClick={copySessionId}
+                title={`Claude Code session — click to copy\n${thread.session_id}`}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-muted)] text-[10px] font-mono text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--color-accent)] transition-colors"
+              >
+                <span className="truncate max-w-[110px]">{thread.session_id.slice(0, 8)}</span>
+                {copiedSession ? (
+                  <Check size={10} className="text-[var(--color-accent)]" />
+                ) : (
+                  <Copy size={10} />
+                )}
+              </button>
             )}
           </div>
         </div>
@@ -331,8 +369,17 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
         )}
       </div>
 
-      {/* Typing indicator — shown when bot-mel is processing */}
-      <TaskAdvisorTypingIndicator />
+      {/* Inline bot activity — shown when bot-mel is processing in this thread */}
+      <BotActivityIndicator entityId={thread.entity_id} />
+
+      {/* Skill suggestion chips — relevant skills for this thread context */}
+      <SkillChips
+        entityType={thread.entity_type}
+        entityId={thread.entity_id}
+        recentMessages={(discussions ?? []).slice(-5).map((d) => d.body)}
+        bot="bot-mel"
+        onInvoke={(text) => setPrefillText(text)}
+      />
 
       {/* Composer */}
       <ChatComposer
@@ -340,27 +387,62 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
         onCancelReply={() => setReplyingTo(null)}
         onSubmit={handleSubmit}
         disabled={createMutation.isPending}
+        prefillText={prefillText}
+        onPrefillConsumed={() => setPrefillText(null)}
+      />
+
+      {/* Entity action sheet — slides up when an inline entity card is clicked */}
+      <EntityActionSheet
+        entityRef={openEntity}
+        entities={entities}
+        onClose={() => setOpenEntity(null)}
       />
     </div>
+    </EntityRefProvider>
   );
 }
 
-/** Typing indicator — shows when bot-mel is processing a request */
-function TaskAdvisorTypingIndicator() {
-  const runningJobs = useRunningJobs();
-  const isProcessing = runningJobs.some(
-    (j) => j.name === "bot-mel — processing request" && j.status === "running"
+/** Inline bot activity — shows Claude's tool use and progress within the chat thread */
+function BotActivityIndicator({ entityId }: { entityId: string }) {
+  const runs = useClaudeRunStore((s) => s.runs);
+
+  // Find the active (or just-completed) run for this thread
+  const activeRun = Object.values(runs).find(
+    (r) => r.entityId === entityId && !r.isComplete
   );
 
-  if (!isProcessing) return null;
+  if (!activeRun) return null;
+
+  // Show the last few meaningful events
+  const recentEvents = activeRun.events
+    .filter((e) => e.type === "tool_use" || e.type === "text" || e.type === "init")
+    .slice(-5);
 
   return (
-    <div className="px-4 py-2 flex items-center gap-2 animate-fade-slide-in">
-      <Brain size={14} className="text-[var(--color-purple)] animate-pulse" />
-      <span className="text-[12px] text-[var(--text-muted)]">
-        bot-mel is working on your request...
-      </span>
-      <Loader2 size={12} className="text-[var(--text-muted)] animate-spin" />
+    <div className="px-5 py-3 border-t border-[var(--border-default)] bg-[var(--bg-surface)] animate-fade-slide-in">
+      <div className="flex items-center gap-2 mb-2">
+        <Brain size={14} className="text-purple-400 animate-pulse" />
+        <span className="text-[12px] font-medium text-purple-400">bot-mel is working...</span>
+        <Loader2 size={12} className="text-[var(--text-muted)] animate-spin" />
+      </div>
+      {recentEvents.length > 0 && (
+        <div className="ml-[22px] space-y-1">
+          {recentEvents.map((event, i) => {
+            const isLatest = i === recentEvents.length - 1;
+            return (
+              <div
+                key={`${event.timestamp}-${i}`}
+                className={`text-[11px] font-mono truncate ${
+                  isLatest ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)] opacity-50"
+                }`}
+              >
+                {event.type === "tool_use" && <span className="text-[var(--color-accent)]">{">"} </span>}
+                {event.content.slice(0, 120)}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

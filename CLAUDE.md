@@ -94,6 +94,168 @@ Each module has a specific role in the human-agent loop:
 | **System** | Dev tools | MCP tool browser, Tauri command explorer. Internal reference. |
 | **Console** | Terminal | xterm.js shell access. |
 
+## Authentication & Access Model
+
+### Architecture
+
+```
+User/Bot → Gateway Supabase (auth) → Workspace JWT → Workspace Supabase (RLS)
+```
+
+**Two Supabase projects:**
+- **Gateway** (`tccyronrnsimacqfhxzd`) — authentication + workspace discovery only
+- **Workspace** (per workspace, e.g., `cqwcaeffzanfqsxlspig` for ThinkVAL) — business data
+
+### User Auth (tv-client app)
+
+Users sign in via **Supabase Auth** on the gateway (GitHub or Microsoft 365 OAuth). The PKCE flow:
+
+1. `gateway.auth.signInWithOAuth()` → opens browser
+2. Tauri catches callback code via local server (port 4003)
+3. `gateway.auth.exchangeCodeForSession(code)` → gateway JWT
+4. Gateway JWT used to query workspace memberships
+5. **Edge Function `workspace-token`** mints a workspace-scoped JWT
+6. Workspace JWT used for all data queries — RLS enforces access
+
+Key files: `authStore.ts`, `workspaceStore.ts`, `gatewaySupabase.ts`, `supabase.ts`
+
+### Bot Auth (tv-mcp)
+
+Bots authenticate via **per-bot API keys** (not OAuth). Each bot has a unique key stored in its `.claude/mcp.json` as `TV_BOT_API_KEY` env var.
+
+1. tv-mcp reads `TV_BOT_API_KEY` from environment on startup
+2. Calls gateway **Edge Function `bot-token`** with the API key
+3. Gateway validates key hash → looks up bot identity + permissions → mints workspace JWT
+4. tv-mcp uses JWT for all Supabase queries (falls back to anon key if no API key set)
+5. JWT auto-refreshes 5 minutes before expiry
+
+Key files: `commands/supabase.rs` (`get_client()`, `get_bot_jwt()`, `mint_bot_jwt()`)
+
+### Schemas & Permissions
+
+| Schema | Purpose | Access |
+|--------|---------|--------|
+| `public` | CRM, tasks, projects, skills, etc. | All authenticated users and bots |
+| `mgmt` | Company financials, HR, sensitive ops | Only users/bots with `mgmt` permission |
+| `public_data` | Publicly available datasets | All authenticated users and bots |
+
+Permission groups are stored in `workspace_memberships.permission_groups` on the gateway. The workspace JWT carries them in `app_metadata.permissions`. RLS policies check:
+
+```sql
+-- Public schema: any authenticated user
+USING (is_workspace_authenticated())
+
+-- Mgmt schema: requires 'mgmt' permission
+USING (mgmt.has_mgmt_access())
+```
+
+### Bot API Keys
+
+Each bot's API key determines its identity and permissions. Keys are SHA-256 hashed in the gateway's `bot_api_keys` table.
+
+| Bot | Permissions | Key location |
+|-----|-------------|-------------|
+| bot-mel | `["general"]` | `tv-knowledge/_team/melvin/bot-mel/.claude/mcp.json` |
+| bot-darren | `["general"]` | `tv-knowledge/_team/darren/bot-darren/.claude/mcp.json` |
+| bot-gene | `["general"]` | `tv-knowledge/_team/gene/bot-gene/.claude/mcp.json` |
+| bot-gloria | `["general"]` | `tv-knowledge/_team/gloria/bot-gloria/.claude/mcp.json` |
+| bot-siti | `["general"]` | `tv-knowledge/_team/siti/bot-siti/.claude/mcp.json` |
+| bot-yc | `["general"]` | `tv-knowledge/_team/yc/bot-yc/.claude/mcp.json` |
+| bot-mgmt-mel | `["general", "mgmt"]` | `tv-mgmt-knowledge/.claude/mcp.json` (private repo) |
+
+Default key (user-level `~/.claude.json`): bot-mel's key. Project-level configs override it.
+
+To deactivate a bot: `UPDATE bot_api_keys SET is_active = false WHERE bot_name = 'xxx'` on gateway.
+
+### Adding a New Permission Group
+
+1. Add the group name to `workspace_memberships.permission_groups` on the gateway for relevant users/bots
+2. Create a helper function: `CREATE FUNCTION schema.has_X_access() ...` checking `auth.jwt() -> 'app_metadata' -> 'permissions'`
+3. Add RLS policies on the target tables using the helper
+
+## Multi-Workspace Architecture
+
+### Overview
+
+One app, multiple completely isolated Supabase projects. Each workspace is a separate database with separate auth, credentials, and data. No data leaks between workspaces.
+
+```
+Gateway Supabase (tccyronrnsimacqfhxzd)
+  ├── gateway_users         — canonical user identity
+  ├── workspaces            — registry (slug, supabase_url, anon_key, icon, color)
+  ├── workspace_memberships — who can access what (user_id → workspace_id + role)
+  └── workspace_settings    — per-workspace API key overrides
+
+Workspace Supabase (one per workspace)
+  ├── ThinkVAL (cqwcaeffzanfqsxlspig) — CRM, tasks, projects, skills, etc.
+  └── Melly    (wwicnbcaytznwgxzsoxe) — personal workspace (trading, finance, etc.)
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/lib/supabase.ts` | Dynamic Proxy client — swaps underlying client on workspace switch |
+| `src/lib/gatewaySupabase.ts` | Gateway singleton client (auth + workspace discovery) |
+| `src/stores/workspaceStore.ts` | Workspace state, loadWorkspaces, selectWorkspace orchestration |
+| `src/lib/workspaceStorage.ts` | localStorage namespacing (save/restore per workspace) |
+| `src/components/WorkspacePicker.tsx` | Full-screen workspace picker (post-login) |
+| `src/shell/WorkspaceSwitcher.tsx` | StatusBar dropdown for switching workspaces |
+| `src-tauri/src/commands/settings.rs` | `settings_switch_workspace` — atomic multi-key write |
+| `supabase/migrations/gateway/` | Gateway schema + seed SQL |
+
+### Boot Sequence
+
+```
+1. Auth initialize (Supabase Auth on gateway via PKCE)
+2. Login screen (if needed)
+3. Setup wizard (if needed)
+4. loadWorkspaces() → fetch workspace list from gateway
+5. If multiple workspaces + none selected → show WorkspacePicker
+6. If 1 workspace or previously selected → auto-connect
+7. Init workspace Supabase client from Tauri settings
+8. Mint workspace JWT via gateway Edge Function
+9. Load team config + register user
+10. Start realtime subscriptions
+11. Show Shell
+```
+
+### Workspace Switch Flow
+
+When `selectWorkspace(id)` is called:
+
+1. **localStorage migration** — first-time only: copy existing data to `key::workspaceId` namespace
+2. **localStorage swap** — save current workspace state, load new workspace state
+3. **Workspace JWT** — mint via gateway Edge Function `workspace-token`
+4. **Tauri settings** — atomically write `supabase_url`, `supabase_anon_key`, and any workspace-specific API keys via `settings_switch_workspace` Rust command
+5. **React Query cache** — `queryClient.clear()` to prevent stale data
+6. **Supabase client** — `initWorkspaceClient(url, anonKey)` swaps the Proxy target
+7. **Persist** — save `activeWorkspaceId` to localStorage
+8. **Reload** — `window.location.reload()` to reset all Zustand stores
+
+### Supabase Client Proxy Pattern
+
+The `supabase` export is a JavaScript Proxy. All 100+ files that `import { supabase }` get the Proxy, which forwards every property access to the current `_client`. When `initWorkspaceClient()` is called, `_client` changes — all existing imports seamlessly point to the new workspace. No import changes needed anywhere.
+
+### localStorage Isolation
+
+9 stores are workspace-scoped (prefixed with `key::workspaceId` on switch):
+`moduleTabStore`, `moduleVisibilityStore`, `projectFieldsStore`, `taskFieldsStore`, `classificationStore`, `favoritesStore`, `tabStore`, `recentFilesStore`, `folderConfigStore`
+
+6 stores are global (shared across workspaces):
+`authStore`, `workspaceStore`, `botSettingsStore`, `repositoryStore`, `activityBarStore`, `sidePanelStore`
+
+### Adding a New Workspace
+
+1. Create a new Supabase project
+2. Insert into gateway `workspaces` table: slug, display_name, supabase_url, supabase_anon_key
+3. Insert into `workspace_memberships`: user_id, workspace_id, role
+4. The workspace picker will show the new option on next app launch
+
+### Tauri Backend
+
+The Rust backend reads `supabase_url` + `supabase_anon_key` from `~/.tv-desktop/settings.json` on every `get_client()` call (no caching). When `settings_switch_workspace` writes new credentials, all subsequent Rust commands automatically hit the new workspace's Supabase. No Rust code changes needed per workspace.
+
 ## Tech Stack
 
 - **Frontend:** React 18, TypeScript, Vite 6, Tailwind CSS 3, Zustand 5 (state), TanStack React Query 5 (data)
@@ -304,9 +466,9 @@ pkill -9 tv-mcp                    # kill running processes so Claude Code recon
 
 The binary at `~/.tv-desktop/bin/tv-mcp` is what Claude Code connects to (configured in `~/.claude/mcp.json`). The Tauri app and this binary share the same `src-tauri/src/mcp/` module but are separate compiled binaries. **Running tv-mcp processes must be killed after rebuilding** — Claude Code auto-restarts the MCP server on the next tool call, but won't pick up the new binary while the old process is alive.
 
-### Supabase credentials — not in `.env`
+### Supabase credentials — managed by workspace store
 
-Credentials are configured in-app via Settings → Credentials and stored in the OS keychain via Tauri's store plugin. There is no `.env` file for Supabase. Without URL + anon key configured in settings, all data hooks will fail silently.
+Workspace Supabase credentials (`supabase_url`, `supabase_anon_key`) are stored in `~/.tv-desktop/settings.json` and managed by `workspaceStore.selectWorkspace()`. The gateway URL/key is hardcoded in `src/lib/gatewaySupabase.ts`. There is no `.env` file for Supabase credentials. Without credentials in settings, all data hooks will fail silently. The `settings_switch_workspace` Tauri command writes credentials atomically to prevent race conditions during workspace switching.
 
 ### Version bumping — three files must stay in sync
 

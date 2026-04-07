@@ -2,11 +2,19 @@
 
 import { create } from "zustand";
 
-const VALID_MODULES = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "analytics", "product", "gallery", "skills", "portal", "scheduler", "repos", "email", "blog", "guides", "s3browser", "linkedin", "prospecting", "public-data", "referrals"] as const;
+const VALID_MODULES = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "analytics", "product", "gallery", "skills", "portal", "scheduler", "repos", "email", "blog", "guides", "s3browser", "prospecting", "public-data", "referrals", "investment", "shared-inbox", "settings"] as const;
 
 export type ModuleId = (typeof VALID_MODULES)[number];
 export type Theme = "light" | "dark";
-export type SettingsView = "keys" | "val" | "sync" | "mcp" | "claude" | "bots" | "notion" | "outlook" | "jobs" | null;
+// Sub-view within the Settings module. Used as a deep-link hint when opening
+// the settings tab from another surface (e.g., StatusBar "View All Jobs").
+export type SettingsView =
+  | "keys" | "val" | "outlook" | "linkedin" | "ga4"
+  | "sync" | "folders" | "notion" | "bg-sync"
+  | "mcp" | "claude" | "bots" | "project-fields" | "task-fields" | "portal"
+  | "appearance"
+  | "team" | "diagnostics" | "jobs"
+  | null;
 const LAST_MODULE_KEY = "tv-client-last-module";
 
 // Get initial module: URL param (multi-window) > localStorage (resume) > default
@@ -74,12 +82,11 @@ interface AppState {
   setTerminalOpen: (open: boolean) => void;
   toggleTerminal: () => void;
 
-  // Settings modal
-  settingsOpen: boolean;
+  // Settings deep-link hint — set by callers that want the settings module
+  // to open on a specific sub-view. The module consumes this on mount and
+  // clears it via setSettingsView(null).
   settingsView: SettingsView;
   setSettingsView: (view: SettingsView) => void;
-  openSettings: (view?: SettingsView) => void;
-  closeSettings: () => void;
 }
 
 // Initialize theme on load
@@ -116,14 +123,9 @@ export const useAppStore = create<AppState>((set) => ({
   setTerminalOpen: (open) => set({ terminalOpen: open }),
   toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
 
-  // Settings modal
-  settingsOpen: false,
+  // Settings deep-link hint
   settingsView: null,
   setSettingsView: (view) => set({ settingsView: view }),
-  openSettings: (view) => {
-    set({ settingsOpen: true, settingsView: view ?? null });
-  },
-  closeSettings: () => set({ settingsOpen: false }),
 }));
 
 // Sync theme across windows via localStorage storage event

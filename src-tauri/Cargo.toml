@@ -80,6 +80,9 @@ regex = "1"
 # Markdown to HTML conversion (for Intercom and PDF generation)
 pulldown-cmark = "0.10"
 
+# XML parsing (for IBKR Flex Web Service responses)
+quick-xml = "0.31"
+
 # SQLite (for Outlook email metadata)
 rusqlite = { version = "0.31", features = ["bundled"] }
 

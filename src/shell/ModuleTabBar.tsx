@@ -19,7 +19,6 @@ import {
   Cloud,
   Database,
   CalendarDays,
-  Linkedin,
   Target,
   SlidersHorizontal,
   Activity,
@@ -28,11 +27,17 @@ import {
   MessageSquare,
   Handshake,
   BookOpen,
+  Inbox,
+  Settings,
   LucideIcon,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
-import { useModuleTabStore } from "../stores/moduleTabStore";
+import {
+  useModuleTabStore,
+  useActiveTab,
+  useActiveTabs,
+} from "../stores/moduleTabStore";
 
 const moduleIcons: Record<ModuleId, LucideIcon> = {
   home: Home,
@@ -56,10 +61,12 @@ const moduleIcons: Record<ModuleId, LucideIcon> = {
   blog: FileText,
   guides: BookOpen,
   s3browser: Cloud,
-  linkedin: Linkedin,
   prospecting: Target,
   "public-data": Database,
   referrals: Handshake,
+  investment: Target,
+  "shared-inbox": Inbox,
+  settings: Settings,
 };
 
 const moduleLabels: Record<ModuleId, string> = {
@@ -84,10 +91,12 @@ const moduleLabels: Record<ModuleId, string> = {
   blog: "Blog",
   guides: "Guides",
   s3browser: "S3 Browser",
-  linkedin: "LinkedIn",
   prospecting: "Outbound",
   "public-data": "Public Data",
   referrals: "Referrals",
+  investment: "Investment",
+  "shared-inbox": "Shared Inboxes",
+  settings: "Settings",
 };
 
 interface ContextMenuState {
@@ -97,8 +106,10 @@ interface ContextMenuState {
 }
 
 export function ModuleTabBar() {
-  const tabs = useModuleTabStore((s) => s.tabs);
-  const activeTab = useModuleTabStore((s) => s.activeTab);
+  // Tabs are per-mode — these hooks join moduleTabStore with modeStore so the
+  // bar swaps its entire contents when the user switches mode.
+  const tabs = useActiveTabs();
+  const activeTab = useActiveTab();
   const setActiveTab = useModuleTabStore((s) => s.setActiveTab);
   const closeTab = useModuleTabStore((s) => s.closeTab);
   const closeOtherTabs = useModuleTabStore((s) => s.closeOtherTabs);

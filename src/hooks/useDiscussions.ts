@@ -4,6 +4,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 
+export type DiscussionOrigin = "direct" | "automation";
+
 export interface Discussion {
   id: string;
   entity_type: string;
@@ -12,6 +14,7 @@ export interface Discussion {
   author: string;
   body: string;
   title: string | null;
+  origin: DiscussionOrigin;
   attachments: string[]; // array of image URLs
   last_activity_at: string;
   created_at: string;
@@ -46,6 +49,64 @@ export function useDiscussions(entityType: string, entityId: string) {
   });
 }
 
+/**
+ * Fetch distinct bot-chat sessions for an entity, matching entity_ids like
+ * `task-chat:{taskId}` or `task-chat:{taskId}:{sessionSuffix}`.
+ *
+ * Returns one summary per entity_id (session), sorted by last activity desc.
+ */
+export interface BotChatSession {
+  entity_id: string;
+  title: string | null;
+  created_at: string;
+  last_activity_at: string;
+  message_count: number;
+  sample_body: string;
+}
+
+export function useBotChatSessions(entityIdPrefix: string | null) {
+  return useQuery({
+    queryKey: ["discussions", "bot-chat-sessions", entityIdPrefix ?? ""],
+    enabled: !!entityIdPrefix,
+    queryFn: async (): Promise<BotChatSession[]> => {
+      if (!entityIdPrefix) return [];
+      const { data, error } = await supabase
+        .from("discussions")
+        .select("entity_id, title, body, created_at, last_activity_at")
+        .eq("entity_type", "general")
+        .or(`entity_id.eq.${entityIdPrefix},entity_id.like.${entityIdPrefix}:%`)
+        .order("created_at", { ascending: true });
+
+      if (error) throw new Error(error.message);
+
+      // Group by entity_id
+      const grouped = new Map<string, BotChatSession>();
+      for (const row of (data ?? []) as any[]) {
+        const existing = grouped.get(row.entity_id);
+        if (existing) {
+          existing.message_count += 1;
+          if (row.last_activity_at > existing.last_activity_at) {
+            existing.last_activity_at = row.last_activity_at;
+          }
+        } else {
+          grouped.set(row.entity_id, {
+            entity_id: row.entity_id,
+            title: row.title,
+            created_at: row.created_at,
+            last_activity_at: row.last_activity_at,
+            message_count: 1,
+            sample_body: row.body,
+          });
+        }
+      }
+      return [...grouped.values()].sort(
+        (a, b) => new Date(b.last_activity_at).getTime() - new Date(a.last_activity_at).getTime(),
+      );
+    },
+    staleTime: 10_000,
+  });
+}
+
 /** Count discussions for an entity (lightweight, for badges) */
 export function useDiscussionCount(entityType: string, entityId: string) {
   return useQuery({
@@ -77,6 +138,7 @@ export function useCreateDiscussion() {
       parent_id?: string;
       title?: string;
       attachments?: string[];
+      origin?: DiscussionOrigin;
     }) => {
       const { data, error } = await supabase
         .from("discussions")

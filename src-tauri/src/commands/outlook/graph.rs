@@ -255,6 +255,75 @@ impl GraphClient {
         Ok(())
     }
 
+    /// Create a draft email in the user's Drafts folder (does not send)
+    pub async fn create_draft(
+        &self,
+        to: &[EmailAddress],
+        cc: &[EmailAddress],
+        subject: &str,
+        body_html: &str,
+    ) -> CmdResult<String> {
+        let token = self.get_token().await?;
+        let url = format!("{}/me/messages", GRAPH_BASE);
+
+        let to_recipients: Vec<serde_json::Value> = to
+            .iter()
+            .map(|a| {
+                serde_json::json!({
+                    "emailAddress": { "name": a.name, "address": a.email }
+                })
+            })
+            .collect();
+
+        let cc_recipients: Vec<serde_json::Value> = cc
+            .iter()
+            .map(|a| {
+                serde_json::json!({
+                    "emailAddress": { "name": a.name, "address": a.email }
+                })
+            })
+            .collect();
+
+        let payload = serde_json::json!({
+            "subject": subject,
+            "body": {
+                "contentType": "HTML",
+                "content": body_html
+            },
+            "toRecipients": to_recipients,
+            "ccRecipients": cc_recipients,
+            "isDraft": true
+        });
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", token))
+            .header("Content-Type", "application/json")
+            .json(&payload)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(CommandError::Http { status: status.as_u16(), body });
+        }
+
+        // Return the draft message ID
+        let data: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| CommandError::Parse(format!("Failed to parse draft response: {}", e)))?;
+
+        let draft_id = data["id"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+
+        Ok(draft_id)
+    }
+
     /// Send email
     pub async fn send_email(
         &self,

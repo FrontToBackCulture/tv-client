@@ -2,7 +2,8 @@
 // Global store for managing multiple knowledge repositories
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 
 export interface Repository {
   id: string;
@@ -82,6 +83,7 @@ export const useRepositoryStore = create<RepositoryState>()(
     }),
     {
       name: "tv-client-repositories",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
     }
   )
 );

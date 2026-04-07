@@ -122,6 +122,13 @@ export function CompanyDetailPanel({
             {company.industry && (
               <span className="text-xs text-zinc-400 dark:text-zinc-500">{company.industry}</span>
             )}
+            {company.hiring_signals && (company.hiring_signals as any).active_jobs?.length > 0 && (
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                  Hiring: {(company.hiring_signals as any).active_jobs.map((j: any) => j.title).join(", ")}
+                </span>
+              </div>
+            )}
           </div>
           {onClose && (
             <IconButton icon={X} size={18} label="Close" onClick={onClose} />

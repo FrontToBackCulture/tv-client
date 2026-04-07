@@ -11,7 +11,7 @@ export interface TriggerConfig {
 }
 
 export interface DataSourceConfig {
-  // DIO: which data sources to pull
+  // Built-in data sources
   sources?: {
     tasks: boolean;
     deals: boolean;
@@ -19,8 +19,22 @@ export interface DataSourceConfig {
     projects: boolean;
     calendar: boolean;
   };
-  // Skill: which skills to run
-  skill_refs?: Array<{ bot: string; slug: string; title: string }>;
+  // Custom SQL data sources (by ID)
+  custom_source_ids?: string[];
+}
+
+export interface SkillsConfig {
+  skill_refs: Array<{ bot: string; slug: string; title: string }>;
+}
+
+export interface ActionConfig {
+  operation: "insert" | "update" | "upsert" | "delete";
+  target_schema: string;
+  target_table: string;
+  match_key: string | null;
+  source_query: string | null;
+  field_mapping: Record<string, string> | null;
+  static_values: Record<string, unknown> | null;
 }
 
 export interface AiProcessConfig {
@@ -32,26 +46,29 @@ export interface AiProcessConfig {
 }
 
 export interface OutputConfig {
-  output_type: "chat_thread" | "slack";
+  output_type: "chat_thread";
   post_mode: "new_thread" | "same_thread";
   thread_id: string | null;
   thread_title: string | null;
   bot_author: string;
-  slack_webhook_url: string | null;
+  aggregation_instructions: string | null;
 }
 
-export type NodeConfig = TriggerConfig | DataSourceConfig | AiProcessConfig | OutputConfig;
+export interface LoopConfig {
+  mode: "sequential";
+  item_variable: string; // name used in downstream prompts, e.g. "company"
+}
 
-// ---- Node / automation type discriminants ----
+export type NodeConfig = TriggerConfig | DataSourceConfig | SkillsConfig | ActionConfig | AiProcessConfig | OutputConfig | LoopConfig;
 
-export type AutomationNodeType = "trigger" | "data_source" | "ai_process" | "output";
-export type AutomationType = "skill" | "dio";
+// ---- Node type ----
+
+export type AutomationNodeType = "trigger" | "data_source" | "skills" | "action" | "ai_process" | "output" | "loop" | "loop_group";
 
 // ---- React Flow node data ----
 
 export interface AutomationNodeData {
   automationId: string;
-  automationType: AutomationType;
   nodeType: AutomationNodeType;
   config: NodeConfig;
   label: string;
@@ -69,16 +86,20 @@ export interface AutomationRow {
   name: string;
   description: string | null;
   enabled: boolean;
-  automation_type: AutomationType;
-  job_id: string | null;
-  dio_id: string | null;
   cron_expression: string | null;
   active_hours: string | null;
+  last_run_at: string | null;
+  last_run_status: "running" | "success" | "failed" | null;
   viewport_x: number;
   viewport_y: number;
   viewport_zoom: number;
+  suggested_skills: string[];
   created_at: string;
   updated_at: string;
+  // Deprecated — kept for backward compat, will be removed
+  automation_type?: string | null;
+  job_id?: string | null;
+  dio_id?: string | null;
 }
 
 export interface AutomationNodeRow {
@@ -99,11 +120,9 @@ export interface AutomationEdgeRow {
   target_node_id: string;
 }
 
-// ---- Full graph (automation + nodes + edges + run status) ----
+// ---- Full graph (automation + nodes + edges) ----
 
 export interface AutomationGraph extends AutomationRow {
   nodes: AutomationNodeRow[];
   edges: AutomationEdgeRow[];
-  last_run_at: string | null;
-  last_run_status: "running" | "success" | "failed" | null;
 }

@@ -7,6 +7,7 @@ import type { FeedCard } from "../../lib/feed/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { feedKeys } from "./keys";
 import { getWhatsNew, fetchWhatsNewNotes } from "../useAppUpdate";
+import { workspaceLocalStorage } from "../../lib/workspaceScopedStorage";
 
 const INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 const LAST_RUN_KEY = "tv-auto-briefing-last-run";
@@ -363,7 +364,7 @@ async function runAutoBriefing(queryClient: ReturnType<typeof useQueryClient>): 
   }
 
   // Record last run
-  localStorage.setItem(LAST_RUN_KEY, new Date().toISOString());
+  workspaceLocalStorage.set(LAST_RUN_KEY, new Date().toISOString());
 }
 
 // ---------------------------------------------------------------------------
@@ -417,7 +418,7 @@ export async function triggerBriefing(queryClient: ReturnType<typeof useQueryCli
   if (created > 0) {
     queryClient.invalidateQueries({ queryKey: feedKeys.cards() });
   }
-  localStorage.setItem(LAST_RUN_KEY, new Date().toISOString());
+  workspaceLocalStorage.set(LAST_RUN_KEY, new Date().toISOString());
   return created;
 }
 
@@ -429,7 +430,7 @@ export function useAutoBriefing() {
     if (!ranRef.current) {
       ranRef.current = true;
 
-      const lastRun = localStorage.getItem(LAST_RUN_KEY);
+      const lastRun = workspaceLocalStorage.get(LAST_RUN_KEY);
       const shouldRun = !lastRun || Date.now() - new Date(lastRun).getTime() > INTERVAL_MS;
 
       if (shouldRun) {

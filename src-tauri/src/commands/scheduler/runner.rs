@@ -1,4 +1,4 @@
-// Job execution — spawn claude -p, capture output, save reports, post to Slack
+// Job execution — spawn claude -p, capture output, save reports
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -53,13 +53,32 @@ pub async fn execute_job(
     app_handle: &tauri::AppHandle,
     default_reports_folder: &str,
 ) {
+    execute_job_inner(job, run_id, trigger, app_handle, default_reports_folder, None).await;
+}
+
+async fn execute_job_inner(
+    job: &SchedulerJob,
+    run_id: &str,
+    trigger: RunTrigger,
+    app_handle: &tauri::AppHandle,
+    default_reports_folder: &str,
+    automation_id: Option<String>,
+) {
     let started_at = Utc::now();
+
+    // For automation runs, don't set job_id (FK constraint to jobs table)
+    let job_id_for_run = if automation_id.is_some() {
+        String::new()
+    } else {
+        job.id.clone()
+    };
 
     // Create initial run record
     let mut run = JobRun {
         id: run_id.to_string(),
-        job_id: job.id.clone(),
+        job_id: job_id_for_run,
         job_name: job.name.clone(),
+        automation_id,
         started_at,
         finished_at: None,
         duration_secs: None,
@@ -67,7 +86,6 @@ pub async fn execute_job(
         output: String::new(),
         output_preview: String::new(),
         error: None,
-        slack_posted: false,
         trigger,
         cost_usd: None,
         input_tokens: None,
@@ -108,9 +126,75 @@ pub async fn execute_job(
         .knowledge_path
         .clone();
 
+    // Execute Action nodes (if any) before running Claude
+    let mut action_context = String::new();
+    // Load action configs — try by automation_id directly, fall back to job_id lookup
+    let action_configs_result = match storage::load_action_configs_for_automation(&job.id).await {
+        Ok(configs) if !configs.is_empty() => Ok(configs),
+        _ => storage::load_action_configs_for_job(&job.id).await,
+    };
+    match action_configs_result {
+        Ok(action_configs) if !action_configs.is_empty() => {
+            emit_progress("Executing action nodes...");
+            for (i, config) in action_configs.iter().enumerate() {
+                let _ = app_handle.emit(
+                    "claude-stream",
+                    serde_json::json!({
+                        "run_id": run_id,
+                        "event_type": "tool_use",
+                        "content": format!("Action {}: {} on {}.{}", i + 1, config.operation, config.target_schema, config.target_table),
+                        "metadata": { "tool": "action" },
+                    }),
+                );
+                match super::action::execute_action(config).await {
+                    Ok(result) => {
+                        action_context.push_str(&format!(
+                            "\n## Action {} Result\n- Operation: {}\n- Target: {}.{}\n- {}\n",
+                            i + 1, config.operation, config.target_schema, config.target_table, result.summary
+                        ));
+                        if !result.errors.is_empty() {
+                            action_context.push_str(&format!("- Errors: {}\n", result.errors.join("; ")));
+                        }
+                        if !result.source_data.is_empty() {
+                            if let Ok(json_str) = serde_json::to_string_pretty(&result.source_data) {
+                                action_context.push_str(&format!("- Data:\n```json\n{}\n```\n", json_str));
+                            }
+                        }
+                        let _ = app_handle.emit(
+                            "claude-stream",
+                            serde_json::json!({
+                                "run_id": run_id,
+                                "event_type": "text",
+                                "content": result.summary,
+                                "metadata": null,
+                            }),
+                        );
+                    }
+                    Err(e) => {
+                        action_context.push_str(&format!("\n## Action {} Failed\n- Error: {}\n", i + 1, e));
+                        eprintln!("[scheduler] Action {} failed: {}", i + 1, e);
+                    }
+                }
+            }
+        }
+        _ => {} // No action nodes or failed to load — proceed without
+    }
+
+    // Build modified job with action context prepended to skill_prompt
+    let effective_job = if !action_context.is_empty() {
+        let mut modified = job.clone();
+        modified.skill_prompt = format!(
+            "{}\n\n---\n\n# Action Results (pre-executed)\n\nThe following data operations were already executed before this prompt:\n{}\n\nPlease summarize what happened above in your response.",
+            job.skill_prompt, action_context
+        );
+        modified
+    } else {
+        job.clone()
+    };
+
     // Run claude
     emit_progress("Running claude...");
-    let result = run_claude(job, &knowledge_path, run_id).await;
+    let result = run_claude(&effective_job, &knowledge_path, run_id, app_handle).await;
 
     let finished_at = Utc::now();
     let duration = (finished_at - started_at).num_milliseconds() as f64 / 1000.0;
@@ -165,10 +249,9 @@ pub async fn execute_job(
     run.finished_at = Some(finished_at);
     run.duration_secs = Some(duration);
 
-    // Post-processing: save reports, upload to S3, post to Slack
+    // Post-processing: save reports, upload to S3
     if run.status == RunStatus::Success {
         let date_str = finished_at.format("%Y-%m-%d").to_string();
-        let mut report_url: Option<String> = None;
 
         if job.generate_report {
             // Look for skill-generated HTML report (written by Claude during skill execution)
@@ -187,7 +270,6 @@ pub async fn execute_job(
                         match upload_html_to_s3(prefix, &date_str, &html).await {
                             Ok(url) => {
                                 eprintln!("[scheduler] Report uploaded: {}", url);
-                                report_url = Some(url);
                             }
                             Err(e) => {
                                 eprintln!("[scheduler] S3 upload failed: {}", e);
@@ -197,22 +279,6 @@ pub async fn execute_job(
                 }
             } else {
                 eprintln!("[scheduler] No HTML report found at {:?}, skipping S3 upload", skill_report_path);
-            }
-        }
-
-        // Post to Slack
-        if let Some(webhook) = &job.slack_webhook_url {
-            if !webhook.is_empty() {
-                emit_progress("Posting to Slack...");
-                match post_to_slack(webhook, &job.name, &run.output, report_url.as_deref()).await {
-                    Ok(_) => {
-                        run.slack_posted = true;
-                        eprintln!("[scheduler] Slack posted for job {}", job.name);
-                    }
-                    Err(e) => {
-                        eprintln!("[scheduler] Slack post failed: {}", e);
-                    }
-                }
             }
         }
     }
@@ -241,7 +307,370 @@ pub async fn execute_job(
             "durationSecs": run.duration_secs,
             "outputPreview": run.output_preview,
             "error": run.error,
-            "slackPosted": run.slack_posted,
+        }),
+    );
+}
+
+// ============================================================================
+// Unified automation execution (reads from automations + automation_nodes)
+// ============================================================================
+
+/// Execute an automation using its config assembled from automation_nodes.
+pub async fn execute_automation(
+    config: &AutomationConfig,
+    run_id: &str,
+    trigger: RunTrigger,
+    app_handle: &tauri::AppHandle,
+    default_reports_folder: &str,
+) {
+    let started_at = Utc::now();
+
+    // Update automation status to Running
+    let _ = storage::update_automation_run_status(&config.id, &RunStatus::Running, started_at).await;
+
+    // Check if this automation has a loop node
+    let debug_msg = format!("[scheduler] execute_automation: id={}, loop_config={:?}\n", config.id, config.loop_config);
+    eprintln!("{}", debug_msg);
+    let _ = std::fs::write("/tmp/scheduler-loop-debug.log", &debug_msg);
+    if let Some(ref loop_cfg) = config.loop_config {
+        let loop_msg = format!("[scheduler] Taking LOOP path: mode={}, item_variable={}\n", loop_cfg.mode, loop_cfg.item_variable);
+        eprintln!("{}", loop_msg);
+        let _ = std::fs::write("/tmp/scheduler-loop-debug.log", format!("{}{}", debug_msg, loop_msg));
+        execute_automation_with_loop(config, loop_cfg, run_id, trigger, app_handle, default_reports_folder).await;
+    } else {
+        let _ = std::fs::write("/tmp/scheduler-loop-debug.log", format!("{}NON-LOOP path\n", debug_msg));
+        // No loop — run as before (single Claude invocation)
+        let job = automation_to_job(config);
+        execute_job_inner(&job, run_id, trigger, app_handle, default_reports_folder, Some(config.id.clone())).await;
+    }
+
+    // Update automation status from the run result
+    let final_status = match storage::load_run_async(run_id).await {
+        Ok(run) => (run.status, run.finished_at.unwrap_or(Utc::now())),
+        Err(e) => {
+            eprintln!("[scheduler] Failed to load run {} for status update: {}", run_id, e);
+            (RunStatus::Failed, Utc::now())
+        }
+    };
+    let _ = storage::update_automation_run_status(&config.id, &final_status.0, final_status.1).await;
+}
+
+/// Convert AutomationConfig to a temporary SchedulerJob for the execute pipeline.
+fn automation_to_job(config: &AutomationConfig) -> SchedulerJob {
+    SchedulerJob {
+        id: config.id.clone(),
+        name: config.name.clone(),
+        skill_prompt: config.additional_instructions.clone().unwrap_or_default(),
+        cron_expression: config.cron_expression.clone(),
+        model: config.model.clone(),
+        max_budget: None,
+        allowed_tools: vec![],
+        enabled: config.enabled,
+        generate_report: config.generate_report,
+        report_prefix: config.report_prefix.clone(),
+        skill_refs: None,
+        bot_path: config.bot_path.clone(),
+        sod_reports_folder: config.sod_reports_folder.clone(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+        last_run_at: config.last_run_at,
+        last_run_status: config.last_run_status.clone(),
+    }
+}
+
+/// Execute an automation with a loop node — runs Claude once per record from the data source.
+async fn execute_automation_with_loop(
+    config: &AutomationConfig,
+    loop_cfg: &super::types::LoopConfig,
+    run_id: &str,
+    trigger: RunTrigger,
+    app_handle: &tauri::AppHandle,
+    _default_reports_folder: &str,
+) {
+    let started_at = Utc::now();
+    let base_prompt = config.additional_instructions.clone().unwrap_or_default();
+    let item_var = &loop_cfg.item_variable;
+
+    // Create the parent run record
+    let mut run = JobRun {
+        id: run_id.to_string(),
+        job_id: String::new(),
+        job_name: config.name.clone(),
+        automation_id: Some(config.id.clone()),
+        started_at,
+        finished_at: None,
+        duration_secs: None,
+        status: RunStatus::Running,
+        output: String::new(),
+        output_preview: String::new(),
+        error: None,
+        trigger,
+        cost_usd: None,
+        input_tokens: None,
+        output_tokens: None,
+        cache_read_tokens: None,
+        cache_creation_tokens: None,
+        num_turns: None,
+    };
+
+    let _ = app_handle.emit(
+        "scheduler:job-started",
+        serde_json::json!({
+            "jobId": config.id,
+            "runId": run_id,
+            "jobName": config.name,
+        }),
+    );
+
+    // Step 1: Fetch records from data source node's custom SQL queries
+    let mut records: Vec<serde_json::Value> = vec![];
+    let _ = app_handle.emit(
+        "claude-stream",
+        serde_json::json!({
+            "run_id": run_id,
+            "event_type": "text",
+            "content": "Fetching data source records...",
+            "metadata": null,
+        }),
+    );
+
+    match storage::load_data_source_queries(&config.id).await {
+        Ok(queries) if !queries.is_empty() => {
+            for query in &queries {
+                match super::action::execute_source_query_public(query).await {
+                    Ok(rows) => {
+                        let _ = app_handle.emit(
+                            "claude-stream",
+                            serde_json::json!({
+                                "run_id": run_id,
+                                "event_type": "text",
+                                "content": format!("Data source returned {} record(s)", rows.len()),
+                                "metadata": null,
+                            }),
+                        );
+                        records.extend(rows);
+                    }
+                    Err(e) => {
+                        eprintln!("[scheduler] Data source query failed: {}", e);
+                        run.status = RunStatus::Failed;
+                        run.error = Some(format!("Data source query failed: {}", e));
+                        run.finished_at = Some(Utc::now());
+                        run.duration_secs = Some((Utc::now() - started_at).num_milliseconds() as f64 / 1000.0);
+                        let _ = storage::save_run_async(&run).await;
+                        return;
+                    }
+                }
+            }
+        }
+        _ => {
+            run.status = RunStatus::Failed;
+            run.error = Some("Loop automation requires a data source node with custom SQL queries".to_string());
+            run.finished_at = Some(Utc::now());
+            run.duration_secs = Some((Utc::now() - started_at).num_milliseconds() as f64 / 1000.0);
+            let _ = storage::save_run_async(&run).await;
+            return;
+        }
+    }
+
+    if records.is_empty() {
+        let _ = app_handle.emit(
+            "claude-stream",
+            serde_json::json!({
+                "run_id": run_id,
+                "event_type": "text",
+                "content": "No records found from data source. Nothing to process.",
+                "metadata": null,
+            }),
+        );
+        run.status = RunStatus::Success;
+        run.output = "No records to process.".to_string();
+        run.output_preview = run.output.clone();
+        run.finished_at = Some(Utc::now());
+        run.duration_secs = Some((Utc::now() - started_at).num_milliseconds() as f64 / 1000.0);
+        let _ = storage::save_run_async(&run).await;
+        return;
+    }
+
+    let total = records.len();
+    let _ = app_handle.emit(
+        "claude-stream",
+        serde_json::json!({
+            "run_id": run_id,
+            "event_type": "text",
+            "content": format!("Loop: processing {} record(s) sequentially...\n", total),
+            "metadata": null,
+        }),
+    );
+
+    // Step 2: Iterate over records, run Claude once per record
+    let knowledge_path = app_handle
+        .state::<crate::AppState>()
+        .knowledge_path
+        .clone();
+
+    let mut all_outputs: Vec<String> = vec![];
+    let mut total_cost: f64 = 0.0;
+    let mut total_input_tokens: u64 = 0;
+    let mut total_output_tokens: u64 = 0;
+    let mut total_cache_read: u64 = 0;
+    let mut total_cache_create: u64 = 0;
+    let mut total_turns: u32 = 0;
+    let mut had_error = false;
+
+    for (i, record) in records.iter().enumerate() {
+        let record_json = serde_json::to_string_pretty(record).unwrap_or_default();
+        let iteration_prompt = format!(
+            "{}\n\n---\n\n# Current {item_var} (iteration {idx}/{total})\n\n```json\n{record}\n```",
+            base_prompt,
+            item_var = item_var,
+            idx = i + 1,
+            total = total,
+            record = record_json,
+        );
+
+        let _ = app_handle.emit(
+            "claude-stream",
+            serde_json::json!({
+                "run_id": run_id,
+                "event_type": "text",
+                "content": format!("\n---\n## Iteration {}/{}\n", i + 1, total),
+                "metadata": null,
+            }),
+        );
+
+        let iter_job = SchedulerJob {
+            id: config.id.clone(),
+            name: format!("{} [{}/{}]", config.name, i + 1, total),
+            skill_prompt: iteration_prompt,
+            cron_expression: None,
+            model: config.model.clone(),
+            max_budget: None,
+            allowed_tools: vec![],
+            enabled: true,
+            generate_report: false,
+            report_prefix: None,
+            skill_refs: None,
+            bot_path: config.bot_path.clone(),
+            sod_reports_folder: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_run_at: None,
+            last_run_status: None,
+        };
+
+        match run_claude(&iter_job, &knowledge_path, run_id, app_handle).await {
+            Ok(output) => {
+                all_outputs.push(format!("### Iteration {}/{}\n{}", i + 1, total, output.text));
+                if let Some(cost) = output.cost_usd { total_cost += cost; }
+                if let Some(turns) = output.num_turns { total_turns += turns; }
+
+                // Parse token usage for this iteration
+                if let Some(ref sid) = output.session_id {
+                    if let Ok(usage) = parse_session_tokens(sid) {
+                        total_input_tokens += usage.input_tokens;
+                        total_output_tokens += usage.output_tokens;
+                        total_cache_read += usage.cache_read_tokens;
+                        total_cache_create += usage.cache_creation_tokens;
+                    }
+                }
+            }
+            Err(e) => {
+                all_outputs.push(format!("### Iteration {}/{}\nERROR: {}", i + 1, total, e));
+                eprintln!("[scheduler] Loop iteration {}/{} failed: {}", i + 1, total, e);
+                had_error = true;
+                // Continue to next record — don't abort the whole loop
+            }
+        }
+    }
+
+    // Step 3: Aggregate results — optionally run a final Claude call to summarize
+    let combined_output = all_outputs.join("\n\n");
+
+    let final_output = if let Some(ref agg_instructions) = config.aggregation_instructions {
+        let _ = app_handle.emit(
+            "claude-stream",
+            serde_json::json!({
+                "run_id": run_id,
+                "event_type": "text",
+                "content": "\n---\n## Aggregating results...\n",
+                "metadata": null,
+            }),
+        );
+
+        let agg_prompt = format!(
+            "{}\n\n---\n\n# Raw iteration outputs\n\n{}\n",
+            agg_instructions, combined_output,
+        );
+
+        let agg_job = SchedulerJob {
+            id: config.id.clone(),
+            name: format!("{} [summary]", config.name),
+            skill_prompt: agg_prompt,
+            cron_expression: None,
+            model: config.model.clone(),
+            max_budget: None,
+            allowed_tools: vec![],
+            enabled: true,
+            generate_report: false,
+            report_prefix: None,
+            skill_refs: None,
+            bot_path: config.bot_path.clone(),
+            sod_reports_folder: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_run_at: None,
+            last_run_status: None,
+        };
+
+        match run_claude(&agg_job, &knowledge_path, run_id, app_handle).await {
+            Ok(output) => {
+                if let Some(cost) = output.cost_usd { total_cost += cost; }
+                if let Some(turns) = output.num_turns { total_turns += turns; }
+                if let Some(ref sid) = output.session_id {
+                    if let Ok(usage) = parse_session_tokens(sid) {
+                        total_input_tokens += usage.input_tokens;
+                        total_output_tokens += usage.output_tokens;
+                        total_cache_read += usage.cache_read_tokens;
+                        total_cache_create += usage.cache_creation_tokens;
+                    }
+                }
+                output.text
+            }
+            Err(e) => {
+                eprintln!("[scheduler] Aggregation Claude call failed: {}", e);
+                format!("{}\n\n---\n\n*Aggregation failed: {}*", combined_output, e)
+            }
+        }
+    } else {
+        combined_output
+    };
+
+    let finished_at = Utc::now();
+    let duration = (finished_at - started_at).num_milliseconds() as f64 / 1000.0;
+    run.status = if had_error { RunStatus::Failed } else { RunStatus::Success };
+    run.output = final_output.clone();
+    run.output_preview = final_output.chars().take(500).collect();
+    run.finished_at = Some(finished_at);
+    run.duration_secs = Some(duration);
+    run.cost_usd = Some(total_cost);
+    run.input_tokens = Some(total_input_tokens);
+    run.output_tokens = Some(total_output_tokens);
+    run.cache_read_tokens = Some(total_cache_read);
+    run.cache_creation_tokens = Some(total_cache_create);
+    run.num_turns = Some(total_turns);
+
+    let _ = storage::save_run_async(&run).await;
+
+    let _ = app_handle.emit(
+        "scheduler:job-completed",
+        serde_json::json!({
+            "jobId": config.id,
+            "runId": run.id,
+            "jobName": config.name,
+            "status": run.status,
+            "durationSecs": run.duration_secs,
+            "outputPreview": run.output_preview,
+            "error": run.error,
         }),
     );
 }
@@ -264,15 +693,17 @@ struct TokenUsage {
     cache_creation_tokens: u64,
 }
 
-/// Spawn `claude -p` with JSON output format to capture both result text and cost
-async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> Result<ClaudeOutput, CommandError> {
+/// Spawn `claude -p` with stream-json output, emitting `claude-stream` events for live UI.
+async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str, app_handle: &tauri::AppHandle) -> Result<ClaudeOutput, CommandError> {
     use tokio::process::Command;
+    use tokio::io::{AsyncBufReadExt, BufReader};
     use std::process::Stdio;
 
     let mut cmd = Command::new("claude");
     cmd.arg("-p");
     cmd.arg("--model").arg(&job.model);
-    cmd.arg("--output-format").arg("json");
+    cmd.arg("--output-format").arg("stream-json");
+    cmd.arg("--verbose");
 
     if let Some(budget) = job.max_budget {
         cmd.arg("--max-turns").arg(format!("{}", (budget * 10.0) as u32));
@@ -293,8 +724,18 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> R
     // Use bot_path as working directory if set, otherwise fall back to knowledge_path.
     // Running from the bot folder ensures the Claude session picks up the bot's
     // CLAUDE.md, .claude/settings.local.json (pre-approved tools), and MCP context.
-    let working_dir = job.bot_path.as_deref().unwrap_or(knowledge_path);
-    cmd.current_dir(working_dir);
+    let working_dir = match job.bot_path.as_deref() {
+        Some(bp) => {
+            let p = std::path::Path::new(bp);
+            if p.is_relative() {
+                std::path::Path::new(knowledge_path).join(bp).to_string_lossy().to_string()
+            } else {
+                bp.to_string()
+            }
+        }
+        None => knowledge_path.to_string(),
+    };
+    cmd.current_dir(&working_dir);
 
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
@@ -307,6 +748,17 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> R
     );
     eprintln!("{}", debug_msg);
     let _ = std::fs::write("/tmp/scheduler-debug.log", &debug_msg);
+
+    // Emit init event to open the console drawer
+    let _ = app_handle.emit(
+        "claude-stream",
+        serde_json::json!({
+            "run_id": run_id,
+            "event_type": "init",
+            "content": format!("Starting {} ({})...", job.name, job.model),
+            "metadata": null,
+        }),
+    );
 
     let mut child = cmd
         .spawn()
@@ -329,9 +781,177 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> R
         let _ = stdin.shutdown().await;
     }
 
-    let output = child
-        .wait_with_output()
-        .await
+    let stdout = child.stdout.take()
+        .ok_or_else(|| CommandError::Internal("Failed to capture stdout".to_string()))?;
+
+    let mut reader = BufReader::new(stdout).lines();
+    let mut final_result = String::new();
+    let mut session_id: Option<String> = None;
+    let mut cost_usd: Option<f64> = None;
+    let mut num_turns: Option<u32> = None;
+    let mut is_error = false;
+    // Track emitted content block IDs to deduplicate — stream-json can emit
+    // the same assistant message content blocks in both streaming and final events.
+    let mut emitted_block_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    while let Some(line) = reader.next_line().await.unwrap_or(None) {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let parsed: serde_json::Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let event_type = parsed.get("type").and_then(|t| t.as_str()).unwrap_or("").to_string();
+
+        match event_type.as_str() {
+            "system" => {
+                let subtype = parsed.get("subtype").and_then(|s| s.as_str()).unwrap_or("");
+                if subtype == "init" {
+                    session_id = parsed.get("session_id").and_then(|s| s.as_str()).map(|s| s.to_string());
+                }
+            }
+            "assistant" => {
+                if let Some(content) = parsed.pointer("/message/content").and_then(|c| c.as_array()) {
+                    for block in content {
+                        // Deduplicate: each block has a unique "id" field.
+                        // stream-json emits the same blocks in streaming + final message events.
+                        if let Some(block_id) = block.get("id").and_then(|id| id.as_str()) {
+                            if !emitted_block_ids.insert(block_id.to_string()) {
+                                continue; // Already emitted this block
+                            }
+                        }
+                        let block_type = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                        match block_type {
+                            "text" => {
+                                let text = block.get("text").and_then(|t| t.as_str()).unwrap_or("");
+                                if !text.is_empty() {
+                                    let _ = app_handle.emit(
+                                        "claude-stream",
+                                        serde_json::json!({
+                                            "run_id": run_id,
+                                            "event_type": "text",
+                                            "content": text,
+                                            "metadata": null,
+                                        }),
+                                    );
+                                }
+                            }
+                            "tool_use" => {
+                                let tool_name = block.get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
+                                let input = block.get("input");
+                                let description = match tool_name {
+                                    "Read" | "read_file" => {
+                                        let path = input.and_then(|i| i.get("file_path")).and_then(|p| p.as_str()).unwrap_or("");
+                                        let short = path.rsplit('/').next().unwrap_or(path);
+                                        format!("Reading: {}", short)
+                                    }
+                                    "Write" | "write_file" => {
+                                        let path = input.and_then(|i| i.get("file_path")).and_then(|p| p.as_str()).unwrap_or("");
+                                        let short = path.rsplit('/').next().unwrap_or(path);
+                                        format!("Writing: {}", short)
+                                    }
+                                    "Edit" | "edit_file" => {
+                                        let path = input.and_then(|i| i.get("file_path")).and_then(|p| p.as_str()).unwrap_or("");
+                                        let short = path.rsplit('/').next().unwrap_or(path);
+                                        format!("Editing: {}", short)
+                                    }
+                                    "Glob" => {
+                                        let pattern = input.and_then(|i| i.get("pattern")).and_then(|p| p.as_str()).unwrap_or("");
+                                        format!("Glob: {}", pattern)
+                                    }
+                                    "Grep" => {
+                                        let pattern = input.and_then(|i| i.get("pattern")).and_then(|p| p.as_str()).unwrap_or("");
+                                        format!("Grep: {}", pattern)
+                                    }
+                                    "Bash" => {
+                                        let cmd = input.and_then(|i| i.get("command")).and_then(|c| c.as_str()).unwrap_or("");
+                                        let short = if cmd.len() > 80 { format!("{}...", &cmd[..80]) } else { cmd.to_string() };
+                                        format!("$ {}", short)
+                                    }
+                                    "WebSearch" => {
+                                        let query = input.and_then(|i| i.get("query")).and_then(|q| q.as_str()).unwrap_or("");
+                                        format!("Searching: {}", query)
+                                    }
+                                    "WebFetch" => {
+                                        let url = input.and_then(|i| i.get("url")).and_then(|u| u.as_str()).unwrap_or("");
+                                        let short = if url.len() > 80 { format!("{}...", &url[..80]) } else { url.to_string() };
+                                        format!("Fetching: {}", short)
+                                    }
+                                    n if n.contains("execute-val-sql") || n.contains("execute_sql") => {
+                                        let sql = input.and_then(|i| i.get("sql").or_else(|| i.get("query"))).and_then(|s| s.as_str()).unwrap_or("");
+                                        let short_sql = if sql.len() > 120 { format!("{}...", &sql[..120]) } else { sql.to_string() };
+                                        format!("SQL: {}", short_sql)
+                                    }
+                                    n if n.starts_with("mcp__") => {
+                                        // Show the MCP tool short name + first meaningful arg
+                                        let short_name = n.rsplit("__").next().unwrap_or(n);
+                                        let arg = input.and_then(|i| {
+                                            i.get("name").or_else(|| i.get("query")).or_else(|| i.get("slug")).or_else(|| i.get("title"))
+                                        }).and_then(|v| v.as_str()).unwrap_or("");
+                                        if arg.is_empty() { format!("MCP: {}", short_name) } else { format!("MCP: {} — {}", short_name, arg) }
+                                    }
+                                    _ => format!("Using tool: {}", tool_name),
+                                };
+                                let _ = app_handle.emit(
+                                    "claude-stream",
+                                    serde_json::json!({
+                                        "run_id": run_id,
+                                        "event_type": "tool_use",
+                                        "content": description,
+                                        "metadata": { "tool": tool_name },
+                                    }),
+                                );
+                            }
+                            "tool_result" => {
+                                let result_content = block.get("content").map(|c| {
+                                    if let Some(s) = c.as_str() { s.to_string() } else { c.to_string() }
+                                }).unwrap_or_default();
+                                let truncated = if result_content.len() > 500 {
+                                    format!("{}...", &result_content[..500])
+                                } else {
+                                    result_content
+                                };
+                                let _ = app_handle.emit(
+                                    "claude-stream",
+                                    serde_json::json!({
+                                        "run_id": run_id,
+                                        "event_type": "tool_result",
+                                        "content": truncated,
+                                        "metadata": null,
+                                    }),
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            "result" => {
+                final_result = parsed.get("result").and_then(|r| r.as_str()).unwrap_or("").to_string();
+                is_error = parsed.get("is_error").and_then(|e| e.as_bool()).unwrap_or(false);
+                cost_usd = parsed.get("total_cost_usd").and_then(|c| c.as_f64());
+                num_turns = parsed.get("num_turns").and_then(|n| n.as_u64()).map(|n| n as u32);
+                session_id = parsed.get("session_id").and_then(|s| s.as_str()).map(|s| s.to_string());
+
+                let _ = app_handle.emit(
+                    "claude-stream",
+                    serde_json::json!({
+                        "run_id": run_id,
+                        "event_type": "result",
+                        "content": final_result,
+                        "metadata": { "is_error": is_error, "cost_usd": cost_usd },
+                    }),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    // Wait for process to finish
+    let status = child.wait().await
         .map_err(|e| CommandError::Io(format!("Failed to wait for claude: {}", e)))?;
 
     // Remove from tracking once finished
@@ -339,60 +959,17 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str) -> R
         map.remove(run_id);
     }
 
-    // Debug: log exit status
-    let debug_exit = format!(
-        "EXIT: code={:?} stdout_len={} stderr_len={}\nstderr_head: {}",
-        output.status.code(),
-        output.stdout.len(),
-        output.stderr.len(),
-        String::from_utf8_lossy(&output.stderr).chars().take(500).collect::<String>(),
-    );
-    let _ = std::fs::OpenOptions::new().append(true).open("/tmp/scheduler-debug.log")
-        .and_then(|mut f| { use std::io::Write; writeln!(f, "{}", debug_exit) });
+    eprintln!("[scheduler] Claude finished: status={:?}, cost={:?}, session={:?}, turns={:?}", status.code(), cost_usd, session_id, num_turns);
 
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        if stdout.trim().is_empty() {
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            if !stderr.trim().is_empty() {
-                return Ok(ClaudeOutput { text: stderr, cost_usd: None, session_id: None, num_turns: None });
-            }
-            return Ok(ClaudeOutput { text: "(no output)".to_string(), cost_usd: None, session_id: None, num_turns: None });
+    if status.success() || !final_result.is_empty() {
+        if final_result.is_empty() {
+            final_result = "(no output)".to_string();
         }
-
-        // Parse JSON output from claude CLI
-        match serde_json::from_str::<serde_json::Value>(&stdout) {
-            Ok(json) => {
-                let text = json.get("result")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(&stdout)
-                    .to_string();
-                let cost_usd = json.get("cost_usd")
-                    .and_then(|v| v.as_f64())
-                    .or_else(|| json.get("total_cost_usd").and_then(|v| v.as_f64()));
-                let session_id = json.get("session_id")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-                let num_turns = json.get("num_turns")
-                    .and_then(|v| v.as_u64())
-                    .map(|n| n as u32);
-                eprintln!("[scheduler] Claude cost: {:?}, session: {:?}, turns: {:?}", cost_usd, session_id, num_turns);
-                Ok(ClaudeOutput { text, cost_usd, session_id, num_turns })
-            }
-            Err(_) => {
-                eprintln!("[scheduler] Failed to parse claude JSON output, using raw text");
-                Ok(ClaudeOutput { text: stdout, cost_usd: None, session_id: None, num_turns: None })
-            }
-        }
+        Ok(ClaudeOutput { text: final_result, cost_usd, session_id, num_turns })
+    } else if is_error {
+        Err(CommandError::Internal(final_result))
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        Err(CommandError::Internal(format!(
-            "claude exited with code {:?}\nstdout: {}\nstderr: {}",
-            output.status.code(),
-            stdout.chars().take(1000).collect::<String>(),
-            stderr.chars().take(1000).collect::<String>(),
-        )))
+        Err(CommandError::Internal(format!("claude exited with code {:?}", status.code())))
     }
 }
 
@@ -442,160 +1019,6 @@ async fn upload_html_to_s3(prefix: &str, date_str: &str, html: &str) -> Result<S
     // Return public URL
     let url = format!("https://{}.s3.{}.amazonaws.com/{}", S3_BUCKET, S3_REGION, s3_key);
     Ok(url)
-}
-
-// ============================================================================
-// Slack posting
-// ============================================================================
-
-/// Post a short summary + report link to Slack
-async fn post_to_slack(
-    webhook_url: &str,
-    job_name: &str,
-    output: &str,
-    report_url: Option<&str>,
-) -> Result<(), CommandError> {
-    let summary = extract_summary(output);
-
-    let mut blocks = vec![
-        serde_json::json!({
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": format!("⏰ {}", job_name),
-            }
-        }),
-        serde_json::json!({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": summary,
-            }
-        }),
-    ];
-
-    // Add report link button if available
-    if let Some(url) = report_url {
-        blocks.push(serde_json::json!({
-            "type": "actions",
-            "elements": [{
-                "type": "button",
-                "text": {
-                    "type": "plain_text",
-                    "text": "📄 View Full Report",
-                },
-                "url": url,
-                "style": "primary",
-            }]
-        }));
-    }
-
-    let payload = serde_json::json!({ "blocks": blocks });
-
-    let client = crate::HTTP_CLIENT.clone();
-    let resp = client
-        .post(webhook_url)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| CommandError::Network(format!("Slack request failed: {}", e)))?;
-
-    let status = resp.status();
-    if !status.is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        return Err(CommandError::Http { status: status.as_u16(), body });
-    }
-
-    Ok(())
-}
-
-/// Extract a short summary from the SOD report output for Slack.
-/// Converts markdown tables and formatting into clean Slack mrkdwn.
-fn extract_summary(output: &str) -> String {
-    let mut summary_lines: Vec<String> = Vec::new();
-    let mut in_summary = false;
-    let mut found_summary = false;
-
-    for line in output.lines() {
-        let trimmed = line.trim();
-
-        // Look for any "Summary" heading (##, ###, #, or bold)
-        if trimmed == "## Summary" || trimmed == "### Summary"
-            || trimmed == "# Summary" || trimmed == "**Summary**"
-            || trimmed == "Summary"
-        {
-            in_summary = true;
-            found_summary = true;
-            continue;
-        }
-
-        // Stop at next heading (any level)
-        if in_summary && !trimmed.is_empty() && trimmed.starts_with('#') {
-            break;
-        }
-
-        if in_summary && !trimmed.is_empty() {
-            // Skip markdown table separator rows (|---|---|)
-            if trimmed.contains("---") && trimmed.starts_with('|') {
-                continue;
-            }
-            // Skip horizontal rules
-            if trimmed == "---" || trimmed == "***" || trimmed == "___" {
-                continue;
-            }
-
-            // Convert markdown table rows to "Key: Value" lines
-            if trimmed.starts_with('|') && trimmed.ends_with('|') {
-                let cells: Vec<&str> = trimmed
-                    .trim_matches('|')
-                    .split('|')
-                    .map(|c| c.trim())
-                    .collect();
-                if cells.len() == 2 {
-                    // Two-column table: "Key: Value"
-                    let key = cells[0].replace("**", "*");
-                    let val = cells[1].replace("**", "*");
-                    summary_lines.push(format!("• *{}:* {}", key, val));
-                } else if cells.len() > 2 {
-                    // Multi-column: join with " | "
-                    let joined = cells.iter()
-                        .map(|c| c.replace("**", "*"))
-                        .collect::<Vec<_>>()
-                        .join(" | ");
-                    summary_lines.push(joined);
-                }
-                continue;
-            }
-
-            // Regular line: convert **bold** → *bold* for Slack
-            let slack_line = trimmed.replace("**", "*");
-            summary_lines.push(slack_line);
-        }
-    }
-
-    if !found_summary || summary_lines.is_empty() {
-        // Fallback: take first 500 chars, strip markdown artifacts
-        let preview: String = output
-            .lines()
-            .filter(|l| {
-                let t = l.trim();
-                !t.is_empty() && !t.starts_with('#') && t != "---"
-                    && !t.starts_with("I now have")
-                    && !t.starts_with("Let me")
-            })
-            .take(15)
-            .collect::<Vec<_>>()
-            .join("\n");
-        return preview.replace("**", "*");
-    }
-
-    // Truncate to Slack's 3000 char limit for section text
-    let result = summary_lines.join("\n");
-    if result.len() > 2800 {
-        format!("{}...", &result[..2800])
-    } else {
-        result
-    }
 }
 
 // ============================================================================

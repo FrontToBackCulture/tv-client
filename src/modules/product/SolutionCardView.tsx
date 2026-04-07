@@ -6,7 +6,13 @@ import { DetailLoading } from "../../components/ui/DetailStates";
 import { EmptyState } from "../../components/EmptyState";
 import { StatusChip } from "./StatusChip";
 import { cn } from "../../lib/cn";
-import type { SolutionInfo } from "./SolutionsTabView";
+// Legacy type — this component is no longer used
+interface SolutionInfo {
+  slug: string;
+  title: string;
+  summary: string;
+  status: string;
+}
 
 interface SolutionCardViewProps {
   solutions: SolutionInfo[];

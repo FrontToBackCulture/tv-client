@@ -2,7 +2,8 @@
 // Side document panel state — opens a read-only file viewer alongside Work/CRM/Inbox
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 
 interface SidePanelState {
   isOpen: boolean;
@@ -71,6 +72,7 @@ export const useSidePanelStore = create<SidePanelState>()(
     }),
     {
       name: "tv-client-side-panel",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
       partialize: (state) => ({
         filePath: state.filePath,
         fileName: state.fileName,

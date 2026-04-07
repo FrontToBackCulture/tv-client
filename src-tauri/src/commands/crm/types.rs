@@ -189,6 +189,10 @@ pub struct CreateContact {
     pub linkedin_connected: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edm_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email_status: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -227,6 +231,10 @@ pub struct UpdateContact {
     pub linkedin_connected: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edm_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email_status: Option<String>,
 }
 
 // ============================================================================

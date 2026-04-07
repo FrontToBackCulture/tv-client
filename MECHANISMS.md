@@ -54,7 +54,49 @@ const isLoggedIn = useIsAuthenticated()
 const { name, avatar } = useUserInfo()
 ```
 
-OAuth flow: GitHub OAuth via Tauri → token stored in localStorage.
+OAuth flow: Supabase Auth on gateway (GitHub or Microsoft 365 PKCE) → gateway JWT → workspace JWT.
+
+---
+
+### workspaceStore — Multi-workspace switching
+
+```
+src/stores/workspaceStore.ts
+```
+
+```tsx
+import { useWorkspaceStore, type Workspace } from "../stores/workspaceStore"
+
+// Read state
+const { workspaces, activeWorkspaceId, isLoading } = useWorkspaceStore()
+const activeWs = useWorkspaceStore(s => s.getActiveWorkspace())
+
+// Actions
+const { loadWorkspaces, selectWorkspace, refreshWorkspaceToken } = useWorkspaceStore()
+
+// Load from gateway (called in App.tsx after auth)
+await loadWorkspaces()
+
+// Switch workspace (triggers full reload if switching, not initial selection)
+await selectWorkspace(workspaceId)
+```
+
+**Switch sequence** (`selectWorkspace`):
+1. Migrate localStorage if first workspace selection ever
+2. Swap localStorage namespaces (save old workspace state, load new)
+3. Mint workspace JWT via gateway Edge Function
+4. Push credentials to Tauri backend atomically (`settings_switch_workspace`)
+5. Clear React Query cache
+6. Initialize new Supabase client via `initWorkspaceClient()`
+7. Persist `activeWorkspaceId`
+8. `window.location.reload()` if switching (not initial boot)
+
+**localStorage namespacing** (`src/lib/workspaceStorage.ts`):
+- 9 stores are workspace-scoped (module tabs, visibility, field definitions, favorites, etc.)
+- 6 stores are global (auth, workspace, bot settings, repositories, etc.)
+- On switch, workspace-scoped keys are saved as `key::workspaceId` and swapped
+
+**Persisted:** `workspaces` list + `activeWorkspaceId` (app works offline from cached list)
 
 ---
 
@@ -80,6 +122,7 @@ openTab({ name: "README.md", path: "/path/to/README.md" })
 
 | Store | Path | Purpose |
 |-------|------|---------|
+| `workspaceStore` | `src/stores/workspaceStore.ts` | Multi-workspace state + switching (localStorage) |
 | `repositoryStore` | `src/stores/repositoryStore.ts` | Active repo + repo list |
 | `sidePanelStore` | `src/stores/sidePanelStore.ts` | Right panel open/file state |
 | `favoritesStore` | `src/stores/favoritesStore.ts` | Favorited file paths (localStorage) |
@@ -126,21 +169,34 @@ export const useMyStore = create<MyState>()(
 
 All data fetching uses TanStack React Query with Supabase as the backend.
 
-### Supabase Client
+### Supabase Client (Dynamic Workspace Proxy)
 
 ```
-src/lib/supabase.ts
+src/lib/supabase.ts          — workspace client (Proxy pattern)
+src/lib/gatewaySupabase.ts   — gateway client (singleton)
 ```
+
+The `supabase` export is a **Proxy** that delegates to the active workspace's Supabase client. When the user switches workspace, the underlying client is swapped — all 100+ importing files continue working without changes.
 
 ```tsx
-import { supabase, isSupabaseConfigured, getSupabaseClient } from "../lib/supabase"
+import { supabase } from "../lib/supabase"
+import { initWorkspaceClient, isWorkspaceClientReady } from "../lib/supabase"
+import { gateway } from "../lib/gatewaySupabase"
 
-// Direct use (most hooks)
+// Direct use (most hooks) — goes to the active workspace's Supabase
 const { data, error } = await supabase.from("table").select("*")
 
-// Safety check (rare — only if Supabase might not be configured)
-if (!isSupabaseConfigured) return
+// Gateway queries (workspace discovery only)
+const { data } = await gateway.from("workspaces").select("*")
+
+// Initialize/switch workspace client (called by workspaceStore)
+initWorkspaceClient(url, anonKey)
+
+// Check if a workspace client is active
+if (!isWorkspaceClientReady()) return
 ```
+
+**Important:** Never call `createClient()` directly. Always use `initWorkspaceClient()` for workspace switching and `gateway` for gateway queries.
 
 ### Query Config (set in `src/main.tsx`)
 

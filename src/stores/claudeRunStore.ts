@@ -14,6 +14,7 @@ export interface ClaudeRun {
   name: string;
   domainName: string;
   tableId: string;
+  entityId?: string; // chat thread entity_id — used to show activity inline in chat
   events: ClaudeRunEvent[];
   result: string | null;
   isComplete: boolean;
@@ -26,7 +27,7 @@ interface ClaudeRunState {
   runs: Record<string, ClaudeRun>;
   expandedRunId: string | null;
 
-  createRun: (run: Pick<ClaudeRun, "id" | "name" | "domainName" | "tableId">) => void;
+  createRun: (run: Pick<ClaudeRun, "id" | "name" | "domainName" | "tableId"> & { entityId?: string }) => void;
   addEvent: (runId: string, event: ClaudeRunEvent) => void;
   completeRun: (runId: string, result: string, isError: boolean, costUsd: number, durationMs: number) => void;
   removeRun: (runId: string) => void;

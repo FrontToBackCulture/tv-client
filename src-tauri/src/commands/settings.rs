@@ -37,10 +37,66 @@ pub const KEY_LINKEDIN_CLIENT_ID: &str = "linkedin_client_id";
 pub const KEY_LINKEDIN_CLIENT_SECRET: &str = "linkedin_client_secret";
 pub const KEY_OPENROUTER_API: &str = "openrouter_api_key";
 
+// Interactive Brokers Flex Web Service — personal-workspace-only (Melly).
+// Prefixed with the workspace slug so credentials are segregated at the
+// settings-file level: other workspaces physically cannot see these keys
+// because nothing in the UI writes or reads the `melly_*` namespace.
+pub const KEY_IBKR_FLEX_TOKEN: &str = "melly_ibkr_flex_token";
+pub const KEY_IBKR_FLEX_QUERY_POSITIONS: &str = "melly_ibkr_flex_query_positions";
+pub const KEY_IBKR_FLEX_QUERY_TRADES: &str = "melly_ibkr_flex_query_trades";
+pub const KEY_IBKR_FLEX_QUERY_CASH: &str = "melly_ibkr_flex_query_cash";
+
+// Financial Modeling Prep — also personal-workspace-only.
+pub const KEY_FMP_API_KEY: &str = "melly_fmp_api_key";
+
 // Background sync toggle keys (default: not set = disabled)
 pub const KEY_BG_SYNC_OUTLOOK_EMAIL: &str = "bg_sync_outlook_email";
 pub const KEY_BG_SYNC_OUTLOOK_CALENDAR: &str = "bg_sync_outlook_calendar";
 pub const KEY_BG_SYNC_NOTION: &str = "bg_sync_notion";
+pub const KEY_BG_SYNC_PUBLIC_DATA: &str = "bg_sync_public_data";
+
+/// Key where the list of registered workspace IDs is stored (JSON array of
+/// strings). Populated by `settings_register_workspace` — Rust background
+/// sync loops iterate over this list so each workspace's bg syncs run
+/// against its own Supabase project rather than whichever workspace happened
+/// to write global settings last.
+pub const KEY_REGISTERED_WORKSPACES: &str = "registered_workspaces";
+
+/// Produce a workspace-scoped settings key. Matches the format emitted by
+/// the frontend's `settings_register_workspace` call — keep these two in
+/// lock-step when adding new per-workspace settings.
+pub fn scoped_key(workspace_id: &str, key: &str) -> String {
+    format!("ws:{}:{}", workspace_id, key)
+}
+
+/// Read a setting scoped to a specific workspace, with automatic fallback to
+/// the global (unscoped) key for backward compat. Returns None if neither is
+/// set or is empty.
+pub fn get_workspace_setting(workspace_id: &str, key: &str) -> Option<String> {
+    let settings = load_settings().ok()?;
+    let scoped = scoped_key(workspace_id, key);
+    if let Some(v) = settings.keys.get(&scoped) {
+        if !v.is_empty() {
+            return Some(v.clone());
+        }
+    }
+    settings.keys.get(key).cloned().filter(|v| !v.is_empty())
+}
+
+/// Return the list of workspace IDs that have been registered with the
+/// Rust side via `settings_register_workspace`. Background sync loops use
+/// this to iterate per-workspace. Returns an empty Vec if none registered.
+pub fn get_registered_workspaces() -> Vec<String> {
+    let settings = match load_settings() {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    let raw = match settings.keys.get(KEY_REGISTERED_WORKSPACES) {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    serde_json::from_str::<Vec<String>>(raw).unwrap_or_default()
+}
 
 /// Check if a background sync is enabled (reads settings, returns false if key missing or != "true")
 pub fn is_bg_sync_enabled(key: &str) -> bool {
@@ -232,6 +288,11 @@ pub fn settings_list_keys() -> CmdResult<Vec<ApiKeyInfo>> {
         (KEY_APOLLO_API, "Apollo API Key", "For prospect search and enrichment"),
         (KEY_LINKEDIN_CLIENT_ID, "LinkedIn Client ID", "For LinkedIn social media integration"),
         (KEY_LINKEDIN_CLIENT_SECRET, "LinkedIn Client Secret", "For LinkedIn social media integration"),
+        (KEY_IBKR_FLEX_TOKEN, "IBKR Flex Token", "Flex Web Service token from IBKR Account Management (Melly workspace only)"),
+        (KEY_IBKR_FLEX_QUERY_POSITIONS, "IBKR Flex Query — Positions", "Query ID for the daily positions snapshot Flex query"),
+        (KEY_IBKR_FLEX_QUERY_TRADES, "IBKR Flex Query — Trades", "Query ID for the executed trades Flex query"),
+        (KEY_IBKR_FLEX_QUERY_CASH, "IBKR Flex Query — Cash Activity", "Query ID for the cash transactions / dividends Flex query"),
+        (KEY_FMP_API_KEY, "FMP API Key", "Financial Modeling Prep API key for fundamentals, ratios, market data (Melly workspace only)"),
     ];
 
     let mut result = Vec::new();
@@ -481,6 +542,55 @@ pub fn settings_switch_workspace(keys: HashMap<String, String>) -> CmdResult<usi
     }
     save_settings(&settings)?;
     Ok(count)
+}
+
+/// Register a workspace's credentials under workspace-scoped keys
+/// (`ws:{workspace_id}:{key}`) and add the workspace to the
+/// `registered_workspaces` list. Also writes the keys un-scoped so legacy
+/// code paths that don't know about workspaces keep working — the last
+/// window to switch still "wins" for legacy consumers, but bg sync loops
+/// read scoped keys per workspace and are unaffected.
+///
+/// Caller provides un-prefixed keys; this function handles scoping. For
+/// example, pass `{"supabase_url": "...", "supabase_anon_key": "..."}` and
+/// they'll land as `ws:{id}:supabase_url` + `ws:{id}:supabase_anon_key`.
+#[command]
+pub fn settings_register_workspace(
+    workspace_id: String,
+    keys: HashMap<String, String>,
+) -> CmdResult<usize> {
+    let mut settings = load_settings()?;
+    let count = keys.len();
+
+    // Write scoped + global copies of each provided key
+    for (k, v) in &keys {
+        settings.keys.insert(scoped_key(&workspace_id, k), v.clone());
+        settings.keys.insert(k.clone(), v.clone());
+    }
+
+    // Maintain the list of registered workspace IDs (unique, order preserved)
+    let mut registered: Vec<String> = settings
+        .keys
+        .get(KEY_REGISTERED_WORKSPACES)
+        .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok())
+        .unwrap_or_default();
+    if !registered.contains(&workspace_id) {
+        registered.push(workspace_id.clone());
+        settings.keys.insert(
+            KEY_REGISTERED_WORKSPACES.to_string(),
+            serde_json::to_string(&registered)?,
+        );
+    }
+
+    save_settings(&settings)?;
+    Ok(count)
+}
+
+/// Return the list of registered workspace IDs (used by background sync
+/// loops to iterate per-workspace).
+#[command]
+pub fn settings_list_registered_workspaces() -> CmdResult<Vec<String>> {
+    Ok(get_registered_workspaces())
 }
 
 /// Export all settings to a JSON file

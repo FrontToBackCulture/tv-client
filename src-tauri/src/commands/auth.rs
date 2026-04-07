@@ -347,6 +347,66 @@ pub async fn microsoft_get_user(access_token: String) -> CmdResult<MicrosoftUser
 }
 
 // ============================================================================
+// Generic OAuth browser flow (for Supabase Auth)
+// ============================================================================
+
+/// Open a URL in the system browser and listen for the OAuth callback.
+/// Returns the authorization code from the callback URL.
+/// This is provider-agnostic — works with any Supabase Auth OAuth flow.
+#[tauri::command]
+pub async fn oauth_browser_flow(url: String, port: u16) -> CmdResult<String> {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
+        .map_err(|e| CommandError::Io(format!("Failed to bind on port {}: {}", port, e)))?;
+
+    // Open browser
+    log::info!("Opening browser for OAuth: {}", url);
+    open::that(&url).map_err(|e| CommandError::Io(format!("Failed to open browser: {}", e)))?;
+
+    listener.set_nonblocking(false).ok();
+    let (tx, rx) = oneshot::channel::<Result<String, String>>();
+    let listener = Arc::new(listener);
+    let listener_clone = listener.clone();
+
+    std::thread::spawn(move || {
+        match listener_clone.accept() {
+            Ok((mut stream, _)) => {
+                let mut buffer = [0; 4096];
+                if let Ok(size) = stream.read(&mut buffer) {
+                    let request = String::from_utf8_lossy(&buffer[..size]);
+
+                    if let Some(code) = extract_code_from_request(&request) {
+                        let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body><h1>Success!</h1><p>You can close this window and return to TV Desktop.</p><script>window.close()</script></body></html>";
+                        let _ = stream.write_all(response.as_bytes());
+                        let _ = tx.send(Ok(code));
+                    } else if request.contains("error=") {
+                        let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body><h1>Error</h1><p>Authentication was denied.</p></body></html>";
+                        let _ = stream.write_all(response.as_bytes());
+                        let _ = tx.send(Err("Authentication denied".to_string()));
+                    } else {
+                        let _ = tx.send(Err("Invalid callback".to_string()));
+                    }
+                } else {
+                    let _ = tx.send(Err("Failed to read request".to_string()));
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(Err(format!("Failed to accept connection: {}", e)));
+            }
+        }
+    });
+
+    match tokio::time::timeout(std::time::Duration::from_secs(300), rx).await {
+        Ok(Ok(Ok(code))) => Ok(code),
+        Ok(Ok(Err(e))) => Err(CommandError::Internal(e)),
+        Ok(Err(_)) => Err(CommandError::Internal("Callback cancelled".into())),
+        Err(_) => Err(CommandError::Internal("Authentication timed out".into())),
+    }
+}
+
+// ============================================================================
 // Shared helpers
 // ============================================================================
 

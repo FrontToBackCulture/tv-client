@@ -1,17 +1,20 @@
 // Single message in a discussion thread — shared across Chat module and entity panels
 
-import { useState, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { Pencil, Trash2, Check, X, Reply, Bot } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Discussion } from "../../hooks/useDiscussions";
+import { EntityCard } from "../../modules/chat/entityRefs/EntityCard";
+import { useEntityRefContext } from "../../modules/chat/entityRefs/EntityRefContext";
 
 // ---------------------------------------------------------------------------
 // Mention + entity highlighting (applied inside markdown text nodes)
 // ---------------------------------------------------------------------------
 
-function processMentions(text: string): ReactNode {
-  const parts = text.split(/(@[\w-]+|\[\[[\w]+:[^|]+\|[^\]]+\]\])/g);
+function processMentions(text: string, entityCtx: ReturnType<typeof useEntityRefContext>): ReactNode {
+  // Match: @user mentions OR [[type:id|label]] OR [[type:id]] entity refs
+  const parts = text.split(/(@[\w-]+|\[\[[\w]+:[^\]|]+(?:\|[^\]]+)?\]\])/g);
   if (parts.length === 1) return text;
   return parts.map((part, i) => {
     if (part.startsWith("@")) {
@@ -21,9 +24,24 @@ function processMentions(text: string): ReactNode {
         </span>
       );
     }
-    const entityMatch = part.match(/^\[\[([\w]+):([^|]+)\|([^\]]+)\]\]$/);
+    const entityMatch = part.match(/^\[\[([\w]+):([^\]|]+)(?:\|([^\]]+))?\]\]$/);
     if (entityMatch) {
-      const [, type, label] = entityMatch;
+      const [, type, id, label] = entityMatch;
+      const entityType = type.toLowerCase() as "task" | "project" | "deal" | "contact" | "company";
+
+      // Interactive card for supported entity types when context is available
+      if (entityCtx && (entityType === "task" || entityType === "project" || entityType === "deal" || entityType === "company")) {
+        return (
+          <EntityCard
+            key={i}
+            entityRef={{ type: entityType, id, label: label ?? null }}
+            entities={entityCtx.entities}
+            onOpen={entityCtx.onOpen}
+          />
+        );
+      }
+
+      // Fallback — legacy colored text rendering
       const colors: Record<string, string> = {
         company: "text-[var(--color-info)]",
         task: "text-[var(--color-warning)]",
@@ -31,7 +49,7 @@ function processMentions(text: string): ReactNode {
       };
       return (
         <span key={i} className={`font-medium ${colors[type] || "text-[var(--color-accent)]"}`}>
-          {label}
+          {label ?? id}
         </span>
       );
     }
@@ -41,11 +59,12 @@ function processMentions(text: string): ReactNode {
 
 /** Walk children and replace string nodes with mention-processed nodes */
 function MentionText({ children }: { children: ReactNode }): ReactNode {
-  if (typeof children === "string") return processMentions(children);
+  const entityCtx = useEntityRefContext();
+  if (typeof children === "string") return processMentions(children, entityCtx);
   if (Array.isArray(children)) {
     return children.map((child, i) =>
       typeof child === "string" ? (
-        <span key={i}>{processMentions(child)}</span>
+        <span key={i}>{processMentions(child, entityCtx)}</span>
       ) : (
         child
       )
@@ -128,10 +147,14 @@ function MessageBody({ body }: { body: string }) {
             </p>
           ),
           strong: ({ children }) => (
-            <strong className="font-semibold text-[var(--text-primary)]">{children}</strong>
+            <strong className="font-semibold text-[var(--text-primary)]">
+              <MentionText>{children}</MentionText>
+            </strong>
           ),
           em: ({ children }) => (
-            <em className="text-[var(--text-secondary)]">{children}</em>
+            <em className="text-[var(--text-secondary)]">
+              <MentionText>{children}</MentionText>
+            </em>
           ),
           code: ({ children, className }) => {
             const isBlock = className?.startsWith("language-");
@@ -163,13 +186,19 @@ function MessageBody({ body }: { body: string }) {
             </li>
           ),
           h1: ({ children }) => (
-            <h1 className="text-[15px] font-bold mt-3 mb-1.5 text-[var(--text-primary)]">{children}</h1>
+            <h1 className="text-[15px] font-bold mt-3 mb-1.5 text-[var(--text-primary)]">
+              <MentionText>{children}</MentionText>
+            </h1>
           ),
           h2: ({ children }) => (
-            <h2 className="text-[14px] font-bold mt-2.5 mb-1 text-[var(--text-primary)]">{children}</h2>
+            <h2 className="text-[14px] font-bold mt-2.5 mb-1 text-[var(--text-primary)]">
+              <MentionText>{children}</MentionText>
+            </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-[13px] font-bold mt-2 mb-1 text-[var(--text-primary)]">{children}</h3>
+            <h3 className="text-[13px] font-bold mt-2 mb-1 text-[var(--text-primary)]">
+              <MentionText>{children}</MentionText>
+            </h3>
           ),
           blockquote: ({ children }) => (
             <blockquote className="my-2 pl-3 border-l-2 border-[var(--color-accent)]/40 text-[var(--text-secondary)] italic">
@@ -204,6 +233,70 @@ function MessageBody({ body }: { body: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Context menu
+// ---------------------------------------------------------------------------
+
+interface MessageContextMenuProps {
+  x: number;
+  y: number;
+  canReply: boolean;
+  canEdit: boolean;
+  onReply: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}
+
+function MessageContextMenu({ x, y, canReply, canEdit, onReply, onEdit, onDelete, onClose }: MessageContextMenuProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-50 min-w-[140px] bg-[var(--bg-elevated)] dark:bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] shadow-lg py-1 animate-fade-slide-in"
+      style={{ top: y, left: x }}
+    >
+      {canReply && (
+        <button
+          onClick={() => { onReply(); onClose(); }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-[var(--text-primary)] hover:bg-[var(--bg-muted)] transition-colors"
+        >
+          <Reply size={13} className="text-[var(--text-muted)]" />
+          Reply
+        </button>
+      )}
+      {canEdit && (
+        <button
+          onClick={() => { onEdit(); onClose(); }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-[var(--text-primary)] hover:bg-[var(--bg-muted)] transition-colors"
+        >
+          <Pencil size={13} className="text-[var(--text-muted)]" />
+          Edit
+        </button>
+      )}
+      {(canReply || canEdit) && (
+        <div className="mx-2 my-0.5 border-t border-[var(--border-default)]" />
+      )}
+      <button
+        onClick={() => { onDelete(); onClose(); }}
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-[var(--color-error)] hover:bg-[var(--color-error-light)] transition-colors"
+      >
+        <Trash2 size={13} />
+        Delete
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -231,9 +324,11 @@ export function DiscussionItem({
 }: DiscussionItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editBody, setEditBody] = useState(discussion.body);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const allNames = [currentUser, ...currentUserAliases].map((n) => n.toLowerCase());
   const isOwn = allNames.includes(discussion.author.toLowerCase());
   const isBotMessage = isBot(discussion.author);
+  const canReply = !!onReply && !isReply;
 
   function handleSave() {
     if (editBody.trim() && editBody !== discussion.body) {
@@ -260,6 +355,10 @@ export function DiscussionItem({
             ? `py-0.5 border-l-2 ${borderColor}`
             : `pt-3 pb-0.5 border-l-2 ${borderColor}`
       }`}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setCtxMenu({ x: e.clientX, y: e.clientY });
+      }}
     >
       <div className={`flex gap-2.5 px-4 ${isContinuation ? "pl-[52px]" : ""}`}>
         {/* Avatar — only on first message of a group */}
@@ -374,6 +473,19 @@ export function DiscussionItem({
         </div>
       </div>
 
+      {/* Context menu */}
+      {ctxMenu && (
+        <MessageContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          canReply={canReply}
+          canEdit={isOwn}
+          onReply={() => onReply?.(discussion.id)}
+          onEdit={() => setIsEditing(true)}
+          onDelete={() => onDelete(discussion.id)}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
     </div>
   );
 }

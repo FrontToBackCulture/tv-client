@@ -15,9 +15,9 @@ import {
   type HealthCheckResult,
   type HealthStatus,
 } from "../../hooks/val-sync/healthChecks";
-import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { supabase } from "../../lib/supabase";
-import { RefreshCw, Loader2, X, Sparkles, Info } from "lucide-react";
+import { RefreshCw, Loader2, X, Sparkles, Info, FileWarning, Plug } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button } from "../../components/ui";
 
@@ -429,8 +429,8 @@ function CheckInfoModal({
 // Main Dashboard
 // ============================================================
 
-export function HealthDashboard() {
-  const paths = useKnowledgePaths();
+function HealthScoreboard() {
+  const paths = usePrimaryKnowledgePaths();
   const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
   const healthQuery = useDomainHealthChecks();
@@ -665,6 +665,102 @@ export function HealthDashboard() {
 
       {/* Check info modal */}
       {infoCheck && <CheckInfoModal checkType={infoCheck} onClose={() => setInfoCheck(null)} />}
+    </div>
+  );
+}
+
+// ============================================================
+// Tabbed Health Dashboard (wraps Scoreboard + Error Grids)
+// ============================================================
+
+import { ImporterErrorsGrid, IntegrationErrorsGrid, WorkflowExecutionsGrid, NotificationsGrid } from "./ErrorsGridView";
+import { Play, Bell, Clock } from "lucide-react";
+
+type HealthSubTab = "scoreboard" | "executions" | "notifications" | "importer-errors" | "integration-errors";
+
+type TimeRange = "24h" | "48h" | "7d" | "30d";
+const TIME_RANGE_OPTIONS: { id: TimeRange; label: string; hours: number }[] = [
+  { id: "24h", label: "24h", hours: 24 },
+  { id: "48h", label: "48h", hours: 48 },
+  { id: "7d", label: "7 days", hours: 168 },
+  { id: "30d", label: "30 days", hours: 720 },
+];
+
+function getTimeSince(range: TimeRange): string {
+  const hours = TIME_RANGE_OPTIONS.find((r) => r.id === range)!.hours;
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
+const HEALTH_SUB_TABS: { id: HealthSubTab; label: string; icon: typeof Info }[] = [
+  { id: "scoreboard", label: "Scoreboard", icon: Info },
+  { id: "executions", label: "Executions", icon: Play },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "importer-errors", label: "Importer Errors", icon: FileWarning },
+  { id: "integration-errors", label: "Integration Errors", icon: Plug },
+];
+
+export function HealthDashboard() {
+  const [activeSubTab, setActiveSubTab] = useState<HealthSubTab>("scoreboard");
+  const [timeRange, setTimeRange] = useState<TimeRange>("24h");
+
+  const since = useMemo(() => getTimeSince(timeRange), [timeRange]);
+  const showTimeRange = activeSubTab !== "scoreboard";
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Sub-tab bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
+        <div className="flex items-center gap-1">
+          {HEALTH_SUB_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeSubTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSubTab(tab.id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900",
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {showTimeRange && (
+          <div className="flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5 text-zinc-400 mr-1" />
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setTimeRange(opt.id)}
+                className={cn(
+                  "px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                  timeRange === opt.id
+                    ? "bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300"
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900",
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        {activeSubTab === "scoreboard" && <HealthScoreboard />}
+        {activeSubTab === "executions" && <WorkflowExecutionsGrid since={since} />}
+        {activeSubTab === "notifications" && <NotificationsGrid since={since} />}
+        {activeSubTab === "importer-errors" && <ImporterErrorsGrid since={since} />}
+        {activeSubTab === "integration-errors" && <IntegrationErrorsGrid since={since} />}
+      </div>
     </div>
   );
 }

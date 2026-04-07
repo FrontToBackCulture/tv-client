@@ -11,8 +11,9 @@ import { DetailLoading } from "../../components/ui/DetailStates";
 import { staggerStyle } from "../../hooks/useStaggeredList";
 import { cn } from "../../lib/cn";
 
-// Storage key for solution filter
+// Storage keys for filters
 const SOLUTION_FILTER_KEY = "tv-desktop-crm-solution-filter";
+const SHOW_CLOSED_KEY = "tv-desktop-crm-show-closed";
 
 function getSavedSolutionFilter(): string {
   if (typeof window === "undefined") return "all";
@@ -108,22 +109,30 @@ const stageColors: Record<string, { dot: string; bar: string; barBg: string; dro
 
 const defaultStageColor = stageColors.gray;
 
+function getSavedShowClosed(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(SHOW_CLOSED_KEY) === "true";
+}
+
 export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
   const [sortField, setSortField] = useState<SortField>("company");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [solutionFilter, setSolutionFilter] = useState<string>(getSavedSolutionFilter);
+  const [showClosed, setShowClosed] = useState(getSavedShowClosed);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
-  // Fetch active deals with tasks (not won/lost)
+  // Fetch deals with tasks
+  const activeStageValues = ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation"];
+  const allStageValues = [...activeStageValues, "won", "lost"];
   const { data: deals = [], isLoading, refetch } = useDealsWithTasks({
-    stage: ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation"],
+    stage: showClosed ? allStageValues : activeStageValues,
   });
 
   const updateMutation = useUpdateDeal();
 
-  const activeStages = DEAL_STAGES.filter(
-    (s) => !["won", "lost"].includes(s.value)
+  const visibleStages = DEAL_STAGES.filter(
+    (s) => showClosed || !["won", "lost"].includes(s.value)
   );
 
   // Filter deals by solution
@@ -211,7 +220,7 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
   if (isLoading) return <DetailLoading />;
 
   // Compute per-stage data for headers and footer
-  const stageData = activeStages.map((stage) => {
+  const stageData = visibleStages.map((stage) => {
     const stageDeals = filteredDeals.filter((d) => d.stage === stage.value);
     const totalValue = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
     const valuePct = totalPipelineValue > 0 ? (totalValue / totalPipelineValue) * 100 : 0;
@@ -249,6 +258,25 @@ export function DealPipeline({ onRefresh, onDealClick }: DealPipelineProps) {
             <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
         </div>
+
+        <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+
+        {/* Won/Lost toggle */}
+        <button
+          onClick={() => {
+            const next = !showClosed;
+            setShowClosed(next);
+            localStorage.setItem(SHOW_CLOSED_KEY, String(next));
+          }}
+          className={cn(
+            "text-[11px] px-2 py-1 rounded-md border transition-colors",
+            showClosed
+              ? "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
+              : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600"
+          )}
+        >
+          Won / Lost
+        </button>
 
         <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
 

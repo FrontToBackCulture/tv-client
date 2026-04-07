@@ -14,7 +14,9 @@ import {
   Globe,
   Play,
   ChevronRight,
+  Briefcase,
 } from "lucide-react";
+import { JobReviewsView } from "./JobReviewsView";
 import { ViewTab } from "../../components/ViewTab";
 import { PageHeader } from "../../components/PageHeader";
 import { useViewContextStore } from "../../stores/viewContextStore";
@@ -23,7 +25,7 @@ import { useIngestionLogs } from "../../hooks/public-data";
 import type { DataSource, IngestionLog } from "../../lib/public-data/types";
 import { STATUS_CONFIG, PRIORITY_LABELS, DOMAIN_LABELS, DATA_TYPE_LABELS } from "../../lib/public-data/types";
 
-type ViewType = "sources" | "history";
+type ViewType = "sources" | "history" | "jobs";
 
 export function PublicDataModule() {
   const [activeView, setActiveView] = usePersistedModuleView<ViewType>("public-data", "sources");
@@ -31,7 +33,12 @@ export function PublicDataModule() {
 
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
-    setViewContext("public-data", activeView === "sources" ? "Data Sources" : "Sync History");
+    const labels: Record<ViewType, string> = {
+      sources: "Data Sources",
+      history: "Sync History",
+      jobs: "Job Postings",
+    };
+    setViewContext("public-data", labels[activeView]);
   }, [activeView, setViewContext]);
 
   return (
@@ -40,6 +47,7 @@ export function PublicDataModule() {
         description="Public data sources — government registries, incentive databases, and industry datasets."
         tabs={<>
           <ViewTab label="Sources" icon={Database} active={activeView === "sources"} onClick={() => setActiveView("sources")} />
+          <ViewTab label="Jobs" icon={Briefcase} active={activeView === "jobs"} onClick={() => setActiveView("jobs")} />
           <ViewTab label="History" icon={Clock} active={activeView === "history"} onClick={() => setActiveView("history")} />
         </>}
         actions={<SyncAllButton />}
@@ -50,6 +58,7 @@ export function PublicDataModule() {
         {activeView === "sources" && (
           <SourcesView selectedId={selectedSourceId} onSelect={setSelectedSourceId} />
         )}
+        {activeView === "jobs" && <JobReviewsView />}
         {activeView === "history" && <HistoryView />}
       </div>
     </div>

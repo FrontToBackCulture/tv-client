@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "../../lib/cn";
 import {
   useTask,
   useUpdateTask,
@@ -40,21 +41,32 @@ import {
   Download,
   ExternalLink,
   ChevronDown,
+  ChevronRight,
   History,
   Maximize2,
   Minimize2,
+  Folder,
+  FolderOpen,
+  File as FileIcon,
+  FileText,
+  Brain,
 } from "lucide-react";
+import { useFileTree, type TreeNode } from "../../hooks/useFiles";
+import { useRepository } from "../../stores/repositoryStore";
+import { useTaskArtifacts, useAddArtifact, useRemoveArtifact } from "../../hooks/workspace";
+import { Plus, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
-import { useActivities } from "../../hooks/crm/useActivities";
+import { useActivities, useDeleteActivity } from "../../hooks/crm/useActivities";
 import { useActivityBarStore } from "../../stores/activityBarStore";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
-import { useDiscussionCount } from "../../hooks/useDiscussions";
+import { useDiscussionCount, useBotChatSessions } from "../../hooks/useDiscussions";
+import { TaskChatPopup } from "../chat/entityRefs/TaskChatPopup";
 import { EmailsPanel } from "../../components/emails/EmailsPanel";
 import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
 import { useNotionPushTask, useNotionPullTask } from "../../hooks/useNotion";
 import { TaskContentEditor } from "./TaskTipTapEditor";
-import { Button, IconButton } from "../../components/ui";
+import { IconButton } from "../../components/ui";
 import { DetailLoading } from "../../components/ui/DetailStates";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
 import { toast } from "../../stores/toastStore";
@@ -98,10 +110,18 @@ export function TaskDetailPanel({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [detailsCollapsed, setDetailsCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "emails" | "discussion" | "changes">("details");
+  const [artifactsExpanded, setArtifactsExpanded] = useState(true);
+  const [botChatExpanded, setBotChatExpanded] = useState(true);
+  const [chatPopupSession, setChatPopupSession] = useState<string | null>(null);
+  const { activeRepository } = useRepository();
+  const botChatPrefix = `task-chat:${taskId}`;
+  const { data: botChatSessions = [] } = useBotChatSessions(botChatPrefix);
   const { data: discussionCount } = useDiscussionCount("task", taskId);
   const { data: emailCount } = useLinkedEmailCount("task", taskId);
   const { data: crmActivities = [] } = useActivities({ taskId });
+  const deleteActivity = useDeleteActivity();
   const projectType = (task as any)?.project?.project_type || "work";
   const enabledTaskFields = useTaskFieldsStore((s) => s.getEnabledFields(projectType));
 
@@ -223,61 +243,149 @@ export function TaskDetailPanel({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
-        <button
-          onClick={() => setActiveTab("details")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === "details"
-              ? "border-teal-500 text-teal-600 dark:text-teal-400"
-              : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-          }`}
-        >
-          Details
-        </button>
-        <button
-          onClick={() => setActiveTab("emails")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
-            activeTab === "emails"
-              ? "border-teal-500 text-teal-600 dark:text-teal-400"
-              : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-          }`}
-        >
-          <Mail size={13} />
-          {(emailCount ?? 0) > 0 && (
-            <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
-              {emailCount}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("discussion")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
-            activeTab === "discussion"
-              ? "border-teal-500 text-teal-600 dark:text-teal-400"
-              : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-          }`}
-        >
-          <MessageSquare size={13} />
-          {(discussionCount ?? 0) > 0 && (
-            <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
-              {discussionCount}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("changes")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
-            activeTab === "changes"
-              ? "border-teal-500 text-teal-600 dark:text-teal-400"
-              : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-          }`}
-        >
-          <History size={13} />
-        </button>
-      </div>
+      {/* Body — left sidebar nav + main content (matches WorkspaceDetailView layout) */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* LEFT: sidebar nav */}
+        <div className="flex-shrink-0 w-56 border-r border-zinc-100 dark:border-zinc-800 flex flex-col bg-zinc-50/50 dark:bg-zinc-900/30">
+          <button
+            onClick={() => setActiveTab("details")}
+            className={cn(
+              "w-full text-left px-3 py-2 text-xs font-medium border-b transition-colors",
+              activeTab === "details"
+                ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/50"
+                : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800/30 border-zinc-100 dark:border-zinc-800",
+            )}
+          >
+            Task Details
+          </button>
+          <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+            {/* Artifacts — curated list (same system as project artifacts) */}
+            <TaskArtifactsSection
+              taskId={taskId}
+              task={task}
+              repositoryPath={activeRepository?.path ?? ""}
+              expanded={artifactsExpanded}
+              onToggle={() => setArtifactsExpanded(v => !v)}
+            />
 
-      {/* Content */}
+            <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-2" />
+
+            <button
+              onClick={() => setActiveTab("discussion")}
+              className={cn(
+                "w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
+                activeTab === "discussion"
+                  ? "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
+              )}
+            >
+              <MessageSquare size={13} />
+              <span>Discussion</span>
+              {(discussionCount ?? 0) > 0 && (
+                <span className="ml-auto text-[10px] font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full">
+                  {discussionCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("emails")}
+              className={cn(
+                "w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
+                activeTab === "emails"
+                  ? "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
+              )}
+            >
+              <Mail size={13} />
+              <span>Emails</span>
+              {(emailCount ?? 0) > 0 && (
+                <span className="ml-auto text-[10px] font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full">
+                  {emailCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("changes")}
+              className={cn(
+                "w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
+                activeTab === "changes"
+                  ? "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
+              )}
+            >
+              <History size={13} />
+              <span>Changes</span>
+            </button>
+
+            {/* Bot Chat — expandable section listing each chat session */}
+            <div className="pt-2 mt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setBotChatExpanded(v => !v)}
+                  className="flex-1 flex items-center gap-1.5 px-1 py-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                >
+                  {botChatExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                  <Brain size={11} className="text-purple-500" />
+                  <span>Chat to Update</span>
+                  {botChatSessions.length > 0 && (
+                    <span className="ml-1 text-[10px] text-zinc-400 normal-case font-normal tracking-normal">
+                      ({botChatSessions.length})
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    // Generate a fresh session id so each "Chat to update" starts a new thread
+                    const newId = `${botChatPrefix}:${Date.now()}`;
+                    setChatPopupSession(newId);
+                    setBotChatExpanded(true);
+                  }}
+                  className="p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-950/30 text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                  title="Start a new bot chat session"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+              {botChatExpanded && (
+                <div className="mt-1 space-y-0.5">
+                  {botChatSessions.length === 0 ? (
+                    <button
+                      onClick={() => {
+                        const newId = `${botChatPrefix}:${Date.now()}`;
+                        setChatPopupSession(newId);
+                      }}
+                      className="w-full text-left text-[10px] text-zinc-400 dark:text-zinc-600 italic px-2 py-1 hover:text-purple-500 dark:hover:text-purple-400 transition-colors"
+                    >
+                      + Chat to update
+                    </button>
+                  ) : (
+                    botChatSessions.map((s) => (
+                      <button
+                        key={s.entity_id}
+                        onClick={() => setChatPopupSession(s.entity_id)}
+                        className="w-full text-left flex items-start gap-1.5 px-2 py-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors group"
+                        title={s.title ?? s.sample_body}
+                      >
+                        <Brain size={10} className="text-purple-500 mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                            {formatBotChatSessionLabel(s)}
+                          </div>
+                          <div className="text-[9px] text-zinc-400 dark:text-zinc-600">
+                            {s.message_count} msg · {formatRelative(s.last_activity_at)}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: main content */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       {activeTab === "emails" ? (
         <EmailsPanel entityType="task" entityId={taskId} />
       ) : activeTab === "discussion" ? (
@@ -315,7 +423,20 @@ export function TaskDetailPanel({
             )}
           </div>
 
-          {/* Fields */}
+          {/* Task Details — collapsible section header */}
+          <div>
+            <button
+              onClick={() => setDetailsCollapsed(v => !v)}
+              className="flex items-center gap-1.5 mb-3 group"
+            >
+              {detailsCollapsed
+                ? <ChevronRight size={12} className="text-zinc-400" />
+                : <ChevronDown size={12} className="text-zinc-400" />}
+              <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                Task Details
+              </h3>
+            </button>
+          {!detailsCollapsed && (
           <div className="space-y-1">
             {/* Status */}
             <div className="flex items-center gap-3">
@@ -613,6 +734,64 @@ export function TaskDetailPanel({
                 {task.updated_at ? formatDate(task.updated_at) : "—"}
               </span>
             </div>
+
+            {/* Actions row — Delete + Notion sync, lives inside the details section (matches project view) */}
+            <div className="border-t border-zinc-100 dark:border-zinc-800 mt-3 pt-3 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded px-2 py-1.5 transition-colors"
+              >
+                <Trash2 size={12} />
+                Delete Task
+              </button>
+              {task.notion_page_id && (
+                <a
+                  href={`https://notion.so/${task.notion_page_id.replace(/-/g, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded px-2 py-1.5 transition-colors"
+                >
+                  <ExternalLink size={12} />
+                  Notion
+                </a>
+              )}
+              {task.notion_page_id && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await pullMutation.mutateAsync(taskId);
+                      toast.success("Synced from Notion");
+                      refetch();
+                    } catch (error: any) {
+                      toast.error(error?.message || "Failed to sync from Notion");
+                    }
+                  }}
+                  disabled={pullMutation.isPending}
+                  className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded px-2 py-1.5 transition-colors disabled:opacity-50"
+                >
+                  <Download size={12} />
+                  {pullMutation.isPending ? "Syncing..." : "Sync from Notion"}
+                </button>
+              )}
+              <button
+                onClick={async () => {
+                  try {
+                    const result = await pushMutation.mutateAsync(taskId);
+                    toast.success(result.action === "created" ? "Synced to Notion (new page)" : "Synced to Notion");
+                    refetch();
+                  } catch (error: any) {
+                    toast.error(error?.message || "Failed to sync to Notion");
+                  }
+                }}
+                disabled={pushMutation.isPending}
+                className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded px-2 py-1.5 transition-colors disabled:opacity-50"
+              >
+                <Upload size={12} />
+                {pushMutation.isPending ? "Syncing..." : "Sync to Notion"}
+              </button>
+            </div>
+          </div>
+          )}
           </div>
 
           {/* Description */}
@@ -637,7 +816,7 @@ export function TaskDetailPanel({
                   const dateStr = date.toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
                   const timeStr = date.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" });
                   return (
-                    <div key={a.id} className="flex gap-2">
+                    <div key={a.id} className="flex gap-2 group">
                       <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-bold mt-0.5 ${
                         a.type === "note" ? "bg-blue-50 text-blue-500 dark:bg-blue-950/30 dark:text-blue-400" :
                         a.type === "meeting" ? "bg-purple-50 text-purple-500 dark:bg-purple-950/30 dark:text-purple-400" :
@@ -654,6 +833,21 @@ export function TaskDetailPanel({
                         {a.subject && <div className="text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-0.5">{a.subject}</div>}
                         {a.content && <div className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{a.content}</div>}
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (confirm("Delete this activity?")) {
+                            deleteActivity.mutate(a.id);
+                          }
+                        }}
+                        disabled={deleteActivity.isPending}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 transition-all self-start disabled:opacity-30"
+                        title="Delete activity"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   );
                 })}
@@ -702,68 +896,8 @@ export function TaskDetailPanel({
         </div>
       </div>
       )}
-
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex justify-between">
-        <Button
-          variant="ghost"
-          icon={Trash2}
-          onClick={() => setShowDeleteConfirm(true)}
-          className="text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20"
-        >
-          Delete
-        </Button>
-        <div className="flex items-center gap-2">
-          {task.notion_page_id && (
-            <a
-              href={`https://notion.so/${task.notion_page_id.replace(/-/g, "")}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-            >
-              <ExternalLink size={14} />
-              Notion
-            </a>
-          )}
-          {task.notion_page_id && (
-            <Button
-              variant="ghost"
-              icon={Download}
-              onClick={async () => {
-                try {
-                  await pullMutation.mutateAsync(taskId);
-                  toast.success("Synced from Notion");
-                  refetch();
-                } catch (error: any) {
-                  toast.error(error?.message || "Failed to sync from Notion");
-                }
-              }}
-              disabled={pullMutation.isPending}
-            >
-              {pullMutation.isPending ? "Syncing..." : "Sync from Notion"}
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            icon={Upload}
-            onClick={async () => {
-              try {
-                const result = await pushMutation.mutateAsync(taskId);
-                toast.success(result.action === "created" ? "Synced to Notion (new page)" : "Synced to Notion");
-                refetch();
-              } catch (error: any) {
-                toast.error(error?.message || "Failed to sync to Notion");
-              }
-            }}
-            disabled={pushMutation.isPending}
-          >
-            {pushMutation.isPending ? "Syncing..." : "Sync to Notion"}
-          </Button>
-          <Button variant="ghost" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-      </div>
+        </div> {/* /right pane */}
+      </div> {/* /body row */}
 
       {showDeleteConfirm && (
         <DeleteConfirm
@@ -772,6 +906,17 @@ export function TaskDetailPanel({
           isDeleting={deleteMutation.isPending}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
+      {chatPopupSession && (
+        <TaskChatPopup
+          taskId={taskId}
+          taskTitle={task.title}
+          taskIdentifier={identifier}
+          projectFolderPath={(task as any).project?.folder_path ?? null}
+          sessionEntityId={chatPopupSession}
+          onClose={() => setChatPopupSession(null)}
         />
       )}
     </div>
@@ -871,5 +1016,346 @@ function TaskChangesPanel({ taskId }: { taskId: string }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bot chat helpers
+// ---------------------------------------------------------------------------
+
+function formatBotChatSessionLabel(s: { title: string | null; sample_body: string; created_at: string }): string {
+  if (s.title && s.title.trim() && !s.title.startsWith("Task:")) return s.title;
+  // Strip @mentions and entity refs for a cleaner preview
+  const cleaned = s.sample_body
+    .replace(/@\S+\s*/g, "")
+    .replace(/\[\[[\w]+:[^|\]]+(?:\|[^\]]+)?\]\]/g, "")
+    .trim();
+  if (cleaned) return cleaned.slice(0, 48);
+  return new Date(s.created_at).toLocaleDateString("en-SG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return d.toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+}
+
+// ---------------------------------------------------------------------------
+// Task Artifacts Section — curated artifacts (same schema as project artifacts)
+// Each artifact references a file or folder in the repo. Folder artifacts
+// can be expanded inline to show their file tree.
+// ---------------------------------------------------------------------------
+
+function TaskArtifactsSection({
+  taskId,
+  task,
+  repositoryPath,
+  expanded,
+  onToggle,
+}: {
+  taskId: string;
+  task: any;
+  repositoryPath: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const [showPicker, setShowPicker] = useState(false);
+  const { data: artifacts = [], isLoading } = useTaskArtifacts(taskId);
+  const removeArtifact = useRemoveArtifact();
+
+  // Base path for resolving relative references — prefer the task's project folder,
+  // then fall back to repo root.
+  const projectFolder: string | null = task?.project?.folder_path ?? null;
+  const taskIdent = task?.project?.identifier_prefix && task?.task_number != null
+    ? `${task.project.identifier_prefix}-${task.task_number}`
+    : null;
+  const taskRelFolder = projectFolder && taskIdent ? `${projectFolder}/${taskIdent}` : projectFolder;
+  const basePath = taskRelFolder && repositoryPath ? `${repositoryPath}/${taskRelFolder}` : repositoryPath;
+
+  return (
+    <div>
+      <div className="flex items-center">
+        <button
+          onClick={onToggle}
+          className="flex-1 flex items-center gap-1.5 px-1 py-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+        >
+          {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+          <span>Artifacts</span>
+          {artifacts.length > 0 && (
+            <span className="ml-1 text-[10px] text-zinc-400 normal-case font-normal tracking-normal">
+              ({artifacts.length})
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setShowPicker(true)}
+          disabled={!basePath}
+          className="p-1 rounded hover:bg-teal-50 dark:hover:bg-teal-950/30 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          title={basePath ? "Add artifact" : "Set the project's folder path first"}
+        >
+          <Plus size={12} />
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="mt-1 space-y-0.5">
+          {isLoading ? (
+            <div className="flex justify-center py-2">
+              <Loader2 size={12} className="text-zinc-400 animate-spin" />
+            </div>
+          ) : artifacts.length === 0 ? (
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-600 italic px-2 py-1">
+              No artifacts yet — click + to add files or folders
+            </p>
+          ) : (
+            artifacts.map((a: any) => (
+              <TaskArtifactRow
+                key={a.id}
+                artifact={a}
+                basePath={basePath}
+                onRemove={() => removeArtifact.mutate({ id: a.id, taskId })}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      {showPicker && basePath && (
+        <TaskArtifactPickerModal
+          taskId={taskId}
+          basePath={basePath}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function TaskArtifactRow({
+  artifact,
+  basePath,
+  onRemove,
+}: {
+  artifact: any;
+  basePath: string;
+  onRemove: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isFolder = !artifact.reference.includes(".") || artifact.reference.endsWith("/");
+  const absPath = artifact.reference.startsWith("/")
+    ? artifact.reference
+    : `${basePath}/${artifact.reference}`;
+
+  const { data: tree } = useFileTree(expanded && isFolder ? absPath : undefined, 3);
+
+  return (
+    <div className="group">
+      <div
+        className="flex items-center gap-1 px-1 py-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
+        onClick={() => isFolder && setExpanded(v => !v)}
+      >
+        {isFolder ? (
+          expanded ? <ChevronDown size={10} className="text-zinc-400 shrink-0" /> : <ChevronRight size={10} className="text-zinc-400 shrink-0" />
+        ) : (
+          <span className="w-[10px] shrink-0" />
+        )}
+        {isFolder
+          ? (expanded ? <FolderOpen size={11} className="text-amber-500 shrink-0" /> : <Folder size={11} className="text-amber-500 shrink-0" />)
+          : <FileText size={11} className="text-zinc-400 shrink-0" />}
+        <span className="flex-1 text-[10px] font-medium text-zinc-700 dark:text-zinc-300 truncate" title={artifact.reference}>
+          {artifact.label}
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-zinc-400 hover:text-red-500 transition-all shrink-0"
+          title="Remove artifact"
+        >
+          <X size={9} />
+        </button>
+      </div>
+      {expanded && isFolder && tree && (
+        <div className="ml-3 border-l border-zinc-200 dark:border-zinc-800">
+          {(tree.children ?? [])
+            .filter((c) => !c.name.startsWith("."))
+            .sort((a, b) => {
+              if (a.is_directory !== b.is_directory) return a.is_directory ? -1 : 1;
+              return a.name.localeCompare(b.name);
+            })
+            .map((child) => <TaskFileTreeNode key={child.path} node={child} depth={0} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskFileTreeNode({ node, depth }: { node: TreeNode; depth: number }) {
+  const [nodeExpanded, setNodeExpanded] = useState(depth < 1);
+
+  if (node.is_directory) {
+    const children = (node.children ?? []).filter((c) => !c.name.startsWith("."));
+    const sorted = [...children].sort((a, b) => {
+      if (a.is_directory !== b.is_directory) return a.is_directory ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setNodeExpanded(!nodeExpanded)}
+          className="flex items-center gap-1 w-full text-left py-0.5 px-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+          style={{ paddingLeft: `${depth * 12 + 4}px` }}
+        >
+          {nodeExpanded ? <ChevronDown size={10} className="text-zinc-400" /> : <ChevronRight size={10} className="text-zinc-400" />}
+          {nodeExpanded ? <FolderOpen size={11} className="text-amber-500" /> : <Folder size={11} className="text-amber-500" />}
+          <span className="text-[10px] text-zinc-700 dark:text-zinc-300 truncate">{node.name}</span>
+        </button>
+        {nodeExpanded && sorted.map((child) => (
+          <TaskFileTreeNode key={child.path} node={child} depth={depth + 1} />
+        ))}
+      </div>
+    );
+  }
+
+  const ext = node.name.split(".").pop()?.toLowerCase() ?? "";
+  const Icon = ["md", "txt", "pdf"].includes(ext) ? FileText : FileIcon;
+  return (
+    <div
+      className="flex items-center gap-1 py-0.5 px-1 text-zinc-600 dark:text-zinc-400"
+      style={{ paddingLeft: `${depth * 12 + 16}px` }}
+    >
+      <Icon size={10} className="text-zinc-400 shrink-0" />
+      <span className="text-[10px] truncate" title={node.name}>{node.name}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Task Artifact Picker — small modal with file tree to add files/folders as artifacts
+// ---------------------------------------------------------------------------
+
+function TaskArtifactPickerModal({
+  taskId,
+  basePath,
+  onClose,
+}: {
+  taskId: string;
+  basePath: string;
+  onClose: () => void;
+}) {
+  const { data: tree, isLoading } = useFileTree(basePath, 3);
+  const addArtifact = useAddArtifact();
+
+  function handleSelect(absPath: string, isDir: boolean) {
+    const reference = absPath.startsWith(basePath)
+      ? absPath.slice(basePath.length).replace(/^\//, "")
+      : absPath;
+    const label = absPath.split("/").filter(Boolean).pop() || reference;
+
+    let type = "other";
+    if (isDir) type = "doc";
+    else {
+      const ext = absPath.split(".").pop()?.toLowerCase() || "";
+      if (["ts", "tsx", "js", "jsx", "rs", "py", "sql"].includes(ext)) type = "code";
+      else if (["html", "htm"].includes(ext)) type = "report";
+      else type = "doc";
+    }
+
+    addArtifact.mutate(
+      { task_id: taskId, label, reference, type } as any,
+      { onSuccess: onClose },
+    );
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-8">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg w-full max-w-md max-h-[70vh] flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Add Task Artifact</h3>
+            <button onClick={onClose} className="p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-400">
+              <X size={14} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto py-1">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={16} className="text-zinc-400 animate-spin" />
+              </div>
+            ) : tree?.children ? (
+              (tree.children as TreeNode[])
+                .filter((c) => !c.name.startsWith("."))
+                .sort((a, b) => {
+                  if (a.is_directory !== b.is_directory) return a.is_directory ? -1 : 1;
+                  return a.name.localeCompare(b.name);
+                })
+                .map((node) => <PickerNode key={node.path} node={node} level={0} onSelect={handleSelect} />)
+            ) : (
+              <p className="text-sm text-zinc-400 text-center py-8">No files found</p>
+            )}
+          </div>
+          {addArtifact.isPending && (
+            <div className="px-4 py-2 border-t border-zinc-200 dark:border-zinc-800 flex items-center gap-2 text-xs text-zinc-400">
+              <Loader2 size={12} className="animate-spin" /> Adding...
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PickerNode({ node, level, onSelect }: { node: TreeNode; level: number; onSelect: (absPath: string, isDir: boolean) => void }) {
+  const [expanded, setExpanded] = useState(level < 1);
+
+  if (node.is_directory) {
+    const children = (node.children ?? []).filter((c) => !c.name.startsWith("."));
+    return (
+      <div>
+        <div
+          className="flex items-center gap-1 px-3 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer"
+          style={{ paddingLeft: `${level * 14 + 12}px` }}
+        >
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-zinc-400 hover:text-zinc-600"
+          >
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </button>
+          <button
+            onClick={() => onSelect(node.path, true)}
+            className="flex-1 flex items-center gap-1.5 text-left text-xs text-zinc-700 dark:text-zinc-300"
+          >
+            {expanded ? <FolderOpen size={12} className="text-amber-500" /> : <Folder size={12} className="text-amber-500" />}
+            <span className="truncate">{node.name}</span>
+            <span className="ml-auto text-[9px] text-teal-500 opacity-0 group-hover:opacity-100">add folder</span>
+          </button>
+        </div>
+        {expanded && children
+          .sort((a, b) => {
+            if (a.is_directory !== b.is_directory) return a.is_directory ? -1 : 1;
+            return a.name.localeCompare(b.name);
+          })
+          .map((child) => <PickerNode key={child.path} node={child} level={level + 1} onSelect={onSelect} />)}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => onSelect(node.path, false)}
+      className="flex items-center gap-1.5 w-full text-left px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+      style={{ paddingLeft: `${level * 14 + 28}px` }}
+    >
+      <FileIcon size={11} className="text-zinc-400" />
+      <span className="truncate">{node.name}</span>
+    </button>
   );
 }

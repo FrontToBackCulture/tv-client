@@ -14,7 +14,7 @@ import {
   type DiscoveredDomain,
 } from "../../hooks/val-sync";
 import { useDomainHealthCheckRunner } from "../../hooks/val-sync/useDomainHealthChecks";
-import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useJobsStore } from "../../stores/jobsStore";
 import { formatError } from "../../lib/formatError";
 import { useDomainArtifactsRebuild } from "../../hooks/useDomainArtifactsRebuild";
@@ -225,7 +225,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const [search, setSearch] = useState("");
   const typeConfig = useDomainTypeConfig();
 
-  const paths = useKnowledgePaths();
+  const paths = usePrimaryKnowledgePaths();
   const domainsPath = paths ? `${paths.platform}/domains` : null;
   const { data: domains, isLoading, isError, error, refetch } = useDiscoverDomains(domainsPath);
 
@@ -393,9 +393,12 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
         <AlertCircle size={32} className="mb-2 text-red-400 opacity-70" />
         <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Failed to load domains</p>
         <p className="text-xs text-zinc-400 mt-1 text-center max-w-xs">
-          {String(error).includes("unknown")
-            ? "Restart the app to load the new val-sync commands (Rust rebuild required)"
-            : String(error)}
+          {(() => {
+            const msg = error instanceof Error ? error.message : typeof error === "object" && error !== null ? JSON.stringify(error) : String(error);
+            return msg.includes("unknown")
+              ? "Restart the app to load the new val-sync commands (Rust rebuild required)"
+              : msg;
+          })()}
         </p>
         <Button onClick={() => refetch()} variant="secondary" icon={RefreshCw} className="mt-3">
           Retry

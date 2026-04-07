@@ -9,6 +9,8 @@ use serde::{de::DeserializeOwned, Serialize};
 pub struct SupabaseClient {
     base_url: String,
     anon_key: String,
+    /// Optional JWT token for authenticated access (overrides anon_key in Authorization header)
+    auth_token: Option<String>,
     client: reqwest::Client,
 }
 
@@ -18,17 +20,49 @@ impl SupabaseClient {
         Self {
             base_url: url.trim_end_matches('/').to_string(),
             anon_key: anon_key.to_string(),
+            auth_token: None,
             client: crate::HTTP_CLIENT.clone(),
         }
+    }
+
+    /// Create a new Supabase client with a JWT auth token
+    pub fn new_with_token(url: &str, anon_key: &str, auth_token: &str) -> Self {
+        Self {
+            base_url: url.trim_end_matches('/').to_string(),
+            anon_key: anon_key.to_string(),
+            auth_token: Some(auth_token.to_string()),
+            client: crate::HTTP_CLIENT.clone(),
+        }
+    }
+
+    /// Get the base URL for this client
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    /// Get the underlying HTTP client for direct requests
+    pub fn http_client(&self) -> &reqwest::Client {
+        &self.client
+    }
+
+    /// Get authentication headers for external calls (edge functions, etc.)
+    pub fn auth_headers(&self) -> HeaderMap {
+        self.headers()
     }
 
     /// Build headers for Supabase requests
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
+        // apikey header always uses anon_key (required by Supabase)
         if let Ok(val) = HeaderValue::from_str(&self.anon_key) {
             headers.insert("apikey", val);
         }
-        if let Ok(val) = HeaderValue::from_str(&format!("Bearer {}", self.anon_key)) {
+        // Authorization header uses JWT if available, otherwise anon_key
+        let bearer = match &self.auth_token {
+            Some(token) => format!("Bearer {}", token),
+            None => format!("Bearer {}", self.anon_key),
+        };
+        if let Ok(val) = HeaderValue::from_str(&bearer) {
             headers.insert(AUTHORIZATION, val);
         }
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -226,14 +260,180 @@ pub fn client_from(url: &str, anon_key: &str) -> SupabaseClient {
     SupabaseClient::new(url, anon_key)
 }
 
-/// Helper to get Supabase client from settings
-pub async fn get_client() -> CmdResult<SupabaseClient> {
-    use crate::commands::settings::{settings_get_key, KEY_SUPABASE_ANON_KEY, KEY_SUPABASE_URL};
+// ── Bot JWT Authentication ──────────────────────────────────────────────────
+// When TV_BOT_API_KEY is set, tv-mcp authenticates with the gateway on startup
+// and uses a scoped JWT for all Supabase queries instead of the anon key.
 
-    let url = settings_get_key(KEY_SUPABASE_URL.to_string())?
-        .ok_or_else(|| CommandError::Config("Supabase URL not configured. Go to Settings to add it.".into()))?;
-    let anon_key = settings_get_key(KEY_SUPABASE_ANON_KEY.to_string())?
-        .ok_or_else(|| CommandError::Config("Supabase anon key not configured. Go to Settings to add it.".into()))?;
+use std::sync::OnceLock;
+
+/// Cached bot JWT token (minted on first use, refreshed when expired)
+static BOT_JWT: OnceLock<std::sync::Mutex<Option<BotToken>>> = OnceLock::new();
+
+#[derive(Clone)]
+struct BotToken {
+    token: String,
+    expires_at: u64,
+}
+
+/// Gateway URL for bot authentication
+const GATEWAY_URL: &str = "https://tccyronrnsimacqfhxzd.supabase.co";
+
+/// Authenticate with the gateway using the bot API key and get a workspace JWT.
+async fn mint_bot_jwt(api_key: &str) -> CmdResult<BotToken> {
+    let client = crate::HTTP_CLIENT.clone();
+    let response = client
+        .post(format!("{}/functions/v1/bot-token", GATEWAY_URL))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({ "api_key": api_key }))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(CommandError::Http { status, body });
+    }
+
+    let data: serde_json::Value = response.json().await?;
+    let token = data["token"].as_str()
+        .ok_or_else(|| CommandError::Internal("No token in bot-token response".into()))?
+        .to_string();
+    let expires_at = data["expires_at"].as_u64()
+        .ok_or_else(|| CommandError::Internal("No expires_at in bot-token response".into()))?;
+
+    let bot_name = data["bot"].get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
+    log::info!("Bot JWT minted for {} (expires in ~1h)", bot_name);
+
+    Ok(BotToken { token, expires_at })
+}
+
+/// Get the bot JWT, minting or refreshing if needed.
+async fn get_bot_jwt(api_key: &str) -> CmdResult<String> {
+    let mutex = BOT_JWT.get_or_init(|| std::sync::Mutex::new(None));
+    let existing = {
+        let guard = mutex.lock().unwrap();
+        guard.clone()
+    };
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    // Refresh if expired or expiring within 5 minutes
+    if let Some(ref bt) = existing {
+        if bt.expires_at > now + 300 {
+            return Ok(bt.token.clone());
+        }
+    }
+
+    // Mint new JWT
+    let new_token = mint_bot_jwt(api_key).await?;
+    let token = new_token.token.clone();
+    {
+        let mut guard = mutex.lock().unwrap();
+        *guard = Some(new_token);
+    }
+    Ok(token)
+}
+
+tokio::task_local! {
+    /// Task-local override that pins `get_client()` to a specific workspace's
+    /// credentials for the scope of one async task. Set via
+    /// `WORKSPACE_OVERRIDE.scope(Some(ws_id), async { ... })` by the
+    /// background sync loops so each per-workspace iteration reads the
+    /// correct Supabase project without refactoring every internal
+    /// `get_client()` call in the sync code.
+    pub static WORKSPACE_OVERRIDE: Option<String>;
+}
+
+/// Helper to get Supabase client from settings.
+///
+/// Resolution order:
+///   1. If `WORKSPACE_OVERRIDE` task-local is set, use workspace-scoped keys
+///      (`ws:{id}:supabase_url` + `ws:{id}:supabase_anon_key`). This is how
+///      bg sync loops route each per-workspace iteration to the correct
+///      Supabase project.
+///   2. Otherwise, read the global (unscoped) keys — legacy behavior.
+///
+/// If TV_BOT_API_KEY is set, uses an authenticated JWT instead of anon key.
+pub async fn get_client() -> CmdResult<SupabaseClient> {
+    use crate::commands::settings::{
+        get_workspace_setting, settings_get_key, KEY_SUPABASE_ANON_KEY, KEY_SUPABASE_URL,
+    };
+
+    // Check task-local workspace override first
+    let ws_override = WORKSPACE_OVERRIDE
+        .try_with(|w| w.clone())
+        .ok()
+        .flatten();
+
+    let (url, anon_key) = if let Some(workspace_id) = ws_override {
+        let url = get_workspace_setting(&workspace_id, KEY_SUPABASE_URL).ok_or_else(|| {
+            CommandError::Config(format!(
+                "Supabase URL not configured for workspace {}",
+                workspace_id
+            ))
+        })?;
+        let anon_key = get_workspace_setting(&workspace_id, KEY_SUPABASE_ANON_KEY).ok_or_else(
+            || {
+                CommandError::Config(format!(
+                    "Supabase anon key not configured for workspace {}",
+                    workspace_id
+                ))
+            },
+        )?;
+        (url, anon_key)
+    } else {
+        let url = settings_get_key(KEY_SUPABASE_URL.to_string())?.ok_or_else(|| {
+            CommandError::Config("Supabase URL not configured. Go to Settings to add it.".into())
+        })?;
+        let anon_key = settings_get_key(KEY_SUPABASE_ANON_KEY.to_string())?.ok_or_else(|| {
+            CommandError::Config(
+                "Supabase anon key not configured. Go to Settings to add it.".into(),
+            )
+        })?;
+        (url, anon_key)
+    };
+
+    // If bot API key is set, authenticate and use JWT
+    if let Ok(api_key) = std::env::var("TV_BOT_API_KEY") {
+        if !api_key.is_empty() {
+            let jwt = get_bot_jwt(&api_key).await?;
+            return Ok(SupabaseClient::new_with_token(&url, &anon_key, &jwt));
+        }
+    }
+
+    Ok(SupabaseClient::new(&url, &anon_key))
+}
+
+/// Explicit workspace-scoped client fetcher — same logic as `get_client()`
+/// but takes the workspace ID directly rather than reading from the
+/// task-local override. Useful for code paths that know their workspace at
+/// call time and don't want to wrap in `WORKSPACE_OVERRIDE.scope(...)`.
+#[allow(dead_code)]
+pub async fn get_client_for_workspace(workspace_id: &str) -> CmdResult<SupabaseClient> {
+    use crate::commands::settings::{get_workspace_setting, KEY_SUPABASE_ANON_KEY, KEY_SUPABASE_URL};
+
+    let url = get_workspace_setting(workspace_id, KEY_SUPABASE_URL).ok_or_else(|| {
+        CommandError::Config(format!(
+            "Supabase URL not configured for workspace {}",
+            workspace_id
+        ))
+    })?;
+    let anon_key = get_workspace_setting(workspace_id, KEY_SUPABASE_ANON_KEY).ok_or_else(|| {
+        CommandError::Config(format!(
+            "Supabase anon key not configured for workspace {}",
+            workspace_id
+        ))
+    })?;
+
+    if let Ok(api_key) = std::env::var("TV_BOT_API_KEY") {
+        if !api_key.is_empty() {
+            let jwt = get_bot_jwt(&api_key).await?;
+            return Ok(SupabaseClient::new_with_token(&url, &anon_key, &jwt));
+        }
+    }
 
     Ok(SupabaseClient::new(&url, &anon_key))
 }

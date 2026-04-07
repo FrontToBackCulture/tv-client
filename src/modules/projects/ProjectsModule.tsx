@@ -12,7 +12,7 @@ import { Button } from "../../components/ui";
 import { useProjects, useAllTasks, useInitiatives, useUsers, useUpdateProject } from "../../hooks/work";
 import { useCurrentUserId } from "../../hooks/work/useUsers";
 import { supabase } from "../../lib/supabase";
-import { usePipelineStats } from "../../hooks/crm";
+import { usePipelineStats, useCRMRealtime } from "../../hooks/crm";
 import { TaskDetailPanel } from "../work/TaskDetailPanel";
 import { ResizablePanel } from "../../components/ResizablePanel";
 import { TaskForm } from "../work/TaskForm";
@@ -193,7 +193,8 @@ export function ProjectsModule() {
     }
   }, [navTarget, clearNavTarget, setView]);
 
-  // Data fetching — CRM
+  // Data fetching — CRM (+ real-time sync for bot/external updates)
+  useCRMRealtime();
   const pipelineStatsQuery = usePipelineStats();
 
   // Task-Deal links (deprecated — tasks link to deal-projects via project_id now)

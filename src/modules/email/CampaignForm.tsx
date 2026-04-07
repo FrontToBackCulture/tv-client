@@ -2,7 +2,7 @@
 // Campaign create/edit wizard — 3-step flow
 
 import { useState, useEffect, useMemo } from "react";
-import { X, ChevronRight, ChevronLeft, FileText, FolderOpen } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, FileText, FolderOpen, Mail, Cloud } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   useCreateEmailCampaign,
@@ -36,6 +36,9 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
   const [fromEmail, setFromEmail] = useState(campaign?.from_email || "");
   const [groupId, setGroupId] = useState(campaign?.group_id || "");
   const [category, setCategory] = useState(campaign?.category || "");
+  const [sendChannel, setSendChannel] = useState<"ses" | "outlook">(
+    (campaign?.send_channel as "ses" | "outlook") || "ses"
+  );
   const [htmlBody, setHtmlBody] = useState(campaign?.html_body || "");
   const [contentPath, setContentPath] = useState(campaign?.content_path || "");
 
@@ -146,6 +149,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
           category: category.trim() || null,
           html_body: htmlBody || null,
           content_path: contentPath || null,
+          send_channel: sendChannel,
         },
       });
     } else {
@@ -158,6 +162,7 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
         category: category.trim() || null,
         html_body: htmlBody || null,
         content_path: contentPath || null,
+        send_channel: sendChannel,
         status: "draft",
       });
     }
@@ -269,6 +274,42 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                 </datalist>
                 <p className="text-[9px] text-zinc-400 mt-0.5">Used for grouping in the sidebar. Type a new one or pick existing.</p>
               </div>
+              <div>
+                <label className="block text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                  Send Via
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSendChannel("ses")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium border rounded-md transition-colors ${
+                      sendChannel === "ses"
+                        ? "bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:border-teal-500"
+                    }`}
+                  >
+                    <Cloud size={12} />
+                    Amazon SES
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSendChannel("outlook")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium border rounded-md transition-colors ${
+                      sendChannel === "outlook"
+                        ? "bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:border-teal-500"
+                    }`}
+                  >
+                    <Mail size={12} />
+                    Outlook
+                  </button>
+                </div>
+                <p className="text-[9px] text-zinc-400 mt-0.5">
+                  {sendChannel === "outlook"
+                    ? "Creates drafts in your Outlook mailbox. You send from Outlook directly."
+                    : "Sends directly via Amazon SES. Best for bulk campaigns."}
+                </p>
+              </div>
             </>
           )}
 
@@ -379,6 +420,10 @@ export function CampaignForm({ onClose, campaign }: CampaignFormProps) {
                 {category.trim() && (
                   <ReviewRow label="Category" value={category.trim()} />
                 )}
+                <ReviewRow
+                  label="Send Via"
+                  value={sendChannel === "outlook" ? "Outlook (creates drafts)" : "Amazon SES (sends directly)"}
+                />
                 <ReviewRow
                   label="Content"
                   value={contentPath ? contentPath.split("/").pop() || "File" : htmlBody ? "Inline HTML" : "None"}

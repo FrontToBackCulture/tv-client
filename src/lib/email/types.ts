@@ -101,6 +101,7 @@ export const CAMPAIGN_STATUSES = [
   { value: "scheduled" as const, label: "Scheduled", color: "blue" },
   { value: "sending" as const, label: "Sending", color: "yellow" },
   { value: "sent" as const, label: "Sent", color: "green" },
+  { value: "drafted" as const, label: "Drafted", color: "purple" },
   { value: "partial" as const, label: "Partial", color: "orange" },
   { value: "failed" as const, label: "Failed", color: "red" },
 ];

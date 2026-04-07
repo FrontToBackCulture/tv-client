@@ -312,6 +312,19 @@ pub fn ga4_auth_logout() -> CmdResult<()> {
     delete_tokens()
 }
 
+/// Export raw tokens for server-side sync setup
+#[tauri::command]
+pub fn ga4_export_tokens() -> CmdResult<serde_json::Value> {
+    let tokens = load_tokens().ok_or_else(|| {
+        CommandError::NotFound("No GA4 tokens found. Connect to Google first.".to_string())
+    })?;
+    Ok(serde_json::json!({
+        "access_token": tokens.access_token,
+        "refresh_token": tokens.refresh_token,
+        "expires_at": tokens.expires_at,
+    }))
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================

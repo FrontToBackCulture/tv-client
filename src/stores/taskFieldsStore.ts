@@ -2,7 +2,8 @@
 // Configurable task list/detail fields per project type (work vs deal)
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 
 /** Task field definition */
 export interface TaskFieldDef {
@@ -67,7 +68,10 @@ export const useTaskFieldsStore = create<TaskFieldsState>()(
         set({ configs: { ...get().configs, [projectType]: defaults } });
       },
     }),
-    { name: "tv-client-task-fields" }
+    {
+      name: "tv-client-task-fields",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
+    }
   )
 );
 

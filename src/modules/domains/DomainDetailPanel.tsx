@@ -49,9 +49,11 @@ import { useViewContextStore } from "../../stores/viewContextStore";
 import { useRegisterCommands } from "../../stores/commandStore";
 import { DomainAiTab } from "./DomainAiTab";
 import { DomainReportsTab } from "./DomainReportsTab";
+import DomainSolutionsTab from "./DomainSolutionsTab";
 
 import { UnifiedReviewView } from "./UnifiedReviewView";
 import { DomainCleanupTab } from "./DomainCleanupTab";
+import { DomainDependenciesTab } from "./DomainDependenciesTab";
 import type { ReviewResourceType } from "./reviewTypes";
 import {
   ARTIFACT_LABELS, ARTIFACT_META, OUTPUT_FILE_DESCRIPTIONS,
@@ -59,7 +61,7 @@ import {
   type DomainDetailPanelProps, type Tab,
 } from "./domainDetailShared";
 import { useDomainTypeConfig } from "./useDomainTypeConfig";
-import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import * as XLSX from "xlsx";
@@ -70,7 +72,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   // Report domain + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", cleanup: "Cleanup", reports: "Reports", ai: "AI", discussion: "Discussion" };
+    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", cleanup: "Cleanup", reports: "Reports", ai: "AI", dependencies: "Dependencies", discussion: "Discussion", solutions: "Solutions" };
     setViewDetail(`${domain} → ${tabLabels[activeTab]}`);
   }, [domain, activeTab, setViewDetail]);
 
@@ -105,7 +107,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
 
   const isSyncing = syncAllMutation.isPending || syncArtifactMutation.isPending;
   const { data: discussionCount } = useDiscussionCount("domain", domain);
-  const paths = useKnowledgePaths();
+  const paths = usePrimaryKnowledgePaths();
   const tableCoverageMutation = useAiTableCoverage();
 
   const handleExportAiTableCoverage = useCallback(async () => {
@@ -278,7 +280,9 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
     { id: "workflows", label: "Workflows" },
     { id: "dashboards", label: "Dashboards" },
     { id: "cleanup", label: "Cleanup" },
+    { id: "dependencies", label: "Dependencies" },
     { id: "reports", label: "Reports" },
+    { id: "solutions", label: "Solutions" },
     { id: "discussion", label: "Discussion" },
   ];
 
@@ -474,10 +478,24 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         </div>
       )}
 
+      {/* Dependencies tab — dependency graph explorer */}
+      {activeTab === "dependencies" && (
+        <div className="flex-1 overflow-hidden">
+          <DomainDependenciesTab domainName={domain} />
+        </div>
+      )}
+
       {/* Reports tab — full-height tree+detail pane */}
       {activeTab === "reports" && discoveredDomain && (
         <div className="flex-1 overflow-hidden">
           <DomainReportsTab reportsPath={`${discoveredDomain.global_path}/reports`} domainName={domain} />
+        </div>
+      )}
+
+      {/* Solutions tab — onboarding matrix */}
+      {activeTab === "solutions" && (
+        <div className="flex-1 overflow-hidden">
+          <DomainSolutionsTab domainName={domain} />
         </div>
       )}
 
@@ -508,7 +526,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
       )}
 
       {/* Tab content */}
-      <div className={cn("flex-1 overflow-auto p-4", (REVIEW_TABS[activeTab] || activeTab === "ai" || activeTab === "reports" || activeTab === "cleanup") && "hidden")}>
+      <div className={cn("flex-1 overflow-auto p-4", (REVIEW_TABS[activeTab] || activeTab === "ai" || activeTab === "reports" || activeTab === "cleanup" || activeTab === "dependencies" || activeTab === "solutions") && "hidden")}>
         {activeTab === "overview" && discoveredDomain && (
           /* Two-column overview when discoveredDomain is provided */
           <div className="flex gap-6">

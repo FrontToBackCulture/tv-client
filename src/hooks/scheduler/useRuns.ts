@@ -4,8 +4,9 @@ import { schedulerKeys } from "./keys";
 
 export interface JobRun {
   id: string;
-  job_id: string;
+  job_id: string | null;
   job_name: string;
+  automation_id: string | null;
   started_at: string;
   finished_at: string | null;
   duration_secs: number | null;
@@ -13,7 +14,6 @@ export interface JobRun {
   output: string;
   output_preview: string;
   error: string | null;
-  slack_posted: boolean;
   trigger: "scheduled" | "manual";
   cost_usd: number | null;
   input_tokens: number | null;
@@ -33,7 +33,8 @@ export function useRuns(jobId?: string, limit?: number) {
         .order("started_at", { ascending: false })
         .limit(limit ?? 100);
       if (jobId) {
-        query = query.eq("job_id", jobId);
+        // Match by automation_id OR job_id (legacy)
+        query = query.or(`automation_id.eq.${jobId},job_id.eq.${jobId}`);
       }
       const { data, error } = await query;
       if (error) throw error;

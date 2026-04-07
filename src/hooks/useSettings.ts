@@ -21,8 +21,16 @@ export const API_KEYS = {
   EMAIL_API_BASE_URL: "email_api_base_url",
   NOTION: "notion_api_key",
   APOLLO: "apollo_api_key",
-  LINKEDIN_CLIENT_ID: "linkedin_client_id",
-  LINKEDIN_CLIENT_SECRET: "linkedin_client_secret",
+  // Interactive Brokers — personal workspace (Melly) only. Prefixed with the
+  // workspace slug so no other workspace can read or write these values.
+  IBKR_FLEX_TOKEN: "melly_ibkr_flex_token",
+  IBKR_FLEX_QUERY_POSITIONS: "melly_ibkr_flex_query_positions",
+  IBKR_FLEX_QUERY_TRADES: "melly_ibkr_flex_query_trades",
+  IBKR_FLEX_QUERY_CASH: "melly_ibkr_flex_query_cash",
+  FMP_API_KEY: "melly_fmp_api_key",
+  MS_GRAPH_TENANT_ID: "ms_graph_tenant_id",
+  MS_GRAPH_CLIENT_ID: "ms_graph_client_id",
+  MS_GRAPH_CLIENT_SECRET: "ms_graph_client_secret",
 } as const;
 
 export type ApiKeyName = (typeof API_KEYS)[keyof typeof API_KEYS];

@@ -995,3 +995,21 @@ pub async fn val_compute_dependencies(domain: String) -> CmdResult<DependencyRes
         ),
     })
 }
+
+/// Read the pre-computed dependencies.json for a domain.
+/// Returns the full DependencyReport if the file exists.
+#[command]
+pub async fn val_sync_get_dependencies(domain: String) -> CmdResult<DependencyReport> {
+    let domain_config = get_domain_config(&domain)?;
+    let dep_path = format!("{}/dependencies.json", domain_config.global_path);
+
+    let content = fs::read_to_string(&dep_path).map_err(|_| {
+        crate::commands::error::CommandError::NotFound(format!(
+            "dependencies.json not found for domain '{}'. Run sync first.",
+            domain
+        ))
+    })?;
+
+    let report: DependencyReport = serde_json::from_str(&content)?;
+    Ok(report)
+}

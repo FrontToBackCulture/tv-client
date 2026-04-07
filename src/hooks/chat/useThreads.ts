@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import { chatKeys } from "./keys";
 
+export type ThreadOrigin = "direct" | "automation" | "project";
+
 export interface Thread {
   id: string;
   entity_type: string;
@@ -13,6 +15,8 @@ export interface Thread {
   author: string;
   body: string;
   title: string | null;
+  session_id: string | null;
+  origin: ThreadOrigin;
   created_at: string;
   last_activity_at: string;
   message_count: number;
@@ -30,7 +34,7 @@ export function useThreads() {
       // so we process oldest first and the first message becomes the title
       const { data, error } = await supabase
         .from("discussions")
-        .select("id, entity_type, entity_id, author, body, title, created_at, last_activity_at")
+        .select("id, entity_type, entity_id, author, body, title, session_id, origin, created_at, last_activity_at")
         .is("parent_id", null)
         .order("created_at", { ascending: true })
         .limit(500);

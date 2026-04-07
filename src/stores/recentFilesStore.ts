@@ -2,7 +2,8 @@
 // Global store for recent files using Zustand with localStorage persistence
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 import { sgtMidnightToday } from "../lib/date";
 
 const MAX_RECENT_FILES = 20;
@@ -55,6 +56,7 @@ export const useRecentFilesStore = create<RecentFilesState>()(
     }),
     {
       name: "tv-client-recent-files",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
     }
   )
 );

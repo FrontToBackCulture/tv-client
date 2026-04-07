@@ -1,4 +1,4 @@
-// React Flow canvas — renders automation nodes + edges
+// React Flow canvas — renders automation nodes + edges with full DAG editing
 
 import { useCallback, useEffect, useRef, useMemo } from "react";
 import {
@@ -7,14 +7,26 @@ import {
   Controls,
   useNodesState,
   useEdgesState,
+  addEdge,
+  type OnConnect,
   type OnNodeDrag,
+  type OnNodesDelete,
+  type OnEdgesDelete,
   type Viewport,
+  type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./canvas.css";
-import { useUpdateNodePosition, useUpdateViewport } from "@/hooks/scheduler";
+import {
+  useUpdateNodePosition,
+  useUpdateViewport,
+  useAddEdge,
+  useDeleteNode,
+  useDeleteEdge,
+} from "@/hooks/scheduler";
 import { nodeTypes } from "./nodes";
-import { toReactFlowNodes, toReactFlowEdges } from "./utils";
+import { NodePalette } from "./NodePalette";
+import { toReactFlowNodes, toReactFlowEdges, computeLoopGroups } from "./utils";
 import type { AutomationGraph, AutomationNodeRow } from "./types";
 
 interface Props {
@@ -26,11 +38,17 @@ interface Props {
 export function AutomationCanvas({ automation, isRunning, onNodeSelect }: Props) {
   const updatePosition = useUpdateNodePosition();
   const updateViewport = useUpdateViewport();
+  const addEdgeMutation = useAddEdge();
+  const deleteNodeMutation = useDeleteNode();
+  const deleteEdgeMutation = useDeleteEdge();
   const viewportTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const rfNodes = useMemo(
-    () => toReactFlowNodes(automation.nodes, automation.id, automation.automation_type, isRunning),
-    [automation.nodes, automation.id, automation.automation_type, isRunning],
+    () => [
+      ...toReactFlowNodes(automation.nodes, automation.id, isRunning),
+      ...computeLoopGroups(automation.nodes, automation.edges, automation.id, isRunning),
+    ],
+    [automation.nodes, automation.edges, automation.id, isRunning],
   );
   const rfEdges = useMemo(
     () => toReactFlowEdges(automation.edges),
@@ -40,9 +58,45 @@ export function AutomationCanvas({ automation, isRunning, onNodeSelect }: Props)
   const [nodes, setNodes, onNodesChange] = useNodesState(rfNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(rfEdges);
 
-  // Sync when upstream data changes (async load, config update, etc.)
+  // Sync when upstream data changes
   useEffect(() => { setNodes(rfNodes); }, [rfNodes, setNodes]);
   useEffect(() => { setEdges(rfEdges); }, [rfEdges, setEdges]);
+
+  // Edge creation: drag from source handle → target handle
+  const onConnect: OnConnect = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target) return;
+
+    // Optimistic local update
+    setEdges((eds) => addEdge({ ...connection, type: "smoothstep" }, eds));
+
+    // Persist to Supabase
+    addEdgeMutation.mutate({
+      automationId: automation.id,
+      sourceNodeId: connection.source,
+      targetNodeId: connection.target,
+    });
+  }, [automation.id, addEdgeMutation, setEdges]);
+
+  // Node deletion
+  const onNodesDelete: OnNodesDelete = useCallback((deleted) => {
+    for (const node of deleted) {
+      deleteNodeMutation.mutate({
+        nodeId: node.id,
+        automationId: automation.id,
+      });
+    }
+    onNodeSelect(null);
+  }, [automation.id, deleteNodeMutation, onNodeSelect]);
+
+  // Edge deletion
+  const onEdgesDelete: OnEdgesDelete = useCallback((deleted) => {
+    for (const edge of deleted) {
+      deleteEdgeMutation.mutate({
+        edgeId: edge.id,
+        automationId: automation.id,
+      });
+    }
+  }, [automation.id, deleteEdgeMutation]);
 
   // Persist node position on drag end
   const onNodeDragStop: OnNodeDrag = useCallback((_, node) => {
@@ -84,12 +138,15 @@ export function AutomationCanvas({ automation, isRunning, onNodeSelect }: Props)
   };
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodesDelete={onNodesDelete}
+        onEdgesDelete={onEdgesDelete}
         nodeTypes={nodeTypes}
         onNodeDragStop={onNodeDragStop}
         onNodeClick={onNodeClick}
@@ -100,7 +157,7 @@ export function AutomationCanvas({ automation, isRunning, onNodeSelect }: Props)
         fitViewOptions={{ padding: 0.3 }}
         nodesDraggable
         edgesReconnectable={false}
-        deleteKeyCode={null}
+        deleteKeyCode="Backspace"
         panOnScroll
         zoomOnScroll
         snapToGrid
@@ -114,6 +171,9 @@ export function AutomationCanvas({ automation, isRunning, onNodeSelect }: Props)
           className="!bg-white dark:!bg-zinc-900 !border-zinc-200 dark:!border-zinc-800 !shadow-sm [&>button]:!bg-white dark:[&>button]:!bg-zinc-900 [&>button]:!border-zinc-200 dark:[&>button]:!border-zinc-800 [&>button]:!text-zinc-600 dark:[&>button]:!text-zinc-400"
         />
       </ReactFlow>
+
+      {/* Node palette — floating top-right */}
+      <NodePalette automationId={automation.id} />
     </div>
   );
 }

@@ -6,7 +6,6 @@ export { ModuleDetailPanel } from "./ModuleDetailPanel";
 export { ConnectorDetailPanel } from "./ConnectorDetailPanel";
 export { FeatureListView } from "./FeatureListView";
 export { FeatureDetailPanel } from "./FeatureDetailPanel";
-export { SolutionCardView } from "./SolutionCardView";
 export { SolutionDetailPanel } from "./SolutionDetailPanel";
 export { ReleaseListView } from "./ReleaseListView";
 export { ReleaseDetailPanel } from "./ReleaseDetailPanel";

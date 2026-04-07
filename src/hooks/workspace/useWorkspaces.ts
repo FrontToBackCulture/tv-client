@@ -159,6 +159,7 @@ export function useWorkspace(id: string | null) {
         lead: project.lead,
         color: project.color,
         identifier_prefix: project.identifier_prefix,
+        folder_path: (project as any).folder_path ?? null,
       } as any;
     },
     enabled: !!id,
@@ -258,6 +259,24 @@ export function useDeleteWorkspace() {
   });
 }
 
+/** Fetch artifacts for a task (separate from project-scoped artifacts) */
+export function useTaskArtifacts(taskId: string | null) {
+  return useQuery({
+    queryKey: ["task-artifacts", taskId || ""],
+    enabled: !!taskId,
+    queryFn: async () => {
+      if (!taskId) return [];
+      const { data, error } = await supabase
+        .from("project_artifacts")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(`Failed to fetch task artifacts: ${error.message}`);
+      return data ?? [];
+    },
+  });
+}
+
 export function useAddArtifact() {
   const queryClient = useQueryClient();
 
@@ -269,7 +288,12 @@ export function useAddArtifact() {
       if (error) throw new Error(`Failed to add artifact: ${error.message}`);
     },
     onSuccess: (_, artifact) => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(artifact.project_id || "") });
+      if (artifact.project_id) {
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(artifact.project_id) });
+      }
+      if ((artifact as any).task_id) {
+        queryClient.invalidateQueries({ queryKey: ["task-artifacts", (artifact as any).task_id] });
+      }
     },
   });
 }
@@ -278,13 +302,13 @@ export function useRemoveArtifact() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, workspaceId }: { id: string; workspaceId: string }): Promise<void> => {
+    mutationFn: async ({ id }: { id: string; workspaceId?: string; taskId?: string }): Promise<void> => {
       const { error } = await supabase.from("project_artifacts").delete().eq("id", id);
       if (error) throw new Error(`Failed to remove artifact: ${error.message}`);
-      void workspaceId;
     },
-    onSuccess: (_, { workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(workspaceId) });
+    onSuccess: (_, { workspaceId, taskId }) => {
+      if (workspaceId) queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(workspaceId) });
+      if (taskId) queryClient.invalidateQueries({ queryKey: ["task-artifacts", taskId] });
     },
   });
 }

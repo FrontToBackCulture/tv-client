@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, CheckCircle, XCircle, Loader2, Slack } from "lucide-react";
+import { Clock, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { BackButton } from "../../components/BackButton";
 import type { JobRun } from "../../hooks/scheduler";
 import { cn } from "../../lib/cn";
@@ -62,7 +62,6 @@ export function RunHistory({ runs, isLoading, onBack, title }: RunHistoryProps) 
                       )}>
                         {run.trigger}
                       </span>
-                      {run.slack_posted && <Slack size={12} className="text-zinc-400" />}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
                       <span className="text-xs text-zinc-400">

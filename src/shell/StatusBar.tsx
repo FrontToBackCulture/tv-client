@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
+import { useModuleTabStore } from "../stores/moduleTabStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { useClaudeRunStore } from "../stores/claudeRunStore";
 import { cn } from "../lib/cn";
@@ -290,7 +291,8 @@ export function StatusBar() {
                 <button
                   onClick={() => {
                     setShowJobsPanel(false);
-                    useAppStore.getState().openSettings("jobs");
+                    useAppStore.getState().setSettingsView("jobs");
+                    useModuleTabStore.getState().openTab("settings");
                   }}
                   className="w-full px-3 py-1.5 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-center border-t border-zinc-200 dark:border-zinc-800 transition-colors"
                 >

@@ -356,7 +356,6 @@ function OutputPanel({ job, onSave }: { job: Job; onSave: (f: any) => void }) {
     ? job.bot_path.split("/").filter(Boolean).pop() || "bot-mel"
     : "bot-mel";
   const [botAuthor, setBotAuthor] = useState(currentAuthor);
-  const [threadTitle, setThreadTitle] = useState(job.slack_channel_name || `${job.name} — {date} at {time}`);
 
   return (
     <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 space-y-3 bg-teal-50/50 dark:bg-teal-950/10">
@@ -403,23 +402,6 @@ function OutputPanel({ job, onSave }: { job: Job; onSave: (f: any) => void }) {
         ))}
       </div>
 
-      {/* Thread title */}
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Thread title</label>
-        <input
-          type="text"
-          value={threadTitle}
-          onChange={(e) => setThreadTitle(e.target.value)}
-          onBlur={() => onSave({ slack_channel_name: threadTitle })}
-          placeholder={`${job.name} — {date} at {time}`}
-          className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-        />
-        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          Variables: <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 rounded">{"{date}"}</code>{" "}
-          <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 rounded">{"{time}"}</code>{" "}
-          <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 rounded">{"{day}"}</code>
-        </div>
-      </div>
     </div>
   );
 }

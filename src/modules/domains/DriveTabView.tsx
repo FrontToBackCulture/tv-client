@@ -37,7 +37,7 @@ import {
   useValDriveScanResults,
   useValDriveScanResultsSave,
 } from "../../hooks/val-sync";
-import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
 import { SectionLoading } from "../../components/ui/DetailStates";
@@ -128,7 +128,7 @@ function getFileExtension(name: string): string {
 // ============================
 
 export function DriveTabView() {
-  const paths = useKnowledgePaths();
+  const paths = usePrimaryKnowledgePaths();
   const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
   const typeConfig = useDomainTypeConfig();

@@ -21,8 +21,13 @@ export {
   useRunningJobsStore,
   useElapsedTime,
 } from "./useSchedulerEvents";
-export { useApiTasks, type ApiTask } from "./useApiTasks";
-export { useApiTaskLogs, type ApiTaskLog } from "./useApiTaskLogs";
+export {
+  useCustomDataSources,
+  useCreateCustomDataSource,
+  useUpdateCustomDataSource,
+  useDeleteCustomDataSource,
+  type CustomDataSource,
+} from "./useCustomSources";
 export {
   useAutomations,
   useAutomationNodes,
@@ -33,5 +38,31 @@ export {
   useUpdateNodePosition,
   useUpdateViewport,
   useCreateAutomation,
+  useCloneAutomation,
   useDeleteAutomation,
+  useAddNode,
+  useDeleteNode,
+  useAddEdge,
+  useDeleteEdge,
 } from "./useAutomations";
+export {
+  useTriggerPresets,
+  useCreateTriggerPreset,
+  useUpdateTriggerPreset,
+  useDeleteTriggerPreset,
+  type TriggerPreset,
+} from "./useTriggerPresets";
+export {
+  useInstructionTemplates,
+  useCreateInstructionTemplate,
+  useUpdateInstructionTemplate,
+  useDeleteInstructionTemplate,
+  type InstructionTemplate,
+} from "./useInstructionTemplates";
+export {
+  useOutputConfigs,
+  useCreateOutputConfig,
+  useUpdateOutputConfig,
+  useDeleteOutputConfig,
+  type OutputConfig as OutputConfigRow,
+} from "./useOutputConfigs";

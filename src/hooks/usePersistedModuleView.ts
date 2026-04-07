@@ -1,7 +1,7 @@
 // src/hooks/usePersistedModuleView.ts
 // Persists the active tab/view for a module to localStorage so reload restores position.
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 export function usePersistedModuleView<T extends string>(
   moduleId: string,
@@ -29,6 +29,18 @@ export function usePersistedModuleView<T extends string>(
     },
     [key]
   );
+
+  // Listen for programmatic tab switches via custom events
+  useEffect(() => {
+    function onSwitch(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.key === key && detail?.value) {
+        setViewState(detail.value as T);
+      }
+    }
+    window.addEventListener("tv-switch-view", onSwitch);
+    return () => window.removeEventListener("tv-switch-view", onSwitch);
+  }, [key]);
 
   return [view, setView];
 }

@@ -102,3 +102,21 @@ export function useCreateActivity() {
     },
   });
 }
+
+export function useDeleteActivity() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const { error } = await supabase
+        .from("crm_activities")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw new Error(`Failed to delete activity: ${error.message}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: crmKeys.activities() });
+    },
+  });
+}

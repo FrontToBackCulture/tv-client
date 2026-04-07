@@ -52,6 +52,7 @@ struct Campaign {
     group_id: Option<String>,
     status: String,
     tokens: Option<serde_json::Value>,
+    send_channel: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -398,18 +399,6 @@ pub async fn email_send_campaign(
     api_base_url: String,
     knowledge_path: Option<String>,
 ) -> CmdResult<SendCampaignResult> {
-    // Load AWS credentials from settings
-    let settings = crate::commands::settings::load_settings()?;
-    let access_key = settings
-        .keys
-        .get("aws_access_key_id")
-        .ok_or_else(|| CommandError::Config("AWS Access Key ID not configured".into()))?;
-    let secret_key = settings
-        .keys
-        .get("aws_secret_access_key")
-        .ok_or_else(|| CommandError::Config("AWS Secret Access Key not configured".into()))?;
-
-    let ses = build_ses_client(access_key, secret_key);
     let db = get_client().await?;
 
     // Fetch campaign
@@ -421,12 +410,14 @@ pub async fn email_send_campaign(
         .await?
         .ok_or_else(|| CommandError::NotFound("Campaign not found".into()))?;
 
-    if campaign.status != "draft" && campaign.status != "scheduled" {
+    if !matches!(campaign.status.as_str(), "draft" | "scheduled" | "failed" | "partial" | "drafted") {
         return Err(CommandError::Internal(format!(
             "Campaign is already {}",
             campaign.status
         )));
     }
+
+    let use_outlook = campaign.send_channel.as_deref() == Some("outlook");
 
     let html_body = resolve_html_body(&campaign, knowledge_path.as_deref())?;
 
@@ -471,33 +462,80 @@ pub async fn email_send_campaign(
     let mut failed = 0usize;
     let mut errors: Vec<String> = Vec::new();
 
-    for contact in &contacts {
-        match send_to_contact(
-            &ses,
-            &db,
-            &campaign,
-            &html_body,
-            contact,
-            &campaign_id,
-            &api_base_url,
-            report_url.as_deref(),
-        )
-        .await
-        {
-            Ok(()) => sent += 1,
-            Err(e) => {
-                errors.push(format!("{}: {}", contact.email, e));
-                failed += 1;
-            }
-        }
+    if use_outlook {
+        // ── Outlook path: create drafts via Graph API ──
+        let graph = crate::commands::outlook::graph::GraphClient::new();
 
-        // Small delay to respect SES rate limits (14/sec)
-        tokio::time::sleep(std::time::Duration::from_millis(75)).await;
+        for contact in &contacts {
+            match draft_to_contact(
+                &graph,
+                &db,
+                &campaign,
+                &html_body,
+                contact,
+                &campaign_id,
+                &api_base_url,
+                report_url.as_deref(),
+            )
+            .await
+            {
+                Ok(()) => sent += 1,
+                Err(e) => {
+                    errors.push(format!("{}: {}", contact.email, e));
+                    failed += 1;
+                }
+            }
+
+            // Small delay to respect Graph API rate limits
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    } else {
+        // ── SES path: send directly ──
+        let settings = crate::commands::settings::load_settings()?;
+        let access_key = settings
+            .keys
+            .get("aws_access_key_id")
+            .ok_or_else(|| CommandError::Config("AWS Access Key ID not configured".into()))?;
+        let secret_key = settings
+            .keys
+            .get("aws_secret_access_key")
+            .ok_or_else(|| CommandError::Config("AWS Secret Access Key not configured".into()))?;
+
+        let ses = build_ses_client(access_key, secret_key);
+
+        for contact in &contacts {
+            match send_to_contact(
+                &ses,
+                &db,
+                &campaign,
+                &html_body,
+                contact,
+                &campaign_id,
+                &api_base_url,
+                report_url.as_deref(),
+            )
+            .await
+            {
+                Ok(()) => sent += 1,
+                Err(e) => {
+                    errors.push(format!("{}: {}", contact.email, e));
+                    failed += 1;
+                }
+            }
+
+            // Small delay to respect SES rate limits (14/sec)
+            tokio::time::sleep(std::time::Duration::from_millis(75)).await;
+        }
     }
 
     // Update campaign status based on results
     let now = chrono::Utc::now().to_rfc3339();
-    let new_status = if failed == 0 { "sent" } else if sent == 0 { "failed" } else { "partial" };
+    let new_status = if use_outlook {
+        // Outlook drafts are "drafted" not "sent" — user still needs to send from Outlook
+        if failed == 0 { "drafted" } else if sent == 0 { "failed" } else { "partial" }
+    } else {
+        if failed == 0 { "sent" } else if sent == 0 { "failed" } else { "partial" }
+    };
     db.update::<serde_json::Value, serde_json::Value>(
         "email_campaigns",
         &format!("id=eq.{}", campaign_id),
@@ -820,6 +858,43 @@ async fn send_to_contact(
                 .await;
         }
     }
+
+    Ok(())
+}
+
+/// Create an Outlook draft for a single contact via Graph API
+async fn draft_to_contact(
+    graph: &crate::commands::outlook::graph::GraphClient,
+    db: &crate::commands::supabase::SupabaseClient,
+    campaign: &Campaign,
+    html_body: &str,
+    contact: &Contact,
+    campaign_id: &str,
+    api_base_url: &str,
+    report_url: Option<&str>,
+) -> CmdResult<()> {
+    // Create sent event (need the ID for tracking URLs)
+    let event: EventRow = db
+        .insert(
+            "email_events",
+            &serde_json::json!({
+                "campaign_id": campaign_id,
+                "contact_id": contact.id,
+                "event_type": "sent",
+            }),
+        )
+        .await?;
+
+    // Replace tokens in HTML (includes tracking pixel + click tracking)
+    let personalized = replace_tokens(html_body, contact, &event.id, campaign_id, api_base_url, &campaign.subject, report_url, campaign.tokens.as_ref());
+
+    // Create draft in Outlook via Graph API
+    let to = vec![crate::commands::outlook::types::EmailAddress {
+        name: contact.name.clone().unwrap_or_default(),
+        email: contact.email.clone(),
+    }];
+
+    graph.create_draft(&to, &[], &campaign.subject, &personalized).await?;
 
     Ok(())
 }

@@ -4,7 +4,8 @@
 // double-click or editing pins the tab.
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 
 export interface Tab {
   id: string; // path as unique key
@@ -136,6 +137,7 @@ export const useTabStore = create<TabState>()(
     }),
     {
       name: "tv-client-tabs",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
       partialize: (state) => ({
         tabs: state.tabs,
         activeTabId: state.activeTabId,

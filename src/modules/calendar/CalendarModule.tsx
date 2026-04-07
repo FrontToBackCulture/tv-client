@@ -10,6 +10,7 @@ import { useOutlookAuth, useCalendarSyncStart, useCalendarSyncStatus } from "../
 import { EmptyInbox } from "../inbox/EmptyInbox";
 import { DetailLoading } from "../../components/ui/DetailStates";
 import { useAppStore } from "../../stores/appStore";
+import { useModuleTabStore } from "../../stores/moduleTabStore";
 import { useViewContextStore } from "../../stores/viewContextStore";
 
 type CalendarView = "week" | "month";
@@ -62,7 +63,8 @@ const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7am to 9pm
 
 export function CalendarModule() {
   const { data: auth, isLoading: isLoadingAuth } = useOutlookAuth();
-  const openSettings = useAppStore((s) => s.openSettings);
+  const setSettingsView = useAppStore((s) => s.setSettingsView);
+  const openTab = useModuleTabStore((s) => s.openTab);
   const [view, setView] = useState<CalendarView>("week");
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -111,7 +113,7 @@ export function CalendarModule() {
     return (
       <EmptyInbox
         message="Connect your Outlook account in Settings to view your calendar."
-        onSetup={() => openSettings("outlook")}
+        onSetup={() => { setSettingsView("outlook"); openTab("settings"); }}
       />
     );
   }

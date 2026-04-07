@@ -8,6 +8,7 @@ import { DEFAULT_MODEL, DEFAULT_SOURCES, DEFAULT_SYSTEM_PROMPT, DEFAULT_THREAD_T
 import type { DioSources } from "./dioTypes";
 import type { GatheredContext } from "./gatherContext";
 import { gatherContext, getSGTHour } from "./gatherContext";
+import { useJobsStore } from "../../stores/jobsStore";
 
 const BOT_AUTHOR = "bot-mel";
 
@@ -78,7 +79,26 @@ async function composeMessage(
   const contextData = context.sections.join("\n\n---\n\n");
 
   const basePrompt = systemPromptOverride || DEFAULT_SYSTEM_PROMPT;
-  const systemPrompt = `${basePrompt}\n\nAlways address as @${userName}.`;
+  const entityRefInstructions = `
+
+## Making entities interactive
+When you mention a specific task, project, deal, or company from the data provided, wrap it in a reference tag so the chat UI can render it as an interactive card. The user can then click it to mark done, change status, push due date, etc.
+
+Syntax: \`[[type:id|LABEL]]\` where:
+- type is one of: task, project, deal, company
+- id is the UUID from the data (the \`id\` column)
+- LABEL is the current state (e.g. BLOCKING, IN PROGRESS, STALE, OVERDUE)
+
+Examples:
+- "[[task:abc-123|OVERDUE]] Send proposal to Supergreen — they've waited since February."
+- "[[deal:def-456|STALE]] KOI Analytics — 12 days no activity."
+
+Important rules:
+- Do NOT wrap entity tags in bold/italic (\`**...**\` or \`*...*\`). The pill already has its own styling.
+- Do NOT invent ids. Only use ids that appear in the provided data.
+- Put the tag at the start of the line or sentence, followed by your commentary. The tag replaces the need to repeat the task name — the pill shows it.
+- One tag per task/deal mention is enough. Don't tag the same id twice in one paragraph.`;
+  const systemPrompt = `${basePrompt}\n\nAlways address as @${userName}.${entityRefInstructions}`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -136,6 +156,13 @@ async function postMessage(
 ): Promise<void> {
   const resolvedTitle = resolveThreadTitle(threadTitle);
 
+  // Ensure the recipient is mentioned so they appear as a participant in the
+  // chat thread list (the inbox filters by participants).
+  const mentionRe = new RegExp(`@${recipient}\\b`, "i");
+  if (!mentionRe.test(message)) {
+    message = `@${recipient} ${message}`;
+  }
+
   if (postMode === "same_thread") {
     const { data: existing } = await supabase
       .from("discussions")
@@ -156,6 +183,7 @@ async function postMessage(
           author,
           body: message,
           parent_id: existing.id,
+          origin: "automation",
         })
         .select()
         .single();
@@ -184,6 +212,7 @@ async function postMessage(
           author,
           body: message,
           title: resolvedTitle,
+          origin: "automation",
         })
         .select()
         .single();
@@ -215,6 +244,7 @@ async function postMessage(
         author,
         body: message,
         title: resolvedTitle,
+        origin: "automation",
       })
       .select()
       .single();
@@ -250,6 +280,7 @@ export async function runDioAutomation(
   queryClient: QueryClient,
   userId: string,
   userName: string,
+  trigger: "scheduled" | "manual" = "scheduled",
 ): Promise<void> {
   console.log(`[dio] Running "${automation.name}"...`);
 
@@ -257,24 +288,88 @@ export async function runDioAutomation(
   const tid = automation.thread_id || `dio:${automation.id}:daily`;
   const ttl = automation.thread_title || (pm === "same_thread" ? DEFAULT_THREAD_TITLE_SAME : DEFAULT_THREAD_TITLE_NEW);
 
+  // Lookup the parent automation row so we can record automation_id on the run
+  const { data: autoRow } = await supabase
+    .from("automations")
+    .select("id")
+    .eq("dio_id", automation.id)
+    .maybeSingle();
+
+  // Record a job_runs entry so the Activity tab shows DIO runs too
+  const runId = crypto.randomUUID();
+  const startedAt = new Date().toISOString();
+  await supabase.from("job_runs").insert({
+    id: runId,
+    job_id: null,
+    automation_id: autoRow?.id ?? null,
+    job_name: automation.name,
+    started_at: startedAt,
+    status: "running",
+    trigger,
+  });
+  queryClient.invalidateQueries({ queryKey: ["scheduler", "runs"] });
+
+  // Also push to the in-memory jobs store so the StatusBar "Jobs" indicator shows it
+  const { addJob, updateJob } = useJobsStore.getState();
+  addJob({
+    id: runId,
+    name: automation.name,
+    status: "running",
+    message: `Gathering data and composing check-in...`,
+  });
+
+  let output = "";
+  let errorMsg: string | null = null;
+  let status: "success" | "failed" = "success";
+
   try {
-    const context = await gatherContext(userId, automation.sources);
+    const context = await gatherContext(userId, automation.sources, automation.custom_source_ids, userName);
     const message = await composeMessage(context, userName, automation.system_prompt, automation.model);
 
     if (!message) {
+      output = "(nothing to report)";
       console.log(`[dio] "${automation.name}" — nothing to report`);
     } else {
+      output = message;
       await postMessage(message, userName, queryClient, pm, tid, ttl, automation.bot_author);
       console.log(`[dio] "${automation.name}" — posted as ${automation.bot_author}`);
     }
   } catch (err) {
+    status = "failed";
+    errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`[dio] "${automation.name}" error:`, err);
   }
 
+  const finishedAt = new Date().toISOString();
+  const durationSecs = (new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 1000;
+
+  // Finalize the run entry
+  await supabase
+    .from("job_runs")
+    .update({
+      finished_at: finishedAt,
+      duration_secs: durationSecs,
+      status,
+      output,
+      output_preview: output.slice(0, 500),
+      error: errorMsg,
+    })
+    .eq("id", runId);
+
+  // Update the in-memory jobs store
+  updateJob(runId, {
+    status: status === "success" ? "completed" : "failed",
+    message: status === "success" ? output.slice(0, 100) : (errorMsg || "Failed"),
+    completedAt: new Date(finishedAt),
+  });
+
   await supabase
     .from("dio_automations")
-    .update({ last_run_at: new Date().toISOString() })
+    .update({ last_run_at: finishedAt })
     .eq("id", automation.id);
+
+  queryClient.invalidateQueries({ queryKey: ["scheduler", "runs"] });
+  queryClient.invalidateQueries({ queryKey: ["scheduler", "jobs"] });
 }
 
 export async function triggerDioAutomation(
@@ -289,7 +384,7 @@ export async function triggerDioAutomation(
     console.error(`[dio] Automation ${automationId} not found`);
     return;
   }
-  await runDioAutomation(auto, queryClient, userId, userName);
+  await runDioAutomation(auto, queryClient, userId, userName, "manual");
   queryClient.invalidateQueries({ queryKey: ["dio-automations"] });
 }
 

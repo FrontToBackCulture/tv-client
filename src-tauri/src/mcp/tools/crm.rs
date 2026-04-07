@@ -135,7 +135,9 @@ pub fn tools() -> Vec<Tool> {
                     "linkedin_dm_msg": { "type": "string", "description": "Message to send if already connected on LinkedIn" },
                     "email_outreach_msg": { "type": "string", "description": "Draft email outreach message" },
                     "linkedin_connected": { "type": "boolean", "description": "Whether already connected on LinkedIn" },
-                    "edm_status": { "type": "string", "enum": ["active", "unsubscribed", "bounced"], "description": "Email deliverability status for campaigns (default: active)" }
+                    "edm_status": { "type": "string", "enum": ["active", "unsubscribed", "bounced"], "description": "Email deliverability status for campaigns (default: active)" },
+                    "source": { "type": "string", "enum": ["apollo", "web_search", "acra", "referral", "manual"], "description": "Where this contact was discovered" },
+                    "email_status": { "type": "string", "enum": ["verified", "guessed", "unknown"], "description": "Email verification confidence: verified (confirmed from official source), guessed (pattern-matched), unknown (no email found)" }
                 }),
                 vec!["name".to_string(), "email".to_string()],
             ),
@@ -162,7 +164,9 @@ pub fn tools() -> Vec<Tool> {
                     "linkedin_dm_msg": { "type": "string", "description": "Message to send if already connected on LinkedIn" },
                     "email_outreach_msg": { "type": "string", "description": "Draft email outreach message" },
                     "linkedin_connected": { "type": "boolean", "description": "Whether already connected on LinkedIn" },
-                    "edm_status": { "type": "string", "enum": ["active", "unsubscribed", "bounced"], "description": "Email deliverability status for campaigns" }
+                    "edm_status": { "type": "string", "enum": ["active", "unsubscribed", "bounced"], "description": "Email deliverability status for campaigns" },
+                    "source": { "type": "string", "enum": ["apollo", "web_search", "acra", "referral", "manual"], "description": "Where this contact was discovered" },
+                    "email_status": { "type": "string", "enum": ["verified", "guessed", "unknown"], "description": "Email verification confidence" }
                 }),
                 vec!["contact_id".to_string()],
             ),

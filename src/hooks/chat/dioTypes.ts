@@ -28,6 +28,7 @@ export interface DioAutomation {
   thread_id: string | null;
   thread_title: string | null;
   bot_author: string;
+  custom_source_ids: string[];
   last_run_at: string | null;
   created_at: string;
   updated_at: string;

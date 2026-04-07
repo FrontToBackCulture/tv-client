@@ -3,7 +3,8 @@
 // Initialized from static defaults, grows as AI Analyze and manual edits add new values.
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 import {
   DATA_CATEGORY,
   DATA_SUB_CATEGORY,
@@ -141,6 +142,7 @@ export const useClassificationStore = create<ClassificationState>()(
     }),
     {
       name: "tv-classification-values",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
       merge: (persisted, current) => {
         const p = persisted as Partial<ClassificationState> | undefined;
         const c = current as ClassificationState;

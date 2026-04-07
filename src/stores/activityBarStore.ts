@@ -2,7 +2,8 @@
 // Activity bar expand/hidden state
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 
 type SidebarMode = "expanded" | "collapsed" | "hidden";
 type SidebarTab = "nav" | "inbox" | "calendar" | "search";
@@ -27,7 +28,7 @@ interface ActivityBarState {
 export const useActivityBarStore = create<ActivityBarState>()(
   persist(
     (set, get) => ({
-      isExpanded: false,
+      isExpanded: true,
       mode: "expanded" as SidebarMode,
       activeTab: "nav" as SidebarTab,
       width: 220,
@@ -46,6 +47,9 @@ export const useActivityBarStore = create<ActivityBarState>()(
       openProject: (projectId: string) => set({ pendingProjectId: projectId, pendingTaskId: null }),
       clearPendingProject: () => set({ pendingProjectId: null }),
     }),
-    { name: "tv-client-activity-bar" }
+    {
+      name: "tv-client-activity-bar",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
+    }
   )
 );

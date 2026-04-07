@@ -2,7 +2,8 @@
 // Global store for favorites using Zustand with localStorage persistence
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 
 export interface Favorite {
   path: string;
@@ -76,6 +77,7 @@ export const useFavoritesStore = create<FavoritesState>()(
     }),
     {
       name: "tv-client-favorites",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
     }
   )
 );

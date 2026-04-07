@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use super::types::{Job, JobRun, RunStatus, RunStep, RunTrigger, ToolDetail};
+use super::action::ActionConfig;
+use super::types::{AutomationConfig, Job, JobRun, LoopConfig, RunStatus, RunStep, RunTrigger, ToolDetail};
 use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::supabase;
 
@@ -17,8 +18,6 @@ pub struct JobRow {
     pub model: String,
     pub max_budget: Option<f64>,
     pub allowed_tools: Vec<String>,
-    pub slack_webhook_url: Option<String>,
-    pub slack_channel_name: Option<String>,
     pub enabled: bool,
     pub generate_report: bool,
     pub report_prefix: Option<String>,
@@ -41,8 +40,6 @@ impl From<&Job> for JobRow {
             model: job.model.clone(),
             max_budget: job.max_budget,
             allowed_tools: job.allowed_tools.clone(),
-            slack_webhook_url: job.slack_webhook_url.clone(),
-            slack_channel_name: job.slack_channel_name.clone(),
             enabled: job.enabled,
             generate_report: job.generate_report,
             report_prefix: job.report_prefix.clone(),
@@ -84,8 +81,6 @@ impl From<JobRow> for Job {
             model: row.model,
             max_budget: row.max_budget,
             allowed_tools: row.allowed_tools,
-            slack_webhook_url: row.slack_webhook_url,
-            slack_channel_name: row.slack_channel_name,
             enabled: row.enabled,
             generate_report: row.generate_report,
             report_prefix: row.report_prefix,
@@ -105,7 +100,277 @@ impl From<JobRow> for Job {
 }
 
 // ============================================================================
-// Jobs CRUD (Supabase)
+// Unified Automation loading (reads automations + automation_nodes directly)
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+struct AutomationRow {
+    id: String,
+    name: String,
+    enabled: bool,
+    cron_expression: Option<String>,
+    active_hours: Option<String>,
+    generate_report: Option<bool>,
+    report_prefix: Option<String>,
+    sod_reports_folder: Option<String>,
+    last_run_at: Option<String>,
+    last_run_status: Option<String>,
+}
+
+/// Load all enabled automations, assembling config from automation_nodes.
+pub async fn load_automations_async() -> CmdResult<Vec<AutomationConfig>> {
+    let client = supabase::get_client().await?;
+
+    // Load all enabled automations
+    let rows: Vec<AutomationRow> = client
+        .select("automations", "enabled=eq.true&order=created_at.asc")
+        .await?;
+
+    if rows.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // Load ALL nodes for enabled automations in one query
+    let auto_ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
+    let ids_filter = format!("automation_id=in.({})", auto_ids.join(","));
+    let all_nodes: Vec<AutomationNodeRow> = client
+        .select("automation_nodes", &ids_filter)
+        .await?;
+
+    let mut configs = vec![];
+    for row in rows {
+        // Find nodes for this automation
+        let nodes: Vec<&AutomationNodeRow> = all_nodes
+            .iter()
+            .filter(|n| n.automation_id == row.id)
+            .collect();
+
+        // Extract configs from nodes
+        let mut model = "sonnet".to_string();
+        let mut bot_path: Option<String> = None;
+        let mut additional_instructions: Option<String> = None;
+        let mut cron = row.cron_expression.clone();
+        let mut active_hours = row.active_hours.clone();
+        let mut loop_config: Option<LoopConfig> = None;
+        let mut aggregation_instructions: Option<String> = None;
+
+        for node in &nodes {
+            match node.node_type.as_str() {
+                "trigger" => {
+                    // Override cron from trigger node if set
+                    if let Some(c) = node.config.get("cron_expression").and_then(|v| v.as_str()) {
+                        cron = Some(c.to_string());
+                    }
+                    if let Some(h) = node.config.get("active_hours").and_then(|v| v.as_str()) {
+                        active_hours = Some(h.to_string());
+                    }
+                }
+                "ai_process" => {
+                    if let Some(m) = node.config.get("model").and_then(|v| v.as_str()) {
+                        model = m.to_string();
+                    }
+                    bot_path = node.config.get("bot_path").and_then(|v| v.as_str()).map(|s| s.to_string());
+                    additional_instructions = node.config.get("additional_instructions")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .or_else(|| node.config.get("system_prompt").and_then(|v| v.as_str()).map(|s| s.to_string()));
+                }
+                "loop" => {
+                    loop_config = serde_json::from_value::<LoopConfig>(node.config.clone()).ok();
+                }
+                "output" => {
+                    aggregation_instructions = node.config.get("aggregation_instructions")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                }
+                _ => {}
+            }
+        }
+
+        use chrono::{DateTime, Utc};
+        let last_run_at = row.last_run_at
+            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+            .map(|t| t.with_timezone(&Utc));
+
+        configs.push(AutomationConfig {
+            id: row.id,
+            name: row.name,
+            enabled: row.enabled,
+            cron_expression: cron,
+            active_hours,
+            model,
+            bot_path,
+            additional_instructions,
+            loop_config,
+            aggregation_instructions,
+            generate_report: row.generate_report.unwrap_or(false),
+            report_prefix: row.report_prefix,
+            sod_reports_folder: row.sod_reports_folder,
+            last_run_at,
+            last_run_status: row.last_run_status.as_deref().map(|s| match s {
+                "success" => RunStatus::Success,
+                "failed" => RunStatus::Failed,
+                _ => RunStatus::Running,
+            }),
+        });
+    }
+
+    Ok(configs)
+}
+
+/// Load a single automation config by ID.
+pub async fn load_automation_async(id: &str) -> CmdResult<AutomationConfig> {
+    let client = supabase::get_client().await?;
+
+    let row = client
+        .select_single::<AutomationRow>("automations", &format!("id=eq.{}", id))
+        .await?
+        .ok_or_else(|| CommandError::NotFound(format!("Automation {} not found", id)))?;
+
+    let nodes: Vec<AutomationNodeRow> = client
+        .select("automation_nodes", &format!("automation_id=eq.{}", id))
+        .await?;
+
+    let mut model = "sonnet".to_string();
+    let mut bot_path: Option<String> = None;
+    let mut additional_instructions: Option<String> = None;
+    let mut cron = row.cron_expression.clone();
+    let mut active_hours = row.active_hours.clone();
+    let mut loop_config: Option<LoopConfig> = None;
+    let mut aggregation_instructions: Option<String> = None;
+
+    for node in &nodes {
+        match node.node_type.as_str() {
+            "trigger" => {
+                if let Some(c) = node.config.get("cron_expression").and_then(|v| v.as_str()) {
+                    cron = Some(c.to_string());
+                }
+                if let Some(h) = node.config.get("active_hours").and_then(|v| v.as_str()) {
+                    active_hours = Some(h.to_string());
+                }
+            }
+            "ai_process" => {
+                if let Some(m) = node.config.get("model").and_then(|v| v.as_str()) {
+                    model = m.to_string();
+                }
+                bot_path = node.config.get("bot_path").and_then(|v| v.as_str()).map(|s| s.to_string());
+                additional_instructions = node.config.get("additional_instructions")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .or_else(|| node.config.get("system_prompt").and_then(|v| v.as_str()).map(|s| s.to_string()));
+            }
+            "loop" => {
+                loop_config = serde_json::from_value::<LoopConfig>(node.config.clone()).ok();
+            }
+            "output" => {
+                aggregation_instructions = node.config.get("aggregation_instructions")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+            }
+            _ => {}
+        }
+    }
+
+    use chrono::{DateTime, Utc};
+    let last_run_at = row.last_run_at
+        .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+        .map(|t| t.with_timezone(&Utc));
+
+    Ok(AutomationConfig {
+        id: row.id,
+        name: row.name,
+        enabled: row.enabled,
+        cron_expression: cron,
+        active_hours,
+        model,
+        bot_path,
+        additional_instructions,
+        loop_config,
+        aggregation_instructions,
+        generate_report: row.generate_report.unwrap_or(false),
+        report_prefix: row.report_prefix,
+        sod_reports_folder: row.sod_reports_folder,
+        last_run_at,
+        last_run_status: row.last_run_status.as_deref().map(|s| match s {
+            "success" => RunStatus::Success,
+            "failed" => RunStatus::Failed,
+            _ => RunStatus::Running,
+        }),
+    })
+}
+
+/// Update run status directly on the automations table.
+pub async fn update_automation_run_status(
+    id: &str,
+    status: &RunStatus,
+    ran_at: chrono::DateTime<chrono::Utc>,
+) -> CmdResult<()> {
+    let client = supabase::get_client().await?;
+    let status_str = match status {
+        RunStatus::Running => "running",
+        RunStatus::Success => "success",
+        RunStatus::Failed => "failed",
+    };
+    let data = serde_json::json!({
+        "last_run_status": status_str,
+        "last_run_at": ran_at.to_rfc3339(),
+        "updated_at": chrono::Utc::now().to_rfc3339(),
+    });
+    client
+        .update::<_, serde_json::Value>("automations", &format!("id=eq.{}", id), &data)
+        .await?;
+    Ok(())
+}
+
+/// Load data source SQL queries for an automation's data_source node.
+/// Reads custom_source_ids from the data_source node, then fetches the SQL from custom_data_sources.
+pub async fn load_data_source_queries(automation_id: &str) -> CmdResult<Vec<String>> {
+    let client = supabase::get_client().await?;
+    let query = format!("automation_id=eq.{}&node_type=eq.data_source", automation_id);
+    let nodes: Vec<AutomationNodeRow> = client.select("automation_nodes", &query).await?;
+
+    let mut source_ids: Vec<String> = vec![];
+    for node in &nodes {
+        if let Some(ids) = node.config.get("custom_source_ids").and_then(|v| v.as_array()) {
+            for id in ids {
+                if let Some(s) = id.as_str() {
+                    source_ids.push(s.to_string());
+                }
+            }
+        }
+    }
+
+    if source_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct DataSourceRow {
+        sql_query: String,
+    }
+
+    let ids_filter = format!("id=in.({})", source_ids.join(","));
+    let rows: Vec<DataSourceRow> = client.select("custom_data_sources", &ids_filter).await?;
+    Ok(rows.into_iter().map(|r| r.sql_query).collect())
+}
+
+/// Load action configs for an automation (by automation ID directly).
+pub async fn load_action_configs_for_automation(automation_id: &str) -> CmdResult<Vec<ActionConfig>> {
+    let client = supabase::get_client().await?;
+    let query = format!("automation_id=eq.{}&node_type=eq.action", automation_id);
+    let nodes: Vec<AutomationNodeRow> = client.select("automation_nodes", &query).await?;
+
+    let mut configs = vec![];
+    for node in nodes {
+        if let Ok(config) = serde_json::from_value::<ActionConfig>(node.config) {
+            configs.push(config);
+        }
+    }
+    Ok(configs)
+}
+
+// ============================================================================
+// Jobs CRUD (Supabase) — DEPRECATED: kept for backward compatibility
 // ============================================================================
 
 pub async fn load_jobs_async() -> CmdResult<Vec<Job>> {
@@ -160,7 +425,7 @@ pub async fn update_job_run_status(
     Ok(())
 }
 
-/// Reset any jobs stuck in "running" status back to "failed".
+/// Reset any jobs and automations stuck in "running" status back to "failed".
 /// Called on app startup to clean up stale state from killed processes.
 pub async fn reset_running_jobs_async() {
     match async {
@@ -173,11 +438,62 @@ pub async fn reset_running_jobs_async() {
         let _: serde_json::Value = client
             .update("jobs", "last_run_status=eq.running", &data)
             .await?;
+        // Also reset automations stuck in "running" (same issue)
+        let _: serde_json::Value = client
+            .update("automations", "last_run_status=eq.running", &data)
+            .await?;
         Ok::<(), CommandError>(())
     }.await {
-        Ok(_) => eprintln!("[scheduler] Reset stale running jobs"),
+        Ok(_) => eprintln!("[scheduler] Reset stale running jobs + automations"),
         Err(e) => eprintln!("[scheduler] Failed to reset running jobs: {}", e),
     }
+}
+
+// ============================================================================
+// Action node loading (from automation_nodes graph)
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+struct AutomationNodeRow {
+    #[allow(dead_code)]
+    id: String,
+    #[allow(dead_code)]
+    automation_id: String,
+    node_type: String,
+    config: serde_json::Value,
+}
+
+/// Load ActionConfig(s) for a job by finding its automation and action nodes.
+pub async fn load_action_configs_for_job(job_id: &str) -> CmdResult<Vec<ActionConfig>> {
+    let client = supabase::get_client().await?;
+
+    // Find the automation that references this job
+    let query = format!("job_id=eq.{}&select=id", job_id);
+    let automations: Vec<serde_json::Value> = client.select("automations", &query).await?;
+
+    let automation_id = match automations.first() {
+        Some(a) => a.get("id").and_then(|v| v.as_str()).unwrap_or(""),
+        None => return Ok(vec![]),
+    };
+
+    if automation_id.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // Load action nodes for this automation
+    let query = format!("automation_id=eq.{}&node_type=eq.action", automation_id);
+    let nodes: Vec<AutomationNodeRow> = client.select("automation_nodes", &query).await?;
+
+    let mut configs = vec![];
+    for node in nodes {
+        if node.node_type == "action" {
+            if let Ok(config) = serde_json::from_value::<ActionConfig>(node.config) {
+                configs.push(config);
+            }
+        }
+    }
+
+    Ok(configs)
 }
 
 // ============================================================================
@@ -187,8 +503,11 @@ pub async fn reset_running_jobs_async() {
 #[derive(Debug, Serialize, Deserialize)]
 struct RunRow {
     id: String,
-    job_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    job_id: Option<String>,
     job_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    automation_id: Option<String>,
     started_at: String,
     finished_at: Option<String>,
     duration_secs: Option<f64>,
@@ -196,7 +515,6 @@ struct RunRow {
     output: Option<String>,
     output_preview: Option<String>,
     error: Option<String>,
-    slack_posted: bool,
     trigger: String,
     cost_usd: Option<f64>,
     input_tokens: Option<i64>,
@@ -208,10 +526,19 @@ struct RunRow {
 
 impl From<&JobRun> for RunRow {
     fn from(run: &JobRun) -> Self {
+        // If automation_id is set, don't send job_id (FK constraint to jobs table would fail)
+        let job_id = if run.automation_id.is_some() {
+            None
+        } else if run.job_id.is_empty() {
+            None
+        } else {
+            Some(run.job_id.clone())
+        };
         RunRow {
             id: run.id.clone(),
-            job_id: run.job_id.clone(),
+            job_id,
             job_name: run.job_name.clone(),
+            automation_id: run.automation_id.clone(),
             started_at: run.started_at.to_rfc3339(),
             finished_at: run.finished_at.map(|t| t.to_rfc3339()),
             duration_secs: run.duration_secs,
@@ -224,7 +551,6 @@ impl From<&JobRun> for RunRow {
             output: Some(run.output.clone()),
             output_preview: Some(run.output_preview.clone()),
             error: run.error.clone(),
-            slack_posted: run.slack_posted,
             trigger: match run.trigger {
                 RunTrigger::Scheduled => "scheduled",
                 RunTrigger::Manual => "manual",
@@ -254,8 +580,9 @@ impl From<RunRow> for JobRun {
 
         JobRun {
             id: row.id,
-            job_id: row.job_id,
+            job_id: row.job_id.unwrap_or_default(),
             job_name: row.job_name,
+            automation_id: row.automation_id,
             started_at,
             finished_at,
             duration_secs: row.duration_secs,
@@ -267,7 +594,6 @@ impl From<RunRow> for JobRun {
             output: row.output.unwrap_or_default(),
             output_preview: row.output_preview.unwrap_or_default(),
             error: row.error,
-            slack_posted: row.slack_posted,
             trigger: match row.trigger.as_str() {
                 "manual" => RunTrigger::Manual,
                 _ => RunTrigger::Scheduled,

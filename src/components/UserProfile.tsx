@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect } from "react";
 import { LogOut, User, Github, ChevronDown, Settings } from "lucide-react";
 import { useAuth, useUserInfo } from "../stores/authStore";
-import { useAppStore } from "../stores/appStore";
+import { useModuleTabStore } from "../stores/moduleTabStore";
 import { cn } from "../lib/cn";
 
 interface UserProfileProps {
@@ -14,7 +14,7 @@ interface UserProfileProps {
 export function UserProfile({ collapsed = false }: UserProfileProps) {
   const { signOut, isLoading } = useAuth();
   const userInfo = useUserInfo();
-  const openSettings = useAppStore((s) => s.openSettings);
+  const openSettingsTab = useModuleTabStore((s) => s.openTab);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -161,7 +161,7 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
             <button
               onClick={() => {
                 setShowDropdown(false);
-                openSettings();
+                openSettingsTab("settings");
               }}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded transition-colors"
             >

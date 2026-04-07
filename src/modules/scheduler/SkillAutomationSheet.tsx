@@ -60,8 +60,6 @@ export function SkillAutomationSheet({ job, onSubmit, onClose, isLoading }: Skil
   const [name, setName] = useState(job?.name ?? "");
   const [cronExpression, setCronExpression] = useState(job?.cron_expression ?? "0 9 * * 1-5");
   const [model, setModel] = useState(job?.model ?? "sonnet");
-  const [slackWebhookUrl, setSlackWebhookUrl] = useState(job?.slack_webhook_url ?? "");
-  const [slackChannelName, setSlackChannelName] = useState(job?.slack_channel_name ?? "");
   const [enabled, setEnabled] = useState(job?.enabled ?? true);
   const [generateReport, setGenerateReport] = useState(job?.generate_report ?? false);
   const [reportPrefix, setReportPrefix] = useState(job?.report_prefix ?? "");
@@ -138,8 +136,6 @@ export function SkillAutomationSheet({ job, onSubmit, onClose, isLoading }: Skil
       cron_expression: cronExpression.trim() || null,
       model,
       allowed_tools: [],
-      slack_webhook_url: slackWebhookUrl.trim() || null,
-      slack_channel_name: slackChannelName.trim() || null,
       enabled,
       generate_report: generateReport,
       report_prefix: reportPrefix.trim() || null,
@@ -312,27 +308,6 @@ export function SkillAutomationSheet({ job, onSubmit, onClose, isLoading }: Skil
               <option value="opus">Opus (powerful)</option>
             </Select>
           </FormField>
-
-          {/* Slack */}
-          <FormField label="Slack Webhook URL">
-            <Input
-              type="url"
-              value={slackWebhookUrl}
-              onChange={(e) => setSlackWebhookUrl(e.target.value)}
-              placeholder="https://hooks.slack.com/services/..."
-            />
-          </FormField>
-
-          {slackWebhookUrl && (
-            <FormField label="Channel Name">
-              <Input
-                type="text"
-                value={slackChannelName}
-                onChange={(e) => setSlackChannelName(e.target.value)}
-                placeholder="#ops-alerts"
-              />
-            </FormField>
-          )}
 
           {/* Toggles */}
           <div className="flex items-center gap-6">

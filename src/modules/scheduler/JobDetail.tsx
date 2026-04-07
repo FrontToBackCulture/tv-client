@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  Play, Clock, Terminal, Hash, Slack, Loader2,
+  Play, Clock, Terminal, Hash, Loader2,
   CheckCircle, XCircle, FileText, ChevronDown, ChevronRight, Pencil, Puzzle, Square,
 } from "lucide-react";
 import type { SchedulerJob, JobRun, RunStep } from "../../hooks/scheduler";
@@ -119,15 +119,6 @@ export function JobDetail({ job, runs, onRunNow, onEdit, onStopJob }: JobDetailP
             </div>
           </div>
         )}
-        {job.slack_channel_name && (
-          <div className="flex items-start gap-2">
-            <Slack size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Slack</p>
-              <p className="text-xs text-zinc-500">{job.slack_channel_name}</p>
-            </div>
-          </div>
-        )}
         <div className="flex items-start gap-2">
           <FileText size={12} className="text-zinc-400 mt-0.5 flex-shrink-0" />
           <div>
@@ -180,7 +171,6 @@ export function JobDetail({ job, runs, onRunNow, onEdit, onStopJob }: JobDetailP
                     ${run.cost_usd.toFixed(2)}
                   </span>
                 )}
-                {run.slack_posted && <Slack size={10} className="text-zinc-300" />}
                 <FileText size={12} className="text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             ))}
@@ -226,9 +216,6 @@ function RunOutputViewer({ run, onBack }: { run: JobRun; onBack: () => void }) {
             )}
             {run.cost_usd != null && run.cost_usd > 0 && (
               <span className="text-xs text-zinc-400">${run.cost_usd.toFixed(4)}</span>
-            )}
-            {run.slack_posted && (
-              <span className="text-xs text-emerald-500">Slack posted</span>
             )}
           </div>
         </div>

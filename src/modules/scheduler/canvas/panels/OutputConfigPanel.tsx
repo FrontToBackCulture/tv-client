@@ -1,6 +1,6 @@
 // Output node config panel
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useBots } from "@/hooks/useBotSkills";
 import { DEFAULT_THREAD_TITLE_NEW, DEFAULT_THREAD_TITLE_SAME } from "@/hooks/chat/useTaskAdvisor";
 import { cn } from "@/lib/cn";
@@ -14,7 +14,11 @@ interface Props {
 export function OutputConfigPanel({ config, onChange }: Props) {
   const { data: bots } = useBots();
   const [threadTitle, setThreadTitle] = useState(config.thread_title ?? "");
-  const [threadId, setThreadId] = useState(config.thread_id ?? "");
+  const [aggInstructions, setAggInstructions] = useState(config.aggregation_instructions ?? "");
+
+  useEffect(() => {
+    setAggInstructions(config.aggregation_instructions ?? "");
+  }, [config.aggregation_instructions]);
 
   return (
     <div className="space-y-4">
@@ -78,31 +82,23 @@ export function OutputConfigPanel({ config, onChange }: Props) {
         </p>
       </div>
 
-      {/* Thread ID (same_thread only) */}
-      {config.post_mode === "same_thread" && (
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Thread ID</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={threadId}
-              onChange={(e) => setThreadId(e.target.value)}
-              onBlur={() => onChange({ ...config, thread_id: threadId || null })}
-              className="flex-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 px-2.5 py-1.5 text-zinc-900 dark:text-zinc-100 font-mono"
-            />
-            <button
-              onClick={() => {
-                const newId = `auto:${Date.now()}`;
-                setThreadId(newId);
-                onChange({ ...config, thread_id: newId });
-              }}
-              className="text-xs px-2.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Aggregation instructions (optional — used by loop automations) */}
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+          Aggregation instructions <span className="text-zinc-400 font-normal">(optional)</span>
+        </label>
+        <textarea
+          value={aggInstructions}
+          onChange={(e) => setAggInstructions(e.target.value)}
+          onBlur={() => onChange({ ...config, aggregation_instructions: aggInstructions || null })}
+          rows={4}
+          placeholder="e.g. Summarize all results into a table with columns: Company, Outlets, Contacts Found, VAL Fit"
+          className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-y"
+        />
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          When set, runs a final Claude call after all loop iterations to summarize/format the output before posting.
+        </p>
+      </div>
     </div>
   );
 }

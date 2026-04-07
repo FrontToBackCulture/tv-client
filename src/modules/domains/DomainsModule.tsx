@@ -20,7 +20,7 @@ import { PageHeader } from "../../components/PageHeader";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useNotificationNavStore } from "../../stores/notificationNavStore";
 import { useDiscoverDomains } from "../../hooks/val-sync";
-import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { UnifiedReviewView } from "./UnifiedReviewView";
 import type { ReviewResourceType } from "./reviewTypes";
 import { DomainsOverview } from "./DomainsOverview";
@@ -32,9 +32,27 @@ import { HealthDashboard } from "./HealthDashboard";
 type Level1Tab = "overview" | "data-models" | "queries" | "workflows" | "dashboards" | "drive" | "reports" | "health";
 type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
 
+// Read a URL query param (returns null if absent)
+function getUrlParam(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(key);
+}
+
+// Update URL query params without triggering navigation
+function setUrlParams(updates: Record<string, string | null>) {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+  for (const [k, v] of Object.entries(updates)) {
+    if (v === null) params.delete(k);
+    else params.set(k, v);
+  }
+  const target = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+  window.history.replaceState({}, "", target);
+}
+
 export function DomainsModule() {
-  // Two-level navigation state
-  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  // Two-level navigation state — initialise from URL params so refresh preserves position
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(() => getUrlParam("domain") ?? getUrlParam("review"));
   const [activeTab, setActiveTab] = usePersistedModuleView<Level1Tab>("domains", "overview");
 
   // Handle notification navigation
@@ -68,8 +86,17 @@ export function DomainsModule() {
   }, [setViewContext, setViewDetail, selectedDomain, activeTab]);
 
   // Review escape hatch (full-screen review for a specific domain's artifacts)
-  const [reviewingDomain, setReviewingDomain] = useState<string | null>(null);
-  const [reviewType, setReviewType] = useState<ReviewType>("data-models");
+  const [reviewingDomain, setReviewingDomain] = useState<string | null>(() => getUrlParam("review"));
+  const [reviewType, setReviewType] = useState<ReviewType>(() => (getUrlParam("reviewType") as ReviewType) || "data-models");
+
+  // Sync selectedDomain + review state to URL query params
+  useEffect(() => {
+    setUrlParams({
+      domain: selectedDomain,
+      review: reviewingDomain,
+      reviewType: reviewingDomain ? reviewType : null,
+    });
+  }, [selectedDomain, reviewingDomain, reviewType]);
 
   // Report review mode context for help bot
   useEffect(() => {
@@ -86,7 +113,7 @@ export function DomainsModule() {
   }, [reviewingDomain, reviewType, setViewContext, setViewDetail]);
 
   // Domain discovery (for review escape hatch path resolution + Level 2)
-  const paths = useKnowledgePaths();
+  const paths = usePrimaryKnowledgePaths();
   const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
 

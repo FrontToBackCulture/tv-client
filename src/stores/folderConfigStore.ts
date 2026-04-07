@@ -2,7 +2,8 @@
 // Persisted store for configurable knowledge base folder names
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 import { FolderConfig, FOLDER_CONFIG_DEFAULTS } from "../lib/folderConfig";
 
 interface FolderConfigState {
@@ -21,6 +22,9 @@ export const useFolderConfigStore = create<FolderConfigState>()(
         })),
       resetToDefaults: () => set({ config: { ...FOLDER_CONFIG_DEFAULTS } }),
     }),
-    { name: "tv-client-folder-config" }
+    {
+      name: "tv-client-folder-config",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
+    }
   )
 );

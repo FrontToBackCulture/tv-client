@@ -34,8 +34,9 @@ import { GitHubSyncConfigEditor } from "./GitHubSyncConfigEditor";
 import { Button } from "../../components/ui";
 
 export function GitHubSyncPanel() {
-  const { accessToken, provider } = useAuth();
-  const githubToken = provider === "github" ? accessToken : null;
+  const user = useAuth((s) => s.user);
+  const session = useAuth((s) => s.session);
+  const githubToken = user?.provider === "github" ? session?.provider_token ?? null : null;
   const { data: config, isLoading: configLoading } = useGitHubSyncConfig();
   const importConfig = useGitHubSyncImportConfig();
   const initDefault = useGitHubSyncInitDefault();

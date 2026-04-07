@@ -35,7 +35,6 @@ const allModules: ModuleInfo[] = [
   { id: "portal", label: "Portal", description: "Client portal management" },
   { id: "public-data", label: "Public Data", description: "Public data management" },
   { id: "skills", label: "Skills", description: "Skill registry, catalog, and prompt builder" },
-  { id: "linkedin", label: "LinkedIn", description: "LinkedIn outreach" },
   { id: "product", label: "Product", description: "Product documentation" },
   { id: "scheduler", label: "Scheduler", description: "Task scheduler" },
   { id: "repos", label: "Repos", description: "Repository management" },
@@ -382,7 +381,16 @@ export function TeamView() {
   const members = useTeamConfigStore((s) => s.getAllMembers());
   const [expandedLogin, setExpandedLogin] = useState<string | null>(null);
 
-  const memberEntries = Object.entries(members);
+  // Deduplicate: the store indexes members by both github_username AND
+  // microsoft_email when both exist, so the same person appears twice.
+  // Keep only the first entry per unique member name+email combo.
+  const seen = new Set<string>();
+  const memberEntries = Object.entries(members).filter(([, member]) => {
+    const key = `${member.name}::${member.email}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   return (
     <div className="space-y-6">

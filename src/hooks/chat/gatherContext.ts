@@ -133,6 +133,7 @@ export async function gatherMyTasks(userId: string): Promise<TaskSnapshot> {
 // Additional data sources
 // ---------------------------------------------------------------------------
 
+// @ts-expect-error — kept for potential future use
 async function gatherActiveDeals(): Promise<string | null> {
   const { data: deals } = await supabase
     .from("projects")
@@ -180,6 +181,7 @@ async function gatherRecentEmails(): Promise<string | null> {
   }
 }
 
+// @ts-expect-error — kept for potential future use
 async function gatherProjectUpdates(_userId: string): Promise<string | null> {
   const { data: projects } = await supabase
     .from("projects")
@@ -283,12 +285,17 @@ export interface GatheredContext {
   sections: string[];
 }
 
-export async function gatherContext(userId: string, sources: DioSources): Promise<GatheredContext> {
+export async function gatherContext(
+  userId: string,
+  sources: DioSources,
+  customSourceIds?: string[],
+  userName?: string,
+): Promise<GatheredContext> {
+  // Note: tasks/deals/projects are now handled via custom_data_sources (system sources).
+  // Only emails and calendar remain as code-based built-in sources since they need
+  // the Outlook Tauri bridge and can't be SQL queries.
   const results = await Promise.allSettled([
-    sources.tasks ? gatherMyTasks(userId).then(buildPromptData) : Promise.resolve(null),
-    sources.deals ? gatherActiveDeals() : Promise.resolve(null),
     sources.emails ? gatherRecentEmails() : Promise.resolve(null),
-    sources.projects ? gatherProjectUpdates(userId) : Promise.resolve(null),
     sources.calendar ? gatherCalendarEvents() : Promise.resolve(null),
   ]);
 
@@ -297,9 +304,98 @@ export async function gatherContext(userId: string, sources: DioSources): Promis
     if (r.status === "fulfilled" && r.value) sections.push(r.value);
   }
 
+  // Execute custom SQL data sources with template variable substitution
+  if (customSourceIds?.length) {
+    const customResults = await gatherCustomSources(customSourceIds, {
+      current_user_id: userId,
+      current_user_name: userName ?? "",
+    });
+    sections.push(...customResults);
+  }
+
   sections.push(`Current time: ${getSGTTimeString()} SGT\nHours until midnight: ~${getRemainingWorkHours()}`);
 
   return { sections };
+}
+
+// ---------------------------------------------------------------------------
+// Custom SQL data sources
+// ---------------------------------------------------------------------------
+
+/**
+ * Substitute template variables in a SQL query string.
+ * Supported: {{current_user_id}}, {{current_user_name}}
+ * Values are SQL-escaped by wrapping in single quotes with `'` doubled.
+ */
+function substituteTemplateVars(sql: string, vars: Record<string, string>): string {
+  return sql.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => {
+    const value = vars[key] ?? "";
+    // SQL-escape single quotes and wrap in quotes
+    return `'${String(value).replace(/'/g, "''")}'`;
+  });
+}
+
+async function gatherCustomSources(
+  sourceIds: string[],
+  templateVars: Record<string, string>,
+): Promise<string[]> {
+  const { data: sources } = await supabase
+    .from("custom_data_sources")
+    .select("id, name, sql_query, format_template")
+    .in("id", sourceIds)
+    .eq("enabled", true);
+
+  if (!sources?.length) return [];
+
+  const results: string[] = [];
+  for (const source of sources) {
+    try {
+      const query = substituteTemplateVars(source.sql_query, templateVars);
+      console.log(`[gatherCustomSources] Running "${source.name}" with vars:`, templateVars);
+      const { data, error } = await supabase.rpc("execute_custom_query", {
+        query_text: query,
+      });
+      if (error) {
+        console.error(`[gatherCustomSources] "${source.name}" error:`, error);
+        results.push(`${source.name.toUpperCase()}: [query error: ${error.message}]`);
+        continue;
+      }
+      const rows = data as Record<string, unknown>[];
+      if (!rows?.length) {
+        results.push(`${source.name.toUpperCase()}: (no rows returned)`);
+        continue;
+      }
+      results.push(formatCustomSourceRows(source.name, rows, source.format_template));
+    } catch (e) {
+      console.error(`[gatherCustomSources] "${source.name}" exception:`, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      results.push(`${source.name.toUpperCase()}: [execution error: ${msg}]`);
+    }
+  }
+  return results;
+}
+
+function formatCustomSourceRows(
+  name: string,
+  rows: Record<string, unknown>[],
+  template: string,
+): string {
+  const header = `${name.toUpperCase()} (${rows.length}):`;
+
+  if (template === "list") {
+    const lines = rows.map((row) => {
+      const values = Object.values(row).map((v) => (v == null ? "—" : String(v)));
+      return `- ${values.join(" — ")}`;
+    });
+    return [header, ...lines].join("\n");
+  }
+
+  // Default: "table" — key: value pairs per row
+  const lines = rows.map((row) => {
+    const parts = Object.entries(row).map(([k, v]) => `${k}: ${v == null ? "—" : v}`);
+    return `- ${parts.join(", ")}`;
+  });
+  return [header, ...lines].join("\n");
 }
 
 // ---------------------------------------------------------------------------

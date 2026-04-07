@@ -19,7 +19,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
-import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useDiscoverDomains } from "../../hooks/val-sync";
 import { useFolderEntries, type FolderEntry } from "../../hooks/useFolderFiles";
 import { useReadFile, type FileEntry } from "../../hooks/useFiles";
@@ -45,7 +45,7 @@ interface ParsedSodReport {
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function CrossDomainReportsView() {
-  const paths = useKnowledgePaths();
+  const paths = usePrimaryKnowledgePaths();
   const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
 

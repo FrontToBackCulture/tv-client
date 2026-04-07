@@ -173,7 +173,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
   if (!campaign) return null;
 
   const statusDef = CAMPAIGN_STATUSES.find((s) => s.value === campaign.status);
-  const canSend = ["draft", "scheduled", "failed", "partial"].includes(campaign.status);
+  const canSend = ["draft", "scheduled", "failed", "partial", "drafted"].includes(campaign.status);
   const missingApiUrl = !apiBaseUrl;
 
   return (
@@ -246,6 +246,32 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
             suggestions={existingCategories}
             onSave={(v) => updateCampaign.mutate({ id: campaignId, updates: { category: v || null } })}
           />
+          {/* Send channel toggle */}
+          <div>
+            <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 block mb-1">Send Via</span>
+            <div className="flex gap-1">
+              {(["ses", "outlook"] as const).map((ch) => (
+                <button
+                  key={ch}
+                  onClick={() => updateCampaign.mutate({ id: campaignId, updates: { send_channel: ch } })}
+                  className={`flex-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                    campaign.send_channel === ch
+                      ? ch === "outlook"
+                        ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-400"
+                        : "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border border-teal-400"
+                      : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-400"
+                  }`}
+                >
+                  {ch === "ses" ? "SES" : "Outlook"}
+                </button>
+              ))}
+            </div>
+            <p className="text-[9px] text-zinc-400 mt-0.5">
+              {campaign.send_channel === "outlook"
+                ? "Creates drafts in your Outlook mailbox"
+                : "Sends directly via Amazon SES"}
+            </p>
+          </div>
           {campaign.content_path && (
             <div>
               <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 block mb-0.5">Content</span>
@@ -411,12 +437,12 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                 {sendCampaign.isPending ? (
                   <>
                     <Loader2 size={14} className="animate-spin" />
-                    Sending...
+                    {campaign?.send_channel === "outlook" ? "Creating Drafts..." : "Sending..."}
                   </>
                 ) : (
                   <>
                     <Send size={14} />
-                    Send
+                    {campaign?.send_channel === "outlook" ? "Create Drafts" : "Send"}
                   </>
                 )}
               </button>
@@ -436,6 +462,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                 bcc_email: campaign.bcc_email,
                 group_id: campaign.group_id,
                 tokens: campaign.tokens,
+                send_channel: campaign.send_channel,
               });
             }}
             disabled={cloneCampaign.isPending}
@@ -553,10 +580,12 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 max-w-md w-full mx-4">
               <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">
-                Send Campaign?
+                {campaign?.send_channel === "outlook" ? "Create Outlook Drafts?" : "Send Campaign?"}
               </h3>
               <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-1">
-                This will send to <strong>{sendConfirm.count} recipient{sendConfirm.count !== 1 ? "s" : ""}</strong>:
+                {campaign?.send_channel === "outlook"
+                  ? <>This will create <strong>{sendConfirm.count} draft{sendConfirm.count !== 1 ? "s" : ""}</strong> in your Outlook mailbox:</>
+                  : <>This will send to <strong>{sendConfirm.count} recipient{sendConfirm.count !== 1 ? "s" : ""}</strong>:</>}
               </p>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 max-h-32 overflow-y-auto">
                 {sendConfirm.list}
@@ -578,7 +607,7 @@ export function CampaignDetailPanel({ campaignId, onClose, onEdit }: CampaignDet
                   }}
                   className="px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
                 >
-                  Send Now
+                  {campaign?.send_channel === "outlook" ? "Create Drafts" : "Send Now"}
                 </button>
               </div>
             </div>

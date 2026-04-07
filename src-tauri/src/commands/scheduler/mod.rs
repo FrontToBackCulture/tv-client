@@ -1,5 +1,6 @@
 // Scheduler module — cron-based job execution via claude -p
 
+pub mod action;
 pub mod background;
 pub mod commands;
 pub mod runner;

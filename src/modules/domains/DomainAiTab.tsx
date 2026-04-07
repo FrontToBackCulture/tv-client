@@ -20,7 +20,7 @@ import { cn } from "../../lib/cn";
 import { SectionLoading } from "../../components/ui/DetailStates";
 import { useListDirectory, useReadFile } from "../../hooks/useFiles";
 import { MarkdownViewer } from "../library/MarkdownViewer";
-import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import {
   useGenerateAiPackage,
   useSaveDomainAiConfig,
@@ -68,7 +68,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
     }
     return map;
   }, [supabaseSkills]);
-  const paths = useKnowledgePaths();
+  const paths = usePrimaryKnowledgePaths();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<SelectedItem>({ type: "manage" });
   const [driftModal, setDriftModal] = useState<{ slug: string; name: string; targetPath: string } | null>(null);

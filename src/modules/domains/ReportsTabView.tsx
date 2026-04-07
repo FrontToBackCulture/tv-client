@@ -4,7 +4,7 @@
 import { useState, useMemo } from "react";
 import { FileText, ExternalLink, Copy, Check } from "lucide-react";
 import { SectionLoading } from "../../components/ui/DetailStates";
-import { useKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { useFolderEntries, type FolderEntry } from "../../hooks/useFolderFiles";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
@@ -29,7 +29,7 @@ function parseReportFilename(entry: FolderEntry): ParsedReport | null {
 }
 
 export function ReportsTabView() {
-  const paths = useKnowledgePaths();
+  const paths = usePrimaryKnowledgePaths();
   const reportsPath = paths ? `${paths.platform}/sod-reports` : null;
 
   const { data: entries, isLoading } = useFolderEntries(reportsPath);

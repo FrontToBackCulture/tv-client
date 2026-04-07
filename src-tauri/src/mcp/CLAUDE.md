@@ -113,6 +113,52 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
 
 MCP tool handlers call into `src-tauri/src/commands/` for the actual Supabase work. See [tv-client CLAUDE.md](../../../CLAUDE.md) Backend Patterns section for the full command pattern.
 
+## Bot Authentication
+
+tv-mcp authenticates with the gateway to get a workspace-scoped JWT. This happens automatically when `TV_BOT_API_KEY` is set in the environment.
+
+### How it works
+
+1. On first Supabase query, `get_client()` checks for `TV_BOT_API_KEY` env var
+2. If set, calls `mint_bot_jwt()` → gateway Edge Function `bot-token`
+3. Gateway validates the key hash, looks up the bot's permissions, signs a workspace JWT
+4. JWT cached in `BOT_JWT` static (auto-refreshes 5 minutes before expiry)
+5. `SupabaseClient::new_with_token()` uses the JWT in the Authorization header
+6. RLS policies on the workspace enforce permissions
+
+### Key code in `commands/supabase.rs`
+
+- `get_client()` — entry point; checks `TV_BOT_API_KEY`, mints JWT if needed, returns authenticated client
+- `get_bot_jwt()` — returns cached JWT or mints a new one
+- `mint_bot_jwt()` — calls gateway Edge Function, returns `BotToken { token, expires_at }`
+- `SupabaseClient::new_with_token()` — creates client with JWT auth instead of anon key
+- `headers()` — uses JWT in Authorization header when available, anon key as fallback
+
+### API key configuration
+
+Each bot's API key is set via the `TV_BOT_API_KEY` env var in `.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "tv-mcp": {
+      "command": "/Users/melvinwang/.tv-desktop/bin/tv-mcp",
+      "env": {
+        "TV_BOT_API_KEY": "tvbot_xxx..."
+      }
+    }
+  }
+}
+```
+
+Default key is set in `~/.claude.json` (bot-mel). Project-level `.claude/mcp.json` overrides it.
+
+### Permission enforcement
+
+The JWT contains `app_metadata.permissions` (e.g., `["general"]` or `["general", "mgmt"]`). RLS policies on the workspace Supabase check these claims. For example, the `mgmt` schema is only accessible if `"mgmt"` is in the permissions array.
+
+**If no API key is set:** Falls back to anon key access (migration compatibility). Once all bots are configured, remove the anon fallback in `is_workspace_authenticated()`.
+
 ## Supabase Query Reference
 
 ```rust

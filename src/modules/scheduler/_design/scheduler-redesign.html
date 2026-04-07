@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheduler — Automation Detail Redesign</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  /* ===== LIGHT THEME ===== */
+  .theme-light {
+    --bg-app: #F7F8FA;
+    --bg-surface: #FFFFFF;
+    --bg-surface-hover: #F4F5F7;
+    --bg-inset: #F0F1F3;
+    --bg-code: #F4F5F7;
+    --border: #E3E5E8;
+    --border-light: #ECEEF1;
+    --fg: #2C2B2A;
+    --fg-strong: #1A1918;
+    --fg-muted: #6B7280;
+    --fg-faint: #9CA3AF;
+    --accent: #0D7D85;
+    --accent-bg: #E6F7F8;
+    --success: #059669;
+    --success-bg: #ECFDF5;
+    --success-muted: #34D399;
+    --error: #DC2626;
+    --error-bg: #FEF2F2;
+    --error-muted: #F87171;
+    --warn: #D97706;
+    --warn-bg: #FFFBEB;
+    --blue: #2563EB;
+    --blue-bg: #EFF6FF;
+    --row-alt: rgba(0,0,0,0.015);
+    --sidebar-active: rgba(13,125,133,0.06);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  /* ===== DARK THEME ===== */
+  .theme-dark {
+    --bg-app: #0C0C0E;
+    --bg-surface: #18181B;
+    --bg-surface-hover: #1F1F23;
+    --bg-inset: #131316;
+    --bg-code: #1F1F23;
+    --border: #2A2A2E;
+    --border-light: #232327;
+    --fg: #D4D4D8;
+    --fg-strong: #FAFAFA;
+    --fg-muted: #71717A;
+    --fg-faint: #52525B;
+    --accent: #14B8A6;
+    --accent-bg: rgba(20,184,166,0.08);
+    --success: #34D399;
+    --success-bg: rgba(52,211,153,0.08);
+    --success-muted: #059669;
+    --error: #F87171;
+    --error-bg: rgba(248,113,113,0.08);
+    --error-muted: #DC2626;
+    --warn: #FBBF24;
+    --warn-bg: rgba(251,191,36,0.08);
+    --blue: #60A5FA;
+    --blue-bg: rgba(96,165,250,0.08);
+    --row-alt: rgba(255,255,255,0.015);
+    --sidebar-active: rgba(20,184,166,0.08);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+
+  .demo-wrapper {
+    display: flex; flex-direction: column; gap: 3rem; padding: 2rem;
+    background: #1a1a1a;
+  }
+  .demo-label {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    color: #666; text-transform: uppercase; letter-spacing: 0.1em;
+    margin-bottom: 0.5rem;
+  }
+
+  /* ===== LAYOUT ===== */
+  .scheduler {
+    display: flex; height: 680px; border-radius: 10px; overflow: hidden;
+    border: 1px solid var(--border); box-shadow: var(--shadow-md);
+    background: var(--bg-app); color: var(--fg);
+  }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar {
+    width: 260px; flex-shrink: 0; background: var(--bg-surface);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  }
+  .sidebar-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+  }
+  .sidebar-header span {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--fg-muted);
+  }
+  .sidebar-header button {
+    width: 22px; height: 22px; border-radius: 4px; border: none;
+    background: transparent; color: var(--fg-muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all 0.15s;
+  }
+  .sidebar-header button:hover { background: var(--bg-surface-hover); color: var(--accent); }
+
+  .sidebar-list { flex: 1; overflow-y: auto; padding: 6px; }
+
+  /* ===== AUTOMATION CARD (sidebar) ===== */
+  .auto-card {
+    padding: 10px 12px; border-radius: 6px; cursor: pointer;
+    margin-bottom: 2px; transition: background 0.12s;
+    border: 1px solid transparent;
+  }
+  .auto-card:hover { background: var(--bg-surface-hover); }
+  .auto-card.active {
+    background: var(--sidebar-active);
+    border-color: var(--border);
+  }
+  .auto-card-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  }
+  .auto-card-icon {
+    width: 18px; height: 18px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; flex-shrink: 0;
+  }
+  .auto-card-icon.enabled { background: var(--accent-bg); color: var(--accent); }
+  .auto-card-icon.disabled { background: var(--bg-inset); color: var(--fg-faint); }
+  .auto-card-name {
+    font-size: 12.5px; font-weight: 600; color: var(--fg-strong);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+  }
+  .auto-card-meta {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  }
+  .auto-card-status {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+  }
+  .auto-card-status .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+  .auto-card-status.success { color: var(--success); }
+  .auto-card-status.success .dot { background: var(--success); }
+  .auto-card-status.failed { color: var(--error); }
+  .auto-card-status.failed .dot { background: var(--error); }
+  .auto-card-status.running { color: var(--blue); }
+  .auto-card-status.running .dot { background: var(--blue); animation: pulse 1.5s infinite; }
+  .auto-card-status.stuck { color: var(--warn); }
+  .auto-card-status.stuck .dot { background: var(--warn); }
+  .auto-card-status.idle { color: var(--fg-faint); }
+  .auto-card-status.idle .dot { background: var(--fg-faint); }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .auto-card-time {
+    font-size: 10px; color: var(--fg-muted);
+    font-family: var(--font-mono); font-weight: 400;
+  }
+  .auto-card-footer {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .auto-card-next {
+    font-size: 9.5px; color: var(--fg-faint);
+  }
+  .auto-card-trend {
+    display: flex; gap: 3px; align-items: center;
+  }
+  .trend-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+  }
+  .trend-dot.s { background: var(--success-muted); }
+  .trend-dot.f { background: var(--error-muted); }
+  .trend-dot.e { background: var(--fg-faint); opacity: 0.3; }
+
+  /* ===== MAIN PANEL ===== */
+  .main {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+  }
+
+  /* ===== DETAIL HEADER ===== */
+  .detail-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: var(--bg-surface);
+  }
+  .detail-header-left {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .detail-title {
+    font-size: 14px; font-weight: 700; color: var(--fg-strong);
+  }
+  .detail-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 10px; letter-spacing: 0.02em;
+  }
+  .detail-badge.skill { background: var(--accent-bg); color: var(--accent); }
+  .detail-badge.disabled { background: var(--bg-inset); color: var(--fg-muted); }
+
+  .detail-header-right {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .detail-meta-item {
+    display: flex; flex-direction: column; align-items: flex-end;
+    font-size: 10px; padding: 0 10px;
+    border-right: 1px solid var(--border-light);
+  }
+  .detail-meta-item:last-of-type { border-right: none; padding-right: 12px; }
+  .detail-meta-label { color: var(--fg-faint); font-weight: 500; }
+  .detail-meta-value { color: var(--fg-strong); font-weight: 600; font-family: var(--font-mono); font-size: 11px; }
+  .detail-meta-value.success { color: var(--success); }
+  .detail-meta-value.failed { color: var(--error); }
+  .detail-meta-value.stuck { color: var(--warn); }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 12px; border-radius: 5px; border: 1px solid var(--border);
+    background: var(--bg-surface); color: var(--fg-strong);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    transition: all 0.12s; font-family: var(--font-body);
+  }
+  .btn:hover { background: var(--bg-surface-hover); }
+  .btn.primary { background: var(--accent); color: #fff; border-color: transparent; }
+  .btn.primary:hover { opacity: 0.9; }
+  .btn.danger { color: var(--error); }
+  .btn.danger:hover { background: var(--error-bg); }
+
+  /* ===== CANVAS PLACEHOLDER ===== */
+  .canvas-area {
+    flex: 0 0 220px; background: var(--bg-app); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .canvas-area::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.5;
+  }
+  .canvas-nodes {
+    display: flex; align-items: center; gap: 0; z-index: 1;
+  }
+  .canvas-node {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; min-width: 140px;
+    box-shadow: var(--shadow-sm); position: relative;
+  }
+  .canvas-node-type {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; margin-bottom: 4px;
+  }
+  .canvas-node-type.trigger { color: var(--warn); }
+  .canvas-node-type.skills { color: var(--blue); }
+  .canvas-node-type.instruction { color: #A855F7; }
+  .canvas-node-type.output { color: var(--success); }
+  .canvas-node-value {
+    font-size: 11px; color: var(--fg-strong); font-weight: 500;
+  }
+  .canvas-edge {
+    width: 32px; height: 2px; background: var(--border);
+    position: relative;
+  }
+  .canvas-edge::after {
+    content: ''; position: absolute; right: -3px; top: -3px;
+    width: 0; height: 0;
+    border-left: 5px solid var(--border);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+  }
+
+  /* ===== RUN HISTORY PANEL ===== */
+  .history-panel {
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
+    background: var(--bg-surface);
+  }
+  .history-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .history-header-left {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .history-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--fg-muted);
+  }
+  .history-count {
+    font-size: 10px; color: var(--fg-faint); font-family: var(--font-mono);
+    background: var(--bg-inset); padding: 1px 6px; border-radius: 8px;
+  }
+  .history-body { flex: 1; overflow-y: auto; }
+
+  /* ===== RUN TABLE ===== */
+  .run-table { width: 100%; border-collapse: collapse; }
+  .run-table th {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--fg-faint);
+    text-align: left; padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-inset);
+    position: sticky; top: 0; z-index: 1;
+  }
+  .run-table th.r { text-align: right; }
+
+  .run-row {
+    cursor: pointer; transition: background 0.1s;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .run-row:hover { background: var(--bg-surface-hover); }
+  .run-row:nth-child(even) { background: var(--row-alt); }
+  .run-row:nth-child(even):hover { background: var(--bg-surface-hover); }
+  .run-row.expanded { background: var(--bg-surface-hover); }
+  .run-row td {
+    padding: 7px 12px; font-size: 12px; vertical-align: middle;
+  }
+  .run-row td.mono {
+    font-family: var(--font-mono); font-size: 11px;
+  }
+  .run-row td.r { text-align: right; }
+  .run-row td.muted { color: var(--fg-muted); }
+
+  .run-status {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600;
+  }
+  .run-status .icon {
+    width: 14px; height: 14px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; color: #fff; flex-shrink: 0;
+  }
+  .run-status.success .icon { background: var(--success); }
+  .run-status.success { color: var(--success); }
+  .run-status.failed .icon { background: var(--error); }
+  .run-status.failed { color: var(--error); }
+  .run-status.running .icon { background: var(--blue); }
+  .run-status.running { color: var(--blue); }
+
+  .run-output-preview {
+    font-size: 11px; color: var(--fg-muted);
+    max-width: 260px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* ===== EXPANDED ROW ===== */
+  .run-detail {
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-inset);
+  }
+  .run-detail td { padding: 0; }
+  .run-detail-inner { padding: 12px 16px 16px; }
+  .run-detail-tabs {
+    display: flex; gap: 0; margin-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .run-detail-tab {
+    padding: 6px 14px; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--fg-muted); cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.12s;
+  }
+  .run-detail-tab:hover { color: var(--fg-strong); }
+  .run-detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .run-error-box {
+    background: var(--error-bg); border: 1px solid var(--error);
+    border-radius: 6px; padding: 10px 14px; margin-bottom: 10px;
+    font-family: var(--font-mono); font-size: 11px; color: var(--error);
+    line-height: 1.5;
+  }
+
+  .run-output-box {
+    background: var(--bg-code); border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px 14px;
+    font-size: 12px; line-height: 1.6; color: var(--fg);
+    max-height: 180px; overflow-y: auto;
+  }
+  .run-output-box h2 { font-size: 14px; margin: 8px 0 4px; color: var(--fg-strong); }
+  .run-output-box strong { color: var(--fg-strong); }
+
+  /* ===== STEPS TABLE ===== */
+  .steps-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  .steps-table th {
+    font-size: 9px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--fg-faint);
+    text-align: left; padding: 4px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .steps-table td {
+    padding: 5px 10px; font-size: 11px; border-bottom: 1px solid var(--border-light);
+    font-family: var(--font-mono);
+  }
+  .steps-table .tool-name { color: var(--accent); font-weight: 500; }
+  .steps-table .tool-preview { color: var(--fg-muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .steps-table .dur { color: var(--fg-faint); text-align: right; }
+  .steps-table .tok { color: var(--fg-faint); text-align: right; font-size: 10px; }
+
+  /* ===== STAT PILLS ===== */
+  .stat-pills {
+    display: flex; gap: 8px; margin-bottom: 10px;
+  }
+  .stat-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 5px;
+    background: var(--bg-surface); border: 1px solid var(--border);
+    font-size: 10px;
+  }
+  .stat-pill .label { color: var(--fg-faint); font-weight: 500; }
+  .stat-pill .val { color: var(--fg-strong); font-weight: 700; font-family: var(--font-mono); font-size: 11px; }
+
+  /* ===== TOGGLE ===== */
+  .toggle {
+    width: 28px; height: 16px; border-radius: 8px;
+    background: var(--fg-faint); position: relative;
+    cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; transition: transform 0.2s;
+  }
+  .toggle.on::after { transform: translateX(12px); }
+</style>
+</head>
+<body>
+
+<div class="demo-wrapper">
+
+<!-- ===== DARK THEME ===== -->
+<div>
+  <div class="demo-label">Dark Theme — Scheduler Automation Detail</div>
+  <div class="scheduler theme-dark">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span>Automations</span>
+        <button>+</button>
+      </div>
+      <div class="sidebar-list">
+
+        <!-- Active card -->
+        <div class="auto-card active">
+          <div class="auto-card-header">
+            <div class="auto-card-icon enabled">&#9889;</div>
+            <div class="auto-card-name">Morning SOD Check</div>
+          </div>
+          <div class="auto-card-meta">
+            <span class="auto-card-status failed"><span class="dot"></span>Failed</span>
+            <span class="auto-card-time">7 Apr 06:03 AM (19m)</span>
+          </div>
+          <div class="auto-card-footer">
+            <span class="auto-card-next">Next: Tomorrow 09:00</span>
+            <div class="auto-card-trend">
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot f"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot f"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other cards -->
+        <div class="auto-card">
+          <div class="auto-card-header">
+            <div class="auto-card-icon disabled">&#9889;</div>
+            <div class="auto-card-name">Task Advisor</div>
+          </div>
+          <div class="auto-card-meta">
+            <span class="auto-card-status idle"><span class="dot"></span>Disabled</span>
+          </div>
+          <div class="auto-card-footer">
+            <span class="auto-card-next">—</span>
+            <div class="auto-card-trend">
+              <div class="trend-dot e"></div>
+              <div class="trend-dot e"></div>
+              <div class="trend-dot e"></div>
+              <div class="trend-dot e"></div>
+              <div class="trend-dot e"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="auto-card">
+          <div class="auto-card-header">
+            <div class="auto-card-icon disabled">&#9889;</div>
+            <div class="auto-card-name">Sales Advisor</div>
+          </div>
+          <div class="auto-card-meta">
+            <span class="auto-card-status idle"><span class="dot"></span>Disabled</span>
+          </div>
+          <div class="auto-card-footer">
+            <span class="auto-card-next">—</span>
+            <div class="auto-card-trend">
+              <div class="trend-dot e"></div>
+              <div class="trend-dot e"></div>
+              <div class="trend-dot e"></div>
+              <div class="trend-dot e"></div>
+              <div class="trend-dot e"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="auto-card">
+          <div class="auto-card-header">
+            <div class="auto-card-icon enabled">&#9889;</div>
+            <div class="auto-card-name">Auto Company Research</div>
+          </div>
+          <div class="auto-card-meta">
+            <span class="auto-card-status success"><span class="dot"></span>Success</span>
+            <span class="auto-card-time">5 Apr 02:15 PM (3m)</span>
+          </div>
+          <div class="auto-card-footer">
+            <span class="auto-card-next">Next: 2h from now</span>
+            <div class="auto-card-trend">
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+
+      <!-- DETAIL HEADER -->
+      <div class="detail-header">
+        <div class="detail-header-left">
+          <span class="detail-title">Morning SOD Check</span>
+          <span class="detail-badge skill">SKILL</span>
+          <span class="detail-badge disabled">disabled</span>
+        </div>
+        <div class="detail-header-right">
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">Last run</span>
+            <span class="detail-meta-value failed">7 Apr 06:03</span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">Duration</span>
+            <span class="detail-meta-value">19m 28s</span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">Next</span>
+            <span class="detail-meta-value">8 Apr 09:00</span>
+          </div>
+          <div class="toggle"></div>
+          <button class="btn primary">&#9655; Run now</button>
+          <button class="btn danger">&#9632; Stop</button>
+        </div>
+      </div>
+
+      <!-- CANVAS -->
+      <div class="canvas-area">
+        <div class="canvas-nodes">
+          <div class="canvas-node">
+            <div class="canvas-node-type trigger">&#9201; Trigger</div>
+            <div class="canvas-node-value">Weekdays 9am</div>
+          </div>
+          <div class="canvas-edge"></div>
+          <div class="canvas-node">
+            <div class="canvas-node-type skills">&#10024; Skills</div>
+            <div class="canvas-node-value">checking-production-he...</div>
+          </div>
+          <div class="canvas-edge"></div>
+          <div class="canvas-node">
+            <div class="canvas-node-type instruction">&#9881; Instruction</div>
+            <div class="canvas-node-value">Sonnet / bot-mel</div>
+          </div>
+          <div class="canvas-edge"></div>
+          <div class="canvas-node">
+            <div class="canvas-node-type output">&#9993; Output</div>
+            <div class="canvas-node-value">New thread / bot-mel</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RUN HISTORY -->
+      <div class="history-panel">
+        <div class="history-header">
+          <div class="history-header-left">
+            <span class="history-title">Run History</span>
+            <span class="history-count">12 runs</span>
+          </div>
+          <button class="btn" style="font-size:10px; padding: 3px 8px;">Clear old runs</button>
+        </div>
+        <div class="history-body">
+          <table class="run-table">
+            <thead>
+              <tr>
+                <th style="width:30px"></th>
+                <th>Status</th>
+                <th>Started (SGT)</th>
+                <th>Duration</th>
+                <th class="r">Cost</th>
+                <th class="r">Tokens</th>
+                <th>Output</th>
+              </tr>
+            </thead>
+            <tbody>
+
+              <!-- Expanded failed row -->
+              <tr class="run-row expanded">
+                <td style="color:var(--fg-faint);font-size:10px">&#9660;</td>
+                <td><span class="run-status failed"><span class="icon">&#10005;</span>Failed</span></td>
+                <td class="mono">7 Apr 06:03 AM</td>
+                <td class="mono">19m 28s</td>
+                <td class="mono r">$0.85</td>
+                <td class="mono r">84,852</td>
+                <td><span class="run-output-preview">Morning SOD Check failed</span></td>
+              </tr>
+              <tr class="run-detail">
+                <td colspan="7">
+                  <div class="run-detail-inner">
+                    <div class="run-detail-tabs">
+                      <div class="run-detail-tab active">Output</div>
+                      <div class="run-detail-tab">Error</div>
+                      <div class="run-detail-tab">Steps (23)</div>
+                    </div>
+                    <div class="run-error-box">
+                      Output node failed to post chat thread. Skill execution completed successfully — markdown and HTML reports were generated. The failure occurred in the post-processing step (chat thread creation).
+                    </div>
+                    <div class="stat-pills">
+                      <div class="stat-pill"><span class="label">Turns</span><span class="val">23</span></div>
+                      <div class="stat-pill"><span class="label">Input</span><span class="val">72,410</span></div>
+                      <div class="stat-pill"><span class="label">Output</span><span class="val">12,442</span></div>
+                      <div class="stat-pill"><span class="label">Cache</span><span class="val">41,200</span></div>
+                    </div>
+                    <div class="run-output-box">
+                      <h2>Morning SOD Report — 2026-04-07 (Monday)</h2>
+                      <strong>Generated:</strong> 06:05 SGT | <strong>Window:</strong> 3 Apr 09:00 → 7 Apr 06:05 SGT<br>
+                      <strong>Domains:</strong> 23 | <strong>Executions:</strong> 5,361<br><br>
+                      Issues found: 48 active (Critical: 0, High: 22, Medium: 26)...
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Success rows -->
+              <tr class="run-row">
+                <td style="color:var(--fg-faint);font-size:10px">&#9654;</td>
+                <td><span class="run-status success"><span class="icon">&#10003;</span>OK</span></td>
+                <td class="mono">6 Apr 09:05 AM</td>
+                <td class="mono">1m 42s</td>
+                <td class="mono r">$0.12</td>
+                <td class="mono r">18,200</td>
+                <td><span class="run-output-preview">## Morning SOD Report — 2026-04-06...</span></td>
+              </tr>
+
+              <tr class="run-row">
+                <td style="color:var(--fg-faint);font-size:10px">&#9654;</td>
+                <td><span class="run-status success"><span class="icon">&#10003;</span>OK</span></td>
+                <td class="mono">5 Apr 09:03 AM</td>
+                <td class="mono">2m 10s</td>
+                <td class="mono r">$0.15</td>
+                <td class="mono r">22,100</td>
+                <td><span class="run-output-preview">## Morning SOD Report — 2026-04-05...</span></td>
+              </tr>
+
+              <tr class="run-row">
+                <td style="color:var(--fg-faint);font-size:10px">&#9654;</td>
+                <td><span class="run-status failed"><span class="icon">&#10005;</span>Failed</span></td>
+                <td class="mono">4 Apr 09:01 AM</td>
+                <td class="mono">57s</td>
+                <td class="mono r">$0.03</td>
+                <td class="mono r">4,100</td>
+                <td><span class="run-output-preview">Skill not found: checking-production-...</span></td>
+              </tr>
+
+              <tr class="run-row">
+                <td style="color:var(--fg-faint);font-size:10px">&#9654;</td>
+                <td><span class="run-status success"><span class="icon">&#10003;</span>OK</span></td>
+                <td class="mono">3 Apr 09:02 AM</td>
+                <td class="mono">8m 15s</td>
+                <td class="mono r">$0.92</td>
+                <td class="mono r">98,400</td>
+                <td><span class="run-output-preview">## Morning SOD Report — 2026-04-03...</span></td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===== LIGHT THEME ===== -->
+<div>
+  <div class="demo-label">Light Theme — Scheduler Automation Detail</div>
+  <div class="scheduler theme-light">
+
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span>Automations</span>
+        <button>+</button>
+      </div>
+      <div class="sidebar-list">
+        <div class="auto-card active">
+          <div class="auto-card-header">
+            <div class="auto-card-icon enabled">&#9889;</div>
+            <div class="auto-card-name">Morning SOD Check</div>
+          </div>
+          <div class="auto-card-meta">
+            <span class="auto-card-status success"><span class="dot"></span>Success</span>
+            <span class="auto-card-time">7 Apr 09:05 AM (1m)</span>
+          </div>
+          <div class="auto-card-footer">
+            <span class="auto-card-next">Next: Tomorrow 09:00</span>
+            <div class="auto-card-trend">
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot f"></div>
+              <div class="trend-dot s"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="auto-card">
+          <div class="auto-card-header">
+            <div class="auto-card-icon enabled">&#9889;</div>
+            <div class="auto-card-name">Auto Company Research</div>
+          </div>
+          <div class="auto-card-meta">
+            <span class="auto-card-status running"><span class="dot"></span>Running</span>
+            <span class="auto-card-time">started 2m ago</span>
+          </div>
+          <div class="auto-card-footer">
+            <span class="auto-card-next">Every 2 hours</span>
+            <div class="auto-card-trend">
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot e"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="auto-card">
+          <div class="auto-card-header">
+            <div class="auto-card-icon enabled">&#9889;</div>
+            <div class="auto-card-name">Job Signal Scanner</div>
+          </div>
+          <div class="auto-card-meta">
+            <span class="auto-card-status stuck"><span class="dot"></span>Possibly stuck</span>
+            <span class="auto-card-time">45m ago</span>
+          </div>
+          <div class="auto-card-footer">
+            <span class="auto-card-next">Daily 09:15</span>
+            <div class="auto-card-trend">
+              <div class="trend-dot s"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot f"></div>
+              <div class="trend-dot s"></div>
+              <div class="trend-dot e"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="detail-header">
+        <div class="detail-header-left">
+          <span class="detail-title">Morning SOD Check</span>
+          <span class="detail-badge skill">SKILL</span>
+        </div>
+        <div class="detail-header-right">
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">Last run</span>
+            <span class="detail-meta-value success">7 Apr 09:05</span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">Duration</span>
+            <span class="detail-meta-value">1m 42s</span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">Next</span>
+            <span class="detail-meta-value">8 Apr 09:00</span>
+          </div>
+          <div class="toggle on"></div>
+          <button class="btn primary">&#9655; Run now</button>
+        </div>
+      </div>
+
+      <div class="canvas-area">
+        <div class="canvas-nodes">
+          <div class="canvas-node">
+            <div class="canvas-node-type trigger">&#9201; Trigger</div>
+            <div class="canvas-node-value">Weekdays 9am</div>
+          </div>
+          <div class="canvas-edge"></div>
+          <div class="canvas-node">
+            <div class="canvas-node-type skills">&#10024; Skills</div>
+            <div class="canvas-node-value">checking-production-he...</div>
+          </div>
+          <div class="canvas-edge"></div>
+          <div class="canvas-node">
+            <div class="canvas-node-type instruction">&#9881; Instruction</div>
+            <div class="canvas-node-value">Sonnet / bot-mel</div>
+          </div>
+          <div class="canvas-edge"></div>
+          <div class="canvas-node">
+            <div class="canvas-node-type output">&#9993; Output</div>
+            <div class="canvas-node-value">New thread / bot-mel</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="history-panel">
+        <div class="history-header">
+          <div class="history-header-left">
+            <span class="history-title">Run History</span>
+            <span class="history-count">8 runs</span>
+          </div>
+        </div>
+        <div class="history-body">
+          <table class="run-table">
+            <thead>
+              <tr>
+                <th style="width:30px"></th>
+                <th>Status</th>
+                <th>Started (SGT)</th>
+                <th>Duration</th>
+                <th class="r">Cost</th>
+                <th class="r">Tokens</th>
+                <th>Output</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="run-row expanded">
+                <td style="color:var(--fg-faint);font-size:10px">&#9660;</td>
+                <td><span class="run-status success"><span class="icon">&#10003;</span>OK</span></td>
+                <td class="mono">7 Apr 09:05 AM</td>
+                <td class="mono">1m 42s</td>
+                <td class="mono r">$0.12</td>
+                <td class="mono r">18,200</td>
+                <td><span class="run-output-preview">## Morning SOD Report — 2026-04-07...</span></td>
+              </tr>
+              <tr class="run-detail">
+                <td colspan="7">
+                  <div class="run-detail-inner">
+                    <div class="run-detail-tabs">
+                      <div class="run-detail-tab active">Output</div>
+                      <div class="run-detail-tab">Steps (12)</div>
+                    </div>
+                    <div class="stat-pills">
+                      <div class="stat-pill"><span class="label">Turns</span><span class="val">12</span></div>
+                      <div class="stat-pill"><span class="label">Input</span><span class="val">14,800</span></div>
+                      <div class="stat-pill"><span class="label">Output</span><span class="val">3,400</span></div>
+                      <div class="stat-pill"><span class="label">v2 scoring</span><span class="val">3 queries</span></div>
+                    </div>
+                    <div class="run-output-box">
+                      <h2>Morning SOD Report — 2026-04-07 (Monday)</h2>
+                      <strong>Generated:</strong> 09:05 SGT | <strong>Window:</strong> 4 Apr 09:00 → 7 Apr 09:05<br>
+                      <strong>Domains:</strong> 23 | <strong>Executions:</strong> 5,361<br><br>
+                      <strong>Summary:</strong> 48 issues (Critical: 0, High: 22, Medium: 26, Low: 1,026)<br>
+                      Drive files: All clean. SOD alerts: 3 domains.<br><br>
+                      &#128196; <a href="#" style="color:var(--accent)">Open HTML Report</a>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
+              <tr class="run-row">
+                <td style="color:var(--fg-faint);font-size:10px">&#9654;</td>
+                <td><span class="run-status success"><span class="icon">&#10003;</span>OK</span></td>
+                <td class="mono">4 Apr 09:02 AM</td>
+                <td class="mono">1m 55s</td>
+                <td class="mono r">$0.14</td>
+                <td class="mono r">20,300</td>
+                <td><span class="run-output-preview">## Morning SOD Report — 2026-04-04...</span></td>
+              </tr>
+
+              <tr class="run-row">
+                <td style="color:var(--fg-faint);font-size:10px">&#9654;</td>
+                <td><span class="run-status success"><span class="icon">&#10003;</span>OK</span></td>
+                <td class="mono">3 Apr 09:01 AM</td>
+                <td class="mono">2m 08s</td>
+                <td class="mono r">$0.16</td>
+                <td class="mono r">22,400</td>
+                <td><span class="run-output-preview">## Morning SOD Report — 2026-04-03...</span></td>
+              </tr>
+
+              <tr class="run-row">
+                <td style="color:var(--fg-faint);font-size:10px">&#9654;</td>
+                <td><span class="run-status success"><span class="icon">&#10003;</span>OK</span></td>
+                <td class="mono">2 Apr 09:03 AM</td>
+                <td class="mono">1m 38s</td>
+                <td class="mono r">$0.11</td>
+                <td class="mono r">16,800</td>
+                <td><span class="run-output-preview">## Morning SOD Report — 2026-04-02...</span></td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>

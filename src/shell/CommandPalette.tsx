@@ -29,7 +29,6 @@ import {
   Loader2,
   Sparkles,
   FileText,
-  Linkedin,
   Target,
   SearchX,
   CornerDownLeft,
@@ -48,6 +47,7 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { useAppStore, ModuleId } from "../stores/appStore";
+import { useModuleTabStore } from "../stores/moduleTabStore";
 import { useSidePanelStore } from "../stores/sidePanelStore";
 import { useHelpStore } from "../stores/helpStore";
 import { useHelpChat } from "../hooks/useHelpChat";
@@ -93,10 +93,12 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   guides: BookOpen,
   s3browser: Globe,
   chat: MessageSquare,
-  linkedin: Linkedin,
   prospecting: Target,
   "public-data": Database,
   referrals: Handshake,
+  investment: Target,
+  "shared-inbox": Mail,
+  settings: Settings,
 };
 
 const moduleLabels: Record<ModuleId, string> = {
@@ -121,10 +123,12 @@ const moduleLabels: Record<ModuleId, string> = {
   blog: "Blog",
   guides: "Guides",
   s3browser: "S3 Browser",
-  linkedin: "LinkedIn",
   prospecting: "Outbound",
   "public-data": "Public Data",
   referrals: "Referrals",
+  investment: "Investment",
+  "shared-inbox": "Shared Inboxes",
+  settings: "Settings",
 };
 
 const MODULE_LABELS: Record<string, string> = {
@@ -434,7 +438,7 @@ export function CommandPalette() {
         icon: <Settings size={15} />,
         shortcut: "\u2318,",
         section: "general",
-        action: () => useAppStore.getState().openSettings(),
+        action: () => useModuleTabStore.getState().openTab("settings"),
       },
       {
         id: "toggle-side-panel",

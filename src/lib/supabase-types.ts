@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -83,41 +83,161 @@ export type Database = {
         }
         Relationships: []
       }
-      api_task_logs: {
+      automation_edges: {
         Row: {
-          completed_at: string | null
-          duration_secs: number | null
-          error: string | null
+          automation_id: string
+          created_at: string
           id: string
-          skill: string
-          skill_name: string
-          started_at: string
-          status: string
-          triggered_by: string
+          source_node_id: string
+          target_node_id: string
         }
         Insert: {
-          completed_at?: string | null
-          duration_secs?: number | null
-          error?: string | null
+          automation_id: string
+          created_at?: string
           id?: string
-          skill: string
-          skill_name: string
-          started_at?: string
-          status?: string
-          triggered_by: string
+          source_node_id: string
+          target_node_id: string
         }
         Update: {
-          completed_at?: string | null
-          duration_secs?: number | null
-          error?: string | null
+          automation_id?: string
+          created_at?: string
           id?: string
-          skill?: string
-          skill_name?: string
-          started_at?: string
-          status?: string
-          triggered_by?: string
+          source_node_id?: string
+          target_node_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "automation_edges_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_edges_source_node_id_fkey"
+            columns: ["source_node_id"]
+            isOneToOne: false
+            referencedRelation: "automation_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_edges_target_node_id_fkey"
+            columns: ["target_node_id"]
+            isOneToOne: false
+            referencedRelation: "automation_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_nodes: {
+        Row: {
+          automation_id: string
+          config: Json
+          created_at: string
+          id: string
+          node_type: string
+          position_x: number
+          position_y: number
+          updated_at: string
+        }
+        Insert: {
+          automation_id: string
+          config?: Json
+          created_at?: string
+          id?: string
+          node_type: string
+          position_x?: number
+          position_y?: number
+          updated_at?: string
+        }
+        Update: {
+          automation_id?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          node_type?: string
+          position_x?: number
+          position_y?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_nodes_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automations: {
+        Row: {
+          active_hours: string | null
+          automation_type: string
+          created_at: string
+          cron_expression: string | null
+          description: string | null
+          dio_id: string | null
+          enabled: boolean
+          id: string
+          job_id: string | null
+          name: string
+          suggested_skills: string[]
+          updated_at: string
+          viewport_x: number
+          viewport_y: number
+          viewport_zoom: number
+        }
+        Insert: {
+          active_hours?: string | null
+          automation_type: string
+          created_at?: string
+          cron_expression?: string | null
+          description?: string | null
+          dio_id?: string | null
+          enabled?: boolean
+          id?: string
+          job_id?: string | null
+          name: string
+          suggested_skills?: string[]
+          updated_at?: string
+          viewport_x?: number
+          viewport_y?: number
+          viewport_zoom?: number
+        }
+        Update: {
+          active_hours?: string | null
+          automation_type?: string
+          created_at?: string
+          cron_expression?: string | null
+          description?: string | null
+          dio_id?: string | null
+          enabled?: boolean
+          id?: string
+          job_id?: string | null
+          name?: string
+          suggested_skills?: string[]
+          updated_at?: string
+          viewport_x?: number
+          viewport_y?: number
+          viewport_zoom?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automations_dio_id_fkey"
+            columns: ["dio_id"]
+            isOneToOne: false
+            referencedRelation: "dio_automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       blog_articles: {
         Row: {
@@ -289,10 +409,12 @@ export type Database = {
           domain_id: string | null
           email_domains: string[] | null
           employee_count: number | null
+          hiring_signals: Record<string, any> | null
           id: string
           industry: string | null
           name: string
           notes: string | null
+          outlet_count: number | null
           partner_id: string | null
           referred_by: string | null
           research_folder_path: string | null
@@ -300,6 +422,7 @@ export type Database = {
           source_id: string | null
           stage: string
           tags: string[] | null
+          uen: string | null
           updated_at: string | null
           website: string | null
         }
@@ -312,10 +435,12 @@ export type Database = {
           domain_id?: string | null
           email_domains?: string[] | null
           employee_count?: number | null
+          hiring_signals?: Record<string, any> | null
           id?: string
           industry?: string | null
           name: string
           notes?: string | null
+          outlet_count?: number | null
           partner_id?: string | null
           referred_by?: string | null
           research_folder_path?: string | null
@@ -323,6 +448,7 @@ export type Database = {
           source_id?: string | null
           stage?: string
           tags?: string[] | null
+          uen?: string | null
           updated_at?: string | null
           website?: string | null
         }
@@ -335,10 +461,12 @@ export type Database = {
           domain_id?: string | null
           email_domains?: string[] | null
           employee_count?: number | null
+          hiring_signals?: Record<string, any> | null
           id?: string
           industry?: string | null
           name?: string
           notes?: string | null
+          outlet_count?: number | null
           partner_id?: string | null
           referred_by?: string | null
           research_folder_path?: string | null
@@ -346,6 +474,7 @@ export type Database = {
           source_id?: string | null
           stage?: string
           tags?: string[] | null
+          uen?: string | null
           updated_at?: string | null
           website?: string | null
         }
@@ -493,6 +622,102 @@ export type Database = {
           },
         ]
       }
+      custom_data_sources: {
+        Row: {
+          created_at: string
+          description: string | null
+          enabled: boolean
+          format_template: string
+          id: string
+          is_system: boolean
+          name: string
+          sql_query: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          format_template?: string
+          id?: string
+          is_system?: boolean
+          name: string
+          sql_query: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          format_template?: string
+          id?: string
+          is_system?: boolean
+          name?: string
+          sql_query?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      dio_automations: {
+        Row: {
+          active_hours: string | null
+          bot_author: string
+          created_at: string
+          custom_source_ids: string[]
+          description: string | null
+          enabled: boolean
+          id: string
+          interval_hours: number
+          last_run_at: string | null
+          model: string
+          name: string
+          post_mode: string
+          sources: Json
+          system_prompt: string | null
+          thread_id: string | null
+          thread_title: string | null
+          updated_at: string
+        }
+        Insert: {
+          active_hours?: string | null
+          bot_author?: string
+          created_at?: string
+          custom_source_ids?: string[]
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          interval_hours?: number
+          last_run_at?: string | null
+          model?: string
+          name: string
+          post_mode?: string
+          sources?: Json
+          system_prompt?: string | null
+          thread_id?: string | null
+          thread_title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active_hours?: string | null
+          bot_author?: string
+          created_at?: string
+          custom_source_ids?: string[]
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          interval_hours?: number
+          last_run_at?: string | null
+          model?: string
+          name?: string
+          post_mode?: string
+          sources?: Json
+          system_prompt?: string | null
+          thread_id?: string | null
+          thread_title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       discussion_mentions: {
         Row: {
           created_at: string
@@ -535,7 +760,9 @@ export type Database = {
           entity_type: string
           id: string
           last_activity_at: string
+          origin: string
           parent_id: string | null
+          session_id: string | null
           title: string | null
           updated_at: string
         }
@@ -548,7 +775,9 @@ export type Database = {
           entity_type: string
           id?: string
           last_activity_at?: string
+          origin?: string
           parent_id?: string | null
+          session_id?: string | null
           title?: string | null
           updated_at?: string
         }
@@ -561,7 +790,9 @@ export type Database = {
           entity_type?: string
           id?: string
           last_activity_at?: string
+          origin?: string
           parent_id?: string | null
+          session_id?: string | null
           title?: string | null
           updated_at?: string
         }
@@ -863,6 +1094,7 @@ export type Database = {
           report_uploaded_at: string | null
           report_url: string | null
           scheduled_at: string | null
+          send_channel: string
           sent_at: string | null
           status: string
           subject: string
@@ -884,6 +1116,7 @@ export type Database = {
           report_uploaded_at?: string | null
           report_url?: string | null
           scheduled_at?: string | null
+          send_channel?: string
           sent_at?: string | null
           status?: string
           subject: string
@@ -905,6 +1138,7 @@ export type Database = {
           report_uploaded_at?: string | null
           report_url?: string | null
           scheduled_at?: string | null
+          send_channel?: string
           sent_at?: string | null
           status?: string
           subject?: string
@@ -1731,6 +1965,7 @@ export type Database = {
       }
       job_runs: {
         Row: {
+          automation_id: string | null
           cache_creation_tokens: number | null
           cache_read_tokens: number | null
           cost_usd: number | null
@@ -1746,12 +1981,12 @@ export type Database = {
           output: string | null
           output_preview: string | null
           output_tokens: number | null
-          slack_posted: boolean | null
           started_at: string
           status: string
           trigger: string
         }
         Insert: {
+          automation_id?: string | null
           cache_creation_tokens?: number | null
           cache_read_tokens?: number | null
           cost_usd?: number | null
@@ -1767,12 +2002,12 @@ export type Database = {
           output?: string | null
           output_preview?: string | null
           output_tokens?: number | null
-          slack_posted?: boolean | null
           started_at: string
           status: string
           trigger: string
         }
         Update: {
+          automation_id?: string | null
           cache_creation_tokens?: number | null
           cache_read_tokens?: number | null
           cost_usd?: number | null
@@ -1788,7 +2023,6 @@ export type Database = {
           output?: string | null
           output_preview?: string | null
           output_tokens?: number | null
-          slack_posted?: boolean | null
           started_at?: string
           status?: string
           trigger?: string
@@ -1799,6 +2033,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_runs_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
             referencedColumns: ["id"]
           },
         ]
@@ -1820,8 +2061,6 @@ export type Database = {
           report_prefix: string | null
           skill_prompt: string
           skill_refs: Json | null
-          slack_channel_name: string | null
-          slack_webhook_url: string | null
           sod_reports_folder: string | null
           updated_at: string
         }
@@ -1841,8 +2080,6 @@ export type Database = {
           report_prefix?: string | null
           skill_prompt: string
           skill_refs?: Json | null
-          slack_channel_name?: string | null
-          slack_webhook_url?: string | null
           sod_reports_folder?: string | null
           updated_at?: string
         }
@@ -1862,8 +2099,6 @@ export type Database = {
           report_prefix?: string | null
           skill_prompt?: string
           skill_refs?: Json | null
-          slack_channel_name?: string | null
-          slack_webhook_url?: string | null
           sod_reports_folder?: string | null
           updated_at?: string
         }
@@ -3616,6 +3851,7 @@ export type Database = {
           deal_value: number | null
           deal_won_notes: string | null
           description: string | null
+          folder_path: string | null
           health: string | null
           icon: string | null
           id: string
@@ -3654,6 +3890,7 @@ export type Database = {
           deal_value?: number | null
           deal_won_notes?: string | null
           description?: string | null
+          folder_path?: string | null
           health?: string | null
           icon?: string | null
           id?: string
@@ -3692,6 +3929,7 @@ export type Database = {
           deal_value?: number | null
           deal_won_notes?: string | null
           description?: string | null
+          folder_path?: string | null
           health?: string | null
           icon?: string | null
           id?: string
@@ -4175,6 +4413,7 @@ export type Database = {
           task_type_changed_at: string | null
           title: string
           triage_action: string | null
+          triage_context_matches: Json | null
           triage_reason: string | null
           triage_score: number | null
           updated_at: string | null
@@ -4210,6 +4449,7 @@ export type Database = {
           task_type_changed_at?: string | null
           title: string
           triage_action?: string | null
+          triage_context_matches?: Json | null
           triage_reason?: string | null
           triage_score?: number | null
           updated_at?: string | null
@@ -4245,6 +4485,7 @@ export type Database = {
           task_type_changed_at?: string | null
           title?: string
           triage_action?: string | null
+          triage_context_matches?: Json | null
           triage_reason?: string | null
           triage_score?: number | null
           updated_at?: string | null
@@ -4359,6 +4600,7 @@ export type Database = {
       }
       triage_config: {
         Row: {
+          context_weights: Json | null
           id: string
           summary_max_tokens: number | null
           summary_model: string | null
@@ -4366,6 +4608,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          context_weights?: Json | null
           id?: string
           summary_max_tokens?: number | null
           summary_model?: string | null
@@ -4373,6 +4616,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          context_weights?: Json | null
           id?: string
           summary_max_tokens?: number | null
           summary_model?: string | null
@@ -4380,6 +4624,83 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      triage_contexts: {
+        Row: {
+          active: boolean | null
+          boost: number | null
+          created_at: string | null
+          id: string
+          level: string
+          match_company_id: string | null
+          match_project_id: string | null
+          match_team_id: string | null
+          match_user_id: string | null
+          name: string
+          suppress: boolean | null
+          text: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          boost?: number | null
+          created_at?: string | null
+          id?: string
+          level: string
+          match_company_id?: string | null
+          match_project_id?: string | null
+          match_team_id?: string | null
+          match_user_id?: string | null
+          name: string
+          suppress?: boolean | null
+          text: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          boost?: number | null
+          created_at?: string | null
+          id?: string
+          level?: string
+          match_company_id?: string | null
+          match_project_id?: string | null
+          match_team_id?: string | null
+          match_user_id?: string | null
+          name?: string
+          suppress?: boolean | null
+          text?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "triage_contexts_match_company_id_fkey"
+            columns: ["match_company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "triage_contexts_match_project_id_fkey"
+            columns: ["match_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "triage_contexts_match_team_id_fkey"
+            columns: ["match_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "triage_contexts_match_user_id_fkey"
+            columns: ["match_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       triage_runs: {
         Row: {
@@ -4413,6 +4734,7 @@ export type Database = {
       }
       users: {
         Row: {
+          auth_user_id: string | null
           avatar_url: string | null
           bot_department: string | null
           bot_folder_id: string | null
@@ -4431,6 +4753,7 @@ export type Database = {
           visible_modules: string[] | null
         }
         Insert: {
+          auth_user_id?: string | null
           avatar_url?: string | null
           bot_department?: string | null
           bot_folder_id?: string | null
@@ -4449,6 +4772,7 @@ export type Database = {
           visible_modules?: string[] | null
         }
         Update: {
+          auth_user_id?: string | null
           avatar_url?: string | null
           bot_department?: string | null
           bot_folder_id?: string | null
@@ -4529,6 +4853,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_workspace_user_id: { Args: never; Returns: string }
+      execute_custom_query: { Args: { query_text: string }; Returns: Json }
+      is_workspace_authenticated: { Args: never; Returns: boolean }
       scan_emails_for_entity: {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: {
@@ -4706,3 +5033,4 @@ export const Constants = {
     },
   },
 } as const
+

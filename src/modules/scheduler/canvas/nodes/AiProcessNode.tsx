@@ -20,6 +20,11 @@ export const AiProcessNode = memo(function AiProcessNode({ data, selected }: Nod
     ? config.bot_path.split("/").filter(Boolean).pop()
     : config.bot_author ?? null;
 
+  const instructions = config.additional_instructions || config.system_prompt;
+  const preview = instructions
+    ? instructions.length > 50 ? instructions.slice(0, 50) + "..." : instructions
+    : null;
+
   return (
     <div className={cn(
       "w-[180px] rounded-lg border bg-white dark:bg-zinc-900 shadow-sm transition-shadow",
@@ -33,9 +38,12 @@ export const AiProcessNode = memo(function AiProcessNode({ data, selected }: Nod
         </span>
       </div>
       <div className="px-3 py-2 space-y-0.5">
-        <p className="text-xs text-zinc-700 dark:text-zinc-300">{modelLabel}</p>
-        {botLabel && (
-          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">{botLabel}</p>
+        <p className="text-xs text-zinc-700 dark:text-zinc-300">
+          {modelLabel}
+          {botLabel && <span className="text-zinc-400 ml-1">/ {botLabel}</span>}
+        </p>
+        {preview && (
+          <p className="text-[10px] text-zinc-400 truncate">{preview}</p>
         )}
       </div>
       <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-zinc-400 !border-white dark:!border-zinc-900" />

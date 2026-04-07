@@ -36,6 +36,7 @@ import {
 import type { InitiativeProjectLink } from "./workViewsShared";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
 import { useUsers } from "../../hooks/work/useUsers";
+import { workspaceLocalStorage } from "../../lib/workspaceScopedStorage";
 
 // Initiative detail pane (right panel)
 function InitiativeDetailPane({ initiative, projects, onClose, onDeleted }: {
@@ -530,14 +531,12 @@ export function DashboardView({
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectIdRaw] = useState<string | null>(() => {
-    try { return localStorage.getItem(SELECTED_PROJECT_KEY) || null; } catch { return null; }
+    return workspaceLocalStorage.get(SELECTED_PROJECT_KEY);
   });
   const setSelectedProjectId = useCallback((id: string | null) => {
     setSelectedProjectIdRaw(id);
-    try {
-      if (id) localStorage.setItem(SELECTED_PROJECT_KEY, id);
-      else localStorage.removeItem(SELECTED_PROJECT_KEY);
-    } catch {}
+    if (id) workspaceLocalStorage.set(SELECTED_PROJECT_KEY, id);
+    else workspaceLocalStorage.remove(SELECTED_PROJECT_KEY);
   }, []);
   const [selectedInitiativeId, setSelectedInitiativeId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ projectId: string; x: number; y: number } | null>(null);

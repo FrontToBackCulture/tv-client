@@ -25,8 +25,6 @@ export interface Job {
   model: string;
   max_budget: number | null;
   allowed_tools: string[];
-  slack_webhook_url: string | null;
-  slack_channel_name: string | null;
   enabled: boolean;
   generate_report: boolean;
   report_prefix: string | null;
@@ -49,8 +47,6 @@ export interface JobInput {
   model?: string;
   max_budget?: number | null;
   allowed_tools?: string[];
-  slack_webhook_url?: string | null;
-  slack_channel_name?: string | null;
   enabled?: boolean;
   generate_report?: boolean;
   report_prefix?: string | null;
@@ -138,8 +134,6 @@ export function useCreateJob() {
         model: input.model ?? "sonnet",
         max_budget: input.max_budget ?? null,
         allowed_tools: input.allowed_tools ?? [],
-        slack_webhook_url: input.slack_webhook_url ?? null,
-        slack_channel_name: input.slack_channel_name ?? null,
         enabled: input.enabled ?? true,
         generate_report: input.generate_report ?? true,
         report_prefix: input.report_prefix ?? null,
@@ -179,8 +173,6 @@ export function useUpdateJob() {
       if (input.model !== undefined) updates.model = input.model;
       if (input.max_budget !== undefined) updates.max_budget = input.max_budget;
       if (input.allowed_tools !== undefined) updates.allowed_tools = input.allowed_tools;
-      if (input.slack_webhook_url !== undefined) updates.slack_webhook_url = input.slack_webhook_url;
-      if (input.slack_channel_name !== undefined) updates.slack_channel_name = input.slack_channel_name;
       if (input.enabled !== undefined) updates.enabled = input.enabled;
       if (input.generate_report !== undefined) updates.generate_report = input.generate_report;
       if (input.report_prefix !== undefined) updates.report_prefix = input.report_prefix;

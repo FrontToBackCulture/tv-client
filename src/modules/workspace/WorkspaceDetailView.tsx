@@ -2,13 +2,12 @@
 // Workspace detail: artifact tree (left) + file preview / sessions (right)
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { BackButton } from "../../components/BackButton";
 import {
   ArrowLeft, FileText, Puzzle, Building2, Code2,
   BarChart3, ListChecks, Globe, FileSpreadsheet, ChevronDown,
   ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
-  Circle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Sparkles, Mail, CalendarDays,
+  Circle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Mail,
   MessageSquare,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
@@ -17,6 +16,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../../lib/cn";
 import { MarkdownViewer } from "../library/MarkdownViewer";
+import { FolderPickerField } from "../../components/ui/FolderPickerField";
 import { ExcalidrawEditor } from "../gallery/ExcalidrawEditor";
 import { ImageEditor } from "../gallery/ImageEditor";
 import type { GalleryItem } from "../gallery/useGallery";
@@ -34,6 +34,7 @@ import { useStatuses } from "../../hooks/work/useStatuses";
 import { useUsers } from "../../hooks/work/useUsers";
 import { useProjects } from "../../hooks/work/useProjects";
 import { TaskDetailPanel } from "../work/TaskDetailPanel";
+import { IconButton } from "../../components/ui";
 import { getFieldDefsForType, useProjectFieldsStore } from "../../stores/projectFieldsStore";
 import { useDeal, useCreateDeal } from "../../hooks/crm/useDeals";
 import { useCompany, useCompanies } from "../../hooks/crm/useCompanies";
@@ -44,7 +45,9 @@ import { DEAL_STAGES, DEAL_SOLUTIONS, COMPANY_STAGES } from "../../lib/crm/types
 import { useRepository } from "../../stores/repositoryStore";
 import { toast } from "../../stores/toastStore";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
-import { useDiscussionCount } from "../../hooks/useDiscussions";
+import { useDiscussionCount, useBotChatSessions } from "../../hooks/useDiscussions";
+import { ProjectChatPopup } from "../chat/entityRefs/ProjectChatPopup";
+import { Brain } from "lucide-react";
 import { useTaskFieldsStore } from "../../stores/taskFieldsStore";
 import type { WorkspaceSession, WorkspaceArtifact } from "../../lib/workspace/types";
 import { MilestoneTaskGroups } from "./MilestoneTaskGroups";
@@ -905,6 +908,7 @@ function FilePreview({ path }: { path: string }) {
 // Session Entry
 // ============================================================================
 
+// @ts-expect-error — SessionItem kept for legacy code paths, sessions feature removed from UI
 function SessionItem({
   session,
   isSelected,
@@ -1471,8 +1475,25 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const updateWorkspace = useUpdateWorkspace();
   const { activeRepository, repositories } = useRepository();
   const basePath = activeRepository?.path ?? "";
-  const [selection, setSelection] = useState<{ type: "file"; path: string } | { type: "session"; id: string } | { type: "task"; id: string } | { type: "crm_deal"; id: string } | { type: "crm_company"; id: string } | { type: "activity"; id: string } | { type: "contact"; id: string } | { type: "discussion" } | null>(null);
+  const [selection, setSelection] = useState<
+    | { type: "file"; path: string }
+    | { type: "session"; id: string }
+    | { type: "task"; id: string }
+    | { type: "crm_deal"; id: string }
+    | { type: "crm_company"; id: string }
+    | { type: "activity"; id: string }
+    | { type: "contact"; id: string }
+    | { type: "discussion" }
+    | { type: "emails" }
+    | { type: "events" }
+    | { type: "bot-chat"; sessionId: string }
+    | null
+  >(null);
+  const [botChatExpanded, setBotChatExpanded] = useState(true);
+  const [projectChatPopupSession, setProjectChatPopupSession] = useState<string | null>(null);
   const { data: discussionCount } = useDiscussionCount("project", workspaceId);
+  const botChatPrefix = `project-chat:${workspaceId}`;
+  const { data: botChatSessions = [] } = useBotChatSessions(botChatPrefix);
   const [showPicker, setShowPicker] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [taskContextMenu, setTaskContextMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
@@ -1549,10 +1570,10 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const { data: contacts = [] } = useContacts(companyId ? { companyId } : undefined);
 
   // Email count for badge
-  const { data: emailCount } = useLinkedEmailCount("project", workspaceId);
+  const { data: _emailCount } = useLinkedEmailCount("project", workspaceId);
 
   // Event count for badge
-  const { data: eventCount } = useLinkedEventCount("project", workspaceId);
+  const { data: _eventCount } = useLinkedEventCount("project", workspaceId);
 
   // Activities for this project/deal — query by projectId for all project types
   const { data: activities = [] } = useActivities(
@@ -1595,8 +1616,10 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const createMilestoneMutation = useCreateMilestone();
   const deleteMilestoneMutation = useDeleteMilestone();
   const createDealMutation = useCreateDeal();
-  const [isDescribing, setIsDescribing] = useState(false);
+  const [, setIsDescribing] = useState(false);
 
+  // @ts-expect-error — describeCurrentState is wired up but not yet called from the UI
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const describeCurrentState = useCallback(async () => {
     setIsDescribing(true);
     try {
@@ -1896,8 +1919,6 @@ Write a brief current state summary. No bullet points, just a natural sentence o
   const statusColor = WORKSPACE_STATUS_COLORS[workspace.status] || "#6B7280";
   const sessions = workspace.sessions ?? [];
   const artifacts = workspace.artifacts ?? [];
-  const context = workspace.context;
-
   const selectedFile = selection?.type === "file" ? selection.path : null;
   const selectedSession = selection?.type === "session"
     ? sessions.find((s) => s.id === selection.id) ?? null
@@ -1910,90 +1931,111 @@ Write a brief current state summary. No bullet points, just a natural sentence o
     return acc;
   }, {});
 
+  const initiativeName = projectInitiativeMap.get(workspaceId);
+  const identPrefix = (ws as any).identifier_prefix;
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-4 py-2.5">
-        <div className="flex items-center gap-3">
-          <BackButton onClick={onBack} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate">
-                <EditableField value={workspace.title} onSave={(v) => updateProjectField("name", v)} />
-              </h1>
-              {(() => {
-                const projectType = (workspace as any).project_type;
-                if (!projectType) return null;
-                return (
-                  <span className={cn(
-                    "text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider flex-shrink-0",
-                    projectType === "deal" ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
-                  )}>
-                    {projectType}
-                  </span>
-                );
-              })()}
-              <div className="relative">
-                <button
-                  onClick={() => setShowStatusMenu((v) => !v)}
-                  className="text-xs px-1.5 py-0.5 rounded-full font-medium cursor-pointer hover:ring-1 hover:ring-offset-1 transition-shadow"
-                  style={{ backgroundColor: `${statusColor}18`, color: statusColor, ['--tw-ring-color' as string]: statusColor }}
-                >
-                  {WORKSPACE_STATUS_LABELS[workspace.status] || workspace.status}
-                </button>
-                {showStatusMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
-                    <div className="absolute top-full left-0 mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[120px]">
-                      {Object.entries(WORKSPACE_STATUS_LABELS).map(([key, label]) => {
-                        const c = WORKSPACE_STATUS_COLORS[key] || "#6B7280";
-                        const isActive = workspace.status === key;
-                        return (
-                          <button
-                            key={key}
-                            onClick={() => {
-                              if (!isActive) {
-                                updateWorkspace.mutate({ id: workspaceId, updates: { status: key } });
-                              }
-                              setShowStatusMenu(false);
-                            }}
-                            className={cn(
-                              "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors",
-                              isActive
-                                ? "bg-zinc-50 dark:bg-zinc-800"
-                                : "hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                            )}
-                          >
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c }} />
-                            <span className="font-medium" style={{ color: isActive ? c : undefined }}>
-                              {label}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              <EditableField value={workspace.description} onSave={(v) => updateProjectField("description", v)} />
-            </p>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-zinc-400 flex-shrink-0">
-            {workspace.owner && <span>{workspace.owner}</span>}
+      {/* Header — compact identifier row, matches TaskDetailPanel style */}
+      <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-4 py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+          {/* Status circle (click to change) */}
+          <div className="relative flex-shrink-0">
             <button
-              onClick={() => { navigator.clipboard.writeText(workspaceId); toast.success("Project ID copied"); }}
-              className="font-mono text-zinc-300 dark:text-zinc-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors cursor-pointer"
-              title={workspaceId}
+              onClick={() => setShowStatusMenu((v) => !v)}
+              className="w-5 h-5 rounded-full border-2 hover:ring-2 hover:ring-offset-1 transition-all"
+              style={{ borderColor: statusColor, ['--tw-ring-color' as string]: statusColor }}
+              title={WORKSPACE_STATUS_LABELS[workspace.status] || workspace.status}
             >
-              {workspaceId.slice(0, 8)}
+              <span className="block w-full h-full rounded-full" style={{ backgroundColor: `${statusColor}30` }} />
             </button>
-            <span title={`Created: ${formatDateTime(workspace.created_at)}\nUpdated: ${formatDateTime(workspace.updated_at)}`}>
-              {formatDateTime(workspace.updated_at)}
-            </span>
+            {showStatusMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
+                <div className="absolute top-full left-0 mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[120px]">
+                  {Object.entries(WORKSPACE_STATUS_LABELS).map(([key, label]) => {
+                    const c = WORKSPACE_STATUS_COLORS[key] || "#6B7280";
+                    const isActive = workspace.status === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          if (!isActive) {
+                            updateWorkspace.mutate({ id: workspaceId, updates: { status: key } });
+                          }
+                          setShowStatusMenu(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors",
+                          isActive ? "bg-zinc-50 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800",
+                        )}
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c }} />
+                        <span className="font-medium" style={{ color: isActive ? c : undefined }}>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
+
+          {/* Identifier prefix (e.g. CKP) */}
+          {identPrefix && (
+            <span className="text-sm text-zinc-500 font-mono">{identPrefix}</span>
+          )}
+
+          {/* Short id — click to copy */}
+          <button
+            onClick={() => { navigator.clipboard.writeText(workspaceId); toast.success("Project ID copied"); }}
+            className="text-[10px] text-zinc-300 dark:text-zinc-600 font-mono cursor-pointer hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+            title={workspaceId}
+          >
+            {workspaceId.slice(0, 8)}
+          </button>
+
+          {/* Project-type pill (DEAL / PROJECT) */}
+          {projectType && (
+            <span className={cn(
+              "text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider flex-shrink-0",
+              projectType === "deal"
+                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400",
+            )}>
+              {projectType}
+            </span>
+          )}
+
+          {/* Initiative / pipeline pill */}
+          {initiativeName && (
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+              {initiativeName}
+            </span>
+          )}
+
+          {/* Breadcrumb chevron */}
+          {initiativeName && (
+            <span className="text-zinc-300 dark:text-zinc-600 text-xs">›</span>
+          )}
+
+          {/* Project name as the trailing breadcrumb pill */}
+          <span
+            className="px-2 py-0.5 rounded text-xs font-medium truncate max-w-[320px]"
+            style={{
+              backgroundColor: `${workspace.color || "#6B7280"}20`,
+              color: workspace.color || "#6B7280",
+            }}
+            title={workspace.title}
+          >
+            {workspace.title}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-zinc-400 flex-shrink-0">
+          <span title={`Created: ${formatDateTime(workspace.created_at)}\nUpdated: ${formatDateTime(workspace.updated_at)}`}>
+            {formatDateTime(workspace.updated_at)}
+          </span>
+          <IconButton icon={X} size={18} label="Close" onClick={onBack} />
         </div>
       </div>
 
@@ -2110,36 +2152,15 @@ Write a brief current state summary. No bullet points, just a natural sentence o
               </div>
             )}
 
-            {/* Sessions below artifacts */}
-            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-              <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                Sessions ({sessions.length})
-              </h3>
-              {sessions.length === 0 ? (
-                <p className="text-xs text-zinc-400">No sessions yet</p>
-              ) : (
-                <div className="space-y-1">
-                  {sessions.map((session) => (
-                    <SessionItem
-                      key={session.id}
-                      session={session}
-                      isSelected={selection?.type === "session" && selection.id === session.id}
-                      onSelect={() => setSelection({ type: "session", id: session.id })}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Discussion */}
-            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            {/* Discussion / Emails / Events — open as full-screen panels on the right */}
+            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-0.5">
               <button
                 onClick={() => setSelection({ type: "discussion" })}
                 className={cn(
                   "w-full text-left flex items-center gap-2 px-1 py-1.5 rounded-md text-xs font-medium transition-colors",
                   selection?.type === "discussion"
                     ? "text-[var(--color-accent)] bg-[var(--color-teal-light)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]",
                 )}
               >
                 <MessageSquare size={13} />
@@ -2150,6 +2171,91 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => setSelection({ type: "emails" })}
+                className={cn(
+                  "w-full text-left flex items-center gap-2 px-1 py-1.5 rounded-md text-xs font-medium transition-colors",
+                  selection?.type === "emails"
+                    ? "text-[var(--color-accent)] bg-[var(--color-teal-light)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]",
+                )}
+              >
+                <Mail size={13} />
+                <span>Emails</span>
+              </button>
+              <button
+                onClick={() => setSelection({ type: "events" })}
+                className={cn(
+                  "w-full text-left flex items-center gap-2 px-1 py-1.5 rounded-md text-xs font-medium transition-colors",
+                  selection?.type === "events"
+                    ? "text-[var(--color-accent)] bg-[var(--color-teal-light)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]",
+                )}
+              >
+                <Calendar size={13} />
+                <span>Events</span>
+              </button>
+            </div>
+
+            {/* Chat to Update — expandable section listing each bot chat session */}
+            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setBotChatExpanded(v => !v)}
+                  className="flex-1 flex items-center gap-1.5 px-1 py-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                >
+                  {botChatExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                  <Brain size={11} className="text-purple-500" />
+                  <span>Chat to Update</span>
+                  {botChatSessions.length > 0 && (
+                    <span className="ml-1 text-[10px] text-zinc-400 normal-case font-normal tracking-normal">
+                      ({botChatSessions.length})
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    const newId = `${botChatPrefix}:${Date.now()}`;
+                    setProjectChatPopupSession(newId);
+                    setBotChatExpanded(true);
+                  }}
+                  className="p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-950/30 text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                  title="Start a new chat with bot-mel"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+              {botChatExpanded && (
+                <div className="mt-1 space-y-0.5">
+                  {botChatSessions.length === 0 ? (
+                    <button
+                      onClick={() => setProjectChatPopupSession(`${botChatPrefix}:${Date.now()}`)}
+                      className="w-full text-left text-[10px] text-zinc-400 dark:text-zinc-600 italic px-2 py-1 hover:text-purple-500 dark:hover:text-purple-400 transition-colors"
+                    >
+                      + Chat to update
+                    </button>
+                  ) : (
+                    botChatSessions.map((s) => (
+                      <button
+                        key={s.entity_id}
+                        onClick={() => setProjectChatPopupSession(s.entity_id)}
+                        className="w-full text-left flex items-start gap-1.5 px-2 py-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors group"
+                        title={s.title ?? s.sample_body}
+                      >
+                        <Brain size={10} className="text-purple-500 mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                            {formatBotChatLabel(s)}
+                          </div>
+                          <div className="text-[9px] text-zinc-400 dark:text-zinc-600">
+                            {s.message_count} msg · {formatRelativeTime(s.last_activity_at)}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Deal metadata — hidden from project details pane, managed via CRM */}
@@ -2267,44 +2373,20 @@ Write a brief current state summary. No bullet points, just a natural sentence o
             <ActivityDetailPanel activity={activities.find(a => a.id === selection.id) || null} />
           ) : selection?.type === "discussion" ? (
             <DiscussionPanel entityType="project" entityId={workspaceId} onClose={() => setSelection(null)} />
+          ) : selection?.type === "emails" ? (
+            <EmailsPanel entityType="project" entityId={workspaceId} />
+          ) : selection?.type === "events" ? (
+            <EventsPanel entityType="project" entityId={workspaceId} />
           ) : (
             <div className="h-full overflow-y-auto p-6">
-              {/* Current State */}
-              <div className="mb-6 p-3 bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/50 rounded-lg">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-xs font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1">
-                    <AlertCircle size={12} /> Current State
-                  </h3>
-                  <button
-                    onClick={describeCurrentState}
-                    disabled={isDescribing}
-                    className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-md bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 hover:bg-teal-200 dark:hover:bg-teal-800/50 transition-colors disabled:opacity-50"
-                    title="Generate current state description with AI"
-                  >
-                    {isDescribing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                    {isDescribing ? "Thinking..." : "Describe"}
-                  </button>
-                </div>
-                {context?.current_state ? (
-                  <p className="text-sm text-teal-800 dark:text-teal-300">{context.current_state}</p>
-                ) : (
-                  <p className="text-xs text-teal-600/50 dark:text-teal-500/50 italic">No current state set</p>
-                )}
-              </div>
-
-              {/* Context */}
+              {/* Title + description — matches TaskDetailPanel's content layout */}
               <div className="mb-6">
-                <button onClick={() => setCollapsedSections(s => ({ ...s, context: !s.context }))} className="flex items-center gap-1.5 mb-2 group">
-                  {collapsedSections.context ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
-                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Context</h3>
-                </button>
-                {!collapsedSections.context && (
-                  context?.context_summary ? (
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap pl-5">{unescapeNewlines(context.context_summary)}</p>
-                  ) : (
-                    <p className="text-xs text-zinc-400 italic pl-5">No context summary yet</p>
-                  )
-                )}
+                <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                  <EditableField value={workspace.title} onSave={(v) => updateProjectField("name", v)} />
+                </h1>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                  <EditableField value={workspace.description} onSave={(v) => updateProjectField("description", v)} />
+                </p>
               </div>
 
               {/* Project Details — editable fields */}
@@ -2409,6 +2491,16 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                       />
                     </div>
                   )}
+
+                  {/* Folder Path — where this project's files/task attachments are stored */}
+                  <div className="grid grid-cols-[120px,1fr] gap-2 items-start">
+                    <span className="text-zinc-400 py-1">Folder Path</span>
+                    <FolderPickerField
+                      value={(ws as any).folder_path || ""}
+                      placeholder="Click to browse folders"
+                      onSave={(v) => updateProjectField("folder_path", v || null)}
+                    />
+                  </div>
 
                   {/* Configurable fields (driven by Settings > Project Fields) */}
                   {configuredFields.length > 0 && (
@@ -2997,38 +3089,6 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                   )}
               </div>
 
-              {/* Emails */}
-              <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <button onClick={() => setCollapsedSections(s => ({ ...s, emails: !s.emails }))} className="flex items-center gap-1.5 mb-3 group">
-                  {collapsedSections.emails ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
-                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-                    <Mail size={12} />
-                    Emails ({emailCount ?? 0})
-                  </h3>
-                </button>
-                {!collapsedSections.emails && (
-                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg flex flex-col" style={{ maxHeight: 600 }}>
-                    <EmailsPanel entityType="project" entityId={workspaceId} />
-                  </div>
-                )}
-              </div>
-
-              {/* Calendar Events */}
-              <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <button onClick={() => setCollapsedSections(s => ({ ...s, events: !s.events }))} className="flex items-center gap-1.5 mb-3 group">
-                  {collapsedSections.events ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
-                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-                    <CalendarDays size={12} />
-                    Events ({eventCount ?? 0})
-                  </h3>
-                </button>
-                {!collapsedSections.events && (
-                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg flex flex-col" style={{ maxHeight: 600 }}>
-                    <EventsPanel entityType="project" entityId={workspaceId} />
-                  </div>
-                )}
-              </div>
-
               {/* Activities timeline */}
               <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <button onClick={() => setCollapsedSections(s => ({ ...s, activities: !s.activities }))} className="flex items-center gap-1.5 mb-3 group">
@@ -3407,6 +3467,18 @@ Write a brief current state summary. No bullet points, just a natural sentence o
         />
       )}
 
+      {/* Project chat-to-update popup — owned here so clicking a session or + opens it */}
+      {projectChatPopupSession && ws && (
+        <ProjectChatPopup
+          projectId={workspaceId}
+          projectName={ws.name}
+          projectType={(ws.project_type === "deal" ? "deal" : "project") as "project" | "deal"}
+          folderPath={(ws as any).folder_path ?? null}
+          sessionEntityId={projectChatPopupSession}
+          onClose={() => setProjectChatPopupSession(null)}
+        />
+      )}
+
       {/* Task detail slide-out panel */}
       {taskDetailId && (
         <>
@@ -3423,4 +3495,28 @@ Write a brief current state summary. No bullet points, just a natural sentence o
       )}
     </div>
   );
+}
+
+// Bot chat helpers — format a session list entry and a relative time label
+function formatBotChatLabel(s: { title: string | null; sample_body: string; created_at: string }): string {
+  if (s.title && s.title.trim() && !s.title.startsWith("Project:") && !s.title.startsWith("Deal:")) return s.title;
+  const cleaned = s.sample_body
+    .replace(/@\S+\s*/g, "")
+    .replace(/\[\[[\w]+:[^|\]]+(?:\|[^\]]+)?\]\]/g, "")
+    .trim();
+  if (cleaned) return cleaned.slice(0, 48);
+  return new Date(s.created_at).toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+}
+
+function formatRelativeTime(iso: string): string {
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return d.toLocaleDateString("en-SG", { day: "numeric", month: "short" });
 }

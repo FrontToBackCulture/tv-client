@@ -1,6 +1,6 @@
 // Chat composer — message input with @user, [[entity autocomplete, and image paste
 
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { Send, X, CornerDownLeft, Building2, CheckSquare, FolderOpen, User, ImagePlus, Loader2, Bot, Users } from "lucide-react";
 import { useUsers } from "../../hooks/work";
 import { useEntityMentionSearch, type EntitySearchResult } from "../../hooks/chat";
@@ -15,6 +15,10 @@ interface ChatComposerProps {
   onSubmit: (body: string, entityMentions: EntitySearchResult[], attachments?: string[]) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** Controlled value to prefill/append text (e.g. from skill chips). Setting this
+   *  replaces the current draft and focuses the input. */
+  prefillText?: string | null;
+  onPrefillConsumed?: () => void;
 }
 
 const entityIcons = {
@@ -53,9 +57,27 @@ export function ChatComposer({
   onSubmit,
   placeholder,
   disabled,
+  prefillText,
+  onPrefillConsumed,
 }: ChatComposerProps) {
   const [body, setBody] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Handle prefill text from skill chips
+  useEffect(() => {
+    if (prefillText != null) {
+      setBody(prefillText);
+      // Focus and position cursor at end after the next paint
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(prefillText.length, prefillText.length);
+        }
+      });
+      onPrefillConsumed?.();
+    }
+  }, [prefillText, onPrefillConsumed]);
 
   const [mentionMode, setMentionMode] = useState<MentionMode>(null);
   const [mentionQuery, setMentionQuery] = useState("");

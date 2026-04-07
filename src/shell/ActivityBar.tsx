@@ -24,7 +24,6 @@ import {
   Database,
   CalendarDays,
   MoreHorizontal,
-  Linkedin,
   Target,
   SlidersHorizontal,
   Activity,
@@ -34,6 +33,8 @@ import {
   MessageSquare,
   Handshake,
   BookOpen,
+  LineChart,
+  Inbox,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -42,6 +43,7 @@ import { openModuleInNewWindow } from "../lib/windowManager";
 import { UserProfile } from "../components/UserProfile";
 import { useModuleVisibilityStore } from "../stores/moduleVisibilityStore";
 import { useTeamConfigStore } from "../stores/teamConfigStore";
+import { useModeStore } from "../stores/modeStore";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useCurrentUserId } from "../hooks/work/useUsers";
@@ -77,6 +79,7 @@ const navSections: NavSection[] = [
     label: "Comms",
     items: [
       { id: "inbox", icon: Mail, label: "Inbox", shortcut: "" },
+      { id: "shared-inbox", icon: Inbox, label: "Shared Inboxes", shortcut: "" },
       { id: "chat", icon: MessageSquare, label: "Chat", shortcut: "" },
       { id: "calendar", icon: CalendarDays, label: "Calendar", shortcut: "" },
     ],
@@ -101,11 +104,18 @@ const navSections: NavSection[] = [
       { id: "skills", icon: Puzzle, label: "Skills", shortcut: "\u23188" },
     ],
   },
+  // Personal section — only rendered in workspaces that have personal
+  // modules enabled (see moduleVisibilityStore). Currently only Melly.
+  {
+    label: "Personal",
+    items: [
+      { id: "investment", icon: LineChart, label: "Investment", shortcut: "" },
+    ],
+  },
 ];
 
 // Items hidden behind "More" flyout in Platform section
 const moreItems: NavItem[] = [
-  { id: "linkedin", icon: Linkedin, label: "LinkedIn", shortcut: "" },
   { id: "product", icon: Boxes, label: "Product", shortcut: "\u23184" },
   { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "\u23189" },
   { id: "repos", icon: GitBranch, label: "Repos", shortcut: "" },
@@ -437,6 +447,10 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
   const resizing = useRef(false);
   const hiddenModules = useModuleVisibilityStore((s) => s.hiddenModules);
   const teamConfig = useTeamConfigStore((s) => s.config);
+  // Subscribe so the sidebar re-filters whenever the user switches mode —
+  // isModuleVisible reads modeStore internally and the memos below depend
+  // on this value to recompute.
+  const activeMode = useModeStore((s) => s.activeMode);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   // Chat unread badge — count conversations with activity after user's last read position
@@ -545,12 +559,12 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
       }))
       .filter((section) => section.items.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isModuleVisible, hiddenModules, teamConfig]);
+  }, [isModuleVisible, hiddenModules, teamConfig, activeMode]);
 
   const filteredMoreItems = useMemo(() => {
     return moreItems.filter((item) => isModuleVisible(item.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isModuleVisible, hiddenModules, teamConfig]);
+  }, [isModuleVisible, hiddenModules, teamConfig, activeMode]);
 
   const handleContextMenu = (e: React.MouseEvent, item: NavItem) => {
     e.preventDefault();
@@ -582,7 +596,14 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
     <div
       data-help-id="activity-bar"
       className="bg-slate-50 dark:bg-slate-900 flex flex-col py-2 gap-0.5 overflow-hidden select-none flex-shrink-0 items-stretch px-1.5 relative"
-      style={{ width: sidebarWidth }}
+      style={{
+        width: sidebarWidth,
+        // Workspace-color tint layered over the base background-color set
+        // by Tailwind. Matches the title bar tint so both surfaces read as
+        // the same workspace at a glance. The `--workspace-accent-rgb` var
+        // is set on :root by the Shell's useWorkspaceAccent hook.
+        backgroundImage: `linear-gradient(rgba(var(--workspace-accent-rgb), 0.12), rgba(var(--workspace-accent-rgb), 0.12))`,
+      }}
     >
       {/* Resize handle */}
       <div

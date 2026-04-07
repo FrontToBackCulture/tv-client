@@ -9,7 +9,7 @@ use super::storage;
 use super::types::RunTrigger;
 
 /// Start the scheduler polling loop. Call from main.rs setup hook.
-/// `default_reports_folder` is the fallback for jobs that don't have sod_reports_folder set.
+/// `default_reports_folder` is the fallback for automations that don't have sod_reports_folder set.
 pub fn start_scheduler(app_handle: tauri::AppHandle, default_reports_folder: String) {
     tauri::async_runtime::spawn(async move {
         // Wait 15s before first check
@@ -17,27 +17,27 @@ pub fn start_scheduler(app_handle: tauri::AppHandle, default_reports_folder: Str
         eprintln!("[scheduler] Background scheduler started");
 
         loop {
-            check_and_run_jobs(&app_handle, &default_reports_folder).await;
+            check_and_run_automations(&app_handle, &default_reports_folder).await;
             // Poll every 60s
             tokio::time::sleep(std::time::Duration::from_secs(60)).await;
         }
     });
 }
 
-async fn check_and_run_jobs(app_handle: &tauri::AppHandle, default_reports_folder: &str) {
-    let jobs = match storage::load_jobs_async().await {
-        Ok(j) => j,
+async fn check_and_run_automations(app_handle: &tauri::AppHandle, default_reports_folder: &str) {
+    let automations = match storage::load_automations_async().await {
+        Ok(a) => a,
         Err(e) => {
-            eprintln!("[scheduler] Failed to load jobs: {}", e);
+            eprintln!("[scheduler] Failed to load automations: {}", e);
             return;
         }
     };
 
     let now = Utc::now();
 
-    for job in jobs.iter().filter(|j| j.enabled) {
-        // Skip ad-hoc jobs (no cron expression)
-        let cron_expr_str = match &job.cron_expression {
+    for auto in automations.iter().filter(|a| a.enabled) {
+        // Skip ad-hoc automations (no cron expression)
+        let cron_expr_str = match &auto.cron_expression {
             Some(expr) => expr.clone(),
             None => continue,
         };
@@ -48,21 +48,21 @@ async fn check_and_run_jobs(app_handle: &tauri::AppHandle, default_reports_folde
             Ok(s) => s,
             Err(e) => {
                 eprintln!(
-                    "[scheduler] Invalid cron '{}' for job '{}': {}",
-                    cron_expr_str, job.name, e
+                    "[scheduler] Invalid cron '{}' for automation '{}': {}",
+                    cron_expr_str, auto.name, e
                 );
                 continue;
             }
         };
 
-        // Check if the job should run this minute
-        if !should_run_now(&schedule, &job.last_run_at, &now) {
+        // Check if the automation should run this minute
+        if !should_run_now(&schedule, &auto.last_run_at, &now) {
             continue;
         }
 
-        eprintln!("[scheduler] Triggering scheduled job: {}", job.name);
+        eprintln!("[scheduler] Triggering scheduled automation: {}", auto.name);
 
-        let job_clone = job.clone();
+        let auto_clone = auto.clone();
         let handle = app_handle.clone();
         let run_id = format!(
             "{:08x}-{:04x}-4000-8000-{:012x}",
@@ -71,35 +71,34 @@ async fn check_and_run_jobs(app_handle: &tauri::AppHandle, default_reports_folde
             (now.timestamp_nanos_opt().unwrap_or(0) >> 16) & 0xFFFFFFFFFFFF,
         );
 
-        // Spawn in separate task so concurrent jobs are OK
+        // Spawn in separate task so concurrent automations are OK
         let reports_folder = default_reports_folder.to_string();
-        let job_name_for_tracking = job_clone.name.clone();
+        let auto_name = auto_clone.name.clone();
         let run_id_for_tracking = run_id.clone();
         tauri::async_runtime::spawn(async move {
             use tauri::Emitter;
-            let tracking_id = format!("scheduler-{}-{}", job_clone.id, chrono::Utc::now().timestamp_millis());
+            let tracking_id = format!("scheduler-{}-{}", auto_clone.id, chrono::Utc::now().timestamp_millis());
             let started_at = chrono::Utc::now().to_rfc3339();
-            let display_name = format!("Scheduled: {}", job_name_for_tracking);
+            let display_name = format!("Scheduled: {}", auto_name);
             let _ = handle.emit("jobs:update", serde_json::json!({
                 "id": &tracking_id, "name": &display_name, "status": "running",
-                "message": format!("Running scheduled job: {}", job_name_for_tracking), "startedAt": &started_at,
+                "message": format!("Running scheduled: {}", auto_name), "startedAt": &started_at,
             }));
-            runner::execute_job(&job_clone, &run_id, RunTrigger::Scheduled, &handle, &reports_folder).await;
-            // Check run status from storage to determine success/failure
-            let job_status = storage::load_run_async(&run_id_for_tracking).await
+            runner::execute_automation(&auto_clone, &run_id, RunTrigger::Scheduled, &handle, &reports_folder).await;
+            let run_status = storage::load_run_async(&run_id_for_tracking).await
                 .map(|r| r.status)
                 .unwrap_or(super::types::RunStatus::Failed);
-            match job_status {
+            match run_status {
                 super::types::RunStatus::Failed => {
                     let _ = handle.emit("jobs:update", serde_json::json!({
                         "id": &tracking_id, "name": &display_name, "status": "failed",
-                        "message": format!("{} failed", job_name_for_tracking), "startedAt": &started_at,
+                        "message": format!("{} failed", auto_name), "startedAt": &started_at,
                     }));
                 }
                 _ => {
                     let _ = handle.emit("jobs:update", serde_json::json!({
                         "id": &tracking_id, "name": &display_name, "status": "completed",
-                        "message": format!("{} completed", job_name_for_tracking), "startedAt": &started_at,
+                        "message": format!("{} completed", auto_name), "startedAt": &started_at,
                     }));
                 }
             }
@@ -107,7 +106,7 @@ async fn check_and_run_jobs(app_handle: &tauri::AppHandle, default_reports_folde
     }
 }
 
-/// Check if the cron schedule matches the current minute and job hasn't run this minute
+/// Check if the cron schedule matches the current minute and automation hasn't run this minute
 fn should_run_now(
     schedule: &Schedule,
     last_run_at: &Option<chrono::DateTime<Utc>>,

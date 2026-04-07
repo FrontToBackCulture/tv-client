@@ -51,7 +51,7 @@ export const ARTIFACT_META: Record<string, { description: string; group: string;
 /** Descriptions for output files — keyed by file name */
 export const OUTPUT_FILE_DESCRIPTIONS: Record<string, string> = {};
 
-export type Tab = "overview" | "data-models" | "queries" | "workflows" | "dashboards" | "reports" | "ai" | "cleanup" | "discussion";
+export type Tab = "overview" | "data-models" | "queries" | "workflows" | "dashboards" | "reports" | "ai" | "cleanup" | "dependencies" | "discussion" | "solutions";
 
 // ============================================================================
 // Domain types — color name → Tailwind class mapping

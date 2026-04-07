@@ -68,8 +68,6 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
   const [model, setModel] = useState(job?.model ?? "sonnet");
   const [maxBudget, setMaxBudget] = useState<string>(job?.max_budget?.toString() ?? "");
   const [allowedTools, setAllowedTools] = useState(job?.allowed_tools?.join(", ") ?? "");
-  const [slackWebhookUrl, setSlackWebhookUrl] = useState(job?.slack_webhook_url ?? "");
-  const [slackChannelName, setSlackChannelName] = useState(job?.slack_channel_name ?? "");
   const [enabled, setEnabled] = useState(job?.enabled ?? true);
   const [generateReport, setGenerateReport] = useState(job?.generate_report ?? true);
   const [reportPrefix, setReportPrefix] = useState(job?.report_prefix ?? "");
@@ -149,8 +147,6 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
       allowed_tools: allowedTools
         ? allowedTools.split(",").map((t) => t.trim()).filter(Boolean)
         : [],
-      slack_webhook_url: slackWebhookUrl.trim() || null,
-      slack_channel_name: slackChannelName.trim() || null,
       enabled,
       generate_report: generateReport,
       report_prefix: reportPrefix.trim() || null,
@@ -383,26 +379,6 @@ export function JobForm({ job, onSubmit, onClose, isLoading }: JobFormProps) {
               className="font-mono"
             />
           </FormField>
-
-          {/* Slack */}
-          <div className="flex gap-4">
-            <FormField label="Slack Webhook URL" className="flex-1">
-              <Input
-                type="url"
-                value={slackWebhookUrl}
-                onChange={(e) => setSlackWebhookUrl(e.target.value)}
-                placeholder="https://hooks.slack.com/services/..."
-              />
-            </FormField>
-            <FormField label="Channel Name" className="w-40">
-              <Input
-                type="text"
-                value={slackChannelName}
-                onChange={(e) => setSlackChannelName(e.target.value)}
-                placeholder="#ops-alerts"
-              />
-            </FormField>
-          </div>
 
           {/* Toggles */}
           <div className="flex items-center gap-6">

@@ -148,6 +148,25 @@ pub async fn run_stdio() -> io::Result<()> {
     // Record the binary's mtime at startup so we can detect updates
     let startup_mtime = get_binary_mtime();
 
+    // Orphan detection: record parent PID at startup. If parent dies and we
+    // get reparented to init (pid 1), exit cleanly. This prevents stale
+    // tv-mcp processes from accumulating when Claude Code crashes or is
+    // killed without closing its stdin pipe.
+    let startup_ppid = unsafe { libc::getppid() };
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(10));
+            let current_ppid = unsafe { libc::getppid() };
+            if current_ppid != startup_ppid || current_ppid == 1 {
+                eprintln!(
+                    "[tv-mcp] Parent process gone (ppid was {}, now {}) — exiting",
+                    startup_ppid, current_ppid
+                );
+                std::process::exit(0);
+            }
+        }
+    });
+
     for line in reader.lines() {
         let line = line?;
         if line.trim().is_empty() {

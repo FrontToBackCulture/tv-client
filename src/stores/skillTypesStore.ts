@@ -2,7 +2,8 @@
 // User-configurable skill type options for the skills grid
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createWorkspaceScopedStorage } from "../lib/workspaceScopedStorage";
 
 export interface SkillTypeOption {
   value: string;
@@ -51,6 +52,9 @@ export const useSkillTypesStore = create<SkillTypesStore>()(
 
       resetToDefaults: () => set({ types: DEFAULT_SKILL_TYPES }),
     }),
-    { name: "tv-skill-types" }
+    {
+      name: "tv-skill-types",
+      storage: createJSONStorage(() => createWorkspaceScopedStorage()),
+    }
   )
 );

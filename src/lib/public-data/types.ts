@@ -68,3 +68,122 @@ export const PRIORITY_LABELS: Record<number, string> = {
   2: "P2",
   3: "P3",
 };
+
+// ─── MCF Job Postings ──────────────────────────────────
+
+export interface McfJobPosting {
+  id: string;
+  mcf_uuid: string;
+  title: string;
+  description: string | null;
+  company_name: string | null;
+  company_uen: string | null;
+  company_description: string | null;
+  company_ssic_code: string | null;
+  company_employee_count: string | null;
+  company_url: string | null;
+  company_logo: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_type: string | null;
+  employment_types: string[] | null;
+  position_levels: string[] | null;
+  categories: string[] | null;
+  minimum_years_experience: number | null;
+  number_of_vacancies: number | null;
+  job_status: string | null;
+  new_posting_date: string | null;
+  original_posting_date: string | null;
+  expiry_date: string | null;
+  job_details_url: string | null;
+  ssoc_code: string | null;
+  industry_tag: string | null;
+  acra_ssic_code: string | null;
+  acra_ssic_description: string | null;
+  role_category: string | null;
+  created_at: string | null;
+}
+
+// ─── Job Reviews ───────────────────────────────────────
+
+export type ReviewStatus = "new" | "reviewing" | "researching" | "prospected" | "skipped";
+
+export interface JobReview {
+  id: string;
+  mcf_uuid: string;
+  status: ReviewStatus;
+  priority: number | null;
+  notes: string | null;
+  tags: string[];
+  crm_company_id: string | null;
+  reviewed_by: string;
+  reviewed_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Saved Filters ─────────────────────────────────────
+
+export interface JobFilters {
+  search?: string;
+  industry_tag?: string[];
+  role_category?: string[];
+  review_status?: ReviewStatus[];
+  unreviewed_only?: boolean;
+  salary_min?: number;
+  company_employee_count?: string[];
+}
+
+export interface SavedFilter {
+  id: string;
+  source_table: string;
+  name: string;
+  filters: JobFilters;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Label Maps ────────────────────────────────────────
+
+export const INDUSTRY_TAG_OPTIONS: Record<string, string> = {
+  fnb: "F&B",
+  hospitality: "Hospitality",
+  retail: "Retail",
+  logistics: "Logistics",
+  healthcare: "Healthcare",
+  construction: "Construction",
+  tech: "Tech",
+  manufacturing: "Manufacturing",
+  financial_services: "Financial Services",
+  professional_services: "Professional Services",
+  government: "Government",
+  education: "Education",
+  real_estate: "Real Estate",
+  other: "Other",
+};
+
+export const ROLE_CATEGORY_OPTIONS: Record<string, string> = {
+  executive: "Executive / Management",
+  finance: "Finance / Accounting",
+  admin: "Admin / Clerical",
+  sales: "Sales / Marketing",
+  it: "IT / Software",
+  engineering: "Engineering / Science",
+  healthcare: "Healthcare",
+  teaching: "Education / Teaching",
+  legal_social: "Legal / Social / Arts",
+  technician: "Technician",
+  services: "Services / Care",
+  trades: "Trades / Craft",
+  operators: "Operators / Drivers",
+  elementary: "Elementary / Labour",
+};
+
+export const REVIEW_STATUS_CONFIG: Record<ReviewStatus, { label: string; color: string }> = {
+  new: { label: "New", color: "blue" },
+  reviewing: { label: "Reviewing", color: "amber" },
+  researching: { label: "Researching", color: "purple" },
+  prospected: { label: "Prospected", color: "teal" },
+  skipped: { label: "Skipped", color: "zinc" },
+};

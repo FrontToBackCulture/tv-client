@@ -1,6 +1,7 @@
 use chrono::Utc;
 use tauri::command;
 
+use super::action;
 use super::runner;
 use super::storage;
 use super::types::*;
@@ -32,8 +33,6 @@ pub async fn scheduler_create_job(input: JobInput) -> CmdResult<Job> {
         model: input.model.unwrap_or_else(|| "sonnet".to_string()),
         max_budget: input.max_budget,
         allowed_tools: input.allowed_tools.unwrap_or_default(),
-        slack_webhook_url: input.slack_webhook_url,
-        slack_channel_name: input.slack_channel_name,
         enabled: input.enabled.unwrap_or(true),
         generate_report: input.generate_report.unwrap_or(true),
         report_prefix: input.report_prefix,
@@ -64,8 +63,6 @@ pub async fn scheduler_update_job(id: String, input: JobInput) -> CmdResult<Job>
     if let Some(tools) = input.allowed_tools {
         job.allowed_tools = tools;
     }
-    job.slack_webhook_url = input.slack_webhook_url;
-    job.slack_channel_name = input.slack_channel_name;
     if let Some(enabled) = input.enabled {
         job.enabled = enabled;
     }
@@ -239,6 +236,60 @@ pub async fn scheduler_import_jobs(file_path: String) -> CmdResult<usize> {
     }
 
     Ok(count)
+}
+
+// ============================================================================
+// Unified automation execution
+// ============================================================================
+
+#[command]
+pub async fn scheduler_run_automation(automation_id: String, default_reports_folder: String, app_handle: tauri::AppHandle) -> CmdResult<String> {
+    let config = storage::load_automation_async(&automation_id).await?;
+
+    let run_id = uuid_v4();
+    let run_id_clone = run_id.clone();
+    let run_id_tracking = run_id.clone();
+    let auto_name = config.name.clone();
+
+    tauri::async_runtime::spawn(async move {
+        use tauri::Emitter;
+        let tracking_id = format!("scheduler-manual-{}", chrono::Utc::now().timestamp_millis());
+        let started_at = chrono::Utc::now().to_rfc3339();
+        let display_name = format!("Run: {}", auto_name);
+        let _ = app_handle.emit("jobs:update", serde_json::json!({
+            "id": &tracking_id, "name": &display_name, "status": "running",
+            "message": format!("Running {}...", auto_name), "startedAt": &started_at,
+        }));
+        runner::execute_automation(&config, &run_id_clone, RunTrigger::Manual, &app_handle, &default_reports_folder).await;
+        let run_status = storage::load_run_async(&run_id_tracking).await
+            .map(|r| r.status)
+            .unwrap_or(RunStatus::Failed);
+        match run_status {
+            RunStatus::Failed => {
+                let _ = app_handle.emit("jobs:update", serde_json::json!({
+                    "id": &tracking_id, "name": &display_name, "status": "failed",
+                    "message": format!("{} failed", auto_name), "startedAt": &started_at,
+                }));
+            }
+            _ => {
+                let _ = app_handle.emit("jobs:update", serde_json::json!({
+                    "id": &tracking_id, "name": &display_name, "status": "completed",
+                    "message": format!("{} completed", auto_name), "startedAt": &started_at,
+                }));
+            }
+        }
+    });
+
+    Ok(run_id)
+}
+
+// ============================================================================
+// Action execution
+// ============================================================================
+
+#[command]
+pub async fn scheduler_execute_action(config: action::ActionConfig) -> CmdResult<action::ActionResult> {
+    action::execute_action(&config).await
 }
 
 // ============================================================================

@@ -399,6 +399,82 @@ async fn get_user_email(access_token: &str) -> CmdResult<String> {
         .ok_or_else(|| CommandError::NotFound("No email found in profile".to_string()))
 }
 
+/// Lightweight OAuth flow — opens browser, catches the code, returns it.
+/// Does NOT exchange the code or store tokens. Used by the shared inbox
+/// feature so the frontend can forward the code to a Supabase Edge Function.
+#[tauri::command]
+pub async fn outlook_oauth_code(
+    client_id: String,
+    tenant_id: String,
+    login_hint: Option<String>,
+) -> CmdResult<String> {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::Arc;
+    use tokio::sync::oneshot;
+
+    let port = 3847;
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
+        .map_err(|e| CommandError::Io(format!("Failed to bind on port {}: {}", port, e)))?;
+
+    let redirect_uri = format!("http://localhost:{}/callback", port);
+    let scopes = "offline_access Mail.Read";
+    let mut auth_url = format!(
+        "https://login.microsoftonline.com/{}/oauth2/v2.0/authorize?client_id={}&response_type=code&redirect_uri={}&scope={}&response_mode=query",
+        tenant_id,
+        client_id,
+        urlencoding::encode(&redirect_uri),
+        urlencoding::encode(scopes),
+    );
+    if let Some(hint) = &login_hint {
+        auth_url.push_str(&format!("&login_hint={}", urlencoding::encode(hint)));
+    }
+
+    log::info!("Opening browser for shared inbox OAuth: {}", auth_url);
+    open::that(&auth_url).map_err(|e| CommandError::Io(format!("Failed to open browser: {}", e)))?;
+
+    listener.set_nonblocking(false).ok();
+    let (tx, rx) = oneshot::channel::<Result<String, String>>();
+    let listener = Arc::new(listener);
+    let listener_clone = listener.clone();
+
+    std::thread::spawn(move || {
+        match listener_clone.accept() {
+            Ok((mut stream, _)) => {
+                let mut buffer = [0; 8192];
+                if let Ok(size) = stream.read(&mut buffer) {
+                    let request = String::from_utf8_lossy(&buffer[..size]);
+                    if let Some(code) = extract_code_from_request(&request) {
+                        let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body><h1>Success!</h1><p>Mailbox authenticated. You can close this window.</p><script>window.close()</script></body></html>";
+                        let _ = stream.write_all(response.as_bytes());
+                        let _ = tx.send(Ok(code));
+                    } else if request.contains("error=") {
+                        let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body><h1>Error</h1><p>Authentication was denied.</p></body></html>";
+                        let _ = stream.write_all(response.as_bytes());
+                        let _ = tx.send(Err("Authentication denied".to_string()));
+                    } else {
+                        let _ = tx.send(Err("Invalid callback".to_string()));
+                    }
+                } else {
+                    let _ = tx.send(Err("Failed to read request".to_string()));
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(Err(format!("Failed to accept connection: {}", e)));
+            }
+        }
+    });
+
+    let code = match tokio::time::timeout(std::time::Duration::from_secs(300), rx).await {
+        Ok(Ok(Ok(code))) => code,
+        Ok(Ok(Err(e))) => return Err(CommandError::Internal(e)),
+        Ok(Err(_)) => return Err(CommandError::Internal("Callback cancelled".to_string())),
+        Err(_) => return Err(CommandError::Internal("Authentication timed out".to_string())),
+    };
+
+    Ok(code)
+}
+
 fn extract_code_from_request(request: &str) -> Option<String> {
     let first_line = request.lines().next()?;
     let path = first_line.split_whitespace().nth(1)?;

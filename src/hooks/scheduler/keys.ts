@@ -14,4 +14,7 @@ export const schedulerKeys = {
   automation: (id: string) => [...schedulerKeys.all, "automation", id] as const,
   automationNodes: (id: string) => [...schedulerKeys.all, "nodes", id] as const,
   automationEdges: (id: string) => [...schedulerKeys.all, "edges", id] as const,
+  triggerPresets: () => [...schedulerKeys.all, "trigger-presets"] as const,
+  instructionTemplates: () => [...schedulerKeys.all, "instruction-templates"] as const,
+  outputConfigs: () => [...schedulerKeys.all, "output-configs"] as const,
 };

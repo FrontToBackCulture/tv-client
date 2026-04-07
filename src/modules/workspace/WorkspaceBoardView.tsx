@@ -10,6 +10,7 @@ import {
   WORKSPACE_STATUS_LABELS,
   WORKSPACE_STATUS_COLORS,
 } from "../../lib/workspace/types";
+import { workspaceLocalStorage } from "../../lib/workspaceScopedStorage";
 
 interface Props {
   workspaces: WorkspaceWithCounts[];
@@ -22,7 +23,7 @@ const STORAGE_KEY = "workspace-board-column-order";
 
 function loadColumnOrder(): string[] {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = workspaceLocalStorage.get(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved) as string[];
       if (DEFAULT_ORDER.every((s) => parsed.includes(s)) && parsed.length === DEFAULT_ORDER.length) {
@@ -34,7 +35,7 @@ function loadColumnOrder(): string[] {
 }
 
 function saveColumnOrder(order: string[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+  workspaceLocalStorage.set(STORAGE_KEY, JSON.stringify(order));
 }
 
 function formatDate(dateStr: string | null): string {

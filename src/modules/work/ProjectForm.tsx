@@ -63,6 +63,7 @@ export function ProjectForm({ project, onClose, onSaved }: ProjectFormProps) {
     identifier_prefix: project?.identifier_prefix || "",
     priority: project?.priority ?? null,
     project_type: project?.project_type || "work",
+    folder_path: project?.folder_path || "",
   });
   const [initiativeId, setInitiativeId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -264,6 +265,19 @@ export function ProjectForm({ project, onClose, onSaved }: ProjectFormProps) {
           />
           <span className="text-xs text-zinc-500 font-mono">{formData.color || "#0D7680"}</span>
         </div>
+      </FormField>
+
+      {/* Folder path — used to scope task attachments, activity logs, and bot-saved files */}
+      <FormField label="Folder path">
+        <Input
+          type="text"
+          value={formData.folder_path || ""}
+          onChange={(e) => setFormData({ ...formData, folder_path: e.target.value || null })}
+          placeholder="e.g. 3_Clients/uob/projects/sow-q1-2026"
+        />
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">
+          Filesystem path (relative to tv-knowledge root) where this project's files, task attachments, and bot-generated artifacts are stored.
+        </p>
       </FormField>
     </FormModal>
   );

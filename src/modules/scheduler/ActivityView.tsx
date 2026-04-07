@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   Activity, CheckCircle2, XCircle, Loader2, Trash2,
-  Clock, CheckCircle, Slack,
+  Clock, CheckCircle,
 } from "lucide-react";
 import { useJobsStore, type BackgroundJob } from "../../stores/jobsStore";
 import type { JobRun } from "../../hooks/scheduler";
@@ -166,7 +166,6 @@ function RunHistoryList({ runs, isLoading }: { runs: JobRun[]; isLoading: boolea
                   >
                     {run.trigger}
                   </span>
-                  {run.slack_posted && <Slack size={12} className="text-zinc-400" />}
                 </div>
                 <div className="flex items-center gap-3 mt-0.5">
                   <span className="text-xs text-zinc-400">

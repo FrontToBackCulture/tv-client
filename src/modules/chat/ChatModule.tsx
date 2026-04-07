@@ -2,22 +2,19 @@
 // Reuses the existing discussions system with a dedicated inbox + thread layout
 
 import { useState, useEffect, useCallback } from "react";
-import { MessageSquare, ArrowRight } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "../../components/PageHeader";
 import { useThreads, useChatReadPositions, useUpsertReadPosition, type Thread } from "../../hooks/chat";
-import { useCreateDiscussion } from "../../hooks/useDiscussions";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../stores/authStore";
 import { useUsers } from "../../hooks/work";
 import { useNotificationNavStore } from "../../stores/notificationNavStore";
 import { ChatInbox } from "./ChatInbox";
 import { ChatThreadView } from "./ChatThreadView";
-import { NewThreadModal } from "./NewThreadModal";
 
 export function ChatModule() {
   const { data: threads = [], isLoading: threadsLoading } = useThreads();
-  const createMutation = useCreateDiscussion();
 
   // Resolve current user for read positions
   const authUser = useAuth((s) => s.user);
@@ -32,7 +29,6 @@ export function ChatModule() {
   const upsertReadPosition = useUpsertReadPosition();
 
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
-  const [showNewThread, setShowNewThread] = useState(false);
 
   // Keep selected thread data fresh
   useEffect(() => {
@@ -64,10 +60,10 @@ export function ChatModule() {
   const queryClient = useQueryClient();
 
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   async function handleDeleteThread(thread: Thread) {
     setDeletingThreadId(thread.entity_id);
-    // Delete all discussions for this entity
     const { error } = await supabase
       .from("discussions")
       .delete()
@@ -80,53 +76,66 @@ export function ChatModule() {
       return;
     }
 
-    // Clear selection if we deleted the active thread
     if (selectedThread?.entity_id === thread.entity_id && selectedThread?.entity_type === thread.entity_type) {
       setSelectedThread(null);
     }
 
-    // Refresh data
     queryClient.invalidateQueries({ queryKey: ["discussions"] });
     queryClient.invalidateQueries({ queryKey: ["chat"] });
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
     setDeletingThreadId(null);
   }
 
-  async function handleCreateThread(params: {
-    title: string;
-    body: string;
-    entityType: string;
-    entityId: string;
-  }) {
-    const result = await createMutation.mutateAsync({
-      entity_type: params.entityType,
-      entity_id: params.entityId,
-      author: currentUser,
-      body: params.body,
-      title: params.title,
-    });
+  async function handleBulkDeleteThreads(threadsToDelete: Thread[]) {
+    setIsBulkDeleting(true);
 
-    setShowNewThread(false);
+    // Build OR filter for all entity_type+entity_id pairs
+    const conditions = threadsToDelete.map(
+      (t) => `and(entity_type.eq.${t.entity_type},entity_id.eq.${t.entity_id})`
+    );
+    const { error } = await supabase
+      .from("discussions")
+      .delete()
+      .or(conditions.join(","));
 
+    if (error) {
+      console.error("Failed to bulk delete threads:", error);
+      setIsBulkDeleting(false);
+      return;
+    }
+
+    // Clear selection if the active thread was deleted
+    if (selectedThread && threadsToDelete.some(
+      (t) => t.entity_id === selectedThread.entity_id && t.entity_type === selectedThread.entity_type
+    )) {
+      setSelectedThread(null);
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["discussions"] });
+    queryClient.invalidateQueries({ queryKey: ["chat"] });
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    setIsBulkDeleting(false);
+  }
+
+  function handleNewThread() {
+    // Create an empty General thread immediately — no modal, just start typing
+    const entityId = crypto.randomUUID();
     const newThread: Thread = {
-      id: result.id,
-      entity_type: params.entityType,
-      entity_id: params.entityId,
+      id: "", // placeholder — real ID assigned on first message
+      entity_type: "general",
+      entity_id: entityId,
       author: currentUser,
-      body: params.body,
-      title: params.title,
-      created_at: result.created_at,
-      last_activity_at: result.created_at,
-      message_count: 1,
+      body: "",
+      title: null,
+      session_id: null,
+      origin: "direct",
+      created_at: new Date().toISOString(),
+      last_activity_at: new Date().toISOString(),
+      message_count: 0,
       last_author: currentUser,
       participants: [currentUser.toLowerCase()],
     };
     setSelectedThread(newThread);
-
-    // Mark as read after cache settles so creator doesn't see unread dot
-    setTimeout(() => {
-      upsertReadPosition.mutate({ userId: currentUser, threadId: result.id });
-    }, 500);
   }
 
   return (
@@ -143,8 +152,10 @@ export function ChatModule() {
           isLoading={threadsLoading}
           deletingThreadId={deletingThreadId}
           onSelect={setSelectedThread}
-          onNewThread={() => setShowNewThread(true)}
+          onNewThread={handleNewThread}
           onDeleteThread={handleDeleteThread}
+          onBulkDeleteThreads={handleBulkDeleteThreads}
+          isBulkDeleting={isBulkDeleting}
         />
       </div>
 
@@ -171,23 +182,15 @@ export function ChatModule() {
               Conversations about your data — visible to the whole team and AI. Select a thread or start a new one.
             </p>
             <button
-              onClick={() => setShowNewThread(true)}
+              onClick={handleNewThread}
               className="mt-4 inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[12px] font-medium text-[var(--color-accent)] bg-[var(--color-teal-light)] dark:bg-[var(--color-teal-light)] rounded-lg hover:opacity-80 transition-opacity duration-150"
             >
               New thread
-              <ArrowRight size={12} />
             </button>
           </div>
         )}
       </div>
 
-      {/* New thread modal */}
-      {showNewThread && (
-        <NewThreadModal
-          onClose={() => setShowNewThread(false)}
-          onCreate={handleCreateThread}
-        />
-      )}
       </div>
     </div>
   );

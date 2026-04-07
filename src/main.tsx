@@ -1,3 +1,10 @@
+// Side-effect import: resolves the active workspace for this window BEFORE
+// any store is hydrated. `workspaceScopedStorage` runs `initWorkspaceScope()`
+// at module load, and ES module evaluation is depth-first — so this import
+// must stay the first import in the file so its evaluation completes before
+// `./App` (and the stores it pulls in) runs.
+import './lib/workspaceScopedStorage';
+
 import React, { Component, type ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

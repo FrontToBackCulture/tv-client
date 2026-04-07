@@ -58,7 +58,8 @@ export const useJobsStore = create<JobsState>((set, get) => ({
         const jobs: BackgroundJob[] = data.map((row) => ({
           id: row.id,
           name: row.job_name,
-          status: row.status as BackgroundJob["status"],
+          // DB uses "success" but BackgroundJob type uses "completed"
+          status: (row.status === "success" ? "completed" : row.status) as BackgroundJob["status"],
           message: row.output_preview || undefined,
           startedAt: new Date(row.started_at),
           completedAt: row.finished_at ? new Date(row.finished_at) : undefined,
@@ -86,18 +87,18 @@ export const useJobsStore = create<JobsState>((set, get) => ({
     // Optimistic: add to memory immediately
     set((state) => ({ jobs: [...state.jobs, bgJob] }));
 
-    // Persist to Supabase (fire-and-forget)
+    // Persist to Supabase (fire-and-forget) — map "completed" → "success" for DB check constraint
+    const dbStatus = job.status === "completed" ? "success" : job.status;
     supabase
       .from("job_runs")
       .upsert({
         id: job.id,
         job_id: null, // ad-hoc, no parent job
         job_name: job.name,
-        status: job.status,
+        status: dbStatus,
         output_preview: job.message || null,
         started_at: now.toISOString(),
         trigger: "manual",
-        slack_posted: false,
       }, { onConflict: "id" })
       .then(({ error }) => {
         if (error) console.error("[jobsStore] insert failed:", error);
@@ -120,9 +121,11 @@ export const useJobsStore = create<JobsState>((set, get) => ({
       ),
     }));
 
-    // Persist to Supabase
+    // Persist to Supabase — note: job_runs.status uses "success" not "completed"
     const patch: Record<string, unknown> = {};
-    if (updates.status) patch.status = updates.status;
+    if (updates.status) {
+      patch.status = updates.status === "completed" ? "success" : updates.status;
+    }
     if (updates.message !== undefined) patch.output_preview = updates.message;
     if (updates.status === "completed" || updates.status === "failed") {
       patch.finished_at = new Date().toISOString();

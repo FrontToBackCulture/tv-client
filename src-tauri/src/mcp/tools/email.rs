@@ -297,6 +297,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 category: args.get("category").and_then(|v| v.as_str()).map(String::from),
                 status: args.get("status").and_then(|v| v.as_str()).map(String::from),
                 tokens: args.get("tokens").cloned(),
+                send_channel: args.get("send_channel").and_then(|v| v.as_str()).map(String::from),
             };
 
             match campaigns::create_campaign(data).await {
@@ -323,6 +324,7 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                 category: args.get("category").and_then(|v| v.as_str()).map(String::from),
                 status: args.get("status").and_then(|v| v.as_str()).map(String::from),
                 tokens: args.get("tokens").cloned(),
+                send_channel: args.get("send_channel").and_then(|v| v.as_str()).map(String::from),
             };
 
             match campaigns::update_campaign(campaign_id, data).await {

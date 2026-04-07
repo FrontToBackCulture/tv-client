@@ -21,7 +21,6 @@ const allModules: ModuleInfo[] = [
   { id: "crm", label: "CRM", description: "Pipeline, directory, and client management" },
   { id: "prospecting", label: "Outbound", description: "Find prospects, draft emails, track outreach" },
   { id: "email", label: "EDM", description: "Email campaigns and marketing" },
-  { id: "linkedin", label: "LinkedIn", description: "LinkedIn outreach" },
   { id: "blog", label: "Blog", description: "Blog article management" },
   { id: "gallery", label: "Gallery", description: "Media gallery and reports" },
   { id: "portal", label: "Portal", description: "Client portal management" },

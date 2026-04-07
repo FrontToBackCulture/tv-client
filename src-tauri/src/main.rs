@@ -92,8 +92,12 @@ fn main() {
             // Start Notion background sync
             commands::notion::background::start_background_sync(app.handle().clone());
 
-            // Start GA4 Analytics background sync (daily)
+
+            // Start GA4 Analytics background sync
             commands::analytics::background::start_background_sync(app.handle().clone());
+
+            // Start Public Data background sync (daily — MCF job postings etc.)
+            commands::public_data::background::start_background_sync(app.handle().clone());
 
             // Start Scheduler background loop
             commands::scheduler::background::start_scheduler(
@@ -261,6 +265,7 @@ fn main() {
             commands::auth::github_get_user,
             commands::auth::microsoft_oauth_start,
             commands::auth::microsoft_get_user,
+            commands::auth::oauth_browser_flow,
             // Settings (secure key storage)
             commands::settings::settings_set_key,
             commands::settings::settings_get_key,
@@ -432,6 +437,7 @@ fn main() {
             commands::val_sync::extract::val_extract_calc_fields,
             // VAL Sync - Dependencies & Recency
             commands::val_sync::dependencies::val_compute_dependencies,
+            commands::val_sync::dependencies::val_sync_get_dependencies,
             commands::val_sync::recency::val_collect_recency,
             // VAL Sync - Claude Runner
             commands::val_sync::claude_runner::claude_run,
@@ -487,6 +493,7 @@ fn main() {
             commands::analytics::auth::ga4_auth_start,
             commands::analytics::auth::ga4_auth_check,
             commands::analytics::auth::ga4_auth_logout,
+            commands::analytics::auth::ga4_export_tokens,
             // GA4 Analytics - Data
             commands::analytics::ga4::ga4_check_config,
             commands::analytics::ga4::ga4_fetch_analytics,
@@ -502,6 +509,7 @@ fn main() {
             commands::settings::settings_switch_workspace,
             // Outlook - Auth
             commands::outlook::auth::outlook_auth_start,
+            commands::outlook::auth::outlook_oauth_code,
             commands::outlook::auth::outlook_auth_check,
             commands::outlook::auth::outlook_auth_logout,
             commands::outlook::auth::outlook_auth_import,
@@ -538,6 +546,8 @@ fn main() {
             commands::scheduler::commands::scheduler_stop_job,
             commands::scheduler::commands::scheduler_export_jobs,
             commands::scheduler::commands::scheduler_import_jobs,
+            commands::scheduler::commands::scheduler_execute_action,
+            commands::scheduler::commands::scheduler_run_automation,
             // Skill Registry
             commands::skill_registry::skill_init,
             commands::skill_registry::skill_distribute,
@@ -623,6 +633,17 @@ fn main() {
             commands::linkedin::api::linkedin_get_posts,
             commands::linkedin::api::linkedin_delete_post,
             commands::linkedin::api::linkedin_get_profile,
+            // IBKR Flex Web Service (personal-workspace-only connector)
+            commands::ibkr::ibkr_sync_now,
+            // Financial Modeling Prep (personal-workspace-only connector)
+            commands::fmp::fmp_sync_ticker,
+            commands::fmp::fmp_sync_holdings,
+            commands::fmp::fmp_sync_market,
+            commands::fmp::fmp_sync_reference,
+            // Multi-workspace settings registration (per-workspace scoped keys
+            // for background sync reliability)
+            commands::settings::settings_register_workspace,
+            commands::settings::settings_list_registered_workspaces,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

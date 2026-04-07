@@ -241,6 +241,18 @@ export function useRealtimeSync() {
       .subscribe();
     channels.push(notificationsChannel);
 
+    // ── Shared Inbox ─────────────────────────────────────────────────
+    const sharedInboxChannel = supabase
+      .channel("shared-inbox-changes")
+      .on("postgres_changes", pg("shared_emails"), () => {
+        queryClient.invalidateQueries({ queryKey: ["shared-inbox", "emails"] });
+      })
+      .on("postgres_changes", pg("shared_mailboxes"), () => {
+        queryClient.invalidateQueries({ queryKey: ["shared-inbox", "mailboxes"] });
+      })
+      .subscribe();
+    channels.push(sharedInboxChannel);
+
     // Cleanup on unmount
     return () => {
       channels.forEach((channel) => {

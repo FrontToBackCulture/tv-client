@@ -18,6 +18,7 @@ import {
 import { cn } from "../lib/cn";
 import { formatError } from "../lib/formatError";
 import { useAppStore } from "../stores/appStore";
+import { useModuleTabStore } from "../stores/moduleTabStore";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -51,7 +52,8 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
   const [mcpInstalling, setMcpInstalling] = useState(false);
   const [mcpError, setMcpError] = useState<string | null>(null);
 
-  const openSettings = useAppStore((s) => s.openSettings);
+  const setSettingsView = useAppStore((s) => s.setSettingsView);
+  const openTab = useModuleTabStore((s) => s.openTab);
 
   const stepIndex = STEPS.indexOf(currentStep);
 
@@ -199,7 +201,8 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
               onComplete={handleComplete}
               onOpenSettings={() => {
                 handleComplete();
-                openSettings("claude");
+                setSettingsView("claude");
+                openTab("settings");
               }}
             />
           )}

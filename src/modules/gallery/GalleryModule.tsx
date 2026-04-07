@@ -25,6 +25,7 @@ import { formatError } from "../../lib/formatError";
 import { useQueryClient } from "@tanstack/react-query";
 import { skillLibraryKeys } from "../../hooks/gallery/keys";
 import { toast } from "../../stores/toastStore";
+import { workspaceLocalStorage } from "../../lib/workspaceScopedStorage";
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 
@@ -185,12 +186,12 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState("");
   const [savedLayouts, setSavedLayouts] = useState<Record<string, object>>(() => {
-    const stored = localStorage.getItem(GALLERY_LAYOUT_KEY);
+    const stored = workspaceLocalStorage.get(GALLERY_LAYOUT_KEY);
     if (stored) { try { return JSON.parse(stored); } catch { /* ignore */ } }
     return {};
   });
   const [defaultLayoutName, setDefaultLayoutName] = useState<string | null>(() =>
-    localStorage.getItem(GALLERY_DEFAULT_LAYOUT_KEY)
+    workspaceLocalStorage.get(GALLERY_DEFAULT_LAYOUT_KEY)
   );
 
   const saveCurrentLayout = useCallback((name: string) => {
@@ -198,7 +199,7 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
     const state = gridViewRef.current.api.getColumnState();
     const newLayouts = { ...savedLayouts, [name]: state };
     setSavedLayouts(newLayouts);
-    localStorage.setItem(GALLERY_LAYOUT_KEY, JSON.stringify(newLayouts));
+    workspaceLocalStorage.set(GALLERY_LAYOUT_KEY, JSON.stringify(newLayouts));
   }, [savedLayouts]);
 
   const applyLayout = useCallback((name: string) => {
@@ -210,16 +211,16 @@ function ReportsTab({ demos, search, isLoading, viewMode, onViewModeChange }: { 
     const newLayouts = { ...savedLayouts };
     delete newLayouts[name];
     setSavedLayouts(newLayouts);
-    localStorage.setItem(GALLERY_LAYOUT_KEY, JSON.stringify(newLayouts));
+    workspaceLocalStorage.set(GALLERY_LAYOUT_KEY, JSON.stringify(newLayouts));
     if (defaultLayoutName === name) {
       setDefaultLayoutName(null);
-      localStorage.removeItem(GALLERY_DEFAULT_LAYOUT_KEY);
+      workspaceLocalStorage.remove(GALLERY_DEFAULT_LAYOUT_KEY);
     }
   }, [savedLayouts, defaultLayoutName]);
 
   const setAsDefault = useCallback((name: string) => {
     setDefaultLayoutName(name);
-    localStorage.setItem(GALLERY_DEFAULT_LAYOUT_KEY, name);
+    workspaceLocalStorage.set(GALLERY_DEFAULT_LAYOUT_KEY, name);
   }, []);
 
   // Actions menu state
