@@ -120,7 +120,7 @@ fn platform_label() -> &'static str {
 /// GUI apps (both macOS and Windows) often don't inherit the user's full shell
 /// PATH, so we scan common installation locations before falling back to a bare
 /// command name.
-fn resolve_claude_path() -> String {
+pub fn resolve_claude_path() -> String {
     let (binary_name, candidates) = if cfg!(target_os = "windows") {
         let mut paths = Vec::new();
 
@@ -262,6 +262,79 @@ async fn mcp_list_check() -> (bool, Option<String>) {
         .map(|s| s.to_string());
 
     (true, command)
+}
+
+// ── Auto-registration ───────────────────────────────────
+
+/// Ensure tv-mcp is registered with Claude Code and the path is current.
+/// Called on app startup — silently fixes stale registrations without
+/// requiring the user to click "Install MCP" again.
+///
+/// Does nothing if:
+/// - Claude CLI is not installed
+/// - tv-mcp binary can't be found
+/// - Registration is already correct
+pub async fn ensure_mcp_registered() {
+    // 1. Can we find our binary?
+    let bin = match resolve_binary_path() {
+        Ok(p) => p,
+        Err(_) => return, // No binary — nothing to register
+    };
+    let bin_str = bin.to_string_lossy().to_string();
+
+    // 2. Is Claude CLI available?
+    let claude_path = resolve_claude_path();
+    let cli_exists = if claude_path == "claude" || claude_path == "claude.exe" {
+        let which_cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
+        tokio::process::Command::new(which_cmd)
+            .arg(&claude_path)
+            .output()
+            .await
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    } else {
+        PathBuf::from(&claude_path).exists()
+    };
+    if !cli_exists {
+        return; // Claude CLI not installed — can't register
+    }
+
+    // 3. Check current registration
+    let (is_registered, registered_path) = mcp_list_check().await;
+
+    if is_registered {
+        if let Some(ref reg) = registered_path {
+            if reg == &bin_str {
+                return; // Already registered with correct path
+            }
+            eprintln!(
+                "[claude-setup] MCP path stale: registered={}, current={} — re-registering",
+                reg, bin_str
+            );
+        }
+    } else {
+        eprintln!("[claude-setup] tv-mcp not registered with Claude Code — registering");
+    }
+
+    // 4. Re-register (remove + add)
+    let _ = run_claude(&["mcp", "remove", "tv-mcp", "-s", "user"]).await;
+
+    match run_claude(&[
+        "mcp", "add", "--transport", "stdio", "-s", "user", "tv-mcp", "--", &bin_str,
+    ])
+    .await
+    {
+        Ok(output) if output.status.success() => {
+            eprintln!("[claude-setup] tv-mcp auto-registered at {bin_str}");
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("[claude-setup] auto-register failed: {stderr}");
+        }
+        Err(e) => {
+            eprintln!("[claude-setup] auto-register error: {e}");
+        }
+    }
 }
 
 // ── Commands ─────────────────────────────────────────────

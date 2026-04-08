@@ -105,6 +105,11 @@ fn main() {
                 "0_Platform/sod-reports".to_string(),
             );
 
+            // Auto-register tv-mcp with Claude Code if path is stale or missing
+            tauri::async_runtime::spawn(async {
+                commands::claude_setup::ensure_mcp_registered().await;
+            });
+
             // Start MCP HTTP server (for external tool access)
             tauri::async_runtime::spawn(async {
                 eprintln!("[tv-desktop] Starting MCP HTTP server on port {}...", mcp::server::DEFAULT_PORT);

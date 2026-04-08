@@ -148,10 +148,9 @@ pub async fn run_stdio() -> io::Result<()> {
     // Record the binary's mtime at startup so we can detect updates
     let startup_mtime = get_binary_mtime();
 
-    // Orphan detection: record parent PID at startup. If parent dies and we
-    // get reparented to init (pid 1), exit cleanly. This prevents stale
-    // tv-mcp processes from accumulating when Claude Code crashes or is
-    // killed without closing its stdin pipe.
+    // Orphan detection: record parent PID at startup. If parent dies, exit
+    // cleanly. This prevents stale tv-mcp processes from accumulating when
+    // Claude Code crashes or is killed without closing its stdin pipe.
     #[cfg(unix)]
     {
         let startup_ppid = unsafe { libc::getppid() };
@@ -168,6 +167,40 @@ pub async fn run_stdio() -> io::Result<()> {
                 }
             }
         });
+    }
+
+    #[cfg(windows)]
+    {
+        // Get parent PID via PowerShell (wmic is deprecated on newer Windows)
+        let ppid: u32 = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command",
+                &format!("(Get-CimInstance Win32_Process -Filter \"ProcessId={}\").ParentProcessId", std::process::id())])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().parse().ok())
+            .unwrap_or(0);
+
+        if ppid > 0 {
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(10));
+                    // Check if parent PID still exists via tasklist
+                    let alive = std::process::Command::new("tasklist")
+                        .args(["/FI", &format!("PID eq {}", ppid), "/NH"])
+                        .output()
+                        .map(|o| {
+                            let out = String::from_utf8_lossy(&o.stdout);
+                            out.contains(&ppid.to_string())
+                        })
+                        .unwrap_or(false);
+
+                    if !alive {
+                        eprintln!("[tv-mcp] Parent process {} exited — exiting", ppid);
+                        std::process::exit(0);
+                    }
+                }
+            });
+        }
     }
 
     for line in reader.lines() {
