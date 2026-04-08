@@ -2,7 +2,7 @@
 // Outreach draft list — review automation-generated emails before pushing to Outlook
 
 import { useState, useMemo, useCallback } from "react";
-import { Check, X, ChevronRight, Send, SkipForward, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Send, Trash2 } from "lucide-react";
 import { SectionToolbar } from "../../components/SectionToolbar";
 import { useOutreachDrafts, useBatchApproveOutreach } from "../../hooks/email";
 import { useDraftTracking, useDeleteDraft } from "../../hooks/email/useDrafts";

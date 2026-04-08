@@ -189,18 +189,3 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", c.bg, c.text)}>{c.label}</span>;
 }
 
-function StatusDot({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    draft: "bg-amber-400",
-    approved: "bg-blue-400",
-    sent: "bg-green-400",
-    failed: "bg-red-400",
-    skipped: "bg-zinc-300 dark:bg-zinc-600",
-  };
-  return (
-    <span
-      className={cn("w-2 h-2 rounded-full", colors[status] || "bg-zinc-300")}
-      title={status}
-    />
-  );
-}

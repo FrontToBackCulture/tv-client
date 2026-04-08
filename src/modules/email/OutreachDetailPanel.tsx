@@ -10,7 +10,7 @@ import { supabase } from "../../lib/supabase";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { outreachKeys } from "../../hooks/email/useOutreachDrafts";
 import { useApproveLinkedIn, useUpdateLinkedInMsg } from "../../hooks/email/useOutreachDrafts";
-import { useSendDraft, useUpdateDraft, useDraftTracking } from "../../hooks/email/useDrafts";
+import { useUpdateDraft, useDraftTracking } from "../../hooks/email/useDrafts";
 import { cn } from "../../lib/cn";
 import type { OutreachDraft } from "../../hooks/email/useOutreachDrafts";
 
@@ -27,7 +27,6 @@ export function OutreachDetailPanel({ draftId, onClose }: OutreachDetailPanelPro
 
   const approve = useApproveOutreach();
   const skip = useSkipOutreach();
-  const sendDraft = useSendDraft();
   const updateDraft = useUpdateDraft();
   const deleteDraft = useDeleteDraft();
 
