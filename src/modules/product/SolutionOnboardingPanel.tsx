@@ -63,7 +63,7 @@ export default function SolutionOnboardingPanel({ slug }: Props) {
     );
   }
 
-  // Preview mode — render the matrix with example data
+  // Preview mode — render the matrix with example data, full-screen overlay
   if (previewing && template.example_data) {
     const mockInstance: SolutionInstanceWithTemplate = {
       id: "preview",
@@ -82,10 +82,12 @@ export default function SolutionOnboardingPanel({ slug }: Props) {
       template: template,
     };
     return (
-      <SolutionMatrixView
-        instance={mockInstance}
-        onBack={() => setPreviewing(false)}
-      />
+      <div className="fixed inset-0 z-50 bg-white dark:bg-zinc-950">
+        <SolutionMatrixView
+          instance={mockInstance}
+          onBack={() => setPreviewing(false)}
+        />
+      </div>
     );
   }
 
@@ -117,6 +119,13 @@ export default function SolutionOnboardingPanel({ slug }: Props) {
             {statusBadge.label}
           </span>
           <span className="text-[11px] text-zinc-500 dark:text-zinc-500 font-mono">v{template.version}</span>
+          <button
+            onClick={() => setPreviewing(true)}
+            disabled={!template.example_data}
+            className="text-xs font-semibold px-3 py-1.5 rounded border cursor-pointer transition-colors bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Preview with Example Data
+          </button>
           <button
             onClick={handlePublish}
             className="text-xs font-semibold px-3 py-1.5 rounded border cursor-pointer transition-colors bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
@@ -257,16 +266,6 @@ export default function SolutionOnboardingPanel({ slug }: Props) {
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setPreviewing(true)}
-          disabled={!template.example_data}
-          className="text-xs font-semibold px-4 py-2 rounded border cursor-pointer transition-colors bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Preview with Example Data
-        </button>
-      </div>
     </div>
   );
 }

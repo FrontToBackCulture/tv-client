@@ -38,3 +38,9 @@ export {
   useSendCampaign,
   useSendTestEmail,
 } from "./useCampaigns";
+export {
+  useOutreachDrafts,
+  useApproveOutreach,
+  useSkipOutreach,
+  useBatchApproveOutreach,
+} from "./useOutreachDrafts";

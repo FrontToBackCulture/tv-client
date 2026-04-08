@@ -137,7 +137,10 @@ pub fn tools() -> Vec<Tool> {
                     "subject": { "type": "string", "description": "Email subject line (required)" },
                     "html_body": { "type": "string", "description": "HTML email body (required)" },
                     "from_name": { "type": "string", "description": "Sender display name (default: ThinkVAL)" },
-                    "from_email": { "type": "string", "description": "Sender email address (default: hello@thinkval.com)" }
+                    "from_email": { "type": "string", "description": "Sender email address (default: hello@thinkval.com)" },
+                    "draft_type": { "type": "string", "description": "Draft type: 'manual' (default) or 'outreach' for automation-generated outreach emails" },
+                    "context": { "type": "object", "description": "AI research notes / reasoning stored as JSONB — shown to reviewer so they understand why the email was drafted this way" },
+                    "automation_run_id": { "type": "string", "description": "Links this draft to the automation run that created it" }
                 }),
                 vec!["contact_id".to_string(), "to_email".to_string(), "subject".to_string(), "html_body".to_string()],
             ),
@@ -492,6 +495,15 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
             });
             if let Some(cid) = company_id {
                 insert["company_id"] = json!(cid);
+            }
+            if let Some(dt) = args.get("draft_type").and_then(|v| v.as_str()) {
+                insert["draft_type"] = json!(dt);
+            }
+            if let Some(ctx) = args.get("context") {
+                insert["context"] = ctx.clone();
+            }
+            if let Some(run_id) = args.get("automation_run_id").and_then(|v| v.as_str()) {
+                insert["automation_run_id"] = json!(run_id);
             }
 
             match client.insert::<_, serde_json::Value>("email_drafts", &insert).await {

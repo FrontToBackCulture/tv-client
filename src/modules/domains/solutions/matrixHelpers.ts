@@ -3,6 +3,7 @@ import type {
   ScopeOutlet,
   PaymentMethod,
   BankAccount,
+  APSupplier,
   OutletInfo,
   UniquePOS,
   SyncItem,
@@ -220,6 +221,11 @@ export function getImplStatus(
 
 export function calculateProgress(data: InstanceData, template: TemplateDefinition): { total: number; done: number; progress: number; blocked: number; inProgress: number; pending: number } {
   const statuses: ItemStatus[] = [];
+
+  if (template.slug === "ap") {
+    return calculateAPProgress(data, template);
+  }
+
   const scope = data.scope || [];
   const pms = data.paymentMethods || [];
   const banks = data.banks || [];
@@ -333,4 +339,90 @@ export function calculateProgress(data: InstanceData, template: TemplateDefiniti
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return { total, done, progress, blocked, inProgress, pending };
+}
+
+// ============================================================================
+// AP progress calculation
+// ============================================================================
+
+function calculateAPProgress(data: InstanceData, _template: TemplateDefinition): { total: number; done: number; progress: number; blocked: number; inProgress: number; pending: number } {
+  const statuses: ItemStatus[] = [];
+  const suppliers = data.suppliers || [];
+  const periods = data.periods || [];
+  const outlets = getOutlets(data.scope || []);
+  const implSt = data.implStatus || {};
+  const supplierDocSt = data.supplierDocStatus || {};
+
+  // Document Collection: per supplier x doc type x period
+  suppliers.forEach((s) => {
+    s.documentTypes.forEach((docType) => {
+      periods.forEach((p) => {
+        statuses.push((supplierDocSt[`doc::${s.name}::${docType}::${p}`] || { status: "pending" }).status);
+      });
+    });
+  });
+
+  // Supplier mapping: per supplier
+  suppliers.forEach((s) => {
+    statuses.push(data.outletMap?.[`supplier::${s.name}`] ? "done" : "pending");
+  });
+
+  // Outlet mapping
+  outlets.forEach((o) => {
+    statuses.push(data.outletMap?.[o.key + "::accounting"] ? "done" : "pending");
+  });
+
+  // Implementation: scan templates per supplier
+  suppliers.forEach((s) => {
+    s.documentTypes.forEach((docType) => {
+      statuses.push((implSt[`scan::${s.name}::${docType}`] || { status: "pending" }).status);
+    });
+  });
+
+  // Matching rules per supplier x recon type
+  suppliers.forEach((s) => {
+    s.reconciliationTypes.forEach((reconType) => {
+      statuses.push((implSt[`match::${s.name}::${reconType}`] || { status: "pending" }).status);
+    });
+  });
+
+  // Recon verification per supplier x recon type x period
+  suppliers.forEach((s) => {
+    s.reconciliationTypes.forEach((reconType) => {
+      periods.forEach((p) => {
+        statuses.push((implSt[`recon::${s.name}::${reconType}::${p}`] || { status: "pending" }).status);
+      });
+    });
+  });
+
+  // Accounting rules per supplier
+  suppliers.forEach((s) => {
+    statuses.push((implSt[`acct::${s.name}`] || { status: "pending" }).status);
+  });
+
+  // Go live per outlet
+  outlets.forEach((o) => {
+    statuses.push((implSt[`walkthru::${o.key}`] || { status: "pending" }).status);
+    statuses.push((implSt[`golive::${o.key}`] || { status: "pending" }).status);
+  });
+
+  const total = statuses.length;
+  const done = statuses.filter((s) => s === "done" || s === "na").length;
+  const blocked = statuses.filter((s) => s === "blocked").length;
+  const inProgress = statuses.filter((s) => s === "progress").length;
+  const pending = statuses.filter((s) => s === "pending").length;
+  const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  return { total, done, progress, blocked, inProgress, pending };
+}
+
+// ============================================================================
+// AP helpers
+// ============================================================================
+
+export function isSupplierApplicable(supplier: APSupplier, outletName: string): boolean {
+  if (supplier.appliesTo === "all") {
+    return !(supplier.excludedOutlets || []).includes(outletName);
+  }
+  return false;
 }

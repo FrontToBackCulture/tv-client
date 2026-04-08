@@ -46,6 +46,7 @@ export interface TemplateDefinition {
   tabs: TemplateTab[];
   credentialPlatforms?: string[];
   settlementExclude?: string[];
+  slug?: string;
 }
 
 export interface TemplateTab {
@@ -76,6 +77,9 @@ export interface InstanceData {
   posLabels?: Record<string, string>;
   outletMap?: Record<string, string>;
   implStatus?: Record<string, ImplStatusEntry>;
+  // AP-specific
+  suppliers?: APSupplier[];
+  supplierDocStatus?: Record<string, StatusEntry>;
 }
 
 export interface ScopeOutlet {
@@ -160,4 +164,34 @@ export interface SyncItem {
   name: string;
   scope: string;
   key: string;
+}
+
+// ============================================================================
+// AP (Accounts Payable) types
+// ============================================================================
+
+export const AP_DOCUMENT_TYPES = [
+  { key: "purchase_order", label: "Purchase Order" },
+  { key: "delivery_order", label: "Delivery Order" },
+  { key: "invoice", label: "Invoice" },
+  { key: "statement_of_account", label: "Statement of Account" },
+] as const;
+
+export type APDocumentType = typeof AP_DOCUMENT_TYPES[number]["key"];
+
+export const AP_RECON_TYPES = [
+  { key: "do_vs_invoice", label: "DO vs Invoice" },
+  { key: "invoice_vs_soa", label: "Invoice vs SOA" },
+  { key: "po_vs_invoice", label: "PO vs Invoice" },
+] as const;
+
+export type APReconciliationType = typeof AP_RECON_TYPES[number]["key"];
+
+export interface APSupplier {
+  name: string;
+  documentTypes: APDocumentType[];
+  reconciliationTypes: APReconciliationType[];
+  appliesTo: string; // "all" or specific outlets
+  excludedOutlets: string[];
+  notes: string;
 }

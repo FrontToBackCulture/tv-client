@@ -670,6 +670,20 @@ export function MetadataView() {
       },
       filter: "agDateColumnFilter",
     },
+    { field: "outreach_status", headerName: "Outreach", width: 120, editable: true, filter: "agSetColumnFilter",
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: [null, "drafting", "contacted", "replied", "meeting_booked"] },
+      cellRenderer: (p: any) => {
+        if (!p.value) return null;
+        const colors: Record<string, string> = {
+          drafting: "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400",
+          contacted: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
+          replied: "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400",
+          meeting_booked: "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400",
+        };
+        return <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${colors[p.value] || "text-zinc-400"}`}>{p.value.replace("_", " ")}</span>;
+      },
+    },
     { field: "notes", headerName: "Notes", width: 200, editable: true, hide: true },
     { field: "created_at", headerName: "Created", width: 100, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "" },
     { field: "updated_at", headerName: "Updated", width: 100, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "" },
@@ -706,6 +720,22 @@ export function MetadataView() {
     },
     { field: "email_status", headerName: "Email Status", width: 100, filter: "agSetColumnFilter",
       cellRenderer: (p: any) => p.value === "verified" ? <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-600 rounded font-medium">Verified</span> : p.value === "guessed" ? <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded font-medium">Guessed</span> : p.value ? <span className="text-zinc-400 text-xs">{p.value}</span> : null,
+    },
+    { field: "prospect_stage", headerName: "Prospect Stage", width: 120, editable: true, filter: "agSetColumnFilter",
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: [null, "new", "researched", "drafted", "sent", "opened", "replied"] },
+      cellRenderer: (p: any) => {
+        if (!p.value) return null;
+        const colors: Record<string, string> = {
+          new: "bg-zinc-100 dark:bg-zinc-800 text-zinc-500",
+          researched: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
+          drafted: "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400",
+          sent: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400",
+          opened: "bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400",
+          replied: "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400",
+        };
+        return <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${colors[p.value] || "text-zinc-400"}`}>{p.value}</span>;
+      },
     },
     { field: "linkedin_url", headerName: "LinkedIn", width: 180, editable: true, hide: true },
     { field: "notes", headerName: "Notes", width: 200, editable: true, hide: true },

@@ -14,9 +14,13 @@ export interface EmailDraft {
   html_body: string;
   from_name: string;
   from_email: string;
-  status: "draft" | "sent" | "failed";
+  status: "draft" | "approved" | "sent" | "failed" | "skipped";
   created_at: string;
   sent_at: string | null;
+  draft_type?: "manual" | "outreach";
+  context?: Record<string, unknown> | null;
+  automation_run_id?: string | null;
+  outlook_message_id?: string | null;
 }
 
 export const draftKeys = {
@@ -102,7 +106,7 @@ export function useUpdateDraft() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ draftId, updates }: { draftId: string; updates: Partial<Pick<EmailDraft, "from_name" | "from_email" | "subject">> }) => {
+    mutationFn: async ({ draftId, updates }: { draftId: string; updates: Partial<Pick<EmailDraft, "from_name" | "from_email" | "subject" | "html_body">> }) => {
       const { error } = await supabase
         .from("email_drafts")
         .update(updates)

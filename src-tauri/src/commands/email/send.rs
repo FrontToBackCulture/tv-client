@@ -5,7 +5,7 @@ use aws_sdk_ses::config::{BehaviorVersion, Credentials, Region};
 use aws_sdk_ses::types::RawMessage;
 use aws_sdk_ses::primitives::Blob;
 use crate::commands::error::{CmdResult, CommandError};
-use crate::commands::supabase::get_client;
+use crate::commands::supabase::{get_client, SupabaseClient};
 use serde::{Deserialize, Serialize};
 use tauri::command;
 
@@ -222,7 +222,7 @@ fn replace_tokens(
 
     // Inject open tracking pixel before </body>
     let open_pixel = format!(
-        r#"<img src="{}/email/track/open?eid={}" width="1" height="1" style="display:none" alt="" />"#,
+        r#"<img src="{}/email/track/open?eid={}" width="1" height="1" style="max-height:0;overflow:hidden;mso-hide:all" alt="" />"#,
         api_base_url, event_id
     );
     if result.contains("</body>") {
@@ -912,6 +912,64 @@ pub struct EmailDraft {
     pub from_email: String,
     pub contact_id: Option<String>,
     pub company_id: Option<String>,
+    pub draft_type: Option<String>,
+    pub outlook_message_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ApproveOutreachResult {
+    pub success: bool,
+    pub outlook_message_id: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Inject open tracking pixel and rewrite links for click tracking.
+/// Creates an email_event row and returns (tracked_html, event_id).
+/// Does NOT inject unsubscribe links — suitable for outreach.
+async fn inject_tracking(
+    client: &SupabaseClient,
+    html: &str,
+    draft_id: &str,
+    contact_id: Option<&str>,
+    api_base_url: &str,
+) -> (String, Option<String>) {
+    if api_base_url.is_empty() {
+        return (html.to_string(), None);
+    }
+
+    let mut event_data = serde_json::json!({
+        "draft_id": draft_id,
+        "event_type": "sent",
+    });
+    if let Some(cid) = contact_id {
+        event_data["contact_id"] = serde_json::json!(cid);
+    }
+    let event: EventRow = match client.insert("email_events", &event_data).await {
+        Ok(e) => e,
+        Err(_) => return (html.to_string(), None),
+    };
+
+    if event.id.is_empty() {
+        return (html.to_string(), None);
+    }
+
+    let mut tracked = html.to_string();
+
+    // Open tracking pixel
+    let open_pixel = format!(
+        r#"<img src="{}/email/track/open?eid={}" width="1" height="1" style="max-height:0;overflow:hidden;mso-hide:all" alt="" />"#,
+        api_base_url, event.id
+    );
+    if tracked.contains("</body>") {
+        tracked = tracked.replace("</body>", &format!("{}</body>", open_pixel));
+    } else {
+        tracked.push_str(&open_pixel);
+    }
+
+    // Click tracking
+    tracked = rewrite_links(&tracked, &event.id, api_base_url);
+
+    (tracked, Some(event.id))
 }
 
 /// Send an email draft — fetches from Supabase, injects tracking, sends via SES,
@@ -939,44 +997,14 @@ pub async fn email_send_draft(draft_id: String, test_email: Option<String>) -> C
         .unwrap_or_default();
 
     // Prepare HTML — inject tracking if api_base_url is configured
-    let html_body = if !api_base_url.is_empty() {
-        // Create email_events row for tracking
-        let mut event_data = serde_json::json!({
-            "draft_id": draft_id,
-            "event_type": "sent",
-        });
-        if let Some(ref cid) = draft.contact_id {
-            event_data["contact_id"] = serde_json::json!(cid);
-        }
-        let event: EventRow = client
-            .insert("email_events", &event_data)
-            .await
-            .unwrap_or(EventRow { id: String::new() });
-
-        if !event.id.is_empty() {
-            // Inject open pixel and rewrite links for click tracking
-            let mut html = draft.html_body.clone();
-
-            // Open tracking pixel
-            let open_pixel = format!(
-                r#"<img src="{}/email/track/open?eid={}" width="1" height="1" style="display:none" alt="" />"#,
-                api_base_url, event.id
-            );
-            if html.contains("</body>") {
-                html = html.replace("</body>", &format!("{}</body>", open_pixel));
-            } else {
-                html.push_str(&open_pixel);
-            }
-
-            // Click tracking
-            html = rewrite_links(&html, &event.id, &api_base_url);
-            html
-        } else {
-            draft.html_body.clone()
-        }
-    } else {
-        draft.html_body.clone()
-    };
+    let (html_body, _event_id) = inject_tracking(
+        &client,
+        &draft.html_body,
+        &draft_id,
+        draft.contact_id.as_deref(),
+        &api_base_url,
+    )
+    .await;
 
     let result = send_transactional_email(
         recipient,
@@ -1020,6 +1048,118 @@ pub async fn email_send_draft(draft_id: String, test_email: Option<String>) -> C
     }
 
     Ok(result)
+}
+
+// ── Outreach approval (push to Outlook as draft) ─────────────────
+
+/// Approve an outreach draft — injects tracking, creates an Outlook draft via Graph API,
+/// and updates the draft status to 'approved'.
+#[command]
+pub async fn email_approve_outreach(draft_id: String) -> CmdResult<ApproveOutreachResult> {
+    let client = get_client().await?;
+    let settings = crate::commands::settings::load_settings()?;
+
+    // Fetch draft
+    let draft: EmailDraft = client
+        .select_single("email_drafts", &format!("id=eq.{}", draft_id))
+        .await?
+        .ok_or_else(|| CommandError::NotFound(format!("Draft {} not found", draft_id)))?;
+
+    // Validate state
+    if draft.draft_type.as_deref() != Some("outreach") {
+        return Err(CommandError::Internal("Draft is not an outreach draft".into()));
+    }
+
+    let api_base_url = settings
+        .keys
+        .get("email_api_base_url")
+        .cloned()
+        .unwrap_or_default();
+
+    // Inject tracking (open pixel + click tracking, no unsubscribe)
+    let (tracked_html, _event_id) = inject_tracking(
+        &client,
+        &draft.html_body,
+        &draft_id,
+        draft.contact_id.as_deref(),
+        &api_base_url,
+    )
+    .await;
+
+    // Create Outlook draft via Graph API
+    let graph = crate::commands::outlook::graph::GraphClient::new();
+    let to = vec![crate::commands::outlook::types::EmailAddress {
+        name: String::new(),
+        email: draft.to_email.clone(),
+    }];
+
+    let outlook_msg_id = graph
+        .create_draft(&to, &[], &draft.subject, &tracked_html)
+        .await?;
+
+    // Update draft status
+    let update_data = serde_json::json!({
+        "status": "approved",
+        "outlook_message_id": outlook_msg_id
+    });
+    let _: Result<EmailDraft, _> = client
+        .update("email_drafts", &format!("id=eq.{}", draft_id), &update_data)
+        .await;
+
+    // Log CRM activity
+    if let Some(company_id) = &draft.company_id {
+        let activity = crate::commands::crm::CreateActivity {
+            company_id: Some(company_id.clone()),
+            activity_type: "email".to_string(),
+            contact_id: draft.contact_id.clone(),
+            project_id: None,
+            task_id: None,
+            email_id: None,
+            subject: Some(format!("[Outreach] {}", draft.subject)),
+            content: Some(format!("Outreach draft approved and pushed to Outlook for: {}", draft.to_email)),
+            activity_date: None,
+        };
+        let _ = crate::commands::crm::crm_log_activity(activity).await;
+    }
+
+    Ok(ApproveOutreachResult {
+        success: true,
+        outlook_message_id: Some(outlook_msg_id),
+        error: None,
+    })
+}
+
+/// Skip an outreach draft — marks it as 'skipped' so it won't appear in pending review.
+#[command]
+pub async fn email_skip_outreach(draft_id: String) -> CmdResult<bool> {
+    let client = get_client().await?;
+    let update_data = serde_json::json!({ "status": "skipped" });
+    let _: Result<EmailDraft, _> = client
+        .update("email_drafts", &format!("id=eq.{}", draft_id), &update_data)
+        .await;
+    Ok(true)
+}
+
+/// Batch approve outreach drafts — pushes each to Outlook with a small delay.
+#[command]
+pub async fn email_batch_approve_outreach(draft_ids: Vec<String>) -> CmdResult<Vec<ApproveOutreachResult>> {
+    let mut results = Vec::new();
+    for (i, draft_id) in draft_ids.iter().enumerate() {
+        let result = match email_approve_outreach(draft_id.clone()).await {
+            Ok(r) => r,
+            Err(e) => ApproveOutreachResult {
+                success: false,
+                outlook_message_id: None,
+                error: Some(format!("{}", e)),
+            },
+        };
+        results.push(result);
+        // Rate limit Graph API calls (skip delay on last item)
+        if i < draft_ids.len() - 1 {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    }
+    Ok(results)
 }
 
 // ── Transactional (1-to-1) send ───────────────────────────────────

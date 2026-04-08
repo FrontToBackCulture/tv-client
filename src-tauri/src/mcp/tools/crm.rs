@@ -77,7 +77,8 @@ pub fn tools() -> Vec<Tool> {
                     "research_folder_path": { "type": "string", "description": "Path to research profile folder in knowledge base (e.g., 4_Sales/research/companies/les-amis-group)" },
                     "domain_id": { "type": "string", "description": "VAL domain ID if client" },
                     "notes": { "type": "string" },
-                    "tags": { "type": "array", "items": { "type": "string" } }
+                    "tags": { "type": "array", "items": { "type": "string" } },
+                    "outreach_status": { "type": "string", "enum": ["drafting", "contacted", "replied", "meeting_booked"], "description": "Outreach pipeline status" }
                 }),
                 vec!["company_id".to_string()],
             ),

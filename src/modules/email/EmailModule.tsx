@@ -1,5 +1,5 @@
 // src/modules/email/EmailModule.tsx
-// Main Email module with 4-tab layout: Contacts, Groups, Campaigns, Analytics
+// Email module — EDM campaigns, contacts, groups, templates, and campaign analytics
 
 import { useState, useEffect } from "react";
 import type { EmailCampaignWithStats } from "../../lib/email/types";

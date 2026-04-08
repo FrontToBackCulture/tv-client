@@ -6,11 +6,15 @@ import type {
 } from "../../../lib/solutions/types";
 import { useUpdateSolutionInstanceData, useAlignSolutionInstanceVersion } from "../../../hooks/solutions";
 import { calculateProgress, getOutlets } from "./matrixHelpers";
+import { downloadScopeTemplate, parseScopeSpreadsheet } from "./scopeSpreadsheet";
 import EntitySidebar from "./EntitySidebar";
 import MatrixScopeTab from "./MatrixScopeTab";
+import MatrixAPScopeTab from "./MatrixAPScopeTab";
 import MatrixConnectivityTab from "./MatrixConnectivityTab";
 import MatrixCollectionTab from "./MatrixCollectionTab";
+import MatrixAPCollectionTab from "./MatrixAPCollectionTab";
 import MatrixMappingTab from "./MatrixMappingTab";
+import MatrixAPMappingTab from "./MatrixAPMappingTab";
 import MatrixImplementationTab from "./MatrixImplementationTab";
 
 const TAB_COLORS: Record<string, string> = {
@@ -33,6 +37,14 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
   const [localData, setLocalData] = useState<InstanceData>(instance.data || {});
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [uploadPreview, setUploadPreview] = useState<{
+    scope: InstanceData["scope"];
+    paymentMethods: InstanceData["paymentMethods"];
+    banks: InstanceData["banks"];
+    periods: InstanceData["periods"];
+    warnings: string[];
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
   const updateMutation = useUpdateSolutionInstanceData();
   const alignMutation = useAlignSolutionInstanceVersion();
@@ -58,6 +70,53 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleScopeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const result = await parseScopeSpreadsheet(file);
+      setUploadPreview(result);
+    } catch (err: any) {
+      alert(`Failed to parse spreadsheet: ${err.message || err}`);
+    }
+    // Reset input so same file can be re-uploaded
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const confirmUpload = (mode: "replace" | "merge") => {
+    if (!uploadPreview) return;
+    let newData: InstanceData;
+    if (mode === "replace") {
+      newData = {
+        ...localData,
+        scope: uploadPreview.scope,
+        paymentMethods: uploadPreview.paymentMethods,
+        banks: uploadPreview.banks,
+        periods: uploadPreview.periods?.length ? uploadPreview.periods : localData.periods,
+      };
+    } else {
+      // Merge: append new outlets, skip duplicate PMs, append new banks
+      const existingOutletKeys = new Set((localData.scope || []).map((s) => `${s.entity}::${s.outlet}`));
+      const newOutlets = (uploadPreview.scope || []).filter((s) => !existingOutletKeys.has(`${s.entity}::${s.outlet}`));
+      const existingPMNames = new Set((localData.paymentMethods || []).map((p) => p.name));
+      const newPMs = (uploadPreview.paymentMethods || []).filter((p) => !existingPMNames.has(p.name));
+      const existingBankKeys = new Set((localData.banks || []).map((b) => `${b.bank}::${b.account}`));
+      const newBanks = (uploadPreview.banks || []).filter((b) => !existingBankKeys.has(`${b.bank}::${b.account}`));
+      const existingPeriods = new Set(localData.periods || []);
+      const newPeriods = (uploadPreview.periods || []).filter((p) => !existingPeriods.has(p));
+
+      newData = {
+        ...localData,
+        scope: [...(localData.scope || []), ...newOutlets],
+        paymentMethods: [...(localData.paymentMethods || []), ...newPMs],
+        banks: [...(localData.banks || []), ...newBanks],
+        periods: [...(localData.periods || []), ...newPeriods],
+      };
+    }
+    handleDataChange(newData);
+    setUploadPreview(null);
   };
 
   const templateVersion = instance.template.version;
@@ -109,17 +168,20 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
     ? `${instance.domain} — ${selectedEntity} (${outlets.filter((o) => o.entity === selectedEntity).length} outlets)`
     : `${instance.domain}${outletCount > 0 ? ` — ${outletCount} outlets · ${entityCount} entities` : ""}`;
 
+  const templateSlug = instance.template?.slug || "";
+  const isAP = templateSlug === "ap";
+
   const renderTab = (tabKey: string) => {
     const commonProps = { data: localData, onChange: handleDataChange, selectedEntity };
     switch (tabKey) {
       case "scope":
-        return <MatrixScopeTab {...commonProps} />;
+        return isAP ? <MatrixAPScopeTab {...commonProps} /> : <MatrixScopeTab {...commonProps} />;
       case "connectivity":
         return <MatrixConnectivityTab {...commonProps} template={template} />;
       case "collection":
-        return <MatrixCollectionTab {...commonProps} template={template} />;
+        return isAP ? <MatrixAPCollectionTab {...commonProps} template={template} /> : <MatrixCollectionTab {...commonProps} template={template} />;
       case "mapping":
-        return <MatrixMappingTab {...commonProps} />;
+        return isAP ? <MatrixAPMappingTab {...commonProps} /> : <MatrixMappingTab {...commonProps} />;
       case "implementation":
         return <MatrixImplementationTab {...commonProps} template={template} />;
       default:
@@ -141,6 +203,18 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
         <div className="flex items-center gap-3">
           {instance.id !== "preview" && (
             <>
+              {!isAP && (
+                <>
+                  <button onClick={() => downloadScopeTemplate(localData).catch((e) => alert(`Download failed: ${e.message || e}`))} className="text-[11px] font-semibold px-3 py-1.5 rounded border cursor-pointer transition-colors bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20 hover:bg-zinc-500/20">
+                    Download Template
+                  </button>
+                  <button onClick={() => fileInputRef.current?.click()} className="text-[11px] font-semibold px-3 py-1.5 rounded border cursor-pointer transition-colors bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/20">
+                    Upload Scope
+                  </button>
+                  <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleScopeUpload} className="hidden" />
+                  <span className="w-px h-4 bg-zinc-300 dark:bg-zinc-700" />
+                </>
+              )}
               <button onClick={() => handleSyncFromDomain("scope")} disabled={isSyncing} className="text-[11px] font-semibold px-3 py-1.5 rounded border cursor-pointer transition-colors bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 hover:bg-purple-500/20 disabled:opacity-50">
                 {isSyncing ? "..." : "Pre-populate Scope"}
               </button>
@@ -203,6 +277,86 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
           {renderTab(activeTab)}
         </div>
       </div>
+
+      {/* Upload preview modal */}
+      {uploadPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 w-[560px] max-h-[80vh] overflow-y-auto">
+            <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800">
+              <h3 className="text-sm font-bold">Import Scope from Spreadsheet</h3>
+              <p className="text-xs text-zinc-500 mt-1">Review what will be imported</p>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-4 gap-2">
+                <PreviewStat label="Outlets" value={uploadPreview.scope?.length || 0} />
+                <PreviewStat label="Payment Methods" value={uploadPreview.paymentMethods?.length || 0} />
+                <PreviewStat label="Bank Accounts" value={uploadPreview.banks?.length || 0} />
+                <PreviewStat label="Periods" value={uploadPreview.periods?.length || 0} />
+              </div>
+
+              {/* Outlets preview */}
+              {(uploadPreview.scope?.length || 0) > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 mb-1">Outlets</p>
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead><tr className="bg-zinc-50 dark:bg-zinc-800/50 text-[10px] uppercase text-zinc-400">
+                        <th className="text-left px-2 py-1.5">Entity</th><th className="text-left px-2 py-1.5">Outlet</th><th className="text-left px-2 py-1.5">POS</th>
+                      </tr></thead>
+                      <tbody>
+                        {uploadPreview.scope!.slice(0, 8).map((s, i) => (
+                          <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800/50">
+                            <td className="px-2 py-1">{s.entity}</td><td className="px-2 py-1">{s.outlet}</td><td className="px-2 py-1 text-teal-600 dark:text-teal-400">{s.pos.join(", ") || "—"}</td>
+                          </tr>
+                        ))}
+                        {(uploadPreview.scope!.length > 8) && (
+                          <tr className="border-t border-zinc-100 dark:border-zinc-800/50"><td colSpan={3} className="px-2 py-1 text-zinc-400 text-center">+{uploadPreview.scope!.length - 8} more</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Warnings */}
+              {uploadPreview.warnings.length > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2">
+                  <p className="text-[10px] font-semibold uppercase text-amber-600 dark:text-amber-400 mb-1">Warnings ({uploadPreview.warnings.length})</p>
+                  <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
+                    {uploadPreview.warnings.slice(0, 5).map((w, i) => <li key={i}>{w}</li>)}
+                    {uploadPreview.warnings.length > 5 && <li>+{uploadPreview.warnings.length - 5} more...</li>}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="px-5 py-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+              <button onClick={() => setUploadPreview(null)} className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer bg-transparent border-none">Cancel</button>
+              <div className="flex gap-2">
+                {(localData.scope?.length || 0) > 0 && (
+                  <button onClick={() => confirmUpload("merge")} className="text-[11px] font-semibold px-4 py-1.5 rounded border cursor-pointer transition-colors bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/20">
+                    Merge with Existing
+                  </button>
+                )}
+                <button onClick={() => confirmUpload("replace")} className="text-[11px] font-semibold px-4 py-1.5 rounded border cursor-pointer transition-colors bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20 hover:bg-teal-500/20">
+                  {(localData.scope?.length || 0) > 0 ? "Replace All" : "Import"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviewStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-2.5 py-2 text-center">
+      <div className="text-lg font-bold font-mono">{value}</div>
+      <div className="text-[9px] uppercase tracking-wider text-zinc-400">{label}</div>
     </div>
   );
 }

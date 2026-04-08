@@ -95,6 +95,8 @@ pub struct UpdateCompany {
     pub notes: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outreach_status: Option<String>,
 }
 
 // ============================================================================
