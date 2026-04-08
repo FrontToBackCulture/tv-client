@@ -724,13 +724,34 @@ async fn run_claude(job: &SchedulerJob, knowledge_path: &str, run_id: &str, app_
     // Use bot_path as working directory if set, otherwise fall back to knowledge_path.
     // Running from the bot folder ensures the Claude session picks up the bot's
     // CLAUDE.md, .claude/settings.local.json (pre-approved tools), and MCP context.
+    //
+    // bot_path may be absolute from a different machine (e.g. different Dropbox paths).
+    // Strategy: try as-is → extract relative suffix via tv-knowledge marker → fall back.
     let working_dir = match job.bot_path.as_deref() {
         Some(bp) => {
             let p = std::path::Path::new(bp);
             if p.is_relative() {
+                // Relative path — join with knowledge_path
                 std::path::Path::new(knowledge_path).join(bp).to_string_lossy().to_string()
-            } else {
+            } else if p.is_dir() {
+                // Absolute path exists on this machine — use directly
                 bp.to_string()
+            } else {
+                // Absolute path doesn't exist — try to extract the relative portion
+                // after "tv-knowledge/" and resolve against local knowledge_path
+                let resolved = bp.find("tv-knowledge/")
+                    .map(|idx| &bp[idx + "tv-knowledge/".len()..])
+                    .map(|rel| std::path::Path::new(knowledge_path).join(rel))
+                    .filter(|resolved| resolved.is_dir())
+                    .map(|resolved| resolved.to_string_lossy().to_string());
+
+                if let Some(dir) = resolved {
+                    eprintln!("[scheduler] bot_path '{}' not found, resolved to '{}'", bp, dir);
+                    dir
+                } else {
+                    eprintln!("[scheduler] bot_path '{}' not found and could not resolve, falling back to knowledge_path", bp);
+                    knowledge_path.to_string()
+                }
             }
         }
         None => knowledge_path.to_string(),
