@@ -250,6 +250,26 @@ Only SELECT/WITH statements allowed. Use AT TIME ZONE 'Asia/Singapore' for times
   const activeRepo = repoState.repositories.find((r) => r.id === repoState.activeRepositoryId);
   const knowledgeRoot = activeRepo?.path ?? "";
 
+  // Resolve user's bot folder from their team_folder in the users table
+  let botCwd: string | undefined = knowledgeRoot || undefined;
+  {
+    const { data: userRow } = await supabase
+      .from("users")
+      .select("team_folder")
+      .eq("id", userId)
+      .maybeSingle();
+    if (userRow?.team_folder && knowledgeRoot) {
+      const { readDir } = await import("@tauri-apps/plugin-fs");
+      try {
+        const entries = await readDir(`${knowledgeRoot}/_team/${userRow.team_folder}`);
+        const botEntry = entries.find((e: { name?: string }) => e.name?.startsWith("bot-"));
+        if (botEntry?.name) {
+          botCwd = `${knowledgeRoot}/_team/${userRow.team_folder}/${botEntry.name}`;
+        }
+      } catch { /* folder doesn't exist — fall back to knowledgeRoot */ }
+    }
+  }
+
   if (discussion.entity_id.startsWith("task-chat:")) {
     const taskId = discussion.entity_id.replace(/^task-chat:/, "").split(":")[0];
     const { data: taskRow } = await supabase
@@ -408,7 +428,7 @@ ${folderContext}
         model: "sonnet",
         max_budget_usd: 0.5,
         resume_session_id: existingSessionId,
-        cwd: knowledgeRoot || undefined,
+        cwd: botCwd,
       },
     });
 

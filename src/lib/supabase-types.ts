@@ -4748,6 +4748,7 @@ export type Database = {
           microsoft_id: string | null
           name: string
           role: string
+          team_folder: string | null
           type: string
           updated_at: string | null
           visible_modules: string[] | null
@@ -4767,6 +4768,7 @@ export type Database = {
           microsoft_id?: string | null
           name: string
           role?: string
+          team_folder?: string | null
           type?: string
           updated_at?: string | null
           visible_modules?: string[] | null
@@ -4786,6 +4788,7 @@ export type Database = {
           microsoft_id?: string | null
           name?: string
           role?: string
+          team_folder?: string | null
           type?: string
           updated_at?: string | null
           visible_modules?: string[] | null

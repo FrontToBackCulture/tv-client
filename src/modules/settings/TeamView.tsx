@@ -153,6 +153,7 @@ function MemberIdentity({ login }: { login: string }) {
   const [msEmail, setMsEmail] = useState(user?.microsoft_email || "");
   const [msId, setMsId] = useState(user?.microsoft_id || "");
   const [displayName, setDisplayName] = useState(user?.name || "");
+  const [teamFolder, setTeamFolder] = useState(user?.team_folder || "");
   const [saving, setSaving] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
 
@@ -179,6 +180,7 @@ function MemberIdentity({ login }: { login: string }) {
     if (msEmail !== (user.microsoft_email || "")) updates.microsoft_email = msEmail || null;
     if (msId !== (user.microsoft_id || "")) updates.microsoft_id = msId || null;
     if (displayName !== (user.name || "")) updates.name = displayName;
+    if (teamFolder !== (user.team_folder || "")) updates.team_folder = teamFolder || null;
     if (Object.keys(updates).length === 0) { setSaving(false); return; }
     const { error } = await supabase.from("users").update(updates).eq("id", user.id);
     setSaving(false);
@@ -187,7 +189,7 @@ function MemberIdentity({ login }: { login: string }) {
     qc.invalidateQueries({ queryKey: workKeys.users() });
   };
 
-  const hasChanges = msEmail !== (user.microsoft_email || "") || msId !== (user.microsoft_id || "") || displayName !== (user.name || "");
+  const hasChanges = msEmail !== (user.microsoft_email || "") || msId !== (user.microsoft_id || "") || displayName !== (user.name || "") || teamFolder !== (user.team_folder || "");
 
   return (
     <div className="mt-3 pl-10 mb-2 space-y-2">
@@ -224,6 +226,14 @@ function MemberIdentity({ login }: { login: string }) {
         <span className="text-xs text-zinc-400 px-2 py-1.5 font-mono">
           {msId ? `${msId.slice(0, 8)}...${msId.slice(-4)}` : "—"}
         </span>
+        <span className="text-xs text-zinc-500">Team Folder</span>
+        <input
+          type="text"
+          value={teamFolder}
+          onChange={(e) => setTeamFolder(e.target.value)}
+          className="text-xs px-2 py-1.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none border border-transparent focus:ring-2 focus:ring-teal-500/30"
+          placeholder="e.g. melvin, darren..."
+        />
       </div>
       {hasChanges && (
         <button
