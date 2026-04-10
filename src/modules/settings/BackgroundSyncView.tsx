@@ -158,7 +158,17 @@ export function BackgroundSyncView() {
     },
     staleTime: 30_000,
   });
-  const syncRuns = syncRunsQuery.data || [];
+  const allSyncRuns = syncRunsQuery.data || [];
+  const [showLatestOnly, setShowLatestOnly] = useState(true);
+  const syncRuns = showLatestOnly
+    ? Object.values(
+        allSyncRuns.reduce<Record<string, (typeof allSyncRuns)[number]>>((acc, run) => {
+          const key = `${run.source}:${run.job_name}`;
+          if (!acc[key]) acc[key] = run;
+          return acc;
+        }, {})
+      )
+    : allSyncRuns;
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
 
   return (
@@ -270,7 +280,15 @@ export function BackgroundSyncView() {
         <div className="flex items-center gap-2 mb-2 px-1">
           <Clock className="w-4 h-4 text-zinc-400" />
           <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Recent Sync Runs</h3>
-          <span className="text-xs text-zinc-400">Last 200 runs from val_sync_runs</span>
+          <span className="text-xs text-zinc-400">
+            {showLatestOnly ? `${syncRuns.length} jobs — latest run each` : `Last ${allSyncRuns.length} runs`}
+          </span>
+          <button
+            onClick={() => setShowLatestOnly(!showLatestOnly)}
+            className="ml-auto text-xs text-blue-500 hover:text-blue-400 transition-colors"
+          >
+            {showLatestOnly ? "Show all runs" : "Show latest only"}
+          </button>
         </div>
         <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
           <table className="w-full text-sm">

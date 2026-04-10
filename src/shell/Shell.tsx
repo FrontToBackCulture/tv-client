@@ -184,7 +184,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
   // Update OS-level window title when module changes (secondary windows)
   useEffect(() => {
     if (secondary) {
-      getCurrentWindow().setTitle(`TV Desktop — ${moduleLabels[activeModule]}`);
+      getCurrentWindow().setTitle(`TV Desktop — ${moduleLabels[activeModule]}`).catch(() => {});
     }
   }, [activeModule, secondary]);
 

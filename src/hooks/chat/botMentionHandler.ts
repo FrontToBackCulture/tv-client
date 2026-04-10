@@ -8,6 +8,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
 import { useBotSettingsStore } from "../../stores/botSettingsStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { gatherMyTasks, buildPromptData } from "./gatherContext";
 
 const BOT_AUTHOR = "bot-mel";
@@ -244,6 +245,68 @@ Template variables for user-specific sources: {{current_user_name}}, {{current_u
 Only SELECT/WITH statements allowed. Use AT TIME ZONE 'Asia/Singapore' for timestamps.`;
   }
 
+  // Inject fresh folder context for task/project chats (overrides stale seed message)
+  let folderContext = "";
+  const repoState = useRepositoryStore.getState();
+  const activeRepo = repoState.repositories.find((r) => r.id === repoState.activeRepositoryId);
+  const knowledgeRoot = activeRepo?.path ?? "";
+
+  if (discussion.entity_id.startsWith("task-chat:")) {
+    const taskId = discussion.entity_id.replace(/^task-chat:/, "").split(":")[0];
+    const { data: taskRow } = await supabase
+      .from("tasks")
+      .select("task_number, project:projects!tasks_project_id_fkey(folder_path, identifier_prefix)")
+      .eq("id", taskId)
+      .maybeSingle();
+    const project = taskRow?.project as unknown as { folder_path: string | null; identifier_prefix: string | null } | null;
+    const folderPath = project?.folder_path;
+    const prefix = project?.identifier_prefix ?? "";
+    const taskNum = taskRow?.task_number ?? "";
+    const ident = prefix && taskNum ? `${prefix}-${taskNum}` : taskId.slice(0, 8);
+
+    if (folderPath && knowledgeRoot) {
+      const taskFolderAbs = `${knowledgeRoot}/${folderPath}/${ident}/attachments`;
+      folderContext = `
+## Task folder (current — use this, ignore any stale folder instructions above)
+\`${taskFolderAbs}\`
+
+To save screenshots or files from the conversation:
+1. Extract image/file URLs from the conversation messages.
+2. \`mkdir -p "${taskFolderAbs}"\`
+3. \`curl -sL "<url>" -o "${taskFolderAbs}/<descriptive-name>.<ext>"\`
+4. \`ls -la "${taskFolderAbs}/"\` to verify.`;
+    } else {
+      folderContext = `
+## Task folder
+This task's project has no folder_path set yet. If asked to save files, tell the user to set the project's folder_path first.`;
+    }
+  } else if (discussion.entity_id.startsWith("project-chat:")) {
+    const projectId = discussion.entity_id.replace(/^project-chat:/, "").split(":")[0];
+    const { data: projRow } = await supabase
+      .from("projects")
+      .select("folder_path")
+      .eq("id", projectId)
+      .maybeSingle();
+    const folderPath = projRow?.folder_path;
+
+    if (folderPath && knowledgeRoot) {
+      const attachAbs = `${knowledgeRoot}/${folderPath}/attachments`;
+      folderContext = `
+## Project folder (current — use this, ignore any stale folder instructions above)
+\`${attachAbs}\`
+
+To save screenshots or files from the conversation:
+1. Extract image/file URLs from the conversation messages.
+2. \`mkdir -p "${attachAbs}"\`
+3. \`curl -sL "<url>" -o "${attachAbs}/<descriptive-name>.<ext>"\`
+4. \`ls -la "${attachAbs}/"\` to verify.`;
+    } else {
+      folderContext = `
+## Project folder
+This project has no folder_path set yet. If asked to save files, tell the user to set the project's folder_path first.`;
+    }
+  }
+
   const prompt = `You are ${botName} — an AI assistant in a chat thread. @${userName} just sent you a message. Read the conversation and do what they're asking.
 
 ## Conversation so far:
@@ -251,6 +314,7 @@ ${conversationHistory}
 ${imageContext}
 ${taskContext}
 ${skillContext}
+${folderContext}
 
 ## What to do:
 1. Understand what @${userName} is asking for.

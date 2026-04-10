@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { schedulerKeys } from "./keys";
 import { supabase } from "../../lib/supabase";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
+import { useCurrentUserName } from "../work/useUsers";
 
 interface JobStartedPayload {
   jobId: string;
@@ -72,6 +73,9 @@ export function useSchedulerEvents() {
   const addRunning = useRunningJobsStore((s) => s.addRunning);
   const removeRunning = useRunningJobsStore((s) => s.removeRunning);
   const updateStep = useRunningJobsStore((s) => s.updateStep);
+  const currentUserName = useCurrentUserName();
+  const currentUserNameRef = useRef(currentUserName);
+  currentUserNameRef.current = currentUserName;
 
   useEffect(() => {
     let cancelled = false;
@@ -143,7 +147,9 @@ export function useSchedulerEvents() {
       qc.invalidateQueries({ queryKey: schedulerKeys.status() });
 
       // Post result to Chat — pass runId so we can fetch full output (not truncated preview)
-      postJobResultToChat(jobId, runId, jobName, status, error, qc);
+      if (currentUserNameRef.current) {
+        postJobResultToChat(jobId, runId, jobName, status, error, qc, currentUserNameRef.current);
+      }
     }).then((unlisten) => { if (cancelled) unlisten(); else unlisteners.push(unlisten); });
 
     return () => {
@@ -164,6 +170,7 @@ async function postJobResultToChat(
   status: string,
   error: string | null,
   qc: ReturnType<typeof useQueryClient>,
+  recipientName: string,
 ): Promise<void> {
   try {
     // Look up the automation's output node config + job bot_path
@@ -221,7 +228,7 @@ async function postJobResultToChat(
       ? fullOutput || "(no output)"
       : `Failed: ${error || "unknown error"}`;
 
-    const mentionedBody = `@mel-tv\n\n${body}`;
+    const mentionedBody = `@${recipientName}\n\n${body}`;
     const truncatedBody = mentionedBody.length > 3000
       ? mentionedBody.slice(0, 3000) + "\n\n_(truncated — see Activity tab for full output)_"
       : mentionedBody;
@@ -269,7 +276,7 @@ async function postJobResultToChat(
 
         const preview = truncatedBody.length > 100 ? truncatedBody.slice(0, 100) + "..." : truncatedBody;
         await supabase.from("notifications").insert({
-          recipient: "mel-tv",
+          recipient: recipientName,
           type: "mention",
           discussion_id: existingThread.id,
           entity_type: "general",
@@ -307,7 +314,7 @@ async function postJobResultToChat(
     // Create notification
     const preview = truncatedBody.length > 100 ? truncatedBody.slice(0, 100) + "..." : truncatedBody;
     await supabase.from("notifications").insert({
-      recipient: "mel-tv",
+      recipient: recipientName,
       type: "mention",
       discussion_id: discussion.id,
       entity_type: "general",

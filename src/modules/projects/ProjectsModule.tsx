@@ -280,11 +280,11 @@ export function ProjectsModule() {
 
   const handleCreateTask = useCallback(() => {
     const defaultProject = selectedProjectId
-      ? projects.find(p => p.id === selectedProjectId)
-      : projects.find(p => p.status === "active") || projects[0];
+      ? allProjects.find(p => p.id === selectedProjectId)
+      : allProjects.find(p => p.status === "active") || allProjects[0];
     setCreateTaskProjectId(defaultProject?.id);
     setShowTaskForm(true);
-  }, [projects, selectedProjectId]);
+  }, [allProjects, selectedProjectId]);
 
   const handleTaskSaved = useCallback(() => {
     setShowTaskForm(false);

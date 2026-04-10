@@ -4,7 +4,7 @@ import type {
   InstanceData,
   TemplateTab,
 } from "../../../lib/solutions/types";
-import { useUpdateSolutionInstanceData, useAlignSolutionInstanceVersion } from "../../../hooks/solutions";
+import { useUpdateSolutionInstanceData, useAlignSolutionInstanceVersion, useUpdateSolutionTemplate } from "../../../hooks/solutions";
 import { calculateProgress, getOutlets } from "./matrixHelpers";
 import { downloadScopeTemplate, parseScopeSpreadsheet } from "./scopeSpreadsheet";
 import EntitySidebar from "./EntitySidebar";
@@ -48,6 +48,33 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
   const updateMutation = useUpdateSolutionInstanceData();
   const alignMutation = useAlignSolutionInstanceVersion();
+  const updateTemplateMutation = useUpdateSolutionTemplate();
+
+  // Table roles for stub system creation
+  const TABLE_ROLES_BY_TYPE: Record<string, string[]> = {
+    POS: ["statementSource", "outletMap", "platformMap"],
+    "Platform Delivery": ["statementSource", "outletMap", "platformMap"],
+    "Platform In Store Payment": ["statementSource", "outletMap", "platformMap"],
+    Bank: ["statementSource", "bankAcctMap", "bankCounterpartyMap"],
+  };
+
+  // Add a new system stub to the template's valConfig
+  const handleAddSystem = useCallback((systemId: string, systemType: string) => {
+    const valConfig = (template as any)?.valConfig;
+    if (!valConfig) return;
+    const systems: any[] = valConfig.systems || [];
+    if (systems.some((s: any) => s.id === systemId)) return;
+    const roles = TABLE_ROLES_BY_TYPE[systemType] || [];
+    const tables: Record<string, string> = {};
+    roles.forEach((r) => { tables[r] = ""; });
+    const newSystem = { id: systemId, type: systemType, tables, workflows: {}, dashboards: [] };
+    const newValConfig = { ...valConfig, systems: [...systems, newSystem] };
+    const newTemplate = { ...template, valConfig: newValConfig };
+    updateTemplateMutation.mutate({
+      id: instance.template.id,
+      updates: { template: newTemplate as any },
+    });
+  }, [template, instance.template.id, updateTemplateMutation]);
 
   const handleSyncFromDomain = async (action: "scope" | "mapping") => {
     setIsSyncing(true);
@@ -164,8 +191,8 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
   const hasSidebar = outletCount > 0;
 
   // Domain subtitle
-  const domainSub = selectedEntity
-    ? `${instance.domain} — ${selectedEntity} (${outlets.filter((o) => o.entity === selectedEntity).length} outlets)`
+  const domainSub = selectedEntity !== null
+    ? `${instance.domain} — ${selectedEntity || "Unassigned"} (${outlets.filter((o) => (o.entity || "") === (selectedEntity || "")).length} outlets)`
     : `${instance.domain}${outletCount > 0 ? ` — ${outletCount} outlets · ${entityCount} entities` : ""}`;
 
   const templateSlug = instance.template?.slug || "";
@@ -175,15 +202,15 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
     const commonProps = { data: localData, onChange: handleDataChange, selectedEntity };
     switch (tabKey) {
       case "scope":
-        return isAP ? <MatrixAPScopeTab {...commonProps} /> : <MatrixScopeTab {...commonProps} />;
+        return isAP ? <MatrixAPScopeTab {...commonProps} /> : <MatrixScopeTab {...commonProps} domain={instance.domain} instanceId={instance.id} template={template} onAddSystem={handleAddSystem} />;
       case "connectivity":
         return <MatrixConnectivityTab {...commonProps} template={template} />;
       case "collection":
-        return isAP ? <MatrixAPCollectionTab {...commonProps} template={template} /> : <MatrixCollectionTab {...commonProps} template={template} />;
+        return isAP ? <MatrixAPCollectionTab {...commonProps} template={template} /> : <MatrixCollectionTab {...commonProps} template={template} domain={instance.domain} />;
       case "mapping":
         return isAP ? <MatrixAPMappingTab {...commonProps} /> : <MatrixMappingTab {...commonProps} />;
       case "implementation":
-        return <MatrixImplementationTab {...commonProps} template={template} />;
+        return <MatrixImplementationTab {...commonProps} template={template} domain={instance.domain} instanceId={instance.id} />;
       default:
         return <p className="text-xs text-zinc-500 py-4">Tab "{tabKey}" not implemented yet.</p>;
     }
@@ -239,9 +266,9 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
       )}
 
       {/* Entity filter banner */}
-      {selectedEntity && (
+      {selectedEntity !== null && (
         <div className="mx-4 mt-2 px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-between">
-          <div className="text-xs text-teal-700 dark:text-teal-400">Filtered to <span className="font-semibold">{selectedEntity}</span> — {outlets.filter((o) => o.entity === selectedEntity).length} outlets</div>
+          <div className="text-xs text-teal-700 dark:text-teal-400">Filtered to <span className="font-semibold">{selectedEntity || "Unassigned"}</span> — {outlets.filter((o) => (o.entity || "") === (selectedEntity || "")).length} outlets</div>
           <button onClick={() => setSelectedEntity(null)} className="text-[10px] font-semibold px-2 py-0.5 rounded bg-teal-500/20 text-teal-700 dark:text-teal-400 cursor-pointer hover:bg-teal-500/30 border-none">Clear Filter</button>
         </div>
       )}

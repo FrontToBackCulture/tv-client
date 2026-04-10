@@ -13,3 +13,12 @@ export {
   useAlignSolutionInstanceVersion,
   useDeleteSolutionInstance,
 } from "./useSolutionInstances";
+export {
+  useTriggerSync,
+  useSyncJobs,
+  usePollSyncStatus,
+  buildSyncRequestsFromScope,
+} from "./useSyncDomain";
+export type { SyncJob } from "./useSyncDomain";
+export { useFileScanner } from "./useFileScanner";
+export type { ScannedFile, ScanResult } from "./useFileScanner";

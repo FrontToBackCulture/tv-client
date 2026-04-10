@@ -432,6 +432,548 @@ pub fn get_all_domain_workflow_folders() -> HashMap<String, Vec<DriveWorkflowFol
 }
 
 // ============================================================================
+// Upload files to VAL Drive
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UploadFileResult {
+    pub name: String,
+    pub status: String, // "uploaded" | "error"
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UploadResult {
+    pub total: usize,
+    pub uploaded: usize,
+    pub failed: usize,
+    pub files: Vec<UploadFileResult>,
+}
+
+/// Upload local files to a VAL Drive folder.
+/// Reads files from disk and POSTs them as multipart form data to the VAL Drive API.
+#[command]
+pub async fn val_drive_upload_files(
+    domain: String,
+    folder_path: String,
+    file_paths: Vec<String>,
+) -> CmdResult<UploadResult> {
+    if file_paths.is_empty() {
+        return Ok(UploadResult {
+            total: 0,
+            uploaded: 0,
+            failed: 0,
+            files: vec![],
+        });
+    }
+
+    let domain_config = get_domain_config(&domain)?;
+    let api_domain = domain_config.api_domain().to_string();
+    let base_url = format!("https://{}.thinkval.io", api_domain);
+    let (token, _) = auth::ensure_auth(&domain).await?;
+
+    let mut results: Vec<UploadFileResult> = Vec::new();
+    let mut uploaded = 0usize;
+    let mut failed = 0usize;
+
+    // Upload in batches of 10 files
+    let batch_size = 10;
+    for chunk in file_paths.chunks(batch_size) {
+        match upload_batch(&base_url, &api_domain, &token, &folder_path, chunk).await {
+            Ok(batch_results) => {
+                for r in batch_results {
+                    if r.status == "uploaded" {
+                        uploaded += 1;
+                    } else {
+                        failed += 1;
+                    }
+                    results.push(r);
+                }
+            }
+            Err(e) => {
+                // If auth error, retry once with reauth
+                if e.to_string().contains("auth") || e.to_string().contains("401") || e.to_string().contains("403") {
+                    let (new_token, _) = auth::reauth(&domain).await?;
+                    match upload_batch(&base_url, &api_domain, &new_token, &folder_path, chunk).await {
+                        Ok(batch_results) => {
+                            for r in batch_results {
+                                if r.status == "uploaded" {
+                                    uploaded += 1;
+                                } else {
+                                    failed += 1;
+                                }
+                                results.push(r);
+                            }
+                        }
+                        Err(e2) => {
+                            for path in chunk {
+                                let name = std::path::Path::new(path)
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().to_string())
+                                    .unwrap_or_else(|| path.clone());
+                                failed += 1;
+                                results.push(UploadFileResult {
+                                    name,
+                                    status: "error".to_string(),
+                                    error: Some(format!("Upload failed after reauth: {}", e2)),
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    for path in chunk {
+                        let name = std::path::Path::new(path)
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_else(|| path.clone());
+                        failed += 1;
+                        results.push(UploadFileResult {
+                            name,
+                            status: "error".to_string(),
+                            error: Some(format!("Upload failed: {}", e)),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Small delay between batches
+        if chunk.len() == batch_size {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+    }
+
+    Ok(UploadResult {
+        total: file_paths.len(),
+        uploaded,
+        failed,
+        files: results,
+    })
+}
+
+async fn upload_batch(
+    base_url: &str,
+    api_domain: &str,
+    token: &str,
+    folder_path: &str,
+    file_paths: &[String],
+) -> CmdResult<Vec<UploadFileResult>> {
+    let client = crate::HTTP_CLIENT.clone();
+    let url = format!("{}/api/v1/val_drive/filesAsync", base_url);
+
+    let mut form = reqwest::multipart::Form::new();
+    let mut file_names: Vec<String> = Vec::new();
+
+    for path_str in file_paths {
+        let path = std::path::Path::new(path_str);
+        let file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let content = tokio::fs::read(path).await.map_err(|e| {
+            CommandError::Io(format!("Failed to read file {}: {}", path_str, e))
+        })?;
+
+        let part = reqwest::multipart::Part::bytes(content)
+            .file_name(file_name.clone())
+            .mime_str("application/octet-stream")
+            .unwrap();
+
+        form = form.part("file[]", part);
+        file_names.push(file_name);
+    }
+
+    let response = client
+        .post(&url)
+        .header("sub_domain", api_domain)
+        .query(&[
+            ("uuid", "1"),
+            ("token", token),
+            ("folderPath", folder_path),
+        ])
+        .multipart(form)
+        .timeout(std::time::Duration::from_secs(300))
+        .send()
+        .await?;
+
+    let status = response.status().as_u16();
+    if is_auth_status(status) {
+        return Err(CommandError::Network(format!("auth error (HTTP {})", status)));
+    }
+    if !response.status().is_success() {
+        let body = response.text().await.unwrap_or_default();
+        if is_auth_body(&body) {
+            return Err(CommandError::Network(format!("auth error: {}", body)));
+        }
+        return Err(CommandError::Http { status, body });
+    }
+
+    // API returns 200 but files may still be processing async — we mark as uploaded
+    Ok(file_names
+        .into_iter()
+        .map(|name| UploadFileResult {
+            name,
+            status: "uploaded".to_string(),
+            error: None,
+        })
+        .collect())
+}
+
+// ============================================================================
+// Trigger VAL workflow execution
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowRerunResult {
+    pub workflow_id: u64,
+    pub execution_id: u64,
+    pub status: String,
+}
+
+/// Trigger a VAL workflow rerun on a domain.
+/// Used to run dataLoad workflows after uploading files to VAL Drive.
+#[command]
+pub async fn val_workflow_rerun(
+    domain: String,
+    workflow_id: u64,
+) -> CmdResult<WorkflowRerunResult> {
+    let domain_config = get_domain_config(&domain)?;
+    let api_domain = domain_config.api_domain().to_string();
+    let base_url = format!("https://{}.thinkval.io", api_domain);
+    let (token, _) = auth::ensure_auth(&domain).await?;
+
+    match rerun_workflow(&base_url, &api_domain, &token, workflow_id).await {
+        Ok(r) => Ok(r),
+        Err(e) if e.to_string().contains("auth") || e.to_string().contains("401") || e.to_string().contains("403") => {
+            let (new_token, _) = auth::reauth(&domain).await?;
+            rerun_workflow(&base_url, &api_domain, &new_token, workflow_id)
+                .await
+                .map_err(|e| CommandError::Network(format!("Workflow rerun failed after reauth: {}", e)))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+async fn rerun_workflow(
+    base_url: &str,
+    api_domain: &str,
+    token: &str,
+    workflow_id: u64,
+) -> CmdResult<WorkflowRerunResult> {
+    let client = crate::HTTP_CLIENT.clone();
+    let url = format!("{}/api/v1/workflow/{}/rerun", base_url, workflow_id);
+
+    let response = client
+        .post(&url)
+        .header("sub_domain", api_domain)
+        .query(&[("uuid", "1"), ("token", token)])
+        .json(&serde_json::json!({}))
+        .send()
+        .await?;
+
+    let status = response.status().as_u16();
+    if is_auth_status(status) {
+        return Err(CommandError::Network(format!("auth error (HTTP {})", status)));
+    }
+    if !response.status().is_success() {
+        let body = response.text().await.unwrap_or_default();
+        if is_auth_body(&body) {
+            return Err(CommandError::Network(format!("auth error: {}", body)));
+        }
+        return Err(CommandError::Http { status, body });
+    }
+
+    let body: serde_json::Value = response.json().await.unwrap_or(serde_json::json!({}));
+    let exec_id = body
+        .get("data")
+        .and_then(|d| d.get("id"))
+        .and_then(|id| id.as_u64())
+        .or_else(|| body.get("id").and_then(|id| id.as_u64()))
+        .unwrap_or(0);
+
+    Ok(WorkflowRerunResult {
+        workflow_id,
+        execution_id: exec_id,
+        status: "triggered".to_string(),
+    })
+}
+
+// ============================================================================
+// Insert rows into VAL tables
+// ============================================================================
+
+/// Insert rows into a VAL table via the CRUD middleware (/addCustomData → records/create).
+#[command]
+pub async fn val_table_insert_rows(
+    domain: String,
+    table_name: String,
+    zone: String,
+    pk: String,
+    columns: Vec<serde_json::Value>,   // [{ column_name, data_type }]
+    rows: Vec<Vec<String>>,            // each row is values matching columns order
+) -> CmdResult<serde_json::Value> {
+    if rows.is_empty() {
+        return Ok(serde_json::json!({ "inserted": 0 }));
+    }
+
+    let domain_config = get_domain_config(&domain)?;
+    let api_domain = domain_config.api_domain().to_string();
+    let base_url = format!("https://{}.thinkval.io", api_domain);
+    let (token, _) = auth::ensure_auth(&domain).await?;
+
+    let client = crate::HTTP_CLIENT.clone();
+    // The public endpoint is /db/crud/addCustomData (proxied to crud-service /api/v1/records/create)
+    let url = format!("{}/db/crud/addCustomData", base_url);
+
+    // Build column_names and data_type strings
+    let col_names: Vec<String> = columns.iter()
+        .filter_map(|c| c.get("column_name").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect();
+    let data_types: Vec<String> = columns.iter()
+        .filter_map(|c| c.get("data_type").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect();
+    let column_names_str = col_names.join(",");
+    let data_type_str = data_types.join(",");
+    let date_now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+    let mut inserted = 0usize;
+    let mut errors: Vec<String> = Vec::new();
+
+    for row_values in &rows {
+        // Build object_data with values
+        let object_data: Vec<serde_json::Value> = columns.iter().enumerate().map(|(i, c)| {
+            let col = c.get("column_name").and_then(|v| v.as_str()).unwrap_or("");
+            let dt = c.get("data_type").and_then(|v| v.as_str()).unwrap_or("");
+            let val = row_values.get(i).cloned().unwrap_or_default();
+            serde_json::json!({
+                "column_name": col,
+                "data_type": dt,
+                "type": "",
+                "value": val,
+            })
+        }).collect();
+
+        let body = serde_json::json!({
+            "tableid": table_name,
+            "zone": zone,
+            "pk": pk,
+            "curr_date": date_now,
+            "created_date": date_now,
+            "value_array": row_values,
+            "column_names": column_names_str,
+            "data_type": data_type_str,
+            "object_data": object_data,
+            "user": "tv-client",
+            "name": table_name,
+        });
+
+        let response = client
+            .post(&url)
+            .header("sub_domain", &api_domain)
+            .query(&[("uuid", "1"), ("token", &token)])
+            .json(&body)
+            .send()
+            .await?;
+
+        let resp_status = response.status().as_u16();
+        let resp_body = response.text().await.unwrap_or_default();
+        if resp_status >= 200 && resp_status < 300 {
+            inserted += 1;
+        } else {
+            // Include request body snippet for debugging
+            let body_preview = serde_json::to_string(&body).unwrap_or_default();
+            errors.push(format!(
+                "HTTP {}: {} | Sent: {}",
+                resp_status,
+                &resp_body[..resp_body.len().min(500)],
+                &body_preview[..body_preview.len().min(500)]
+            ));
+        }
+    }
+
+    Ok(serde_json::json!({
+        "inserted": inserted,
+        "failed": errors.len(),
+        "errors": errors,
+    }))
+}
+
+/// Check the latest execution status for a specific workflow ID.
+/// Queries recent executions and finds the most recent one for this workflow.
+#[command]
+pub async fn val_workflow_execution_status(
+    domain: String,
+    workflow_id: u64,
+) -> CmdResult<serde_json::Value> {
+    let domain_config = get_domain_config(&domain)?;
+    let api_domain = domain_config.api_domain().to_string();
+    let base_url = format!("https://{}.thinkval.io", api_domain);
+    let (token, _) = auth::ensure_auth(&domain).await?;
+
+    let client = crate::HTTP_CLIENT.clone();
+    // Use the executions list endpoint with a short time window
+    let now = chrono::Utc::now();
+    let from = (now - chrono::Duration::hours(1)).format("%Y-%m-%dT%H:%M:%S").to_string();
+    let to = now.format("%Y-%m-%dT%H:%M:%S").to_string();
+
+    let url = format!("{}/api/v1/workflow/executions", base_url);
+    let response = client
+        .get(&url)
+        .query(&[
+            ("uuid", "1"),
+            ("token", token.as_str()),
+            ("from", from.as_str()),
+            ("to", to.as_str()),
+            ("page", "1"),
+            ("limit", "20"),
+        ])
+        .send()
+        .await?;
+
+    let status = response.status().as_u16();
+    if !response.status().is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(CommandError::Http { status, body });
+    }
+
+    let body: serde_json::Value = response.json().await.unwrap_or(serde_json::json!({}));
+    let executions = body.get("data").and_then(|d| d.as_array()).cloned().unwrap_or_default();
+
+    // Find the most recent execution for this workflow ID
+    // Try multiple field names: workflowId, workflow_id, job_id
+    let matching = executions.iter().find(|e| {
+        for field in &["workflowId", "workflow_id", "job_id"] {
+            if let Some(val) = e.get(field) {
+                if val.as_u64() == Some(workflow_id) { return true; }
+                if val.as_str().map(|s| s == workflow_id.to_string()).unwrap_or(false) { return true; }
+            }
+        }
+        false
+    });
+
+    match matching {
+        Some(exec) => Ok(exec.clone()),
+        None => {
+            // Return first execution as fallback with debug info
+            if let Some(first) = executions.first() {
+                let keys: Vec<String> = first.as_object().map(|o| o.keys().cloned().collect()).unwrap_or_default();
+                Ok(serde_json::json!({
+                    "status": "unknown",
+                    "_debug_keys": keys,
+                    "_debug_workflow_id": workflow_id,
+                    "_debug_first_exec": first,
+                    "_debug_total": executions.len()
+                }))
+            } else {
+                Ok(serde_json::json!({ "status": "unknown", "_debug": "no executions found" }))
+            }
+        }
+    }
+}
+
+// ============================================================================
+// AI outlet matching — maps data outlet names to scope outlet codes
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutletMatch {
+    pub data_name: String,
+    pub scope_code: String,  // empty if no match
+    pub confidence: String,  // "high", "medium", "low"
+}
+
+/// Use Claude to match outlet names from data files to scope outlet codes.
+#[command]
+pub async fn ai_match_outlets(
+    scope_outlets: Vec<serde_json::Value>,  // [{ entity, outlet }]
+    data_outlets: Vec<String>,              // store names from CSV
+) -> CmdResult<Vec<OutletMatch>> {
+    use crate::commands::settings::{load_settings, KEY_ANTHROPIC_API};
+
+    let settings = load_settings()?;
+    let api_key = settings
+        .keys
+        .get(KEY_ANTHROPIC_API)
+        .ok_or_else(|| CommandError::Config("Anthropic API key not configured".to_string()))?
+        .clone();
+
+    // Build the prompt
+    let scope_list: Vec<String> = scope_outlets
+        .iter()
+        .map(|o| {
+            format!(
+                "{} ({})",
+                o.get("outlet").and_then(|v| v.as_str()).unwrap_or(""),
+                o.get("entity").and_then(|v| v.as_str()).unwrap_or("")
+            )
+        })
+        .collect();
+
+    let prompt = format!(
+        "Match each data outlet name to the most likely scope outlet code. \
+        Scope outlets (code + entity):\n{}\n\n\
+        Data outlet names:\n{}\n\n\
+        Return ONLY a JSON array, no markdown, no explanation. Each element: \
+        {{\"data_name\": \"...\", \"scope_code\": \"...\", \"confidence\": \"high|medium|low\"}}. \
+        If no match, use scope_code: \"\". Be strict — only match if clearly the same location.",
+        scope_list.join("\n"),
+        data_outlets.join("\n")
+    );
+
+    let client = crate::HTTP_CLIENT.clone();
+    let body = serde_json::json!({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 2048,
+        "temperature": 0.0,
+        "messages": [{ "role": "user", "content": prompt }]
+    });
+
+    let resp = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", &api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| CommandError::Network(format!("Anthropic API failed: {}", e)))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(CommandError::Http { status, body });
+    }
+
+    let result: serde_json::Value = resp.json().await?;
+    let text = result
+        .get("content")
+        .and_then(|c| c.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|b| b.get("text"))
+        .and_then(|t| t.as_str())
+        .unwrap_or("[]");
+
+    // Parse the JSON array from the response
+    let matches: Vec<OutletMatch> = serde_json::from_str(text).unwrap_or_else(|_| {
+        // Try to extract JSON from markdown code block
+        let trimmed = text.trim();
+        let json_str = if trimmed.starts_with("```") {
+            trimmed
+                .trim_start_matches("```json")
+                .trim_start_matches("```")
+                .trim_end_matches("```")
+                .trim()
+        } else {
+            trimmed
+        };
+        serde_json::from_str(json_str).unwrap_or_default()
+    });
+
+    Ok(matches)
+}
+
+// ============================================================================
 // Drive Scan Config — persisted folder list per domain
 // ============================================================================
 

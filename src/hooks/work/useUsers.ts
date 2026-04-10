@@ -42,3 +42,19 @@ export function useCurrentUserId(): string | null {
   }
   return match?.id ?? null;
 }
+
+export function useCurrentUserName(): string | null {
+  const appUser = useAuth((s) => s.user);
+  const { data: users = [] } = useUsers();
+  if (!appUser) return null;
+  const login = appUser.login;
+  const email = appUser.email;
+  const name = appUser.name;
+  const match =
+    users.find(u => u.github_username === login) ||
+    users.find(u => u.microsoft_email === login) ||
+    users.find(u => u.microsoft_email === email) ||
+    users.find(u => u.email === email && email) ||
+    users.find(u => u.name === name);
+  return match?.name ?? null;
+}

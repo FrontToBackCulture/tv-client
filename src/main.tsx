@@ -14,19 +14,27 @@ import '@fontsource/instrument-serif/latin.css';
 import App from './App';
 import './styles/globals.css';
 
-// Global error handler — shows errors on screen instead of blank white page
+// Global error handler — shows crash screen only if React hasn't rendered yet
+// (pre-mount failures). Post-mount errors are handled by CrashBoundary.
+// Tauri/WebKit internal errors (permission denials, _sandbox) are logged but
+// never crash the app.
+const NON_FATAL = /access\.\w+ not allowed|Can't find variable: _sandbox/;
 window.onerror = (msg, src, line, col, err) => {
-  document.title = `CRASH: ${msg}`;
-  const el = document.getElementById('crash-log');
-  if (el) el.textContent += `\n[onerror] ${msg}\nSource: ${src}:${line}:${col}\nStack: ${err?.stack || 'N/A'}\n`;
+  const text = String(msg);
+  console.error('[onerror]', text, src, line, col, err);
+  if (NON_FATAL.test(text)) return;
+  // Only show crash screen if React hasn't rendered anything yet
   const root = document.getElementById('root');
+  if (root && root.childElementCount > 0) return;
+  document.title = `CRASH: ${text}`;
+  const el = document.getElementById('crash-log');
+  if (el) el.textContent += `\n[onerror] ${text}\nSource: ${src}:${line}:${col}\nStack: ${err?.stack || 'N/A'}\n`;
   if (root) root.style.display = 'none';
   const crash = document.getElementById('crash-screen');
   if (crash) crash.style.display = 'block';
 };
 window.addEventListener('unhandledrejection', (e) => {
-  const el = document.getElementById('crash-log');
-  if (el) el.textContent += `\n[promise] ${e.reason?.message || e.reason}\nStack: ${e.reason?.stack || 'N/A'}\n`;
+  console.error('[unhandledrejection]', e.reason);
 });
 
 // Top-level error boundary that catches React render errors

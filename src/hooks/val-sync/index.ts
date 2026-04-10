@@ -9,3 +9,4 @@ export * from "./useValDrive";
 export * from "./healthChecks";
 export * from "./useDomainHealthChecks";
 export * from "./useValDependencies";
+export * from "./useSchemaResources";

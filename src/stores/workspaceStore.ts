@@ -246,9 +246,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         // 6. Persist the selection
         set({ activeWorkspaceId: workspaceId });
 
-        // 7. If switching (not initial selection), reload so every
-        // workspace-scoped store re-hydrates from the new namespace.
-        if (oldId !== null && oldId !== workspaceId) {
+        // 7. Reload so every workspace-scoped store re-hydrates from the
+        // new namespace. This covers both workspace switches AND the first
+        // selection (oldId === null), because stores that hydrated before
+        // the workspace ID was resolved will have loaded empty state.
+        // setActiveWorkspaceId() already wrote to sessionStorage +
+        // localStorage, so the reloaded page will pick up the correct ID.
+        if (oldId !== workspaceId) {
           window.location.reload();
         }
       },

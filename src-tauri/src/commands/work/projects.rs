@@ -13,11 +13,8 @@ pub async fn work_list_projects(
 ) -> CmdResult<Vec<Project>> {
     let client = get_client().await?;
 
-    let select = if include_statuses.unwrap_or(false) {
-        "*,statuses:task_statuses(*)"
-    } else {
-        "*"
-    };
+    // Statuses are global, not per-project — always select just project fields
+    let select = "*";
 
     let mut query = format!("select={}&archived_at=is.null&order=sort_order.asc", select);
 
@@ -33,9 +30,9 @@ pub async fn work_list_projects(
 pub async fn work_get_project(project_id: String) -> CmdResult<Project> {
     let client = get_client().await?;
 
-    // First get the basic project with statuses
+    // Get the basic project
     let query = format!(
-        "select=*,statuses:task_statuses(*)&id=eq.{}",
+        "select=*&id=eq.{}",
         project_id
     );
 
@@ -292,7 +289,8 @@ pub async fn work_get_pipeline() -> CmdResult<PipelineStats> {
 pub async fn work_list_project_statuses(project_id: String) -> CmdResult<Vec<TaskStatus>> {
     let client = get_client().await?;
 
-    let query = format!("project_id=eq.{}&order=sort_order.asc", project_id);
+    // Statuses are global — return all, ignore project_id
+    let query = "order=sort_order.asc".to_string();
     client.select("task_statuses", &query).await
 }
 

@@ -1319,7 +1319,7 @@ function TriageBanner({ view, viewKey, tasks, currentUserName }: { view: "my_tas
   void _openPromptEditor; void _savePrompt;
 
   // Load last triage run
-  const triageCreatedBy = currentUserName || "mel-tv";
+  const triageCreatedBy = currentUserName || "unknown";
   const { data: lastRun } = useQuery({
     queryKey: ["triage_runs", effectiveViewKey, triageCreatedBy],
     queryFn: async () => {

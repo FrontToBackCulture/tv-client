@@ -72,6 +72,8 @@ export function useTaskAdvisor() {
   // Bot mention handler — subscribe to new discussions that @mention any bot
   const queryClientRef = useRef(queryClient);
   queryClientRef.current = queryClient;
+  const allUsersRef = useRef(allUsers);
+  allUsersRef.current = allUsers;
 
   useEffect(() => {
     if (!userId) return;
@@ -98,6 +100,10 @@ export function useTaskAdvisor() {
 
           // Skip messages from any bot
           if (/^bot-/i.test(row.author)) return;
+
+          // Only handle mentions from the current user — prevents other clients from spawning sessions
+          const currentUser = allUsersRef.current.find((u) => u.id === userId);
+          if (!currentUser || row.author !== currentUser.name) return;
 
           // Only respond when explicitly @mentioned
           const botMatch = row.body.match(BOT_MENTION_RE);

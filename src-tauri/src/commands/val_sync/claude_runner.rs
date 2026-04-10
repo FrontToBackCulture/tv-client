@@ -3,6 +3,7 @@
 // Used by the Cleanup tab to run AI-powered tasks like converting calc fields to SQL.
 // Streams structured JSON events back to the frontend for live progress updates.
 
+use crate::commands::claude_setup::resolve_claude_path;
 use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -61,23 +62,81 @@ pub async fn claude_run(
     run_id: String,
     request: ClaudeRunRequest,
 ) -> CmdResult<ClaudeRunResult> {
-    let model = request.model.unwrap_or_else(|| "sonnet".to_string());
+    let may_retry = request.resume_session_id.is_some();
+
+    // First attempt — suppress result event if we have a resume session (might retry)
+    let result = run_claude_process(&app, &run_id, &request, true, may_retry)?;
+
+    // If resume failed because session wasn't found, retry without resume
+    if result.is_error && may_retry {
+        let errors_hint = result.result.to_lowercase();
+        if errors_hint.contains("no conversation found") || errors_hint.contains("session") {
+            eprintln!("[claude_run] Resume failed ({}), retrying without --resume", result.result);
+            let _ = app.emit(
+                "claude-stream",
+                ClaudeStreamEvent {
+                    run_id: run_id.clone(),
+                    event_type: "init".to_string(),
+                    content: "Session expired, starting fresh...".to_string(),
+                    metadata: None,
+                },
+            );
+            return run_claude_process(&app, &run_id, &request, false, false);
+        }
+    }
+
+    // First attempt result was suppressed — emit it now (success or non-retryable error)
+    if may_retry {
+        let _ = app.emit(
+            "claude-stream",
+            ClaudeStreamEvent {
+                run_id: run_id.clone(),
+                event_type: "result".to_string(),
+                content: result.result.clone(),
+                metadata: Some(serde_json::json!({
+                    "is_error": result.is_error,
+                    "duration_ms": result.duration_ms,
+                    "cost_usd": result.cost_usd,
+                })),
+            },
+        );
+    }
+
+    Ok(result)
+}
+
+/// Inner function that actually spawns and streams the Claude CLI process.
+/// When `use_resume` is false, the resume_session_id is ignored (for retry after stale session).
+/// When `suppress_result` is true, the "result" event is NOT emitted (caller handles it).
+fn run_claude_process(
+    app: &AppHandle,
+    run_id: &str,
+    request: &ClaudeRunRequest,
+    use_resume: bool,
+    suppress_result: bool,
+) -> CmdResult<ClaudeRunResult> {
+    let model = request.model.as_deref().unwrap_or("sonnet");
+
+    // Resolve claude binary path — GUI apps may not have PATH set correctly
+    let claude_bin = resolve_claude_path();
 
     // Build command
-    let mut cmd = Command::new("claude");
+    let mut cmd = Command::new(&claude_bin);
     cmd.arg("-p")
         .arg(&request.prompt)
         .arg("--output-format")
         .arg("stream-json")
         .arg("--verbose")
         .arg("--model")
-        .arg(&model)
+        .arg(model)
         .arg("--dangerously-skip-permissions");
 
-    // Resume a previous conversation session
-    if let Some(ref sid) = request.resume_session_id {
-        if !sid.is_empty() {
-            cmd.arg("--resume").arg(sid);
+    // Resume a previous conversation session (only if use_resume is true)
+    if use_resume {
+        if let Some(ref sid) = request.resume_session_id {
+            if !sid.is_empty() {
+                cmd.arg("--resume").arg(sid);
+            }
         }
     }
 
@@ -106,14 +165,14 @@ pub async fn claude_run(
     let cancelled = Arc::new(Mutex::new(false));
     {
         let mut runs = active_runs().lock().map_err(|e| CommandError::Internal(e.to_string()))?;
-        runs.insert(run_id.clone(), cancelled.clone());
+        runs.insert(run_id.to_string(), cancelled.clone());
     }
 
     // Emit init event
     let _ = app.emit(
         "claude-stream",
         ClaudeStreamEvent {
-            run_id: run_id.clone(),
+            run_id: run_id.to_string(),
             event_type: "init".to_string(),
             content: format!("Starting Claude ({})...", model),
             metadata: None,
@@ -123,7 +182,7 @@ pub async fn claude_run(
     // Spawn process
     let mut child = cmd
         .spawn()
-        .map_err(|e| CommandError::Internal(format!("Failed to spawn claude CLI: {}. Is it installed?", e)))?;
+        .map_err(|e| CommandError::Internal(format!("Failed to spawn claude CLI ({}): {}. Is it installed?", claude_bin, e)))?;
 
     let stdout = child
         .stdout
@@ -144,7 +203,7 @@ pub async fn claude_run(
             let _ = app.emit(
                 "claude-stream",
                 ClaudeStreamEvent {
-                    run_id: run_id.clone(),
+                    run_id: run_id.to_string(),
                     event_type: "error".to_string(),
                     content: "Run cancelled".to_string(),
                     metadata: None,
@@ -185,17 +244,15 @@ pub async fn claude_run(
                     let _ = app.emit(
                         "claude-stream",
                         ClaudeStreamEvent {
-                            run_id: run_id.clone(),
+                            run_id: run_id.to_string(),
                             event_type: "init".to_string(),
                             content: "Claude session started".to_string(),
                             metadata: Some(serde_json::json!({ "session_id": session_id })),
                         },
                     );
                 }
-                // Ignore other system events (turn_start, etc.)
             }
             "assistant" => {
-                // Extract text and tool_use blocks from content
                 if let Some(content) = parsed
                     .get("message")
                     .and_then(|m| m.get("content"))
@@ -210,7 +267,7 @@ pub async fn claude_run(
                                     let _ = app.emit(
                                         "claude-stream",
                                         ClaudeStreamEvent {
-                                            run_id: run_id.clone(),
+                                            run_id: run_id.to_string(),
                                             event_type: "text".to_string(),
                                             content: text.to_string(),
                                             metadata: None,
@@ -225,14 +282,12 @@ pub async fn claude_run(
                                     .unwrap_or("unknown");
                                 let input = block.get("input");
 
-                                // Build a descriptive content string
                                 let description = match tool_name {
                                     "Read" => {
                                         let path = input
                                             .and_then(|i| i.get("file_path"))
                                             .and_then(|p| p.as_str())
                                             .unwrap_or("");
-                                        // Show just the filename, not the full path
                                         let short = path.rsplit('/').next().unwrap_or(path);
                                         format!("Reading: {}", short)
                                     }
@@ -254,7 +309,7 @@ pub async fn claude_run(
                                 let _ = app.emit(
                                     "claude-stream",
                                     ClaudeStreamEvent {
-                                        run_id: run_id.clone(),
+                                        run_id: run_id.to_string(),
                                         event_type: "tool_use".to_string(),
                                         content: description,
                                         metadata: Some(serde_json::json!({
@@ -275,7 +330,6 @@ pub async fn claude_run(
                                         }
                                     })
                                     .unwrap_or_default();
-                                // Truncate long tool results for the event
                                 let truncated = if result_content.len() > 500 {
                                     format!("{}...", &result_content[..500])
                                 } else {
@@ -284,7 +338,7 @@ pub async fn claude_run(
                                 let _ = app.emit(
                                     "claude-stream",
                                     ClaudeStreamEvent {
-                                        run_id: run_id.clone(),
+                                        run_id: run_id.to_string(),
                                         event_type: "tool_result".to_string(),
                                         content: truncated,
                                         metadata: None,
@@ -297,6 +351,7 @@ pub async fn claude_run(
                 }
             }
             "result" => {
+                // Extract result text — may be in "result" field or "errors" array
                 final_result = parsed
                     .get("result")
                     .and_then(|r| r.as_str())
@@ -306,6 +361,18 @@ pub async fn claude_run(
                     .get("is_error")
                     .and_then(|e| e.as_bool())
                     .unwrap_or(false);
+
+                // If result is empty but errors array exists, use that
+                if final_result.is_empty() {
+                    if let Some(errors) = parsed.get("errors").and_then(|e| e.as_array()) {
+                        let msgs: Vec<&str> = errors.iter().filter_map(|e| e.as_str()).collect();
+                        if !msgs.is_empty() {
+                            final_result = msgs.join("; ");
+                            is_error = true;
+                        }
+                    }
+                }
+
                 duration_ms = parsed
                     .get("duration_ms")
                     .and_then(|d| d.as_u64())
@@ -320,19 +387,21 @@ pub async fn claude_run(
                     .unwrap_or("")
                     .to_string();
 
-                let _ = app.emit(
-                    "claude-stream",
-                    ClaudeStreamEvent {
-                        run_id: run_id.clone(),
-                        event_type: "result".to_string(),
-                        content: final_result.clone(),
-                        metadata: Some(serde_json::json!({
-                            "is_error": is_error,
-                            "duration_ms": duration_ms,
-                            "cost_usd": cost_usd,
-                        })),
-                    },
-                );
+                if !suppress_result {
+                    let _ = app.emit(
+                        "claude-stream",
+                        ClaudeStreamEvent {
+                            run_id: run_id.to_string(),
+                            event_type: "result".to_string(),
+                            content: final_result.clone(),
+                            metadata: Some(serde_json::json!({
+                                "is_error": is_error,
+                                "duration_ms": duration_ms,
+                                "cost_usd": cost_usd,
+                            })),
+                        },
+                    );
+                }
             }
             _ => {}
         }
@@ -344,7 +413,7 @@ pub async fn claude_run(
     // Clean up tracking
     {
         let mut runs = active_runs().lock().unwrap_or_else(|e| e.into_inner());
-        runs.remove(&run_id);
+        runs.remove(run_id);
     }
 
     Ok(ClaudeRunResult {

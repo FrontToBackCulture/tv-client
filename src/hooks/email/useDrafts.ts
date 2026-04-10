@@ -24,8 +24,8 @@ export interface EmailDraft {
 }
 
 export const draftKeys = {
-  all: [...emailKeys.all, "drafts"] as const,
-  byContact: (contactId: string) => [...draftKeys.all, "contact", contactId] as const,
+  all: emailKeys.drafts(),
+  byContact: (contactId: string) => emailKeys.draftsByContact(contactId),
 };
 
 /** Fetch drafts for a specific contact */
@@ -116,6 +116,7 @@ export function useUpdateDraft() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: draftKeys.all });
+      queryClient.invalidateQueries({ queryKey: emailKeys.outreach() });
     },
   });
 }
@@ -135,6 +136,7 @@ export function useDeleteDraft() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: draftKeys.all });
+      queryClient.invalidateQueries({ queryKey: emailKeys.outreach() });
     },
   });
 }

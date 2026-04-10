@@ -21,7 +21,6 @@ import { SkillDetailPanel } from "./SkillDetailPanel";
 import { SkillReviewGrid } from "./SkillReviewGrid";
 import { PromptBuilder } from "./PromptBuilder";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
-import { useAuth } from "../../stores/authStore";
 
 interface SkillCatalogViewProps {
   registry: SkillRegistry;
@@ -49,8 +48,7 @@ interface DragState {
 import React from "react";
 
 export function SkillCatalogView({ registry, driftStatuses }: SkillCatalogViewProps) {
-  const authUser = useAuth((s) => s.user);
-  const defaultVerified: VerifiedFilter = (authUser?.login === "melvinFTBC" || authUser?.login === "melvinwang") ? "all" : "verified";
+  const defaultVerified: VerifiedFilter = "all";
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [reviewSelectedSlug, setReviewSelectedSlug] = useState<string | null>(null);

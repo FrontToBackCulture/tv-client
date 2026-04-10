@@ -224,6 +224,23 @@ pub fn tools() -> Vec<Tool> {
                 vec!["domain".to_string(), "sql".to_string()],
             ),
         },
+        Tool {
+            name: "execute-supabase-sql".to_string(),
+            description: "Execute a read-only SQL query on the Supabase database. Only SELECT queries are allowed. Use this for querying Supabase tables (val_health_issues, val_health_summary, val_sync_runs, skills, tasks, projects, etc.) or calling Supabase functions like score_production_health().".to_string(),
+            input_schema: InputSchema::with_properties(
+                json!({
+                    "sql": {
+                        "type": "string",
+                        "description": "SQL SELECT query to execute against Supabase"
+                    },
+                    "limit": {
+                        "type": "number",
+                        "description": "Max rows to return (default: 100)"
+                    }
+                }),
+                vec!["sql".to_string()],
+            ),
+        },
     ]
 }
 
@@ -492,6 +509,92 @@ pub async fn call(name: &str, args: Value) -> ToolResult {
                     ToolResult::text(lines.join("\n"))
                 }
                 Err(e) => ToolResult::error(format!("SQL execution failed: {}", e)),
+            }
+        }
+
+        "execute-supabase-sql" => {
+            let sql_query = match args.get("sql").and_then(|s| s.as_str()) {
+                Some(s) => s.to_string(),
+                None => return ToolResult::error("'sql' parameter is required".to_string()),
+            };
+            let limit = args.get("limit").and_then(|l| l.as_u64()).unwrap_or(100) as usize;
+
+            // Validate: must start with SELECT
+            let normalized = sql_query.trim().to_uppercase();
+            if !normalized.starts_with("SELECT") {
+                return ToolResult::error("Only SELECT queries are allowed".to_string());
+            }
+
+            // Block mutation keywords
+            let dangerous = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE"];
+            for kw in &dangerous {
+                let pattern = format!(r"\b{}\b", kw);
+                if regex::Regex::new(&pattern).map(|r| r.is_match(&normalized)).unwrap_or(false) {
+                    return ToolResult::error(format!("Keyword '{}' is not allowed", kw));
+                }
+            }
+
+            let client = match crate::commands::supabase::get_client().await {
+                Ok(c) => c,
+                Err(e) => return ToolResult::error(format!("Failed to get Supabase client: {}", e)),
+            };
+
+            let result: Result<serde_json::Value, _> = client.rpc(
+                "execute_readonly_sql",
+                &json!({ "query": sql_query }),
+            ).await;
+
+            match result {
+                Ok(data) => {
+                    let rows = match data.as_array() {
+                        Some(arr) => arr.clone(),
+                        None => vec![data],
+                    };
+
+                    let total = rows.len();
+                    let limited: Vec<&serde_json::Value> = rows.iter().take(limit).collect();
+                    let columns: Vec<String> = if let Some(first) = limited.first() {
+                        first.as_object().map(|o| o.keys().cloned().collect()).unwrap_or_default()
+                    } else {
+                        vec![]
+                    };
+
+                    let mut lines = vec![
+                        format!("## Supabase SQL Results ({}{})", total, if total > limit { " rows, truncated" } else { " rows" }),
+                        String::new(),
+                    ];
+
+                    if !limited.is_empty() && !columns.is_empty() {
+                        lines.push(format!("| {} |", columns.join(" | ")));
+                        lines.push(format!("| {} |", columns.iter().map(|_| "---").collect::<Vec<_>>().join(" | ")));
+
+                        for row in &limited {
+                            let cells: Vec<String> = columns.iter().map(|col| {
+                                row.get(col)
+                                    .map(|v| {
+                                        if v.is_null() {
+                                            "NULL".to_string()
+                                        } else if let Some(s) = v.as_str() {
+                                            s.to_string()
+                                        } else {
+                                            v.to_string()
+                                        }
+                                    })
+                                    .unwrap_or_default()
+                            }).collect();
+                            lines.push(format!("| {} |", cells.join(" | ")));
+                        }
+
+                        if total > limit {
+                            lines.push(format!("\n*...and {} more rows*", total - limit));
+                        }
+                    } else {
+                        lines.push("No rows returned.".to_string());
+                    }
+
+                    ToolResult::text(lines.join("\n"))
+                }
+                Err(e) => ToolResult::error(format!("Supabase SQL error: {}", e)),
             }
         }
 

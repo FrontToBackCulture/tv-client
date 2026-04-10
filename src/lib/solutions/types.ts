@@ -66,6 +66,25 @@ export interface TemplateSection {
 // Instance data — stored as JSONB in solution_instances.data
 // ============================================================================
 
+export interface UploadedFileRecord {
+  name: string;
+  platform: string;
+  driveFolder: string;
+  uploadedAt: string;
+}
+
+export interface PersistedScanFile {
+  name: string;
+  path: string;
+  size: number;
+  format: string;
+  headers: string[];
+  match: { connector: string; platform: string; confidence: number } | null;
+  dateRange: { from: string; to: string } | null;
+  outlets: string[];
+  outletDetails: { name: string; id: string }[];
+}
+
 export interface InstanceData {
   scope?: ScopeOutlet[];
   paymentMethods?: PaymentMethod[];
@@ -77,6 +96,11 @@ export interface InstanceData {
   posLabels?: Record<string, string>;
   outletMap?: Record<string, string>;
   implStatus?: Record<string, ImplStatusEntry>;
+  dropFolder?: string;
+  uploadedFiles?: UploadedFileRecord[];
+  lastScan?: { files: PersistedScanFile[]; scannedAt: string };
+  outletMapping?: Record<string, string>; // data outlet name → scope outlet code
+  dataLoadStatus?: Record<string, { status: string; triggeredAt: string }>; // "pm::Grab::Mar 2026" → status
   // AP-specific
   suppliers?: APSupplier[];
   supplierDocStatus?: Record<string, StatusEntry>;

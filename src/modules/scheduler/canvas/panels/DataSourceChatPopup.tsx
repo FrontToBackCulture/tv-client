@@ -9,7 +9,7 @@ import { useDiscussions, useCreateDiscussion } from "@/hooks/useDiscussions";
 import { useCreateCustomDataSource, useUpdateCustomDataSource } from "@/hooks/scheduler";
 import { useClaudeRunStore } from "@/stores/claudeRunStore";
 import { handleBotMention } from "@/hooks/chat/botMentionHandler";
-import { useCurrentUserId } from "@/hooks/work/useUsers";
+import { useCurrentUserId, useCurrentUserName } from "@/hooks/work/useUsers";
 import { BotChatComposer } from "./BotChatComposer";
 import { cn } from "@/lib/cn";
 
@@ -43,6 +43,7 @@ export function DataSourceChatPopup({ entityId, editingSourceId, onClose, onDone
   const updateCustomSource = useUpdateCustomDataSource();
   const queryClient = useQueryClient();
   const userId = useCurrentUserId();
+  const userName = useCurrentUserName();
   const isEditing = !!editingSourceId;
   const [sizeLevel, setSizeLevel] = useState(0);
   const [addedSources, setAddedSources] = useState<Set<string>>(new Set());
@@ -64,13 +65,13 @@ export function DataSourceChatPopup({ entityId, editingSourceId, onClose, onDone
 
   async function handleSend(body: string) {
     const trimmed = body.trim();
-    if (!trimmed || createMessage.isPending) return;
+    if (!trimmed || !userName || createMessage.isPending) return;
     const finalBody = /@bot-\w+/.test(trimmed) ? trimmed : `@bot-mel ${trimmed}`;
     try {
       const inserted = await createMessage.mutateAsync({
         entity_type: "general",
         entity_id: entityId,
-        author: "mel-tv",
+        author: userName,
         body: finalBody,
         parent_id: messages[0]?.id ?? undefined,
       });

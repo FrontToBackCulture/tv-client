@@ -17,4 +17,8 @@ export const emailKeys = {
     [...emailKeys.events(), "campaign", campaignId] as const,
   eventsByContact: (contactId: string) =>
     [...emailKeys.events(), "contact", contactId] as const,
+  drafts: () => [...emailKeys.all, "drafts"] as const,
+  draftsByContact: (contactId: string) => [...emailKeys.drafts(), "contact", contactId] as const,
+  outreach: () => [...emailKeys.all, "outreach"] as const,
+  outreachList: (status?: string) => [...emailKeys.outreach(), "list", status || "all"] as const,
 };

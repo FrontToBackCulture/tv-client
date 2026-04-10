@@ -59,7 +59,7 @@ export function useAllTasks() {
             `
             *,
             status:task_statuses(id, name, type, color),
-            project:projects(id, identifier_prefix, name, color, project_type),
+            project:projects(id, identifier_prefix, name, color, project_type, archived_at),
             assignees:task_assignees(user:users(id, name)),
             company:crm_companies!tasks_company_id_fkey(id, name, display_name, stage),
             contact:crm_contacts!tasks_contact_id_fkey(id, name, email)
@@ -75,7 +75,10 @@ export function useAllTasks() {
         offset += batchSize;
       }
 
-      return allTasks;
+      // Exclude tasks belonging to archived projects
+      return allTasks.filter(
+        (t) => !t.project || !(t.project as any).archived_at
+      );
     },
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes
   });

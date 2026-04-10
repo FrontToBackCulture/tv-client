@@ -2738,16 +2738,16 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                           <th className="text-left px-3 py-2 font-medium text-zinc-400 w-8"></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("id")}>ID<SortIndicator col="id" /></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("title")}>Title<SortIndicator col="title" /></th>
-                          {enabledTaskFields.includes("task_type") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("task_type")}>Type<SortIndicator col="task_type" /></th>}
-                          {enabledTaskFields.includes("company") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("company")}>Company<SortIndicator col="company" /></th>}
-                          {enabledTaskFields.includes("contact") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("contact")}>Contact<SortIndicator col="contact" /></th>}
-                          {enabledTaskFields.includes("referral") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("referral")}>Referral<SortIndicator col="referral" /></th>}
-                          {enabledTaskFields.includes("days_in_stage") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("days_in_stage")}>Days<SortIndicator col="days_in_stage" /></th>}
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("priority")}>Priority<SortIndicator col="priority" /></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("assignee")}>Assignee<SortIndicator col="assignee" /></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("due_date")}>Due Date<SortIndicator col="due_date" /></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("created")}>Created<SortIndicator col="created" /></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("updated")}>Updated<SortIndicator col="updated" /></th>
+                          {enabledTaskFields.includes("task_type") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("task_type")}>Type<SortIndicator col="task_type" /></th>}
+                          {enabledTaskFields.includes("company") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("company")}>Company<SortIndicator col="company" /></th>}
+                          {enabledTaskFields.includes("contact") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("contact")}>Contact<SortIndicator col="contact" /></th>}
+                          {enabledTaskFields.includes("referral") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("referral")}>Referral<SortIndicator col="referral" /></th>}
+                          {enabledTaskFields.includes("days_in_stage") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("days_in_stage")}>Days<SortIndicator col="days_in_stage" /></th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -2894,10 +2894,73 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                     {task.title}
                                   </span>
                                 </td>
+                                {/* Priority */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <select
+                                    value={task.priority ?? Priority.None}
+                                    onChange={(e) => {
+                                      updateTaskMutation.mutate({ id: task.id, updates: { priority: parseInt(e.target.value) } });
+                                    }}
+                                    className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none px-1.5 py-0.5 rounded-full font-medium"
+                                    style={{ backgroundColor: `${priorityColor}15`, color: priorityColor }}
+                                  >
+                                    {Object.entries(PriorityLabels).map(([value, label]) => (
+                                      <option key={value} value={value}>{label}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                {/* Assignee */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <select
+                                    value={task.assignees?.[0]?.user?.id || ""}
+                                    onChange={(e) => {
+                                      updateTaskMutation.mutate({ id: task.id, updates: {}, assignee_ids: e.target.value ? [e.target.value] : [] });
+                                    }}
+                                    className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 w-full truncate"
+                                  >
+                                    <option value="">—</option>
+                                    {taskUsers.map((u) => (
+                                      <option key={u.id} value={u.id}>{u.name}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                {/* Due Date */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center gap-0.5">
+                                    <input
+                                      type="date"
+                                      value={task.due_date?.split("T")[0] || ""}
+                                      onChange={(e) => {
+                                        updateTaskMutation.mutate({ id: task.id, updates: { due_date: e.target.value ? `${e.target.value}T00:00:00Z` : null } });
+                                      }}
+                                      className="bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 flex-1 min-w-0"
+                                    />
+                                    {task.due_date && (
+                                      <button
+                                        onClick={() => updateTaskMutation.mutate({ id: task.id, updates: { due_date: null } })}
+                                        className="shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-300 group-hover:text-zinc-400 hover:!text-red-500 transition-colors"
+                                        title="Clear due date"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                                {/* Created */}
+                                <td className="px-2 py-1.5">
+                                  <span className="text-[10px] text-zinc-400" title={task.created_at ? new Date(task.created_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" }) : ""}>
+                                    {task.created_at ? new Date(task.created_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
+                                  </span>
+                                </td>
+                                {/* Updated */}
+                                <td className="px-2 py-1.5">
+                                  <span className="text-[10px] text-zinc-400" title={task.updated_at ? new Date(task.updated_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" }) : ""}>
+                                    {task.updated_at ? new Date(task.updated_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
+                                  </span>
+                                </td>
                                 {/* Type */}
                                 {enabledTaskFields.includes("task_type") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                                   {task.task_type === "converted" ? (() => {
-                                    // Extract deal project ID from description
                                     const match = task.description?.match(/→ Converted to deal project: ([a-f0-9-]+)/);
                                     const dealProjectId = match?.[1];
                                     const dealProject = dealProjectId ? allProjectsList.find(p => p.id === dealProjectId) : null;
@@ -3006,70 +3069,6 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                     return <span className={`text-[11px] ${color}`}>{days}d</span>;
                                   })()}
                                 </td>}
-                                {/* Priority */}
-                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <select
-                                    value={task.priority ?? Priority.None}
-                                    onChange={(e) => {
-                                      updateTaskMutation.mutate({ id: task.id, updates: { priority: parseInt(e.target.value) } });
-                                    }}
-                                    className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none px-1.5 py-0.5 rounded-full font-medium"
-                                    style={{ backgroundColor: `${priorityColor}15`, color: priorityColor }}
-                                  >
-                                    {Object.entries(PriorityLabels).map(([value, label]) => (
-                                      <option key={value} value={value}>{label}</option>
-                                    ))}
-                                  </select>
-                                </td>
-                                {/* Assignee */}
-                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <select
-                                    value={task.assignees?.[0]?.user?.id || ""}
-                                    onChange={(e) => {
-                                      updateTaskMutation.mutate({ id: task.id, updates: {}, assignee_ids: e.target.value ? [e.target.value] : [] });
-                                    }}
-                                    className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 w-full truncate"
-                                  >
-                                    <option value="">—</option>
-                                    {taskUsers.map((u) => (
-                                      <option key={u.id} value={u.id}>{u.name}</option>
-                                    ))}
-                                  </select>
-                                </td>
-                                {/* Due Date */}
-                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <div className="flex items-center gap-0.5">
-                                    <input
-                                      type="date"
-                                      value={task.due_date?.split("T")[0] || ""}
-                                      onChange={(e) => {
-                                        updateTaskMutation.mutate({ id: task.id, updates: { due_date: e.target.value ? `${e.target.value}T00:00:00Z` : null } });
-                                      }}
-                                      className="bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 flex-1 min-w-0"
-                                    />
-                                    {task.due_date && (
-                                      <button
-                                        onClick={() => updateTaskMutation.mutate({ id: task.id, updates: { due_date: null } })}
-                                        className="shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-300 group-hover:text-zinc-400 hover:!text-red-500 transition-colors"
-                                        title="Clear due date"
-                                      >
-                                        <X size={12} />
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                                {/* Created */}
-                                <td className="px-2 py-1.5">
-                                  <span className="text-[10px] text-zinc-400" title={task.created_at ? new Date(task.created_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" }) : ""}>
-                                    {task.created_at ? new Date(task.created_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
-                                  </span>
-                                </td>
-                                {/* Updated */}
-                                <td className="px-2 py-1.5">
-                                  <span className="text-[10px] text-zinc-400" title={task.updated_at ? new Date(task.updated_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" }) : ""}>
-                                    {task.updated_at ? new Date(task.updated_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
-                                  </span>
-                                </td>
                               </tr>
                             );
                           })}

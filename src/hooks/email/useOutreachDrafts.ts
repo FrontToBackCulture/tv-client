@@ -15,8 +15,8 @@ export interface OutreachDraft extends EmailDraft {
 }
 
 export const outreachKeys = {
-  all: [...emailKeys.all, "outreach"] as const,
-  list: (status?: string) => [...outreachKeys.all, "list", status || "all"] as const,
+  all: emailKeys.outreach(),
+  list: (status?: string) => emailKeys.outreachList(status),
 };
 
 /** Fetch outreach drafts with optional status filter */

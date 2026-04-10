@@ -10,7 +10,7 @@ import { supabase } from "../../../lib/supabase";
 import { useDiscussions, useCreateDiscussion } from "../../../hooks/useDiscussions";
 import { useClaudeRunStore } from "../../../stores/claudeRunStore";
 import { handleBotMention } from "../../../hooks/chat/botMentionHandler";
-import { useCurrentUserId } from "../../../hooks/work/useUsers";
+import { useCurrentUserId, useCurrentUserName } from "../../../hooks/work/useUsers";
 import { useRepository } from "../../../stores/repositoryStore";
 import { BotChatComposer } from "../../scheduler/canvas/panels/BotChatComposer";
 import { cn } from "../../../lib/cn";
@@ -35,6 +35,7 @@ export function ProjectChatPopup({ projectId, projectName, projectType, folderPa
   const createMessage = useCreateDiscussion();
   const queryClient = useQueryClient();
   const userId = useCurrentUserId();
+  const userName = useCurrentUserName();
   const { activeRepository } = useRepository();
   const knowledgeRoot = activeRepository?.path ?? "";
   const [sizeLevel, setSizeLevel] = useState(0);
@@ -50,6 +51,7 @@ export function ProjectChatPopup({ projectId, projectName, projectType, folderPa
       if (messages.length > 0) setInitialized(true);
       return;
     }
+    if (!userName) return;
     if (seededEntityIds.has(entityId)) return;
     seededEntityIds.add(entityId);
     (async () => {
@@ -87,7 +89,7 @@ Acknowledge briefly and wait for my instructions.`;
         .insert({
           entity_type: "general",
           entity_id: entityId,
-          author: "mel-tv",
+          author: userName,
           body: initialBody,
           title: `${projectType === "deal" ? "Deal" : "Project"}: ${projectName}`,
           origin: "project",
@@ -118,7 +120,7 @@ Acknowledge briefly and wait for my instructions.`;
         ).catch((err) => console.error("[bot-mel] Handler error:", err));
       }
     })();
-  }, [entityId, projectId, projectName, projectType, userId, initialized, messages.length, queryClient, folderPath, knowledgeRoot]);
+  }, [entityId, projectId, projectName, projectType, userId, userName, initialized, messages.length, queryClient, folderPath, knowledgeRoot]);
 
   const runs = useClaudeRunStore((s) => s.runs);
   const activeRun = Object.values(runs).find((r) => r.entityId === entityId && !r.isComplete);
@@ -128,13 +130,13 @@ Acknowledge briefly and wait for my instructions.`;
 
   async function handleSend(body: string) {
     const trimmed = body.trim();
-    if (!trimmed || createMessage.isPending) return;
+    if (!trimmed || !userName || createMessage.isPending) return;
     const finalBody = /@bot-\w+/.test(trimmed) ? trimmed : `@bot-mel ${trimmed}`;
     try {
       const inserted = await createMessage.mutateAsync({
         entity_type: "general",
         entity_id: entityId,
-        author: "mel-tv",
+        author: userName,
         body: finalBody,
         parent_id: messages[0]?.id ?? undefined,
         origin: "project",

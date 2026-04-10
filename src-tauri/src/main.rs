@@ -476,6 +476,11 @@ fn main() {
             commands::val_sync::drive::val_drive_scan_config_load,
             commands::val_sync::drive::val_drive_scan_config_save,
             commands::val_sync::drive::val_drive_scan_config_seed,
+            commands::val_sync::drive::val_drive_upload_files,
+            commands::val_sync::drive::val_table_insert_rows,
+            commands::val_sync::drive::val_workflow_rerun,
+            commands::val_sync::drive::val_workflow_execution_status,
+            commands::val_sync::drive::ai_match_outlets,
             commands::val_sync::drive::val_drive_scan_results_load,
             commands::val_sync::drive::val_drive_scan_results_save,
             // VAL Sync - SQL execution

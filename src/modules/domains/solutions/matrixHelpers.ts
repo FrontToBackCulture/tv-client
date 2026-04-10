@@ -33,17 +33,25 @@ export function getOutletNames(scope: ScopeOutlet[]): string[] {
 
 /** Filter scope to a specific entity, or return all if entity is null */
 export function filterScope(scope: ScopeOutlet[], entity: string | null): ScopeOutlet[] {
-  if (!entity) return scope;
-  return scope.filter((r) => r.entity === entity);
+  if (entity === null) return scope;
+  // entity === "" means ungrouped outlets
+  return scope.filter((r) => (r.entity || "") === entity);
 }
 
-/** Get unique entities from scope, sorted by outlet count desc */
+/** Get unique entities from scope, sorted by outlet count desc. Outlets with no entity are grouped under "" */
 export function getEntities(scope: ScopeOutlet[]): { entity: string; count: number }[] {
   const map: Record<string, number> = {};
   for (const r of scope) {
-    if (r.entity) map[r.entity] = (map[r.entity] || 0) + 1;
+    const key = r.entity || "";
+    map[key] = (map[key] || 0) + 1;
   }
-  return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([entity, count]) => ({ entity, count }));
+  // Named entities first (sorted by count desc), then ungrouped ("") last
+  const named = Object.entries(map)
+    .filter(([e]) => e !== "")
+    .sort((a, b) => b[1] - a[1])
+    .map(([entity, count]) => ({ entity, count }));
+  if (map[""] > 0) named.push({ entity: "", count: map[""] });
+  return named;
 }
 
 export function getPMNames(pms: PaymentMethod[]): string[] {

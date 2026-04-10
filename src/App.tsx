@@ -285,23 +285,43 @@ export default function App() {
     }
   }, [activeMode, activeTab]);
 
-  // Sync active repository path to backend settings.json (knowledge_path)
+  // Track repository store hydration — Zustand v5 hydrates async (even with
+  // synchronous localStorage), so the first render sees empty defaults. Without
+  // this gate, the sync effect below would write knowledge_path="" to
+  // settings.json before repos load, permanently defeating the auto-heal
+  // recovery path.
   const activeRepoId = useRepositoryStore((s) => s.activeRepositoryId);
   const repositories = useRepositoryStore((s) => s.repositories);
+  const [repoHydrated, setRepoHydrated] = useState(
+    useRepositoryStore.persist.hasHydrated(),
+  );
   useEffect(() => {
+    const unsub = useRepositoryStore.persist.onFinishHydration(() =>
+      setRepoHydrated(true),
+    );
+    // In case hydration finished between useState init and effect registration
+    setRepoHydrated(useRepositoryStore.persist.hasHydrated());
+    return unsub;
+  }, []);
+
+  // Sync active repository path to backend settings.json (knowledge_path).
+  // Gated on repoHydrated so we don't clobber settings.json with "" while
+  // Zustand's async persist is still loading the real data.
+  useEffect(() => {
+    if (!repoHydrated) return;
     const activeRepo = repositories.find((r) => r.id === activeRepoId);
     const path = activeRepo?.path ?? "";
     invoke("settings_set_key", { keyName: "knowledge_path", value: path }).catch(() => {});
-  }, [activeRepoId, repositories]);
+  }, [activeRepoId, repositories, repoHydrated]);
 
   // Auto-heal: if repositoryStore is empty (e.g. cleared localStorage) but
   // settings.json still has a knowledge_path, re-register it so views like
   // VAL Credentials, MCP Endpoints, and Library don't silently break. The
   // underlying folder is still on disk — only the pointer was lost.
-  // Runs once after the workspace client is ready (so workspace-scoped
-  // storage is hydrated).
+  // Gated on both workspaceReady and repoHydrated to avoid racing with
+  // Zustand persist hydration.
   useEffect(() => {
-    if (!workspaceReady) return;
+    if (!workspaceReady || !repoHydrated) return;
     if (repositories.length > 0) return;
     (async () => {
       try {
@@ -316,18 +336,18 @@ export default function App() {
         // recover via the in-app NoRepositoryEmptyState affordance.
       }
     })();
-  }, [workspaceReady, repositories.length]);
+  }, [workspaceReady, repoHydrated, repositories.length]);
 
   // Subscribe to Supabase Realtime for automatic UI updates (only when authenticated)
   useRealtimeSync();
 
   // Keyboard shortcuts: ⌘1-7 to switch modules, ⌘W to close tab, ⌘, for settings
-  // Mode switching: ⌘⇧1 Sell, ⌘⇧2 Support, ⌘⇧3 Marketing, ⌘⇧0 All (admin)
+  // Mode switching: ⌘⇧6 Sell, ⌘⇧7 Support, ⌘⇧8 Marketing, ⌘⇧0 All (admin)
   useEffect(() => {
     const modeShortcuts: Record<string, Mode> = {
-      Digit1: "sell",
-      Digit2: "support",
-      Digit3: "marketing",
+      Digit6: "sell",
+      Digit7: "support",
+      Digit8: "marketing",
       Digit0: "all",
     };
     const handler = (e: KeyboardEvent) => {

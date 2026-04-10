@@ -6,7 +6,7 @@ import { useCustomDataSources, useDeleteCustomDataSource } from "@/hooks/schedul
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { handleBotMention } from "@/hooks/chat/botMentionHandler";
-import { useCurrentUserId } from "@/hooks/work/useUsers";
+import { useCurrentUserId, useCurrentUserName } from "@/hooks/work/useUsers";
 import { DataSourceChatPopup } from "../canvas/panels/DataSourceChatPopup";
 // import { cn } from "@/lib/cn";
 
@@ -14,17 +14,19 @@ export function DataSourcesSection() {
   const { data: customSources = [] } = useCustomDataSources();
   const deleteSource = useDeleteCustomDataSource();
   const userId = useCurrentUserId();
+  const userName = useCurrentUserName();
   const queryClient = useQueryClient();
   const [chatEntityId, setChatEntityId] = useState<string | null>(null);
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<{ name: string; rows: Record<string, unknown>[] } | null>(null);
 
   async function handleCreateNew() {
+    if (!userName) return;
     const entityId = `datasource-gen:${crypto.randomUUID()}`;
     const body = "@bot-mel I want to create a custom data source. Read the file _skills/generate-custom-data-source/SKILL.md (relative to the tv-knowledge root directory) and follow its workflow step by step. Ask me what data I need.";
     const { data: inserted, error } = await supabase
       .from("discussions")
-      .insert({ entity_type: "general", entity_id: entityId, author: "mel-tv", body, title: "New Custom Data Source" })
+      .insert({ entity_type: "general", entity_id: entityId, author: userName, body, title: "New Custom Data Source" })
       .select()
       .single();
     if (error || !inserted) return;
@@ -39,11 +41,12 @@ export function DataSourcesSection() {
   }
 
   async function handleEdit(src: typeof customSources[0]) {
+    if (!userName) return;
     const entityId = `datasource-gen:${crypto.randomUUID()}`;
     const body = `@bot-mel I want to modify an existing data source. Read the file _skills/generate-custom-data-source/SKILL.md (relative to the tv-knowledge root directory) and follow its workflow.\n\nCurrent source:\n- Name: ${src.name}\n- Description: ${src.description}\n- SQL: ${src.sql_query}\n\nAsk me what I want to change.`;
     const { data: inserted, error } = await supabase
       .from("discussions")
-      .insert({ entity_type: "general", entity_id: entityId, author: "mel-tv", body, title: `Edit: ${src.name}` })
+      .insert({ entity_type: "general", entity_id: entityId, author: userName, body, title: `Edit: ${src.name}` })
       .select()
       .single();
     if (error || !inserted) return;

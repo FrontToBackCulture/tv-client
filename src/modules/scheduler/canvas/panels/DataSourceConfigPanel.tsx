@@ -10,7 +10,7 @@ import {
   useUpdateCustomDataSource,
 } from "@/hooks/scheduler";
 import { handleBotMention } from "@/hooks/chat/botMentionHandler";
-import { useCurrentUserId } from "@/hooks/work/useUsers";
+import { useCurrentUserId, useCurrentUserName } from "@/hooks/work/useUsers";
 import { supabase } from "@/lib/supabase";
 import { DataSourceChatPopup } from "./DataSourceChatPopup";
 import type { DataSourceConfig } from "../types";
@@ -35,6 +35,7 @@ function DioSources({ config, onChange }: { config: DataSourceConfig; onChange: 
   const updateCustomSource = useUpdateCustomDataSource();
   const queryClient = useQueryClient();
   const userId = useCurrentUserId();
+  const userName = useCurrentUserName();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [previewingId, setPreviewingId] = useState<string | null>(null);
@@ -60,6 +61,7 @@ function DioSources({ config, onChange }: { config: DataSourceConfig; onChange: 
   }
 
   async function openChat(initialMessage: string, title: string, sourceId?: string) {
+    if (!userName) return;
     setIsCreating(true);
     try {
       const entityId = `datasource-gen:${crypto.randomUUID()}`;
@@ -69,7 +71,7 @@ function DioSources({ config, onChange }: { config: DataSourceConfig; onChange: 
         .insert({
           entity_type: "general",
           entity_id: entityId,
-          author: "mel-tv",
+          author: userName,
           body,
           title,
         })

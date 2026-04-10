@@ -118,7 +118,7 @@ pub async fn call_tool(name: &str, arguments: Value) -> ToolResult {
     }
 
     // VAL Sync tools
-    if name.starts_with("sync-val-") || name.starts_with("sync-all-domain-") || name == "execute-val-sql" || name == "list-drive-files" || name == "check-all-domain-drive-files" {
+    if name.starts_with("sync-val-") || name.starts_with("sync-all-domain-") || name == "execute-val-sql" || name == "execute-supabase-sql" || name == "list-drive-files" || name == "check-all-domain-drive-files" {
         return val_sync::call(name, arguments).await;
     }
 

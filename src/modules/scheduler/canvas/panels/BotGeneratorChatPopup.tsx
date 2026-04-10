@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useDiscussions, useCreateDiscussion } from "@/hooks/useDiscussions";
 import { useClaudeRunStore } from "@/stores/claudeRunStore";
 import { handleBotMention } from "@/hooks/chat/botMentionHandler";
-import { useCurrentUserId } from "@/hooks/work/useUsers";
+import { useCurrentUserId, useCurrentUserName } from "@/hooks/work/useUsers";
 import { BotChatComposer } from "./BotChatComposer";
 import { cn } from "@/lib/cn";
 
@@ -35,6 +35,7 @@ export function BotGeneratorChatPopup({
   const createMessage = useCreateDiscussion();
   const queryClient = useQueryClient();
   const userId = useCurrentUserId();
+  const userName = useCurrentUserName();
   const [sizeLevel, setSizeLevel] = useState(0);
   const [applied, setApplied] = useState<Set<string>>(new Set());
   const [isApplying, setIsApplying] = useState(false);
@@ -55,13 +56,13 @@ export function BotGeneratorChatPopup({
 
   async function handleSend(body: string) {
     const trimmed = body.trim();
-    if (!trimmed || createMessage.isPending) return;
+    if (!trimmed || !userName || createMessage.isPending) return;
     const finalBody = /@bot-\w+/.test(trimmed) ? trimmed : `@bot-mel ${trimmed}`;
     try {
       const inserted = await createMessage.mutateAsync({
         entity_type: "general",
         entity_id: entityId,
-        author: "mel-tv",
+        author: userName,
         body: finalBody,
         parent_id: messages[0]?.id ?? undefined,
       });

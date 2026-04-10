@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import type { InstanceData, ScopeOutlet, PaymentMethod, BankAccount } from "../../../lib/solutions/types";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { InstanceData, ScopeOutlet, PaymentMethod, BankAccount, TemplateDefinition } from "../../../lib/solutions/types";
 import { POS_OPTIONS, PAYMENT_METHOD_OPTIONS, BANK_OPTIONS } from "../../../lib/solutions/types";
 import { getOutletNames, getEntities, filterScope } from "./matrixHelpers";
 import {
@@ -10,15 +10,25 @@ interface Props {
   data: InstanceData;
   onChange: (data: InstanceData) => void;
   selectedEntity: string | null;
+  domain?: string;
+  instanceId?: string;
+  template?: TemplateDefinition;
+  onAddSystem?: (systemId: string, systemType: string) => void;
 }
 
-export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props) {
+export default function MatrixScopeTab({ data, onChange, selectedEntity, domain, instanceId, template, onAddSystem }: Props) {
   const scope = data.scope || [];
   const pms = data.paymentMethods || [];
   const banks = data.banks || [];
   const outletNames = getOutletNames(scope);
   const entities = getEntities(scope);
   const filteredScope = filterScope(scope, selectedEntity);
+
+  // All POS values in use across the entire scope (includes custom ones)
+  const allScopePOS = useMemo(
+    () => [...new Set(scope.flatMap((s) => Array.isArray(s.pos) ? s.pos : []))],
+    [scope]
+  );
 
   const updateScope = useCallback(
     (idx: number, field: keyof ScopeOutlet, value: unknown) => {
@@ -35,6 +45,11 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
 
   const removeOutlet = (idx: number) => {
     onChange({ ...data, scope: scope.filter((_, i) => i !== idx) });
+  };
+
+  const renameEntity = (oldEntity: string, newEntity: string) => {
+    const next = scope.map((s) => (s.entity || "") === oldEntity ? { ...s, entity: newEntity } : s);
+    onChange({ ...data, scope: next });
   };
 
   const updatePM = useCallback(
@@ -73,8 +88,23 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
     onChange({ ...data, banks: banks.filter((_, i) => i !== idx) });
   };
 
+  // Add custom system to template valConfig
+  const addCustomSystem = useCallback((systemId: string, systemType: string) => {
+    if (!onAddSystem) return;
+    const valConfig = (template as any)?.valConfig;
+    if (!valConfig) return;
+    const systems: any[] = valConfig.systems || [];
+    // Skip if already exists
+    if (systems.some((s: any) => s.id === systemId)) return;
+    onAddSystem(systemId, systemType);
+  }, [onAddSystem, template]);
+
+  const handleAddCustomPOS = useCallback((name: string) => addCustomSystem(name, "POS"), [addCustomSystem]);
+  const handleAddCustomPM = useCallback((name: string) => addCustomSystem(name, "Platform Delivery"), [addCustomSystem]);
+  const handleAddCustomBank = useCallback((name: string) => addCustomSystem(name, "Bank"), [addCustomSystem]);
+
   // Filtered banks for selected entity
-  const filteredBanks = selectedEntity
+  const filteredBanks = selectedEntity !== null
     ? banks.filter((b) => b.outlets.length === 0 || b.outlets.some((o) => filteredScope.some((s) => s.outlet === o)))
     : banks;
   const filteredOutletNames = filteredScope.map((s) => s.outlet).filter(Boolean);
@@ -82,7 +112,7 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
   return (
     <div className="space-y-8">
       {/* Summary cards */}
-      {!selectedEntity && scope.length > 0 && (
+      {selectedEntity === null && scope.length > 0 && (
         <div className="grid grid-cols-4 gap-2.5">
           <SummaryCard value={scope.length} label="Outlets" />
           <SummaryCard value={pms.length} label="Payment Methods" />
@@ -92,14 +122,14 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
       )}
 
       {/* Entities & Outlets */}
-      <CollapsibleSection badge="1" badgeColor="purple" title={selectedEntity ? `${selectedEntity} Outlets` : "Entities & Outlets"} description={selectedEntity ? undefined : "Grouped by entity. Click an entity in the sidebar to filter."}>
+      <CollapsibleSection badge="1" badgeColor="purple" title={selectedEntity !== null ? `${selectedEntity || "Unassigned"} Outlets` : "Entities & Outlets"} description={selectedEntity !== null ? undefined : "Grouped by entity. Click an entity in the sidebar to filter."}>
         {scope.length === 0 ? (
           <div className="text-center py-12 text-zinc-400 dark:text-zinc-600">
             <p className="text-sm mb-3">No outlets defined</p>
             <p className="text-xs mb-4">Click "Pre-populate from VAL" or add manually below.</p>
             <AddButton label="+ Add Outlet" onClick={() => addOutlet("")} />
           </div>
-        ) : selectedEntity ? (
+        ) : selectedEntity !== null ? (
           /* Flat filtered view for selected entity */
           <OutletTable
             scope={scope}
@@ -108,6 +138,9 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
             onRemove={removeOutlet}
             onAdd={() => addOutlet(selectedEntity)}
             entityName={selectedEntity}
+            showEntity={selectedEntity === ""}
+            onAddCustomPOS={handleAddCustomPOS}
+            allScopePOS={allScopePOS}
           />
         ) : (
           /* Grouped view for all entities */
@@ -121,6 +154,9 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
                 onUpdate={updateScope}
                 onRemove={removeOutlet}
                 onAdd={() => addOutlet(entity)}
+                onRenameEntity={renameEntity}
+                onAddCustomPOS={handleAddCustomPOS}
+                allScopePOS={allScopePOS}
               />
             ))}
             <AddButton label="+ Add Outlet" onClick={() => addOutlet("")} />
@@ -129,7 +165,7 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
       </CollapsibleSection>
 
       {/* Payment Methods */}
-      <CollapsibleSection badge="2" badgeColor="purple" title={selectedEntity ? `Payment Methods for ${selectedEntity}` : "Payment Methods"}>
+      <CollapsibleSection badge="2" badgeColor="purple" title={selectedEntity !== null ? `Payment Methods for ${selectedEntity || "Unassigned"}` : "Payment Methods"}>
         <table className="w-full border-collapse">
           <thead>
             <tr className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
@@ -144,7 +180,7 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
           <tbody>
             {pms.map((pm, i) => {
               const excluded = pm.excludedOutlets || [];
-              const relevantOutlets = selectedEntity ? filteredOutletNames : outletNames;
+              const relevantOutlets = selectedEntity !== null ? filteredOutletNames : outletNames;
               const applicableCount = relevantOutlets.filter((o) => !excluded.includes(o)).length;
               const excludedCount = relevantOutlets.filter((o) => excluded.includes(o)).length;
               const allApplied = excludedCount === 0;
@@ -153,21 +189,23 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
                   <td className="px-3 py-2 text-xs text-zinc-500 font-mono border-b border-zinc-200/50 dark:border-zinc-800/50">{i + 1}</td>
                   <td className="px-3 py-2 text-xs border-b border-zinc-200/50 dark:border-zinc-800/50">{pm.name}</td>
                   <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${allApplied ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
-                      {allApplied ? `All ${relevantOutlets.length}` : applicableCount}
-                    </span>
+                    <OutletToggleDropdown
+                      allOutlets={relevantOutlets}
+                      excludedOutlets={excluded}
+                      onChange={(newExcluded) => updatePM(i, "excludedOutlets", newExcluded)}
+                      label={allApplied ? `All ${relevantOutlets.length}` : String(applicableCount)}
+                      badgeClass={allApplied ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}
+                    />
                   </td>
                   <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
-                    {excludedCount > 0 ? (
-                      <button
-                        onClick={() => { /* expand to show excluded outlets */ }}
-                        className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 cursor-pointer underline decoration-dotted hover:text-amber-500 bg-transparent border-none"
-                      >
-                        {excludedCount} excluded
-                      </button>
-                    ) : (
-                      <span className="text-xs text-zinc-300 dark:text-zinc-700">&mdash;</span>
-                    )}
+                    <OutletToggleDropdown
+                      allOutlets={relevantOutlets}
+                      excludedOutlets={excluded}
+                      onChange={(newExcluded) => updatePM(i, "excludedOutlets", newExcluded)}
+                      label={excludedCount > 0 ? `${excludedCount} excluded` : "\u2014"}
+                      badgeClass={excludedCount > 0 ? "text-amber-500 underline decoration-dotted" : "text-zinc-300 dark:text-zinc-700"}
+                      showExcluded
+                    />
                   </td>
                   <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50"><EditableInput value={pm.notes} onChange={(v) => updatePM(i, "notes", v)} placeholder="Notes..." /></td>
                   <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50"><DeleteButton onClick={() => removePM(i)} /></td>
@@ -176,18 +214,18 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
             })}
           </tbody>
         </table>
-        <PMAddRow onAdd={addPM} existingPMs={pms.map((p) => p.name)} />
+        <PMAddRow onAdd={addPM} existingPMs={pms.map((p) => p.name)} onAddCustom={handleAddCustomPM} />
       </CollapsibleSection>
 
       {/* Bank Accounts */}
-      <CollapsibleSection badge="3" badgeColor="purple" title={selectedEntity ? `Bank Accounts for ${selectedEntity}` : "Bank Accounts"}>
+      <CollapsibleSection badge="3" badgeColor="purple" title={selectedEntity !== null ? `Bank Accounts for ${selectedEntity || "Unassigned"}` : "Bank Accounts"}>
         <table className="w-full border-collapse">
           <thead>
             <tr className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
               <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-8">#</th>
               <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[10%]">Bank</th>
               <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[14%]">Account No.</th>
-              {selectedEntity ? (
+              {selectedEntity !== null ? (
                 <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">Outlets</th>
               ) : (
                 <>
@@ -206,7 +244,7 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
                 ? filteredOutletNames.filter((o) => bankOutlets.length === 0 || bankOutlets.includes(o)).length
                 : bankOutlets.length === 0 ? outletNames.length : bankOutlets.length;
               // Determine entity for this bank (based on outlet membership)
-              const bankEntity = selectedEntity || (bankOutlets.length > 0 ? scope.find((s) => bankOutlets.includes(s.outlet))?.entity || "" : "");
+              const bankEntity = selectedEntity !== null ? selectedEntity : (bankOutlets.length > 0 ? scope.find((s) => bankOutlets.includes(s.outlet))?.entity || "" : "");
               const realIdx = banks.indexOf(bank);
               return (
                 <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
@@ -218,7 +256,7 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
                     </select>
                   </td>
                   <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50"><EditableInput value={bank.account} onChange={(v) => updateBank(realIdx, "account", v)} placeholder="Account no..." className="font-mono text-[11px]" /></td>
-                  {!selectedEntity && (
+                  {selectedEntity === null && (
                     <td className="px-3 py-2 text-xs border-b border-zinc-200/50 dark:border-zinc-800/50">{bankEntity}</td>
                   )}
                   <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
@@ -233,8 +271,9 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity }: Props
             })}
           </tbody>
         </table>
-        {!selectedEntity && <BankAddRow onAdd={addBank} />}
+        {selectedEntity === null && <BankAddRow onAdd={addBank} onAddCustom={handleAddCustomBank} />}
       </CollapsibleSection>
+
     </div>
   );
 }
@@ -250,33 +289,67 @@ function SummaryCard({ value, label }: { value: number; label: string }) {
 }
 
 // ─── Entity group (collapsible) ───
-function EntityGroup({ entity, count, scope, onUpdate, onRemove, onAdd }: {
+function EntityGroup({ entity, count, scope, onUpdate, onRemove, onAdd, onRenameEntity, onAddCustomPOS, allScopePOS }: {
   entity: string; count: number; scope: ScopeOutlet[];
   onUpdate: (idx: number, field: keyof ScopeOutlet, value: unknown) => void;
   onRemove: (idx: number) => void; onAdd: () => void;
+  onRenameEntity: (oldEntity: string, newEntity: string) => void;
+  onAddCustomPOS?: (name: string) => void;
+  allScopePOS?: string[];
 }) {
   const [open, setOpen] = useState(false);
-  const entityScope = scope.filter((s) => s.entity === entity);
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(entity);
+  const entityScope = scope.filter((s) => (s.entity || "") === entity);
   const posSet = new Set(entityScope.flatMap((s) => Array.isArray(s.pos) ? s.pos : []));
+
+  const commitRename = () => {
+    const trimmed = editValue.trim();
+    setEditing(false);
+    if (trimmed && trimmed !== entity) {
+      onRenameEntity(entity, trimmed);
+    } else {
+      setEditValue(entity);
+    }
+  };
 
   return (
     <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg mb-2 overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 bg-zinc-50 dark:bg-zinc-900 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors border-none text-left"
-      >
-        <span className={`text-[10px] text-zinc-400 transition-transform ${open ? "rotate-90" : ""}`}>&#9654;</span>
-        <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{entity}</span>
+      <div className="w-full flex items-center gap-2 px-3 py-2.5 bg-zinc-50 dark:bg-zinc-900">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-2 cursor-pointer bg-transparent border-none text-left p-0"
+        >
+          <span className={`text-[10px] text-zinc-400 transition-transform ${open ? "rotate-90" : ""}`}>&#9654;</span>
+        </button>
+        {editing ? (
+          <input
+            autoFocus
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") { setEditValue(entity); setEditing(false); } }}
+            className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-blue-500 rounded px-1.5 py-0.5 outline-none w-[200px]"
+          />
+        ) : (
+          <span
+            onDoubleClick={() => { if (entity) { setEditValue(entity); setEditing(true); } }}
+            className={`text-xs font-semibold cursor-default ${entity ? "text-zinc-700 dark:text-zinc-300 hover:text-blue-500 dark:hover:text-blue-400" : "text-zinc-400 dark:text-zinc-500 italic"}`}
+            title={entity ? "Double-click to rename" : ""}
+          >
+            {entity || "Unassigned"}
+          </span>
+        )}
         <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">{count} outlets</span>
         <div className="flex gap-1 ml-auto">
           {[...posSet].map((pos) => (
             <span key={pos} className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-600 dark:text-teal-400">{pos}</span>
           ))}
         </div>
-      </button>
+      </div>
       {open && (
         <div>
-          <OutletTable scope={scope} filteredScope={entityScope} onUpdate={onUpdate} onRemove={onRemove} onAdd={onAdd} entityName={entity} />
+          <OutletTable scope={scope} filteredScope={entityScope} onUpdate={onUpdate} onRemove={onRemove} onAdd={onAdd} entityName={entity} showEntity={entity === ""} onAddCustomPOS={onAddCustomPOS} allScopePOS={allScopePOS} />
         </div>
       )}
     </div>
@@ -284,10 +357,12 @@ function EntityGroup({ entity, count, scope, onUpdate, onRemove, onAdd }: {
 }
 
 // ─── Outlet table (used in both grouped and filtered views) ───
-function OutletTable({ scope, filteredScope, onUpdate, onRemove, onAdd, entityName }: {
+function OutletTable({ scope, filteredScope, onUpdate, onRemove, onAdd, entityName, showEntity = false, onAddCustomPOS, allScopePOS }: {
   scope: ScopeOutlet[]; filteredScope: ScopeOutlet[];
   onUpdate: (idx: number, field: keyof ScopeOutlet, value: unknown) => void;
-  onRemove: (idx: number) => void; onAdd: () => void; entityName: string;
+  onRemove: (idx: number) => void; onAdd: () => void; entityName: string; showEntity?: boolean;
+  onAddCustomPOS?: (name: string) => void;
+  allScopePOS?: string[];
 }) {
   const [showAll, setShowAll] = useState(filteredScope.length <= 10);
   const displayScope = showAll ? filteredScope : filteredScope.slice(0, 8);
@@ -299,6 +374,7 @@ function OutletTable({ scope, filteredScope, onUpdate, onRemove, onAdd, entityNa
         <thead>
           <tr className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
             <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-8">#</th>
+            {showEntity && <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[18%]">Entity</th>}
             <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[25%]">Outlet</th>
             <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[20%]">POS</th>
             <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">Notes</th>
@@ -311,11 +387,16 @@ function OutletTable({ scope, filteredScope, onUpdate, onRemove, onAdd, entityNa
             return (
               <tr key={globalIdx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                 <td className="px-3 py-2 text-xs text-zinc-500 font-mono border-b border-zinc-200/50 dark:border-zinc-800/50">{localIdx + 1}</td>
+                {showEntity && (
+                  <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                    <EditableInput value={row.entity} onChange={(v) => onUpdate(globalIdx, "entity", v)} placeholder="Entity..." />
+                  </td>
+                )}
                 <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
                   <EditableInput value={row.outlet} onChange={(v) => onUpdate(globalIdx, "outlet", v)} placeholder="Outlet..." />
                 </td>
                 <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
-                  <POSMultiSelect value={Array.isArray(row.pos) ? row.pos : []} onChange={(v) => onUpdate(globalIdx, "pos", v)} />
+                  <POSMultiSelect value={Array.isArray(row.pos) ? row.pos : []} onChange={(v) => onUpdate(globalIdx, "pos", v)} onAddCustom={onAddCustomPOS} allScopePOS={allScopePOS} />
                 </td>
                 <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
                   <EditableInput value={row.notes} onChange={(v) => onUpdate(globalIdx, "notes", v)} placeholder="Notes..." />
@@ -335,43 +416,94 @@ function OutletTable({ scope, filteredScope, onUpdate, onRemove, onAdd, entityNa
         </button>
       )}
       <div className="px-3 py-1.5 border-t border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-50 dark:bg-zinc-900/50">
-        <AddButton label={`+ Add to ${entityName}`} onClick={onAdd} />
+        <AddButton label={entityName ? `+ Add to ${entityName}` : "+ Add Outlet"} onClick={onAdd} />
       </div>
     </>
   );
 }
 
 // ─── POS multi-select ───
-function POSMultiSelect({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+function POSMultiSelect({ value, onChange, onAddCustom, allScopePOS }: { value: string[]; onChange: (v: string[]) => void; onAddCustom?: (name: string) => void; allScopePOS?: string[] }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+
   const toggle = (pos: string) => {
     onChange(value.includes(pos) ? value.filter((p) => p !== pos) : [...value, pos]);
   };
+
+  const openDropdown = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropHeight = 260; // search input + list
+      const openUp = spaceBelow < dropHeight && rect.top > dropHeight;
+      setDropStyle(openUp
+        ? { position: "fixed", left: rect.left, bottom: window.innerHeight - rect.top + 4, width: 220 }
+        : { position: "fixed", left: rect.left, top: rect.bottom + 4, width: 220 }
+      );
+    }
+    setSearch("");
+    setOpen(true);
+  };
+
+  // Combine hardcoded options with any custom POS in use across the whole scope
+  const allOptions = [...new Set([...POS_OPTIONS, ...(allScopePOS || []), ...value])].sort();
+  const filtered = allOptions.filter((pos) => pos.toLowerCase().includes(search.toLowerCase()));
+  const trimmed = search.trim();
+  const canCreate = trimmed.length > 0 && !allOptions.some((o) => o.toLowerCase() === trimmed.toLowerCase());
+
   return (
-    <div className="relative">
-      <div onClick={() => setOpen(!open)} className="flex flex-wrap gap-1 min-h-[22px] px-1 py-0.5 rounded border border-transparent cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+    <div ref={triggerRef}>
+      <div onClick={openDropdown} className="flex flex-wrap gap-1 min-h-[22px] px-1 py-0.5 rounded border border-transparent cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
         {value.length === 0 ? (
           <span className="text-xs text-zinc-400 dark:text-zinc-600 italic">Select POS...</span>
-        ) : value.map((pos) => (
-          <span key={pos} className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-600 dark:text-teal-400 inline-flex items-center gap-0.5">
-            {pos}
-            <button onClick={(e) => { e.stopPropagation(); toggle(pos); }} className="text-teal-400 hover:text-red-400 bg-transparent border-none cursor-pointer text-[10px] leading-none">&times;</button>
-          </span>
-        ))}
+        ) : value.map((pos) => {
+          const isCustom = !(POS_OPTIONS as readonly string[]).includes(pos);
+          return (
+            <span key={pos} className={`text-[9px] font-semibold px-1.5 py-0.5 rounded inline-flex items-center gap-0.5 ${isCustom ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-teal-500/10 text-teal-600 dark:text-teal-400"}`}>
+              {pos}
+              <button onClick={(e) => { e.stopPropagation(); toggle(pos); }} className={`${isCustom ? "text-amber-400" : "text-teal-400"} hover:text-red-400 bg-transparent border-none cursor-pointer text-[10px] leading-none`}>&times;</button>
+            </span>
+          );
+        })}
       </div>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 top-full left-0 mt-1 w-[180px] max-h-[200px] overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1">
-            {POS_OPTIONS.map((pos) => {
-              const selected = value.includes(pos);
-              return (
-                <button key={pos} onClick={() => toggle(pos)} className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 cursor-pointer transition-colors border-none ${selected ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}>
-                  <span className={`w-3 h-3 rounded border flex items-center justify-center text-[8px] flex-shrink-0 ${selected ? "bg-teal-500 border-teal-500 text-white" : "border-zinc-300 dark:border-zinc-600"}`}>{selected && "✓"}</span>
-                  {pos}
+          <div style={dropStyle} className="z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+            <div className="px-2 py-1.5 border-b border-zinc-200 dark:border-zinc-800">
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search or create POS..."
+                className="w-full text-xs bg-transparent border-none outline-none text-zinc-700 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+              />
+            </div>
+            <div className="max-h-[200px] overflow-y-auto py-1">
+              {canCreate && (
+                <button
+                  onClick={() => { toggle(trimmed); onAddCustom?.(trimmed); setSearch(""); }}
+                  className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 cursor-pointer transition-colors border-none text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                >
+                  <span className="w-3 h-3 rounded border border-amber-400 flex items-center justify-center text-[8px] flex-shrink-0">+</span>
+                  Create "{trimmed}"
                 </button>
-              );
-            })}
+              )}
+              {filtered.length === 0 && !canCreate ? (
+                <p className="text-xs text-zinc-400 text-center py-2">No matches</p>
+              ) : filtered.map((pos) => {
+                const selected = value.includes(pos);
+                return (
+                  <button key={pos} onClick={() => toggle(pos)} className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 cursor-pointer transition-colors border-none ${selected ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}>
+                    <span className={`w-3 h-3 rounded border flex items-center justify-center text-[8px] flex-shrink-0 ${selected ? "bg-teal-500 border-teal-500 text-white" : "border-zinc-300 dark:border-zinc-600"}`}>{selected && "✓"}</span>
+                    {pos}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </>
       )}
@@ -379,21 +511,138 @@ function POSMultiSelect({ value, onChange }: { value: string[]; onChange: (v: st
   );
 }
 
-// ─── PM add row ───
-function PMAddRow({ onAdd, existingPMs }: { onAdd: (name: string) => void; existingPMs: string[] }) {
-  const available = PAYMENT_METHOD_OPTIONS.filter((pm) => !existingPMs.includes(pm));
+// ─── Outlet toggle dropdown (for PM applicable/excluded) ───
+function OutletToggleDropdown({ allOutlets, excludedOutlets, onChange, label, badgeClass, showExcluded }: {
+  allOutlets: string[]; excludedOutlets: string[];
+  onChange: (excluded: string[]) => void;
+  label: string; badgeClass: string; showExcluded?: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  if (available.length === 0) return <p className="text-[11px] text-zinc-400 mt-2">All payment methods added</p>;
+  const [search, setSearch] = useState("");
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+
+  const openDropdown = () => {
+    if (allOutlets.length === 0) return;
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropHeight = 300;
+      const openUp = spaceBelow < dropHeight && rect.top > dropHeight;
+      setDropStyle(openUp
+        ? { position: "fixed", left: rect.left, bottom: window.innerHeight - rect.top + 4, width: 240 }
+        : { position: "fixed", left: rect.left, top: rect.bottom + 4, width: 240 }
+      );
+    }
+    setSearch("");
+    setOpen(true);
+  };
+
+  const toggleOutlet = (outlet: string) => {
+    const isExcluded = excludedOutlets.includes(outlet);
+    onChange(isExcluded ? excludedOutlets.filter((o) => o !== outlet) : [...excludedOutlets, outlet]);
+  };
+
+  const selectAll = () => onChange([]);
+  const deselectAll = () => onChange([...allOutlets]);
+
+  const filtered = allOutlets.filter((o) => o.toLowerCase().includes(search.toLowerCase()));
+  // Sort: show relevant ones first (excluded first when showExcluded, included first otherwise)
+  const sorted = [...filtered].sort((a, b) => {
+    const aEx = excludedOutlets.includes(a) ? 1 : 0;
+    const bEx = excludedOutlets.includes(b) ? 1 : 0;
+    return showExcluded ? aEx - bEx : bEx - aEx;
+  });
+
   return (
-    <div className="relative mt-2">
-      <button onClick={() => setOpen(!open)} className="text-[11px] font-medium px-3 py-1.5 rounded border border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 bg-transparent cursor-pointer hover:border-blue-500 hover:text-blue-400 hover:bg-blue-500/5">+ Add Payment Method</button>
+    <>
+      <span
+        ref={triggerRef}
+        onClick={openDropdown}
+        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 ${badgeClass}`}
+      >
+        {label}
+      </span>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 bottom-full left-0 mb-1 w-[220px] max-h-[280px] overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1">
-            {available.map((pm) => (
-              <button key={pm} onClick={() => { onAdd(pm); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer border-none">{pm}</button>
-            ))}
+          <div style={dropStyle} className="z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+            <div className="px-2.5 py-1.5 border-b border-zinc-200 dark:border-zinc-800">
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search outlets..."
+                className="w-full text-xs bg-transparent border-none outline-none text-zinc-700 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+              />
+            </div>
+            <div className="flex items-center gap-2 px-2.5 py-1 border-b border-zinc-100 dark:border-zinc-800/50">
+              <button onClick={selectAll} className="text-[10px] text-blue-500 hover:text-blue-400 bg-transparent border-none cursor-pointer">Include all</button>
+              <span className="text-zinc-300 dark:text-zinc-700">|</span>
+              <button onClick={deselectAll} className="text-[10px] text-zinc-400 hover:text-zinc-300 bg-transparent border-none cursor-pointer">Exclude all</button>
+            </div>
+            <div className="max-h-[220px] overflow-y-auto py-1">
+              {sorted.length === 0 ? (
+                <p className="text-xs text-zinc-400 text-center py-2">No outlets</p>
+              ) : sorted.map((outlet) => {
+                const isIncluded = !excludedOutlets.includes(outlet);
+                return (
+                  <button key={outlet} onClick={() => toggleOutlet(outlet)} className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 cursor-pointer transition-colors border-none ${isIncluded ? "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800" : "text-zinc-400 dark:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}>
+                    <span className={`w-3 h-3 rounded border flex items-center justify-center text-[8px] flex-shrink-0 ${isIncluded ? "bg-emerald-500 border-emerald-500 text-white" : "border-zinc-300 dark:border-zinc-600"}`}>{isIncluded && "✓"}</span>
+                    <span className={isIncluded ? "" : "line-through"}>{outlet}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+// ─── PM add row ───
+function PMAddRow({ onAdd, existingPMs, onAddCustom }: { onAdd: (name: string) => void; existingPMs: string[]; onAddCustom?: (name: string) => void }) {
+  const available = PAYMENT_METHOD_OPTIONS.filter((pm) => !existingPMs.includes(pm));
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const filtered = available.filter((pm) => pm.toLowerCase().includes(search.toLowerCase()));
+  const trimmed = search.trim();
+  const canCreate = trimmed.length > 0
+    && !existingPMs.some((p) => p.toLowerCase() === trimmed.toLowerCase())
+    && ![...PAYMENT_METHOD_OPTIONS].some((o) => o.toLowerCase() === trimmed.toLowerCase());
+
+  return (
+    <div className="relative mt-2">
+      <button onClick={() => { setOpen(!open); setSearch(""); }} className="text-[11px] font-medium px-3 py-1.5 rounded border border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 bg-transparent cursor-pointer hover:border-blue-500 hover:text-blue-400 hover:bg-blue-500/5">+ Add Payment Method</button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 bottom-full left-0 mb-1 w-[240px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+            <div className="px-2 py-1.5 border-b border-zinc-200 dark:border-zinc-800">
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search or create..."
+                className="w-full text-xs bg-transparent border-none outline-none text-zinc-700 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+              />
+            </div>
+            <div className="max-h-[240px] overflow-y-auto py-1">
+              {canCreate && (
+                <button
+                  onClick={() => { onAdd(trimmed); onAddCustom?.(trimmed); setSearch(""); setOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer border-none"
+                >
+                  + Create "{trimmed}"
+                </button>
+              )}
+              {filtered.length === 0 && !canCreate ? (
+                <p className="text-xs text-zinc-400 text-center py-2">{available.length === 0 ? "All added" : "No matches"}</p>
+              ) : filtered.map((pm) => (
+                <button key={pm} onClick={() => { onAdd(pm); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer border-none">{pm}</button>
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -402,17 +651,76 @@ function PMAddRow({ onAdd, existingPMs }: { onAdd: (name: string) => void; exist
 }
 
 // ─── Bank add row ───
-function BankAddRow({ onAdd }: { onAdd: (bank: string, account: string) => void }) {
+function BankAddRow({ onAdd, onAddCustom }: { onAdd: (bank: string, account: string) => void; onAddCustom?: (name: string) => void }) {
+  const [customMode, setCustomMode] = useState(false);
+  const [customName, setCustomName] = useState("");
+
+  const handleAdd = (bankName: string, account: string) => {
+    if (!bankName.trim()) return;
+    const isCustom = !(BANK_OPTIONS as readonly string[]).includes(bankName.trim());
+    if (isCustom) onAddCustom?.(bankName.trim());
+    onAdd(bankName.trim(), account);
+  };
+
   return (
     <div className="flex gap-2 items-center mt-2">
-      <select id="bankNameSelect" className="text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-zinc-700 dark:text-zinc-200 w-[120px] focus:border-blue-500 focus:outline-none cursor-pointer">
-        <option value="">Bank...</option>
-        {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
-      </select>
+      {customMode ? (
+        <input
+          autoFocus
+          value={customName}
+          onChange={(e) => setCustomName(e.target.value)}
+          placeholder="Bank name..."
+          className="text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-zinc-700 dark:text-zinc-200 w-[120px] focus:border-blue-500 focus:outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && customName.trim()) {
+              const inp = document.getElementById("bankAcctInput") as HTMLInputElement;
+              handleAdd(customName.trim(), inp?.value || "");
+              setCustomName("");
+              setCustomMode(false);
+              if (inp) inp.value = "";
+            }
+            if (e.key === "Escape") { setCustomMode(false); setCustomName(""); }
+          }}
+        />
+      ) : (
+        <select id="bankNameSelect" className="text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-zinc-700 dark:text-zinc-200 w-[120px] focus:border-blue-500 focus:outline-none cursor-pointer">
+          <option value="">Bank...</option>
+          {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
+          <option value="__custom">+ Custom...</option>
+        </select>
+      )}
       <input id="bankAcctInput" type="text" placeholder="Account number..." className="text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-zinc-700 dark:text-zinc-200 w-[180px] focus:border-blue-500 focus:outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
-        onKeyDown={(e) => { if (e.key === "Enter") { const sel = document.getElementById("bankNameSelect") as HTMLSelectElement; const inp = e.target as HTMLInputElement; if (sel.value) { onAdd(sel.value, inp.value); sel.value = ""; inp.value = ""; } } }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            if (customMode && customName.trim()) {
+              const inp = e.target as HTMLInputElement;
+              handleAdd(customName.trim(), inp.value);
+              setCustomName("");
+              setCustomMode(false);
+              inp.value = "";
+            } else {
+              const sel = document.getElementById("bankNameSelect") as HTMLSelectElement;
+              const inp = e.target as HTMLInputElement;
+              if (sel?.value === "__custom") { setCustomMode(true); return; }
+              if (sel?.value) { handleAdd(sel.value, inp.value); sel.value = ""; inp.value = ""; }
+            }
+          }
+        }}
       />
-      <AddButton label="+ Add" onClick={() => { const sel = document.getElementById("bankNameSelect") as HTMLSelectElement; const inp = document.getElementById("bankAcctInput") as HTMLInputElement; if (sel?.value) { onAdd(sel.value, inp?.value || ""); sel.value = ""; if (inp) inp.value = ""; } }} />
+      <AddButton label="+ Add" onClick={() => {
+        if (customMode && customName.trim()) {
+          const inp = document.getElementById("bankAcctInput") as HTMLInputElement;
+          handleAdd(customName.trim(), inp?.value || "");
+          setCustomName("");
+          setCustomMode(false);
+          if (inp) inp.value = "";
+        } else {
+          const sel = document.getElementById("bankNameSelect") as HTMLSelectElement;
+          if (sel?.value === "__custom") { setCustomMode(true); return; }
+          const inp = document.getElementById("bankAcctInput") as HTMLInputElement;
+          if (sel?.value) { handleAdd(sel.value, inp?.value || ""); sel.value = ""; if (inp) inp.value = ""; }
+        }
+      }} />
     </div>
   );
 }
