@@ -16,7 +16,7 @@ interface Props {
   onAddSystem?: (systemId: string, systemType: string) => void;
 }
 
-export default function MatrixScopeTab({ data, onChange, selectedEntity, domain, instanceId, template, onAddSystem }: Props) {
+export default function MatrixScopeTab({ data, onChange, selectedEntity, domain: _domain, instanceId: _instanceId, template, onAddSystem }: Props) {
   const scope = data.scope || [];
   const pms = data.paymentMethods || [];
   const banks = data.banks || [];

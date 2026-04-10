@@ -672,11 +672,11 @@ function DataLoadCell({ domain, workflowIds, hasUploaded, systemName, statusKey,
 
 // ─── Inline Push Mapping Cell ───
 
-function PushMappingCell({ domain, tableName, columns, storeId, outletCode, statusKey, data, onChange }: {
+function PushMappingCell({ domain, tableName, columns, storeId, outletCode }: {
   domain: string; tableName: string;
   columns: { storeId: string; outlet: string; pk?: string; zone?: string; allColumns?: { column_name: string; data_type: string }[] };
   storeId: string; outletCode: string;
-  statusKey: string; data: InstanceData; onChange: (data: InstanceData) => void;
+  statusKey?: string; data?: InstanceData; onChange?: (data: InstanceData) => void;
 }) {
   const [pushing, setPushing] = useState(false);
   const [result, setResult] = useState<"success" | "error" | null>(null);

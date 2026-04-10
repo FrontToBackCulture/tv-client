@@ -147,11 +147,6 @@ interface OutletDetail {
   id: string;       // Store ID / UUID from the platform
 }
 
-function extractOutlets(rows: any[], headers: string[]): string[] {
-  const details = extractOutletDetails(rows, headers);
-  return details.map((d) => d.name);
-}
-
 function extractOutletDetails(rows: any[], headers: string[]): OutletDetail[] {
   // Find outlet/store name columns
   const nameCols = headers.filter((h) =>
