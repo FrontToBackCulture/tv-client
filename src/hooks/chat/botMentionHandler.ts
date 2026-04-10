@@ -7,7 +7,6 @@ import { formatError } from "../../lib/formatError";
 import type { QueryClient } from "@tanstack/react-query";
 import { useJobsStore } from "../../stores/jobsStore";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
-import { useBotSettingsStore } from "../../stores/botSettingsStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { gatherMyTasks, buildPromptData } from "./gatherContext";
 
@@ -409,10 +408,7 @@ ${folderContext}
         model: "sonnet",
         max_budget_usd: 0.5,
         resume_session_id: existingSessionId,
-        cwd: (() => {
-          const botsPath = useBotSettingsStore.getState().botsPath;
-          return botsPath ? `${botsPath}/melvin/${botName}` : undefined;
-        })(),
+        cwd: knowledgeRoot || undefined,
       },
     });
 

@@ -261,14 +261,13 @@ export default function App() {
   }, [activeTab, isModuleVisible, teamConfigLoaded, openTab]);
 
   // Auto-switch non-admin users out of `all` mode once team config loads.
-  // Admins keep whatever was persisted (they usually land in `all`).
+  // Force everyone into `all` mode — mode tabs are hidden and module
+  // visibility is controlled entirely by team/workspace settings.
   useEffect(() => {
-    if (!teamConfigLoaded || !user) return;
-    const isAdmin = useTeamConfigStore.getState().isAdmin(user.login);
-    if (activeMode === "all" && !isAdmin) {
-      setMode("sell");
+    if (activeMode !== "all") {
+      setMode("all");
     }
-  }, [teamConfigLoaded, user, activeMode, setMode]);
+  }, [activeMode, setMode]);
 
   // Sync active mode + active tab to URL query params so deep links and
   // refresh-in-place work. `history.replaceState` is fine inside the Tauri
@@ -304,20 +303,29 @@ export default function App() {
     return unsub;
   }, []);
 
-  // Sync active repository path to backend settings.json (knowledge_path).
-  // Gated on repoHydrated so we don't clobber settings.json with "" while
-  // Zustand's async persist is still loading the real data.
+  // Sync repositories to backend settings.json as a durable backup.
+  // localStorage (WKWebView) can be lost on app restart, WebView reset, or
+  // workspace-ID mismatch. settings.json lives on disk (~/.tv-desktop/) and
+  // survives all of those. CRITICAL: never write empty state — that would
+  // destroy the backup when localStorage fails to hydrate.
   useEffect(() => {
     if (!repoHydrated) return;
+    if (repositories.length === 0) return; // Never clobber backup with empty
     const activeRepo = repositories.find((r) => r.id === activeRepoId);
     const path = activeRepo?.path ?? "";
+    // Write both the active path (for Rust backend consumers) and the full
+    // repository list (for auto-heal recovery).
     invoke("settings_set_key", { keyName: "knowledge_path", value: path }).catch(() => {});
+    invoke("settings_set_key", {
+      keyName: "repositories",
+      value: JSON.stringify(repositories),
+    }).catch(() => {});
   }, [activeRepoId, repositories, repoHydrated]);
 
   // Auto-heal: if repositoryStore is empty (e.g. cleared localStorage) but
-  // settings.json still has a knowledge_path, re-register it so views like
-  // VAL Credentials, MCP Endpoints, and Library don't silently break. The
-  // underlying folder is still on disk — only the pointer was lost.
+  // settings.json still has repositories, restore the full list so Library
+  // and other views don't silently break. Tries the full `repositories`
+  // backup first, then falls back to the single `knowledge_path` string.
   // Gated on both workspaceReady and repoHydrated to avoid racing with
   // Zustand persist hydration.
   useEffect(() => {
@@ -325,9 +333,25 @@ export default function App() {
     if (repositories.length > 0) return;
     (async () => {
       try {
+        // Try full repository list first (preferred — preserves names, IDs, order)
+        const reposJson = await invoke<string | null>("settings_get_key", { keyName: "repositories" });
+        if (reposJson) {
+          const saved = JSON.parse(reposJson) as Array<{ id: string; name: string; path: string; addedAt: number }>;
+          if (Array.isArray(saved) && saved.length > 0) {
+            // Double-check nothing else added a repo in the meantime.
+            if (useRepositoryStore.getState().repositories.length > 0) return;
+            // Restore all repos and select the first one
+            const store = useRepositoryStore.getState();
+            for (const repo of saved) {
+              store.addRepository(repo.name, repo.path);
+            }
+            return;
+          }
+        }
+
+        // Fallback: single knowledge_path (legacy or partial backup)
         const path = await invoke<string | null>("settings_get_key", { keyName: "knowledge_path" });
         if (!path || !path.trim()) return;
-        // Double-check nothing else added a repo in the meantime.
         if (useRepositoryStore.getState().repositories.length > 0) return;
         const name = path.split("/").filter(Boolean).pop() ?? "Repository";
         useRepositoryStore.getState().addRepository(name, path);

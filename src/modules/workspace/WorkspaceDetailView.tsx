@@ -3482,7 +3482,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
       {taskDetailId && (
         <>
           <div className="fixed inset-0 z-30 bg-black/10" onClick={() => setTaskDetailId(null)} />
-          <div className="fixed right-0 top-0 bottom-0 z-40 w-[600px] shadow-lg border-l border-zinc-200 dark:border-zinc-800">
+          <div className="fixed right-0 top-0 bottom-0 z-40 w-[50vw] shadow-lg border-l border-zinc-200 dark:border-zinc-800">
             <TaskDetailPanel
               taskId={taskDetailId}
               onClose={() => setTaskDetailId(null)}

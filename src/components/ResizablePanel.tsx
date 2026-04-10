@@ -11,8 +11,8 @@ interface ResizablePanelProps {
 export function ResizablePanel({
   children,
   minWidth = 380,
-  maxWidth = 800,
-  defaultWidth = 520,
+  maxWidth = Math.round(window.innerWidth * 0.75),
+  defaultWidth = Math.round(window.innerWidth * 0.5),
   storageKey = "tv-work-detail-panel-width",
 }: ResizablePanelProps) {
   const [width, setWidth] = useState(() => {
