@@ -1,8 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSolutionTemplates, useUpdateSolutionTemplate } from "../../hooks/solutions";
-import type { TemplateTab, SolutionInstanceWithTemplate } from "../../lib/solutions/types";
+import type { TemplateTab, SolutionInstanceWithTemplate, ScanBinding, TemplateDefinition } from "../../lib/solutions/types";
 import SolutionMatrixView from "../domains/solutions/SolutionMatrixView";
 import { useValDomains, useSchemaResources } from "../../hooks/val-sync";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { timeAgoVerbose, formatDateTimeSGT } from "../../lib/date";
 import ResourcePicker from "./ResourcePicker";
 
 const TAB_DOT_COLORS: Record<string, string> = {
@@ -52,7 +55,7 @@ interface Props {
 
 export default function SolutionOnboardingPanel({ slug }: Props) {
   const [previewing, setPreviewing] = useState(false);
-  const [activeTab, setActiveTab] = useState<"template" | "config">("template");
+  const [activeTab, setActiveTab] = useState<"template" | "config" | "scan" | "master-data">("template");
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ status: string; stats: any } | null>(null);
   const { data: templates } = useSolutionTemplates();
@@ -113,6 +116,8 @@ export default function SolutionOnboardingPanel({ slug }: Props) {
   const panelTabs = [
     { key: "template" as const, label: "Template" },
     ...(hasValConfig ? [{ key: "config" as const, label: "Config" }] : []),
+    ...(hasValConfig ? [{ key: "scan" as const, label: "Scan Rules" }] : []),
+    ...(hasValConfig ? [{ key: "master-data" as const, label: "Master Data" }] : []),
   ];
 
   return (
@@ -330,6 +335,35 @@ export default function SolutionOnboardingPanel({ slug }: Props) {
             }}
           />
         </>
+      )}
+
+      {/* Scan Rules Tab */}
+      {activeTab === "scan" && hasValConfig && (
+        <ScanRulesSection
+          scanBindings={template.template.scanBindings}
+          systems={(template.template as any).valConfig?.systems || []}
+          onSave={(newBindings) => {
+            const nextTemplate: TemplateDefinition = { ...template.template, scanBindings: newBindings };
+            updateTemplate.mutate({
+              id: template.id,
+              updates: { template: nextTemplate as any },
+            });
+          }}
+        />
+      )}
+
+      {/* Master Data Tab — template-level preset values that get pushed to
+          VAL master tables during onboarding. First section: Date Params. */}
+      {activeTab === "master-data" && hasValConfig && (
+        <MasterDataSection
+          valConfig={(template.template as any).valConfig}
+          onSave={(newValConfig: any) => {
+            updateTemplate.mutate({
+              id: template.id,
+              updates: { template: { ...template.template, valConfig: newValConfig } as any },
+            });
+          }}
+        />
       )}
     </div>
   );
@@ -1164,3 +1198,559 @@ function CategorizedResourceEditor({ data, onChange, items, hasSchema, resourceL
     </div>
   );
 }
+
+// ─── ScanRulesSection ───
+// Template-level defaults for "which column in a scanned file is the outlet /
+// date" per connector. Reads the fingerprint index so the pickers show real
+// trained headers. Instance-level overrides in the Collection tab take
+// precedence over whatever's saved here.
+
+interface ConnectorFingerprint {
+  platform: string;
+  headers: string[];
+  format: string;
+}
+
+function normalizePlatform(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_]+/g, "");
+}
+
+// Loose match: same after normalization, or one is a prefix of the other.
+// Catches cases like "NETS" fingerprint serving "NETS CC" system, or
+// "CDC" fingerprint serving "CDC Voucher".
+function platformMatches(systemId: string, fingerprintPlatform: string): boolean {
+  const s = normalizePlatform(systemId);
+  const f = normalizePlatform(fingerprintPlatform);
+  if (!s || !f) return false;
+  return s === f || s.startsWith(f) || f.startsWith(s);
+}
+
+// Mirror of the regex heuristics in useFileScanner.ts — used here to show
+// implementers what the auto-detector *would* pick for a given fingerprint,
+// so the "— auto —" option in the dropdown isn't opaque.
+// IMPORTANT: keep these in sync with useFileScanner.ts. If you change one,
+// change both — they implement the same semantics for live scanning vs preview.
+function autoDetectOutletColumn(headers: string[]): string | null {
+  // Exclude IDs, codes, types, maps — these are not outlet *name* columns.
+  // Uses word boundaries so `store id` is rejected but `storeid` is too
+  // (since id is at the end), while `reportstore` etc. stay untouched.
+  const excludeRx = /\b(id|code|number|type|group|category|map|mdr|no)\b|id$|_id|_code|_no$/i;
+  const tryFind = (pat: RegExp) =>
+    headers.find((h) => pat.test(h) && !excludeRx.test(h)) || null;
+
+  return (
+    tryFind(/store[\s_-]?name/i) ||
+    tryFind(/outlet[\s_-]?name/i) ||
+    tryFind(/branch[\s_-]?name/i) ||
+    tryFind(/restaurant[\s_-]?name/i) ||
+    tryFind(/location[\s_-]?name/i) ||
+    tryFind(/shop[\s_-]?name/i) ||
+    tryFind(/site[\s_-]?name/i) ||
+    tryFind(/merchant[\s_-]?name/i) ||
+    tryFind(/\bstore\b/i) ||
+    tryFind(/\boutlet\b/i) ||
+    tryFind(/\bbranch\b/i) ||
+    tryFind(/\brestaurant\b/i) ||
+    tryFind(/\blocation\b/i) ||
+    null
+  );
+}
+
+function autoDetectDateColumn(headers: string[]): string | null {
+  // Keywords distinctive enough to avoid false positives. Deliberately
+  // excludes short tokens like `to`, `from`, `end`, `start`, `day`, `month`,
+  // `transaction`, `order` — those caused matches like `store name → to`,
+  // `order id → order`, `subtotal → to`, etc.
+  const includeRx = /date|timestamp|time|created|updated|posted|posting|settled|settlement|payout|processed|effective/i;
+  // Exclude headers that are clearly money/identifiers even if they share a
+  // keyword (e.g. `settlement amount` contains `settlement` but is currency).
+  const excludeRx = /\b(amount|value|fee|total|sum|currency|price|rate|reference|id|number|mdr)\b|id$|_id/i;
+  // Prefer headers that explicitly contain `date` or `time` before verb forms.
+  const datePat = /date|timestamp|\btime\b|_time\b|time_/i;
+  const datePreferred = headers.find((h) => datePat.test(h) && !excludeRx.test(h));
+  if (datePreferred) return datePreferred;
+  return headers.find((h) => includeRx.test(h) && !excludeRx.test(h)) || null;
+}
+
+function ScanRulesSection({
+  scanBindings,
+  systems,
+  onSave,
+}: {
+  scanBindings: Record<string, ScanBinding> | undefined;
+  systems: { id: string; type?: string }[];
+  onSave: (bindings: Record<string, ScanBinding>) => void;
+}) {
+  const paths = usePrimaryKnowledgePaths();
+  const fingerprintPath = paths ? `${paths.platform}/connectors/_fingerprints.json` : null;
+
+  const [fingerprints, setFingerprints] = useState<Record<string, ConnectorFingerprint>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    if (!fingerprintPath) return;
+    let cancelled = false;
+    invoke<string>("read_file", { path: fingerprintPath })
+      .then((raw) => {
+        if (cancelled) return;
+        try {
+          setFingerprints(JSON.parse(raw) as Record<string, ConnectorFingerprint>);
+          setLoadError(null);
+        } catch (e) {
+          setLoadError(`Failed to parse fingerprints: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setLoadError(`Failed to load fingerprints: ${e instanceof Error ? e.message : String(e)}`);
+      });
+    return () => { cancelled = true; };
+  }, [fingerprintPath]);
+
+  const bindings = scanBindings || {};
+
+  const update = (connectorId: string, field: "outlet" | "date", value: string) => {
+    const current = bindings[connectorId] || {};
+    const next: ScanBinding = { ...current };
+    if (value) next[field] = value;
+    else delete next[field];
+
+    const nextMap: Record<string, ScanBinding> = { ...bindings };
+    if (!next.outlet && !next.date) {
+      delete nextMap[connectorId];
+    } else {
+      next.updatedAt = new Date().toISOString();
+      nextMap[connectorId] = next;
+    }
+    onSave(nextMap);
+  };
+
+  const [search, setSearch] = useState("");
+  const [sortMode, setSortMode] = useState<"platform" | "updated">("platform");
+  const [boundOnly, setBoundOnly] = useState(false);
+
+  const allEntries = Object.entries(fingerprints);
+
+  const matchesSearch = (connectorId: string, fp: ConnectorFingerprint): boolean => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return connectorId.toLowerCase().includes(q) || fp.platform.toLowerCase().includes(q) || fp.format.toLowerCase().includes(q);
+  };
+
+  const isBound = (connectorId: string): boolean => {
+    const b = bindings[connectorId];
+    return Boolean(b?.outlet || b?.date);
+  };
+
+  const filter = (list: typeof allEntries) =>
+    list.filter(([id, fp]) => matchesSearch(id, fp) && (!boundOnly || isBound(id)));
+
+  const relevant = filter(allEntries.filter(([, fp]) =>
+    systems.some((s) => platformMatches(s.id, fp.platform)),
+  ));
+  const relevantIds = new Set(relevant.map(([id]) => id));
+  const other = filter(allEntries.filter(([id]) => !relevantIds.has(id) && !systems.some((s) => platformMatches(s.id, fingerprints[id]?.platform || ""))));
+
+  const sortByUpdated = (list: typeof allEntries) => {
+    return [...list].sort((a, b) => {
+      const ua = bindings[a[0]]?.updatedAt || "";
+      const ub = bindings[b[0]]?.updatedAt || "";
+      if (ua && !ub) return -1;
+      if (!ua && ub) return 1;
+      return ub.localeCompare(ua); // desc
+    });
+  };
+
+  const groupByPlatform = (list: typeof allEntries) => {
+    const groups = new Map<string, typeof allEntries>();
+    for (const entry of list) {
+      const platform = entry[1].platform;
+      if (!groups.has(platform)) groups.set(platform, []);
+      groups.get(platform)!.push(entry);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  };
+
+  const renderList = (list: typeof allEntries) => {
+    if (list.length === 0) return null;
+    if (sortMode === "updated") {
+      // Flat table, no platform grouping, sorted by updatedAt desc.
+      return <ScanRulesTable groups={[["", sortByUpdated(list)]]} bindings={bindings} onUpdate={update} hideGroupHeaders />;
+    }
+    return <ScanRulesTable groups={groupByPlatform(list)} bindings={bindings} onUpdate={update} />;
+  };
+
+  return (
+    <div className="mb-6 w-full">
+      <p className="text-xs text-zinc-500 dark:text-zinc-500 mb-4 leading-relaxed">
+        Per-connector defaults for which columns the drop-folder scanner uses to extract <span className="font-mono text-zinc-600 dark:text-zinc-400">outlet</span> and <span className="font-mono text-zinc-600 dark:text-zinc-400">date</span> values. Domains can override any of these per-instance from their Collection tab.
+      </p>
+
+      {/* Search + sort controls */}
+      <div className="flex items-center gap-2 mb-4">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search connectors, platforms…"
+          className="flex-1 text-xs px-3 py-2 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-blue-500 placeholder:text-zinc-300 dark:placeholder:text-zinc-600"
+        />
+        <div className="flex items-center rounded border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setSortMode("platform")}
+            className={`text-xs font-semibold px-3 py-2 cursor-pointer ${sortMode === "platform" ? "bg-blue-500/10 text-blue-500" : "bg-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"}`}
+          >
+            Platform
+          </button>
+          <button
+            type="button"
+            onClick={() => setSortMode("updated")}
+            className={`text-xs font-semibold px-3 py-2 cursor-pointer border-l border-zinc-200 dark:border-zinc-700 ${sortMode === "updated" ? "bg-blue-500/10 text-blue-500" : "bg-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"}`}
+          >
+            Recently Updated
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => setBoundOnly((v) => !v)}
+          className={`text-xs font-semibold px-3 py-2 rounded border cursor-pointer ${boundOnly ? "bg-teal-500/10 text-teal-500 border-teal-500/30" : "bg-transparent text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:text-zinc-600 dark:hover:text-zinc-300"}`}
+          title="Show only connectors with a template-level binding set"
+        >
+          Bound only
+        </button>
+      </div>
+
+      {loadError && (
+        <div className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1.5 mb-3">
+          {loadError}
+        </div>
+      )}
+      {!loadError && allEntries.length === 0 && (
+        <div className="text-[10px] text-zinc-400 italic">Loading fingerprints…</div>
+      )}
+
+      {allEntries.length > 0 && (
+        <>
+          {relevant.length > 0 ? (
+            renderList(relevant)
+          ) : (
+            <div className="text-[10px] text-zinc-400 italic">
+              {search.trim() || boundOnly
+                ? "No connectors match the current search/filter."
+                : "No fingerprint connectors match the platforms in this template."}
+            </div>
+          )}
+
+          {sortMode === "platform" && other.length > 0 && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setShowAll((v) => !v)}
+                className="text-[10px] font-semibold text-zinc-400 hover:text-blue-500 cursor-pointer"
+              >
+                {showAll ? "Hide" : "Show"} {other.length} other connector{other.length === 1 ? "" : "s"} not used by this template
+              </button>
+              {showAll && (
+                <div className="mt-2">
+                  {renderList(other)}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ScanRulesTable({
+  groups,
+  bindings,
+  onUpdate,
+  hideGroupHeaders = false,
+}: {
+  groups: [string, [string, ConnectorFingerprint][]][];
+  bindings: Record<string, ScanBinding>;
+  onUpdate: (connectorId: string, field: "outlet" | "date", value: string) => void;
+  hideGroupHeaders?: boolean;
+}) {
+  const renderRow = ([connectorId, fp]: [string, ConnectorFingerprint]) => {
+    const binding = bindings[connectorId] || {};
+    return (
+      <tr key={connectorId} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/30">
+        <td className="px-3 py-1.5 text-xs font-mono text-zinc-600 dark:text-zinc-400 border-b border-zinc-200/50 dark:border-zinc-800/50" title={connectorId}>
+          {connectorId}
+        </td>
+        <td className="px-3 py-1.5 text-[10px] font-mono text-zinc-400 uppercase border-b border-zinc-200/50 dark:border-zinc-800/50">
+          {fp.format}
+        </td>
+        <td className="px-3 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+          <HeaderSelect
+            value={binding.outlet || ""}
+            headers={fp.headers}
+            autoHint={autoDetectOutletColumn(fp.headers)}
+            onChange={(v) => onUpdate(connectorId, "outlet", v)}
+          />
+        </td>
+        <td className="px-3 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+          <HeaderSelect
+            value={binding.date || ""}
+            headers={fp.headers}
+            autoHint={autoDetectDateColumn(fp.headers)}
+            onChange={(v) => onUpdate(connectorId, "date", v)}
+          />
+        </td>
+        <td className="px-3 py-1.5 text-[11px] text-zinc-500 dark:text-zinc-500 border-b border-zinc-200/50 dark:border-zinc-800/50 whitespace-nowrap">
+          {binding.updatedAt ? (
+            <span title={formatDateTimeSGT(new Date(binding.updatedAt))}>
+              {timeAgoVerbose(binding.updatedAt)}
+            </span>
+          ) : (
+            <span className="text-zinc-300 dark:text-zinc-600">—</span>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
+  return (
+    <table className="w-full border-collapse table-fixed">
+      <colgroup>
+        <col className="w-[30%]" />
+        <col className="w-[60px]" />
+        <col className="w-[28%]" />
+        <col className="w-[28%]" />
+        <col className="w-[140px]" />
+      </colgroup>
+      <thead>
+        <tr className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+          <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">Connector</th>
+          <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">Format</th>
+          <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">Outlet Column</th>
+          <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">Date Column</th>
+          <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {hideGroupHeaders
+          ? groups.flatMap(([, list]) => list.map(renderRow))
+          : groups.flatMap(([platform, list]) => [
+              <tr key={`header-${platform}`}>
+                <td colSpan={5} className="px-3 pt-4 pb-1.5 text-xs font-bold uppercase tracking-wide text-zinc-600 dark:text-zinc-300 capitalize">
+                  {platform}
+                </td>
+              </tr>,
+              ...list.map(renderRow),
+            ])}
+      </tbody>
+    </table>
+  );
+}
+
+function HeaderSelect({
+  value,
+  headers,
+  autoHint,
+  onChange,
+}: {
+  value: string;
+  headers: string[];
+  autoHint?: string | null;
+  onChange: (v: string) => void;
+}) {
+  const autoLabel = autoHint ? `— auto → ${autoHint} —` : "— auto —";
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full text-xs font-mono px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-blue-500"
+    >
+      <option value="">{autoLabel}</option>
+      {headers.map((h) => (
+        <option key={h} value={h}>{h}</option>
+      ))}
+    </select>
+  );
+}
+
+// ─── MasterDataSection ───
+// Template-level preset values that every domain inherits. First iteration
+// owns the Date Params presets. Future iterations can add Platform Defaults
+// (upfrontPayment, bankPaymentByOutlet, etc) and any other master-table
+// seed rows that aren't per-instance.
+
+interface DateParamPreset {
+  id: string;
+  configName?: string;
+  workflowId?: string;
+  calcType?: string;
+  daysBack?: number | null;
+  daysForward?: number | null;
+  periodUnit?: string;
+  includeToday?: boolean;
+  isActive?: boolean;
+  description?: string;
+}
+
+function MasterDataSection({ valConfig, onSave }: { valConfig: any; onSave: (newConfig: any) => void }) {
+  const dateParamsRaw = valConfig?.base?.masterTables?.Date_Params;
+  const defaults: DateParamPreset[] = Array.isArray(dateParamsRaw?.defaults) ? dateParamsRaw.defaults : [];
+
+  const saveDefaults = (next: DateParamPreset[]) => {
+    const nextBase = {
+      ...valConfig.base,
+      masterTables: {
+        ...valConfig.base?.masterTables,
+        Date_Params: { ...dateParamsRaw, defaults: next },
+      },
+    };
+    onSave({ ...valConfig, base: nextBase });
+  };
+
+  const addRow = () => {
+    const nextId = `DAT${defaults.length + 1}`;
+    saveDefaults([
+      ...defaults,
+      { id: nextId, workflowId: "All", calcType: "Fixed", includeToday: false, isActive: false, description: "" },
+    ]);
+  };
+
+  const removeRow = (idx: number) => {
+    saveDefaults(defaults.filter((_, i) => i !== idx));
+  };
+
+  const updateRow = (idx: number, patch: Partial<DateParamPreset>) => {
+    const next = defaults.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+    saveDefaults(next);
+  };
+
+  return (
+    <div className="mb-6">
+      {/* Date Params — template-level preset rows pushed to custom_tbl_1156_166 */}
+      <div className="flex items-baseline justify-between mb-2">
+        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Date Params Presets</h3>
+        <code className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+          {dateParamsRaw?.table || "—"}
+        </code>
+      </div>
+      <p className="text-xs text-zinc-500 dark:text-zinc-500 mb-4 leading-relaxed">
+        Date-window presets pushed to the Data Date Pull Config table during onboarding. Each row is a "mode" — operators toggle{" "}
+        <code className="font-mono text-zinc-600 dark:text-zinc-400">is_active</code> in VAL to switch between historical backfills and rolling incremental runs.
+      </p>
+
+      {/* Column legend — explains each field so future template editors know what to type */}
+      <details className="mb-4 text-xs text-zinc-500 dark:text-zinc-500">
+        <summary className="cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300 font-semibold">
+          What each column means
+        </summary>
+        <dl className="mt-2 space-y-1.5 pl-4 border-l border-zinc-200 dark:border-zinc-800">
+          <div><dt className="inline font-mono text-[11px] text-zinc-600 dark:text-zinc-400">ID</dt>: <dd className="inline">Record ID — short key like <code>All</code>, <code>RevRec</code>, <code>DAT1</code>. Must be unique.</dd></div>
+          <div><dt className="inline font-mono text-[11px] text-zinc-600 dark:text-zinc-400">Workflow</dt>: <dd className="inline">Which workflow this preset applies to. Use <code>All</code> for every workflow, or a specific name like <code>RevRec</code>.</dd></div>
+          <div><dt className="inline font-mono text-[11px] text-zinc-600 dark:text-zinc-400">Calc Type</dt>: <dd className="inline">How the date window is computed. Options: <code>Fixed</code> (explicit start/end dates), <code>Days Back</code> (rolling window counting back from today), <code>Current Period</code> (this month/week/day).</dd></div>
+          <div><dt className="inline font-mono text-[11px] text-zinc-600 dark:text-zinc-400">Days Back / Forward</dt>: <dd className="inline">Only used with <code>Days Back</code> calc type. Days Back = 1 → pulls yesterday.</dd></div>
+          <div><dt className="inline font-mono text-[11px] text-zinc-600 dark:text-zinc-400">Period Unit</dt>: <dd className="inline">Only used with <code>Current Period</code> calc type. Options: <code>Month</code>, <code>Week</code>, <code>Day</code>.</dd></div>
+          <div><dt className="inline font-mono text-[11px] text-zinc-600 dark:text-zinc-400">Include Today</dt>: <dd className="inline">If true, today's data is included in the window. Usually on for daily incremental runs, off for historical backfills.</dd></div>
+          <div><dt className="inline font-mono text-[11px] text-zinc-600 dark:text-zinc-400">Active</dt>: <dd className="inline">Which preset is the default "currently running" mode. Operators can flip this in VAL without editing the template.</dd></div>
+          <div><dt className="inline font-mono text-[11px] text-zinc-600 dark:text-zinc-400">Description</dt>: <dd className="inline">Plain-English explanation of when to use this preset. Shown in the Load tab.</dd></div>
+        </dl>
+      </details>
+
+      {defaults.length === 0 ? (
+        <p className="text-xs text-zinc-400 italic py-3">No presets defined. Add a row to bootstrap Date Params for this solution.</p>
+      ) : (
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+              <th className="text-left px-2 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[80px]">ID</th>
+              <th className="text-left px-2 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[110px]">Workflow</th>
+              <th className="text-left px-2 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[130px]">Calc Type</th>
+              <th className="text-left px-2 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[70px]">Days Back</th>
+              <th className="text-left px-2 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[100px]">Period Unit</th>
+              <th className="text-left px-2 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[70px]">Today</th>
+              <th className="text-left px-2 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[60px]">Active</th>
+              <th className="text-left px-2 py-2 border-b border-zinc-200 dark:border-zinc-800">Description</th>
+              <th className="border-b border-zinc-200 dark:border-zinc-800 w-[32px]"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {defaults.map((row, idx) => (
+              <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/30">
+                <td className="px-2 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <input value={row.id} onChange={(e) => updateRow(idx, { id: e.target.value })} className={`${inputClass} text-xs`} />
+                </td>
+                <td className="px-2 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <input value={row.workflowId || ""} onChange={(e) => updateRow(idx, { workflowId: e.target.value })} className={`${inputClass} text-xs`} placeholder="All" />
+                </td>
+                <td className="px-2 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <select value={row.calcType || ""} onChange={(e) => updateRow(idx, { calcType: e.target.value })} className={`${inputClass} text-xs`}>
+                    <option value="">—</option>
+                    <option value="Fixed">Fixed</option>
+                    <option value="Days Back">Days Back</option>
+                    <option value="Current Period">Current Period</option>
+                  </select>
+                </td>
+                <td className="px-2 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <input
+                    type="number"
+                    value={row.daysBack ?? ""}
+                    onChange={(e) => updateRow(idx, { daysBack: e.target.value === "" ? null : Number(e.target.value) })}
+                    disabled={row.calcType !== "Days Back"}
+                    className={`${inputClass} text-xs disabled:opacity-40`}
+                  />
+                </td>
+                <td className="px-2 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <select
+                    value={row.periodUnit || ""}
+                    onChange={(e) => updateRow(idx, { periodUnit: e.target.value })}
+                    disabled={row.calcType !== "Current Period" && row.calcType !== "Fixed"}
+                    className={`${inputClass} text-xs disabled:opacity-40`}
+                  >
+                    <option value="">—</option>
+                    <option value="Month">Month</option>
+                    <option value="Week">Week</option>
+                    <option value="Day">Day</option>
+                  </select>
+                </td>
+                <td className="px-2 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <label className="flex items-center justify-center cursor-pointer">
+                    <input type="checkbox" checked={Boolean(row.includeToday)} onChange={(e) => updateRow(idx, { includeToday: e.target.checked })} />
+                  </label>
+                </td>
+                <td className="px-2 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <label className="flex items-center justify-center cursor-pointer">
+                    <input type="checkbox" checked={Boolean(row.isActive)} onChange={(e) => updateRow(idx, { isActive: e.target.checked })} />
+                  </label>
+                </td>
+                <td className="px-2 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <input value={row.description || ""} onChange={(e) => updateRow(idx, { description: e.target.value })} className={`${inputClass} text-xs`} placeholder="What this preset does..." />
+                </td>
+                <td className="px-2 py-1.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <button
+                    onClick={() => removeRow(idx)}
+                    title="Remove preset"
+                    className="text-xs text-zinc-400 hover:text-red-500 bg-transparent border-none cursor-pointer"
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={addRow}
+          className="text-xs font-semibold text-blue-500 hover:text-blue-600 cursor-pointer bg-transparent border-none"
+        >
+          + Add preset
+        </button>
+      </div>
+    </div>
+  );
+}
+

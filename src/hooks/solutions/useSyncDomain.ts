@@ -141,17 +141,26 @@ export function buildSyncRequestsFromScope(
 
   // 1. Base resources (always)
   if (resourceType === "tables" && base?.masterTables) {
+    // `masterTables` is a mix of plain string IDs (e.g. "TA-POS": "custom_tbl_133_166")
+    // and richer objects with metadata (e.g. outlets: { table: "...", columns: {...} }).
+    // We must handle BOTH shapes — previously strings were silently dropped, which
+    // meant only 3 of 11 base tables on the AR template ever made it into the sync job.
     const tableIds: string[] = [];
-    for (const val of Object.values(base.masterTables) as any[]) {
-      if (val?.table) {
-        tableIds.push(val.table);
-      } else if (typeof val === "object") {
-        // Nested (bankAccounts)
-        for (const sub of Object.values(val) as any[]) {
-          if (sub?.table) tableIds.push(sub.table);
+    const collect = (v: any): void => {
+      if (!v) return;
+      if (typeof v === "string") {
+        // Allow comma-separated ids in case a base table has multiple sources.
+        for (const id of v.split(",").map((s) => s.trim()).filter(Boolean)) {
+          tableIds.push(id);
         }
+      } else if (v.table && typeof v.table === "string") {
+        tableIds.push(v.table);
+      } else if (typeof v === "object") {
+        // Nested map (e.g. bankAccounts, or a group of {label: {table: ...}}).
+        for (const sub of Object.values(v)) collect(sub);
       }
-    }
+    };
+    for (const val of Object.values(base.masterTables)) collect(val);
     if (tableIds.length) {
       requests.push({
         source: "lab",

@@ -7,7 +7,7 @@ import { useModuleTabStore } from "../stores/moduleTabStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { useClaudeRunStore } from "../stores/claudeRunStore";
 import { cn } from "../lib/cn";
-import { Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, Code, ChevronDown, Wrench, Activity, Brain, StopCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, Code, ChevronDown, Wrench, Activity, Brain, StopCircle, Sun, Moon } from "lucide-react";
 import { NotificationBell } from "../components/notifications/NotificationBell";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { useAppUpdate } from "../hooks/useAppUpdate";
@@ -35,6 +35,8 @@ function ElapsedTime({ startedAt }: { startedAt: Date }) {
 
 export function StatusBar() {
   const syncStatus = useAppStore((s) => s.syncStatus);
+  const theme = useAppStore((s) => s.theme);
+  const toggleTheme = useAppStore((s) => s.toggleTheme);
   const runningJobs = useRunningJobs();
   const recentJobs = useRecentJobs(10);
   const clearCompleted = useJobsStore((s) => s.clearCompleted);
@@ -333,6 +335,26 @@ export function StatusBar() {
 
         {/* Notifications */}
         <NotificationBell variant="statusbar" />
+
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          data-help-id="status-bar-theme"
+          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        >
+          {theme === "dark" ? (
+            <>
+              <Moon size={12} className="text-zinc-400" />
+              <span className="text-zinc-400">Dark</span>
+            </>
+          ) : (
+            <>
+              <Sun size={12} className="text-amber-500" />
+              <span className="text-zinc-600">Light</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* Claude Output Drawer — slides up from status bar */}

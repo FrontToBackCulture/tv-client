@@ -24,6 +24,7 @@ export function getOutlets(scope: ScopeOutlet[]): OutletInfo[] {
       key: r.outlet,
       entity: r.entity,
       label: r.entity ? `${r.entity} — ${r.outlet}` : r.outlet,
+      outletName: r.outletName,
     }));
 }
 
@@ -156,12 +157,15 @@ export function getSyncItems(
   banks: BankAccount[]
 ): SyncItem[] {
   const items: SyncItem[] = [];
+  // Base resources (shared across all systems — master tables, base workflows/dashboards)
+  items.push({ type: "Base", name: "Base", scope: "All", outlets: [], key: "base" });
   // Per POS
   getUniquePOS(scope).forEach((pos) => {
     items.push({
       type: "POS",
       name: pos.name,
       scope: pos.outlets.join(", "),
+      outlets: pos.outlets,
       key: `pos::${pos.name}`,
     });
   });
@@ -169,13 +173,14 @@ export function getSyncItems(
   pms
     .filter((pm) => pm.name !== "Cash")
     .forEach((pm) => {
-      const outlets = getOutletNames(scope).filter((o) =>
+      const applicable = getOutletNames(scope).filter((o) =>
         isPMApplicable(pm, o)
       );
       items.push({
         type: "Payment",
         name: pm.name,
-        scope: outlets.join(", "),
+        scope: applicable.join(", "),
+        outlets: applicable,
         key: `pm::${pm.name}`,
       });
     });
@@ -188,11 +193,10 @@ export function getSyncItems(
       type: "Bank",
       name: b.bank,
       scope: "All",
+      outlets: [],
       key: `bank::${b.bank}`,
     });
   });
-  // Recon
-  items.push({ type: "Recon", name: "Reconciliation", scope: "All", key: "recon" });
   return items;
 }
 

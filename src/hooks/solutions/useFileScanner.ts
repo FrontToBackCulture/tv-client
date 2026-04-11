@@ -25,7 +25,13 @@ export interface ScannedFile {
   dateRange: { from: string; to: string } | null;
   outlets: string[];
   outletDetails: { name: string; id: string }[];
+  usedOutletColumn: string | null;
+  usedDateColumn: string | null;
+  candidateOutletColumns: string[];
+  candidateDateColumns: string[];
 }
+
+export type ScanBindings = Record<string, { outlet?: string; date?: string }>;
 
 export interface ScanResult {
   files: ScannedFile[];
@@ -111,33 +117,77 @@ function tryParseDate(val: any): Date | null {
   return null;
 }
 
-function extractDateRange(rows: any[], headers: string[]): { from: string; to: string } | null {
-  // Find date-like columns — broad matching
-  const dateCols = headers.filter((h) =>
-    /date|time|period|created|updated|transaction|order|settlement|transfer|processed|payout|posting|effective|start|end|from|to|month|day/i.test(h),
-  );
+interface DateRangeResult {
+  range: { from: string; to: string } | null;
+  usedColumn: string | null;
+  candidates: string[];
+}
 
-  // If no obvious date columns, try all columns on first row
-  const colsToCheck = dateCols.length > 0 ? dateCols : headers;
+// Keep in sync with autoDetectDateColumn in SolutionOnboardingPanel.tsx.
+// Deliberately excludes short/greedy tokens (`to`, `from`, `end`, `start`,
+// `day`, `month`, `transaction`, `order`) that produced false positives like
+// `store name → to`, `order id → order`, `subtotal → to`.
+const DATE_INCLUDE_RX = /date|timestamp|time|created|updated|posted|posting|settled|settlement|payout|processed|effective/i;
+const DATE_PREFERRED_RX = /date|timestamp|\btime\b|_time\b|time_/i;
+const DATE_EXCLUDE_RX = /\b(amount|value|fee|total|sum|currency|price|rate|reference|id|number|mdr)\b|id$|_id/i;
 
-  const dates: Date[] = [];
+function extractDateRange(
+  rows: any[],
+  headers: string[],
+  override?: string | null,
+): DateRangeResult {
+  // Preferred: explicit `date`/`time` mentions without currency/id tokens.
+  // Fallback: broader verb-form matches (created, updated, etc).
+  const preferred = headers.filter((h) => DATE_PREFERRED_RX.test(h) && !DATE_EXCLUDE_RX.test(h));
+  const fallback = headers.filter((h) => DATE_INCLUDE_RX.test(h) && !DATE_EXCLUDE_RX.test(h) && !preferred.includes(h));
+  const candidates = [...preferred, ...fallback];
 
-  for (const row of rows) {
-    for (const col of colsToCheck) {
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+  // Explicit override — use only that column.
+  if (override && headers.includes(override)) {
+    const dates: Date[] = [];
+    for (const row of rows) {
+      const d = tryParseDate(row[override]);
+      if (d) dates.push(d);
+    }
+    if (dates.length === 0) return { range: null, usedColumn: override, candidates };
+    dates.sort((a, b) => a.getTime() - b.getTime());
+    return {
+      range: { from: fmt(dates[0]), to: fmt(dates[dates.length - 1]) },
+      usedColumn: override,
+      candidates,
+    };
+  }
+
+  // Auto-pick: try each candidate (or all headers as fallback), return the column
+  // that produced the most parseable dates. Avoids merging dates across semantically
+  // different columns (order_date vs settlement_date).
+  const colsToCheck = candidates.length > 0 ? candidates : headers;
+  let bestCol: string | null = null;
+  let bestDates: Date[] = [];
+  for (const col of colsToCheck) {
+    const dates: Date[] = [];
+    for (const row of rows) {
       const d = tryParseDate(row[col]);
-      if (d) {
-        dates.push(d);
-        // If checking all columns and we found a date, remember this column
-        // and stop checking non-date columns for subsequent rows
-      }
+      if (d) dates.push(d);
+    }
+    if (dates.length > bestDates.length) {
+      bestCol = col;
+      bestDates = dates;
     }
   }
 
-  if (dates.length === 0) return null;
+  if (!bestCol || bestDates.length === 0) {
+    return { range: null, usedColumn: null, candidates };
+  }
 
-  dates.sort((a, b) => a.getTime() - b.getTime());
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: fmt(dates[0]), to: fmt(dates[dates.length - 1]) };
+  bestDates.sort((a, b) => a.getTime() - b.getTime());
+  return {
+    range: { from: fmt(bestDates[0]), to: fmt(bestDates[bestDates.length - 1]) },
+    usedColumn: bestCol,
+    candidates,
+  };
 }
 
 // ─── Outlet extraction ───
@@ -147,24 +197,63 @@ interface OutletDetail {
   id: string;       // Store ID / UUID from the platform
 }
 
-function extractOutletDetails(rows: any[], headers: string[]): OutletDetail[] {
-  // Find outlet/store name columns
-  const nameCols = headers.filter((h) =>
-    /store.?name|outlet.?name|store|outlet|location|branch|restaurant|shop|site|venue/i.test(h)
-    && !/id$|_id$|code$|_code$|number$|_no$|merchant/i.test(h)
-  );
+interface OutletExtractionResult {
+  details: OutletDetail[];
+  usedColumn: string | null;
+  candidates: string[];
+}
 
-  // Find store ID columns
+// Ordered list of outlet-name patterns (most specific → least). Kept here so
+// the scanner's auto-detect stays aligned with SolutionOnboardingPanel's
+// template preview. If you change one, update the other.
+const OUTLET_NAME_PATTERNS: RegExp[] = [
+  /store[\s_-]?name/i,
+  /outlet[\s_-]?name/i,
+  /branch[\s_-]?name/i,
+  /restaurant[\s_-]?name/i,
+  /location[\s_-]?name/i,
+  /shop[\s_-]?name/i,
+  /site[\s_-]?name/i,
+  /merchant[\s_-]?name/i,
+  /\bstore\b/i,
+  /\boutlet\b/i,
+  /\bbranch\b/i,
+  /\brestaurant\b/i,
+  /\blocation\b/i,
+];
+const OUTLET_EXCLUDE_RX = /\b(id|code|number|type|group|category|map|mdr|no)\b|id$|_id|_code|_no$/i;
+
+function extractOutletDetails(
+  rows: any[],
+  headers: string[],
+  override?: string | null,
+): OutletExtractionResult {
+  const candidates: string[] = [];
+  const candidateSet = new Set<string>();
+  for (const pat of OUTLET_NAME_PATTERNS) {
+    for (const h of headers) {
+      if (candidateSet.has(h)) continue;
+      if (pat.test(h) && !OUTLET_EXCLUDE_RX.test(h)) {
+        candidates.push(h);
+        candidateSet.add(h);
+      }
+    }
+  }
+
+  let nameCol: string | null = null;
+  if (override && headers.includes(override)) {
+    nameCol = override;
+  } else if (candidates.length > 0) {
+    nameCol = candidates[0];
+  }
+  if (!nameCol) return { details: [], usedColumn: null, candidates };
+
   const idCols = headers.filter((h) =>
-    /store.?id|outlet.?id|location.?id|branch.?id|site.?id|merchant.?id/i.test(h)
+    /store[\s_-]?id|outlet[\s_-]?id|location[\s_-]?id|branch[\s_-]?id|site[\s_-]?id|merchant[\s_-]?id|storeid|outletid|branchid/i.test(h),
   );
-
-  if (nameCols.length === 0) return [];
-
-  const nameCol = nameCols[0];
   const idCol = idCols.length > 0 ? idCols[0] : null;
 
-  const seen = new Map<string, OutletDetail>(); // name → detail
+  const seen = new Map<string, OutletDetail>();
   for (const row of rows) {
     const name = row[nameCol];
     if (!name || typeof name !== "string" || !name.trim()) continue;
@@ -174,7 +263,8 @@ function extractOutletDetails(rows: any[], headers: string[]): OutletDetail[] {
     seen.set(trimmed, { name: trimmed, id });
   }
 
-  return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  const details = Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return { details, usedColumn: nameCol, candidates };
 }
 
 // ─── File reading ───
@@ -225,7 +315,7 @@ export function useFileScanner(fingerprintPath: string | null) {
   const [error, setError] = useState<string | null>(null);
 
   const scan = useCallback(
-    async (folderPath: string) => {
+    async (folderPath: string, bindings?: ScanBindings) => {
       if (!fingerprintPath) {
         setError("No fingerprint index available");
         return;
@@ -258,9 +348,17 @@ export function useFileScanner(fingerprintPath: string | null) {
 
           const { headers, rows } = await readFileHeaders(file.path, ext);
           const match = findBestMatch(headers, fingerprints);
-          const dateRange = rows.length > 0 ? extractDateRange(rows, headers) : null;
-          const outletDetails = rows.length > 0 ? extractOutletDetails(rows, headers) : [];
-          const outlets = outletDetails.map((d) => d.name);
+
+          const binding = match ? bindings?.[match.connector] : undefined;
+          const outletOverride = binding?.outlet || null;
+          const dateOverride = binding?.date || null;
+
+          const dateResult = rows.length > 0
+            ? extractDateRange(rows, headers, dateOverride)
+            : { range: null, usedColumn: null, candidates: [] };
+          const outletResult = rows.length > 0
+            ? extractOutletDetails(rows, headers, outletOverride)
+            : { details: [], usedColumn: null, candidates: [] };
 
           scannedFiles.push({
             name: file.name,
@@ -269,9 +367,13 @@ export function useFileScanner(fingerprintPath: string | null) {
             format: ext,
             headers,
             match,
-            dateRange,
-            outlets,
-            outletDetails,
+            dateRange: dateResult.range,
+            outlets: outletResult.details.map((d) => d.name),
+            outletDetails: outletResult.details,
+            usedOutletColumn: outletResult.usedColumn,
+            usedDateColumn: dateResult.usedColumn,
+            candidateOutletColumns: outletResult.candidates,
+            candidateDateColumns: dateResult.candidates,
           });
         }
 

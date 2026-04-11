@@ -47,6 +47,7 @@ export interface TemplateDefinition {
   credentialPlatforms?: string[];
   settlementExclude?: string[];
   slug?: string;
+  scanBindings?: Record<string, ScanBinding>; // connectorId → default columns for this solution
 }
 
 export interface TemplateTab {
@@ -83,10 +84,26 @@ export interface PersistedScanFile {
   dateRange: { from: string; to: string } | null;
   outlets: string[];
   outletDetails: { name: string; id: string }[];
+  usedOutletColumn?: string | null;
+  usedDateColumn?: string | null;
+  candidateOutletColumns?: string[];
+  candidateDateColumns?: string[];
+}
+
+export interface ScanBinding {
+  outlet?: string;
+  date?: string;
+  updatedAt?: string; // ISO timestamp of the last template-level edit
+}
+
+export interface ScopeEntity {
+  name: string;      // Legal name — matches ScopeOutlet.entity
+  shortCode: string; // Brand shortcode used as the `brand` column in master outlets table
 }
 
 export interface InstanceData {
   scope?: ScopeOutlet[];
+  entities?: ScopeEntity[]; // Per-entity metadata (shortcode etc). Lookup by name.
   paymentMethods?: PaymentMethod[];
   banks?: BankAccount[];
   periods?: string[];
@@ -99,6 +116,7 @@ export interface InstanceData {
   dropFolder?: string;
   uploadedFiles?: UploadedFileRecord[];
   lastScan?: { files: PersistedScanFile[]; scannedAt: string };
+  scanBindings?: Record<string, ScanBinding>; // connectorId → override columns
   outletMapping?: Record<string, string>; // data outlet name → scope outlet code
   dataLoadStatus?: Record<string, { status: string; triggeredAt: string }>; // "pm::Grab::Mar 2026" → status
   // AP-specific
@@ -108,8 +126,9 @@ export interface InstanceData {
 
 export interface ScopeOutlet {
   entity: string;
-  outlet: string;
-  pos: string[];   // multiple POS systems per outlet
+  outlet: string;          // Short code — used as the `id` in the master outlets table
+  outletName?: string;     // Long display name — falls back to `outlet` when blank
+  pos: string[];           // multiple POS systems per outlet
   notes: string;
 }
 
@@ -164,6 +183,7 @@ export interface ImplStatusEntry {
   date?: string;
   minDate?: string;
   maxDate?: string;
+  completedAt?: string; // ISO timestamp of the last successful push / run for this row
 }
 
 export type ItemStatus = "pending" | "progress" | "blocked" | "done" | "na";
@@ -176,6 +196,7 @@ export interface OutletInfo {
   key: string;
   entity: string;
   label: string;
+  outletName?: string; // Long display name from ScopeOutlet.outletName
 }
 
 export interface UniquePOS {
@@ -184,9 +205,10 @@ export interface UniquePOS {
 }
 
 export interface SyncItem {
-  type: "POS" | "Payment" | "Bank" | "Recon";
+  type: "Base" | "POS" | "Payment" | "Bank";
   name: string;
-  scope: string;
+  scope: string;       // legacy joined-string form (kept for anywhere still reading it)
+  outlets: string[];   // structured outlet list for OutletScope rendering
   key: string;
 }
 

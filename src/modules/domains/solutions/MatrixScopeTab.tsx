@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { InstanceData, ScopeOutlet, PaymentMethod, BankAccount, TemplateDefinition } from "../../../lib/solutions/types";
+import type { InstanceData, ScopeOutlet, ScopeEntity, PaymentMethod, BankAccount, TemplateDefinition } from "../../../lib/solutions/types";
 import { POS_OPTIONS, PAYMENT_METHOD_OPTIONS, BANK_OPTIONS } from "../../../lib/solutions/types";
-import { getOutletNames, getEntities, filterScope } from "./matrixHelpers";
+import { getOutletNames, getOutlets, getEntities, getBankForCell, isPMApplicable, filterScope } from "./matrixHelpers";
 import {
   CollapsibleSection, EditableInput, AddButton, DeleteButton,
 } from "./matrixComponents";
@@ -48,8 +48,37 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity, domain:
   };
 
   const renameEntity = (oldEntity: string, newEntity: string) => {
-    const next = scope.map((s) => (s.entity || "") === oldEntity ? { ...s, entity: newEntity } : s);
-    onChange({ ...data, scope: next });
+    const nextScope = scope.map((s) => (s.entity || "") === oldEntity ? { ...s, entity: newEntity } : s);
+    // Keep data.entities in sync when renaming so the shortcode stays attached to the entity.
+    const nextEntities = (data.entities || []).map((e) =>
+      e.name === oldEntity ? { ...e, name: newEntity } : e,
+    );
+    onChange({ ...data, scope: nextScope, entities: nextEntities });
+  };
+
+  const getEntityShortCode = (entity: string): string => {
+    return (data.entities || []).find((e) => e.name === entity)?.shortCode || "";
+  };
+
+  const updateEntityShortCode = (entity: string, shortCode: string) => {
+    if (!entity) return; // Don't store shortcodes for the "Unassigned" group
+    const existing = data.entities || [];
+    const trimmed = shortCode.trim();
+    const idx = existing.findIndex((e) => e.name === entity);
+    let next: ScopeEntity[];
+    if (idx >= 0) {
+      if (!trimmed) {
+        next = existing.filter((_, i) => i !== idx);
+      } else {
+        next = [...existing];
+        next[idx] = { ...next[idx], shortCode: trimmed };
+      }
+    } else if (trimmed) {
+      next = [...existing, { name: entity, shortCode: trimmed }];
+    } else {
+      return; // nothing to do
+    }
+    onChange({ ...data, entities: next });
   };
 
   const updatePM = useCallback(
@@ -151,10 +180,12 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity, domain:
                 entity={entity}
                 count={count}
                 scope={scope}
+                shortCode={getEntityShortCode(entity)}
                 onUpdate={updateScope}
                 onRemove={removeOutlet}
                 onAdd={() => addOutlet(entity)}
                 onRenameEntity={renameEntity}
+                onUpdateShortCode={updateEntityShortCode}
                 onAddCustomPOS={handleAddCustomPOS}
                 allScopePOS={allScopePOS}
               />
@@ -274,6 +305,53 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity, domain:
         {selectedEntity === null && <BankAddRow onAdd={addBank} onAddCustom={handleAddCustomBank} />}
       </CollapsibleSection>
 
+      {/* Bank Settlement Summary — read-only verification derived from the bank definitions above */}
+      <CollapsibleSection badge="Verify" badgeColor="purple" title="Bank Settlement Summary" description="Read-only — derived from bank definitions. Shows which bank account receives settlement for each outlet × payment method.">
+        {filteredScope.length === 0 || pms.length === 0 || banks.length === 0 ? (
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 py-3">Add outlets, payment methods, and bank accounts first.</p>
+        ) : (() => {
+          const bsOutlets = getOutlets(filteredScope);
+          return (
+            <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-lg">
+              <table className="border-collapse min-w-full">
+                <thead>
+                  <tr>
+                    <th className="bg-zinc-50 dark:bg-zinc-900 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 px-3 py-2.5 text-left border border-zinc-200 dark:border-zinc-800 sticky left-0 z-10 whitespace-nowrap">Outlet</th>
+                    {pms.map((pm) => (
+                      <th key={pm.name} className="bg-zinc-50 dark:bg-zinc-900 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 px-3 py-2.5 text-center border border-zinc-200 dark:border-zinc-800 whitespace-nowrap">{pm.name}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {bsOutlets.map((o) => (
+                    <tr key={o.key}>
+                      <th className="bg-zinc-50 dark:bg-zinc-900 text-xs font-medium text-left px-3 py-2 border border-zinc-200 dark:border-zinc-800 sticky left-0 z-[1] whitespace-nowrap">{o.key}</th>
+                      {pms.map((pm) => {
+                        if (!isPMApplicable(pm, o.key)) {
+                          return <td key={pm.name} className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 opacity-40 text-center text-xs text-zinc-500 dark:text-zinc-600">&mdash;</td>;
+                        }
+                        const bank = getBankForCell(banks, o.key, pm.name);
+                        return (
+                          <td key={pm.name} className="border border-zinc-200 dark:border-zinc-800 text-center">
+                            <div className="px-2 py-1.5">
+                              {bank ? (
+                                <span className="text-[11px] font-semibold text-blue-400">{bank}</span>
+                              ) : (
+                                <span className="text-[10px] text-red-400">Not mapped</span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </CollapsibleSection>
+
     </div>
   );
 }
@@ -288,12 +366,38 @@ function SummaryCard({ value, label }: { value: number; label: string }) {
   );
 }
 
+// ─── Entity shortcode input — commit-on-blur ───
+function EntityShortCodeInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [local, setLocal] = useState(value);
+  const [focused, setFocused] = useState(false);
+  // Keep the input in sync with external updates when not actively editing.
+  if (!focused && local !== value) setLocal(value);
+  const bare = !value.trim();
+  return (
+    <input
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => { setFocused(false); if (local.trim() !== value) onSave(local); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") { setLocal(value); (e.target as HTMLInputElement).blur(); }
+      }}
+      placeholder="Short"
+      title={bare ? "Entity shortcode — used as the `brand` column in master outlets" : "Entity shortcode"}
+      className={`text-[11px] font-mono px-1.5 py-0.5 rounded border w-[80px] bg-white dark:bg-zinc-800 focus:outline-none focus:border-blue-500 ${bare ? "border-amber-400 text-amber-500 placeholder:text-amber-400/60" : "border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"}`}
+    />
+  );
+}
+
 // ─── Entity group (collapsible) ───
-function EntityGroup({ entity, count, scope, onUpdate, onRemove, onAdd, onRenameEntity, onAddCustomPOS, allScopePOS }: {
+function EntityGroup({ entity, count, scope, shortCode, onUpdate, onRemove, onAdd, onRenameEntity, onUpdateShortCode, onAddCustomPOS, allScopePOS }: {
   entity: string; count: number; scope: ScopeOutlet[];
+  shortCode: string;
   onUpdate: (idx: number, field: keyof ScopeOutlet, value: unknown) => void;
   onRemove: (idx: number) => void; onAdd: () => void;
   onRenameEntity: (oldEntity: string, newEntity: string) => void;
+  onUpdateShortCode: (entity: string, shortCode: string) => void;
   onAddCustomPOS?: (name: string) => void;
   allScopePOS?: string[];
 }) {
@@ -340,6 +444,12 @@ function EntityGroup({ entity, count, scope, onUpdate, onRemove, onAdd, onRename
             {entity || "Unassigned"}
           </span>
         )}
+        {entity && (
+          <EntityShortCodeInput
+            value={shortCode}
+            onSave={(v) => onUpdateShortCode(entity, v)}
+          />
+        )}
         <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">{count} outlets</span>
         <div className="flex gap-1 ml-auto">
           {[...posSet].map((pos) => (
@@ -375,7 +485,8 @@ function OutletTable({ scope, filteredScope, onUpdate, onRemove, onAdd, entityNa
           <tr className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
             <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-8">#</th>
             {showEntity && <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[18%]">Entity</th>}
-            <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[25%]">Outlet</th>
+            <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[12%]">Code</th>
+            <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[22%]">Outlet Name</th>
             <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 w-[20%]">POS</th>
             <th className="text-left px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">Notes</th>
             <th className="w-8 border-b border-zinc-200 dark:border-zinc-800"></th>
@@ -393,7 +504,10 @@ function OutletTable({ scope, filteredScope, onUpdate, onRemove, onAdd, entityNa
                   </td>
                 )}
                 <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
-                  <EditableInput value={row.outlet} onChange={(v) => onUpdate(globalIdx, "outlet", v)} placeholder="Outlet..." />
+                  <EditableInput value={row.outlet} onChange={(v) => onUpdate(globalIdx, "outlet", v)} placeholder="TAKA" />
+                </td>
+                <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                  <EditableInput value={row.outletName || ""} onChange={(v) => onUpdate(globalIdx, "outletName", v)} placeholder="Takashimaya..." />
                 </td>
                 <td className="px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50">
                   <POSMultiSelect value={Array.isArray(row.pos) ? row.pos : []} onChange={(v) => onUpdate(globalIdx, "pos", v)} onAddCustom={onAddCustomPOS} allScopePOS={allScopePOS} />

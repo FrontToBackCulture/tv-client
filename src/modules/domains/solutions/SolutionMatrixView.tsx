@@ -13,9 +13,11 @@ import MatrixAPScopeTab from "./MatrixAPScopeTab";
 import MatrixConnectivityTab from "./MatrixConnectivityTab";
 import MatrixCollectionTab from "./MatrixCollectionTab";
 import MatrixAPCollectionTab from "./MatrixAPCollectionTab";
-import MatrixMappingTab from "./MatrixMappingTab";
 import MatrixAPMappingTab from "./MatrixAPMappingTab";
-import MatrixImplementationTab from "./MatrixImplementationTab";
+import MatrixSetupTab from "./MatrixSetupTab";
+import MatrixDataTab from "./MatrixDataTab";
+import MatrixDataLoadTab from "./MatrixDataLoadTab";
+import MatrixReconciliationTab from "./MatrixReconciliationTab";
 
 const TAB_COLORS: Record<string, string> = {
   purple: "border-purple-500 text-purple-400",
@@ -23,6 +25,7 @@ const TAB_COLORS: Record<string, string> = {
   teal: "border-teal-500 text-teal-400",
   amber: "border-amber-500 text-amber-400",
   green: "border-emerald-500 text-emerald-400",
+  blue: "border-blue-500 text-blue-400",
 };
 
 interface Props {
@@ -205,12 +208,19 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
         return isAP ? <MatrixAPScopeTab {...commonProps} /> : <MatrixScopeTab {...commonProps} domain={instance.domain} instanceId={instance.id} template={template} onAddSystem={handleAddSystem} />;
       case "connectivity":
         return <MatrixConnectivityTab {...commonProps} template={template} />;
+      case "setup":
+        return <MatrixSetupTab {...commonProps} template={template} domain={instance.domain} instanceId={instance.id} />;
+      case "data":
+        return <MatrixDataTab {...commonProps} template={template} domain={instance.domain} instanceId={instance.id} onNavigateTab={setActiveTab} />;
+      case "load":
+        return <MatrixDataLoadTab {...commonProps} template={template} domain={instance.domain} instanceId={instance.id} />;
+      case "reconciliation":
+        return <MatrixReconciliationTab {...commonProps} template={template} />;
+      // ─── Legacy tab keys (kept so AP/Analytics templates that haven't migrated still render) ───
       case "collection":
         return isAP ? <MatrixAPCollectionTab {...commonProps} template={template} /> : <MatrixCollectionTab {...commonProps} template={template} domain={instance.domain} />;
       case "mapping":
-        return isAP ? <MatrixAPMappingTab {...commonProps} /> : <MatrixMappingTab {...commonProps} />;
-      case "implementation":
-        return <MatrixImplementationTab {...commonProps} template={template} domain={instance.domain} instanceId={instance.id} />;
+        return isAP ? <MatrixAPMappingTab {...commonProps} /> : <p className="text-xs text-zinc-500 py-4">Mapping tab has been removed — see Scope for bank summary and Load for outlet name mapping.</p>;
       default:
         return <p className="text-xs text-zinc-500 py-4">Tab "{tabKey}" not implemented yet.</p>;
     }

@@ -21,4 +21,4 @@ export {
 } from "./useSyncDomain";
 export type { SyncJob } from "./useSyncDomain";
 export { useFileScanner } from "./useFileScanner";
-export type { ScannedFile, ScanResult } from "./useFileScanner";
+export type { ScannedFile, ScanResult, ScanBindings } from "./useFileScanner";

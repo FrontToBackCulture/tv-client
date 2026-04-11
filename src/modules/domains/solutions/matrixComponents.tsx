@@ -118,6 +118,83 @@ export function OwnerTag({ owner }: { owner: string }) {
 // Outlet/PM chips
 // ============================================================================
 
+// ============================================================================
+// Outlet scope — lists outlets inline for small sets, collapses to a count for
+// large ones with a click-to-expand affordance. Used across Setup and Collection
+// tab tables where "which outlets does this apply to" is a recurring column.
+//
+// When `covered` is provided (e.g., from a file scan), outlets in the set are
+// rendered green and the count badge shows "X/Y covered" so the user can see
+// at a glance whether the data we expect has been received.
+// ============================================================================
+
+const OUTLET_SCOPE_INLINE_THRESHOLD = 6;
+
+export function OutletScope({
+  outlets,
+  covered,
+  allLabel = "All",
+}: {
+  outlets: string[];
+  covered?: Set<string>;
+  allLabel?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (outlets.length === 0) {
+    return <span className="text-xs text-zinc-400 dark:text-zinc-500">{allLabel}</span>;
+  }
+
+  const coveredCount = covered ? outlets.filter((o) => covered.has(o)).length : 0;
+
+  const renderOutlet = (o: string) => {
+    if (covered && covered.has(o)) {
+      return <span className="text-emerald-500 dark:text-emerald-400 font-medium">{o}</span>;
+    }
+    return <span className="text-zinc-400 dark:text-zinc-500">{o}</span>;
+  };
+
+  const inlineList = (
+    <span className="text-xs">
+      {outlets.map((o, i) => (
+        <span key={o}>
+          {i > 0 && <span className="text-zinc-400 dark:text-zinc-500">, </span>}
+          {renderOutlet(o)}
+        </span>
+      ))}
+    </span>
+  );
+
+  if (outlets.length <= OUTLET_SCOPE_INLINE_THRESHOLD) {
+    return inlineList;
+  }
+
+  // Collapsed: badge label changes based on whether coverage is provided
+  const badgeLabel = covered
+    ? `${coveredCount}/${outlets.length} covered`
+    : `${outlets.length} outlets`;
+  const badgeColor = covered && coveredCount === outlets.length
+    ? "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500/20"
+    : covered && coveredCount > 0
+      ? "bg-amber-500/10 text-amber-500 dark:text-amber-400 hover:bg-amber-500/20"
+      : "bg-blue-500/10 text-blue-500 dark:text-blue-400 hover:bg-blue-500/20";
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border-none cursor-pointer inline-flex items-center gap-1 ${badgeColor}`}
+      >
+        <span>{badgeLabel}</span>
+        <span className={`text-[8px] transition-transform ${expanded ? "rotate-180" : ""}`}>▾</span>
+      </button>
+      {expanded && (
+        <div className="mt-1 leading-relaxed">{inlineList}</div>
+      )}
+    </div>
+  );
+}
+
 export function Chip({
   label,
   excluded = false,
@@ -158,6 +235,20 @@ const BADGE_COLORS: Record<string, string> = {
   blue: "bg-blue-500/10 text-blue-400",
 };
 
+/**
+ * Derive a tailwind text color class from a progress string like "3 / 12".
+ * Used for at-a-glance scannability in section headers and sub-tab labels.
+ */
+export function progressColor(progress: string): string {
+  const match = progress.match(/(\d+)\s*\/\s*(\d+)/);
+  if (!match) return "text-zinc-500 dark:text-zinc-500";
+  const done = parseInt(match[1], 10);
+  const total = parseInt(match[2], 10);
+  if (total === 0 || done === 0) return "text-zinc-500 dark:text-zinc-500";
+  if (done === total) return "text-emerald-500 dark:text-emerald-400";
+  return "text-amber-500 dark:text-amber-400";
+}
+
 export function SectionHeader({
   badge,
   badgeColor = "blue",
@@ -181,7 +272,7 @@ export function SectionHeader({
         </span>
         <span className="text-sm font-semibold">{title}</span>
         {progress && (
-          <span className="ml-auto text-[11px] font-semibold text-zinc-500 font-mono">
+          <span className={`ml-auto text-[11px] font-semibold font-mono ${progressColor(progress)}`}>
             {progress}
           </span>
         )}
@@ -203,14 +294,14 @@ export function CollapsibleSection({
   title,
   progress,
   description,
-  defaultOpen = true,
+  defaultOpen = false,
   children,
 }: {
   badge: string;
   badgeColor?: string;
   title: string;
   progress?: string;
-  description?: string;
+  description?: React.ReactNode;
   defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
@@ -220,7 +311,7 @@ export function CollapsibleSection({
     <div className="mb-4">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2.5 mb-1 pb-2.5 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer bg-transparent border-t-0 border-x-0 text-left"
+        className="w-full flex items-center gap-2.5 mb-1 pb-2.5 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer bg-transparent border-t-0 border-x-0 text-left hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
       >
         <span className={`text-[10px] transition-transform ${open ? "rotate-90" : ""} text-zinc-400`}>&#9654;</span>
         <span
@@ -230,7 +321,7 @@ export function CollapsibleSection({
         </span>
         <span className="text-sm font-semibold">{title}</span>
         {progress && (
-          <span className="ml-auto text-[11px] font-semibold text-zinc-500 font-mono">
+          <span className={`ml-auto text-[11px] font-semibold font-mono ${progressColor(progress)}`}>
             {progress}
           </span>
         )}
@@ -238,7 +329,7 @@ export function CollapsibleSection({
       {open && (
         <>
           {description && (
-            <p className="text-[11px] text-zinc-500 mb-3">{description}</p>
+            <div className="text-[11px] text-zinc-500 mb-3">{description}</div>
           )}
           {children}
         </>
@@ -278,10 +369,10 @@ export function EditableInput({
 // ============================================================================
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
+  Base: "bg-emerald-500/10 text-emerald-400",
   POS: "bg-cyan-500/10 text-cyan-400",
   Payment: "bg-amber-500/10 text-amber-400",
   Bank: "bg-purple-500/10 text-purple-400",
-  Recon: "bg-emerald-500/10 text-emerald-400",
 };
 
 export function TypeBadge({ type }: { type: string }) {

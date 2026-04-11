@@ -27,7 +27,6 @@ use serde_json::{json, Value};
 use tauri::Emitter;
 
 use super::api;
-use super::export;
 use super::mapping;
 use super::types::*;
 
@@ -133,12 +132,6 @@ async fn sync_config(
     let client = get_client().await?;
 
     eprintln!("[notion:sync] Syncing '{}' (db: {})", config.name, config.notion_database_id);
-
-    // Resolve markdown export directory (if knowledge_path is configured)
-    let export_dir = export::get_export_dir(&config.name);
-    if let Some(ref dir) = export_dir {
-        eprintln!("[notion:sync] Markdown export → {}", dir.display());
-    }
 
     let _ = app_handle.emit(
         "notion:sync-progress",
@@ -423,18 +416,6 @@ async fn sync_config(
             }
         }
 
-        // Export as markdown file (if knowledge_path configured)
-        if let Some(ref dir) = export_dir {
-            if let Err(e) = export::export_page_as_markdown(
-                dir,
-                page,
-                &config.field_mapping,
-                page_body_md.as_deref(),
-            ) {
-                eprintln!("[notion:sync] Export error for '{}': {}", title, e);
-            }
-        }
-
         // Emit progress every 10 items
         if (i + 1) % 10 == 0 || i + 1 == pages.len() {
             let _ = app_handle.emit(
@@ -450,14 +431,6 @@ async fn sync_config(
 
         // Rate limit: small delay between task operations
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    }
-
-    // Rebuild markdown index (skip for bulk/initial sync)
-    if !config.skip_body {
-        if let Some(ref dir) = export_dir {
-            export::rebuild_index(dir, &config.name, &config.notion_database_id);
-            eprintln!("[notion:sync] Rebuilt markdown index at {}", dir.display());
-        }
     }
 
     // Update last_synced_at
