@@ -112,9 +112,9 @@ fn main() {
 
             // Start MCP HTTP server (uses tv-mcp crate — single source of truth)
             tauri::async_runtime::spawn(async {
-                let port = tv_mcp::server::server::DEFAULT_PORT;
+                let port = crate::mcp::server::DEFAULT_PORT;
                 eprintln!("[tv-desktop] Starting MCP HTTP server on port {}...", port);
-                if let Err(e) = tv_mcp::server::server::run_http(port).await {
+                if let Err(e) = crate::mcp::server::run_http(port).await {
                     eprintln!("[tv-desktop] MCP server error: {}", e);
                 }
             });

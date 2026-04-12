@@ -8,7 +8,6 @@ default-run = "tv-client"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tv-mcp = { path = "../../tv-mcp" }
 css-inline = "0.20"
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-shell = "2"
