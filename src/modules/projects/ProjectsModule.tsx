@@ -5,10 +5,9 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import {
   LayoutDashboard, Columns3, Building2, BarChart3, Activity,
-  Plus, Target, FolderPlus, User as UserIcon, Users, Layers,
+  User as UserIcon, Users, Layers,
   ChevronDown,
 } from "lucide-react";
-import { Button } from "../../components/ui";
 import { useProjects, useAllTasks, useInitiatives, useUsers, useUpdateProject } from "../../hooks/work";
 import { useCurrentUserId } from "../../hooks/work/useUsers";
 import { supabase } from "../../lib/supabase";
@@ -68,23 +67,24 @@ function setDetailPanelWidth(width: number): void {
 
 // Collapsible tab group — shows group label when collapsed, individual tabs when expanded
 // Auto-expands when the active view is in this group
-function TabGroup({ label, tabs, activeView, onSelect }: {
+function TabGroup({ label, tabs, activeView, activeSubView, onSelect }: {
   label: string;
   tabs: { label: string; icon: import("lucide-react").LucideIcon; view: ProjectsView; subView?: string }[];
   activeView: ProjectsView;
+  activeSubView?: string;
   onSelect: (view: ProjectsView, subView?: string) => void;
 }) {
-  const hasActiveTab = tabs.some(t => t.view === activeView);
+  const isTabActive = (tab: { view: ProjectsView; subView?: string }) =>
+    tab.view === activeView && (!tab.subView || tab.subView === activeSubView);
+  const hasActiveTab = tabs.some(isTabActive);
   const [manualExpand, setManualExpand] = useState<boolean | null>(null);
   const expanded = manualExpand ?? hasActiveTab;
 
-  // Reset manual override when active tab changes into/out of this group
   useEffect(() => { setManualExpand(null); }, [hasActiveTab]);
 
   if (expanded) {
     return (
       <div className="flex items-center h-full">
-        {/* Collapse handle — group label */}
         <button
           onClick={() => setManualExpand(false)}
           className="text-[9px] font-semibold uppercase tracking-[0.06em] text-zinc-400 dark:text-zinc-500 hover:text-zinc-500 dark:hover:text-zinc-400 px-1.5 h-full flex items-center transition-colors cursor-pointer select-none"
@@ -97,7 +97,7 @@ function TabGroup({ label, tabs, activeView, onSelect }: {
             key={tab.view + (tab.subView || "")}
             label={tab.label}
             icon={tab.icon}
-            active={tab.view === activeView}
+            active={isTabActive(tab)}
             onClick={() => onSelect(tab.view, tab.subView)}
           />
         ))}
@@ -105,8 +105,7 @@ function TabGroup({ label, tabs, activeView, onSelect }: {
     );
   }
 
-  // Collapsed — show just the group label as a clickable pill
-  const activeTab = tabs.find(t => t.view === activeView);
+  const activeTab = tabs.find(isTabActive);
   return (
     <button
       onClick={() => setManualExpand(true)}
@@ -133,7 +132,16 @@ function TabGroup({ label, tabs, activeView, onSelect }: {
 export function ProjectsModule() {
   const [view, setView] = usePersistedModuleView<ProjectsView>("projects", "inbox");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectIdState] = useState<string | null>(() => {
+    try { return localStorage.getItem("tv-client-projects-selected") || null; } catch { return null; }
+  });
+  const setSelectedProjectId = useCallback((id: string | null) => {
+    setSelectedProjectIdState(id);
+    try {
+      if (id) localStorage.setItem("tv-client-projects-selected", id);
+      else localStorage.removeItem("tv-client-projects-selected");
+    } catch { /* ignore */ }
+  }, []);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showInitiativeForm, setShowInitiativeForm] = useState(false);
@@ -251,6 +259,14 @@ export function ProjectsModule() {
   const selectedProject = selectedProjectId
     ? (allProjects.find(p => p.id === selectedProjectId) || projects.find(p => p.id === selectedProjectId))
     : undefined;
+
+  // If the persisted project no longer exists once projects load, fall back to "all" view
+  useEffect(() => {
+    if (view === "project" && selectedProjectId && allProjects.length > 0 && !selectedProject) {
+      setSelectedProjectId(null);
+      setView("all");
+    }
+  }, [view, selectedProjectId, selectedProject, allProjects.length, setSelectedProjectId, setView]);
 
   // ---- Handlers ----
 
@@ -398,6 +414,7 @@ export function ProjectsModule() {
               { label: "Manage", icon: Columns3, view: "all" as ProjectsView, subView: "manage" },
             ]}
             activeView={view}
+            activeSubView={allSubView}
             onSelect={(v, sub) => { handleViewChange(v); if (sub) setAllSubView(sub as any); }}
           />
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
@@ -425,9 +442,6 @@ export function ProjectsModule() {
         </>}
         actions={isWorkView ? <>
           <NotionSyncStatus />
-          <Button onClick={() => setShowInitiativeForm(true)} icon={Target} variant="ghost">New Initiative</Button>
-          <Button onClick={() => setShowProjectForm(true)} icon={FolderPlus} variant="ghost">New Project</Button>
-          <Button onClick={handleCreateTask} disabled={projects.length === 0} icon={Plus}>New Task</Button>
         </> : undefined}
       />
 
@@ -445,6 +459,12 @@ export function ProjectsModule() {
                 setCreateTaskProjectId(projectId);
                 setShowTaskForm(true);
               }}
+              onExpandProject={(id) => {
+                setSelectedProjectId(id);
+                setView("project");
+              }}
+              onCreateInitiative={() => setShowInitiativeForm(true)}
+              onCreateProject={() => setShowProjectForm(true)}
             />
           </div>
         )}
@@ -498,6 +518,11 @@ export function ProjectsModule() {
                     onCreateTask={() => {
                       setCreateTaskProjectId(manageSelectedId);
                       setShowTaskForm(true);
+                    }}
+                    onExpandProject={(id) => {
+                      setManageSelectedId(null);
+                      setSelectedProjectId(id);
+                      setView("project");
                     }}
                   />
                 </div>

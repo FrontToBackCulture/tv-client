@@ -54,8 +54,7 @@ interface Props {
 }
 
 export default function SolutionOnboardingPanel({ slug }: Props) {
-  const [previewing, setPreviewing] = useState(false);
-  const [activeTab, setActiveTab] = useState<"template" | "config" | "scan" | "master-data">("template");
+  const [activeTab, setActiveTab] = useState<"template" | "config" | "scan" | "master-data" | "preview">("template");
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ status: string; stats: any } | null>(null);
   const { data: templates } = useSolutionTemplates();
@@ -71,33 +70,22 @@ export default function SolutionOnboardingPanel({ slug }: Props) {
     );
   }
 
-  // Preview mode — render the matrix with example data, full-screen overlay
-  if (previewing && template.example_data) {
-    const mockInstance: SolutionInstanceWithTemplate = {
-      id: "preview",
-      domain: "Example Domain",
-      template_id: template.id,
-      template_version: template.version,
-      data: template.example_data,
-      total_items: 0,
-      completed_items: 0,
-      progress_pct: 0,
-      status: "active",
-      started_at: null,
-      completed_at: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      template: template,
-    };
-    return (
-      <div className="fixed inset-0 z-50 bg-white dark:bg-zinc-950">
-        <SolutionMatrixView
-          instance={mockInstance}
-          onBack={() => setPreviewing(false)}
-        />
-      </div>
-    );
-  }
+  const mockInstance: SolutionInstanceWithTemplate | null = template.example_data ? {
+    id: "preview",
+    domain: "Example Domain",
+    template_id: template.id,
+    template_version: template.version,
+    data: template.example_data,
+    total_items: 0,
+    completed_items: 0,
+    progress_pct: 0,
+    status: "active",
+    started_at: null,
+    completed_at: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    template: template,
+  } : null;
 
   const tabs = template.template.tabs || [];
   const allSections = tabs.flatMap((t) => t.sections);
@@ -114,61 +102,57 @@ export default function SolutionOnboardingPanel({ slug }: Props) {
   };
 
   const panelTabs = [
-    { key: "template" as const, label: "Template" },
-    ...(hasValConfig ? [{ key: "config" as const, label: "Config" }] : []),
-    ...(hasValConfig ? [{ key: "scan" as const, label: "Scan Rules" }] : []),
-    ...(hasValConfig ? [{ key: "master-data" as const, label: "Master Data" }] : []),
+    { key: "template" as const, label: "Template", disabled: false },
+    ...(hasValConfig ? [{ key: "config" as const, label: "Config", disabled: false }] : []),
+    ...(hasValConfig ? [{ key: "scan" as const, label: "Scan Rules", disabled: false }] : []),
+    ...(hasValConfig ? [{ key: "master-data" as const, label: "Master Data", disabled: false }] : []),
+    { key: "preview" as const, label: "Preview", disabled: !template.example_data },
   ];
 
   return (
-    <div className="p-6 max-w-none">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4 pb-5 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex-1 mr-6">
-          <h2 className="text-lg font-bold">{template.name}</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            {template.description}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded ${statusBadge.bg} ${statusBadge.text}`}>
-            {statusBadge.label}
-          </span>
-          <span className="text-[11px] text-zinc-500 dark:text-zinc-500 font-mono">v{template.version}</span>
-          <button
-            onClick={() => setPreviewing(true)}
-            disabled={!template.example_data}
-            className="text-xs font-semibold px-3 py-1.5 rounded border cursor-pointer transition-colors bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Preview with Example Data
-          </button>
-          <button
-            onClick={handlePublish}
-            className="text-xs font-semibold px-3 py-1.5 rounded border cursor-pointer transition-colors bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
-          >
-            {template.status === "published" ? "Unpublish" : "Publish"}
-          </button>
-        </div>
-      </div>
-
-      {/* Panel Tabs */}
-      {panelTabs.length > 1 && (
-        <div className="flex gap-1 mb-6 border-b border-zinc-200 dark:border-zinc-800">
-          {panelTabs.map((tab) => (
+    <div className="p-6">
+      {/* Header + Tabs */}
+      <div>
+        <div className="flex items-start justify-between mb-4 pb-5 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="flex-1 mr-6">
+            <h2 className="text-lg font-bold">{template.name}</h2>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+              {template.description}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded ${statusBadge.bg} ${statusBadge.text}`}>
+              {statusBadge.label}
+            </span>
+            <span className="text-[11px] text-zinc-500 dark:text-zinc-500 font-mono">v{template.version}</span>
             <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`text-xs font-semibold px-4 py-2 border-b-2 -mb-px transition-colors cursor-pointer ${
-                activeTab === tab.key
-                  ? "border-blue-500 text-blue-500 dark:text-blue-400"
-                  : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
-              }`}
+              onClick={handlePublish}
+              className="text-xs font-semibold px-3 py-1.5 rounded border cursor-pointer transition-colors bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
             >
-              {tab.label}
+              {template.status === "published" ? "Unpublish" : "Publish"}
             </button>
-          ))}
+          </div>
         </div>
-      )}
+
+        {panelTabs.length > 1 && (
+          <div className="flex gap-1 mb-6 border-b border-zinc-200 dark:border-zinc-800">
+            {panelTabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                disabled={tab.disabled}
+                className={`text-xs font-semibold px-4 py-2 border-b-2 -mb-px transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  activeTab === tab.key
+                    ? "border-blue-500 text-blue-500 dark:text-blue-400"
+                    : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Template Tab */}
       {activeTab === "template" && (
@@ -364,6 +348,14 @@ export default function SolutionOnboardingPanel({ slug }: Props) {
             });
           }}
         />
+      )}
+
+      {activeTab === "preview" && mockInstance && (
+        <div className="relative" style={{ height: "calc(100vh - 220px)" }}>
+          <div className="absolute inset-0">
+            <SolutionMatrixView instance={mockInstance} />
+          </div>
+        </div>
       )}
     </div>
   );

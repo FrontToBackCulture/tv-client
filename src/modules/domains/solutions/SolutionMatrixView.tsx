@@ -30,7 +30,7 @@ const TAB_COLORS: Record<string, string> = {
 
 interface Props {
   instance: SolutionInstanceWithTemplate;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 export default function SolutionMatrixView({ instance, onBack }: Props) {
@@ -227,11 +227,11 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full">
       {/* Header */}
       <div className="flex items-start justify-between px-4 pt-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer bg-transparent border-none">&larr; Back</button>
+          {onBack && <button onClick={onBack} className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer bg-transparent border-none">&larr; Back</button>}
           <div>
             <h2 className="text-base font-bold">{instance.template.name}</h2>
             <p className="text-xs text-zinc-500">{domainSub}</p>
@@ -310,7 +310,7 @@ export default function SolutionMatrixView({ instance, onBack }: Props) {
         {hasSidebar && (
           <EntitySidebar data={localData} selectedEntity={selectedEntity} onSelectEntity={setSelectedEntity} />
         )}
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 min-w-0 overflow-y-auto p-4">
           {renderTab(activeTab)}
         </div>
       </div>

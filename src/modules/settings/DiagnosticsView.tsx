@@ -56,8 +56,6 @@ interface ClaudeMcpStatus {
   binary_installed: boolean;
   binary_path: string;
   binary_version: string | null;
-  app_version: string;
-  version_match: boolean;
   config_exists: boolean;
   config_has_tv_mcp: boolean;
   registered_path: string | null;
@@ -203,10 +201,10 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
             return { ...r, status: ok ? "pass" : "warn", detail: ok ? `Registered at ${status.binary_path}` : "Config not updated — restart Claude Code and try again" };
           }
           if (r.id === "claude-version") {
-            if (status.version_match) {
-              return { ...r, status: "pass", detail: `v${status.binary_version} (matches app)`, fix: undefined };
+            if (status.binary_version) {
+              return { ...r, status: "pass", detail: `v${status.binary_version}`, fix: undefined };
             } else {
-              return { ...r, status: "fail", detail: `Version mismatch: binary v${status.binary_version ?? "?"}, app v${status.app_version}` };
+              return { ...r, status: "fail", detail: "Could not detect tv-mcp version" };
             }
           }
           return r;
@@ -297,11 +295,10 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
         id: "claude-binary",
         label: "tv-mcp Binary",
         group: "Infrastructure",
-        status: claude.binary_installed ? "pass" : "warn",
+        status: claude.binary_installed ? "pass" : "fail",
         detail: claude.binary_installed
           ? `${claude.binary_path}${claude.binary_version ? ` (v${claude.binary_version})` : ""}`
-          : "Not found — click Install to register the bundled MCP server with Claude Code",
-        fix: claude.binary_installed ? undefined : { kind: "install-claude" },
+          : "Not installed. Run in terminal:  curl -sSL https://raw.githubusercontent.com/FrontToBackCulture/tv-mcp/main/install.sh | bash",
       });
 
       // If binary installed, check if Claude Code can see it
@@ -332,27 +329,16 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
           });
         }
 
-        // Version check: binary version should match app version
+        // Version check: tv-mcp is standalone — just report the version
         if (claude.binary_installed) {
           const binVer = claude.binary_version;
-          const appVer = claude.app_version;
           if (!binVer) {
             add({
               id: "claude-version",
               label: "tv-mcp Version",
               group: "Infrastructure",
               status: "warn",
-              detail: "Could not determine binary version — binary may be too old. Click Reinstall to update.",
-              fix: { kind: "install-claude" },
-            });
-          } else if (!claude.version_match) {
-            add({
-              id: "claude-version",
-              label: "tv-mcp Version",
-              group: "Infrastructure",
-              status: "fail",
-              detail: `Version mismatch: binary is v${binVer}, app is v${appVer}. MCP tools may behave unexpectedly. Click Reinstall to fix, then restart Claude Code.`,
-              fix: { kind: "install-claude" },
+              detail: "Could not determine tv-mcp version",
             });
           } else {
             add({
@@ -360,7 +346,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
               label: "tv-mcp Version",
               group: "Infrastructure",
               status: "pass",
-              detail: `v${binVer} (matches app)`,
+              detail: `v${binVer}`,
             });
           }
         }
@@ -377,9 +363,8 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
           id: "claude-config",
           label: "Claude Code ↔ tv-mcp",
           group: "Infrastructure",
-          status: "warn",
-          detail: "tv-mcp not installed — click Install to set up Claude Code integration",
-          fix: { kind: "install-claude" },
+          status: "fail",
+          detail: "tv-mcp not installed. Run:  curl -sSL https://raw.githubusercontent.com/FrontToBackCulture/tv-mcp/main/install.sh | bash",
         });
       }
     } catch (e) {

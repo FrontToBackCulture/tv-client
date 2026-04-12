@@ -110,10 +110,11 @@ fn main() {
                 commands::claude_setup::ensure_mcp_registered().await;
             });
 
-            // Start MCP HTTP server (for external tool access)
+            // Start MCP HTTP server (uses tv-mcp crate — single source of truth)
             tauri::async_runtime::spawn(async {
-                eprintln!("[tv-desktop] Starting MCP HTTP server on port {}...", mcp::server::DEFAULT_PORT);
-                if let Err(e) = mcp::server::run_http(mcp::server::DEFAULT_PORT).await {
+                let port = tv_mcp::server::server::DEFAULT_PORT;
+                eprintln!("[tv-desktop] Starting MCP HTTP server on port {}...", port);
+                if let Err(e) = tv_mcp::server::server::run_http(port).await {
                     eprintln!("[tv-desktop] MCP server error: {}", e);
                 }
             });

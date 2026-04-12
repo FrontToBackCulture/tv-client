@@ -128,17 +128,6 @@ export function ModuleTabBar() {
     }
   }, []);
 
-  // Middle-click to close
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent, tabId: ModuleId) => {
-      if (e.button === 1) {
-        e.preventDefault();
-        closeTab(tabId);
-      }
-    },
-    [closeTab]
-  );
-
   // Context menu
   const handleContextMenu = useCallback((e: React.MouseEvent, tabId: ModuleId) => {
     e.preventDefault();
@@ -153,36 +142,72 @@ export function ModuleTabBar() {
     return () => window.removeEventListener("click", handler);
   }, [contextMenu]);
 
-  // Drag handlers
-  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
-    setDragIndex(index);
-    e.dataTransfer.effectAllowed = "move";
-    // Make ghost transparent
-    const ghost = document.createElement("div");
-    ghost.style.opacity = "0";
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => document.body.removeChild(ghost), 0);
-  }, []);
+  // Drag-to-reorder via pointer events. HTML5 draggable is unreliable in
+  // Tauri's macOS WKWebView, so we hand-roll drag detection with a movement
+  // threshold and manual hit-testing against data-tab-index.
+  const pointerStateRef = useRef<{
+    startX: number;
+    startIndex: number;
+    pointerId: number;
+    dragging: boolean;
+  } | null>(null);
 
-  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    setDragOverIndex(index);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent, toIndex: number) => {
-      e.preventDefault();
-      if (dragIndex !== null && dragIndex !== toIndex) {
-        reorderTab(dragIndex, toIndex);
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent, index: number, tabId: ModuleId) => {
+      if (e.button === 1) {
+        e.preventDefault();
+        closeTab(tabId);
+        return;
       }
-      setDragIndex(null);
-      setDragOverIndex(null);
+      if (e.button !== 0) return;
+      if ((e.target as HTMLElement).closest("button")) return;
+      pointerStateRef.current = {
+        startX: e.clientX,
+        startIndex: index,
+        pointerId: e.pointerId,
+        dragging: false,
+      };
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     },
-    [dragIndex, reorderTab]
+    [closeTab]
   );
 
-  const handleDragEnd = useCallback(() => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const state = pointerStateRef.current;
+    if (!state) return;
+    if (!state.dragging) {
+      if (Math.abs(e.clientX - state.startX) < 5) return;
+      state.dragging = true;
+      setDragIndex(state.startIndex);
+    }
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const tabEl = el?.closest("[data-tab-index]") as HTMLElement | null;
+    if (tabEl) setDragOverIndex(Number(tabEl.dataset.tabIndex));
+  }, []);
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent, tabId: ModuleId) => {
+      const state = pointerStateRef.current;
+      if (!state) return;
+      const { dragging, startIndex, pointerId } = state;
+      const over = dragOverIndex;
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(pointerId);
+      } catch {}
+      pointerStateRef.current = null;
+      setDragIndex(null);
+      setDragOverIndex(null);
+      if (dragging) {
+        if (over !== null && over !== startIndex) reorderTab(startIndex, over);
+      } else {
+        setActiveTab(tabId);
+      }
+    },
+    [dragOverIndex, reorderTab, setActiveTab]
+  );
+
+  const handlePointerCancel = useCallback(() => {
+    pointerStateRef.current = null;
     setDragIndex(null);
     setDragOverIndex(null);
   }, []);
@@ -207,13 +232,11 @@ export function ModuleTabBar() {
           return (
             <div
               key={tabId}
-              draggable
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDrop={(e) => handleDrop(e, index)}
-              onDragEnd={handleDragEnd}
-              onClick={() => setActiveTab(tabId)}
-              onMouseDown={(e) => handleMouseDown(e, tabId)}
+              data-tab-index={index}
+              onPointerDown={(e) => handlePointerDown(e, index, tabId)}
+              onPointerMove={handlePointerMove}
+              onPointerUp={(e) => handlePointerUp(e, tabId)}
+              onPointerCancel={handlePointerCancel}
               onContextMenu={(e) => handleContextMenu(e, tabId)}
               className={cn(
                 "group flex items-center gap-1.5 pl-2.5 pr-1 h-7 text-[12px] cursor-pointer select-none flex-shrink-0 rounded-md mx-px transition-colors",

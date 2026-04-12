@@ -12,6 +12,8 @@ import { ModeTabs } from "./ModeTabs";
 import { ModuleId, isSecondaryWindow } from "../stores/appStore";
 import { useSidePanelStore } from "../stores/sidePanelStore";
 import { useActivityBarStore } from "../stores/activityBarStore";
+import { useNotificationNavStore } from "../stores/notificationNavStore";
+import { useModuleTabStore } from "../stores/moduleTabStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useWorkspaceAppearanceStore } from "../stores/workspaceAppearanceStore";
 import { PanelLeft, PanelLeftClose } from "lucide-react";
@@ -138,6 +140,8 @@ function useWorkspaceAccent(): string {
 function PendingProjectView() {
   const pendingProjectId = useActivityBarStore((s) => s.pendingProjectId);
   const clearPendingProject = useActivityBarStore((s) => s.clearPendingProject);
+  const setNavTarget = useNotificationNavStore((s) => s.setTarget);
+  const openTab = useModuleTabStore((s) => s.openTab);
 
   if (!pendingProjectId) return null;
 
@@ -148,6 +152,11 @@ function PendingProjectView() {
         onBack={clearPendingProject}
         onUpdated={() => {}}
         onCreateTask={() => {}}
+        onExpandProject={(id) => {
+          clearPendingProject();
+          setNavTarget("project", id, false);
+          openTab("projects");
+        }}
       />
     </div>
   );

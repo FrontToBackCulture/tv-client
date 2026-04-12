@@ -154,9 +154,6 @@ jobs:
         if: matrix.platform == 'macos-latest-xlarge' && always()
         run: security delete-keychain $RUNNER_TEMP/app-signing.keychain-db 2>/dev/null || true
 
-      # tv-mcp sidecar is already built by beforeBuildCommand (npm run build:sidecar)
-      # and bundled inside the app by Tauri. Extract it for standalone download too.
-
       # Collect platform-specific artifacts into a flat folder
       - name: Collect artifacts (macOS)
         if: matrix.platform == 'macos-latest-xlarge'
@@ -192,9 +189,6 @@ jobs:
           find "$BUNDLE/macos" -name "*.tar.gz" -exec cp {} collected/ \;
           find "$BUNDLE/macos" -name "*.tar.gz.sig" -exec cp {} collected/ \;
 
-          # tv-mcp binary (from sidecar build)
-          cp "src-tauri/binaries/tv-mcp-${{ matrix.target }}" collected/tv-mcp
-
           echo "Collected artifacts:"
           ls -la collected/
 
@@ -210,9 +204,6 @@ jobs:
 
           # .exe.sig for auto-update signature verification
           find "$BUNDLE/nsis" -name "*.exe.sig" -exec cp {} collected/ \;
-
-          # tv-mcp binary (from sidecar build)
-          cp "src-tauri/binaries/tv-mcp-${{ matrix.target }}.exe" collected/tv-mcp.exe
 
           echo "Collected artifacts:"
           ls -la collected/
@@ -296,17 +287,11 @@ jobs:
 
           # Windows — rename to URL-safe names (no spaces)
           for f in dl/win-x64/*.exe; do
-            # Skip tv-mcp.exe — handled separately
-            [[ "$(basename "$f")" == "tv-mcp.exe" ]] && continue
             [ -f "$f" ] && cp "$f" "release/TV.Client_${VERSION}_x64-setup.exe"
           done
           for f in dl/win-x64/*.exe.sig; do
             [ -f "$f" ] && cp "$f" "release/TV.Client_${VERSION}_x64-setup.exe.sig"
           done
-
-          # tv-mcp binaries
-          [ -f dl/arm64/tv-mcp ] && cp dl/arm64/tv-mcp "release/tv-mcp-darwin-arm64"
-          [ -f dl/win-x64/tv-mcp.exe ] && cp dl/win-x64/tv-mcp.exe "release/tv-mcp-windows-x64.exe"
 
           echo "Release files:"
           ls -la release/
@@ -367,14 +352,7 @@ jobs:
 
             Existing installations will auto-update.
 
-            ## MCP Server (for Claude Code)
-
-            | Platform | Binary |
-            |----------|--------|
-            | macOS (Apple Silicon) | `tv-mcp-darwin-arm64` |
-            | Windows (x64) | `tv-mcp-windows-x64.exe` |
-
-            Download, make executable (`chmod +x`), and add to your Claude Code MCP config.
+            **MCP Server:** Install separately from [tv-mcp](https://github.com/FrontToBackCulture/tv-mcp/releases).
           files: release/*
           draft: false
           prerelease: false

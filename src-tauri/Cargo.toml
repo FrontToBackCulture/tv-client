@@ -1,17 +1,14 @@
 [package]
 name = "tv-client"
-version = "0.10.28"
+version = "0.10.29"
 edition = "2021"
 default-run = "tv-client"
-
-[[bin]]
-name = "tv-mcp"
-path = "src/bin/tv-mcp.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+tv-mcp = { path = "../../tv-mcp" }
 css-inline = "0.20"
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-shell = "2"

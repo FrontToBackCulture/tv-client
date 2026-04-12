@@ -97,7 +97,7 @@ export function SolutionsTabView({
       </div>
 
       {/* Detail panel */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-w-0 overflow-y-auto relative">
         {selectedTemplate ? (
           <SolutionOnboardingPanel slug={selectedTemplate.slug} />
         ) : (

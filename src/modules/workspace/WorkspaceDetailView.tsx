@@ -1,14 +1,15 @@
 // src/modules/workspace/WorkspaceDetailView.tsx
 // Workspace detail: artifact tree (left) + file preview / sessions (right)
 
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, Fragment } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft, FileText, Puzzle, Building2, Code2,
   BarChart3, ListChecks, Globe, FileSpreadsheet, ChevronDown,
-  ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2,
+  ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2, Check,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
   Circle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Mail,
-  MessageSquare,
+  MessageSquare, Maximize2,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
@@ -41,7 +42,7 @@ import { useCompany, useCompanies } from "../../hooks/crm/useCompanies";
 import { useContacts } from "../../hooks/crm/useContacts";
 import { useActivities } from "../../hooks/crm/useActivities";
 import { ACTIVITY_TYPES } from "../../lib/crm/types";
-import { DEAL_STAGES, DEAL_SOLUTIONS, COMPANY_STAGES } from "../../lib/crm/types";
+import { DEAL_STAGES, COMPANY_STAGES } from "../../lib/crm/types";
 import { useRepository } from "../../stores/repositoryStore";
 import { toast } from "../../stores/toastStore";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
@@ -51,8 +52,12 @@ import { Brain } from "lucide-react";
 import { useTaskFieldsStore } from "../../stores/taskFieldsStore";
 import type { WorkspaceSession, WorkspaceArtifact } from "../../lib/workspace/types";
 import { MilestoneTaskGroups } from "./MilestoneTaskGroups";
+import { Sparkles } from "lucide-react";
+import { AutoAssignCompanyModal } from "../work/AutoAssignCompanyModal";
+import { AutoAssignProjectModal } from "../work/AutoAssignProjectModal";
 import { useInitiatives } from "../../hooks/work/useInitiatives";
-import { useInitiativeProjects } from "../work/workViewsShared";
+import { useInitiativeProjects, initials } from "../work/workViewsShared";
+import { PriorityBars } from "../work/StatusIcon";
 import { EmailsPanel } from "../../components/emails/EmailsPanel";
 import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
 import { EventsPanel } from "../../components/events/EventsPanel";
@@ -60,7 +65,7 @@ import { useLinkedEventCount } from "../../hooks/useEntityEvents";
 
 /** Unescape literal \n sequences that arrive from MCP JSON serialization */
 const unescapeNewlines = (s: string) => s.replace(/\\n/g, "\n");
-import { type StatusType, PriorityLabels, PriorityColors, Priority, getTaskIdentifier } from "../../lib/work/types";
+import { type StatusType, PriorityLabels, Priority, getTaskIdentifier } from "../../lib/work/types";
 import {
   ARTIFACT_TYPE_LABELS,
   WORKSPACE_STATUS_LABELS,
@@ -73,6 +78,7 @@ interface Props {
   onUpdated: () => void;
   onCreateTask?: () => void;
   onNavigateToProject?: (projectId: string) => void;
+  onExpandProject?: (projectId: string) => void;
 }
 
 // Artifact type to icon mapping
@@ -1469,7 +1475,168 @@ function EditableField({ value, onSave, type = "text", options, displayValue }: 
   );
 }
 
-export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated, onCreateTask, onNavigateToProject }: Props) {
+function SearchableFilter({ label, selected, options, onToggle, onClear }: {
+  label: string;
+  selected: Set<string>;
+  options: { value: string; label: string; count?: number }[];
+  onToggle: (v: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  useEffect(() => { if (open) { setSearch(""); inputRef.current?.focus(); } }, [open]);
+
+  const filtered = search ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())) : options;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors flex items-center gap-1 ${
+          selected.size > 0
+            ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+            : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+        }`}
+      >
+        {label}{selected.size > 0 ? ` (${selected.size})` : ""}
+        <ChevronDown size={10} className="text-zinc-400" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg min-w-[220px] max-h-[280px] flex flex-col overflow-hidden">
+          <div className="p-1.5 border-b border-zinc-100 dark:border-zinc-800">
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={`Search ${label.toLowerCase()}...`}
+              className="w-full text-xs px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 outline-none focus:ring-1 focus:ring-teal-500/30"
+            />
+          </div>
+          <div className="overflow-y-auto flex-1 py-1">
+            {selected.size > 0 && (
+              <button onClick={() => { onClear(); }} className="w-full text-left px-3 py-1 text-[10px] text-teal-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 font-medium">
+                Clear all
+              </button>
+            )}
+            {filtered.map(o => {
+              const isSelected = selected.has(String(o.value));
+              return (
+                <button
+                  key={o.value}
+                  onClick={() => onToggle(String(o.value))}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors flex items-center gap-2"
+                >
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? "border-teal-500 bg-teal-500" : "border-zinc-300 dark:border-zinc-600"}`}>
+                    {isSelected && <Check size={10} className="text-white" />}
+                  </span>
+                  <span className={isSelected ? "text-teal-600 font-medium" : "text-zinc-700 dark:text-zinc-300"}>{o.label}</span>
+                  {o.count != null && <span className="ml-auto text-[10px] text-zinc-400">{o.count}</span>}
+                </button>
+              );
+            })}
+            {filtered.length === 0 && <p className="px-3 py-2 text-[10px] text-zinc-400 italic">No matches</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SearchableCell({ value, displayValue, options, onChange, placeholder = "—", renderTrigger }: {
+  value: string | null;
+  displayValue?: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string | null) => void;
+  placeholder?: string;
+  renderTrigger?: (displayValue: string | undefined, onClick: () => void) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    setSearch("");
+    const anchor = triggerRef.current || wrapperRef.current;
+    if (anchor) {
+      const rect = anchor.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 220) });
+    }
+    setTimeout(() => inputRef.current?.focus(), 0);
+    const handle = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node) &&
+          !(wrapperRef.current?.contains(e.target as Node))) setOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  const filtered = search ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())) : options;
+  const toggle = () => setOpen(v => !v);
+
+  return (
+    <div ref={wrapperRef}>
+      {renderTrigger ? renderTrigger(displayValue, toggle) : (
+        <button
+          ref={triggerRef}
+          onClick={toggle}
+          className="text-[11px] text-zinc-500 hover:text-teal-500 dark:hover:text-teal-400 transition-colors truncate w-full text-left"
+        >
+          {displayValue || placeholder}
+        </button>
+      )}
+      {open && createPortal(
+        <div ref={menuRef} className="fixed z-[9999] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg min-w-[200px] max-h-[260px] flex flex-col overflow-hidden" style={{ top: pos.top, left: pos.left }}>
+          <div className="p-1.5 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0">
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search..."
+              className="w-full text-xs px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 outline-none focus:ring-1 focus:ring-teal-500/30"
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+          <div className="overflow-y-auto flex-1 py-1">
+            <button
+              onClick={() => { onChange(null); setOpen(false); }}
+              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${!value ? "text-teal-600 font-medium" : "text-zinc-400"}`}
+            >
+              {placeholder}
+            </button>
+            {filtered.map(o => (
+              <button
+                key={o.value}
+                onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors truncate ${o.value === value ? "text-teal-600 font-medium bg-teal-50/50 dark:bg-teal-950/20" : "text-zinc-700 dark:text-zinc-300"}`}
+              >
+                {o.label}
+              </button>
+            ))}
+            {filtered.length === 0 && <p className="px-3 py-2 text-[10px] text-zinc-400 italic">No matches</p>}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated, onCreateTask, onNavigateToProject, onExpandProject }: Props) {
   const queryClient = useQueryClient();
   const { data: workspace, isLoading, refetch: refetchWorkspace } = useWorkspace(workspaceId);
   const updateWorkspace = useUpdateWorkspace();
@@ -1489,7 +1656,6 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
     | { type: "bot-chat"; sessionId: string }
     | null
   >(null);
-  const [botChatExpanded, setBotChatExpanded] = useState(true);
   const [projectChatPopupSession, setProjectChatPopupSession] = useState<string | null>(null);
   const { data: discussionCount } = useDiscussionCount("project", workspaceId);
   const botChatPrefix = `project-chat:${workspaceId}`;
@@ -1500,22 +1666,31 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const [taskProjectSearch, setTaskProjectSearch] = useState("");
   const [contextMenuLoading, setContextMenuLoading] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const selectedTaskIdsArray = useMemo(() => Array.from(selectedTaskIds), [selectedTaskIds]);
   const [bulkProjectMenu, setBulkProjectMenu] = useState<{ x: number; y: number } | null>(null);
   const [bulkProjectSearch, setBulkProjectSearch] = useState("");
   const [bulkMoving] = useState(false);
+  const [bulkCompanyMenu, setBulkCompanyMenu] = useState<{ x: number; y: number } | null>(null);
+  const [bulkCompanySearch, setBulkCompanySearch] = useState("");
+  const [autoAssignCompanyOpen, setAutoAssignCompanyOpen] = useState(false);
+  const [autoAssignProjectOpen, setAutoAssignProjectOpen] = useState(false);
   const [taskDetailId, setTaskDetailId] = useState<string | null>(null);
   const [showMilestoneInput, setShowMilestoneInput] = useState(false);
   const [taskSearch, setTaskSearch] = useState("");
   const [taskPageSize, setTaskPageSize] = useState(50);
   const TASK_PAGE_INCREMENT = 50;
-  const [filterPriority, setFilterPriority] = useState<number | null>(null);
-  const [filterAssignee, setFilterAssignee] = useState<string | null>(null);
-  const [filterCompany, setFilterCompany] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [filterDueDate, setFilterDueDate] = useState<string | null>(null); // "overdue" | "this_week" | "has_date" | "no_date"
+  const [filterAssignee, setFilterAssignee] = useState<Set<string>>(new Set());
+  const [filterCompany, setFilterCompany] = useState<Set<string>>(new Set());
+  const [filterStatus, setFilterStatus] = useState<Set<string>>(new Set());
+  const [filterDueDate, setFilterDueDate] = useState<Set<string>>(new Set());
+  const [filterPriority, setFilterPriority] = useState<Set<string>>(new Set()); // "overdue" | "this_week" | "has_date" | "no_date"
   const [sortColumn, setSortColumn] = useState<string | null>(null); // column key
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ details: true, emails: true, events: true });
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ details: true, artifacts: false, emails: true, events: true });
+  const [statusGroupOverrides, setStatusGroupOverrides] = useState<Map<string, boolean>>(new Map());
+  const DEFAULT_HIDDEN_STATUSES = ["Backlog", "Done", "Won't Do", "Monitor", "Archived"];
+  const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(() => new Set(DEFAULT_HIDDEN_STATUSES));
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [contextMenuTab, setContextMenuTab] = useState<"milestone" | "project" | "convert">("milestone");
   const [newMilestoneName, setNewMilestoneName] = useState("");
 
@@ -1528,37 +1703,7 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
       });
     });
   }, [workspaceId, refetchWorkspace]);
-  const [sidebarWidth, setSidebarWidthRaw] = useState(() => {
-    try { return parseInt(localStorage.getItem("tv-detail-sidebar-width") || "280", 10); } catch { return 280; }
-  });
-  const setSidebarWidth = useCallback((w: number | ((prev: number) => number)) => {
-    setSidebarWidthRaw(prev => {
-      const next = typeof w === "function" ? w(prev) : w;
-      try { localStorage.setItem("tv-detail-sidebar-width", String(next)); } catch {}
-      return next;
-    });
-  }, []);
   const [contactsExpanded, setContactsExpanded] = useState(false);
-  const dragging = useRef(false);
-
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    dragging.current = true;
-    const startX = e.clientX;
-    const startW = sidebarWidth;
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!dragging.current) return;
-      const newW = Math.min(600, Math.max(200, startW + ev.clientX - startX));
-      setSidebarWidth(newW);
-    };
-    const onMouseUp = () => {
-      dragging.current = false;
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }, [sidebarWidth]);
 
   // Fetch additional data based on project type
   const ws = workspace as any;
@@ -1800,7 +1945,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
   const completedTasks = projectTasks.filter(t => t.status?.type === "complete").length;
 
   // Filter + paginate tasks for large projects
-  const hasColumnFilters = filterStatus !== null || filterPriority !== null || filterAssignee !== null || filterCompany !== null || filterDueDate !== null;
+  const hasColumnFilters = filterStatus.size > 0 || filterPriority.size > 0 || filterAssignee.size > 0 || filterCompany.size > 0 || filterDueDate.size > 0;
   const filteredTasks = useMemo(() => {
     let tasks = projectTasks;
     if (taskSearch) {
@@ -1812,44 +1957,95 @@ Write a brief current state summary. No bullet points, just a natural sentence o
         || (t.company as any)?.display_name?.toLowerCase().includes(q)
       );
     }
-    if (filterStatus !== null) tasks = tasks.filter(t => t.status_id === filterStatus);
-    if (filterPriority !== null) tasks = tasks.filter(t => (t.priority ?? 0) === filterPriority);
-    if (filterAssignee !== null) {
-      tasks = filterAssignee === "__none__"
-        ? tasks.filter(t => !t.assignees || t.assignees.length === 0)
-        : tasks.filter(t => (t.assignees || []).some(a => a.user?.id === filterAssignee));
+    if (filterStatus.size > 0) tasks = tasks.filter(t => filterStatus.has(t.status_id || ""));
+    if (filterPriority.size > 0) tasks = tasks.filter(t => filterPriority.has(String(t.priority ?? 0)));
+    if (filterAssignee.size > 0) {
+      tasks = tasks.filter(t => {
+        if (filterAssignee.has("__none__") && (!t.assignees || t.assignees.length === 0)) return true;
+        return (t.assignees || []).some(a => filterAssignee.has(a.user?.id || ""));
+      });
     }
-    if (filterCompany !== null) {
-      tasks = filterCompany === "__none__"
-        ? tasks.filter(t => !t.company_id)
-        : tasks.filter(t => t.company_id === filterCompany);
+    if (filterCompany.size > 0) {
+      tasks = tasks.filter(t => {
+        if (filterCompany.has("__none__") && !t.company_id) return true;
+        return filterCompany.has(t.company_id || "");
+      });
     }
-    if (filterDueDate !== null) {
+    if (filterDueDate.size > 0) {
       const now = new Date();
       tasks = tasks.filter(t => {
-        if (filterDueDate === "no_date") return !t.due_date;
-        if (filterDueDate === "has_date") return !!t.due_date;
-        if (!t.due_date) return false;
-        if (filterDueDate === "overdue") return new Date(t.due_date) < now && t.status?.type !== "complete";
-        if (filterDueDate === "this_week") {
+        if (filterDueDate.has("no_date") && !t.due_date) return true;
+        if (filterDueDate.has("has_date") && t.due_date) return true;
+        if (filterDueDate.has("overdue") && t.due_date && new Date(t.due_date) < now && t.status?.type !== "complete") return true;
+        if (filterDueDate.has("this_week") && t.due_date) {
           const d = new Date(t.due_date);
           const end = new Date(now); end.setDate(end.getDate() + 7);
-          return d >= now && d <= end;
+          if (d >= now && d <= end) return true;
         }
-        return true;
+        return false;
       });
     }
     return tasks;
   }, [projectTasks, taskSearch, filterStatus, filterPriority, filterAssignee, filterCompany, filterDueDate]);
-  const isLargeProject = projectTasks.length > 100;
-  const visibleTasks = isLargeProject ? filteredTasks.slice(0, taskPageSize) : filteredTasks;
-  const hasMoreTasks = isLargeProject && filteredTasks.length > taskPageSize;
+  const hiddenTaskCount = useMemo(() => projectTasks.filter(t => hiddenStatuses.has(t.status?.name || "")).length, [projectTasks, hiddenStatuses]);
+  const displayFilteredTasks = useMemo(() =>
+    hiddenStatuses.size === 0 ? filteredTasks : filteredTasks.filter(t => !hiddenStatuses.has(t.status?.name || "")),
+  [filteredTasks, hiddenStatuses]);
+  const isLargeProject = displayFilteredTasks.length > 100;
+  const visibleTasks = isLargeProject ? displayFilteredTasks.slice(0, taskPageSize) : displayFilteredTasks;
+  const hasMoreTasks = isLargeProject && displayFilteredTasks.length > taskPageSize;
+
+  const sortedStatusGroups = useMemo(() => {
+    const sorted = [...visibleTasks].sort((a, b) => {
+      if (sortColumn) {
+        const dir = sortDir === "asc" ? 1 : -1;
+        let cmp = 0;
+        switch (sortColumn) {
+          case "id": cmp = (a.task_number ?? 0) - (b.task_number ?? 0); break;
+          case "title": cmp = (a.title || "").localeCompare(b.title || ""); break;
+          case "task_type": cmp = (a.task_type || "").localeCompare(b.task_type || ""); break;
+          case "company": cmp = ((a.company as any)?.display_name || (a.company as any)?.name || "").localeCompare((b.company as any)?.display_name || (b.company as any)?.name || ""); break;
+          case "contact": cmp = ((a.contact as any)?.name || "").localeCompare((b.contact as any)?.name || ""); break;
+          case "priority": cmp = (a.priority ?? 99) - (b.priority ?? 99); break;
+          case "assignee": cmp = (a.assignees?.[0]?.user?.name || "").localeCompare(b.assignees?.[0]?.user?.name || ""); break;
+          case "due_date": cmp = (a.due_date || "9999").localeCompare(b.due_date || "9999"); break;
+          case "created": cmp = (a.created_at || "").localeCompare(b.created_at || ""); break;
+          case "updated": cmp = (a.updated_at || "").localeCompare(b.updated_at || ""); break;
+          case "days_in_stage": {
+            const daysA = a.task_type_changed_at ? Math.floor((Date.now() - new Date(a.task_type_changed_at).getTime()) / 86400000) : -1;
+            const daysB = b.task_type_changed_at ? Math.floor((Date.now() - new Date(b.task_type_changed_at).getTime()) / 86400000) : -1;
+            cmp = daysA - daysB; break;
+          }
+        }
+        if (cmp !== 0) return cmp * dir;
+      }
+      const order: Record<string, number> = { in_progress: 0, todo: 1, complete: 2 };
+      const statusDiff = (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
+      if (statusDiff !== 0) return statusDiff;
+      return (a.task_number ?? 0) - (b.task_number ?? 0);
+    });
+    const groups = new Map<string, { label: string; color: string; statusType: string; tasks: typeof sorted }>();
+    for (const t of sorted) {
+      const key = t.status?.id || "none";
+      const group = groups.get(key) || { label: t.status?.name || "No Status", color: t.status?.color || "#6B7280", statusType: t.status?.type || "", tasks: [] };
+      group.tasks.push(t);
+      groups.set(key, group);
+    }
+    const STATUS_SORT: Record<string, number> = {
+      "Ready to Deploy": 0, "Blocked": 1, "Waiting": 2, "Ready for Test": 3,
+      "In Review": 4, "In Progress": 5, "Up Next": 6, "On Hold": 7, "New": 8,
+      "Backlog": 9, "Done": 10, "Won't Do": 11, "Monitor": 12, "Archived": 13,
+    };
+    return [...groups.entries()]
+      .filter(([, g]) => !hiddenStatuses.has(g.label))
+      .sort((a, b) => (STATUS_SORT[a[1].label] ?? 99) - (STATUS_SORT[b[1].label] ?? 99));
+  }, [visibleTasks, sortColumn, sortDir, hiddenStatuses]);
 
   // Derive filter options from all project tasks
   const priorityFilterOptions = useMemo(() => {
     const counts = new Map<number, number>();
     for (const t of projectTasks) { const p = t.priority ?? 0; counts.set(p, (counts.get(p) || 0) + 1); }
-    return [1, 2, 3, 4, 0].filter(p => counts.has(p)).map(p => ({ value: p, label: PriorityLabels[p as Priority], count: counts.get(p)! }));
+    return [1, 2, 3, 4, 0].filter(p => counts.has(p)).map(p => ({ value: String(p), label: PriorityLabels[p as Priority], count: counts.get(p)! }));
   }, [projectTasks]);
 
   const assigneeFilterOptions = useMemo(() => {
@@ -1869,14 +2065,15 @@ Write a brief current state summary. No bullet points, just a natural sentence o
   }, [projectTasks]);
 
   const companyFilterOptions = useMemo(() => {
-    const counts = new Map<string, { name: string; count: number }>();
+    const taskCounts = new Map<string, number>();
     for (const t of projectTasks) {
-      if (!t.company_id) continue;
-      const name = (t.company as any)?.display_name || (t.company as any)?.name || t.company_id;
-      const e = counts.get(t.company_id) || { name, count: 0 }; e.count++; counts.set(t.company_id, e);
+      if (t.company_id) taskCounts.set(t.company_id, (taskCounts.get(t.company_id) || 0) + 1);
     }
-    return Array.from(counts.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, v]) => ({ value: id, label: v.name, count: v.count }));
-  }, [projectTasks]);
+    return allCompanies
+      .filter(c => taskCounts.has(c.id))
+      .map(c => ({ value: c.id, label: (c as any).display_name || c.name, count: taskCounts.get(c.id)! }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [projectTasks, allCompanies]);
 
   const statusFilterOptions = useMemo(() => {
     const counts = new Map<string, { name: string; sortOrder: number; count: number }>();
@@ -1904,9 +2101,11 @@ Write a brief current state summary. No bullet points, just a natural sentence o
   const enabledProjectFields = useProjectFieldsStore((s) => s.getEnabledFields((workspace as any)?.project_type || "work"));
   const dealFieldKeys = new Set(["deal_stage", "deal_value", "deal_currency", "deal_solution", "deal_expected_close", "deal_actual_close", "deal_lost_reason", "deal_won_notes", "deal_notes"]);
   const projectType = (workspace as any)?.project_type || "work";
+  const hardcodedFieldKeys = new Set(["lead"]);
   const configuredFields = getFieldDefsForType(projectType)
     .filter(f => enabledProjectFields.includes(f.key))
-    .filter(f => !(projectType !== "deal" && dealFieldKeys.has(f.key))); // Hide deal fields for non-deal projects
+    .filter(f => !hardcodedFieldKeys.has(f.key))
+    .filter(f => !(projectType !== "deal" && dealFieldKeys.has(f.key)));
 
   if (isLoading) {
     return <div className="h-full flex items-center justify-center text-zinc-400">Loading...</div>;
@@ -2035,321 +2234,63 @@ Write a brief current state summary. No bullet points, just a natural sentence o
           <span title={`Created: ${formatDateTime(workspace.created_at)}\nUpdated: ${formatDateTime(workspace.updated_at)}`}>
             {formatDateTime(workspace.updated_at)}
           </span>
+          {onExpandProject && (
+            <IconButton
+              icon={Maximize2}
+              size={16}
+              label="Open in project view"
+              onClick={() => onExpandProject(workspaceId)}
+            />
+          )}
           <IconButton icon={X} size={18} label="Close" onClick={onBack} />
         </div>
       </div>
 
-      {/* Body: artifacts left, preview/sessions right */}
-      <div className="flex-1 overflow-hidden flex">
-        {/* LEFT: Artifacts tree */}
-        <div className="flex-shrink-0 border-r border-zinc-100 dark:border-zinc-800 flex flex-col" style={{ width: sidebarWidth }}>
-          {/* Overview button */}
-          <button
-            onClick={() => setSelection(null)}
-            className={cn(
-              "flex-shrink-0 w-full text-left px-3 py-2 text-xs font-medium border-b transition-colors",
-              !selection
-                ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/50"
-                : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 border-zinc-100 dark:border-zinc-800"
-            )}
-          >
-            Project Details
-          </button>
-          {/* Sticky header */}
-          <div className="flex-shrink-0 flex items-center justify-between px-3 pt-3 pb-2">
-            <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-              Artifacts ({artifacts.length})
-            </h3>
+      {/* Tab bar — replaces sidebar navigation */}
+      <div className="flex-shrink-0 flex items-center gap-1 px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 overflow-x-auto">
+        {([
+          { key: null, label: "Overview", icon: null },
+          { key: "discussion", label: "Discussion", icon: MessageSquare, badge: discussionCount },
+          { key: "emails", label: "Emails", icon: Mail },
+          { key: "events", label: "Events", icon: Calendar },
+        ] as { key: string | null; label: string; icon: LucideIcon | null; badge?: number | null }[]).map((tab) => {
+          const isActive = tab.key === null ? !selection || selection.type === "file" || selection.type === "contact" : selection?.type === tab.key;
+          const TabIcon = tab.icon;
+          return (
             <button
-              onClick={() => setShowPicker(true)}
-              className="p-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-900/30 text-zinc-500 hover:text-teal-500 transition-colors flex-shrink-0"
-              title="Add artifact from library"
-            >
-              <Plus size={13} />
-            </button>
-          </div>
-          {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto px-3 pb-3">
-            {artifacts.length === 0 ? (
-              <p className="text-xs text-zinc-400">No artifacts linked yet</p>
-            ) : (
-              <div className="space-y-3">
-                {Object.entries(artifactsByType).map(([type, typeArtifacts]) => (
-                  <div key={type}>
-                    <h4 className="text-xs text-zinc-400 dark:text-zinc-500 mb-1 flex items-center gap-1">
-                      {(() => { const TIcon = ARTIFACT_ICONS[type] || FileText; return <TIcon size={11} />; })()}
-                      {ARTIFACT_TYPE_LABELS[type] || type}
-                      <span className="text-zinc-300 dark:text-zinc-600">({typeArtifacts.length})</span>
-                    </h4>
-                    <div className="space-y-0.5">
-                      {(() => {
-                        // Compute minimum unique path prefixes for duplicate labels
-                        const prefixMap = new Map<string, string>();
-                        const labelGroups = new Map<string, typeof typeArtifacts>();
-                        for (const a of typeArtifacts) {
-                          const group = labelGroups.get(a.label) || [];
-                          group.push(a);
-                          labelGroups.set(a.label, group);
-                        }
-                        for (const [, group] of labelGroups) {
-                          if (group.length <= 1) continue;
-                          // Walk up path segments until all are unique
-                          const refs = group.map(a => a.reference?.replace(/\/$/, "").split("/") || []);
-                          for (let depth = 1; depth <= 10; depth++) {
-                            const prefixes = refs.map(parts => {
-                              const start = Math.max(0, parts.length - 1 - depth);
-                              return parts.slice(start, parts.length - 1).join("/");
-                            });
-                            const unique = new Set(prefixes);
-                            if (unique.size === group.length || depth === 10) {
-                              group.forEach((a, i) => prefixMap.set(a.id, prefixes[i]));
-                              break;
-                            }
-                          }
-                        }
-                        return typeArtifacts.map((artifact) =>
-                          artifact.type === "task" ? (
-                            <TaskArtifactItem
-                              key={artifact.id}
-                              artifact={artifact}
-                              workspaceId={workspaceId}
-                              isSelected={taskDetailId === artifact.reference}
-                              onSelect={() => setTaskDetailId(artifact.reference)}
-                            />
-                          ) : artifact.type === "crm_deal" ? (
-                            <CrmDealArtifactItem
-                              key={artifact.id}
-                              artifact={artifact}
-                              workspaceId={workspaceId}
-                              isSelected={selection?.type === "crm_deal" && selection.id === artifact.reference}
-                              onSelect={() => setSelection({ type: "crm_deal", id: artifact.reference })}
-                            />
-                          ) : artifact.type === "crm_company" ? (
-                            <CrmCompanyArtifactItem
-                              key={artifact.id}
-                              artifact={artifact}
-                              workspaceId={workspaceId}
-                              isSelected={selection?.type === "crm_company" && selection.id === artifact.reference}
-                              onSelect={() => setSelection({ type: "crm_company", id: artifact.reference })}
-                            />
-                          ) : (
-                            <ArtifactTreeItem
-                              key={artifact.id}
-                              artifact={artifact}
-                              workspaceId={workspaceId}
-                              basePath={basePath}
-                              allRepoPaths={repositories.map(r => r.path)}
-                              selectedFile={selectedFile}
-                              onSelectFile={(path) => setSelection({ type: "file", path })}
-                              pathPrefix={prefixMap.get(artifact.id)}
-                            />
-                          )
-                        );
-                      })()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Discussion / Emails / Events — open as full-screen panels on the right */}
-            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-0.5">
-              <button
-                onClick={() => setSelection({ type: "discussion" })}
-                className={cn(
-                  "w-full text-left flex items-center gap-2 px-1 py-1.5 rounded-md text-xs font-medium transition-colors",
-                  selection?.type === "discussion"
-                    ? "text-[var(--color-accent)] bg-[var(--color-teal-light)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]",
-                )}
-              >
-                <MessageSquare size={13} />
-                <span>Discussion</span>
-                {(discussionCount ?? 0) > 0 && (
-                  <span className="text-[10px] font-medium text-[var(--text-muted)] bg-[var(--bg-muted)] px-1.5 py-0.5 rounded-full ml-auto">
-                    {discussionCount}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setSelection({ type: "emails" })}
-                className={cn(
-                  "w-full text-left flex items-center gap-2 px-1 py-1.5 rounded-md text-xs font-medium transition-colors",
-                  selection?.type === "emails"
-                    ? "text-[var(--color-accent)] bg-[var(--color-teal-light)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]",
-                )}
-              >
-                <Mail size={13} />
-                <span>Emails</span>
-              </button>
-              <button
-                onClick={() => setSelection({ type: "events" })}
-                className={cn(
-                  "w-full text-left flex items-center gap-2 px-1 py-1.5 rounded-md text-xs font-medium transition-colors",
-                  selection?.type === "events"
-                    ? "text-[var(--color-accent)] bg-[var(--color-teal-light)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]",
-                )}
-              >
-                <Calendar size={13} />
-                <span>Events</span>
-              </button>
-            </div>
-
-            {/* Chat to Update — expandable section listing each bot chat session */}
-            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center">
-                <button
-                  onClick={() => setBotChatExpanded(v => !v)}
-                  className="flex-1 flex items-center gap-1.5 px-1 py-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-                >
-                  {botChatExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                  <Brain size={11} className="text-purple-500" />
-                  <span>Chat to Update</span>
-                  {botChatSessions.length > 0 && (
-                    <span className="ml-1 text-[10px] text-zinc-400 normal-case font-normal tracking-normal">
-                      ({botChatSessions.length})
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    const newId = `${botChatPrefix}:${Date.now()}`;
-                    setProjectChatPopupSession(newId);
-                    setBotChatExpanded(true);
-                  }}
-                  className="p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-950/30 text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-                  title="Start a new chat with bot-mel"
-                >
-                  <Plus size={12} />
-                </button>
-              </div>
-              {botChatExpanded && (
-                <div className="mt-1 space-y-0.5">
-                  {botChatSessions.length === 0 ? (
-                    <button
-                      onClick={() => setProjectChatPopupSession(`${botChatPrefix}:${Date.now()}`)}
-                      className="w-full text-left text-[10px] text-zinc-400 dark:text-zinc-600 italic px-2 py-1 hover:text-purple-500 dark:hover:text-purple-400 transition-colors"
-                    >
-                      + Chat to update
-                    </button>
-                  ) : (
-                    botChatSessions.map((s) => (
-                      <button
-                        key={s.entity_id}
-                        onClick={() => setProjectChatPopupSession(s.entity_id)}
-                        className="w-full text-left flex items-start gap-1.5 px-2 py-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors group"
-                        title={s.title ?? s.sample_body}
-                      >
-                        <Brain size={10} className="text-purple-500 mt-0.5 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                            {formatBotChatLabel(s)}
-                          </div>
-                          <div className="text-[9px] text-zinc-400 dark:text-zinc-600">
-                            {s.message_count} msg · {formatRelativeTime(s.last_activity_at)}
-                          </div>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
+              key={tab.key ?? "overview"}
+              onClick={() => tab.key === null ? setSelection(null) : setSelection({ type: tab.key } as any)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
+                isActive
+                  ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
               )}
-            </div>
+            >
+              {TabIcon && <TabIcon size={13} />}
+              {tab.label}
+              {(tab.badge ?? 0) > 0 && (
+                <span className="text-[10px] font-medium bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-            {/* Deal metadata — hidden from project details pane, managed via CRM */}
-            {false && isDeal && companyId && (
-              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                  Deal Info
-                </h3>
-                <div className="space-y-0.5 text-xs">
-                  {([
-                    { label: "Stage", field: "deal_stage", type: "select" as const, options: DEAL_STAGES.map(s => ({ value: s.value, label: s.label })), displayValue: DEAL_STAGES.find(s => s.value === ws.deal_stage)?.label },
-                    { label: "Value", field: "deal_value", type: "number" as const, displayValue: ws.deal_value ? `${ws.deal_currency || "SGD"} ${Number(ws.deal_value).toLocaleString()}` : undefined },
-                    { label: "Currency", field: "deal_currency", type: "text" as const },
-                    { label: "Solution", field: "deal_solution", type: "select" as const, options: DEAL_SOLUTIONS.map(s => ({ value: s.value, label: s.label })), displayValue: DEAL_SOLUTIONS.find(s => s.value === ws.deal_solution)?.label },
-                    { label: "Expected Close", field: "deal_expected_close", type: "date" as const },
-                    { label: "Actual Close", field: "deal_actual_close", type: "date" as const },
-                    { label: "Lost Reason", field: "deal_lost_reason", type: "text" as const },
-                    { label: "Won Notes", field: "deal_won_notes", type: "text" as const },
-                    { label: "Notes", field: "deal_notes", type: "textarea" as const },
-                  ] as any[]).map(({ label, field, type, options: opts, displayValue: dv }: any) => (
-                    <div key={field} className="grid grid-cols-[90px,1fr] gap-1 items-start">
-                      <span className="text-zinc-400 py-0.5">{label}</span>
-                      <EditableField
-                        value={ws[field]}
-                        type={type}
-                        options={opts}
-                        displayValue={dv}
-                        onSave={(v) => updateProjectField(field, type === "number" ? (parseFloat(v) || null) : (v || null))}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Contacts (for deals with a company) */}
-            {isDeal && companyId && contacts.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                <button
-                  onClick={() => setContactsExpanded(!contactsExpanded)}
-                  className="flex items-center gap-1 w-full text-left mb-1.5"
-                >
-                  {contactsExpanded ? <ChevronDown size={12} className="text-zinc-400" /> : <ChevronRight size={12} className="text-zinc-400" />}
-                  <h3 className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                    Contacts ({contacts.length})
-                  </h3>
-                </button>
-                {contactsExpanded && (
-                  <div className="space-y-0.5">
-                    {contacts.map((contact) => (
-                      <button
-                        key={contact.id}
-                        onClick={() => setSelection({ type: "contact", id: contact.id })}
-                        className={cn(
-                          "block w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
-                          selection?.type === "contact" && selection.id === contact.id
-                            ? "bg-teal-50 dark:bg-teal-950/30"
-                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                        )}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-zinc-600 dark:text-zinc-300">{contact.name}</span>
-                          {contact.is_primary && (
-                            <span className="text-[9px] px-1 py-0 rounded bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">Primary</span>
-                          )}
-                        </div>
-                        {contact.role && <div className="text-zinc-400 text-[11px]">{contact.role}</div>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Activities moved to body pane (right side) */}
-          </div>
-        </div>
-        {/* Resize handle */}
-        <div
-          onMouseDown={onMouseDown}
-          className="w-1 flex-shrink-0 cursor-col-resize hover:bg-teal-500/30 active:bg-teal-500/50 transition-colors"
-        />
-
-        {/* RIGHT: File preview, session detail, task detail, or context */}
-        <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col">
-          {/* Close bar — shown when viewing a file/session/entity so user can return to project details */}
-          {selection && selection.type !== "discussion" && (
+      {/* Body — single panel, no sidebar */}
+      <div className="flex-1 overflow-hidden flex flex-col min-w-0">
+        <div className="flex-1 overflow-y-auto flex flex-col min-w-0">
+          {/* Close bar — shown when viewing a file/session/entity */}
+          {selection && !["discussion", "emails", "events"].includes(selection.type) && (
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50">
               <button
                 onClick={() => setSelection(null)}
                 className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
               >
                 <ArrowLeft size={12} />
-                Project Details
+                Overview
               </button>
               <button
                 onClick={() => setSelection(null)}
@@ -2378,7 +2319,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
           ) : selection?.type === "events" ? (
             <EventsPanel entityType="project" entityId={workspaceId} />
           ) : (
-            <div className="h-full overflow-y-auto p-6">
+            <div className="h-full overflow-y-auto px-4 py-5">
               {/* Title + description — matches TaskDetailPanel's content layout */}
               <div className="mb-6">
                 <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
@@ -2387,6 +2328,135 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                   <EditableField value={workspace.description} onSave={(v) => updateProjectField("description", v)} />
                 </p>
+              </div>
+
+              {/* Artifacts + Chat to Update — side by side at top */}
+              <div className="mb-6">
+                <button onClick={() => setCollapsedSections(s => ({ ...s, sidebar: !s.sidebar }))} className="flex items-center gap-1.5 mb-3 group">
+                  {collapsedSections.sidebar ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
+                  <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Quick Access</h3>
+                </button>
+              {!collapsedSections.sidebar && (
+              <div className="grid grid-cols-2 gap-4">
+                {/* Artifacts */}
+                <div className="rounded-lg border border-zinc-100 dark:border-zinc-800 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Puzzle size={12} />
+                      Artifacts ({artifacts.length})
+                    </h3>
+                    <button
+                      onClick={() => setShowPicker(true)}
+                      className="p-1 rounded hover:bg-teal-50 dark:hover:bg-teal-900/30 text-zinc-400 hover:text-teal-500 transition-colors"
+                      title="Add artifact"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                  {artifacts.length === 0 ? (
+                    <p className="text-xs text-zinc-400 italic">No artifacts linked yet</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {Object.entries(artifactsByType).map(([type, typeArtifacts]) => (
+                        <div key={type}>
+                          <h4 className="text-[10px] text-zinc-400 dark:text-zinc-500 mb-0.5 flex items-center gap-1">
+                            {(() => { const TIcon = ARTIFACT_ICONS[type] || FileText; return <TIcon size={10} />; })()}
+                            {ARTIFACT_TYPE_LABELS[type] || type}
+                            <span className="text-zinc-300 dark:text-zinc-600">({typeArtifacts.length})</span>
+                          </h4>
+                          <div className="space-y-0.5">
+                            {(() => {
+                              const prefixMap = new Map<string, string>();
+                              const labelGroups = new Map<string, typeof typeArtifacts>();
+                              for (const a of typeArtifacts) {
+                                const group = labelGroups.get(a.label) || [];
+                                group.push(a);
+                                labelGroups.set(a.label, group);
+                              }
+                              for (const [, group] of labelGroups) {
+                                if (group.length <= 1) continue;
+                                const refs = group.map(a => a.reference?.replace(/\/$/, "").split("/") || []);
+                                for (let depth = 1; depth <= 10; depth++) {
+                                  const prefixes = refs.map(parts => {
+                                    const start = Math.max(0, parts.length - 1 - depth);
+                                    return parts.slice(start, parts.length - 1).join("/");
+                                  });
+                                  const unique = new Set(prefixes);
+                                  if (unique.size === group.length || depth === 10) {
+                                    group.forEach((a, i) => prefixMap.set(a.id, prefixes[i]));
+                                    break;
+                                  }
+                                }
+                              }
+                              return typeArtifacts.map((artifact) =>
+                                artifact.type === "task" ? (
+                                  <TaskArtifactItem key={artifact.id} artifact={artifact} workspaceId={workspaceId} isSelected={taskDetailId === artifact.reference} onSelect={() => setTaskDetailId(artifact.reference)} />
+                                ) : artifact.type === "crm_deal" ? (
+                                  <CrmDealArtifactItem key={artifact.id} artifact={artifact} workspaceId={workspaceId} isSelected={false} onSelect={() => setSelection({ type: "crm_deal", id: artifact.reference })} />
+                                ) : artifact.type === "crm_company" ? (
+                                  <CrmCompanyArtifactItem key={artifact.id} artifact={artifact} workspaceId={workspaceId} isSelected={false} onSelect={() => setSelection({ type: "crm_company", id: artifact.reference })} />
+                                ) : (
+                                  <ArtifactTreeItem key={artifact.id} artifact={artifact} workspaceId={workspaceId} basePath={basePath} allRepoPaths={repositories.map(r => r.path)} selectedFile={selectedFile} onSelectFile={(path) => setSelection({ type: "file", path })} pathPrefix={prefixMap.get(artifact.id)} />
+                                )
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Chat to Update */}
+                <div className="rounded-lg border border-zinc-100 dark:border-zinc-800 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Brain size={12} className="text-purple-500" />
+                      Chat{botChatSessions.length > 0 ? ` (${botChatSessions.length})` : ""}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        const newId = `${botChatPrefix}:${Date.now()}`;
+                        setProjectChatPopupSession(newId);
+                      }}
+                      className="p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-950/30 text-zinc-400 hover:text-purple-500 transition-colors"
+                      title="New chat"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                  <div className="space-y-0.5 max-h-[200px] overflow-y-auto">
+                    {botChatSessions.length === 0 ? (
+                      <button
+                        onClick={() => setProjectChatPopupSession(`${botChatPrefix}:${Date.now()}`)}
+                        className="text-xs text-zinc-400 italic hover:text-purple-500 dark:hover:text-purple-400 transition-colors"
+                      >
+                        + Start a chat to update this project
+                      </button>
+                    ) : (
+                      botChatSessions.map((s) => (
+                        <button
+                          key={s.entity_id}
+                          onClick={() => setProjectChatPopupSession(s.entity_id)}
+                          className="w-full text-left flex items-start gap-1.5 px-2 py-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+                          title={s.title ?? s.sample_body}
+                        >
+                          <Brain size={10} className="text-purple-500 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                              {formatBotChatLabel(s)}
+                            </div>
+                            <div className="text-[10px] text-zinc-400 dark:text-zinc-600">
+                              {s.message_count} msg · {formatRelativeTime(s.last_activity_at)}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+              )}
               </div>
 
               {/* Project Details — editable fields */}
@@ -2542,13 +2612,49 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                 </div>}
               </div>
 
+              {/* Contacts (deal projects only) */}
+              {isDeal && companyId && contacts.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                  <button onClick={() => setContactsExpanded(!contactsExpanded)} className="flex items-center gap-1.5 mb-3 group">
+                    {contactsExpanded ? <ChevronDown size={12} className="text-zinc-400" /> : <ChevronRight size={12} className="text-zinc-400" />}
+                    <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                      Contacts ({contacts.length})
+                    </h3>
+                  </button>
+                  {contactsExpanded && (
+                    <div className="space-y-0.5 pl-5">
+                      {contacts.map((contact) => (
+                        <button
+                          key={contact.id}
+                          onClick={() => setSelection({ type: "contact", id: contact.id })}
+                          className={cn(
+                            "block w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
+                            false
+                              ? "bg-teal-50 dark:bg-teal-950/30"
+                              : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                          )}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-zinc-600 dark:text-zinc-300">{contact.name}</span>
+                            {contact.is_primary && (
+                              <span className="text-[9px] px-1 py-0 rounded bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">Primary</span>
+                            )}
+                          </div>
+                          {contact.role && <div className="text-zinc-400 text-[11px]">{contact.role}</div>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Tasks table — grouped by milestone when milestones exist */}
               <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <div className="flex items-center justify-between mb-3">
                   <button onClick={() => setCollapsedSections(s => ({ ...s, tasks: !s.tasks }))} className="flex items-center gap-1.5 group">
                     {collapsedSections.tasks ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
                     <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Tasks ({projectTasks.length})
+                      Tasks ({projectTasks.length - hiddenTaskCount})
                     </h3>
                   </button>
                     <div className="flex items-center gap-3">
@@ -2599,6 +2705,51 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         </div>
                         <span className="text-[10px] text-zinc-400">{completedTasks}/{projectTasks.length}</span>
                       </div>
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowStatusPicker(v => !v)}
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${
+                            hiddenStatuses.size > 0
+                              ? "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                              : "bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
+                          }`}
+                        >
+                          {hiddenStatuses.size > 0 ? `${hiddenStatuses.size} hidden` : "All visible"}
+                        </button>
+                        {showStatusPicker && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setShowStatusPicker(false)} />
+                            <div className="absolute right-0 top-full mt-1 z-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[180px]">
+                              {taskStatuses.map((s) => {
+                                const isHidden = hiddenStatuses.has(s.name);
+                                const count = projectTasks.filter(t => t.status?.id === s.id).length;
+                                return (
+                                  <button
+                                    key={s.id}
+                                    onClick={() => setHiddenStatuses(prev => {
+                                      const next = new Set(prev);
+                                      next.has(s.name) ? next.delete(s.name) : next.add(s.name);
+                                      return next;
+                                    })}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                                  >
+                                    <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isHidden ? "border-zinc-300 dark:border-zinc-600" : "border-teal-500 bg-teal-500"}`}>
+                                      {!isHidden && <Check size={10} className="text-white" />}
+                                    </span>
+                                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color || "#6B7280" }} />
+                                    <span className={isHidden ? "text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}>{s.name}</span>
+                                    <span className="ml-auto text-[10px] text-zinc-400">{count}</span>
+                                  </button>
+                                );
+                              })}
+                              <div className="border-t border-zinc-100 dark:border-zinc-800 mt-1 pt-1 px-3 py-1 flex gap-2">
+                                <button onClick={() => setHiddenStatuses(new Set())} className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-medium">Show all</button>
+                                <button onClick={() => setHiddenStatuses(new Set(DEFAULT_HIDDEN_STATUSES))} className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 font-medium">Reset</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {!collapsedSections.tasks && projectTasks.length > 0 && (
@@ -2610,94 +2761,26 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         placeholder="Search tasks..."
                         className="text-xs border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 outline-none max-w-[200px] focus:ring-2 focus:ring-teal-500/30 transition-colors"
                       />
-                      {/* Status filter */}
-                      <select
-                        value={filterStatus ?? ""}
-                        onChange={(e) => { setFilterStatus(e.target.value === "" ? null : e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
-                        className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
-                          filterStatus !== null
-                            ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                            : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
-                        }`}
-                      >
-                        <option value="">Status</option>
-                        {statusFilterOptions.map(o => (
-                          <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
-                        ))}
-                      </select>
-                      {/* Priority filter */}
-                      <select
-                        value={filterPriority ?? ""}
-                        onChange={(e) => { setFilterPriority(e.target.value === "" ? null : Number(e.target.value)); setTaskPageSize(TASK_PAGE_INCREMENT); }}
-                        className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
-                          filterPriority !== null
-                            ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                            : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
-                        }`}
-                      >
-                        <option value="">Priority</option>
-                        {priorityFilterOptions.map(o => (
-                          <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
-                        ))}
-                      </select>
-                      {/* Assignee filter */}
-                      <select
-                        value={filterAssignee ?? ""}
-                        onChange={(e) => { setFilterAssignee(e.target.value === "" ? null : e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
-                        className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
-                          filterAssignee !== null
-                            ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                            : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
-                        }`}
-                      >
-                        <option value="">Assignee</option>
-                        {assigneeFilterOptions.map(o => (
-                          <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
-                        ))}
-                      </select>
-                      {/* Company filter */}
-                      {companyFilterOptions.length > 0 && (
-                        <select
-                          value={filterCompany ?? ""}
-                          onChange={(e) => { setFilterCompany(e.target.value === "" ? null : e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
-                          className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
-                            filterCompany !== null
-                              ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                              : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
-                          }`}
-                        >
-                          <option value="">Company</option>
-                          {companyFilterOptions.map(o => (
-                            <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
-                          ))}
-                        </select>
-                      )}
-                      {/* Due Date filter */}
-                      <select
-                        value={filterDueDate ?? ""}
-                        onChange={(e) => { setFilterDueDate(e.target.value === "" ? null : e.target.value); setTaskPageSize(TASK_PAGE_INCREMENT); }}
-                        className={`text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${
-                          filterDueDate !== null
-                            ? "border-teal-400 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                            : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
-                        }`}
-                      >
-                        <option value="">Due Date</option>
-                        <option value="overdue">Overdue</option>
-                        <option value="this_week">This week</option>
-                        <option value="has_date">Has date</option>
-                        <option value="no_date">No date</option>
-                      </select>
+                      <SearchableFilter label="Status" selected={filterStatus} options={statusFilterOptions} onToggle={(v) => { setFilterStatus(prev => { const next = new Set(prev); next.has(v) ? next.delete(v) : next.add(v); return next; }); setTaskPageSize(TASK_PAGE_INCREMENT); }} onClear={() => setFilterStatus(new Set())} />
+                      <SearchableFilter label="Priority" selected={filterPriority} options={priorityFilterOptions} onToggle={(v) => { setFilterPriority(prev => { const next = new Set(prev); next.has(v) ? next.delete(v) : next.add(v); return next; }); setTaskPageSize(TASK_PAGE_INCREMENT); }} onClear={() => setFilterPriority(new Set())} />
+                      <SearchableFilter label="Assignee" selected={filterAssignee} options={assigneeFilterOptions} onToggle={(v) => { setFilterAssignee(prev => { const next = new Set(prev); next.has(v) ? next.delete(v) : next.add(v); return next; }); setTaskPageSize(TASK_PAGE_INCREMENT); }} onClear={() => setFilterAssignee(new Set())} />
+                      <SearchableFilter label="Company" selected={filterCompany} options={companyFilterOptions} onToggle={(v) => { setFilterCompany(prev => { const next = new Set(prev); next.has(v) ? next.delete(v) : next.add(v); return next; }); setTaskPageSize(TASK_PAGE_INCREMENT); }} onClear={() => setFilterCompany(new Set())} />
+                      <SearchableFilter label="Due Date" selected={filterDueDate} options={[
+                        { value: "overdue", label: "Overdue" },
+                        { value: "this_week", label: "This week" },
+                        { value: "has_date", label: "Has date" },
+                        { value: "no_date", label: "No date" },
+                      ]} onToggle={(v) => { setFilterDueDate(prev => { const next = new Set(prev); next.has(v) ? next.delete(v) : next.add(v); return next; }); setTaskPageSize(TASK_PAGE_INCREMENT); }} onClear={() => setFilterDueDate(new Set())} />
                       {(taskSearch || hasColumnFilters) && (
                         <button
-                          onClick={() => { setTaskSearch(""); setFilterStatus(null); setFilterPriority(null); setFilterAssignee(null); setFilterCompany(null); setFilterDueDate(null); }}
+                          onClick={() => { setTaskSearch(""); setFilterStatus(new Set()); setFilterPriority(new Set()); setFilterAssignee(new Set()); setFilterCompany(new Set()); setFilterDueDate(new Set()); }}
                           className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center gap-0.5"
                         >
                           <X size={10} /> Clear
                         </button>
                       )}
                       {(taskSearch || hasColumnFilters) && (
-                        <span className="text-[10px] text-zinc-400">{filteredTasks.length}/{projectTasks.length}</span>
+                        <span className="text-[10px] text-zinc-400">{displayFilteredTasks.length}/{projectTasks.length - hiddenTaskCount}</span>
                       )}
                     </div>
                   )}
@@ -2716,8 +2799,8 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                       onDeleteMilestone={(id) => deleteMilestoneMutation.mutate(id)}
                     />
                   ) : (
-                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-x-auto">
-                    <table className="w-full text-xs min-w-[700px]">
+                  <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
                           <th className="px-2 py-2 w-8" onClick={(e) => e.stopPropagation()}>
@@ -2738,54 +2821,51 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                           <th className="text-left px-3 py-2 font-medium text-zinc-400 w-8"></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("id")}>ID<SortIndicator col="id" /></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("title")}>Title<SortIndicator col="title" /></th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("priority")}>Priority<SortIndicator col="priority" /></th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("assignee")}>Assignee<SortIndicator col="assignee" /></th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-28 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("due_date")}>Due Date<SortIndicator col="due_date" /></th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("created")}>Created<SortIndicator col="created" /></th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-24 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("updated")}>Updated<SortIndicator col="updated" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("priority")}>Priority<SortIndicator col="priority" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("assignee")}>Assignee<SortIndicator col="assignee" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("due_date")}>Due Date<SortIndicator col="due_date" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("company")}>Company<SortIndicator col="company" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("created")}>Created<SortIndicator col="created" /></th>
+                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("updated")}>Updated<SortIndicator col="updated" /></th>
                           {enabledTaskFields.includes("task_type") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("task_type")}>Type<SortIndicator col="task_type" /></th>}
-                          {enabledTaskFields.includes("company") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("company")}>Company<SortIndicator col="company" /></th>}
                           {enabledTaskFields.includes("contact") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("contact")}>Contact<SortIndicator col="contact" /></th>}
                           {enabledTaskFields.includes("referral") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("referral")}>Referral<SortIndicator col="referral" /></th>}
                           {enabledTaskFields.includes("days_in_stage") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("days_in_stage")}>Days<SortIndicator col="days_in_stage" /></th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {visibleTasks
-                          .sort((a, b) => {
-                            if (sortColumn) {
-                              const dir = sortDir === "asc" ? 1 : -1;
-                              let cmp = 0;
-                              switch (sortColumn) {
-                                case "id": cmp = (a.task_number ?? 0) - (b.task_number ?? 0); break;
-                                case "title": cmp = (a.title || "").localeCompare(b.title || ""); break;
-                                case "task_type": cmp = (a.task_type || "").localeCompare(b.task_type || ""); break;
-                                case "company": cmp = ((a.company as any)?.display_name || (a.company as any)?.name || "").localeCompare((b.company as any)?.display_name || (b.company as any)?.name || ""); break;
-                                case "contact": cmp = ((a.contact as any)?.name || "").localeCompare((b.contact as any)?.name || ""); break;
-                                case "priority": cmp = (a.priority ?? 99) - (b.priority ?? 99); break;
-                                case "assignee": cmp = (a.assignees?.[0]?.user?.name || "").localeCompare(b.assignees?.[0]?.user?.name || ""); break;
-                                case "due_date": cmp = (a.due_date || "9999").localeCompare(b.due_date || "9999"); break;
-                                case "created": cmp = (a.created_at || "").localeCompare(b.created_at || ""); break;
-                                case "updated": cmp = (a.updated_at || "").localeCompare(b.updated_at || ""); break;
-                                case "days_in_stage": {
-                                  const daysA = a.task_type_changed_at ? Math.floor((Date.now() - new Date(a.task_type_changed_at).getTime()) / 86400000) : -1;
-                                  const daysB = b.task_type_changed_at ? Math.floor((Date.now() - new Date(b.task_type_changed_at).getTime()) / 86400000) : -1;
-                                  cmp = daysA - daysB; break;
-                                }
-                              }
-                              if (cmp !== 0) return cmp * dir;
-                            }
-                            // Default sort: status order, then task number
-                            const order: Record<string, number> = { in_progress: 0, todo: 1, complete: 2 };
-                            const statusDiff = (order[a.status?.type || ""] ?? 5) - (order[b.status?.type || ""] ?? 5);
-                            if (statusDiff !== 0) return statusDiff;
-                            return (a.task_number ?? 0) - (b.task_number ?? 0);
-                          })
-                          .map((task) => {
-                            const statusType = (task.status?.type as StatusType) ?? "todo";
-                            const statusColor = task.status?.color || STATUS_TYPE_COLORS[statusType] || "#6B7280";
+                        {sortedStatusGroups.map(([groupKey, group]) => {
+                          const isGroupCollapsed = statusGroupOverrides.get(groupKey) ?? false;
+                          const colCount = 10 + (enabledTaskFields.includes("task_type") ? 1 : 0) + (enabledTaskFields.includes("contact") ? 1 : 0) + (enabledTaskFields.includes("referral") ? 1 : 0) + (enabledTaskFields.includes("days_in_stage") ? 1 : 0);
+                          return (<Fragment key={groupKey}>
+                          <tr
+                            onClick={() => setStatusGroupOverrides(prev => {
+                              const next = new Map(prev);
+                              next.set(groupKey, !isGroupCollapsed);
+                              return next;
+                            })}
+                            className="bg-zinc-50/90 dark:bg-zinc-900/90 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-100/90 dark:hover:bg-zinc-800/90 transition-colors"
+                          >
+                            <td colSpan={colCount} className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                {isGroupCollapsed ? <ChevronRight size={12} className="text-zinc-400" /> : <ChevronDown size={12} className="text-zinc-400" />}
+                                {group.statusType === "complete" ? (
+                                  <CheckCircle2 size={13} style={{ color: group.color }} />
+                                ) : group.statusType === "in_progress" ? (
+                                  <svg width="13" height="13" viewBox="0 0 16 16">
+                                    <circle cx="8" cy="8" r="6.5" fill="none" stroke={group.color} strokeWidth="1.5" />
+                                    <path d="M8 1.5 A6.5 6.5 0 0 1 8 14.5" fill={group.color} />
+                                  </svg>
+                                ) : (
+                                  <Circle size={13} style={{ color: group.color }} />
+                                )}
+                                <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">{group.label}</span>
+                                <span className="text-[10px] text-zinc-400 tabular-nums">{group.tasks.length}</span>
+                              </div>
+                            </td>
+                          </tr>
+                          {!isGroupCollapsed && group.tasks.map((task) => {
                             const identifier = getTaskIdentifier(task);
-                            const priorityColor = PriorityColors[task.priority as Priority] ?? "#6B7280";
 
                             return (
                               <tr
@@ -2818,35 +2898,14 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                   />
                                 </td>
                                 {/* Status */}
-                                <td className="px-3 py-1.5 relative" onClick={(e) => e.stopPropagation()}>
-                                  <div className="relative w-5 h-5">
-                                    {/* Visual icon */}
-                                    <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                      {statusType === "complete" ? (
-                                        <CheckCircle2 size={14} style={{ color: statusColor }} />
-                                      ) : statusType === "in_progress" ? (
-                                        <svg width="14" height="14" viewBox="0 0 16 16">
-                                          <circle cx="8" cy="8" r="6.5" fill="none" stroke={statusColor} strokeWidth="1.5" />
-                                          <path d="M8 1.5 A6.5 6.5 0 0 1 8 14.5" fill={statusColor} />
-                                        </svg>
-                                      ) : (
-                                        <Circle size={14} style={{ color: statusColor }} />
-                                      )}
-                                    </span>
-                                    {/* Invisible select on top */}
-                                    <select
-                                      value={task.status_id || ""}
-                                      onChange={(e) => {
-                                        updateTaskMutation.mutate({ id: task.id, updates: { status_id: e.target.value } });
-                                      }}
-                                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                      title={STATUS_TYPE_LABELS[statusType]}
-                                    >
-                                      {taskStatuses.map((s) => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                      ))}
-                                    </select>
-                                  </div>
+                                <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <SearchableCell
+                                    value={task.status_id || null}
+                                    displayValue={task.status?.name}
+                                    placeholder="No status"
+                                    options={taskStatuses.map(s => ({ value: s.id, label: s.name }))}
+                                    onChange={(val) => { if (val) updateTaskMutation.mutate({ id: task.id, updates: { status_id: val } }); }}
+                                  />
                                 </td>
                                 {/* ID */}
                                 <td className="px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">
@@ -2896,33 +2955,39 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 </td>
                                 {/* Priority */}
                                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <select
-                                    value={task.priority ?? Priority.None}
-                                    onChange={(e) => {
-                                      updateTaskMutation.mutate({ id: task.id, updates: { priority: parseInt(e.target.value) } });
-                                    }}
-                                    className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none px-1.5 py-0.5 rounded-full font-medium"
-                                    style={{ backgroundColor: `${priorityColor}15`, color: priorityColor }}
-                                  >
-                                    {Object.entries(PriorityLabels).map(([value, label]) => (
-                                      <option key={value} value={value}>{label}</option>
-                                    ))}
-                                  </select>
+                                  <SearchableCell
+                                    value={String(task.priority ?? 0)}
+                                    displayValue={PriorityLabels[(task.priority ?? 0) as Priority]}
+                                    placeholder="None"
+                                    options={Object.entries(PriorityLabels).map(([v, l]) => ({ value: v, label: l }))}
+                                    onChange={(val) => updateTaskMutation.mutate({ id: task.id, updates: { priority: val ? parseInt(val) : 0 } })}
+                                    renderTrigger={(displayVal, onClick) => (
+                                      <button onClick={onClick} className="cursor-pointer hover:scale-125 transition-transform" title={displayVal || "No priority"}>
+                                        <PriorityBars priority={task.priority || 0} size={11} />
+                                      </button>
+                                    )}
+                                  />
                                 </td>
                                 {/* Assignee */}
                                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <select
-                                    value={task.assignees?.[0]?.user?.id || ""}
-                                    onChange={(e) => {
-                                      updateTaskMutation.mutate({ id: task.id, updates: {}, assignee_ids: e.target.value ? [e.target.value] : [] });
-                                    }}
-                                    className="appearance-none bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 w-full truncate"
-                                  >
-                                    <option value="">—</option>
-                                    {taskUsers.map((u) => (
-                                      <option key={u.id} value={u.id}>{u.name}</option>
-                                    ))}
-                                  </select>
+                                  <SearchableCell
+                                    value={task.assignees?.[0]?.user?.id || null}
+                                    displayValue={task.assignees?.[0]?.user?.name}
+                                    placeholder="—"
+                                    options={taskUsers.map(u => ({ value: u.id, label: u.name }))}
+                                    onChange={(val) => updateTaskMutation.mutate({ id: task.id, updates: {}, assignee_ids: val ? [val] : [] })}
+                                    renderTrigger={(displayVal, onClick) => (
+                                      <button onClick={onClick} className="flex items-center cursor-pointer hover:opacity-80 transition-all" title={displayVal || "Click to assign"}>
+                                        {(task.assignees?.length || 0) > 0 ? task.assignees!.slice(0, 3).map((a, i) => (
+                                          <div key={a.user?.id || i} className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[10px] font-medium text-zinc-600 dark:text-zinc-400 ring-1 ring-white dark:ring-zinc-950" style={{ marginLeft: i > 0 ? -6 : 0, zIndex: 3 - i }}>
+                                            {a.user?.name ? initials(a.user.name) : "?"}
+                                          </div>
+                                        )) : (
+                                          <div className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[10px] font-medium text-zinc-600 dark:text-zinc-400">?</div>
+                                        )}
+                                      </button>
+                                    )}
+                                  />
                                 </td>
                                 {/* Due Date */}
                                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
@@ -2945,6 +3010,15 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                       </button>
                                     )}
                                   </div>
+                                </td>
+                                {/* Company */}
+                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <SearchableCell
+                                    value={task.company_id || null}
+                                    displayValue={(task.company as any)?.display_name || (task.company as any)?.name}
+                                    options={allCompanies.map(c => ({ value: c.id, label: (c as any).display_name || c.name }))}
+                                    onChange={(val) => updateTaskMutation.mutate({ id: task.id, updates: { company_id: val, contact_id: null } })}
+                                  />
                                 </td>
                                 {/* Created */}
                                 <td className="px-2 py-1.5">
@@ -2997,25 +3071,6 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                       <option value="follow_up">Follow Up</option>
                                     </select>
                                   )}
-                                </td>}
-                                {/* Company */}
-                                {enabledTaskFields.includes("company") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <select
-                                    value={task.company_id || ""}
-                                    onChange={(e) => {
-                                      const val = e.target.value || null;
-                                      updateTaskMutation.mutate(
-                                        { id: task.id, updates: { company_id: val, contact_id: null } },
-                                        { onError: (err) => console.error("Company update failed:", err) }
-                                      );
-                                    }}
-                                    className="appearance-none bg-transparent text-[11px] cursor-pointer border-0 outline-none text-zinc-500"
-                                  >
-                                    <option value="">—</option>
-                                    {allCompanies.map((c) => (
-                                      <option key={c.id} value={c.id}>{c.display_name || c.name}</option>
-                                    ))}
-                                  </select>
                                 </td>}
                                 {/* Contact */}
                                 {enabledTaskFields.includes("contact") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
@@ -3072,6 +3127,8 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                               </tr>
                             );
                           })}
+                          </Fragment>);
+                        })}
                       </tbody>
                     </table>
                     {hasMoreTasks && (
@@ -3080,7 +3137,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                           onClick={() => setTaskPageSize(s => s + TASK_PAGE_INCREMENT)}
                           className="text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 font-medium"
                         >
-                          Load more ({filteredTasks.length - taskPageSize} remaining)
+                          Load more ({displayFilteredTasks.length - taskPageSize} remaining)
                         </button>
                       </div>
                     )}
@@ -3142,6 +3199,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                   </div>
                 )}
               </div>
+
             </div>
           )}
         </div>
@@ -3383,6 +3441,24 @@ Write a brief current state summary. No bullet points, just a natural sentence o
             <Folder size={12} /> Move to Project
           </button>
           <button
+            onClick={(e) => { setBulkCompanyMenu({ x: e.clientX, y: e.clientY - 300 }); setBulkCompanySearch(""); }}
+            className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition-colors font-medium flex items-center gap-1.5"
+          >
+            <Building2 size={12} /> Set Company
+          </button>
+          <button
+            onClick={() => setAutoAssignCompanyOpen(true)}
+            className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition-colors font-medium flex items-center gap-1.5"
+          >
+            <Sparkles size={12} /> Auto-assign Company
+          </button>
+          <button
+            onClick={() => setAutoAssignProjectOpen(true)}
+            className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition-colors font-medium flex items-center gap-1.5"
+          >
+            <Sparkles size={12} /> Auto-assign Project
+          </button>
+          <button
             onClick={() => setSelectedTaskIds(new Set())}
             className="px-2 py-1.5 rounded-lg hover:bg-zinc-700 transition-colors text-zinc-400 hover:text-white"
           >
@@ -3457,6 +3533,90 @@ Write a brief current state summary. No bullet points, just a natural sentence o
           </div>
         </>
       )}
+
+      {/* Bulk set company picker */}
+      {bulkCompanyMenu && (
+        <>
+          <div className="fixed inset-0 z-50" onClick={() => setBulkCompanyMenu(null)} />
+          <div
+            className="fixed z-[60] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg min-w-[280px] max-h-[320px] flex flex-col overflow-hidden"
+            style={{ left: Math.min(bulkCompanyMenu.x, window.innerWidth - 300), top: Math.max(40, bulkCompanyMenu.y) }}
+          >
+            <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2">
+              <Building2 size={12} className="text-teal-600" />
+              <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">Set company for {selectedTaskIds.size} task{selectedTaskIds.size > 1 ? "s" : ""}</span>
+            </div>
+            <div className="px-2 py-2">
+              <input
+                type="text"
+                value={bulkCompanySearch}
+                onChange={(e) => setBulkCompanySearch(e.target.value)}
+                placeholder="Search companies..."
+                autoFocus
+                className="w-full text-xs px-2 py-1.5 rounded bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 outline-none focus:ring-2 focus:ring-teal-500/30"
+              />
+            </div>
+            <div className="overflow-y-auto flex-1 px-1 pb-1">
+              <button
+                onClick={async () => {
+                  const { supabase } = await import("../../lib/supabase");
+                  await Promise.all(selectedTaskIdsArray.map(id =>
+                    supabase.from("tasks").update({ company_id: null, contact_id: null }).eq("id", id)
+                  ));
+                  setBulkCompanyMenu(null);
+                  setSelectedTaskIds(new Set());
+                  refetchWorkspace();
+                  toast.success("Company cleared");
+                }}
+                className="w-full text-left px-3 py-1.5 rounded text-xs text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+              >
+                No company
+              </button>
+              {allCompanies
+                .filter(c => !bulkCompanySearch || ((c as any).display_name || c.name).toLowerCase().includes(bulkCompanySearch.toLowerCase()))
+                .map(c => (
+                  <button
+                    key={c.id}
+                    onClick={async () => {
+                      const { supabase } = await import("../../lib/supabase");
+                      await Promise.all(selectedTaskIdsArray.map(id =>
+                        supabase.from("tasks").update({ company_id: c.id }).eq("id", id)
+                      ));
+                      setBulkCompanyMenu(null);
+                      setSelectedTaskIds(new Set());
+                      refetchWorkspace();
+                      toast.success(`Company set to ${(c as any).display_name || c.name}`);
+                    }}
+                    className="w-full text-left px-3 py-1.5 rounded text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors truncate"
+                  >
+                    {(c as any).display_name || c.name}
+                  </button>
+                ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      <AutoAssignCompanyModal
+        taskIds={selectedTaskIdsArray}
+        open={autoAssignCompanyOpen}
+        onClose={() => setAutoAssignCompanyOpen(false)}
+        onApplied={() => {
+          refetchWorkspace();
+          setSelectedTaskIds(new Set());
+        }}
+      />
+
+      <AutoAssignProjectModal
+        taskIds={selectedTaskIdsArray}
+        currentProjectId={workspaceId}
+        open={autoAssignProjectOpen}
+        onClose={() => setAutoAssignProjectOpen(false)}
+        onApplied={() => {
+          refetchWorkspace();
+          setSelectedTaskIds(new Set());
+        }}
+      />
 
       {showPicker && (
         <ArtifactPickerModal

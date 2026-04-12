@@ -223,14 +223,20 @@ function ProjectPaneContent({
   onOpenChat: () => void;
   onCloseChat: () => void;
 }) {
-  // WorkspaceDetailView now owns the "Chat to Update" popup via its sidebar
-  // section, so this wrapper just renders the existing component.
+  const setActiveModule = useAppStore((s) => s.setActiveModule);
+  const setNavTarget = useNotificationNavStore((s) => s.setTarget);
+
   return (
     <WorkspaceDetailView
       key={projectId}
       workspaceId={projectId}
       onBack={onClose}
       onUpdated={() => {}}
+      onExpandProject={(id) => {
+        setActiveModule("projects");
+        setNavTarget("project", id, false);
+        onClose();
+      }}
     />
   );
 }

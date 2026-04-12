@@ -1,13 +1,14 @@
 // MCP Tauri Commands
 // Exposes MCP tools via Tauri IPC for the UI
+// Delegates to tv-mcp crate — single source of truth for tool definitions
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::command;
 
 use crate::commands::error::CmdResult;
-use crate::mcp::protocol::{Tool, ToolResult};
-use crate::mcp::tools;
+use tv_mcp::server::protocol::Tool;
+use tv_mcp::server::protocol::ToolResult;
 
 /// MCP tool info for the UI (matches the React interface)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +46,7 @@ impl From<Tool> for McpToolInfo {
 /// List all MCP tools (for UI capability explorer)
 #[command]
 pub fn mcp_list_tools() -> Vec<McpToolInfo> {
-    tools::list_tools()
+    tv_mcp::server::tools::list_tools()
         .into_iter()
         .map(McpToolInfo::from)
         .collect()
@@ -54,7 +55,7 @@ pub fn mcp_list_tools() -> Vec<McpToolInfo> {
 /// Call an MCP tool by name
 #[command]
 pub async fn mcp_call_tool(name: String, arguments: Value) -> CmdResult<ToolResult> {
-    Ok(tools::call_tool(&name, arguments).await)
+    Ok(tv_mcp::server::tools::call_tool(&name, arguments).await)
 }
 
 /// Get MCP server status
@@ -62,8 +63,8 @@ pub async fn mcp_call_tool(name: String, arguments: Value) -> CmdResult<ToolResu
 pub fn mcp_get_status() -> McpStatus {
     McpStatus {
         http_enabled: true,
-        http_port: crate::mcp::server::DEFAULT_PORT,
-        tool_count: tools::list_tools().len(),
+        http_port: tv_mcp::server::server::DEFAULT_PORT,
+        tool_count: tv_mcp::server::tools::list_tools().len(),
     }
 }
 

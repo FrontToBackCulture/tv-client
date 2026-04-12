@@ -9,7 +9,7 @@ import { EmailDetailPanel } from "../../components/emails/EmailDetailPanel";
 import type { LinkedEmail } from "../../hooks/email/useEntityEmails";
 import {
   ChevronDown, ChevronRight, Pencil, Search, ArrowUpDown,
-  CheckCircle2, Trash2,
+  CheckCircle2, Trash2, Plus, Briefcase, Handshake,
   PanelLeftClose, PanelLeftOpen, EyeOff, Eye, GripVertical, Mail, MessageCircle, Tag, CircleAlert, Users,
 } from "lucide-react";
 import {
@@ -478,7 +478,7 @@ function SortableInitiativeRow({
 }
 
 export function DashboardView({
-  projects, allTasks, initiatives, initiativeLinks, taskDealLinks, onEditInitiative, onUpdateProject, onInitiativeLinkChanged, onCreateTask,
+  projects, allTasks, initiatives, initiativeLinks, taskDealLinks, onEditInitiative, onUpdateProject, onInitiativeLinkChanged, onCreateTask, onExpandProject, onCreateInitiative, onCreateProject,
 }: {
   projects: Project[];
   allTasks: TaskWithRelations[];
@@ -489,6 +489,9 @@ export function DashboardView({
   onUpdateProject?: (id: string, updates: Record<string, any>) => void;
   onInitiativeLinkChanged?: (projectId: string, initiativeId: string | null) => Promise<void>;
   onCreateTask?: (projectId: string) => void;
+  onExpandProject?: (projectId: string) => void;
+  onCreateInitiative?: () => void;
+  onCreateProject?: () => void;
 }) {
   // Persist selected project across refreshes
   const SELECTED_PROJECT_KEY = "tv-dashboard-selected-project";
@@ -744,13 +747,40 @@ export function DashboardView({
       return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     });
 
+    // Merge early stages into "Pre-qualify" visual group
+    const PREQUALIFY_STAGES = new Set(["target", "prospect", "lead"]);
+    const prequalifyProjects: Project[] = [];
+    const otherStages: [string, Project[]][] = [];
+    for (const [stage, projects] of sortedStages) {
+      if (PREQUALIFY_STAGES.has(stage)) {
+        prequalifyProjects.push(...projects);
+      } else {
+        otherStages.push([stage, projects]);
+      }
+    }
+
     return (
       <>
-        {/* Non-deal projects first (flat) */}
         {nonDeals.map(p => renderProjectRow(p))}
 
-        {/* Deal projects grouped by stage */}
-        {sortedStages.map(([stage, stageProjects]) => {
+        {/* Pre-qualify group (target + prospect + lead) */}
+        {prequalifyProjects.length > 0 && (
+          <div key="stage-prequalify">
+            <button
+              onClick={() => toggleGroup("stage-prequalify")}
+              className="w-full flex items-center gap-1.5 pr-3 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+              style={{ paddingLeft: "3.75rem" }}
+            >
+              {!collapsedGroups.has("stage-prequalify") ? <ChevronDown size={9} className="text-zinc-400" /> : <ChevronRight size={9} className="text-zinc-400" />}
+              <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Pre-qualify</span>
+              <span className="text-[9px] text-zinc-400">{prequalifyProjects.length}</span>
+            </button>
+            {!collapsedGroups.has("stage-prequalify") && prequalifyProjects.map(p => renderProjectRow(p, true))}
+          </div>
+        )}
+
+        {/* Remaining deal stages */}
+        {otherStages.map(([stage, stageProjects]) => {
           const stageInfo = DEAL_STAGES.find(s => s.value === stage);
           const isStageExpanded = !collapsedGroups.has(`stage-${stage}`);
 
@@ -784,27 +814,46 @@ export function DashboardView({
         key={p.id}
         onClick={() => { setSelectedProjectId(p.id); setSelectedInitiativeId(null); }}
         onContextMenu={(e) => { e.preventDefault(); setContextMenu({ projectId: p.id, x: e.clientX, y: e.clientY }); }}
-        className={`grid grid-cols-[1fr,55px,30px,50px,70px] gap-1 items-center pr-2 py-1.5 cursor-pointer transition-colors group ${
+        className={`grid grid-cols-[1fr,30px,50px,70px] gap-1 items-center pr-2 py-1.5 cursor-pointer transition-colors group ${
           isSelected
             ? "bg-teal-50 dark:bg-teal-950/30"
             : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
         } ${isDimmed ? "opacity-50" : ""}`}
         style={{ paddingLeft: indentExtra ? "4.75rem" : "3.75rem" }}
       >
-        {/* Name + Health + Priority */}
+        {/* Type icon (colored by urgency) + Name + Priority */}
         <div className="flex items-center gap-1.5 min-w-0">
           {(() => {
             const dot = getTaskUrgencyDot(counts);
+            const isDeal = p.project_type === "deal";
+            const TypeIcon = isDeal ? Handshake : Briefcase;
             return (
-              <div className="w-3 flex items-center justify-center flex-shrink-0">
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{
-                    backgroundColor: dot.color,
-                    ...(counts.overdue > 0 ? { boxShadow: `0 0 0 2px white, 0 0 0 3px ${dot.color}` } : {}),
-                  }}
-                  title={dot.title}
-                />
+              <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                {editingTypeId === p.id ? (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setEditingTypeId(null)} />
+                    <div className="absolute top-full left-0 mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[100px]">
+                      {(["work", "deal"] as const).map(t => (
+                        <button key={t} onClick={() => { onUpdateProject?.(p.id, { project_type: t }); setEditingTypeId(null); }}
+                          className={`w-full text-left px-3 py-1 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 ${(p.project_type || "work") === t ? "font-medium text-teal-600" : ""}`}
+                        >{t}</button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+                <button
+                  onClick={() => setEditingTypeId(p.id)}
+                  title={`${isDeal ? "Deal" : "Work"} · ${dot.title}`}
+                  className="hover:opacity-75 transition-opacity"
+                >
+                  <TypeIcon
+                    size={13}
+                    style={{
+                      color: dot.color,
+                      ...(counts.overdue > 0 ? { filter: `drop-shadow(0 0 2px ${dot.color})` } : {}),
+                    }}
+                  />
+                </button>
               </div>
             );
           })()}
@@ -822,29 +871,6 @@ export function DashboardView({
             >
               {p.priority === 1 ? "URGENT" : "HIGH"}
             </span>
-          )}
-        </div>
-
-        {/* Type */}
-        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-          {editingTypeId === p.id ? (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setEditingTypeId(null)} />
-              <div className="absolute mt-5 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[100px]">
-                {(["work", "deal"] as const).map(t => (
-                  <button key={t} onClick={() => { onUpdateProject?.(p.id, { project_type: t }); setEditingTypeId(null); }}
-                    className={`w-full text-left px-3 py-1 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 ${(p.project_type || "work") === t ? "font-medium text-teal-600" : ""}`}
-                  >{t}</button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <button onClick={() => setEditingTypeId(p.id)}
-              className={`text-[8px] px-1 py-0 rounded-full font-semibold uppercase tracking-wider ${
-                p.project_type === "deal" ? "bg-blue-50 dark:bg-blue-900/30 text-blue-500"
-                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
-              }`}
-            >{p.project_type || "work"}</button>
           )}
         </div>
 
@@ -1032,6 +1058,19 @@ export function DashboardView({
             </div>
           )}
           </div>
+          {/* Create actions */}
+          <div className="flex-shrink-0 border-t border-zinc-100 dark:border-zinc-800 px-3 py-2 flex items-center gap-2">
+            {onCreateInitiative && (
+              <button onClick={onCreateInitiative} className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                <Plus size={11} /> Initiative
+              </button>
+            )}
+            {onCreateProject && (
+              <button onClick={onCreateProject} className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                <Plus size={11} /> Project
+              </button>
+            )}
+          </div>
           </>
           )}
         </div>
@@ -1053,6 +1092,7 @@ export function DashboardView({
               onUpdated={() => {}}
               onCreateTask={onCreateTask ? () => onCreateTask(selectedProjectId) : undefined}
               onNavigateToProject={(id) => setSelectedProjectId(id)}
+              onExpandProject={onExpandProject}
             />
           ) : selectedInitiativeId ? (
             <InitiativeDetailPane

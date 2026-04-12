@@ -1,7 +1,7 @@
 // src/modules/work/TaskDetailPanel.tsx
 // Task detail panel/modal with full editing
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/cn";
 import {
@@ -92,6 +92,47 @@ export function TaskDetailPanel({
   const pushMutation = useNotionPushTask();
   const pullMutation = useNotionPullTask();
 
+  // Notion auto-sync (debounced) for structured field edits
+  type AutoSyncState = "idle" | "pending" | "syncing" | "synced" | "error";
+  const [autoSyncState, setAutoSyncState] = useState<AutoSyncState>("idle");
+  const autoSyncTimerRef = useRef<number | null>(null);
+  const syncedFadeRef = useRef<number | null>(null);
+  const hasNotionPage = !!task?.notion_page_id;
+
+  const scheduleNotionAutoSync = useCallback(() => {
+    if (!hasNotionPage) return;
+    if (autoSyncTimerRef.current) window.clearTimeout(autoSyncTimerRef.current);
+    if (syncedFadeRef.current) { window.clearTimeout(syncedFadeRef.current); syncedFadeRef.current = null; }
+    setAutoSyncState("pending");
+    autoSyncTimerRef.current = window.setTimeout(async () => {
+      autoSyncTimerRef.current = null;
+      setAutoSyncState("syncing");
+      try {
+        await pushMutation.mutateAsync(taskId);
+        setAutoSyncState("synced");
+        syncedFadeRef.current = window.setTimeout(() => {
+          setAutoSyncState("idle");
+          syncedFadeRef.current = null;
+        }, 2000);
+      } catch (err: any) {
+        setAutoSyncState("error");
+        toast.error(`Notion auto-sync failed: ${err?.message || err}`);
+      }
+    }, 1500);
+  }, [hasNotionPage, taskId, pushMutation]);
+
+  useEffect(() => {
+    return () => {
+      if (autoSyncTimerRef.current) window.clearTimeout(autoSyncTimerRef.current);
+      if (syncedFadeRef.current) window.clearTimeout(syncedFadeRef.current);
+    };
+  }, []);
+
+  // Fields that auto-sync to Notion on edit (description is intentionally excluded)
+  const NOTION_AUTO_SYNC_FIELDS = new Set([
+    "status_id", "priority", "milestone_id", "due_date", "company_id", "title",
+  ]);
+
   // Report task to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
@@ -113,7 +154,6 @@ export function TaskDetailPanel({
   const [detailsCollapsed, setDetailsCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "emails" | "discussion" | "changes">("details");
   const [artifactsExpanded, setArtifactsExpanded] = useState(true);
-  const [botChatExpanded, setBotChatExpanded] = useState(true);
   const [chatPopupSession, setChatPopupSession] = useState<string | null>(null);
   const { activeRepository } = useRepository();
   const botChatPrefix = `task-chat:${taskId}`;
@@ -159,6 +199,7 @@ export function TaskDetailPanel({
       });
       refetch();
       onUpdated?.();
+      if (NOTION_AUTO_SYNC_FIELDS.has(field)) scheduleNotionAutoSync();
     } catch (error) {
       console.error("Failed to update task:", error);
     }
@@ -231,6 +272,28 @@ export function TaskDetailPanel({
               <svg width="14" height="14" viewBox="0 0 100 100" fill="currentColor"><path d="M6.6 12.6c5.1 4.1 7 3.8 16.5 3.1l59.7-3.6c2 0 .3-2-.3-2.2L73.2 3.5c-2.7-2.2-6.5-4.6-13.5-4L8 3.2C4 3.5 3.1 5.6 4.8 7.3zm17.1 14.3v62.7c0 3.4 1.7 4.7 5.5 4.5l65.7-3.8c3.8-.2 4.3-2.6 4.3-5.4V22.6c0-2.8-1.1-4.3-3.5-4l-68.6 4c-2.7.2-3.4 1.5-3.4 4.3zM82 29c.4 1.8 0 3.5-1.8 3.7l-3.2.6v46.3c-2.8 1.5-5.3 2.3-7.5 2.3-3.4 0-4.3-1.1-6.8-4.1L42.3 46.2v30.7l6.6 1.5s0 3.5-4.8 3.5l-13.3.8c-.4-.8 0-2.7 1.3-3l3.5-1V38.3l-4.8-.4c-.4-1.8.6-4.4 3.5-4.6l14.3-.9 21.2 32.5V37l-5.5-.6c-.4-2.2 1.2-3.7 3.2-3.9z"/></svg>
             </a>
           )}
+          {task.notion_page_id && autoSyncState !== "idle" && (
+            <span
+              className={`text-[10px] font-medium flex items-center gap-1 transition-opacity ${
+                autoSyncState === "pending" ? "text-amber-500" :
+                autoSyncState === "syncing" ? "text-teal-500" :
+                autoSyncState === "synced" ? "text-emerald-500" :
+                "text-red-500"
+              }`}
+              title={
+                autoSyncState === "pending" ? "Notion sync queued" :
+                autoSyncState === "syncing" ? "Syncing to Notion..." :
+                autoSyncState === "synced" ? "Synced to Notion" :
+                "Notion sync failed"
+              }
+            >
+              {autoSyncState === "syncing" && <Loader2 size={10} className="animate-spin" />}
+              {autoSyncState === "pending" && "• queued"}
+              {autoSyncState === "syncing" && "syncing"}
+              {autoSyncState === "synced" && "✓ synced"}
+              {autoSyncState === "error" && "✕ failed"}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <IconButton
@@ -243,148 +306,37 @@ export function TaskDetailPanel({
         </div>
       </div>
 
-      {/* Body — left sidebar nav + main content (matches WorkspaceDetailView layout) */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* LEFT: sidebar nav */}
-        <div className="flex-shrink-0 w-56 border-r border-zinc-100 dark:border-zinc-800 flex flex-col bg-zinc-50/50 dark:bg-zinc-900/30">
+      {/* Tab bar */}
+      <div className="flex-shrink-0 flex items-center gap-1 px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+        {([
+          { key: "details" as const, label: "Details", icon: null },
+          { key: "discussion" as const, label: "Discussion", icon: MessageSquare, badge: discussionCount },
+          { key: "emails" as const, label: "Emails", icon: Mail, badge: emailCount },
+          { key: "changes" as const, label: "Changes", icon: History },
+        ]).map((tab) => (
           <button
-            onClick={() => setActiveTab("details")}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
             className={cn(
-              "w-full text-left px-3 py-2 text-xs font-medium border-b transition-colors",
-              activeTab === "details"
-                ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/50"
-                : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800/30 border-zinc-100 dark:border-zinc-800",
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
+              activeTab === tab.key
+                ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
             )}
           >
-            Task Details
+            {tab.icon && <tab.icon size={13} />}
+            {tab.label}
+            {(tab.badge ?? 0) > 0 && (
+              <span className="text-[10px] font-medium bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">
+                {tab.badge}
+              </span>
+            )}
           </button>
-          <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
-            {/* Artifacts — curated list (same system as project artifacts) */}
-            <TaskArtifactsSection
-              taskId={taskId}
-              task={task}
-              repositoryPath={activeRepository?.path ?? ""}
-              expanded={artifactsExpanded}
-              onToggle={() => setArtifactsExpanded(v => !v)}
-            />
+        ))}
+      </div>
 
-            <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-2" />
-
-            <button
-              onClick={() => setActiveTab("discussion")}
-              className={cn(
-                "w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
-                activeTab === "discussion"
-                  ? "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
-                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
-              )}
-            >
-              <MessageSquare size={13} />
-              <span>Discussion</span>
-              {(discussionCount ?? 0) > 0 && (
-                <span className="ml-auto text-[10px] font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full">
-                  {discussionCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("emails")}
-              className={cn(
-                "w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
-                activeTab === "emails"
-                  ? "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
-                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
-              )}
-            >
-              <Mail size={13} />
-              <span>Emails</span>
-              {(emailCount ?? 0) > 0 && (
-                <span className="ml-auto text-[10px] font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full">
-                  {emailCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("changes")}
-              className={cn(
-                "w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
-                activeTab === "changes"
-                  ? "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
-                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
-              )}
-            >
-              <History size={13} />
-              <span>Changes</span>
-            </button>
-
-            {/* Bot Chat — expandable section listing each chat session */}
-            <div className="pt-2 mt-2 border-t border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center">
-                <button
-                  onClick={() => setBotChatExpanded(v => !v)}
-                  className="flex-1 flex items-center gap-1.5 px-1 py-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-                >
-                  {botChatExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                  <Brain size={11} className="text-purple-500" />
-                  <span>Chat to Update</span>
-                  {botChatSessions.length > 0 && (
-                    <span className="ml-1 text-[10px] text-zinc-400 normal-case font-normal tracking-normal">
-                      ({botChatSessions.length})
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    // Generate a fresh session id so each "Chat to update" starts a new thread
-                    const newId = `${botChatPrefix}:${Date.now()}`;
-                    setChatPopupSession(newId);
-                    setBotChatExpanded(true);
-                  }}
-                  className="p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-950/30 text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-                  title="Start a new bot chat session"
-                >
-                  <Plus size={12} />
-                </button>
-              </div>
-              {botChatExpanded && (
-                <div className="mt-1 space-y-0.5">
-                  {botChatSessions.length === 0 ? (
-                    <button
-                      onClick={() => {
-                        const newId = `${botChatPrefix}:${Date.now()}`;
-                        setChatPopupSession(newId);
-                      }}
-                      className="w-full text-left text-[10px] text-zinc-400 dark:text-zinc-600 italic px-2 py-1 hover:text-purple-500 dark:hover:text-purple-400 transition-colors"
-                    >
-                      + Chat to update
-                    </button>
-                  ) : (
-                    botChatSessions.map((s) => (
-                      <button
-                        key={s.entity_id}
-                        onClick={() => setChatPopupSession(s.entity_id)}
-                        className="w-full text-left flex items-start gap-1.5 px-2 py-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors group"
-                        title={s.title ?? s.sample_body}
-                      >
-                        <Brain size={10} className="text-purple-500 mt-0.5 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                            {formatBotChatSessionLabel(s)}
-                          </div>
-                          <div className="text-[9px] text-zinc-400 dark:text-zinc-600">
-                            {s.message_count} msg · {formatRelative(s.last_activity_at)}
-                          </div>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT: main content */}
+      {/* Body */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       {activeTab === "emails" ? (
         <EmailsPanel entityType="task" entityId={taskId} />
@@ -421,6 +373,63 @@ export function TaskDetailPanel({
                 {task.title}
               </h1>
             )}
+          </div>
+
+          {/* Artifacts + Chat — side by side */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-zinc-100 dark:border-zinc-800 p-3">
+              <TaskArtifactsSection
+                taskId={taskId}
+                task={task}
+                repositoryPath={activeRepository?.path ?? ""}
+                expanded={artifactsExpanded}
+                onToggle={() => setArtifactsExpanded(v => !v)}
+              />
+            </div>
+            <div className="rounded-lg border border-zinc-100 dark:border-zinc-800 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Brain size={12} className="text-purple-500" />
+                  Chat{botChatSessions.length > 0 ? ` (${botChatSessions.length})` : ""}
+                </h3>
+                <button
+                  onClick={() => setChatPopupSession(`${botChatPrefix}:${Date.now()}`)}
+                  className="p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-950/30 text-zinc-400 hover:text-purple-500 transition-colors"
+                  title="New chat"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+              <div className="space-y-0.5 max-h-[150px] overflow-y-auto">
+                {botChatSessions.length === 0 ? (
+                  <button
+                    onClick={() => setChatPopupSession(`${botChatPrefix}:${Date.now()}`)}
+                    className="text-xs text-zinc-400 italic hover:text-purple-500 dark:hover:text-purple-400 transition-colors"
+                  >
+                    + Start a chat to update
+                  </button>
+                ) : (
+                  botChatSessions.map((s) => (
+                    <button
+                      key={s.entity_id}
+                      onClick={() => setChatPopupSession(s.entity_id)}
+                      className="w-full text-left flex items-start gap-1.5 px-2 py-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+                      title={s.title ?? s.sample_body}
+                    >
+                      <Brain size={10} className="text-purple-500 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                          {formatBotChatSessionLabel(s)}
+                        </div>
+                        <div className="text-[10px] text-zinc-400 dark:text-zinc-600">
+                          {s.message_count} msg · {formatRelative(s.last_activity_at)}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Task Details — collapsible section header */}
@@ -520,6 +529,7 @@ export function TaskDetailPanel({
                           });
                           refetch();
                           onUpdated?.();
+                          scheduleNotionAutoSync();
                         } catch (err) {
                           console.error("Failed to update assignees:", err);
                         }
@@ -651,6 +661,7 @@ export function TaskDetailPanel({
                         });
                         refetch();
                         onUpdated?.();
+                        scheduleNotionAutoSync();
                       } catch (error) {
                         console.error("Failed to update company:", error);
                       }
