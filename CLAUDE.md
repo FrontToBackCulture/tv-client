@@ -417,7 +417,6 @@ Utility scripts in `scripts/`:
 
 | Script | Purpose |
 |--------|---------|
-| `build-sidecar.sh` | Build Tauri sidecar binary (accepts `release` or `debug`) |
 | `generate-commands.js` | Auto-generate TypeScript types from Tauri commands |
 | `sync-skills.mjs` | Sync skill definitions from `_skills/` to Supabase registry |
 | `sync-emails-to-supabase.mjs` | Migrate email data to Supabase |
@@ -432,8 +431,6 @@ Utility scripts in `scripts/`:
 npm run dev              # Vite dev server (web)
 npm run build            # TypeScript check + Vite production build
 npm run preview          # Preview production build
-npm run build:sidecar    # Build tv-mcp sidecar (release)
-npm run build:sidecar:dev # Build tv-mcp sidecar (debug)
 npm run tauri:dev        # Tauri desktop dev mode
 npm run tauri:build      # Build desktop app
 ```

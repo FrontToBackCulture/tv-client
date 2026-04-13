@@ -7,6 +7,10 @@ import {
   DailyFocus,
   DailyFocusUpdate,
   DeliveryProject,
+  DealProject,
+  DealStage,
+  ACTIVE_DEAL_STAGES,
+  DEAL_STAGE_ORDER,
   Escalation,
   EscalationInsert,
   EscalationUpdate,
@@ -141,15 +145,25 @@ export function useDeliveryProjects() {
   return useQuery({
     queryKey: cockpitKeys.deliveryStates(),
     queryFn: async (): Promise<DeliveryProject[]> => {
-      // Pull active work projects with a linked CLIENT company.
-      // Pre-sales stages (prospect, opportunity) and partner work are excluded —
-      // the cockpit delivery grid is for client delivery tracking only.
+      // Scope to projects that belong to the "Client Delivery" initiative.
+      const CLIENT_DELIVERY_INITIATIVE_ID = "a9454133-62d4-4ec4-bca8-513080a773da";
+      const { data: ipRows, error: ipErr } = await supabase
+        .from("initiative_projects")
+        .select("project_id")
+        .eq("initiative_id", CLIENT_DELIVERY_INITIATIVE_ID);
+      if (ipErr) throw new Error(`fetch initiative projects: ${ipErr.message}`);
+      const initiativeProjectIds = (ipRows ?? []).map((r) => r.project_id);
+      if (initiativeProjectIds.length === 0) return [];
+
+      // Pull active work projects with a linked CLIENT company, restricted to
+      // the Client Delivery initiative.
       const { data: projectRows, error: pErr } = await supabase
         .from("projects")
         .select(
           "id, name, status, health, priority, lead, target_date, updated_at, company_id, " +
           "company:crm_companies!inner(id, name, display_name, domain_id, stage)"
         )
+        .in("id", initiativeProjectIds)
         .eq("project_type", "work")
         .is("archived_at", null)
         .not("company_id", "is", null)
@@ -171,6 +185,36 @@ export function useDeliveryProjects() {
       if (tErr) throw new Error(`fetch delivery tasks: ${tErr.message}`);
 
       const tasks = (taskRows ?? []) as unknown as TaskRow[];
+
+      // Pull latest 'review' activity per project (bot-delivery authored reviews).
+      const { data: reviewRows, error: rErr } = await supabase
+        .from("crm_activities")
+        .select("id, project_id, subject, content, activity_date, created_by, created_at")
+        .eq("type", "review")
+        .in("project_id", ids)
+        .order("activity_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
+      if (rErr) throw new Error(`fetch project reviews: ${rErr.message}`);
+      const latestReview = new Map<string, DeliveryProject["last_review"]>();
+      for (const r of (reviewRows ?? []) as Array<{
+        id: string;
+        project_id: string;
+        subject: string | null;
+        content: string | null;
+        activity_date: string | null;
+        created_by: string | null;
+        created_at: string;
+      }>) {
+        if (!latestReview.has(r.project_id)) {
+          latestReview.set(r.project_id, {
+            id: r.id,
+            subject: r.subject,
+            content: r.content,
+            activity_date: r.activity_date ?? r.created_at,
+            created_by: r.created_by,
+          });
+        }
+      }
 
       // Aggregate by project_id.
       type Agg = {
@@ -241,6 +285,7 @@ export function useDeliveryProjects() {
           overdue_tasks: a.overdue,
           total_tasks: a.total,
           last_task_activity: a.last_activity,
+          last_review: latestReview.get(p.id) ?? null,
         };
       });
 
@@ -252,6 +297,165 @@ export function useDeliveryProjects() {
         if (y.overdue_tasks !== x.overdue_tasks) return y.overdue_tasks - x.overdue_tasks;
         if (y.open_tasks !== x.open_tasks) return y.open_tasks - x.open_tasks;
         return (y.last_task_activity ?? "").localeCompare(x.last_task_activity ?? "");
+      });
+
+      return enriched;
+    },
+  });
+}
+
+// ============================================================================
+// Deal projects (sales pipeline)
+// ============================================================================
+
+interface DealProjectRow {
+  id: string;
+  name: string;
+  priority: number | null;
+  lead: string | null;
+  updated_at: string;
+  company_id: string;
+  deal_stage: string | null;
+  deal_value: number | null;
+  deal_currency: string | null;
+  deal_solution: string | null;
+  deal_expected_close: string | null;
+  deal_stage_changed_at: string | null;
+  company: {
+    id: string;
+    name: string | null;
+    display_name: string | null;
+  } | null;
+}
+
+export function useDealProjects() {
+  return useQuery({
+    queryKey: [...cockpitKeys.all, "deals"] as const,
+    queryFn: async (): Promise<DealProject[]> => {
+      const { data: projectRows, error: pErr } = await supabase
+        .from("projects")
+        .select(
+          "id, name, priority, lead, updated_at, company_id, " +
+          "deal_stage, deal_value, deal_currency, deal_solution, " +
+          "deal_expected_close, deal_stage_changed_at, " +
+          "company:crm_companies!inner(id, name, display_name)"
+        )
+        .eq("project_type", "deal")
+        .is("archived_at", null)
+        .in("deal_stage", ACTIVE_DEAL_STAGES)
+        .not("company_id", "is", null)
+        .order("updated_at", { ascending: false });
+      if (pErr) throw new Error(`fetch deal projects: ${pErr.message}`);
+
+      const projects = (projectRows ?? []) as unknown as DealProjectRow[];
+      if (projects.length === 0) return [];
+
+      const ids = projects.map((p) => p.id);
+
+      const { data: taskRows, error: tErr } = await supabase
+        .from("tasks")
+        .select("project_id, updated_at, due_date, status_id, status:task_statuses(type)")
+        .in("project_id", ids);
+      if (tErr) throw new Error(`fetch deal tasks: ${tErr.message}`);
+      const tasks = (taskRows ?? []) as unknown as TaskRow[];
+
+      const { data: reviewRows, error: rErr } = await supabase
+        .from("crm_activities")
+        .select("id, project_id, subject, content, activity_date, created_by, created_at")
+        .eq("type", "review")
+        .in("project_id", ids)
+        .order("activity_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
+      if (rErr) throw new Error(`fetch deal reviews: ${rErr.message}`);
+      const latestReview = new Map<string, DealProject["last_review"]>();
+      for (const r of (reviewRows ?? []) as Array<{
+        id: string;
+        project_id: string;
+        subject: string | null;
+        content: string | null;
+        activity_date: string | null;
+        created_by: string | null;
+        created_at: string;
+      }>) {
+        if (!latestReview.has(r.project_id)) {
+          latestReview.set(r.project_id, {
+            id: r.id,
+            subject: r.subject,
+            content: r.content,
+            activity_date: r.activity_date ?? r.created_at,
+            created_by: r.created_by,
+          });
+        }
+      }
+
+      type Agg = {
+        open: number;
+        in_progress: number;
+        blocked: number;
+        overdue: number;
+        total: number;
+        last_activity: string | null;
+      };
+      const now = new Date();
+      const agg = new Map<string, Agg>();
+      for (const p of projects) {
+        agg.set(p.id, { open: 0, in_progress: 0, blocked: 0, overdue: 0, total: 0, last_activity: null });
+      }
+      for (const t of tasks) {
+        const a = agg.get(t.project_id);
+        if (!a) continue;
+        a.total += 1;
+        const type = t.status?.type ?? "todo";
+        if (type !== "complete") {
+          a.open += 1;
+          if (type === "in_progress") a.in_progress += 1;
+          if (t.status_id === BLOCKED_STATUS_ID) a.blocked += 1;
+          if (t.due_date) {
+            const due = new Date(t.due_date);
+            if (due < now) a.overdue += 1;
+          }
+        }
+        if (!a.last_activity || t.updated_at > a.last_activity) {
+          a.last_activity = t.updated_at;
+        }
+      }
+
+      const enriched: DealProject[] = projects.map((p) => {
+        const a = agg.get(p.id)!;
+        const stage = (p.deal_stage as DealStage | null) ?? null;
+        return {
+          id: p.id,
+          name: p.name,
+          company_id: p.company_id,
+          company_name: p.company?.display_name || p.company?.name || "Unknown",
+          deal_stage: stage,
+          deal_value: p.deal_value,
+          deal_currency: p.deal_currency,
+          deal_solution: p.deal_solution,
+          deal_expected_close: p.deal_expected_close,
+          deal_stage_changed_at: p.deal_stage_changed_at,
+          priority: p.priority,
+          lead: p.lead,
+          updated_at: p.updated_at,
+          open_tasks: a.open,
+          in_progress_tasks: a.in_progress,
+          blocked_tasks: a.blocked,
+          overdue_tasks: a.overdue,
+          total_tasks: a.total,
+          last_task_activity: a.last_activity,
+          last_review: latestReview.get(p.id) ?? null,
+        };
+      });
+
+      // Sort: later stages first (closer to win), then higher value, then recency.
+      enriched.sort((x, y) => {
+        const sx = x.deal_stage ? DEAL_STAGE_ORDER[x.deal_stage] : -1;
+        const sy = y.deal_stage ? DEAL_STAGE_ORDER[y.deal_stage] : -1;
+        if (sx !== sy) return sy - sx;
+        if ((y.deal_value ?? 0) !== (x.deal_value ?? 0)) {
+          return (y.deal_value ?? 0) - (x.deal_value ?? 0);
+        }
+        return (y.updated_at ?? "").localeCompare(x.updated_at ?? "");
       });
 
       return enriched;

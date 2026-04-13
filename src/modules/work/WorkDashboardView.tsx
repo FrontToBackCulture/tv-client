@@ -468,9 +468,6 @@ function SortableInitiativeRow({
             ><Pencil size={9} /></button>
           )}
         </div>
-        <div className="w-[70px] flex justify-end flex-shrink-0 mr-2">
-          <StatusBadge status={derivedStatus} />
-        </div>
       </div>
       {children}
     </div>
@@ -814,7 +811,7 @@ export function DashboardView({
         key={p.id}
         onClick={() => { setSelectedProjectId(p.id); setSelectedInitiativeId(null); }}
         onContextMenu={(e) => { e.preventDefault(); setContextMenu({ projectId: p.id, x: e.clientX, y: e.clientY }); }}
-        className={`grid grid-cols-[1fr,30px,50px,70px] gap-1 items-center pr-2 py-1.5 cursor-pointer transition-colors group ${
+        className={`grid grid-cols-[1fr,30px,50px] gap-1 items-center pr-2 py-1.5 cursor-pointer transition-colors group ${
           isSelected
             ? "bg-teal-50 dark:bg-teal-950/30"
             : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
@@ -887,33 +884,6 @@ export function DashboardView({
         {/* Progress */}
         <div className="w-full">
           <ProgressBar completed={counts.completed} total={counts.total} color={p.color || "#0D7680"} />
-        </div>
-
-        {/* Status */}
-        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-          {editingStatusId === p.id ? (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setEditingStatusId(null)} />
-              <div className="absolute mt-5 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[110px]">
-                {(["planned", "active", "completed", "paused"] as ProjectStatus[]).map(s => (
-                  <button key={s} onClick={() => { onUpdateProject?.(p.id, { status: s }); setEditingStatusId(null); }}
-                    className={`w-full text-left px-3 py-1 text-xs flex items-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 ${p.status === s ? "font-medium" : ""}`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: ProjectStatusColors[s] }} />
-                    <span style={{ color: p.status === s ? ProjectStatusColors[s] : undefined }}>{ProjectStatusLabels[s]}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <button onClick={() => setEditingStatusId(p.id)}
-              className="inline-flex items-center gap-0.5 text-[9px] font-medium"
-              style={{ color: ProjectStatusColors[p.status as ProjectStatus] || "#6B7280" }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: ProjectStatusColors[p.status as ProjectStatus] || "#6B7280" }} />
-              {ProjectStatusLabels[p.status as ProjectStatus] || p.status || "—"}
-            </button>
-          )}
         </div>
 
       </div>

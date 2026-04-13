@@ -42,14 +42,14 @@ const WRAP: ScheduleBlock[] = [
 export const SCHEDULES: Record<ScheduleKind, ScheduleBlock[]> = {
   "outbound-day": [
     ...RITUAL,
-    { id: "sales-am", startTime: "09:00", endTime: "12:00", label: "SALES POWER BLOCK", note: "Outbound · proposals · follow-ups · log every interrupt", emphasis: "sacred" },
+    { id: "team-runway", startTime: "09:00", endTime: "12:00", label: "Team runway block", note: "Week 1 only · unblock team · set deliverables · cockpit cleanup", emphasis: "normal" },
     { id: "lunch", startTime: "12:00", endTime: "13:00", label: "Lunch", note: "Real break · off screens", emphasis: "break" },
-    { id: "team-1", startTime: "13:00", endTime: "14:00", label: "Team window 1", note: "Office hours · unblocks · escalation triage", emphasis: "normal" },
-    { id: "afternoon", startTime: "14:00", endTime: "17:00", label: "Afternoon block", note: "Product direction · strategic finance · ops · team 1:1s", emphasis: "normal" },
+    { id: "sales-pm", startTime: "13:00", endTime: "16:00", label: "SALES POWER BLOCK", note: "Outbound · proposals · follow-ups · log every interrupt", emphasis: "sacred" },
+    { id: "afternoon", startTime: "16:00", endTime: "17:00", label: "Afternoon block", note: "Product direction · strategic finance · ops", emphasis: "normal" },
     { id: "team-2", startTime: "17:00", endTime: "18:00", label: "Team window 2", note: "Pipeline wrap · tomorrow prep · escalation review", emphasis: "normal" },
     { id: "wrap", startTime: "18:00", endTime: "18:30", label: "Day wrap", note: "Log day's real numbers · tomorrow's one thing", emphasis: "normal" },
     { id: "off", startTime: "18:30", endTime: "21:30", label: "Off", note: "Dinner · family · decompress", emphasis: "off" },
-    { id: "evening-build", startTime: "21:30", endTime: "24:00", label: "Evening build", note: "This week's skill target — no reactive work", emphasis: "normal" },
+    { id: "evening-build", startTime: "21:30", endTime: "24:00", label: "Evening build", note: "Week 1: no skill build — operate and log only", emphasis: "normal" },
   ],
   "meeting-day": [
     ...RITUAL,
@@ -61,10 +61,10 @@ export const SCHEDULES: Record<ScheduleKind, ScheduleBlock[]> = {
   ],
   "deep-friday": [
     ...RITUAL,
-    { id: "sales-am", startTime: "09:00", endTime: "12:00", label: "SALES POWER BLOCK", note: "Outbound · proposals · weekly pipeline push", emphasis: "sacred" },
+    { id: "team-runway", startTime: "09:00", endTime: "12:00", label: "Team runway block", note: "Week 1 only · unblock team · set deliverables", emphasis: "normal" },
     { id: "lunch", startTime: "12:00", endTime: "13:00", label: "Lunch", note: "Real break", emphasis: "break" },
-    { id: "team-1", startTime: "13:00", endTime: "14:00", label: "Team window 1", note: "Unblocks · escalation triage", emphasis: "normal" },
-    { id: "deep-pm", startTime: "14:00", endTime: "17:00", label: "Deep work block", note: "The ONE thing only I can do this week · no context-switching", emphasis: "normal" },
+    { id: "sales-pm", startTime: "13:00", endTime: "16:00", label: "SALES POWER BLOCK", note: "Outbound · proposals · weekly pipeline push", emphasis: "sacred" },
+    { id: "deep-pm", startTime: "16:00", endTime: "17:00", label: "Deep work block", note: "The ONE thing only I can do this week", emphasis: "normal" },
     { id: "retro", startTime: "17:00", endTime: "17:30", label: "WEEKLY RETRO", note: "Sales UP · interrupts DOWN? · decide weekend's build", emphasis: "sacred" },
     { id: "team-2", startTime: "17:30", endTime: "18:30", label: "Team window 2 + wrap", note: "End-of-week close · next Monday prep", emphasis: "normal" },
     { id: "off", startTime: "18:30", endTime: "24:00", label: "Off — weekend starts", note: "Rest · Saturday is a build day", emphasis: "off" },

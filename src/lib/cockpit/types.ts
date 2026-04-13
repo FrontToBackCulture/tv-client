@@ -79,6 +79,13 @@ export interface DeliveryProject {
   overdue_tasks: number;
   total_tasks: number;
   last_task_activity: string | null;
+  last_review: {
+    id: string;
+    subject: string | null;
+    content: string | null;
+    activity_date: string;
+    created_by: string | null;
+  } | null;
 }
 
 // Compute a fallback health signal from task aggregates when projects.health is null.
@@ -185,6 +192,101 @@ export function healthColor(h: DeliveryHealth): string {
   if (h === "at_risk") return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
   if (h === "off_track") return "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300";
   return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+}
+
+// ============================================================================
+// Deal project — derived from projects(project_type='deal') + crm_companies
+// ============================================================================
+
+export type DealStage =
+  | "target"
+  | "prospect"
+  | "lead"
+  | "qualified"
+  | "pilot"
+  | "proposal"
+  | "negotiation"
+  | "won"
+  | "lost";
+
+export const ACTIVE_DEAL_STAGES: DealStage[] = [
+  "target",
+  "prospect",
+  "lead",
+  "qualified",
+  "pilot",
+  "proposal",
+  "negotiation",
+];
+
+export const DEAL_STAGE_ORDER: Record<DealStage, number> = {
+  target: 0,
+  prospect: 1,
+  lead: 2,
+  qualified: 3,
+  pilot: 4,
+  proposal: 5,
+  negotiation: 6,
+  won: 7,
+  lost: 8,
+};
+
+export interface DealProject {
+  id: string;
+  name: string;
+  company_id: string;
+  company_name: string;
+  deal_stage: DealStage | null;
+  deal_value: number | null;
+  deal_currency: string | null;
+  deal_solution: string | null;
+  deal_expected_close: string | null;
+  deal_stage_changed_at: string | null;
+  priority: number | null;
+  lead: string | null;
+  updated_at: string;
+  open_tasks: number;
+  in_progress_tasks: number;
+  blocked_tasks: number;
+  overdue_tasks: number;
+  total_tasks: number;
+  last_task_activity: string | null;
+  last_review: DeliveryProject["last_review"];
+}
+
+export function dealStageLabel(s: DealStage | null): string {
+  if (!s) return "—";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export function dealStageColor(s: DealStage | null): string {
+  switch (s) {
+    case "target":
+    case "prospect":
+    case "lead":
+      return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+    case "qualified":
+      return "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300";
+    case "pilot":
+      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300";
+    case "proposal":
+      return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
+    case "negotiation":
+      return "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300";
+    case "won":
+      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
+    case "lost":
+      return "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300";
+    default:
+      return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+  }
+}
+
+export function formatDealValue(v: number | null, currency: string | null): string {
+  if (v == null) return "—";
+  const cur = currency || "SGD";
+  if (v >= 1000) return `${cur} ${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k`;
+  return `${cur} ${v}`;
 }
 
 // Parse "{Client} — {Workstream}" → { workstream }

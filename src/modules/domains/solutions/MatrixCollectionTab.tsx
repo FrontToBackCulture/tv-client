@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { InstanceData, TemplateDefinition, StatusEntry, ScanBinding } from "../../../lib/solutions/types";
 import { getOutlets, getOutletNames, getSettlementPMs, isPMApplicable, getStatus, filterScope } from "./matrixHelpers";
 import { CollapsibleSection, StatusSelect, OwnerTag, EditableInput, AddButton, TypeBadge, OutletScope } from "./matrixComponents";
+import OutletMapChip from "./OutletMapChip";
 import {
   THead,
   COL_NUM, COL_TYPE, COL_NAME, COL_SCOPE, COL_PERIOD,
@@ -521,7 +522,18 @@ export default function MatrixCollectionTab({ data, template, onChange, selected
                       {file.outlets && file.outlets.length > 0 ? (
                         <div className="flex flex-wrap gap-0.5">
                           {file.outlets.map((o) => (
-                            <span key={o} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 truncate max-w-[180px]" title={o}>{o}</span>
+                            <OutletMapChip
+                              key={o}
+                              dataOutletName={o}
+                              mappedScopeCode={outletMapping[o] ?? null}
+                              scopeOutlets={outlets}
+                              onMap={(code) => {
+                                const next = { ...(dataRef.current.outletMapping || {}) };
+                                if (code) next[o] = code;
+                                else delete next[o];
+                                onChange({ ...dataRef.current, outletMapping: next });
+                              }}
+                            />
                           ))}
                         </div>
                       ) : (

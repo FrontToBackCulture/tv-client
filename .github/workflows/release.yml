@@ -40,30 +40,6 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
-
-      - name: Check sccache health
-        id: sccache-check
-        shell: bash
-        run: |
-          # Test sccache with a compile + stats check to verify storage is reachable
-          TMPDIR="${RUNNER_TEMP:-/tmp}"
-          echo 'fn main(){}' > "$TMPDIR/_sc_test.rs"
-          RUSTC_WRAPPER=sccache SCCACHE_GHA_ENABLED=true rustc "$TMPDIR/_sc_test.rs" -o "$TMPDIR/_sc_test" 2>/dev/null || true
-          STATS=$(sccache --show-stats 2>&1 || true)
-          rm -f "$TMPDIR/_sc_test.rs" "$TMPDIR/_sc_test" "$TMPDIR/_sc_test.exe"
-          if echo "$STATS" | grep -qi "error\|unavailable\|unreachable"; then
-            echo "available=false" >> $GITHUB_OUTPUT
-            echo "::warning::sccache storage unreachable, building without cache"
-          elif echo "$STATS" | grep -q "Cache hits"; then
-            echo "available=true" >> $GITHUB_OUTPUT
-            echo "sccache is healthy"
-          else
-            echo "available=false" >> $GITHUB_OUTPUT
-            echo "::warning::sccache stats unclear, building without cache"
-          fi
-
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -110,8 +86,6 @@ jobs:
 
       - name: Build Tauri
         env:
-          RUSTC_WRAPPER: ${{ steps.sccache-check.outputs.available == 'true' && 'sccache' || '' }}
-          SCCACHE_GHA_ENABLED: ${{ steps.sccache-check.outputs.available == 'true' && 'true' || 'false' }}
           TAURI_TARGET_TRIPLE: ${{ matrix.target }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -124,7 +98,7 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        run: npx tauri build --target ${{ matrix.target }}
+        run: npx tauri build --target ${{ matrix.target }} -- --profile release-ci
 
       # macOS: Notarize the DMG (the .app.tar.gz is for auto-updater which uses signature verification, not notarization)
       - name: Notarize macOS DMG
@@ -134,7 +108,7 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
+          BUNDLE="src-tauri/target/${{ matrix.target }}/release-ci/bundle"
 
           DMG_PATH=$(find "$BUNDLE/dmg" -name "*.dmg" | head -1)
           if [ -n "$DMG_PATH" ]; then
@@ -163,7 +137,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           mkdir -p collected
-          BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
+          BUNDLE="src-tauri/target/${{ matrix.target }}/release-ci/bundle"
 
           # DMG for fresh install (already notarized + stapled)
           find "$BUNDLE/dmg" -name "*.dmg" -exec cp {} collected/ \;
@@ -197,7 +171,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p collected
-          BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
+          BUNDLE="src-tauri/target/${{ matrix.target }}/release-ci/bundle"
 
           # NSIS .exe installer (used for both fresh install AND auto-update)
           find "$BUNDLE/nsis" -name "*.exe" -exec cp {} collected/ \;

@@ -678,10 +678,11 @@ fn blocks_to_markdown(blocks: &[Value], depth: usize) -> String {
             "divider" => out.push_str("\n---\n\n"),
 
             "image" => {
-                let url = extract_file_url(&block["image"]);
+                // Notion image URLs are S3 signed URLs that expire in 1 hour — useless to persist.
+                // Emit a placeholder; attachments are extracted separately via extract_attachments.
                 let caption = rich_text_to_md(&block["image"]["caption"]);
                 let label = if caption.is_empty() { "image".to_string() } else { caption };
-                out.push_str(&format!("{}![{}]({})\n", indent, label, url));
+                out.push_str(&format!("{}_[{}]_\n", indent, label));
             }
 
             "file" => {
@@ -1022,17 +1023,18 @@ fn blocks_to_tiptap_nodes(blocks: &[Value]) -> Vec<Value> {
             }
 
             "image" => {
-                let url = extract_file_url(&block["image"]);
+                // Notion image URLs are S3 signed URLs that expire in 1 hour — render
+                // a lightweight italic placeholder instead of persisting the dead URL.
                 let caption = block["image"]["caption"].as_array()
                     .map(|arr| arr.iter().map(|rt| rt["plain_text"].as_str().unwrap_or("")).collect::<Vec<_>>().join(""))
                     .unwrap_or_default();
-                // Render as a paragraph with the image link for now
+                let label = if caption.is_empty() { "image".to_string() } else { caption };
                 nodes.push(serde_json::json!({
                     "type": "paragraph",
                     "content": [{
                         "type": "text",
-                        "text": if caption.is_empty() { format!("[image]({})", url) } else { format!("[{}]({})", caption, url) },
-                        "marks": [{ "type": "link", "attrs": { "href": url } }]
+                        "text": format!("[{}]", label),
+                        "marks": [{ "type": "italic" }]
                     }]
                 }));
             }
@@ -1865,19 +1867,19 @@ pub async fn replace_page_blocks(
     if response.status().is_success() {
         let body: Value = response.json().await?;
         if let Some(results) = body["results"].as_array() {
-            // Delete each existing block
-            for block in results {
-                if let Some(block_id) = block["id"].as_str() {
-                    let delete_url = format!("{}/blocks/{}", NOTION_API_BASE, block_id);
-                    let _ = HTTP_CLIENT
-                        .delete(&delete_url)
-                        .headers(notion_headers(&api_key))
-                        .send()
-                        .await;
-                    // Small delay to avoid rate limits
-                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                }
-            }
+            // Delete existing blocks in parallel, capped at 5 concurrent to stay under Notion's rate limit
+            use futures::stream::StreamExt;
+            let ids: Vec<String> = results.iter()
+                .filter_map(|b| b["id"].as_str().map(|s| s.to_string()))
+                .collect();
+            let api_key_ref = &api_key;
+            futures::stream::iter(ids.into_iter().map(|id| async move {
+                let url = format!("{}/blocks/{}", NOTION_API_BASE, id);
+                let _ = HTTP_CLIENT.delete(&url).headers(notion_headers(api_key_ref)).send().await;
+            }))
+            .buffer_unordered(5)
+            .collect::<Vec<()>>()
+            .await;
         }
     }
 

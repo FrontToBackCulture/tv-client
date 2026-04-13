@@ -37,15 +37,6 @@
     "os:default",
     "process:default",
     "notification:default",
-    "updater:default",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "binaries/tv-mcp",
-          "sidecar": true
-        }
-      ]
-    }
+    "updater:default"
   ]
 }

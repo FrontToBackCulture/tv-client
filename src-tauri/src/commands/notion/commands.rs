@@ -101,6 +101,43 @@ pub async fn notion_delete_sync_config(config_id: String) -> CmdResult<()> {
 // Push (tv-client → Notion)
 // ============================================================================
 
+/// Per-process cache for relation DB page lookups (page_title → page_id), keyed by Notion DB id.
+/// TTL 5 minutes — speeds up bulk pushes and repeated single pushes in a session.
+static RELATION_CACHE: once_cell::sync::Lazy<tokio::sync::Mutex<
+    std::collections::HashMap<String, (std::time::Instant, std::collections::HashMap<String, String>)>
+>> = once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(std::collections::HashMap::new()));
+
+const RELATION_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
+async fn get_relation_lookup(related_db: &str) -> std::collections::HashMap<String, String> {
+    {
+        let cache = RELATION_CACHE.lock().await;
+        if let Some((at, map)) = cache.get(related_db) {
+            if at.elapsed() < RELATION_CACHE_TTL {
+                return map.clone();
+            }
+        }
+    }
+    let pages = api::list_database_pages(related_db).await.unwrap_or_default();
+    let name_to_id: std::collections::HashMap<String, String> = pages.into_iter()
+        .map(|(id, title)| (title, id))
+        .collect();
+    let mut cache = RELATION_CACHE.lock().await;
+    cache.insert(related_db.to_string(), (std::time::Instant::now(), name_to_id.clone()));
+    name_to_id
+}
+
+fn body_hash(task: &Value) -> String {
+    use sha2::{Sha256, Digest};
+    let mut h = Sha256::new();
+    if let Some(json_content) = task.get("description_json").filter(|v| !v.is_null()) {
+        h.update(serde_json::to_string(json_content).unwrap_or_default().as_bytes());
+    } else {
+        h.update(task.get("description").and_then(|v| v.as_str()).unwrap_or("").as_bytes());
+    }
+    format!("{:x}", h.finalize())
+}
+
 /// Push a single task to Notion (create or update).
 /// Uses the project's sync config for full field mapping if available,
 /// otherwise falls back to the default Notion database with title + body only.
@@ -115,8 +152,19 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
         .select("tasks", &format!("id=eq.{}&select=*,project:projects(id,name,identifier_prefix)", task_id))
         .await?;
 
-    let task = tasks.into_iter().next()
+    let mut task = tasks.into_iter().next()
         .ok_or_else(|| crate::commands::error::CommandError::NotFound(format!("Task {} not found", task_id)))?;
+
+    // Load assignees (task_assignees M2M) and inject first as assignee_id for mapping
+    let assignees: Vec<serde_json::Value> = client
+        .select("task_assignees", &format!("task_id=eq.{}&select=user_id", task_id))
+        .await
+        .unwrap_or_default();
+    if let Some(first) = assignees.iter().filter_map(|a| a["user_id"].as_str()).next() {
+        if let Some(obj) = task.as_object_mut() {
+            obj.insert("assignee_id".to_string(), serde_json::Value::String(first.to_string()));
+        }
+    }
 
     let project_id = task["project_id"].as_str().unwrap_or("");
 
@@ -156,6 +204,22 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
                 user_id_to_notion.insert(u.id.clone(), nu.id.clone());
             }
         }
+        // Bridge naming mismatches via the config's assignee value_map (Notion name → tv-UUID).
+        // If a tv-UUID didn't match by tv-name, look up the Notion user by the value_map name.
+        if let Some(assignee_map) = cfg.field_mapping.get("assignee_id")
+            .or_else(|| cfg.field_mapping.get("assignees"))
+            .and_then(|m| m.get("value_map"))
+            .and_then(|v| v.as_object())
+        {
+            for (notion_name, tv_uuid_val) in assignee_map {
+                if let Some(tv_uuid) = tv_uuid_val.as_str() {
+                    if user_id_to_notion.contains_key(tv_uuid) { continue; }
+                    if let Some(nu) = notion_users.iter().find(|nu| nu.name.to_lowercase() == notion_name.to_lowercase()) {
+                        user_id_to_notion.insert(tv_uuid.to_string(), nu.id.clone());
+                    }
+                }
+            }
+        }
 
         let companies: Vec<serde_json::Value> = client
             .select("crm_companies", "select=id,name,display_name")
@@ -170,6 +234,32 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
             })
             .collect();
 
+        // Build relation lookups (Notion prop name → map of page_title → page_id) for every
+        // relation-typed prop present in the field mapping. Needed to push relation values,
+        // since Notion expects page IDs, not names.
+        let mut relation_lookups: std::collections::HashMap<String, std::collections::HashMap<String, String>> = std::collections::HashMap::new();
+        if let Some(map_obj) = cfg.field_mapping.as_object() {
+            for (_, mapping) in map_obj {
+                let prop_name = if let Some(s) = mapping.as_str() {
+                    s.to_string()
+                } else if let Some(obj) = mapping.as_object() {
+                    obj.get("source").and_then(|v| v.as_str()).unwrap_or("").to_string()
+                } else { continue; };
+                if prop_name.is_empty() || relation_lookups.contains_key(&prop_name) { continue; }
+                let schema_prop = match schema.properties.iter().find(|p| p.name == prop_name) {
+                    Some(p) => p,
+                    None => continue,
+                };
+                if schema_prop.prop_type != "relation" { continue; }
+                let related_db = match schema_prop.relation_database_id.as_deref() {
+                    Some(id) if !id.is_empty() => id,
+                    _ => continue,
+                };
+                let name_to_id = get_relation_lookup(related_db).await;
+                relation_lookups.insert(prop_name, name_to_id);
+            }
+        }
+
         let all_props = super::mapping::map_task_to_page(
             &task,
             &cfg.field_mapping,
@@ -177,10 +267,11 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
             &user_id_to_notion,
             &company_id_to_name,
             &schema.properties,
+            &relation_lookups,
         );
 
-        // Only push specific fields — Notion is source of truth for title/description/assignees
-        let push_fields = ["status_id", "priority", "due_date", "company_id"];
+        // Only push specific fields — Notion is source of truth for description
+        let push_fields = ["title", "status_id", "priority", "due_date", "company_id", "assignee_id", "assignees"];
         let allowed_notion_props: std::collections::HashSet<String> = push_fields
             .iter()
             .filter_map(|&wf| {
@@ -190,18 +281,28 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
             })
             .collect();
 
-        let props = if let Some(obj) = all_props.as_object() {
-            let filtered: serde_json::Map<String, Value> = obj
-                .iter()
+        let mut props = if let Some(obj) = all_props.as_object() {
+            obj.iter()
                 .filter(|(k, _)| allowed_notion_props.contains(k.as_str()))
                 .map(|(k, v)| (k.clone(), v.clone()))
-                .collect();
-            Value::Object(filtered)
+                .collect::<serde_json::Map<String, Value>>()
         } else {
-            all_props
+            serde_json::Map::new()
         };
 
-        (cfg.notion_database_id.clone(), props)
+        // Default "Card Type" to "Task" on push (matches select option type in schema)
+        if let Some(card_type) = schema.properties.iter().find(|p| p.name == "Card Type") {
+            let val = match card_type.prop_type.as_str() {
+                "select" => Some(serde_json::json!({ "select": { "name": "Task" } })),
+                "multi_select" => Some(serde_json::json!({ "multi_select": [{ "name": "Task" }] })),
+                _ => None,
+            };
+            if let Some(v) = val {
+                props.insert("Card Type".to_string(), v);
+            }
+        }
+
+        (cfg.notion_database_id.clone(), Value::Object(props))
     } else {
         // Fallback path: use default database, push title only as property
         let default_db = settings_get_key(KEY_NOTION_DEFAULT_DB.to_string())?
@@ -248,8 +349,33 @@ pub async fn notion_push_task(task_id: String) -> CmdResult<PushResult> {
             }
             _ => {}
         }
-        // Update existing page — properties only, no block replacement
+        // Update existing page — properties always; replace body only if task originated in tv-client
+        eprintln!("[notion:push] task {} sending properties: {}", task_id, serde_json::to_string(&notion_properties).unwrap_or_default());
         api::update_page_properties(page_id, &notion_properties).await?;
+
+        let source = task.get("source").and_then(|v| v.as_str()).unwrap_or("");
+        if source != "notion" {
+            let new_hash = body_hash(&task);
+            let prev_hash = task.get("last_pushed_body_hash").and_then(|v| v.as_str()).unwrap_or("");
+            if new_hash != prev_hash {
+                let blocks = if let Some(json_content) = task.get("description_json").filter(|v| !v.is_null()) {
+                    api::tiptap_json_to_blocks(json_content)
+                } else {
+                    let description = task["description"].as_str().unwrap_or("");
+                    api::markdown_to_blocks(description)
+                };
+                api::replace_page_blocks(page_id, &blocks).await?;
+                let _: Result<Value, _> = client
+                    .update(
+                        "tasks",
+                        &format!("id=eq.{}", task_id),
+                        &serde_json::json!({ "last_pushed_body_hash": new_hash }),
+                    )
+                    .await;
+            } else {
+                eprintln!("[notion:push] body unchanged for task {} — skipping block replace", task_id);
+            }
+        }
         ("updated".to_string(), page_id.to_string())
     } else {
         // Create new page — prefer TipTap JSON for content, fall back to markdown
@@ -428,17 +554,14 @@ pub async fn notion_pull_task(task_id: String) -> CmdResult<PushResult> {
 
     // 5. Resolve status, assignee, company (same logic as sync.rs)
 
-    // Load project statuses
     let target_project_id = config
         .target_project_id
         .as_deref()
         .unwrap_or(&project_id);
 
+    // Load global statuses (task_statuses is no longer per-project)
     let project_statuses: Vec<crate::commands::work::types::TaskStatus> = client
-        .select(
-            "task_statuses",
-            &format!("project_id=eq.{}&order=sort_order.asc", target_project_id),
-        )
+        .select("task_statuses", "order=sort_order.asc")
         .await?;
 
     let status_name_map: std::collections::HashMap<String, String> = project_statuses
@@ -629,17 +752,19 @@ pub async fn notion_pull_task(task_id: String) -> CmdResult<PushResult> {
         .unwrap_or("updated")
         .to_string();
 
-    // Save TipTap JSON content alongside markdown (for toggle blocks, etc.)
-    if let Some(ref json_content) = page_body_json {
-        let _: Value = client
-            .update(
-                "tasks",
-                &format!("id=eq.{}", task_id),
-                &serde_json::json!({ "description_json": json_content }),
-            )
-            .await?;
-        eprintln!("[notion:pull] Saved description_json for task {}", task_id);
-    }
+    // Clear description_json so the UI falls back to ReactMarkdown rendering of
+    // the markdown description. Notion pages frequently contain markdown syntax
+    // stored as literal plain_text (pasted markdown, asymmetric emphasis), which
+    // the TipTap converter can't losslessly represent — ReactMarkdown handles
+    // those cases correctly. User edits via TipTap editor will repopulate it.
+    let _ = page_body_json;
+    let _: Value = client
+        .update(
+            "tasks",
+            &format!("id=eq.{}", task_id),
+            &serde_json::json!({ "description_json": null }),
+        )
+        .await?;
 
     eprintln!(
         "[notion:pull] Task {} {} from Notion page {}",

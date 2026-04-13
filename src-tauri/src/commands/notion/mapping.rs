@@ -246,6 +246,7 @@ pub fn map_task_to_page(
     user_id_to_notion: &std::collections::HashMap<String, String>,
     company_id_to_name: &std::collections::HashMap<String, String>,
     database_schema: &[super::types::NotionPropertySchema],
+    relation_lookups: &std::collections::HashMap<String, std::collections::HashMap<String, String>>,
 ) -> Value {
     let mut properties = serde_json::Map::new();
 
@@ -321,17 +322,25 @@ pub fn map_task_to_page(
         // Reverse value_map is unreliable for status because many Notion statuses map to the same UUID.
         // For other fields: try reverse value_map, fall back to resolved name.
         let notion_value = if task_field == "status_id" {
-            resolved_value
+            resolved_value.clone()
         } else if let Some(vmap) = value_map {
             reverse_value_map(&raw_value, vmap)
                 .or_else(|| reverse_value_map(&resolved_value, vmap))
-                .unwrap_or(resolved_value)
+                .unwrap_or(resolved_value.clone())
         } else {
-            resolved_value
+            resolved_value.clone()
         };
 
         // Convert to Notion property format based on schema type
         let prop_type = schema_map.get(notion_prop_name.as_str()).copied().unwrap_or("rich_text");
+
+        // For people-type props, override notion_value with the resolved Notion user UUID
+        // (reverse_value_map above gives a name, which people fields reject).
+        let notion_value = if prop_type == "people" && matches!(task_field.as_str(), "assignee_id" | "assignees") {
+            resolved_value.clone()
+        } else {
+            notion_value
+        };
 
         let prop_value = match prop_type {
             "title" => json!({
@@ -369,6 +378,19 @@ pub fn map_task_to_page(
                     json!({ "people": [{ "id": notion_value }] })
                 } else {
                     continue;
+                }
+            }
+            "relation" => {
+                // Resolve relation target page by name via relation_lookups
+                let lookup = match relation_lookups.get(notion_prop_name.as_str()) {
+                    Some(m) => m,
+                    None => continue,
+                };
+                let page_id = lookup.get(&notion_value)
+                    .or_else(|| lookup.iter().find(|(k, _)| k.to_lowercase() == notion_value.to_lowercase()).map(|(_, v)| v));
+                match page_id {
+                    Some(pid) => json!({ "relation": [{ "id": pid }] }),
+                    None => continue,
                 }
             }
             _ => continue, // Skip unsupported property types

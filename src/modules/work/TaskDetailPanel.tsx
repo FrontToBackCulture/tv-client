@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "../../lib/cn";
 import {
   useTask,
@@ -66,6 +68,7 @@ import { EmailsPanel } from "../../components/emails/EmailsPanel";
 import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
 import { useNotionPushTask, useNotionPullTask } from "../../hooks/useNotion";
 import { TaskContentEditor } from "./TaskTipTapEditor";
+import { NotionContent } from "./NotionContent";
 import { IconButton } from "../../components/ui";
 import { DetailLoading } from "../../components/ui/DetailStates";
 import { DeleteConfirm } from "../../components/ui/DeleteConfirm";
@@ -809,11 +812,18 @@ export function TaskDetailPanel({
           <div>
             <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2">Description</h3>
             <div className="px-1 py-1 text-sm text-zinc-700 dark:text-zinc-300">
-              <TaskContentEditor
-                taskId={task.id}
-                content={(task as any).description_json}
-                onUpdated={onUpdated}
-              />
+              {(task as any).description_json ? (
+                <TaskContentEditor
+                  taskId={task.id}
+                  content={(task as any).description_json}
+                  onUpdated={onUpdated}
+                />
+              ) : (
+                <NotionContent
+                  description={task.description ?? null}
+                  descriptionJson={null}
+                />
+              )}
             </div>
           </div>
 
@@ -842,7 +852,11 @@ export function TaskDetailPanel({
                           <span className="text-[10px] text-zinc-400">{dateStr} {timeStr}</span>
                         </div>
                         {a.subject && <div className="text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-0.5">{a.subject}</div>}
-                        {a.content && <div className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{a.content}</div>}
+                        {a.content && (
+                          <div className="prose prose-xs dark:prose-invert max-w-none text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-1 prose-a:break-all">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{a.content}</ReactMarkdown>
+                          </div>
+                        )}
                       </div>
                       <button
                         type="button"

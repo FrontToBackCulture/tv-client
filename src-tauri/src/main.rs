@@ -2,7 +2,6 @@
 
 mod commands;
 mod models;
-mod mcp;
 
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -108,15 +107,6 @@ fn main() {
             // Auto-register tv-mcp with Claude Code if path is stale or missing
             tauri::async_runtime::spawn(async {
                 commands::claude_setup::ensure_mcp_registered().await;
-            });
-
-            // Start MCP HTTP server (uses tv-mcp crate — single source of truth)
-            tauri::async_runtime::spawn(async {
-                let port = crate::mcp::server::DEFAULT_PORT;
-                eprintln!("[tv-desktop] Starting MCP HTTP server on port {}...", port);
-                if let Err(e) = crate::mcp::server::run_http(port).await {
-                    eprintln!("[tv-desktop] MCP server error: {}", e);
-                }
             });
 
             // Build native macOS menu bar
@@ -239,10 +229,6 @@ fn main() {
             commands::claude_setup::claude_mcp_status,
             commands::claude_setup::claude_mcp_install,
             commands::claude_setup::claude_mcp_uninstall,
-            // MCP commands (for UI capability explorer)
-            commands::mcp::mcp_list_tools,
-            commands::mcp::mcp_call_tool,
-            commands::mcp::mcp_get_status,
             // File operations (Rust native)
             commands::files::read_file,
             commands::files::write_file,

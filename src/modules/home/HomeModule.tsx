@@ -13,7 +13,7 @@
 // (a) what do I need to do right now, (b) what's the state of the business,
 // (c) am I on track against the plan.
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import {
   Play,
   Square,
@@ -29,7 +29,9 @@ import {
   ExternalLink,
   ArrowRight,
   ChevronRight,
+  ClipboardCheck,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { cn } from "../../lib/cn";
 import { PageHeader } from "../../components/PageHeader";
 import { Button, IconButton, FormField, Input, Select, Textarea } from "../../components/ui";
@@ -41,6 +43,7 @@ import {
   useUpdateDailyFocus,
   useToggleSalesSession,
   useDeliveryProjects,
+  useDealProjects,
   useUnresolvedEscalations,
   useLogEscalation,
   useUpdateEscalation,
@@ -54,6 +57,9 @@ import {
   categoryLabel,
   healthLabel,
   healthColor,
+  dealStageLabel,
+  dealStageColor,
+  formatDealValue,
   EscalationCategory,
 } from "../../lib/cockpit/types";
 import {
@@ -800,6 +806,15 @@ function DeliveryGrid({ onOpenProject }: { onOpenProject: (projectId: string) =>
   const { data: projects = [], isLoading } = useDeliveryProjects();
   const openTab = useModuleTabStore((s) => s.openTab);
   const [cardExpanded, setCardExpanded] = useState(false);
+  const [expandedReviews, setExpandedReviews] = useState<Set<string>>(new Set());
+  const toggleReview = (id: string) => {
+    setExpandedReviews((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const openWorkModule = () => openTab("work");
 
@@ -878,7 +893,8 @@ function DeliveryGrid({ onOpenProject }: { onOpenProject: (projectId: string) =>
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                <th className="text-left px-4 py-2">Client</th>
+                <th className="px-2 py-2 w-6"></th>
+                <th className="text-left px-3 py-2">Client</th>
                 <th className="text-left px-3 py-2">Workstream</th>
                 <th className="text-right px-3 py-2">Open</th>
                 <th className="text-right px-3 py-2">In Prog</th>
@@ -886,34 +902,40 @@ function DeliveryGrid({ onOpenProject }: { onOpenProject: (projectId: string) =>
                 <th className="text-right px-3 py-2">Overdue</th>
                 <th className="text-left px-3 py-2">Health</th>
                 <th className="text-left px-3 py-2">Last Activity</th>
+                <th className="px-2 py-2 w-8"></th>
                 <th className="px-3 py-2 w-8"></th>
               </tr>
             </thead>
             <tbody>
               {projects.map((p) => {
                 const hot = p.blocked_tasks > 0 || p.overdue_tasks > 0;
+                const isExpanded = expandedReviews.has(p.id);
                 return (
+                  <Fragment key={p.id}>
                   <tr
-                    key={p.id}
                     onClick={() => onOpenProject(p.id)}
                     className={cn(
                       "border-b border-slate-50 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer",
                       hot && "bg-rose-50/50 dark:bg-rose-950/20"
                     )}
                   >
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        {hot && <AlertTriangle size={12} className="text-rose-500 flex-shrink-0" />}
-                        <div className="min-w-0">
-                          <div className="font-medium text-slate-800 dark:text-slate-100 truncate">
-                            {p.company_name}
-                          </div>
-                          {p.company_domain_id && (
-                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate">
-                              {p.company_domain_id}
-                            </div>
-                          )}
+                    <td className="px-2 py-2 w-6 align-middle">
+                      {hot ? (
+                        <AlertTriangle size={12} className="text-rose-500" />
+                      ) : (
+                        <span className="inline-block w-3" />
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-800 dark:text-slate-100 truncate">
+                          {p.company_name}
                         </div>
+                        {p.company_domain_id && (
+                          <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate">
+                            {p.company_domain_id}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-slate-600 dark:text-slate-300 truncate max-w-[200px]">
@@ -960,6 +982,27 @@ function DeliveryGrid({ onOpenProject }: { onOpenProject: (projectId: string) =>
                     <td className="px-3 py-2 text-slate-500 dark:text-slate-400 tabular-nums">
                       {daysSince(p.last_task_activity)}
                     </td>
+                    <td className="px-2 py-2">
+                      {p.last_review ? (
+                        <button
+                          type="button"
+                          title={isExpanded ? "Hide last review" : "Show last review"}
+                          aria-label="Toggle review"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleReview(p.id);
+                          }}
+                          className="inline-flex items-center justify-center w-6 h-6 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+                        >
+                          <ChevronRight
+                            size={14}
+                            className={cn("transition-transform", isExpanded && "rotate-90")}
+                          />
+                        </button>
+                      ) : (
+                        <span className="inline-block w-6 h-6" />
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <button
                         type="button"
@@ -975,6 +1018,269 @@ function DeliveryGrid({ onOpenProject }: { onOpenProject: (projectId: string) =>
                       </button>
                     </td>
                   </tr>
+                  {isExpanded && p.last_review && (
+                    <tr className="bg-slate-50/70 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                      <td colSpan={11} className="px-6 py-3">
+                        <div className="flex items-center gap-2 mb-2 text-[11px] text-slate-500 dark:text-slate-400">
+                          <ClipboardCheck size={12} />
+                          <span className="font-semibold">
+                            {p.last_review.subject || "Project review"}
+                          </span>
+                          <span className="text-slate-400 dark:text-slate-500">
+                            · {new Date(p.last_review.activity_date).toLocaleString("en-SG", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })}
+                          </span>
+                          {p.last_review.created_by && (
+                            <span className="text-slate-400 dark:text-slate-500">
+                              · {p.last_review.created_by}
+                            </span>
+                          )}
+                        </div>
+                        {p.last_review.content ? (
+                          <div className="prose prose-sm dark:prose-invert max-w-none text-[12px] text-slate-700 dark:text-slate-200">
+                            <ReactMarkdown>{p.last_review.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <div className="text-[12px] italic text-slate-400">No review content.</div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// Row 2b — Deal Pipeline (sales)
+// ============================================================================
+
+function DealPipelineGrid({ onOpenProject }: { onOpenProject: (projectId: string) => void }) {
+  const { data: deals = [], isLoading } = useDealProjects();
+  const openTab = useModuleTabStore((s) => s.openTab);
+  const [cardExpanded, setCardExpanded] = useState(false);
+  const [expandedReviews, setExpandedReviews] = useState<Set<string>>(new Set());
+  const toggleReview = (id: string) => {
+    setExpandedReviews((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const openSalesModule = () => openTab("crm");
+
+  const lateStageCount = deals.filter(
+    (d) => d.deal_stage === "proposal" || d.deal_stage === "negotiation"
+  ).length;
+  const totalValue = deals.reduce((sum, d) => sum + (d.deal_value ?? 0), 0);
+  const overdueTotal = deals.reduce((sum, d) => sum + (d.overdue_tasks ?? 0), 0);
+
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+      <div
+        className={cn(
+          "flex items-center justify-between px-4 py-2.5",
+          cardExpanded && "border-b border-slate-200 dark:border-slate-800"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setCardExpanded((v) => !v)}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+        >
+          <ChevronRight
+            className={cn(
+              "flex-shrink-0 w-3.5 h-3.5 text-slate-400 dark:text-slate-500 transition-transform",
+              cardExpanded && "rotate-90"
+            )}
+          />
+          <h2 className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+            Deal Pipeline
+          </h2>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">
+            {deals.length} active
+          </span>
+          {!cardExpanded && (
+            <span className="flex items-center gap-1.5 min-w-0">
+              {lateStageCount > 0 && (
+                <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 flex-shrink-0">
+                  {lateStageCount} late-stage
+                </span>
+              )}
+              {totalValue > 0 && (
+                <span className="text-[10px] tabular-nums text-slate-500 dark:text-slate-400 flex-shrink-0">
+                  {formatDealValue(totalValue, "SGD")} pipeline
+                </span>
+              )}
+              {overdueTotal > 0 && (
+                <span className="text-[10px] tabular-nums text-amber-600 dark:text-amber-400 flex-shrink-0">
+                  {overdueTotal} overdue
+                </span>
+              )}
+            </span>
+          )}
+        </button>
+        {cardExpanded && (
+          <Button variant="ghost" size="sm" icon={ExternalLink} onClick={(e) => { e.stopPropagation(); openSalesModule(); }}>
+            Open Sales
+          </Button>
+        )}
+      </div>
+
+      {cardExpanded && (isLoading ? (
+        <div className="p-6 text-center text-[12px] text-slate-500">Loading…</div>
+      ) : deals.length === 0 ? (
+        <EmptyState
+          icon={TrendingUp}
+          title="No active deals"
+          message="Create a deal project linked to a prospect/opportunity company to track pipeline here."
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                <th className="px-2 py-2 w-6"></th>
+                <th className="text-left px-3 py-2">Company</th>
+                <th className="text-left px-3 py-2">Deal</th>
+                <th className="text-left px-3 py-2">Stage</th>
+                <th className="text-right px-3 py-2">Value</th>
+                <th className="text-left px-3 py-2">Close</th>
+                <th className="text-right px-3 py-2">Open</th>
+                <th className="text-right px-3 py-2">Blocked</th>
+                <th className="text-left px-3 py-2">Last Activity</th>
+                <th className="px-2 py-2 w-8"></th>
+                <th className="px-3 py-2 w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {deals.map((d) => {
+                const isExpanded = expandedReviews.has(d.id);
+                const stuck =
+                  d.deal_stage_changed_at &&
+                  Date.now() - new Date(d.deal_stage_changed_at).getTime() > 21 * 24 * 3_600_000;
+                return (
+                  <Fragment key={d.id}>
+                    <tr
+                      onClick={() => onOpenProject(d.id)}
+                      className={cn(
+                        "border-b border-slate-50 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer",
+                        stuck && "bg-amber-50/40 dark:bg-amber-950/10"
+                      )}
+                    >
+                      <td className="px-2 py-2 w-6 align-middle">
+                        {stuck ? (
+                          <AlertTriangle size={12} className="text-amber-500" />
+                        ) : (
+                          <span className="inline-block w-3" />
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="font-medium text-slate-800 dark:text-slate-100 truncate">
+                          {d.company_name}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300 truncate max-w-[200px]">
+                        {d.deal_solution || d.name}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={cn(
+                            "inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-md",
+                            dealStageColor(d.deal_stage)
+                          )}
+                        >
+                          {dealStageLabel(d.deal_stage)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
+                        {formatDealValue(d.deal_value, d.deal_currency)}
+                      </td>
+                      <td className="px-3 py-2 text-slate-500 dark:text-slate-400 tabular-nums">
+                        {d.deal_expected_close ?? <span className="text-slate-300 dark:text-slate-600">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300 font-medium">
+                        {d.open_tasks || <span className="text-slate-300 dark:text-slate-600">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {d.blocked_tasks > 0 ? (
+                          <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                            {d.blocked_tasks}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 dark:text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-slate-500 dark:text-slate-400 tabular-nums">
+                        {daysSince(d.last_task_activity)}
+                      </td>
+                      <td className="px-2 py-2">
+                        {d.last_review ? (
+                          <button
+                            type="button"
+                            title={isExpanded ? "Hide last review" : "Show last review"}
+                            aria-label="Toggle review"
+                            onClick={(e) => { e.stopPropagation(); toggleReview(d.id); }}
+                            className="inline-flex items-center justify-center w-6 h-6 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+                          >
+                            <ChevronRight size={14} className={cn("transition-transform", isExpanded && "rotate-90")} />
+                          </button>
+                        ) : (
+                          <span className="inline-block w-6 h-6" />
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          title="Open deal"
+                          aria-label="Open deal"
+                          onClick={(e) => { e.stopPropagation(); onOpenProject(d.id); }}
+                          className="inline-flex items-center justify-center w-6 h-6 rounded bg-teal-600 hover:bg-teal-700 text-white transition-colors"
+                        >
+                          <ArrowRight size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                    {isExpanded && d.last_review && (
+                      <tr className="bg-slate-50/70 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                        <td colSpan={11} className="px-6 py-3">
+                          <div className="flex items-center gap-2 mb-2 text-[11px] text-slate-500 dark:text-slate-400">
+                            <ClipboardCheck size={12} />
+                            <span className="font-semibold">
+                              {d.last_review.subject || "Deal review"}
+                            </span>
+                            <span className="text-slate-400 dark:text-slate-500">
+                              · {new Date(d.last_review.activity_date).toLocaleString("en-SG", {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              })}
+                            </span>
+                            {d.last_review.created_by && (
+                              <span className="text-slate-400 dark:text-slate-500">
+                                · {d.last_review.created_by}
+                              </span>
+                            )}
+                          </div>
+                          {d.last_review.content ? (
+                            <div className="prose prose-sm dark:prose-invert max-w-none text-[12px] text-slate-700 dark:text-slate-200">
+                              <ReactMarkdown>{d.last_review.content}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <div className="text-[12px] italic text-slate-400">No review content.</div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -1639,6 +1945,7 @@ export function HomeModule() {
             <CommitmentBar />
             <TodayScheduleCard />
             <DeliveryGrid onOpenProject={openProject} />
+            <DealPipelineGrid onOpenProject={openProject} />
             <EscalationInbox onLog={() => setLogOpen(true)} />
           </div>
         </div>

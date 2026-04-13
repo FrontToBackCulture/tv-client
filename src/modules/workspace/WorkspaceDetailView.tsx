@@ -9,13 +9,15 @@ import {
   ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2, Check,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
   Circle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Mail,
-  MessageSquare, Maximize2,
+  MessageSquare, Maximize2, Upload,
 } from "lucide-react";
+import { useNotionPushTask } from "../../hooks/useNotion";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../../lib/cn";
+import { isOverdue } from "../../lib/date";
 import { MarkdownViewer } from "../library/MarkdownViewer";
 import { FolderPickerField } from "../../components/ui/FolderPickerField";
 import { ExcalidrawEditor } from "../gallery/ExcalidrawEditor";
@@ -1674,6 +1676,8 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const [bulkCompanySearch, setBulkCompanySearch] = useState("");
   const [autoAssignCompanyOpen, setAutoAssignCompanyOpen] = useState(false);
   const [autoAssignProjectOpen, setAutoAssignProjectOpen] = useState(false);
+  const [bulkNotionSyncing, setBulkNotionSyncing] = useState(false);
+  const notionPushTask = useNotionPushTask();
   const [taskDetailId, setTaskDetailId] = useState<string | null>(null);
   const [showMilestoneInput, setShowMilestoneInput] = useState(false);
   const [taskSearch, setTaskSearch] = useState("");
@@ -2705,6 +2709,12 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                         </div>
                         <span className="text-[10px] text-zinc-400">{completedTasks}/{projectTasks.length}</span>
                       </div>
+                      {(() => {
+                        const overdueCount = projectTasks.filter(t => isOverdue(t.due_date) && t.status?.type !== "complete").length;
+                        return overdueCount > 0 ? (
+                          <span className="text-[10px] text-red-500 font-medium">{overdueCount} overdue</span>
+                        ) : null;
+                      })()}
                       <div className="relative">
                         <button
                           onClick={() => setShowStatusPicker(v => !v)}
@@ -2910,46 +2920,24 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 {/* ID */}
                                 <td className="px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">
                                   <span className="text-zinc-400">{identifier}</span>
-                                  {task.notion_page_id && (() => {
-                                    const notionUrl = `https://www.notion.so/thinkval/${task.notion_page_id!.replace(/-/g, "")}`;
-                                    return (
-                                      <span className="ml-1.5 inline-flex items-center gap-1">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            navigator.clipboard.writeText(notionUrl);
-                                            toast.success("Notion URL copied");
-                                          }}
-                                          className="text-[10px] px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/30 dark:hover:text-teal-400 transition-colors"
-                                          title="Copy Notion URL"
-                                        >
-                                          Copy
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openUrl(notionUrl);
-                                          }}
-                                          className="text-[10px] px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 dark:hover:text-blue-400 transition-colors"
-                                          title="Open in Notion"
-                                        >
-                                          Open
-                                        </button>
-                                      </span>
-                                    );
-                                  })()}
                                 </td>
                                 {/* Title */}
                                 <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-medium">
                                   <span className="flex items-center gap-1.5">
-                                    {task.notion_page_id && (
-                                      <span
-                                        className={`flex-shrink-0 ${(task as any).source === "notion" ? "text-zinc-800 dark:text-zinc-200" : "text-teal-500 dark:text-teal-400"}`}
-                                        title={(task as any).source === "notion" ? "From Notion" : "Synced to Notion"}
-                                      >
-                                        <svg width="12" height="12" viewBox="0 0 100 100" fill="currentColor"><path d="M6.6 12.6c5.1 4.1 7 3.8 16.5 3.1l59.7-3.6c2 0 .3-2-.3-2.2L73.2 3.5c-2.7-2.2-6.5-4.6-13.5-4L8 3.2C4 3.5 3.1 5.6 4.8 7.3zm17.1 14.3v62.7c0 3.4 1.7 4.7 5.5 4.5l65.7-3.8c3.8-.2 4.3-2.6 4.3-5.4V22.6c0-2.8-1.1-4.3-3.5-4l-68.6 4c-2.7.2-3.4 1.5-3.4 4.3zM82 29c.4 1.8 0 3.5-1.8 3.7l-3.2.6v46.3c-2.8 1.5-5.3 2.3-7.5 2.3-3.4 0-4.3-1.1-6.8-4.1L42.3 46.2v30.7l6.6 1.5s0 3.5-4.8 3.5l-13.3.8c-.4-.8 0-2.7 1.3-3l3.5-1V38.3l-4.8-.4c-.4-1.8.6-4.4 3.5-4.6l14.3-.9 21.2 32.5V37l-5.5-.6c-.4-2.2 1.2-3.7 3.2-3.9z"/></svg>
-                                      </span>
-                                    )}
+                                    {task.notion_page_id && (() => {
+                                      const notionUrl = `https://www.notion.so/thinkval/${task.notion_page_id!.replace(/-/g, "")}`;
+                                      const lp = (task as any).last_pushed_at ? new Date((task as any).last_pushed_at).toLocaleString() : "never";
+                                      const lu = (task as any).last_pulled_at ? new Date((task as any).last_pulled_at).toLocaleString() : "never";
+                                      return (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); openUrl(notionUrl); }}
+                                          className={`flex-shrink-0 ${(task as any).source === "notion" ? "text-zinc-800 dark:text-zinc-200" : "text-teal-500 dark:text-teal-400"} hover:opacity-70 transition-opacity`}
+                                          title={`Open in Notion\nLast pushed: ${lp}\nLast pulled: ${lu}`}
+                                        >
+                                          <svg width="12" height="12" viewBox="0 0 100 100" fill="currentColor"><path d="M6.6 12.6c5.1 4.1 7 3.8 16.5 3.1l59.7-3.6c2 0 .3-2-.3-2.2L73.2 3.5c-2.7-2.2-6.5-4.6-13.5-4L8 3.2C4 3.5 3.1 5.6 4.8 7.3zm17.1 14.3v62.7c0 3.4 1.7 4.7 5.5 4.5l65.7-3.8c3.8-.2 4.3-2.6 4.3-5.4V22.6c0-2.8-1.1-4.3-3.5-4l-68.6 4c-2.7.2-3.4 1.5-3.4 4.3zM82 29c.4 1.8 0 3.5-1.8 3.7l-3.2.6v46.3c-2.8 1.5-5.3 2.3-7.5 2.3-3.4 0-4.3-1.1-6.8-4.1L42.3 46.2v30.7l6.6 1.5s0 3.5-4.8 3.5l-13.3.8c-.4-.8 0-2.7 1.3-3l3.5-1V38.3l-4.8-.4c-.4-1.8.6-4.4 3.5-4.6l14.3-.9 21.2 32.5V37l-5.5-.6c-.4-2.2 1.2-3.7 3.2-3.9z"/></svg>
+                                        </button>
+                                      );
+                                    })()}
                                     {task.title}
                                   </span>
                                 </td>
@@ -2992,14 +2980,19 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 {/* Due Date */}
                                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                                   <div className="flex items-center gap-0.5">
-                                    <input
-                                      type="date"
-                                      value={task.due_date?.split("T")[0] || ""}
-                                      onChange={(e) => {
-                                        updateTaskMutation.mutate({ id: task.id, updates: { due_date: e.target.value ? `${e.target.value}T00:00:00Z` : null } });
-                                      }}
-                                      className="bg-transparent text-xs cursor-pointer border-0 outline-none text-zinc-600 dark:text-zinc-400 flex-1 min-w-0"
-                                    />
+                                    <label className="relative flex-1 min-w-0 cursor-pointer">
+                                      <span className={`block text-xs tabular-nums truncate ${task.due_date && isOverdue(task.due_date) && task.status?.type !== "complete" ? "text-red-500" : "text-zinc-600 dark:text-zinc-400"}`}>
+                                        {task.due_date ? new Date(task.due_date).toLocaleDateString("en-SG", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}
+                                      </span>
+                                      <input
+                                        type="date"
+                                        value={task.due_date?.split("T")[0] || ""}
+                                        onChange={(e) => {
+                                          updateTaskMutation.mutate({ id: task.id, updates: { due_date: e.target.value ? `${e.target.value}T00:00:00Z` : null } });
+                                        }}
+                                        className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                                      />
+                                    </label>
                                     {task.due_date && (
                                       <button
                                         onClick={() => updateTaskMutation.mutate({ id: task.id, updates: { due_date: null } })}
@@ -3457,6 +3450,31 @@ Write a brief current state summary. No bullet points, just a natural sentence o
             className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition-colors font-medium flex items-center gap-1.5"
           >
             <Sparkles size={12} /> Auto-assign Project
+          </button>
+          <button
+            onClick={async () => {
+              const ids = Array.from(selectedTaskIds);
+              if (ids.length === 0) return;
+              setBulkNotionSyncing(true);
+              let ok = 0, fail = 0;
+              const concurrency = 3;
+              const queue = [...ids];
+              await Promise.all(Array.from({ length: concurrency }, async () => {
+                while (queue.length) {
+                  const id = queue.shift()!;
+                  try { await notionPushTask.mutateAsync(id); ok++; }
+                  catch (e: any) { fail++; console.error("[bulk notion push]", id, e?.message || e); }
+                }
+              }));
+              setBulkNotionSyncing(false);
+              if (fail === 0) toast.success(`Synced ${ok} task${ok > 1 ? "s" : ""} to Notion`);
+              else toast.error(`Synced ${ok}, failed ${fail}. See console.`);
+            }}
+            disabled={bulkNotionSyncing}
+            className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-60 transition-colors font-medium flex items-center gap-1.5"
+            title="Push selected tasks to Notion"
+          >
+            <Upload size={12} /> {bulkNotionSyncing ? "Syncing..." : "Sync to Notion"}
           </button>
           <button
             onClick={() => setSelectedTaskIds(new Set())}

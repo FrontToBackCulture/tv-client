@@ -152,7 +152,7 @@ pub async fn work_update_task(task_id: String, data: UpdateTask) -> CmdResult<Ta
                 serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
             );
         }
-        let _: Task = client
+        let _: serde_json::Value = client
             .update("tasks", &format!("id=eq.{}", task_id), &update_data)
             .await?;
         return work_get_task(task_id).await;
@@ -184,7 +184,7 @@ pub async fn work_update_task(task_id: String, data: UpdateTask) -> CmdResult<Ta
         }
     }
 
-    let _: Task = client
+    let _: serde_json::Value = client
         .update("tasks", &format!("id=eq.{}", task_id), &data)
         .await?;
 

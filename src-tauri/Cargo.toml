@@ -1,6 +1,6 @@
 [package]
 name = "tv-client"
-version = "0.10.29"
+version = "0.10.30"
 edition = "2021"
 default-run = "tv-client"
 
@@ -54,12 +54,8 @@ thiserror = "2"
 urlencoding = "2"
 open = "5"
 
-# Async runtime (for OAuth timeout and MCP server)
+# Async runtime (for OAuth timeout)
 tokio = { version = "1", features = ["time", "sync", "rt-multi-thread", "macros", "io-std", "net", "process"] }
-
-# HTTP server (for MCP testing)
-axum = "0.7"
-tower-http = { version = "0.5", features = ["cors"] }
 
 # Cron expression parsing (for scheduler)
 cron = "0.12"
@@ -85,6 +81,9 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 # Hashing (for email body file names)
 sha2 = "0.10"
 
+# Async stream combinators (for bounded concurrency)
+futures = "0.3"
+
 # JWT signing (for GA4 service account auth)
 jsonwebtoken = "9"
 
@@ -103,3 +102,12 @@ debug = 0  # No debug symbols - faster builds, smaller target/debug folder
 [profile.release]
 lto = "thin"        # Faster than fat LTO, still optimizes well
 codegen-units = 16  # Parallel codegen for faster release builds
+
+# CI profile — used by GitHub Actions release builds.
+# Skips LTO for ~3-5min faster Windows builds; binary is ~10-20% larger.
+# User-perceived runtime performance is nearly identical for this UI app.
+[profile.release-ci]
+inherits = "release"
+lto = false
+codegen-units = 256
+strip = true

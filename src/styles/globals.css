@@ -451,6 +451,18 @@ h1, h2, h3, h4, h5, h6 {
   animation: fade-slide-in 0.2s ease-out backwards;
 }
 
+/* Overdue due-date input — color WebKit date sub-fields red */
+.due-date-input.due-overdue,
+.due-date-input.due-overdue::-webkit-datetime-edit,
+.due-date-input.due-overdue::-webkit-datetime-edit-fields-wrapper,
+.due-date-input.due-overdue::-webkit-datetime-edit-text,
+.due-date-input.due-overdue::-webkit-datetime-edit-day-field,
+.due-date-input.due-overdue::-webkit-datetime-edit-month-field,
+.due-date-input.due-overdue::-webkit-datetime-edit-year-field {
+  color: #ef4444 !important;
+  -webkit-text-fill-color: #ef4444 !important;
+}
+
 /* Activity bar active glow */
 .activity-bar-active {
   box-shadow: 0 0 12px -3px rgba(13, 125, 133, 0.15);

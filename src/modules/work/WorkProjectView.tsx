@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Calendar, User, MessageSquare, Search, X, Check, Folder, Sparkles, ChevronRight, ChevronDown, Plus,
+  Calendar, User, MessageSquare, Search, X, Check, Folder, Sparkles, ChevronRight, ChevronDown, Plus, Upload,
 } from "lucide-react";
+import { useNotionPushTask } from "../../hooks/useNotion";
 import { AutoAssignCompanyModal } from "./AutoAssignCompanyModal";
 import { AutoAssignProjectModal } from "./AutoAssignProjectModal";
 import { BackButton } from "../../components/BackButton";
@@ -144,6 +145,27 @@ export function ProjectView({
   const [bulkProjectSearch, setBulkProjectSearch] = useState("");
   const [bulkProjectList, setBulkProjectList] = useState<Array<{ id: string; name: string; color: string | null }>>([]);
   const [bulkMoving, setBulkMoving] = useState(false);
+  const [bulkSyncing, setBulkSyncing] = useState(false);
+  const notionPush = useNotionPushTask();
+
+  const bulkSyncToNotion = useCallback(async () => {
+    const ids = Array.from(selectedTaskIds);
+    if (ids.length === 0) return;
+    setBulkSyncing(true);
+    let ok = 0, fail = 0;
+    const concurrency = 3;
+    const queue = [...ids];
+    await Promise.all(Array.from({ length: concurrency }, async () => {
+      while (queue.length) {
+        const id = queue.shift()!;
+        try { await notionPush.mutateAsync(id); ok++; }
+        catch (e: any) { fail++; console.error("[bulk notion push]", id, e?.message || e); }
+      }
+    }));
+    setBulkSyncing(false);
+    if (fail === 0) toast.success(`Synced ${ok} task${ok > 1 ? "s" : ""} to Notion`);
+    else toast.error(`Synced ${ok}, failed ${fail}. See console.`);
+  }, [selectedTaskIds, notionPush]);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -755,6 +777,14 @@ export function ProjectView({
             title="Use Haiku to suggest a better project for the selected tasks"
           >
             <Sparkles size={12} /> Auto-assign Project
+          </button>
+          <button
+            onClick={bulkSyncToNotion}
+            disabled={bulkSyncing || bulkMoving}
+            className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-60 transition-colors font-medium flex items-center gap-1.5"
+            title="Push selected tasks to Notion"
+          >
+            <Upload size={12} /> {bulkSyncing ? "Syncing..." : "Sync to Notion"}
           </button>
           <button
             onClick={() => setSelectedTaskIds(new Set())}

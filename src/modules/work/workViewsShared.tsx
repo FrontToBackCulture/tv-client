@@ -455,6 +455,22 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel, sel
       .then(({ data }) => { if (data) setProjectList(data); });
   }, [contextMenuPos, projectList.length]);
 
+  // Debounced Notion auto-push — fires 1.5s after last inline edit if task is linked to Notion.
+  const notionSyncTimerRef = useRef<number | null>(null);
+  const scheduleNotionSync = useCallback(() => {
+    if (!task.notion_page_id) return;
+    if (notionSyncTimerRef.current) window.clearTimeout(notionSyncTimerRef.current);
+    notionSyncTimerRef.current = window.setTimeout(async () => {
+      notionSyncTimerRef.current = null;
+      try { await invoke("notion_push_task", { taskId: task.id }); }
+      catch (err: any) { console.error("[notion auto-sync]", task.id, err?.message || err); }
+    }, 1500);
+  }, [task.id, task.notion_page_id]);
+
+  useEffect(() => () => {
+    if (notionSyncTimerRef.current) window.clearTimeout(notionSyncTimerRef.current);
+  }, []);
+
   // Optimistic update helper — patches cache instantly, syncs to DB in background, verifies after
   const optimisticUpdate = useCallback(async (updates: Record<string, any>, label: string) => {
     // 1. Patch cache instantly (only task-level fields, not joined relations)
@@ -481,7 +497,10 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel, sel
 
     // 3. Background verify — refetch after 3s to ensure consistency
     setTimeout(() => queryClient.invalidateQueries({ queryKey: ["work"] }), 3000);
-  }, [task.id, queryClient]);
+
+    // 4. Schedule debounced push to Notion if the task is linked
+    scheduleNotionSync();
+  }, [task.id, queryClient, scheduleNotionSync]);
 
   const handleStatusChange = useCallback(async (statusId: string) => {
     setStatusOpen(false);
@@ -573,11 +592,15 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel, sel
         {getTaskIdentifier(task)}
       </span>
       {/* Notion icon (hidden in projectScoped) */}
-      {!projectScoped && ((task as any).notion_page_id ? (
-        <span className={`cursor-pointer ${(task as any).source === "notion" ? "text-zinc-600 dark:text-zinc-400" : "text-teal-500 dark:text-teal-400"} hover:text-blue-500 dark:hover:text-blue-400 transition-colors`} title="Click to sync to Notion" onClick={async (e) => { e.stopPropagation(); try { await invoke("notion_push_task", { taskId: task.id }); toast.success("Synced to Notion"); } catch (err: any) { toast.error(`Sync failed: ${err?.message || err}`); } }}>
+      {!projectScoped && ((task as any).notion_page_id ? (() => {
+        const lp = (task as any).last_pushed_at ? new Date((task as any).last_pushed_at).toLocaleString() : "never";
+        const lu = (task as any).last_pulled_at ? new Date((task as any).last_pulled_at).toLocaleString() : "never";
+        return (
+        <span className={`cursor-pointer ${(task as any).source === "notion" ? "text-zinc-600 dark:text-zinc-400" : "text-teal-500 dark:text-teal-400"} hover:text-blue-500 dark:hover:text-blue-400 transition-colors`} title={`Click to sync to Notion\nLast pushed: ${lp}\nLast pulled: ${lu}`} onClick={async (e) => { e.stopPropagation(); try { await invoke("notion_push_task", { taskId: task.id }); toast.success("Synced to Notion"); } catch (err: any) { toast.error(`Sync failed: ${err?.message || err}`); } }}>
           <svg width="12" height="12" viewBox="0 0 100 100" fill="currentColor"><path d="M6.6 12.6c5.1 4.1 7 3.8 16.5 3.1l59.7-3.6c2 0 .3-2-.3-2.2L73.2 3.5c-2.7-2.2-6.5-4.6-13.5-4L8 3.2C4 3.5 3.1 5.6 4.8 7.3zm17.1 14.3v62.7c0 3.4 1.7 4.7 5.5 4.5l65.7-3.8c3.8-.2 4.3-2.6 4.3-5.4V22.6c0-2.8-1.1-4.3-3.5-4l-68.6 4c-2.7.2-3.4 1.5-3.4 4.3zM82 29c.4 1.8 0 3.5-1.8 3.7l-3.2.6v46.3c-2.8 1.5-5.3 2.3-7.5 2.3-3.4 0-4.3-1.1-6.8-4.1L42.3 46.2v30.7l6.6 1.5s0 3.5-4.8 3.5l-13.3.8c-.4-.8 0-2.7 1.3-3l3.5-1V38.3l-4.8-.4c-.4-1.8.6-4.4 3.5-4.6l14.3-.9 21.2 32.5V37l-5.5-.6c-.4-2.2 1.2-3.7 3.2-3.9z"/></svg>
         </span>
-      ) : <span />)}
+        );
+      })() : <span />)}
       {/* Project context (default mode only) */}
       {!projectScoped && (
         <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium truncate" title={contextLabel || ""}>{contextLabel || ""}</span>
@@ -611,7 +634,12 @@ export const TaskRow = memo(function TaskRow({ task, onSelect, contextLabel, sel
         )}
       </div>
       {/* Due date */}
-      <input type="date" value={task.due_date?.slice(0, 10) || ""} onClick={(e) => e.stopPropagation()} onChange={async (e) => { const val = e.target.value || null; await optimisticUpdate({ due_date: val, triage_action: null, triage_score: null, triage_reason: null }, "Due date update"); if (val && !isOverdue(val) && val !== new Date().toISOString().slice(0, 10)) { toast.success("Due date updated — task moved to Upcoming"); } }} className={`text-xs bg-transparent border-0 outline-none cursor-pointer w-full appearance-none ${task.due_date && isOverdue(task.due_date) ? "text-red-500" : "text-zinc-400"} hover:text-zinc-600 dark:hover:text-zinc-300`} style={{ colorScheme: "dark" }} />
+      <label className="relative block w-full cursor-pointer" onClick={(e) => e.stopPropagation()}>
+        <span className={`text-xs tabular-nums ${task.due_date && isOverdue(task.due_date) && task.status?.type !== "complete" ? "text-red-500" : "text-zinc-400"} hover:text-zinc-600 dark:hover:text-zinc-300`}>
+          {task.due_date ? new Date(task.due_date).toLocaleDateString("en-SG", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}
+        </span>
+        <input type="date" value={task.due_date?.slice(0, 10) || ""} onChange={async (e) => { const val = e.target.value || null; await optimisticUpdate({ due_date: val, triage_action: null, triage_score: null, triage_reason: null }, "Due date update"); if (val && !isOverdue(val) && val !== new Date().toISOString().slice(0, 10)) { toast.success("Due date updated — task moved to Upcoming"); } }} className="absolute inset-0 opacity-0 cursor-pointer w-full" style={{ colorScheme: "dark" }} />
+      </label>
       {/* Company */}
       <span ref={companyRef} className="text-[10px] text-zinc-400 truncate cursor-pointer hover:text-teal-500 dark:hover:text-teal-400 transition-colors" title="Click to change company" onClick={(e) => { e.stopPropagation(); setCompanyOpen(!companyOpen); }}>
         {task.company?.display_name || task.company?.name || "—"}
