@@ -21,17 +21,15 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  ProjectStatusLabels,
-  ProjectStatusColors,
   PriorityColors,
   Priority,
 } from "../../lib/work/types";
-import type { TaskWithRelations, Project, Initiative, ProjectStatus } from "../../lib/work/types";
+import type { TaskWithRelations, Project, Initiative } from "../../lib/work/types";
 import { isOverdue } from "../../lib/date";
 import { cn } from "../../lib/cn";
 import { DEAL_STAGES } from "../../lib/crm/types";
 import {
-  StatusBadge, ProgressBar, getInitiativeColor,
+  ProgressBar, getInitiativeColor,
 } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
 import { WorkspaceDetailView } from "../workspace/WorkspaceDetailView";
@@ -409,7 +407,7 @@ function getTaskUrgencyDot(counts: { total: number; completed: number; overdue: 
 
 // Sortable initiative row for drag-and-drop reordering
 function SortableInitiativeRow({
-  init, initIndex: _initIndex, isExpanded, isSelected, derivedStatus, activeCount,
+  init, initIndex: _initIndex, isExpanded, isSelected, derivedStatus: _derivedStatus, activeCount,
   taskCounts,
   onToggle, onSelect, onEdit, children,
 }: {
@@ -528,7 +526,7 @@ export function DashboardView({
       setAllCollapsed(true);
     }
   };
-  const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
+  const [_editingStatusId, _setEditingStatusId] = useState<string | null>(null);
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectIdRaw] = useState<string | null>(() => {
     return workspaceLocalStorage.get(SELECTED_PROJECT_KEY);
