@@ -132,6 +132,13 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity, domain:
   const handleAddCustomPM = useCallback((name: string) => addCustomSystem(name, "Platform Delivery"), [addCustomSystem]);
   const handleAddCustomBank = useCallback((name: string) => addCustomSystem(name, "Bank"), [addCustomSystem]);
 
+  // Payment methods declared on the solution template (valConfig.systems where type === "Platform Delivery").
+  // Merging these into the dropdown lets new template-level methods appear in existing domain instances.
+  const templatePMs = useMemo(() => {
+    const systems: any[] = (template as any)?.valConfig?.systems || [];
+    return systems.filter((s) => s?.type === "Platform Delivery").map((s) => String(s.id)).filter(Boolean);
+  }, [template]);
+
   // Filtered banks for selected entity
   const filteredBanks = selectedEntity !== null
     ? banks.filter((b) => b.outlets.length === 0 || b.outlets.some((o) => filteredScope.some((s) => s.outlet === o)))
@@ -245,7 +252,7 @@ export default function MatrixScopeTab({ data, onChange, selectedEntity, domain:
             })}
           </tbody>
         </table>
-        <PMAddRow onAdd={addPM} existingPMs={pms.map((p) => p.name)} onAddCustom={handleAddCustomPM} />
+        <PMAddRow onAdd={addPM} existingPMs={pms.map((p) => p.name)} templatePMs={templatePMs} onAddCustom={handleAddCustomPM} />
       </CollapsibleSection>
 
       {/* Bank Accounts */}
@@ -716,15 +723,26 @@ function OutletToggleDropdown({ allOutlets, excludedOutlets, onChange, label, ba
 }
 
 // ─── PM add row ───
-function PMAddRow({ onAdd, existingPMs, onAddCustom }: { onAdd: (name: string) => void; existingPMs: string[]; onAddCustom?: (name: string) => void }) {
-  const available = PAYMENT_METHOD_OPTIONS.filter((pm) => !existingPMs.includes(pm));
+function PMAddRow({ onAdd, existingPMs, templatePMs = [], onAddCustom }: { onAdd: (name: string) => void; existingPMs: string[]; templatePMs?: string[]; onAddCustom?: (name: string) => void }) {
+  const allOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: string[] = [];
+    for (const pm of [...PAYMENT_METHOD_OPTIONS, ...templatePMs]) {
+      const key = pm.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(pm);
+    }
+    return merged;
+  }, [templatePMs]);
+  const available = allOptions.filter((pm) => !existingPMs.includes(pm));
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const filtered = available.filter((pm) => pm.toLowerCase().includes(search.toLowerCase()));
   const trimmed = search.trim();
   const canCreate = trimmed.length > 0
     && !existingPMs.some((p) => p.toLowerCase() === trimmed.toLowerCase())
-    && ![...PAYMENT_METHOD_OPTIONS].some((o) => o.toLowerCase() === trimmed.toLowerCase());
+    && !allOptions.some((o) => o.toLowerCase() === trimmed.toLowerCase());
 
   return (
     <div className="relative mt-2">

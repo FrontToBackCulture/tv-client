@@ -345,6 +345,7 @@ export function MetadataView() {
     },
   });
 
+  const [jobModal, setJobModal] = useState<any | null>(null);
   const selectedCompany = selection?.type === "company" ? companies.find(c => c.id === selection.id) : null;
   const selectedContact = selection?.type === "contact" ? contacts.find(c => c.id === selection.id) : null;
   const selectedInitiative = selection?.type === "initiative" ? initiatives.find(i => i.id === selection.id) : null;
@@ -1299,11 +1300,15 @@ export function MetadataView() {
                         </h3>
                         <div className="space-y-2">
                           {(selectedCompany as any).hiring_signals.active_jobs.map((job: any, i: number) => (
-                            <div key={i} className="rounded-md border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2">
+                            <button
+                              key={i}
+                              onClick={() => setJobModal(job)}
+                              className="w-full text-left rounded-md border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2 hover:bg-amber-100/60 dark:hover:bg-amber-900/20 transition-colors"
+                            >
                               <div className="flex items-start justify-between gap-2">
                                 <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200">{job.title}</span>
                                 {job.url && (
-                                  <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-teal-500 hover:text-teal-600 shrink-0">MCF</a>
+                                  <a onClick={(e) => e.stopPropagation()} href={job.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-teal-500 hover:text-teal-600 shrink-0">MCF</a>
                                 )}
                               </div>
                               <div className="flex gap-3 mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
@@ -1313,7 +1318,7 @@ export function MetadataView() {
                                 {job.role_category && <span className="capitalize">{job.role_category}</span>}
                                 {job.posted && <span>Posted {job.posted}</span>}
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                         {(selectedCompany as any).hiring_signals.last_checked && (
@@ -1701,6 +1706,85 @@ export function MetadataView() {
         </div>
       )}
       {showLayoutMenu && <div className="fixed inset-0 z-40" onClick={() => setShowLayoutMenu(false)} />}
+      {jobModal && <JobDetailsModal job={jobModal} onClose={() => setJobModal(null)} />}
+    </div>
+  );
+}
+
+function JobDetailsModal({ job, onClose }: { job: any; onClose: () => void }) {
+  const { data: posting, isLoading } = useQuery({
+    queryKey: ["mcf-job-posting", job.url, job.title],
+    queryFn: async () => {
+      if (job.url) {
+        const { data } = await supabase.schema("public_data").from("mcf_job_postings")
+          .select("*").eq("job_details_url", job.url).maybeSingle();
+        if (data) return data;
+      }
+      const { data } = await supabase.schema("public_data").from("mcf_job_postings")
+        .select("*").eq("title", job.title).order("new_posting_date", { ascending: false }).limit(1).maybeSingle();
+      return data;
+    },
+  });
+
+  const p: any = posting || {};
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-fade-in" onClick={onClose}>
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-modal-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{job.title}</h2>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+              {(job.salary_min || job.salary_max) && (
+                <span>${job.salary_min?.toLocaleString() || "?"} – ${job.salary_max?.toLocaleString() || "?"}</span>
+              )}
+              {job.role_category && <span className="capitalize">{job.role_category}</span>}
+              {job.posted && <span>Posted {job.posted}</span>}
+              {job.url && <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-teal-500 hover:text-teal-600">View on MCF ↗</a>}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 overflow-y-auto text-xs text-zinc-700 dark:text-zinc-300 space-y-3">
+          {isLoading && <div className="text-zinc-400">Loading full posting…</div>}
+          {!isLoading && !posting && <div className="text-zinc-400">No matching posting found in mcf_job_postings.</div>}
+          {posting && (
+            <>
+              <div className="grid grid-cols-2 gap-3 text-[11px]">
+                {p.employment_types?.length > 0 && <Field label="Employment">{p.employment_types.join(", ")}</Field>}
+                {p.position_levels?.length > 0 && <Field label="Level">{p.position_levels.join(", ")}</Field>}
+                {p.minimum_years_experience != null && <Field label="Min experience">{p.minimum_years_experience} yrs</Field>}
+                {p.number_of_vacancies != null && <Field label="Vacancies">{p.number_of_vacancies}</Field>}
+                {p.categories?.length > 0 && <Field label="Categories">{p.categories.join(", ")}</Field>}
+                {p.seniority && <Field label="Seniority">{p.seniority}</Field>}
+                {p.industry_tag && <Field label="Industry">{p.industry_tag}</Field>}
+                {p.finance_function && <Field label="Finance function">{p.finance_function}</Field>}
+                {p.new_posting_date && <Field label="Posted">{p.new_posting_date}</Field>}
+                {p.expiry_date && <Field label="Expires">{p.expiry_date}</Field>}
+                {(p.address_street || p.address_postal_code) && <Field label="Location">{[p.address_block, p.address_street, p.address_postal_code].filter(Boolean).join(" ")}</Field>}
+                {p.total_views != null && <Field label="Views">{p.total_views}</Field>}
+                {p.total_applications != null && <Field label="Applications">{p.total_applications}</Field>}
+              </div>
+              {p.description && (
+                <div>
+                  <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Description</div>
+                  <div className="whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: p.description }} />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] text-zinc-400 uppercase tracking-wider">{label}</div>
+      <div className="text-zinc-700 dark:text-zinc-300">{children}</div>
     </div>
   );
 }

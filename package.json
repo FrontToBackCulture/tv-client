@@ -55,6 +55,7 @@
     "ag-grid-react": "^35.0.1",
     "clsx": "^2.1.1",
     "gray-matter": "^4.0.3",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.562.0",
     "marked": "^17.0.1",
     "motion": "^12.38.0",

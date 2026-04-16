@@ -53,7 +53,7 @@ import {
   FileText,
   Brain,
 } from "lucide-react";
-import { useFileTree, type TreeNode } from "../../hooks/useFiles";
+import { useFileTree, useFolderChildren, type TreeNode } from "../../hooks/useFiles";
 import { useRepository } from "../../stores/repositoryStore";
 import { useTaskArtifacts, useAddArtifact, useRemoveArtifact } from "../../hooks/workspace";
 import { Plus, Loader2 } from "lucide-react";
@@ -1340,8 +1340,14 @@ function TaskArtifactPickerModal({
 function PickerNode({ node, level, onSelect }: { node: TreeNode; level: number; onSelect: (absPath: string, isDir: boolean) => void }) {
   const [expanded, setExpanded] = useState(level < 1);
 
+  const needsLazy = node.is_directory && node.children === null;
+  const { data: lazyChildren, isLoading: lazyLoading } = useFolderChildren(
+    node.path,
+    expanded && needsLazy
+  );
+
   if (node.is_directory) {
-    const children = (node.children ?? []).filter((c) => !c.name.startsWith("."));
+    const children = (node.children ?? lazyChildren ?? []).filter((c) => !c.name.startsWith("."));
     return (
       <div>
         <div
@@ -1363,12 +1369,16 @@ function PickerNode({ node, level, onSelect }: { node: TreeNode; level: number; 
             <span className="ml-auto text-[9px] text-teal-500 opacity-0 group-hover:opacity-100">add folder</span>
           </button>
         </div>
-        {expanded && children
+        {expanded && (lazyLoading ? (
+          <div className="flex items-center gap-2 py-1 text-xs text-zinc-400" style={{ paddingLeft: `${level * 14 + 28}px` }}>
+            <Loader2 size={10} className="animate-spin" />
+          </div>
+        ) : children
           .sort((a, b) => {
             if (a.is_directory !== b.is_directory) return a.is_directory ? -1 : 1;
             return a.name.localeCompare(b.name);
           })
-          .map((child) => <PickerNode key={child.path} node={child} level={level + 1} onSelect={onSelect} />)}
+          .map((child) => <PickerNode key={child.path} node={child} level={level + 1} onSelect={onSelect} />))}
       </div>
     );
   }

@@ -1364,68 +1364,40 @@ function transformMcfJob(r: any) {
 async function ingestMcfJobPostings(_config: any): Promise<number> {
   const MCF_API = "https://api.mycareersfuture.gov.sg/v2/jobs";
   const PAGE_SIZE = 100;
-  const DUP_THRESHOLD = 3;
+  const MAX_PAGES = 80;
 
-  // Load existing UUIDs for dedup
-  const existing = new Set<string>();
-  let offset = 0;
-  while (true) {
-    const { data } = await supabase
-      .from("mcf_job_postings")
-      .select("mcf_uuid")
-      .range(offset, offset + 999);
-    if (!data?.length) break;
-    for (const r of data) existing.add(r.mcf_uuid);
-    offset += data.length;
-    if (data.length < 1000) break;
-  }
+  // Fetch from newest backwards, stop when we see a page where every posting
+  // is older than (today − 5 days). Daily cron + 5-day overlap covers short outages.
+  // Dedup handled by DB-level onConflict — no in-memory Set, no accumulating buffer.
+  const cutoff = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
 
-  // Fetch newest jobs, stop when hitting known UUIDs
-  const newRows: any[] = [];
-  let consecutiveDupPages = 0;
+  let upserted = 0;
   let page = 0;
 
-  while (true) {
+  while (page < MAX_PAGES) {
     const resp = await fetch(`${MCF_API}?limit=${PAGE_SIZE}&page=${page}`);
     if (!resp.ok) throw new Error(`MCF API error: ${resp.status}`);
     const data = await resp.json();
     const results = data.results || [];
     if (!results.length) break;
 
-    let pageNew = 0;
-    for (const r of results) {
-      if (!existing.has(r.uuid)) {
-        newRows.push(transformMcfJob(r));
-        pageNew++;
-      }
-    }
-
-    if (pageNew === 0) {
-      consecutiveDupPages++;
-      if (consecutiveDupPages >= DUP_THRESHOLD) break;
-    } else {
-      consecutiveDupPages = 0;
-    }
-
-    page++;
-    // Polite delay
-    await new Promise((r) => setTimeout(r, 500));
-  }
-
-  if (!newRows.length) return existing.size; // no new jobs, return existing count
-
-  // Insert new jobs
-  let inserted = 0;
-  for (let i = 0; i < newRows.length; i += 25) {
-    const batch = newRows.slice(i, i + 25);
+    const rows = results.map(transformMcfJob);
     const { error } = await supabase
       .from("mcf_job_postings")
-      .upsert(batch, { onConflict: "mcf_uuid", ignoreDuplicates: true });
-    if (error) throw new Error(`Insert error at batch ${i}: ${error.message}`);
-    inserted += batch.length;
+      .upsert(rows, { onConflict: "mcf_uuid", ignoreDuplicates: true });
+    if (error) throw new Error(`Insert error at page ${page}: ${error.message}`);
+    upserted += rows.length;
+
+    const allBelowCutoff = rows.every((row: any) => {
+      const d = row.new_posting_date ? new Date(row.new_posting_date) : null;
+      return d !== null && d < cutoff;
+    });
+    if (allBelowCutoff) break;
+
+    page++;
   }
 
-  return existing.size + inserted;
+  return upserted;
 }
 
 // ─── Registry & Handler ─────────────────────────────────
@@ -1508,8 +1480,10 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const { data: logEntry } = await supabase.from("ingestion_log")
+      const { data: logEntry, error: logErr } = await supabase.from("ingestion_log")
         .insert({ source_id: sid }).select().single();
+      if (logErr) console.warn(`ingestion_log insert failed for ${sid}:`, logErr);
+      const logId = logEntry?.id ?? null;
       await supabase.from("sources")
         .update({ sync_status: "running", sync_error: null, updated_at: new Date().toISOString() })
         .eq("id", sid);
@@ -1519,10 +1493,12 @@ Deno.serve(async (req) => {
         const rowCount = await ingester(source.api_config);
         const duration = Date.now() - startTime;
 
-        await supabase.from("ingestion_log").update({
-          rows_upserted: rowCount, status: "success",
-          completed_at: new Date().toISOString(), duration_ms: duration,
-        }).eq("id", logEntry!.id);
+        if (logId !== null) {
+          await supabase.from("ingestion_log").update({
+            rows_upserted: rowCount, status: "success",
+            completed_at: new Date().toISOString(), duration_ms: duration,
+          }).eq("id", logId);
+        }
 
         await supabase.from("sources").update({
           sync_status: "success", row_count: rowCount,
@@ -1534,10 +1510,12 @@ Deno.serve(async (req) => {
         const duration = Date.now() - startTime;
         const errorMsg = err instanceof Error ? err.message : String(err);
 
-        await supabase.from("ingestion_log").update({
-          status: "error", error: errorMsg,
-          completed_at: new Date().toISOString(), duration_ms: duration,
-        }).eq("id", logEntry!.id);
+        if (logId !== null) {
+          await supabase.from("ingestion_log").update({
+            status: "error", error: errorMsg,
+            completed_at: new Date().toISOString(), duration_ms: duration,
+          }).eq("id", logId);
+        }
 
         await supabase.from("sources").update({
           sync_status: "error", sync_error: errorMsg, updated_at: new Date().toISOString(),

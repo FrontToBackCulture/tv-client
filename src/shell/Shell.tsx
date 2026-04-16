@@ -23,6 +23,7 @@ import { HelpHighlight } from "../components/help/HelpHighlight";
 import { WhatsNewModal } from "./WhatsNewModal";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ToastContainer } from "../components/ui/ToastContainer";
+import { Mascot } from "../components/mascot/Mascot";
 
 const moduleLabels: Record<ModuleId, string> = {
   home: "Home",
@@ -226,6 +227,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
 
       {/* Overlays */}
       <ToastContainer />
+      <Mascot />
       <CommandPalette />
       <WhatsNewModal />
       <HelpHighlight />

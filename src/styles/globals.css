@@ -470,3 +470,13 @@ h1, h2, h3, h4, h5, h6 {
 .dark .activity-bar-active {
   box-shadow: 0 0 12px -3px rgba(94, 175, 180, 0.15);
 }
+
+/* Mascot animations */
+@keyframes mascot-droop {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(2px) rotate(-3deg); }
+}
+@keyframes mascot-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.08); }
+}

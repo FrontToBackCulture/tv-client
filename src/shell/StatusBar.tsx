@@ -7,7 +7,8 @@ import { useModuleTabStore } from "../stores/moduleTabStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { useClaudeRunStore } from "../stores/claudeRunStore";
 import { cn } from "../lib/cn";
-import { Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, Code, ChevronDown, Wrench, Activity, Brain, StopCircle, Sun, Moon } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, Code, ChevronDown, Wrench, Activity, Brain, StopCircle, Sun, Moon, Cat } from "lucide-react";
+import { useMascotVisible } from "../components/mascot/useMascotVisible";
 import { NotificationBell } from "../components/notifications/NotificationBell";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { useAppUpdate } from "../hooks/useAppUpdate";
@@ -60,6 +61,7 @@ export function StatusBar() {
   const updatePanelRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const { runs, expandedRunId, expandRun } = useClaudeRunStore();
+  const [mascotVisible, setMascotVisible] = useMascotVisible();
 
   // Close panels on outside click
   useEffect(() => {
@@ -335,6 +337,19 @@ export function StatusBar() {
 
         {/* Notifications */}
         <NotificationBell variant="statusbar" />
+
+        {/* Mascot toggle */}
+        <button
+          onClick={() => setMascotVisible(!mascotVisible)}
+          className={cn(
+            "flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors",
+            mascotVisible ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-400 dark:text-zinc-500",
+            "hover:bg-zinc-200 dark:hover:bg-zinc-800"
+          )}
+          title={mascotVisible ? "Hide mascot" : "Show mascot"}
+        >
+          <Cat size={12} />
+        </button>
 
         {/* Theme toggle */}
         <button
