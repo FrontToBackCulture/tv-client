@@ -9,6 +9,7 @@ src-tauri/target/
 .env
 .env.local
 .env.*.local
+.env.release
 
 # IDE
 .vscode/

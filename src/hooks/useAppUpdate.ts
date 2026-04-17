@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { formatError } from "../lib/formatError";
@@ -106,6 +106,8 @@ export function useAppUpdate(): UpdateState {
   const updateRef = useRef<Update | null>(null);
 
   const checkForUpdate = useCallback(async () => {
+    // Auto-update disabled — latest.json is not published for v0.10.31+.
+    // Treat as "no update available" silently.
     try {
       setError(null);
       const update = await check();
@@ -116,8 +118,8 @@ export function useAppUpdate(): UpdateState {
         updateRef.current = update;
       }
     } catch (e) {
-      console.warn("[updater] Check failed:", e);
-      setError(formatError(e));
+      console.warn("[updater] Check skipped (auto-updates disabled):", e);
+      // Don't surface error to UI — auto-updates are expected to be unavailable
     }
   }, []);
 
@@ -175,14 +177,17 @@ export function useAppUpdate(): UpdateState {
     }
   }, []);
 
-  // Check on mount (app launch) — skip in dev mode (already running from source)
-  useEffect(() => {
-    if (import.meta.env.DEV) return;
-    const timer = setTimeout(() => {
-      checkForUpdate();
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [checkForUpdate]);
+  // Auto-update disabled for v0.10.31+ — installer latest.json is not published.
+  // Users upgrade manually by downloading from GitHub releases. Re-enable when
+  // the release pipeline publishes latest.json + .app.tar.gz + .sig again.
+  //
+  // useEffect(() => {
+  //   if (import.meta.env.DEV) return;
+  //   const timer = setTimeout(() => {
+  //     checkForUpdate();
+  //   }, 3000);
+  //   return () => clearTimeout(timer);
+  // }, [checkForUpdate]);
 
   return {
     updateAvailable,

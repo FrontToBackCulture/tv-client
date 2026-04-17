@@ -42,13 +42,34 @@ pub fn migrate_from_tv_desktop() {
         }
     }
 
+    // Rewrite any stale `.tv-desktop/` paths inside settings.json — e.g. users
+    // often have ga4_service_account_path pointing at the old folder.
+    if new_settings.exists() {
+        if let Ok(content) = fs::read_to_string(&new_settings) {
+            let tv_desktop_str = tv_desktop.display().to_string();
+            let tv_client_str = tv_client.display().to_string();
+            if content.contains(&tv_desktop_str) {
+                let rewritten = content.replace(&tv_desktop_str, &tv_client_str);
+                if let Err(e) = fs::write(&new_settings, rewritten) {
+                    eprintln!("[tv-client] Failed to rewrite settings paths: {}", e);
+                } else {
+                    eprintln!("[tv-client] Rewrote stale .tv-desktop paths in settings.json");
+                }
+            }
+        }
+    }
+
     // All other tv-client-private files/folders → ~/.tv-client/
+    // Intentionally excluded:
+    //   - bin/        (old tv-mcp sidecar — dead, users install standalone now)
+    //   - scheduler/  (moved to Supabase in an earlier migration)
     let items = [
         "val-sync-config.json",
         "val-tokens.json",
         "github-sync-config.json",
         "drive-scan-config.json",
         "drive-scan-results.json",
+        "ga4-service-account.json",
         "outlook",
         "analytics",
         "linkedin",
