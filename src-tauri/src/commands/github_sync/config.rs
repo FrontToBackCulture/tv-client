@@ -1,5 +1,5 @@
 // GitHub Sync Config - sync configuration management
-// Stores config in ~/.tv-desktop/github-sync-config.json
+// Stores config in ~/.tv-client/github-sync-config.json
 
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -110,7 +110,7 @@ impl StringOrVec {
 fn get_config_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-client")
         .join("github-sync-config.json")
 }
 

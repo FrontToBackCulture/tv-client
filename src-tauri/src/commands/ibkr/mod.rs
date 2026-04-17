@@ -5,7 +5,7 @@
 // current workspace's Supabase tables.
 //
 // Credentials are stored under the `melly_ibkr_*` key namespace in
-// ~/.tv-desktop/settings.json — no other workspace touches these keys because
+// ~/.tv-mcp/settings.json — no other workspace touches these keys because
 // the UI card is only registered inside the Melly workspace's personal
 // connector registry (see src/modules/settings/integrations/connectors.personal.tsx).
 //

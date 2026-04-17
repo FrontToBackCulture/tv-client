@@ -1,5 +1,5 @@
 // VAL Sync Config - Domain configuration management
-// Stores domain configs in ~/.tv-desktop/val-sync-config.json
+// Stores domain configs in ~/.tv-client/val-sync-config.json
 
 use crate::commands::error::{CmdResult, CommandError};
 use serde::{Deserialize, Serialize};
@@ -78,7 +78,7 @@ impl DomainConfig {
 fn get_config_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-client")
         .join("val-sync-config.json")
 }
 

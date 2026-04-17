@@ -1,6 +1,6 @@
 // GA4 Analytics — fetch page views from Google Analytics Data API
 //
-// Auth: OAuth2 via Google account (tokens in ~/.tv-desktop/analytics/tokens.json)
+// Auth: OAuth2 via Google account (tokens in ~/.tv-client/analytics/tokens.json)
 // API: GA4 Data API v1beta runReport
 // Output: Normalized AnalyticsPageView rows → Supabase via shared storage
 //

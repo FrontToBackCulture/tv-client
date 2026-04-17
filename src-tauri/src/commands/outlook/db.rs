@@ -1,5 +1,5 @@
 // SQLite database for Outlook email metadata
-// Storage: ~/.tv-desktop/outlook/emails.db (WAL mode)
+// Storage: ~/.tv-client/outlook/emails.db (WAL mode)
 
 use rusqlite::{params, Connection};
 use std::path::PathBuf;
@@ -962,7 +962,7 @@ impl EmailDb {
 fn get_db_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-client")
         .join("outlook")
         .join("emails.db")
 }

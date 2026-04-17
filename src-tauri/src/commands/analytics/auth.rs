@@ -14,7 +14,7 @@ use std::path::PathBuf;
 fn get_analytics_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-client")
         .join("analytics")
 }
 

@@ -209,7 +209,7 @@ export function ValCredentialsView() {
 
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <p className="text-sm text-blue-700 dark:text-blue-400">
-          Credentials are stored locally in <code className="text-xs">~/.tv-desktop/settings.json</code>.
+          Credentials are stored locally in <code className="text-xs">~/.tv-mcp/settings.json</code>.
           You can also set credentials per domain in Product &gt; Domains.
         </p>
       </div>

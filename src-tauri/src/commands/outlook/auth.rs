@@ -14,7 +14,7 @@ use std::path::PathBuf;
 fn get_outlook_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-client")
         .join("outlook")
 }
 

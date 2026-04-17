@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod migration;
 mod models;
 
 use tauri::Manager;
@@ -60,6 +61,11 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             eprintln!("[tv-desktop] Setup starting...");
+
+            // One-time migration from ~/.tv-desktop/ → ~/.tv-mcp/ + ~/.tv-client/
+            // MUST run before any module reads its config files.
+            migration::migrate_from_tv_desktop();
+
             // Knowledge path: env var > settings.json > empty (user must configure in Settings)
             let knowledge_path = std::env::var("TV_KNOWLEDGE_PATH")
                 .ok()

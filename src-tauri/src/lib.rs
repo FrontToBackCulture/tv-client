@@ -3,6 +3,7 @@
 // React handles: Work, CRM, Inbox via Supabase
 
 pub mod commands;
+pub mod migration;
 pub mod models;
 
 /// Application state shared across commands

@@ -18,7 +18,7 @@ use crate::commands::error::CmdResult;
 fn get_bodies_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-client")
         .join("outlook")
         .join("bodies")
 }

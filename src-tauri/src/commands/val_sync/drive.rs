@@ -998,7 +998,7 @@ pub struct DriveScanConfig {
 fn scan_config_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-client")
         .join("drive-scan-config.json")
 }
 
@@ -1120,7 +1120,7 @@ pub struct PersistedScanResults {
 fn scan_results_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-client")
         .join("drive-scan-results.json")
 }
 

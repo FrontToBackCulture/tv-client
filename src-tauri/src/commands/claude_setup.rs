@@ -35,7 +35,6 @@ pub struct ClaudeCliStatus {
 /// Priority:
 /// 1. ~/.tv-mcp/bin/tv-mcp (standard install location)
 /// 2. Dev mode: cargo build output in the tv-mcp repo
-/// 3. Legacy: ~/.tv-desktop/bin/tv-mcp (old sidecar location)
 fn resolve_binary_path() -> CmdResult<PathBuf> {
     let binary_name = if cfg!(target_os = "windows") {
         "tv-mcp.exe"
@@ -64,14 +63,6 @@ fn resolve_binary_path() -> CmdResult<PathBuf> {
             if dev_path.exists() {
                 return Ok(dev_path);
             }
-        }
-    }
-
-    // Legacy fallback: ~/.tv-desktop/bin/tv-mcp
-    if let Some(home) = dirs::home_dir() {
-        let legacy_path = home.join(".tv-desktop").join("bin").join(binary_name);
-        if legacy_path.exists() {
-            return Ok(legacy_path);
         }
     }
 

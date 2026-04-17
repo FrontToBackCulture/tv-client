@@ -305,7 +305,7 @@ export default function App() {
 
   // Sync repositories to backend settings.json as a durable backup.
   // localStorage (WKWebView) can be lost on app restart, WebView reset, or
-  // workspace-ID mismatch. settings.json lives on disk (~/.tv-desktop/) and
+  // workspace-ID mismatch. settings.json lives on disk (~/.tv-mcp/) and
   // survives all of those. CRITICAL: never write empty state — that would
   // destroy the backup when localStorage fails to hydrate.
   useEffect(() => {

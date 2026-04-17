@@ -10,7 +10,7 @@ const SUPABASE_URL = "https://cqwcaeffzanfqsxlspig.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2NhZWZmemFuZnFzeGxzcGlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzE2MzIsImV4cCI6MjA5MDcwNzYzMn0.4UjeZdVjB7z-_sTWP6BRqHINkpTxA6jhP6ZabvKQC_0";
 
 const settingsJson = readFileSync(
-  new URL("file://" + process.env.HOME + "/.tv-desktop/settings.json")
+  new URL("file://" + process.env.HOME + "/.tv-mcp/settings.json")
 );
 const ANTHROPIC_KEY = JSON.parse(settingsJson).keys.anthropic_api_key;
 if (!ANTHROPIC_KEY) {

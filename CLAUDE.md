@@ -254,7 +254,7 @@ The `supabase` export is a JavaScript Proxy. All 100+ files that `import { supab
 
 ### Tauri Backend
 
-The Rust backend reads `supabase_url` + `supabase_anon_key` from `~/.tv-desktop/settings.json` on every `get_client()` call (no caching). When `settings_switch_workspace` writes new credentials, all subsequent Rust commands automatically hit the new workspace's Supabase. No Rust code changes needed per workspace.
+The Rust backend reads `supabase_url` + `supabase_anon_key` from `~/.tv-mcp/settings.json` on every `get_client()` call (no caching). When `settings_switch_workspace` writes new credentials, all subsequent Rust commands automatically hit the new workspace's Supabase. No Rust code changes needed per workspace.
 
 ## Tech Stack
 
@@ -454,18 +454,20 @@ If `cargo build` says "Finished" without "Compiling", it missed the change. The 
 
 After any changes to `src-tauri/src/mcp/` or `src-tauri/src/commands/`, rebuild the standalone binary:
 
+tv-mcp is a separate repo now (`../tv-mcp`). Build + install it standalone:
+
 ```bash
-cd src-tauri
-cargo build --bin tv-mcp           # DEBUG only — release build hangs (Tauri AppKit/WebKit linking)
-ln -sf "$(pwd)/target/debug/tv-mcp" ~/.tv-desktop/bin/tv-mcp   # symlink, not cp (avoids macOS quarantine)
-pkill -9 tv-mcp                    # kill running processes so Claude Code reconnects to the new binary
+cd ../tv-mcp
+cargo build --release
+cp target/release/tv-mcp ~/.tv-mcp/bin/tv-mcp
+pkill -9 tv-mcp                    # kill running process so Claude Code reconnects to the new binary
 ```
 
-The binary at `~/.tv-desktop/bin/tv-mcp` is what Claude Code connects to (configured in `~/.claude/mcp.json`). The Tauri app and this binary share the same `src-tauri/src/mcp/` module but are separate compiled binaries. **Running tv-mcp processes must be killed after rebuilding** — Claude Code auto-restarts the MCP server on the next tool call, but won't pick up the new binary while the old process is alive.
+The binary at `~/.tv-mcp/bin/tv-mcp` is what Claude Code connects to (configured in `~/.claude.json`). **Running tv-mcp processes must be killed after rebuilding** — Claude Code auto-restarts the MCP server on the next tool call, but won't pick up the new binary while the old process is alive.
 
 ### Supabase credentials — managed by workspace store
 
-Workspace Supabase credentials (`supabase_url`, `supabase_anon_key`) are stored in `~/.tv-desktop/settings.json` and managed by `workspaceStore.selectWorkspace()`. The gateway URL/key is hardcoded in `src/lib/gatewaySupabase.ts`. There is no `.env` file for Supabase credentials. Without credentials in settings, all data hooks will fail silently. The `settings_switch_workspace` Tauri command writes credentials atomically to prevent race conditions during workspace switching.
+Workspace Supabase credentials (`supabase_url`, `supabase_anon_key`) are stored in `~/.tv-mcp/settings.json` and managed by `workspaceStore.selectWorkspace()`. The gateway URL/key is hardcoded in `src/lib/gatewaySupabase.ts`. There is no `.env` file for Supabase credentials. Without credentials in settings, all data hooks will fail silently. The `settings_switch_workspace` Tauri command writes credentials atomically to prevent race conditions during workspace switching.
 
 ### Version bumping — three files must stay in sync
 

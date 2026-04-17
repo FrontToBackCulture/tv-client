@@ -1,5 +1,5 @@
 // VAL Sync Auth - JWT token management and VAL platform login
-// Tokens cached in ~/.tv-desktop/val-tokens.json
+// Tokens cached in ~/.tv-client/val-tokens.json
 
 use crate::commands::error::{CmdResult, CommandError};
 use crate::commands::settings::load_settings;
@@ -49,7 +49,7 @@ struct JwtPayload {
 fn get_tokens_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-client")
         .join("val-tokens.json")
 }
 

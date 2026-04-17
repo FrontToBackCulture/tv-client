@@ -420,7 +420,7 @@ export const CONNECTORS: Connector[] = [
   {
     id: "claude",
     name: "Claude Code",
-    description: "Local CLI and tv-mcp sidecar for bot workflows",
+    description: "Local CLI and standalone tv-mcp for bot workflows",
     category: "AI Tools",
     icon: SiAnthropic,
     iconColor: SiAnthropicHex,

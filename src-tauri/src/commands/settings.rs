@@ -1,5 +1,5 @@
 // Settings module - Simple JSON file storage for API keys and app settings
-// Stores settings in ~/.tv-desktop/settings.json
+// Stores settings in ~/.tv-mcp/settings.json (shared with tv-mcp)
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -146,7 +146,7 @@ pub struct SettingsStatus {
 fn get_settings_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".tv-desktop")
+        .join(".tv-mcp")
 }
 
 fn get_settings_path() -> PathBuf {
