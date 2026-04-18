@@ -1,0 +1,22 @@
+# Force LF line endings for source files regardless of platform.
+# Without this, Windows clones convert LF to CRLF on checkout, then git
+# reports every text file as modified whenever it's touched on Windows.
+* text=auto eol=lf
+
+# Binary files — never munge line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.dmg binary
+*.exe binary
+*.msi binary
+*.zip binary
+*.tar.gz binary

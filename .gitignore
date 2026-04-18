@@ -25,3 +25,7 @@ npm-debug.log*
 # Tauri
 .vercel
 tv-client-backup.dump
+
+# Tauri auto-regenerates these per platform on every build — they cause
+# noisy diffs when building on Mac vs Windows. Safe to regenerate locally.
+src-tauri/gen/schemas/
