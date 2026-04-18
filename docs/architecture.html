@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tv-client Architecture Reference</title>
+<style>
+  :root {
+    --navy: #1E3A5F;
+    --teal: #0D7D85;
+    --teal-light: #EEF8F9;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --red: #dc2626;
+    --green: #059669;
+    --amber: #d97706;
+    --blue: #2563eb;
+    --purple: #7c3aed;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--gray-900);
+    background: var(--gray-50);
+    line-height: 1.5;
+    display: flex;
+  }
+
+  .sidebar {
+    width: 260px;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: var(--navy);
+    color: white;
+    overflow-y: auto;
+    padding: 24px 0;
+    z-index: 100;
+  }
+
+  .sidebar h1 {
+    font-size: 18px;
+    padding: 0 20px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    margin-bottom: 8px;
+  }
+
+  .sidebar .nav-section {
+    padding: 12px 20px 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .sidebar a {
+    display: block;
+    padding: 6px 20px;
+    color: rgba(255,255,255,0.8);
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+
+  .sidebar a:hover {
+    color: white;
+    background: rgba(255,255,255,0.1);
+  }
+
+  .main {
+    margin-left: 260px;
+    padding: 32px 40px;
+    max-width: 1100px;
+    width: 100%;
+  }
+
+  h2 {
+    color: var(--navy);
+    font-size: 24px;
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--teal);
+  }
+
+  h2:first-of-type { margin-top: 0; }
+
+  h3 {
+    color: var(--teal);
+    font-size: 18px;
+    margin: 28px 0 12px;
+  }
+
+  h4 {
+    color: var(--gray-700);
+    font-size: 15px;
+    margin: 20px 0 8px;
+  }
+
+  p, li { font-size: 14px; color: var(--gray-700); }
+  p { margin-bottom: 12px; }
+  ul { margin: 0 0 12px 20px; }
+  li { margin-bottom: 4px; }
+
+  a { color: var(--teal); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  strong { color: var(--gray-900); font-weight: 600; }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    background: var(--gray-100);
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: var(--teal);
+  }
+
+  pre {
+    background: var(--gray-900);
+    color: #e5e7eb;
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+    margin: 12px 0 20px;
+    line-height: 1.55;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  pre code { background: none; padding: 0; color: inherit; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 13px;
+    background: white;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--gray-200);
+  }
+
+  th {
+    background: var(--navy);
+    color: white;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--gray-100);
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--gray-50); }
+
+  td.name {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: var(--teal);
+    font-size: 12px;
+    white-space: nowrap;
+    width: 1%;
+  }
+
+  .intro-box {
+    background: var(--teal-light);
+    border: 1px solid #d1e7e9;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .intro-box p { color: var(--navy); margin: 0 0 10px; }
+  .intro-box p:last-child { margin-bottom: 0; }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin: 16px 0 24px;
+  }
+
+  .stat {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    padding: 14px;
+    text-align: center;
+  }
+
+  .stat .num {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--navy);
+    display: block;
+  }
+
+  .stat .label {
+    font-size: 11px;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .module-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    margin: 16px 0 24px;
+  }
+
+  .mod-card {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--teal);
+  }
+
+  .mod-card h5 {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: var(--navy);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  .mod-card p { font-size: 12px; margin: 0; color: var(--gray-500); line-height: 1.4; }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--teal-light);
+    color: var(--teal);
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .tag-rust { background: #fef3c7; color: #92400e; }
+  .tag-ts { background: #dbeafe; color: #1e40af; }
+
+  /* Shell diagram */
+  .shell-diagram {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 0;
+    margin: 16px 0 24px;
+    overflow: hidden;
+  }
+
+  .shell-diagram .diag-row {
+    display: flex;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  .shell-diagram .diag-row:last-child { border-bottom: none; }
+
+  .diag-cell {
+    padding: 14px 16px;
+    font-size: 12px;
+    border-right: 1px solid var(--gray-200);
+  }
+  .diag-cell:last-child { border-right: none; }
+
+  .diag-cell strong {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: var(--teal);
+    font-size: 13px;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .diag-cell p { font-size: 12px; margin: 0; color: var(--gray-500); }
+
+  .activity { width: 180px; background: var(--navy); color: white; }
+  .activity strong { color: #a7f3d0; }
+  .activity p { color: rgba(255,255,255,0.7); }
+
+  .tab-bar { background: var(--gray-100); padding: 8px 16px; font-size: 11px; color: var(--gray-500); width: 100%; border-right: none; }
+
+  .canvas { flex: 1; background: var(--gray-50); }
+  .side-panel { width: 220px; background: var(--teal-light); }
+  .side-panel strong { color: var(--teal); }
+
+  .status { background: var(--gray-900); color: #9ca3af; padding: 6px 16px; font-size: 11px; width: 100%; border-right: none; font-family: 'SF Mono', monospace; }
+
+  h2[id], h3[id] { scroll-margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <h1>tv-client Architecture</h1>
+
+  <div class="nav-section">Overview</div>
+  <a href="#overview">What tv-client Is</a>
+  <a href="#stack">Stack</a>
+  <a href="#stats">By the Numbers</a>
+
+  <div class="nav-section">Shape</div>
+  <a href="#shell">App Shell</a>
+  <a href="#data-flow">Data Flow</a>
+  <a href="#auth">Auth & Workspaces</a>
+
+  <div class="nav-section">Frontend</div>
+  <a href="#modules">Modules (28)</a>
+  <a href="#stores">Stores (28)</a>
+  <a href="#hooks">Hooks (54)</a>
+  <a href="#components">Shared Components</a>
+
+  <div class="nav-section">Backend</div>
+  <a href="#tauri">Tauri Rust (src-tauri)</a>
+  <a href="#mcp-sidecar">tv-mcp Sidecar</a>
+
+  <div class="nav-section">Reference</div>
+  <a href="#docs-map">Other Docs</a>
+</nav>
+
+<main class="main">
+
+<h2 id="overview">tv-client Architecture Reference</h2>
+
+<div class="intro-box">
+  <p><strong>tv-client</strong> is the ThinkVAL desktop app — a Tauri 2 shell wrapping a React 18 single-page app, with a Rust backend for native capabilities and an embedded <code>tv-mcp</code> sidecar for MCP tools. It's the primary human UI for the ThinkVAL operating system.</p>
+  <p>This page is a visual map: what modules exist, how the shell is laid out, where data flows, and where to dig when you want to change something. For prescriptive guidance (patterns to follow, components to reuse), read <code>CLAUDE.md</code> at repo root, plus <code>docs/dev/COMPONENTS.md</code>, <code>docs/dev/MECHANISMS.md</code>, <code>docs/dev/MODULES.md</code>, and <code>docs/dev/DESIGN_SYSTEM.md</code>.</p>
+</div>
+
+<h3 id="stack">Stack</h3>
+<ul>
+  <li><strong>Shell:</strong> Tauri 2 (Rust + system webview), distributed as signed DMG (macOS) and MSI (Windows)</li>
+  <li><strong>UI:</strong> React 18, TypeScript, Vite 6, Tailwind 3</li>
+  <li><strong>State:</strong> Zustand 5 (client state), TanStack Query 5 (server state)</li>
+  <li><strong>Data:</strong> Supabase JS (workspace DB), Tauri IPC (native commands), tv-mcp sidecar (MCP tools)</li>
+  <li><strong>Editor:</strong> TipTap (rich text), Excalidraw (diagrams)</li>
+  <li><strong>Auth:</strong> Supabase Auth PKCE → gateway JWT → workspace JWT (dual-project model)</li>
+</ul>
+
+<h3 id="stats">By the Numbers</h3>
+<div class="stat-row">
+  <div class="stat"><span class="num">28</span><span class="label">Modules</span></div>
+  <div class="stat"><span class="num">28</span><span class="label">Zustand Stores</span></div>
+  <div class="stat"><span class="num">54</span><span class="label">Hooks</span></div>
+  <div class="stat"><span class="num">30+</span><span class="label">Tauri Commands</span></div>
+  <div class="stat"><span class="num">9</span><span class="label">Shell Components</span></div>
+</div>
+
+<!-- ========================================================= -->
+<h2 id="shell">App Shell</h2>
+<p>The shell is the fixed UI chrome around any module. It lives in <code>src/shell/</code> and never changes when the user switches module or workspace. <code>Shell.tsx</code> is the root layout.</p>
+
+<div class="shell-diagram">
+  <div class="diag-row">
+    <div class="diag-cell activity">
+      <strong>ActivityBar</strong>
+      <p>Left icon rail. Module selector + workspace switcher at bottom.</p>
+    </div>
+    <div class="diag-cell tab-bar">
+      <strong style="font-family: 'SF Mono', monospace; color: var(--teal); font-size: 13px;">ModuleTabBar · ModeTabs · CommandPalette trigger</strong>
+    </div>
+  </div>
+  <div class="diag-row">
+    <div class="diag-cell activity" style="background: var(--navy); padding: 12px 16px;">
+      <p style="color: rgba(255,255,255,0.5); font-size: 11px;">(continues)</p>
+    </div>
+    <div class="diag-cell canvas" style="flex: 1;">
+      <strong>Module Canvas</strong>
+      <p>The active module from <code>src/modules/{name}/</code> renders here. Owns its own routes, tabs, and data.</p>
+    </div>
+    <div class="diag-cell side-panel">
+      <strong>SidePanel</strong>
+      <p>Right-hand contextual panel. Discussions, help chat, skills, notifications.</p>
+    </div>
+  </div>
+  <div class="diag-row">
+    <div class="diag-cell status">
+      tv-client v0.10.33 · workspace: ThinkVAL · bot: bot-builder · mcp: ✓
+    </div>
+  </div>
+</div>
+
+<table>
+  <thead><tr><th>Shell Component</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td class="name">Shell.tsx</td><td>Root layout. Composes ActivityBar + canvas + SidePanel + StatusBar.</td></tr>
+    <tr><td class="name">ActivityBar.tsx</td><td>Left icon rail for module switching and workspace picker.</td></tr>
+    <tr><td class="name">ModuleTabBar.tsx</td><td>Top tabs for open modules (VS Code-style).</td></tr>
+    <tr><td class="name">ModeTabs.tsx</td><td>Mode switcher (work / deliver / explore) — scopes what modules show.</td></tr>
+    <tr><td class="name">CommandPalette.tsx</td><td>Cmd+K global palette. Fuzzy actions + navigation.</td></tr>
+    <tr><td class="name">SidePanel.tsx</td><td>Right panel container. Hosts contextual panes per module.</td></tr>
+    <tr><td class="name">StatusBar.tsx</td><td>Bottom bar — version, sync state, workspace/bot identity.</td></tr>
+    <tr><td class="name">WorkspaceSwitcher.tsx</td><td>Switch between workspaces (re-auths and swaps Supabase client).</td></tr>
+    <tr><td class="name">WhatsNewModal.tsx</td><td>Release notes modal shown after app update.</td></tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2 id="data-flow">Data Flow</h2>
+<p>Three data sources, three patterns. Don't mix them — each has its layer.</p>
+
+<pre><code>React UI
+   │
+   ├─► TanStack Query + Supabase JS  ───────►  Workspace Supabase
+   │   (hooks in src/hooks/*)                   (business data: CRM, tasks, emails)
+   │
+   ├─► Tauri invoke(...)  ─────────────────►   Rust commands (src-tauri/src/commands/)
+   │   (native: files, shell, OS, Outlook,      (heavy sync jobs, native APIs)
+   │    Notion, S3, scheduler, etc.)
+   │
+   └─► MCP protocol  ───────────────────────►  tv-mcp sidecar binary
+       (Claude Code actions inside the app)     (100+ tools — see tv-mcp-tools.html)
+</code></pre>
+
+<h3 id="auth">Auth & Workspaces</h3>
+<p>Two Supabase projects. tv-client talks to both:</p>
+<ul>
+  <li><strong>Gateway Supabase</strong> — owns user identity, workspace registry, and JWT minting. Users log in once here via PKCE OAuth.</li>
+  <li><strong>Workspace Supabase</strong> — one per workspace (e.g., ThinkVAL = <code>cqwcaeffzanfqsxlspig</code>). Holds all business data. tv-client gets a workspace JWT via the <code>gateway-workspace-token</code> edge function.</li>
+</ul>
+<p>The Supabase client is a <strong>proxy</strong> — when the user switches workspace, the proxy hot-swaps its underlying client so existing React Query hooks keep working without re-mounting.</p>
+
+<!-- ========================================================= -->
+<h2 id="modules">Modules <span class="tag">28</span></h2>
+<p>Each module lives under <code>src/modules/{name}/</code> and owns its own routes, pages, and sub-components. Shell code doesn't know what a module does — it just renders it.</p>
+
+<h3>Work & People</h3>
+<div class="module-grid">
+  <div class="mod-card"><h5>work</h5><p>Task/milestone board, triage, weekly planning.</p></div>
+  <div class="mod-card"><h5>projects</h5><p>Project hierarchy, context, sessions, artifacts.</p></div>
+  <div class="mod-card"><h5>crm</h5><p>Companies, contacts, activities, pipeline.</p></div>
+  <div class="mod-card"><h5>prospecting</h5><p>Apollo search, lead qualification, outreach drafts.</p></div>
+  <div class="mod-card"><h5>referrals</h5><p>Partner referrals, decks, access tracking.</p></div>
+</div>
+
+<h3>Communication</h3>
+<div class="module-grid">
+  <div class="mod-card"><h5>email</h5><p>Campaigns, groups, drafts, tracking.</p></div>
+  <div class="mod-card"><h5>inbox</h5><p>Personal Outlook inbox classified into CRM entities.</p></div>
+  <div class="mod-card"><h5>shared-inbox</h5><p>Team shared mailbox with 5-min delta sync.</p></div>
+  <div class="mod-card"><h5>chat</h5><p>WhatsApp summaries + folder-level chat threads.</p></div>
+  <div class="mod-card"><h5>calendar</h5><p>Events, meetings, entity linking.</p></div>
+</div>
+
+<h3>Content & Knowledge</h3>
+<div class="module-grid">
+  <div class="mod-card"><h5>library</h5><p>File browser over tv-knowledge + Dropbox folders.</p></div>
+  <div class="mod-card"><h5>guides</h5><p>Help center articles for the portal.</p></div>
+  <div class="mod-card"><h5>blog</h5><p>Blog article authoring and publishing.</p></div>
+  <div class="mod-card"><h5>gallery</h5><p>Image assets, AI-generated artwork.</p></div>
+  <div class="mod-card"><h5>notion</h5><p>Notion workspace sync and browsing.</p></div>
+  <div class="mod-card"><h5>skills</h5><p>Skill library, registry, activity log.</p></div>
+</div>
+
+<h3>Platform & Data</h3>
+<div class="module-grid">
+  <div class="mod-card"><h5>domains</h5><p>VAL domain health, workflows, executions, errors.</p></div>
+  <div class="mod-card"><h5>portal</h5><p>Portal site config: resources, banners, docs.</p></div>
+  <div class="mod-card"><h5>analytics</h5><p>GA4 page views, engagement metrics.</p></div>
+  <div class="mod-card"><h5>public-data</h5><p>Singapore gov datasets (ACRA, URA, LTA, MCF, etc.).</p></div>
+  <div class="mod-card"><h5>product</h5><p>Modules, features, connectors, solutions, releases.</p></div>
+</div>
+
+<h3>Dev, Infra, Meta</h3>
+<div class="module-grid">
+  <div class="mod-card"><h5>repos</h5><p>Git repo browser with GitHub sync.</p></div>
+  <div class="mod-card"><h5>s3-browser</h5><p>S3 bucket file explorer.</p></div>
+  <div class="mod-card"><h5>scheduler</h5><p>Scheduled jobs, triggers, automations.</p></div>
+  <div class="mod-card"><h5>investment</h5><p>Portfolio tracking (IBKR + FMP).</p></div>
+  <div class="mod-card"><h5>home</h5><p>Daily focus, feed cards, notifications, what's new.</p></div>
+  <div class="mod-card"><h5>workspace</h5><p>Workspace-level settings, users, teams.</p></div>
+  <div class="mod-card"><h5>settings</h5><p>App settings, bot config, integrations, keys.</p></div>
+</div>
+
+<!-- ========================================================= -->
+<h2 id="stores">Zustand Stores <span class="tag">28</span></h2>
+<p>Client-side state. Each store owns one concern. Stores never fetch — they hold UI state and let hooks read/write. Found in <code>src/stores/</code>.</p>
+
+<table>
+  <thead><tr><th>Concern</th><th>Stores</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Identity & Workspace</strong></td><td class="name">authStore · workspaceStore · workspaceAppearanceStore · botSettingsStore · teamConfigStore</td></tr>
+    <tr><td><strong>Navigation & Layout</strong></td><td class="name">appStore · activityBarStore · modeStore · tabStore · moduleTabStore · moduleVisibilityStore · sidePanelStore</td></tr>
+    <tr><td><strong>Files & Folders</strong></td><td class="name">folderConfigStore · folderExpansionStore · recentFilesStore · favoritesStore · repositoryStore</td></tr>
+    <tr><td><strong>UI & Commands</strong></td><td class="name">commandStore · helpStore · toastStore · notificationNavStore · viewContextStore</td></tr>
+    <tr><td><strong>Feature State</strong></td><td class="name">claudeRunStore · classificationStore · jobsStore · projectFieldsStore · taskFieldsStore · skillTypesStore</td></tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2 id="hooks">Hooks <span class="tag">54</span></h2>
+<p>Data-layer hooks in <code>src/hooks/</code>. Each wraps TanStack Query or a Tauri command and exposes a clean API to components. Hooks own queries, mutations, optimistic updates, and invalidation.</p>
+
+<p>Organized into per-domain folders (<code>apollo/</code>, <code>chat/</code>, <code>cockpit/</code>, <code>crm/</code>, <code>email/</code>, <code>feed/</code>, <code>gallery/</code>, <code>github-sync/</code>, <code>investment/</code>, <code>notion/</code>, <code>portal/</code>, <code>product/</code>, <code>prospecting/</code>, <code>public-data/</code>, <code>repos/</code>, <code>scheduler/</code>, <code>skills/</code>, <code>solutions/</code>) plus ~25 top-level hooks (<code>useCalendar</code>, <code>useDiscussions</code>, <code>useFavorites</code>, <code>useFiles</code>, <code>useNotifications</code>, <code>useOutlook</code>, <code>useLookupValues</code>, etc.).</p>
+
+<p>Rule of thumb: if a component needs data, it calls a hook. If the hook doesn't exist, create it — don't inline <code>useQuery</code> in components. See <code>docs/dev/MECHANISMS.md</code> for the full pattern.</p>
+
+<!-- ========================================================= -->
+<h2 id="components">Shared Components</h2>
+<p>Reusable UI in <code>src/components/</code>. Always check here before building something new (see <code>docs/dev/COMPONENTS.md</code> for the full catalog with props and examples).</p>
+
+<table>
+  <thead><tr><th>Component / Folder</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td class="name">ui/</td><td>Design-system primitives (buttons, inputs, dialogs, etc.).</td></tr>
+    <tr><td class="name">PageHeader · SectionToolbar · EmptyState · BackButton</td><td>Standard page scaffolding.</td></tr>
+    <tr><td class="name">ResizablePanel</td><td>Drag-resizable split panes.</td></tr>
+    <tr><td class="name">discussions/</td><td>Threaded comments UI (reusable on any entity).</td></tr>
+    <tr><td class="name">notifications/</td><td>Notification list, item, indicator.</td></tr>
+    <tr><td class="name">emails/</td><td>Email list, message viewer, linkers.</td></tr>
+    <tr><td class="name">events/</td><td>Calendar event cards and linkers.</td></tr>
+    <tr><td class="name">help/</td><td>Help chat widget mounted in SidePanel.</td></tr>
+    <tr><td class="name">mascot/</td><td>Idle/speaking mascot animations.</td></tr>
+    <tr><td class="name">Login · SetupWizard · WorkspacePicker · UserProfile</td><td>Onboarding and identity flows.</td></tr>
+    <tr><td class="name">TipTapResizableImage · DriftDiffModal · SkillAssignmentGrid</td><td>Feature-specific components promoted to shared.</td></tr>
+    <tr><td class="name">ErrorBoundary</td><td>Top-level error catcher.</td></tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2 id="tauri">Tauri Rust Backend <span class="tag tag-rust">Rust</span></h2>
+<p>Native code in <code>src-tauri/src/</code>. Each module under <code>commands/</code> exposes Tauri commands that the React app calls with <code>invoke()</code>. Used for anything the webview can't do: filesystem, shell, OS APIs, long-running syncs, OAuth token exchange.</p>
+
+<h3>Command Modules</h3>
+<table>
+  <thead><tr><th>Module</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td class="name">auth</td><td>PKCE flow, JWT exchange with gateway, workspace token refresh.</td></tr>
+    <tr><td class="name">supabase</td><td>Supabase client bridge for cases webview client can't cover.</td></tr>
+    <tr><td class="name">settings</td><td>Read/write <code>~/.tv-client/</code> and <code>~/.tv-mcp/settings.json</code>.</td></tr>
+    <tr><td class="name">files</td><td>Read, write, watch, move files in tv-knowledge and workspace folders.</td></tr>
+    <tr><td class="name">search</td><td>Cross-file fulltext search.</td></tr>
+    <tr><td class="name">terminal</td><td>Spawn and stream terminal sessions.</td></tr>
+    <tr><td class="name">outlook</td><td>Microsoft Graph — mail, calendar, contacts.</td></tr>
+    <tr><td class="name">notion</td><td>Notion API sync and browsing.</td></tr>
+    <tr><td class="name">github_sync</td><td>Git clone/pull/push against FrontToBackCulture repos.</td></tr>
+    <tr><td class="name">s3_browser</td><td>AWS S3 list/get/put for asset management.</td></tr>
+    <tr><td class="name">repos</td><td>Local repo metadata, branches, status.</td></tr>
+    <tr><td class="name">scheduler</td><td>Trigger definitions, cron runs, job history.</td></tr>
+    <tr><td class="name">val_sync</td><td>VAL domain sync orchestration (bridges to tv-mcp / val-services).</td></tr>
+    <tr><td class="name">crm · work · email · blog · feed · discussions</td><td>Thin wrappers around Supabase for parity with webview client.</td></tr>
+    <tr><td class="name">apollo · linkedin · fmp · ibkr</td><td>Third-party API integrations (prospect, finance, investment).</td></tr>
+    <tr><td class="name">analytics · public_data · product · gallery</td><td>Heavier reads that benefit from Rust-side processing.</td></tr>
+    <tr><td class="name">notifications · whatsapp · skill_registry · help_chat · folder_chat</td><td>Cross-cutting feature commands.</td></tr>
+    <tr><td class="name">claude_setup · tools</td><td>MCP server registration with Claude Code, tool discovery.</td></tr>
+  </tbody>
+</table>
+
+<h3 id="mcp-sidecar">tv-mcp Sidecar</h3>
+<p>tv-mcp is <em>not</em> bundled in the app anymore (as of v0.10.30). Users install it separately to <code>~/.tv-mcp/bin/tv-mcp</code>. tv-client doesn't spawn it — Claude Code does. tv-client only reads shared settings from <code>~/.tv-mcp/settings.json</code>.</p>
+<p>For the full list of 96 tools tv-mcp exposes, see <a href="../../../Library/CloudStorage/Dropbox-Thinkval/ThinkVAL%20team%20folder/SkyNet/tv-bots/tv-mcp-tools.html">tv-mcp-tools.html</a>.</p>
+
+<!-- ========================================================= -->
+<h2 id="docs-map">Other Docs in This Repo</h2>
+<p>This page is one view. Other docs cover different angles:</p>
+<table>
+  <thead><tr><th>File</th><th>Audience</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td class="name">README.md</td><td>Anyone</td><td>Entry point — links by audience.</td></tr>
+    <tr><td class="name">CLAUDE.md</td><td>Claude / devs</td><td>Operating instructions for bot-builder in this repo.</td></tr>
+    <tr><td class="name">docs/dev/COMPONENTS.md</td><td>Devs</td><td>Catalog of reusable UI components with props.</td></tr>
+    <tr><td class="name">docs/dev/MODULES.md</td><td>Devs</td><td>Scaffold guide for building a new module.</td></tr>
+    <tr><td class="name">docs/dev/MECHANISMS.md</td><td>Devs</td><td>Hooks, patterns, architectural mechanisms to reuse.</td></tr>
+    <tr><td class="name">docs/dev/DESIGN_SYSTEM.md</td><td>Devs / design</td><td>Visual rules — spacing, color, typography.</td></tr>
+    <tr><td class="name">docs/architecture.html</td><td>Humans</td><td>This page — visual map of what exists.</td></tr>
+    <tr><td class="name">docs/install-guide.html</td><td>End users</td><td>How to install tv-client + tv-mcp.</td></tr>
+  </tbody>
+</table>
+
+</main>
+
+</body>
+</html>

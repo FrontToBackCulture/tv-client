@@ -1,0 +1,8 @@
+# Supabase CLI local state — regenerated per machine, not committed.
+supabase/.temp/
+supabase/.branches/
+
+# Environment files — never commit
+.env
+.env.local
+*.env

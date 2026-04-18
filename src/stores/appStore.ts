@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-const VALID_MODULES = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "analytics", "product", "gallery", "skills", "portal", "scheduler", "repos", "email", "blog", "guides", "s3browser", "prospecting", "public-data", "referrals", "investment", "shared-inbox", "settings"] as const;
+const VALID_MODULES = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "analytics", "product", "gallery", "skills", "portal", "scheduler", "repos", "email", "blog", "guides", "s3browser", "prospecting", "public-data", "referrals", "investment", "finance", "shared-inbox", "settings"] as const;
 
 export type ModuleId = (typeof VALID_MODULES)[number];
 export type Theme = "light" | "dark";

@@ -291,7 +291,7 @@ Before building a new module, verify:
 - [ ] View context reporting for help system
 - [ ] Realtime subscriptions if using Supabase tables
 - [ ] Uses `ViewTab` for tabs, `EmptyState` for empty views
-- [ ] Follows Tailwind conventions from COMPONENTS.md
+- [ ] Follows Tailwind conventions from ./COMPONENTS.md
 - [ ] Uses `cn()` for conditional classes
 - [ ] Uses `lucide-react` for icons
 - [ ] Uses date functions from `src/lib/date.ts`

@@ -35,6 +35,7 @@ import {
   BookOpen,
   LineChart,
   Inbox,
+  Wallet,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -110,6 +111,14 @@ const navSections: NavSection[] = [
     label: "Personal",
     items: [
       { id: "investment", icon: LineChart, label: "Investment", shortcut: "" },
+    ],
+  },
+  // Mgmt section — only rendered in the mgmt workspace (hard-gated in
+  // moduleVisibilityStore).
+  {
+    label: "Mgmt",
+    items: [
+      { id: "finance", icon: Wallet, label: "Finance", shortcut: "" },
     ],
   },
 ];

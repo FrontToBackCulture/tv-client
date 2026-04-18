@@ -35,6 +35,7 @@ const PublicDataModule = lazy(() => import("./modules/public-data/PublicDataModu
 const ChatModule = lazy(() => import("./modules/chat").then(m => ({ default: m.ChatModule })));
 const ReferralsModule = lazy(() => import("./modules/referrals/ReferralsModule").then(m => ({ default: m.ReferralsModule })));
 const InvestmentModule = lazy(() => import("./modules/investment").then(m => ({ default: m.InvestmentModule })));
+const FinanceModule = lazy(() => import("./modules/finance/FinanceModule").then(m => ({ default: m.FinanceModule })));
 const SharedInboxModule = lazy(() => import("./modules/shared-inbox/SharedInboxModule").then(m => ({ default: m.SharedInboxModule })));
 const SettingsModule = lazy(() => import("./modules/settings/SettingsModule").then(m => ({ default: m.SettingsModule })));
 import { Login } from "./components/Login";
@@ -88,6 +89,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   "public-data": PublicDataModule,
   referrals: ReferralsModule,
   investment: InvestmentModule,
+  finance: FinanceModule,
   "shared-inbox": SharedInboxModule,
   settings: SettingsModule,
 };

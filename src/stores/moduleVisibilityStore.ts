@@ -51,6 +51,15 @@ export const useModuleVisibilityStore = create<ModuleVisibilityState>()(
           return ws != null && PERSONAL_WORKSPACE_SLUGS.has(ws.slug);
         }
 
+        // Finance module is hard-gated to the mgmt workspace — never leaks into
+        // ThinkVAL or other workspaces, regardless of allowlist/team config.
+        const MGMT_ONLY_MODULES = new Set(["finance"]);
+        const MGMT_WORKSPACE_SLUGS = new Set(["mgmt"]);
+        if (MGMT_ONLY_MODULES.has(moduleId)) {
+          const ws = useWorkspaceStore.getState().getActiveWorkspace();
+          return ws != null && MGMT_WORKSPACE_SLUGS.has(ws.slug);
+        }
+
         // Mode filter (narrowing): when a non-`all` mode is active, the module
         // must be in that mode's universal ∪ primary set. `all` mode skips
         // this step and falls through to the existing visibility rules.

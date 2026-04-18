@@ -31,6 +31,7 @@ const moduleLabels: Record<ModuleId, string> = {
   "public-data": "Public Data",
   referrals: "Referrals",
   investment: "Investment",
+  finance: "Finance",
   "shared-inbox": "Shared Inboxes",
   settings: "Settings",
 };

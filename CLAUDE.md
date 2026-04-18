@@ -344,13 +344,13 @@ src-tauri/src/
 
 **Required reading before building anything new:**
 
-- **COMPONENTS.md** — Full component catalog; use what exists before building new components
-- **MODULES.md** — Step-by-step guide to add a new module; follow it exactly
-- **MECHANISMS.md** — State management, data fetching, hooks, realtime patterns in detail
+- **docs/dev/COMPONENTS.md** — Full component catalog; use what exists before building new components
+- **docs/dev/MODULES.md** — Step-by-step guide to add a new module; follow it exactly
+- **docs/dev/MECHANISMS.md** — State management, data fetching, hooks, realtime patterns in detail
 
 ## Build Patterns
 
-**IMPORTANT: Before building any new feature, read COMPONENTS.md, MECHANISMS.md, and MODULES.md.**
+**IMPORTANT: Before building any new feature, read docs/dev/COMPONENTS.md, docs/dev/MECHANISMS.md, and docs/dev/MODULES.md.**
 
 ### File Organization
 - Module files: `src/modules/{name}/` — `{Name}Module.tsx`, view files, detail panels, forms
