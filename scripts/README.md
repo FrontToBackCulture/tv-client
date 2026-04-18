@@ -1,45 +1,56 @@
-# tv-mcp Setup for Claude Desktop
+# tv-client + tv-mcp Install Guide
 
-This guide explains how to connect tv-client's MCP tools to Claude Desktop.
+As of tv-client v0.10.30, `tv-mcp` is no longer bundled inside the tv-client app. You install the two separately:
 
-## What This Does
+- **tv-client** — the desktop app (UI)
+- **tv-mcp** — a standalone binary that Claude Code / Claude Desktop call to access ThinkVAL tools
 
-After setup, Claude Desktop will have access to tv-client's tools:
-- **Work** - Projects, tasks, milestones, initiatives
-- **CRM** - Companies, contacts, deals, activities
-- **Generation** - Gamma presentations, Nanobanana images
-- **Intercom** - Help center publishing
-- **Document Generation** - Order forms, proposals
-- **VAL Sync** - Domain sync and status
+Both read settings from `~/.tv-mcp/settings.json` (shared) and `~/.tv-client/` (tv-client-only files). On Windows the equivalents are `%USERPROFILE%\.tv-mcp\settings.json` and `%USERPROFILE%\.tv-client\`.
 
-## Quick Setup
+---
 
-### macOS
+## macOS
 
-1. Install tv-client
-2. Open Terminal
-3. Run:
-   ```bash
-   /path/to/tv-client/scripts/setup-claude-mcp.sh
-   ```
-4. Restart Claude Desktop
+### 1. Install tv-client
 
-### Windows
+1. Go to https://github.com/FrontToBackCulture/tv-client/releases/latest
+2. Download `TV.Client_<version>_arm64.dmg` (Apple Silicon)
+3. Open the DMG, drag **TV Client** to **Applications**
+4. First launch: if Gatekeeper blocks it, right-click the app → **Open** → confirm
 
-1. Install tv-client
-2. Right-click `setup-claude-mcp.ps1` → "Run with PowerShell"
+On first launch, the app auto-migrates any existing `~/.tv-desktop/` data into `~/.tv-mcp/` and `~/.tv-client/`.
 
-   Or open PowerShell and run:
-   ```powershell
-   .\setup-claude-mcp.ps1
-   ```
-3. Restart Claude Desktop
+### 2. Install tv-mcp (and register with Claude Code)
 
-## Manual Setup
+Run the installer script — it downloads the latest tv-mcp release, places it at `~/.tv-mcp/bin/tv-mcp`, and updates your Claude Code MCP config in one shot:
 
-If the scripts don't work, you can configure manually:
+```bash
+/path/to/tv-client/scripts/install-tv-mcp.sh
+```
 
-### macOS
+Prerequisite: the [GitHub CLI](https://cli.github.com/) (`gh`) must be installed and authenticated (`gh auth login`) — the tv-mcp repo is private, so `gh` is how the script authenticates the download.
+
+Manual alternative:
+
+```bash
+mkdir -p ~/.tv-mcp/bin
+# download tv-mcp-aarch64-apple-darwin from https://github.com/FrontToBackCulture/tv-mcp/releases/latest
+mv ~/Downloads/tv-mcp-aarch64-apple-darwin ~/.tv-mcp/bin/tv-mcp
+chmod +x ~/.tv-mcp/bin/tv-mcp
+xattr -d com.apple.quarantine ~/.tv-mcp/bin/tv-mcp 2>/dev/null || true
+~/.tv-mcp/bin/tv-mcp --version
+
+claude mcp remove tv-mcp 2>/dev/null || true
+claude mcp add tv-mcp "$HOME/.tv-mcp/bin/tv-mcp"
+claude mcp list
+```
+
+Expected line in `claude mcp list`:
+```
+tv-mcp: /Users/<you>/.tv-mcp/bin/tv-mcp  - ✓ Connected
+```
+
+### 3. (Optional) Register with Claude Desktop
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -47,13 +58,83 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "tv-mcp": {
-      "command": "/Applications/tv-client.app/Contents/MacOS/tv-mcp"
+      "command": "/Users/<you>/.tv-mcp/bin/tv-mcp"
     }
   }
 }
 ```
 
-### Windows
+Restart Claude Desktop.
+
+### 4. Verify
+
+```bash
+~/.tv-mcp/bin/tv-mcp --version
+
+# No old bundled binary inside the app
+find "/Applications/TV Client.app" -name "tv-mcp*" 2>/dev/null   # should be empty
+
+# Launch TV Client, then check spawned processes
+pgrep -lf tv-mcp
+# Every path should start with /Users/<you>/.tv-mcp/bin/tv-mcp
+# NOT /Applications/TV Client.app/Contents/... and NOT ~/.tv-desktop/bin/...
+```
+
+In Claude Code, run `/mcp` — `tv-mcp` should show as connected. Try "list crm companies" to confirm.
+
+### Cleanup (macOS)
+
+After verifying:
+```bash
+rm -rf ~/.tv-desktop
+```
+
+---
+
+## Windows
+
+### 1. Install tv-client
+
+1. Go to https://github.com/FrontToBackCulture/tv-client/releases/latest
+2. Download `TV.Client_<version>_x64-setup.exe`
+3. Run the installer. SmartScreen may warn — click **More info → Run anyway**
+4. Launch TV Client from the Start Menu
+
+### 2. Install tv-mcp (and register with Claude Code)
+
+Open PowerShell and run:
+
+```powershell
+cd C:\path\to\tv-client\scripts
+.\install-tv-mcp.ps1
+```
+
+If blocked by execution policy, run this once (current user only, safe):
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+Prerequisite: the [GitHub CLI](https://cli.github.com/) (`gh`) must be installed and authenticated (`gh auth login`).
+
+Manual alternative:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$HOME\.tv-mcp\bin"
+# download tv-mcp-x86_64-pc-windows-msvc.exe from https://github.com/FrontToBackCulture/tv-mcp/releases/latest
+Move-Item "$HOME\Downloads\tv-mcp-x86_64-pc-windows-msvc.exe" "$HOME\.tv-mcp\bin\tv-mcp.exe"
+& "$HOME\.tv-mcp\bin\tv-mcp.exe" --version
+
+claude mcp remove tv-mcp 2>$null
+claude mcp add tv-mcp "$HOME\.tv-mcp\bin\tv-mcp.exe"
+claude mcp list
+```
+
+Expected line:
+```
+tv-mcp: C:\Users\<you>\.tv-mcp\bin\tv-mcp.exe  - ✓ Connected
+```
+
+### 3. (Optional) Register with Claude Desktop
 
 Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 
@@ -61,39 +142,50 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 {
   "mcpServers": {
     "tv-mcp": {
-      "command": "C:\\Program Files\\tv-client\\tv-mcp.exe"
+      "command": "C:\\Users\\<you>\\.tv-mcp\\bin\\tv-mcp.exe"
     }
   }
 }
 ```
 
-Adjust the path based on where tv-client is installed.
+Restart Claude Desktop.
 
-## Verify Setup
+### 4. Verify
 
-After restarting Claude Desktop:
-1. Open a new conversation
-2. Ask Claude to "list work projects" or "list crm companies"
-3. Claude should use the tv-mcp tools to respond
+```powershell
+& "$HOME\.tv-mcp\bin\tv-mcp.exe" --version
 
-## Troubleshooting
+# No old bundled binary inside the install dir
+Get-ChildItem -Recurse "$env:LOCALAPPDATA\tv-client","$env:ProgramFiles\tv-client" -Filter tv-mcp.exe -ErrorAction SilentlyContinue
+# should return nothing
 
-### "Tool not found" errors
-- Make sure tv-client is installed
-- Verify the path in config points to the actual `tv-mcp` binary
-- Restart Claude Desktop after config changes
+# Launch TV Client, then check running tv-mcp processes
+Get-Process tv-mcp | Select-Object Path
+# Every Path should be C:\Users\<you>\.tv-mcp\bin\tv-mcp.exe
+```
 
-### Config file doesn't exist
-- Open Claude Desktop at least once to create the config directory
-- Then run the setup script again
+In Claude Code, run `/mcp` — `tv-mcp` should show as connected.
 
-### Permission errors (macOS)
-- Make sure the script is executable: `chmod +x setup-claude-mcp.sh`
-
-### PowerShell execution policy (Windows)
-- If blocked, run: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
-- Then try the script again
+---
 
 ## Updating
 
-If you update tv-client to a new version, you don't need to re-run setup unless the binary location changes.
+When a new release ships:
+
+**tv-client:** download the new installer and re-run (macOS: drag-to-Applications overwrites; Windows: installer updates in place).
+
+**tv-mcp:** re-run `scripts/install-tv-mcp.sh` (macOS) or `scripts/install-tv-mcp.ps1` (Windows). The script stops any running tv-mcp processes, downloads the latest release, and overwrites the binary. Claude Code auto-restarts tv-mcp on the next tool call.
+
+---
+
+## Troubleshooting
+
+**`claude mcp list` shows tv-mcp at the wrong path** — Run `claude mcp remove tv-mcp` then `claude mcp add` with the correct `~/.tv-mcp/bin/tv-mcp` (or Windows equivalent).
+
+**macOS: "App is damaged" on first launch** — Unsigned build. Run `xattr -cr "/Applications/TV Client.app"` then try again.
+
+**Windows: PowerShell execution policy blocks the script** — Run once: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
+
+**`gh release download` 404 / not authorized** — The tv-mcp repo is private. Run `gh auth login` and ensure your GitHub account has access to `FrontToBackCulture/tv-mcp`.
+
+**tv-mcp connects but tools fail** — Check `~/.tv-mcp/settings.json` (macOS) or `%USERPROFILE%\.tv-mcp\settings.json` (Windows) has valid Supabase credentials. If missing, launch tv-client first — it writes this file on login.

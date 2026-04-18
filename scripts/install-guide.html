@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tv-client + tv-mcp Install Guide</title>
+<style>
+  :root {
+    --navy: #1E3A5F;
+    --teal: #0D7D85;
+    --teal-light: #EEF8F9;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --red: #dc2626;
+    --green: #059669;
+    --amber: #d97706;
+    --blue: #2563eb;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--gray-900);
+    background: var(--gray-50);
+    line-height: 1.5;
+    display: flex;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: var(--navy);
+    color: white;
+    overflow-y: auto;
+    padding: 24px 0;
+    z-index: 100;
+  }
+
+  .sidebar h1 {
+    font-size: 18px;
+    padding: 0 20px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    margin-bottom: 8px;
+  }
+
+  .sidebar .nav-section {
+    padding: 12px 20px 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .sidebar a {
+    display: block;
+    padding: 6px 20px;
+    color: rgba(255,255,255,0.8);
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+
+  .sidebar a:hover {
+    color: white;
+    background: rgba(255,255,255,0.1);
+  }
+
+  .sidebar a.sub-link {
+    padding-left: 32px;
+  }
+
+  /* Main content */
+  .main {
+    margin-left: 260px;
+    padding: 32px 40px;
+    max-width: 1100px;
+    width: 100%;
+  }
+
+  h2 {
+    color: var(--navy);
+    font-size: 24px;
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--teal);
+  }
+
+  h2:first-of-type { margin-top: 0; }
+
+  h3 {
+    color: var(--teal);
+    font-size: 18px;
+    margin: 28px 0 12px;
+  }
+
+  h4 {
+    color: var(--gray-700);
+    font-size: 15px;
+    margin: 20px 0 8px;
+  }
+
+  p, li { font-size: 14px; color: var(--gray-700); }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 0 0 12px 20px; }
+  li { margin-bottom: 4px; }
+
+  a { color: var(--teal); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  strong { color: var(--gray-900); font-weight: 600; }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    background: var(--gray-100);
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: var(--teal);
+  }
+
+  pre {
+    background: var(--gray-900);
+    color: #e5e7eb;
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 13px;
+    margin: 12px 0 20px;
+    line-height: 1.6;
+    position: relative;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+
+  .intro-box {
+    background: var(--teal-light);
+    border: 1px solid #d1e7e9;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .intro-box p { color: var(--navy); margin: 0 0 10px; }
+  .intro-box p:last-child { margin-bottom: 0; }
+
+  .note {
+    background: #fffbeb;
+    border-left: 4px solid var(--amber);
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    color: var(--gray-700);
+  }
+
+  .note strong { color: var(--amber); }
+
+  .platform-badge {
+    display: inline-block;
+    background: var(--teal-light);
+    color: var(--teal);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-right: 8px;
+    vertical-align: middle;
+    border: 1px solid #d1e7e9;
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--gray-200);
+    margin: 40px 0;
+  }
+
+  /* Section anchors */
+  h2[id], h3[id] { scroll-margin-top: 16px; }
+
+  /* Copy button */
+  .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.7);
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  pre:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { color: white; border-color: rgba(255,255,255,0.3); }
+  .copy-btn.copied { color: #34d399; border-color: #34d399; }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <h1>tv-client Install</h1>
+
+  <div class="nav-section">macOS</div>
+  <a href="#macos">Overview</a>
+  <a class="sub-link" href="#mac-1">Install tv-client</a>
+  <a class="sub-link" href="#mac-2">Install tv-mcp</a>
+  <a class="sub-link" href="#mac-3">Claude Desktop</a>
+  <a class="sub-link" href="#mac-4">Verify</a>
+  <a class="sub-link" href="#mac-cleanup">Cleanup</a>
+
+  <div class="nav-section">Windows</div>
+  <a href="#windows">Overview</a>
+  <a class="sub-link" href="#win-1">Install tv-client</a>
+  <a class="sub-link" href="#win-2">Install tv-mcp</a>
+  <a class="sub-link" href="#win-3">Claude Desktop</a>
+  <a class="sub-link" href="#win-4">Verify</a>
+
+  <div class="nav-section">Reference</div>
+  <a href="#updating">Updating</a>
+  <a href="#troubleshooting">Troubleshooting</a>
+</nav>
+
+<main class="main">
+
+<h2 id="intro">tv-client + tv-mcp Install Guide</h2>
+
+<div class="intro-box">
+  <p>As of tv-client <strong>v0.10.30</strong>, <code>tv-mcp</code> is no longer bundled inside the tv-client app. You install the two separately:</p>
+  <p><strong>tv-client</strong> — the desktop app (UI).<br>
+  <strong>tv-mcp</strong> — a standalone binary that Claude Code / Claude Desktop call to access ThinkVAL tools.</p>
+  <p>Both read settings from <code>~/.tv-mcp/settings.json</code> (shared) and <code>~/.tv-client/</code> (tv-client-only files). On Windows the equivalents are <code>%USERPROFILE%\.tv-mcp\settings.json</code> and <code>%USERPROFILE%\.tv-client\</code>.</p>
+</div>
+
+<hr>
+
+<h2 id="macos"><span class="platform-badge">macOS</span></h2>
+
+<h3 id="mac-1">1. Install tv-client</h3>
+<ol>
+  <li>Go to <a href="https://github.com/FrontToBackCulture/tv-client/releases/latest" target="_blank">github.com/FrontToBackCulture/tv-client/releases/latest</a></li>
+  <li>Download <code>TV.Client_&lt;version&gt;_arm64.dmg</code> (Apple Silicon)</li>
+  <li>Open the DMG, drag <strong>TV Client</strong> to <strong>Applications</strong></li>
+  <li>First launch: if Gatekeeper blocks it, right-click the app → <strong>Open</strong> → confirm</li>
+</ol>
+<p>On first launch, the app auto-migrates any existing <code>~/.tv-desktop/</code> data into <code>~/.tv-mcp/</code> and <code>~/.tv-client/</code>.</p>
+
+<h3 id="mac-2">2. Install tv-mcp (and register with Claude Code)</h3>
+<p>Run the installer script — it downloads the latest tv-mcp release, places it at <code>~/.tv-mcp/bin/tv-mcp</code>, and updates your Claude Code MCP config in one shot:</p>
+
+<pre><code>/path/to/tv-client/scripts/install-tv-mcp.sh</code></pre>
+
+<div class="note"><strong>Prerequisite:</strong> the <a href="https://cli.github.com/" target="_blank">GitHub CLI</a> (<code>gh</code>) must be installed and authenticated (<code>gh auth login</code>) — the tv-mcp repo is private, so <code>gh</code> is how the script authenticates the download.</div>
+
+<p>Manual alternative:</p>
+
+<pre><code>mkdir -p ~/.tv-mcp/bin
+# download tv-mcp-aarch64-apple-darwin from
+# https://github.com/FrontToBackCulture/tv-mcp/releases/latest
+mv ~/Downloads/tv-mcp-aarch64-apple-darwin ~/.tv-mcp/bin/tv-mcp
+chmod +x ~/.tv-mcp/bin/tv-mcp
+xattr -d com.apple.quarantine ~/.tv-mcp/bin/tv-mcp 2&gt;/dev/null || true
+~/.tv-mcp/bin/tv-mcp --version
+
+claude mcp remove tv-mcp 2&gt;/dev/null || true
+claude mcp add tv-mcp "$HOME/.tv-mcp/bin/tv-mcp"
+claude mcp list</code></pre>
+
+<p>Expected line in <code>claude mcp list</code>:</p>
+<pre><code>tv-mcp: /Users/&lt;you&gt;/.tv-mcp/bin/tv-mcp  - ✓ Connected</code></pre>
+
+<h3 id="mac-3">3. (Optional) Register with Claude Desktop</h3>
+<p>Edit <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>:</p>
+
+<pre><code>{
+  "mcpServers": {
+    "tv-mcp": {
+      "command": "/Users/&lt;you&gt;/.tv-mcp/bin/tv-mcp"
+    }
+  }
+}</code></pre>
+
+<p>Restart Claude Desktop.</p>
+
+<h3 id="mac-4">4. Verify</h3>
+
+<pre><code>~/.tv-mcp/bin/tv-mcp --version
+
+# No old bundled binary inside the app
+find "/Applications/TV Client.app" -name "tv-mcp*" 2&gt;/dev/null   # should be empty
+
+# Launch TV Client, then check spawned processes
+pgrep -lf tv-mcp
+# Every path should start with /Users/&lt;you&gt;/.tv-mcp/bin/tv-mcp
+# NOT /Applications/TV Client.app/Contents/... and NOT ~/.tv-desktop/bin/...</code></pre>
+
+<p>In Claude Code, run <code>/mcp</code> — <code>tv-mcp</code> should show as connected. Try "list crm companies" to confirm.</p>
+
+<h3 id="mac-cleanup">Cleanup (macOS)</h3>
+<p>After verifying:</p>
+<pre><code>rm -rf ~/.tv-desktop</code></pre>
+
+<hr>
+
+<h2 id="windows"><span class="platform-badge">Windows</span></h2>
+
+<h3 id="win-1">1. Install tv-client</h3>
+<ol>
+  <li>Go to <a href="https://github.com/FrontToBackCulture/tv-client/releases/latest" target="_blank">github.com/FrontToBackCulture/tv-client/releases/latest</a></li>
+  <li>Download <code>TV.Client_&lt;version&gt;_x64-setup.exe</code></li>
+  <li>Run the installer. SmartScreen may warn — click <strong>More info → Run anyway</strong></li>
+  <li>Launch TV Client from the Start Menu</li>
+</ol>
+
+<h3 id="win-2">2. Install tv-mcp (and register with Claude Code)</h3>
+<p>Open PowerShell and run:</p>
+
+<pre><code>cd C:\path\to\tv-client\scripts
+.\install-tv-mcp.ps1</code></pre>
+
+<p>If blocked by execution policy, run this once (current user only, safe):</p>
+<pre><code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code></pre>
+
+<div class="note"><strong>Prerequisite:</strong> the <a href="https://cli.github.com/" target="_blank">GitHub CLI</a> (<code>gh</code>) must be installed and authenticated (<code>gh auth login</code>).</div>
+
+<p>Manual alternative:</p>
+
+<pre><code>New-Item -ItemType Directory -Force -Path "$HOME\.tv-mcp\bin"
+# download tv-mcp-x86_64-pc-windows-msvc.exe from
+# https://github.com/FrontToBackCulture/tv-mcp/releases/latest
+Move-Item "$HOME\Downloads\tv-mcp-x86_64-pc-windows-msvc.exe" "$HOME\.tv-mcp\bin\tv-mcp.exe"
+&amp; "$HOME\.tv-mcp\bin\tv-mcp.exe" --version
+
+claude mcp remove tv-mcp 2&gt;$null
+claude mcp add tv-mcp "$HOME\.tv-mcp\bin\tv-mcp.exe"
+claude mcp list</code></pre>
+
+<p>Expected line:</p>
+<pre><code>tv-mcp: C:\Users\&lt;you&gt;\.tv-mcp\bin\tv-mcp.exe  - ✓ Connected</code></pre>
+
+<h3 id="win-3">3. (Optional) Register with Claude Desktop</h3>
+<p>Edit <code>%APPDATA%\Claude\claude_desktop_config.json</code>:</p>
+
+<pre><code>{
+  "mcpServers": {
+    "tv-mcp": {
+      "command": "C:\\Users\\&lt;you&gt;\\.tv-mcp\\bin\\tv-mcp.exe"
+    }
+  }
+}</code></pre>
+
+<p>Restart Claude Desktop.</p>
+
+<h3 id="win-4">4. Verify</h3>
+
+<pre><code>&amp; "$HOME\.tv-mcp\bin\tv-mcp.exe" --version
+
+# No old bundled binary inside the install dir
+Get-ChildItem -Recurse "$env:LOCALAPPDATA\tv-client","$env:ProgramFiles\tv-client" `
+  -Filter tv-mcp.exe -ErrorAction SilentlyContinue
+# should return nothing
+
+# Launch TV Client, then check running tv-mcp processes
+Get-Process tv-mcp | Select-Object Path
+# Every Path should be C:\Users\&lt;you&gt;\.tv-mcp\bin\tv-mcp.exe</code></pre>
+
+<p>In Claude Code, run <code>/mcp</code> — <code>tv-mcp</code> should show as connected.</p>
+
+<hr>
+
+<h2 id="updating">Updating</h2>
+<p>When a new release ships:</p>
+<ul>
+  <li><strong>tv-client:</strong> download the new installer and re-run (macOS: drag-to-Applications overwrites; Windows: installer updates in place).</li>
+  <li><strong>tv-mcp:</strong> re-run <code>scripts/install-tv-mcp.sh</code> (macOS) or <code>scripts/install-tv-mcp.ps1</code> (Windows). The script stops any running tv-mcp processes, downloads the latest release, and overwrites the binary. Claude Code auto-restarts tv-mcp on the next tool call.</li>
+</ul>
+
+<hr>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<h4><code>claude mcp list</code> shows tv-mcp at the wrong path</h4>
+<p>Run <code>claude mcp remove tv-mcp</code> then <code>claude mcp add</code> with the correct <code>~/.tv-mcp/bin/tv-mcp</code> (or Windows equivalent).</p>
+
+<h4>macOS: "App is damaged" on first launch</h4>
+<p>Unsigned build. Run <code>xattr -cr "/Applications/TV Client.app"</code> then try again.</p>
+
+<h4>Windows: PowerShell execution policy blocks the script</h4>
+<p>Run once: <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code>.</p>
+
+<h4><code>gh release download</code> 404 / not authorized</h4>
+<p>The tv-mcp repo is private. Run <code>gh auth login</code> and ensure your GitHub account has access to <code>FrontToBackCulture/tv-mcp</code>.</p>
+
+<h4>tv-mcp connects but tools fail</h4>
+<p>Check <code>~/.tv-mcp/settings.json</code> (macOS) or <code>%USERPROFILE%\.tv-mcp\settings.json</code> (Windows) has valid Supabase credentials. If missing, launch tv-client first — it writes this file on login.</p>
+
+</main>
+
+<script>
+  document.querySelectorAll('pre').forEach(pre => {
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = 'Copy';
+    btn.addEventListener('click', async () => {
+      const code = pre.querySelector('code')?.textContent ?? pre.textContent;
+      try {
+        await navigator.clipboard.writeText(code);
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 1500);
+      } catch {
+        btn.textContent = 'Failed';
+      }
+    });
+    pre.appendChild(btn);
+  });
+</script>
+
+</body>
+</html>
