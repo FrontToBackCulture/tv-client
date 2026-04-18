@@ -212,11 +212,16 @@ export default function App() {
           if (wsStore.activeWorkspaceId) {
             await wsStore.refreshWorkspaceToken();
           }
-
-          setWorkspaceReady(true);
         }
+
+        // Always mark ready so the setup wizard / workspace picker can
+        // render on a fresh install (no settings.json, no active workspace).
+        // Without this, the Loading screen blocks forever and the user
+        // never reaches the UI that would create credentials.
+        setWorkspaceReady(true);
       } catch (err) {
         console.error("Failed to initialize workspace Supabase client:", err);
+        setWorkspaceReady(true);
       }
     })();
   }, [user]);
