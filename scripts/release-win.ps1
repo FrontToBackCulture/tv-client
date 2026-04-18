@@ -41,6 +41,10 @@ try {
   Write-Host "Installing npm deps..."
   npm install
 
+  # Vite build needs >2GB heap to process the bundle without crashing.
+  # Matches the NODE_OPTIONS value used in the (now-removed) CI workflow.
+  $env:NODE_OPTIONS = "--max-old-space-size=6144"
+
   Write-Host "Building Windows installer (this takes ~10 min on first build)..."
   npm run tauri:build
 
