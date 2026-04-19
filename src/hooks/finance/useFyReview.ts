@@ -95,12 +95,83 @@ export interface Orderform {
   customer_qbo_id: string | null;
   customer_name: string | null;
   start_date: string;
+  end_date: string | null;
+  svc_start_date: string | null;
+  svc_end_date: string | null;
   term_months: number;
+  auto_renewal: boolean;
   sub_monthly: number;
   svc_monthly: number;
   sub_total: number;
   svc_total: number;
   status: string;
+  notes: string | null;
+}
+
+export interface QboEstimate {
+  qbo_id: string;
+  doc_number: string | null;
+  customer_qbo_id: string | null;
+  txn_date: string;
+  expiration_date: string | null;
+  total_amount: number;
+  status: string | null;
+  accepted_by: string | null;
+  accepted_date: string | null;
+  currency: string | null;
+  private_note: string | null;
+  customer_memo: string | null;
+  line_items: unknown;
+  raw?: unknown;
+}
+
+export interface QboCustomer {
+  qbo_id: string;
+  display_name: string;
+  company_name: string | null;
+  active: boolean;
+}
+
+export interface Contract {
+  estimate: QboEstimate;
+  overlay: Orderform | null;
+  customer_name: string;
+  // Derived from line_items + raw.TxnTaxDetail — all pre-tax (net) amounts.
+  net_total: number;       // sum of SalesItemLineDetail line amounts (pre-tax)
+  tax_total: number;       // TxnTaxDetail.TotalTax
+  sub_net: number;         // net for items under "Software:*" (subscription)
+  svc_net: number;         // net for items under "Professional Services:*"
+  other_net: number;       // everything else (legacy items, Services, etc.)
+}
+
+interface EstimateLine {
+  Amount?: number;
+  DetailType?: string;
+  SalesItemLineDetail?: {
+    ItemRef?: { name?: string };
+  };
+}
+
+function deriveLineTotals(est: QboEstimate): Pick<Contract, "net_total" | "tax_total" | "sub_net" | "svc_net" | "other_net"> {
+  const lines = (est.line_items as EstimateLine[] | null) ?? [];
+  let netTotal = 0, subNet = 0, svcNet = 0, otherNet = 0;
+  for (const line of lines) {
+    if (line.DetailType !== "SalesItemLineDetail") continue;
+    const amt = Number(line.Amount ?? 0);
+    netTotal += amt;
+    const itemName = line.SalesItemLineDetail?.ItemRef?.name ?? "";
+    if (itemName.startsWith("Software:")) subNet += amt;
+    else if (itemName.startsWith("Professional Services:")) svcNet += amt;
+    else otherNet += amt;
+  }
+  const tax = ((est.raw as { TxnTaxDetail?: { TotalTax?: number } } | null)?.TxnTaxDetail?.TotalTax) ?? 0;
+  return {
+    net_total: netTotal,
+    tax_total: Number(tax),
+    sub_net: subNet,
+    svc_net: svcNet,
+    other_net: otherNet,
+  };
 }
 
 // ─── Snapshots ────────────────────────────────────────────────────────────
@@ -238,6 +309,126 @@ export function useUpdateReconciliation() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...financeKeys.all, "fy-reconciliation"] });
+    },
+  });
+}
+
+// For a given (fy, leg, period_start?) pull recognition rows that contribute
+// to a Revenue P&L cell. Omit period_start to get all months of the FY.
+export function useRevenueCellBreakdown(
+  fyCode: string,
+  leg: "SUB" | "SVC" | null,
+  periodStart: string | null,
+) {
+  return useQuery({
+    queryKey: [...financeKeys.all, "revenue-cell", fyCode, leg ?? "-", periodStart ?? "-"],
+    enabled: !!leg,
+    queryFn: async () => {
+      const supabase = getSupabaseClient();
+      let q = supabase
+        .from("recognition_schedule")
+        .select("*")
+        .eq("fy_code", fyCode)
+        .eq("leg", leg as string)
+        .order("orderform_code");
+      if (periodStart) q = q.eq("period_start", periodStart);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      return (data ?? []) as RecognitionRow[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+// ─── Contracts (Estimates + overlay) ─────────────────────────────────────
+
+export function useContracts() {
+  return useQuery({
+    queryKey: [...financeKeys.all, "contracts"],
+    queryFn: async (): Promise<Contract[]> => {
+      const supabase = getSupabaseClient();
+      const [estimatesRes, overlayRes, customersRes] = await Promise.all([
+        supabase.from("qbo_estimates").select("*").order("txn_date", { ascending: false }),
+        supabase.from("orderforms").select("*"),
+        supabase.from("qbo_customers").select("qbo_id, display_name, company_name, active"),
+      ]);
+      if (estimatesRes.error) throw new Error(estimatesRes.error.message);
+      if (overlayRes.error) throw new Error(overlayRes.error.message);
+      if (customersRes.error) throw new Error(customersRes.error.message);
+
+      const overlayByCode = new Map<string, Orderform>();
+      for (const o of overlayRes.data ?? []) {
+        overlayByCode.set((o as Orderform).orderform_code, o as Orderform);
+      }
+      const custById = new Map<string, QboCustomer>();
+      for (const c of customersRes.data ?? []) {
+        custById.set((c as QboCustomer).qbo_id, c as QboCustomer);
+      }
+
+      return (estimatesRes.data ?? []).map((e): Contract => {
+        const est = e as QboEstimate;
+        const overlay = est.doc_number ? overlayByCode.get(est.doc_number) ?? null : null;
+        const cust = est.customer_qbo_id ? custById.get(est.customer_qbo_id) : null;
+        return {
+          estimate: est,
+          overlay,
+          customer_name: cust?.display_name ?? cust?.company_name ?? "(unknown)",
+          ...deriveLineTotals(est),
+        };
+      });
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useUpsertOrderform() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      orderform_code: string;
+      customer_qbo_id?: string | null;
+      customer_name?: string | null;
+      source_estimate_id?: string;
+      start_date?: string | null;
+      end_date?: string | null;
+      svc_start_date?: string | null;
+      svc_end_date?: string | null;
+      auto_renewal?: boolean;
+      sub_monthly?: number;
+      notes?: string | null;
+      status?: string;
+    }) => {
+      const supabase = getSupabaseClient();
+      // Need a valid start_date on insert. Fall back to today if omitted.
+      const row: Record<string, unknown> = {
+        orderform_code: input.orderform_code,
+        start_date: input.start_date ?? new Date().toISOString().slice(0, 10),
+      };
+      if (input.customer_qbo_id !== undefined) row.customer_qbo_id = input.customer_qbo_id;
+      if (input.customer_name !== undefined) row.customer_name = input.customer_name;
+      if (input.source_estimate_id !== undefined) row.source_estimate_id = input.source_estimate_id;
+      if (input.end_date !== undefined) row.end_date = input.end_date;
+      if (input.svc_start_date !== undefined) row.svc_start_date = input.svc_start_date;
+      if (input.svc_end_date !== undefined) row.svc_end_date = input.svc_end_date;
+      if (input.auto_renewal !== undefined) row.auto_renewal = input.auto_renewal;
+      if (input.sub_monthly !== undefined) row.sub_monthly = input.sub_monthly;
+      if (input.notes !== undefined) row.notes = input.notes;
+      if (input.status !== undefined) row.status = input.status;
+
+      // Keep required term_months populated; default 0 when unknown (user will edit dates instead).
+      row.term_months = 0;
+
+      const { data, error } = await supabase
+        .from("orderforms")
+        .upsert(row, { onConflict: "orderform_code" })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      return data as Orderform;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "contracts"] });
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "orderforms"] });
     },
   });
 }

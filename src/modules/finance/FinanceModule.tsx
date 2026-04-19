@@ -12,14 +12,16 @@ import {
 } from "./ListViews";
 import { ReportsView } from "./ReportsView";
 import { FYReviewView } from "./FYReviewView";
+import { ContractsView } from "./ContractsView";
 import { cn } from "../../lib/cn";
 
-type Tab = "overview" | "reports" | "fy-review" | "invoices" | "bills" | "estimates" | "customers" | "vendors" | "accounts";
+type Tab = "overview" | "reports" | "fy-review" | "contracts" | "invoices" | "bills" | "estimates" | "customers" | "vendors" | "accounts";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "reports", label: "Reports" },
   { id: "fy-review", label: "FY Review" },
+  { id: "contracts", label: "Contracts" },
   { id: "invoices", label: "Invoices" },
   { id: "bills", label: "Bills" },
   { id: "estimates", label: "Estimates" },
@@ -59,7 +61,10 @@ export function FinanceModule() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl w-full mx-auto px-6 py-6 space-y-6">
+        <div className={cn(
+          "w-full mx-auto px-6 py-6 space-y-6",
+          tab === "fy-review" || tab === "contracts" ? "max-w-none" : "max-w-6xl",
+        )}>
           {tab === "overview" && (
             <>
               <DashboardTiles />
@@ -69,6 +74,7 @@ export function FinanceModule() {
           )}
           {tab === "reports" && <ReportsView />}
           {tab === "fy-review" && <FYReviewView />}
+          {tab === "contracts" && <ContractsView />}
           {tab === "invoices" && <InvoicesView />}
           {tab === "bills" && <BillsView />}
           {tab === "estimates" && <EstimatesView />}

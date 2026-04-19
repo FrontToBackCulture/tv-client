@@ -9,7 +9,7 @@
 // recognition_schedule / orderforms in the mgmt workspace. Append-only —
 // each capture inserts fresh snapshot rows; UI uses latest per month.
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   useAcknowledgeDriftAlert,
   useFsMapping,
@@ -155,16 +155,68 @@ interface GridProps {
   statement: "pnl" | "bs";
 }
 
+const REVENUE_DRILLDOWN_LEGS: Record<string, "SUB" | "SVC"> = {
+  "pnl.revenue.subscription": "SUB",
+  "pnl.revenue.service_fee": "SVC",
+};
+
 function MonthlyGrid({ fyCode, statement }: GridProps) {
   const { latest, isLoading: snapsLoading } = useLatestSnapshotsByMonth(fyCode, "qbo");
   const snapshotIds = latest.map((s) => s.id);
   const { data: lines, isLoading: linesLoading } = useFySnapshotLines(snapshotIds);
   const { data: mapping } = useFsMapping();
+  const { data: recognition } = useRecognitionSchedule(statement === "pnl" ? fyCode : "__none__");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const { months, rows } = useMemo(
+  const toggleExpand = (fsLine: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(fsLine)) next.delete(fsLine);
+      else next.add(fsLine);
+      return next;
+    });
+  };
+
+  const { months, monthStarts, rows } = useMemo(
     () => buildGrid(latest, lines ?? [], mapping ?? [], statement),
     [latest, lines, mapping, statement],
   );
+
+  // Pivot recognition schedule by (leg → orderform → month_start → posted_amount)
+  const breakdownByLeg = useMemo(() => {
+    const map = new Map<"SUB" | "SVC", OrderformMonthlyRow[]>();
+    if (!recognition) return map;
+    const indexByLegOrderform = new Map<string, OrderformMonthlyRow>();
+    for (const r of recognition) {
+      const key = `${r.leg}|${r.orderform_code}`;
+      if (!indexByLegOrderform.has(key)) {
+        indexByLegOrderform.set(key, {
+          orderform_code: r.orderform_code,
+          customer_name: r.customer_name,
+          leg: r.leg,
+          byMonth: new Map<string, { posted: number | null; expected: number; status: RecognitionRow["status"] }>(),
+          total: 0,
+        });
+      }
+      const entry = indexByLegOrderform.get(key)!;
+      const amount = r.posted_amount ?? 0;
+      entry.byMonth.set(r.period_start, {
+        posted: r.posted_amount,
+        expected: r.expected_amount,
+        status: r.status,
+      });
+      entry.total += amount;
+    }
+    for (const entry of indexByLegOrderform.values()) {
+      if (!map.has(entry.leg)) map.set(entry.leg, []);
+      map.get(entry.leg)!.push(entry);
+    }
+    // Sort each leg by customer name for readability
+    for (const list of map.values()) {
+      list.sort((a, b) => a.customer_name.localeCompare(b.customer_name) || a.orderform_code.localeCompare(b.orderform_code));
+    }
+    return map;
+  }, [recognition]);
 
   if (snapsLoading || linesLoading) {
     return <div className="text-sm text-zinc-500">Loading snapshot data…</div>;
@@ -185,7 +237,7 @@ function MonthlyGrid({ fyCode, statement }: GridProps) {
       <table className="text-xs min-w-full border-collapse">
         <thead>
           <tr className="bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
-            <th className="sticky left-0 z-10 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-left font-medium text-zinc-500 min-w-[240px]">
+            <th className="sticky left-0 z-10 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-left font-medium text-zinc-500 min-w-[260px]">
               FS Line
             </th>
             {months.map((m) => (
@@ -205,12 +257,24 @@ function MonthlyGrid({ fyCode, statement }: GridProps) {
               section={section}
               rows={rows.filter((r) => r.section === section)}
               months={months}
+              monthStarts={monthStarts}
+              expanded={expanded}
+              onToggleExpand={toggleExpand}
+              breakdownByLeg={breakdownByLeg}
             />
           ))}
         </tbody>
       </table>
     </div>
   );
+}
+
+interface OrderformMonthlyRow {
+  orderform_code: string;
+  customer_name: string;
+  leg: "SUB" | "SVC";
+  byMonth: Map<string, { posted: number | null; expected: number; status: RecognitionRow["status"] }>;
+  total: number;
 }
 
 interface GridRow {
@@ -226,22 +290,37 @@ function buildGrid(
   lines: FySnapshotLine[],
   mapping: FsMapping[],
   statement: "pnl" | "bs",
-): { months: string[]; rows: GridRow[] } {
+): { months: string[]; monthStarts: string[]; rows: GridRow[] } {
   // month label, ordered by period_start
   const months = snapshots.map((s) => s.period_label);
+  const monthStarts = snapshots.map((s) => s.period_start);
   const monthBySnapshotId = new Map<string, string>(
     snapshots.map((s) => [s.id, s.period_label]),
   );
 
-  // fs_line metadata
+  // fs_line metadata — section here is the *display* section (QBO-style grouping).
   const meta = new Map<string, { label: string; section: string; order: number }>();
   for (const m of mapping) {
     if (!meta.has(m.fs_line)) {
       meta.set(m.fs_line, {
-        label: fsLineLabel(m.fs_line),
-        section: m.fs_section,
+        label: fsLineDisplayLabel(m.fs_line),
+        section: displaySection(m.fs_section),
         order: m.display_order,
       });
+    }
+  }
+  // Ensure our synthetic fs_lines (e.g. pnl.finance_cost, pnl.net_profit) have meta.
+  for (const [fsLine, label] of Object.entries(FS_LINE_LABELS)) {
+    if (!meta.has(fsLine)) {
+      // Infer section from prefix
+      const guessSection = fsLine.startsWith("pnl.revenue") ? "pnl.revenue"
+        : fsLine.startsWith("pnl.cogs") ? "pnl.cogs"
+        : fsLine.startsWith("pnl.other_income") ? "pnl.other_revenue"
+        : fsLine.startsWith("pnl.other_expense") ? "pnl.other_expenses"
+        : fsLine.startsWith("pnl.finance_cost") || fsLine.startsWith("pnl.opex") ? "pnl.expenses"
+        : fsLine.startsWith("bs.") ? fsLine.split(".").slice(0, 2).join(".")
+        : "pnl.unmapped";
+      meta.set(fsLine, { label, section: guessSection, order: 999 });
     }
   }
 
@@ -262,7 +341,7 @@ function buildGrid(
   const rows: GridRow[] = [];
   for (const [fsLine, byMonth] of agg) {
     const m = meta.get(fsLine) ?? {
-      label: fsLine,
+      label: fsLineDisplayLabel(fsLine),
       section: statement === "pnl" ? "pnl.unmapped" : "bs.unmapped",
       order: 999,
     };
@@ -272,13 +351,19 @@ function buildGrid(
   }
 
   rows.sort((a, b) => {
-    if (a.section !== b.section) return a.section.localeCompare(b.section);
+    const sa = sectionOrder(a.section);
+    const sb = sectionOrder(b.section);
+    if (sa !== sb) return sa - sb;
+    // Expenses section sorts alphabetically by display label (QBO style).
+    if (a.section === "pnl.expenses") return a.label.localeCompare(b.label);
+    // Everything else: follow fs_fs_mapping display_order, then label as tiebreak.
     const oa = meta.get(a.fs_line)?.order ?? 999;
     const ob = meta.get(b.fs_line)?.order ?? 999;
-    return oa - ob;
+    if (oa !== ob) return oa - ob;
+    return a.label.localeCompare(b.label);
   });
 
-  return { months, rows };
+  return { months, monthStarts, rows };
 }
 
 function fsLineLabel(fsLine: string): string {
@@ -289,15 +374,48 @@ function fsLineLabel(fsLine: string): string {
     .join(" ");
 }
 
+// QBO-style P&L sequence:
+//   Revenue → Cost of Sales → Other Revenue → Expenses → Other Expenses
+// The underlying fs_section values still split OpEx (salary / admin / finance_cost)
+// for flexibility, but the grid collapses them into a single "Expenses" block
+// sorted alphabetically by line label — matching the QBO P&L report.
+function displaySection(fs_section: string): string {
+  if (fs_section === "pnl.opex.salary" || fs_section === "pnl.opex.admin" || fs_section === "pnl.finance_cost") {
+    return "pnl.expenses";
+  }
+  if (fs_section === "pnl.other_income") return "pnl.other_revenue";
+  if (fs_section === "pnl.other_expense") return "pnl.other_expenses";
+  return fs_section;
+}
+
+const SECTION_ORDER: Record<string, number> = {
+  // P&L (QBO style)
+  "pnl.revenue": 10,
+  "pnl.cogs": 20,
+  "pnl.other_revenue": 30,
+  "pnl.expenses": 40,
+  "pnl.other_expenses": 50,
+  "pnl.unmapped": 99,
+  // BS (statutory order)
+  "bs.noncurrent_assets": 110,
+  "bs.current_assets": 120,
+  "bs.equity": 130,
+  "bs.noncurrent_liabilities": 140,
+  "bs.current_liabilities": 150,
+  "bs.unmapped": 199,
+};
+
+function sectionOrder(section: string): number {
+  return SECTION_ORDER[section] ?? 999;
+}
+
 function sectionLabel(section: string): string {
   const map: Record<string, string> = {
     "pnl.revenue": "Revenue",
-    "pnl.cogs": "Cost of sales",
-    "pnl.other_income": "Other income",
-    "pnl.opex.salary": "Salary & employee benefits",
-    "pnl.opex.admin": "Admin & other operating expenses",
-    "pnl.finance_cost": "Finance cost",
-    "pnl.other_expense": "Other expense / below-the-line",
+    "pnl.cogs": "Cost of Sales",
+    "pnl.other_revenue": "Other Revenue",
+    "pnl.expenses": "Expenses",
+    "pnl.other_expenses": "Other Expenses",
     "bs.current_assets": "Current assets",
     "bs.noncurrent_assets": "Non-current assets",
     "bs.current_liabilities": "Current liabilities",
@@ -307,14 +425,98 @@ function sectionLabel(section: string): string {
   return map[section] ?? section;
 }
 
+// Display labels for specific fs_lines — matches QBO P&L report nomenclature.
+// Fall back to title-cased leaf if not listed.
+const FS_LINE_LABELS: Record<string, string> = {
+  // Revenue
+  "pnl.revenue.subscription": "Sales of Product Subscription Revenue",
+  "pnl.revenue.service_fee": "Service/Fee Revenue",
+  "pnl.revenue.other": "Other Revenue",
+  "pnl.revenue.discounts": "Discounts / Refunds",
+  // Cost of Sales
+  "pnl.cogs.cloud_infra": "Cloud Infrastructure",
+  "pnl.cogs.payroll_cs": "COGS Payroll - Customer Success",
+  "pnl.cogs.payroll_cc": "COGS Payroll - Customer Support",
+  "pnl.cogs.payroll_ps": "COGS Payroll - Professional Services",
+  "pnl.cogs.software": "COGS Software Subscription",
+  "pnl.cogs.subcontractors": "COGS Subcontractors",
+  "pnl.cogs.travel": "COGS Travel & Entertainment",
+  "pnl.cogs.other": "Other COGS",
+  // Other Revenue
+  "pnl.other_income.grant": "Govt Rebate/Subsidies",
+  "pnl.other_income.interest": "Interest Income",
+  "pnl.other_income.intercompany": "Intercompany Income",
+  "pnl.other_income.other": "Bank Rebate / Other Income",
+  // Expenses — salary
+  "pnl.opex.salary_directors": "Directors Payroll",
+  "pnl.opex.salary_sales": "Sales Payroll",
+  "pnl.opex.salary_marketing": "Marketing Payroll",
+  "pnl.opex.salary_rd": "R&D Payroll",
+  "pnl.opex.salary_ga": "G&A Payroll",
+  "pnl.opex.salary_intern": "Intern",
+  "pnl.opex.salary_other": "Other Payroll",
+  // Expenses — admin
+  "pnl.opex.bank_charges": "Bank charges",
+  "pnl.opex.rent_utilities": "Rent & Utilities",
+  "pnl.opex.software": "Software Subscription",
+  "pnl.opex.subcontractors_sales": "Sales Subcontractors",
+  "pnl.opex.subcontractors_marketing": "Marketing Subcontractors",
+  "pnl.opex.subcontractors_rd": "R&D Subcontractors",
+  "pnl.opex.subcontractors_ga": "G&A Subcontractors",
+  "pnl.opex.professional_fees": "Professional Services",
+  "pnl.opex.licenses": "Licenses, Fees & Insurance",
+  "pnl.opex.office": "Office Expenses",
+  "pnl.opex.memberships": "Memberships",
+  "pnl.opex.marketing_ads": "Marketing Ads",
+  "pnl.opex.advertising": "Advertising",
+  "pnl.opex.events": "Events",
+  "pnl.opex.promotions": "Promotions",
+  "pnl.opex.other_marketing": "Other Marketing Expense",
+  "pnl.opex.travel_sales": "Sales Travel & Entertainment",
+  "pnl.opex.travel_ga": "G&A Meals, Travel & Entertainment",
+  "pnl.opex.auto": "Automobile Expenses",
+  "pnl.opex.bad_debt": "Bad Debt Expense",
+  "pnl.opex.other_employee": "Other Employee Expenses",
+  "pnl.opex.rm": "Repair and maintenance",
+  "pnl.opex.purchases": "Purchases",
+  "pnl.opex.gst_expense": "GST Expense",
+  "pnl.opex.other_ga": "Other G&A Expense",
+  "pnl.opex.other_product_dev": "Other Product Development Expense",
+  "pnl.opex.other_sales": "Other Sales Expense",
+  "pnl.opex.uncategorised": "Uncategorised",
+  "pnl.finance_cost": "Interest paid",
+  // Other Expenses
+  "pnl.other_expense.dep_amort": "Depreciation & Amortization",
+  "pnl.other_expense.tax": "Taxes",
+  "pnl.other_expense.fx": "Exchange Gain or Loss",
+  "pnl.other_expense.intercompany": "Intercompany Expense",
+  "pnl.other_expense.other": "Other Expense",
+  // Net profit (FS baseline only)
+  "pnl.net_profit": "Profit/Loss",
+};
+
+function fsLineDisplayLabel(fs_line: string): string {
+  const explicit = FS_LINE_LABELS[fs_line];
+  if (explicit) return explicit;
+  return fsLineLabel(fs_line);
+}
+
 function GridSection({
   section,
   rows,
   months,
+  monthStarts,
+  expanded,
+  onToggleExpand,
+  breakdownByLeg,
 }: {
   section: string;
   rows: GridRow[];
   months: string[];
+  monthStarts: string[];
+  expanded: Set<string>;
+  onToggleExpand: (fsLine: string) => void;
+  breakdownByLeg: Map<"SUB" | "SVC", OrderformMonthlyRow[]>;
 }) {
   if (rows.length === 0) return null;
   const totals = months.map((_, i) => rows.reduce((a, r) => a + (r.values[i] ?? 0), 0));
@@ -330,27 +532,51 @@ function GridSection({
         ))}
         <td className="bg-zinc-100 dark:bg-zinc-800" />
       </tr>
-      {rows.map((r) => (
-        <tr
-          key={r.fs_line}
-          className="border-b border-zinc-100 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-950"
-        >
-          <td className="sticky left-0 z-10 px-3 py-1.5 text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900">
-            {r.label}
-          </td>
-          {r.values.map((v, i) => (
-            <td key={i} className="px-3 py-1.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
-              {v === 0 ? "—" : formatNum(v)}
-            </td>
-          ))}
-          <td className="px-3 py-1.5 text-right tabular-nums font-medium text-zinc-900 dark:text-zinc-100 bg-zinc-50 dark:bg-zinc-950">
-            {formatMoney(r.total)}
-          </td>
-        </tr>
-      ))}
+      {rows.map((r) => {
+        const leg = REVENUE_DRILLDOWN_LEGS[r.fs_line];
+        const isExpanded = leg ? expanded.has(r.fs_line) : false;
+        return (
+          <Fragment key={r.fs_line}>
+            <tr
+              className={cn(
+                "border-b border-zinc-100 dark:border-zinc-900",
+                leg
+                  ? "hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer"
+                  : "hover:bg-zinc-50 dark:hover:bg-zinc-950",
+              )}
+              onClick={leg ? () => onToggleExpand(r.fs_line) : undefined}
+              title={leg ? (isExpanded ? "Click to collapse" : "Click to drill into orderforms") : undefined}
+            >
+              <td className="sticky left-0 z-10 pl-8 pr-3 py-1.5 text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900">
+                {leg && (
+                  <span className="inline-block w-3 text-zinc-500 mr-1 select-none">
+                    {isExpanded ? "▾" : "▸"}
+                  </span>
+                )}
+                {r.label}
+              </td>
+              {r.values.map((v, i) => (
+                <td key={i} className="px-3 py-1.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                  {v === 0 ? "—" : formatNum(v)}
+                </td>
+              ))}
+              <td className="px-3 py-1.5 text-right tabular-nums font-medium text-zinc-900 dark:text-zinc-100 bg-zinc-50 dark:bg-zinc-950">
+                {formatMoney(r.total)}
+              </td>
+            </tr>
+            {leg && isExpanded && breakdownByLeg.get(leg)?.map((ofRow) => (
+              <BreakdownRow
+                key={`${r.fs_line}-${ofRow.orderform_code}`}
+                row={ofRow}
+                monthStarts={monthStarts}
+              />
+            ))}
+          </Fragment>
+        );
+      })}
       <tr className="border-b border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 font-medium">
-        <td className="sticky left-0 z-10 px-3 py-1.5 text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-950">
-          Subtotal — {sectionLabel(section)}
+        <td className="sticky left-0 z-10 pl-5 pr-3 py-1.5 text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-950">
+          Total for {sectionLabel(section)}
         </td>
         {totals.map((v, i) => (
           <td key={i} className="px-3 py-1.5 text-right tabular-nums text-zinc-800 dark:text-zinc-200">
@@ -362,6 +588,46 @@ function GridSection({
         </td>
       </tr>
     </>
+  );
+}
+
+// ─── Revenue drilldown rows ──────────────────────────────────────────────
+
+function BreakdownRow({
+  row,
+  monthStarts,
+}: {
+  row: OrderformMonthlyRow;
+  monthStarts: string[];
+}) {
+  const monthValues = monthStarts.map((ms) => {
+    const cell = row.byMonth.get(ms);
+    // Only show actual posted amounts. Missing / expected cells render empty
+    // so the grid reads as "what was actually posted" and nothing else.
+    return {
+      amount: cell?.posted ?? 0,
+      status: cell?.status,
+    };
+  });
+  const total = monthValues.reduce((a, b) => a + b.amount, 0);
+  return (
+    <tr className="border-b border-emerald-100 dark:border-emerald-950 bg-emerald-50/40 dark:bg-emerald-950/20">
+      <td className="sticky left-0 z-10 pl-14 pr-3 py-1 text-[11px] text-zinc-600 dark:text-zinc-400 bg-emerald-50/60 dark:bg-emerald-950/30">
+        <span className="font-medium text-zinc-700 dark:text-zinc-300">{row.orderform_code}</span>
+        <span className="text-zinc-500"> · {row.customer_name}</span>
+      </td>
+      {monthValues.map((cell, i) => (
+        <td
+          key={i}
+          className="px-3 py-1 text-right tabular-nums text-[11px] text-zinc-600 dark:text-zinc-400"
+        >
+          {cell.amount === 0 ? "—" : formatNum(cell.amount)}
+        </td>
+      ))}
+      <td className="px-3 py-1 text-right tabular-nums text-[11px] font-medium text-zinc-700 dark:text-zinc-300 bg-emerald-100/50 dark:bg-emerald-900/30">
+        {formatMoney(total)}
+      </td>
+    </tr>
   );
 }
 
