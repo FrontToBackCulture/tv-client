@@ -1,7 +1,6 @@
 #!/bin/bash
 # Installs the standalone tv-mcp binary to ~/.tv-mcp/bin/tv-mcp.
-# Requires the GitHub CLI (`gh`) authenticated against FrontToBackCulture
-# because the tv-mcp repo is private.
+# tv-mcp is a public repo, so no authentication is required.
 
 set -e
 
@@ -10,17 +9,6 @@ DEST_DIR="$HOME/.tv-mcp/bin"
 DEST="$DEST_DIR/tv-mcp"
 
 echo "=== tv-mcp installer (macOS) ==="
-
-if ! command -v gh >/dev/null 2>&1; then
-  echo "ERROR: GitHub CLI (gh) is not installed."
-  echo "Install it from https://cli.github.com/ then run: gh auth login"
-  exit 1
-fi
-
-if ! gh auth status >/dev/null 2>&1; then
-  echo "ERROR: gh is not authenticated. Run: gh auth login"
-  exit 1
-fi
 
 ARCH=$(uname -m)
 case "$ARCH" in
@@ -40,13 +28,10 @@ fi
 
 mkdir -p "$DEST_DIR"
 
-echo "Downloading latest $ASSET from $REPO..."
-TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
+URL="https://github.com/$REPO/releases/latest/download/$ASSET"
+echo "Downloading $URL..."
 
-gh release download --repo "$REPO" --pattern "$ASSET" --dir "$TMP_DIR"
-
-mv "$TMP_DIR/$ASSET" "$DEST"
+curl -fL --progress-bar -o "$DEST" "$URL"
 chmod +x "$DEST"
 xattr -d com.apple.quarantine "$DEST" 2>/dev/null || true
 

@@ -1,6 +1,5 @@
 # Installs the standalone tv-mcp binary to $HOME\.tv-mcp\bin\tv-mcp.exe.
-# Requires the GitHub CLI (`gh`) authenticated against FrontToBackCulture
-# because the tv-mcp repo is private.
+# tv-mcp is a public repo, so no authentication is required.
 #
 # Usage (PowerShell):
 #   .\install-tv-mcp.ps1
@@ -17,20 +16,6 @@ $Dest = Join-Path $DestDir "tv-mcp.exe"
 
 Write-Host "=== tv-mcp installer (Windows) ===" -ForegroundColor Cyan
 
-# Check for gh CLI
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: GitHub CLI (gh) is not installed." -ForegroundColor Red
-    Write-Host "Install it from https://cli.github.com/ then run: gh auth login"
-    exit 1
-}
-
-# Check gh auth
-$ghStatus = gh auth status 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: gh is not authenticated. Run: gh auth login" -ForegroundColor Red
-    exit 1
-}
-
 # Stop running tv-mcp processes
 $running = Get-Process -Name "tv-mcp" -ErrorAction SilentlyContinue
 if ($running) {
@@ -42,19 +27,9 @@ if ($running) {
 # Ensure dest dir
 New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
 
-Write-Host "Downloading latest $Asset from $Repo..."
-$TmpDir = New-Item -ItemType Directory -Path (Join-Path $env:TEMP "tv-mcp-install-$(Get-Random)")
-try {
-    gh release download --repo $Repo --pattern $Asset --dir $TmpDir.FullName
-    if ($LASTEXITCODE -ne 0) {
-        throw "gh release download failed (exit $LASTEXITCODE)"
-    }
-
-    $downloaded = Join-Path $TmpDir.FullName $Asset
-    Move-Item -Force $downloaded $Dest
-} finally {
-    Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
-}
+$Url = "https://github.com/$Repo/releases/latest/download/$Asset"
+Write-Host "Downloading $Url..."
+Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing
 
 # Print version
 $version = & $Dest --version 2>$null
