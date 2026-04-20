@@ -40,27 +40,55 @@ Write-Host "Installed: $Dest" -ForegroundColor Green
 Write-Host "   Version:   $version"
 Write-Host ""
 
-# Register with Claude Code if available
+# Register with Claude Desktop (if installed)
+$DesktopConfig = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
+$DesktopInstalled = (Test-Path $DesktopConfig) -or `
+                    (Test-Path (Join-Path $env:LOCALAPPDATA "AnthropicClaude")) -or `
+                    (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\claude-desktop"))
+
+if ($DesktopInstalled) {
+    Write-Host "Registering tv-mcp with Claude Desktop..."
+    $configDir = Split-Path $DesktopConfig
+    New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+
+    if (Test-Path $DesktopConfig) {
+        $cfg = Get-Content $DesktopConfig -Raw | ConvertFrom-Json
+    } else {
+        $cfg = New-Object PSObject
+    }
+
+    if (-not $cfg.PSObject.Properties['mcpServers']) {
+        $cfg | Add-Member -NotePropertyName mcpServers -NotePropertyValue (New-Object PSObject)
+    }
+
+    $entry = [PSCustomObject]@{ command = $Dest }
+    if ($cfg.mcpServers.PSObject.Properties['tv-mcp']) {
+        $cfg.mcpServers.'tv-mcp' = $entry
+    } else {
+        $cfg.mcpServers | Add-Member -NotePropertyName 'tv-mcp' -NotePropertyValue $entry
+    }
+
+    $cfg | ConvertTo-Json -Depth 10 | Set-Content $DesktopConfig -Encoding UTF8
+    Write-Host "   Updated: $DesktopConfig"
+    Write-Host "   WARNING: Restart Claude Desktop for changes to take effect." -ForegroundColor Yellow
+} else {
+    Write-Host "Claude Desktop not detected - skipping Desktop registration."
+}
+Write-Host ""
+
+# Register with Claude Code CLI (if installed)
 if (Get-Command claude -ErrorAction SilentlyContinue) {
     $current = (claude mcp list 2>$null | Select-String -Pattern '^tv-mcp:' | Select-Object -First 1).Line
     if ($current -and $current.Contains($Dest)) {
-        Write-Host "Claude Code already points at $Dest - no changes needed."
+        Write-Host "Claude Code CLI already points at $Dest - no changes needed."
     } else {
         if ($current) {
-            Write-Host "Claude Code currently has: $current"
-            Write-Host "Updating to point at $Dest..."
             claude mcp remove tv-mcp 2>$null | Out-Null
-        } else {
-            Write-Host "Registering tv-mcp with Claude Code..."
         }
         claude mcp add tv-mcp $Dest
-        Write-Host ""
-        claude mcp list | Select-String -Pattern '^tv-mcp:'
+        Write-Host "Registered tv-mcp with Claude Code CLI."
     }
-} else {
-    Write-Host "Claude Code (claude) not found on PATH - skipping registration."
-    Write-Host "To register manually later: claude mcp add tv-mcp `"$Dest`""
 }
 
 Write-Host ""
-Write-Host "Done. Run ``claude mcp list`` any time to verify." -ForegroundColor Green
+Write-Host "Done." -ForegroundColor Green
