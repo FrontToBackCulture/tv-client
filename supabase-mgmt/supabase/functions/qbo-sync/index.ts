@@ -4,7 +4,15 @@
 // POST /qbo-sync
 // Body: { entity?: string | "all", since?: ISO8601, triggered_by?: string }
 //
-// If `since` is omitted, does a full sync for the specified entity (or all).
+// Mode selection per entity:
+//   - If `since` is passed, or the most recent successful run for that entity
+//     was within 30 days, we use the QBO Change Data Capture (CDC) endpoint.
+//     CDC returns both modified and deleted rows, so deletions are applied
+//     against the mirror tables.
+//   - Otherwise (no prior run, or last run too old for CDC's 30-day window)
+//     we fall back to a full /query fetch. Full fetches cannot detect deletes
+//     — deletions land on the next incremental CDC run.
+//
 // Writes an audit row to `qbo_sync_runs`.
 // ---------------------------------------------------------------------------
 
@@ -14,6 +22,7 @@ import {
   QboConnection,
   getActiveConnection,
   jsonResponse,
+  qboCdc,
   qboQuery,
   supabaseAdmin,
 } from "../_shared/qbo.ts";
@@ -250,17 +259,46 @@ const ALL_ORDER = [
 // Sync one entity
 // ---------------------------------------------------------------------------
 
+// CDC requires changedSince to be within the last 30 days. We apply a small
+// overlap buffer so updates landing between our query-start and completion
+// aren't missed on the next run.
+const CDC_MAX_LOOKBACK_MS = 29 * 24 * 60 * 60 * 1000;
+const CDC_OVERLAP_MS = 60 * 1000;
+
+async function lastCdcWatermark(
+  supabase: SupabaseClient,
+  entity: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("qbo_sync_runs")
+    .select("started_at")
+    .eq("entity_type", entity)
+    .eq("status", "ok")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.started_at) return null;
+  const ts = new Date(data.started_at).getTime() - CDC_OVERLAP_MS;
+  if (Date.now() - ts > CDC_MAX_LOOKBACK_MS) return null;   // too old → full sync
+  return new Date(ts).toISOString();
+}
+
 async function syncEntity(
   supabase: SupabaseClient,
   conn: QboConnection,
   entity: string,
   since: string | null,
   triggeredBy: string,
-): Promise<{ processed: number; error?: string }> {
+): Promise<{ processed: number; deleted?: number; mode?: string; error?: string }> {
   const handler = HANDLERS[entity];
   if (!handler) {
     return { processed: 0, error: `Unknown entity: ${entity}` };
   }
+
+  // Pick a watermark: explicit `since` from the caller wins, otherwise
+  // derive from the most recent successful run. Null → full sync.
+  const cdcSince = since ?? (await lastCdcWatermark(supabase, entity));
+  const mode: "full" | "cdc" = cdcSince ? "cdc" : "full";
 
   const { data: runRow, error: runErr } = await supabase
     .from("qbo_sync_runs")
@@ -268,7 +306,7 @@ async function syncEntity(
       entity_type: entity,
       status: "running",
       triggered_by: triggeredBy,
-      cursor: since,
+      cursor: cdcSince,
     })
     .select("id")
     .single();
@@ -278,31 +316,63 @@ async function syncEntity(
   }
 
   try {
-    const whereClause = since
-      ? ` WHERE MetaData.LastUpdatedTime >= '${since}'`
-      : "";
-    const select = `SELECT * FROM ${handler.qboEntity}${whereClause}`;
-    const rows = await qboQuery(conn, select);
+    let upserted = 0;
+    let deleted = 0;
 
-    if (rows.length > 0) {
-      const mapped = rows.map(handler.map);
-      const { error: upErr } = await supabase
-        .from(handler.table)
-        .upsert(mapped, { onConflict: "qbo_id" });
+    if (mode === "cdc") {
+      const byEntity = await qboCdc(conn, [handler.qboEntity], cdcSince!);
+      const rows: any[] = byEntity[handler.qboEntity] ?? [];
 
-      if (upErr) throw new Error(`Upsert failed: ${upErr.message}`);
+      const deletedIds: string[] = [];
+      const liveRows: any[] = [];
+      for (const r of rows) {
+        if (r.status === "Deleted") deletedIds.push(String(r.Id));
+        else liveRows.push(r);
+      }
+
+      if (liveRows.length > 0) {
+        const mapped = liveRows.map(handler.map);
+        const { error: upErr } = await supabase
+          .from(handler.table)
+          .upsert(mapped, { onConflict: "qbo_id" });
+        if (upErr) throw new Error(`Upsert failed: ${upErr.message}`);
+        upserted = liveRows.length;
+      }
+
+      if (deletedIds.length > 0) {
+        const { error: delErr } = await supabase
+          .from(handler.table)
+          .delete()
+          .in("qbo_id", deletedIds);
+        if (delErr) throw new Error(`Delete failed: ${delErr.message}`);
+        deleted = deletedIds.length;
+      }
+    } else {
+      // Full sync: QBO's standard /query never returns deleted rows, so a
+      // full sync here can't detect deletions. CDC handles deletions on
+      // subsequent incremental runs once we have a watermark.
+      const select = `SELECT * FROM ${handler.qboEntity}`;
+      const rows = await qboQuery(conn, select);
+      if (rows.length > 0) {
+        const mapped = rows.map(handler.map);
+        const { error: upErr } = await supabase
+          .from(handler.table)
+          .upsert(mapped, { onConflict: "qbo_id" });
+        if (upErr) throw new Error(`Upsert failed: ${upErr.message}`);
+        upserted = rows.length;
+      }
     }
 
     await supabase
       .from("qbo_sync_runs")
       .update({
         status: "ok",
-        records_processed: rows.length,
+        records_processed: upserted + deleted,
         completed_at: new Date().toISOString(),
       })
       .eq("id", runRow.id);
 
-    return { processed: rows.length };
+    return { processed: upserted, deleted, mode };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await supabase
@@ -313,7 +383,7 @@ async function syncEntity(
         completed_at: new Date().toISOString(),
       })
       .eq("id", runRow.id);
-    return { processed: 0, error: message };
+    return { processed: 0, error: message, mode };
   }
 }
 

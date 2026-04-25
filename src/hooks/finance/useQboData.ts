@@ -47,3 +47,7 @@ export function useQboBills() {
 export function useQboEstimates() {
   return useQboList<any>("qbo_estimates", { column: "txn_date", ascending: false });
 }
+
+export function useQboJournalEntries() {
+  return useQboList<any>("qbo_journal_entries", { column: "txn_date", ascending: false });
+}

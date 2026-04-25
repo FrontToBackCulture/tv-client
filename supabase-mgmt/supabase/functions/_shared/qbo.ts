@@ -202,6 +202,33 @@ export async function qboFetch(
   return await res.json();
 }
 
+/**
+ * Call QBO's Change Data Capture endpoint. Returns a map of entity-name →
+ * array of rows. Deleted rows carry `status: "Deleted"` with only the `Id`
+ * populated.
+ *
+ * Constraints (per QBO):
+ *   - `changedSince` must be within the last 30 days
+ *   - up to 10 entities per call
+ */
+export async function qboCdc(
+  conn: QboConnection,
+  entities: string[],
+  changedSince: string,             // ISO8601
+): Promise<Record<string, any[]>> {
+  const res = await qboFetch(conn, "cdc", {
+    query: { entities: entities.join(","), changedSince },
+  });
+  const out: Record<string, any[]> = {};
+  const qrArr = res?.CDCResponse?.[0]?.QueryResponse ?? [];
+  for (const qr of qrArr) {
+    for (const k of Object.keys(qr)) {
+      if (Array.isArray(qr[k])) out[k] = qr[k];
+    }
+  }
+  return out;
+}
+
 /** Execute a QBO SQL-like query via the /query endpoint. Handles pagination. */
 export async function qboQuery(
   conn: QboConnection,

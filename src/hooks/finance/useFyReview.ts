@@ -152,6 +152,65 @@ interface EstimateLine {
   };
 }
 
+// Per-invoice-line view of qbo_invoices.line_items joined with the
+// invoice_line_recognition annotation overlay. Source: SQL view
+// `invoice_lines_with_recognition`.
+export interface InvoiceLineWithRecognition {
+  qbo_invoice_id: string;
+  doc_number: string | null;
+  customer_qbo_id: string | null;
+  txn_date: string;
+  invoice_total: number;
+  invoice_balance: number | null;
+  invoice_status: string | null;
+  currency: string | null;
+
+  qbo_line_id: string;
+  line_num: number | null;
+  item_ref: string | null;
+  description: string | null;
+  amount: number;
+  detail_type: string | null;
+
+  // overlay (null until annotated)
+  line_type: "SUB" | "SVC" | "OTHER" | null;
+  recog_start: string | null;
+  recog_end: string | null;
+  recog_method: "straight_line" | "on_receipt" | "milestone" | null;
+  contract_code: string | null;
+  notes: string | null;
+  annotated_at: string | null;
+  reviewed_at: string | null;
+  accepted_as_adjustment: boolean;
+  is_annotated: boolean;
+  is_reviewed: boolean;
+}
+
+// Auto-classify a line type from QBO ItemRef name. User can override.
+export function classifyLineType(itemRef: string | null | undefined): "SUB" | "SVC" | "OTHER" {
+  const name = itemRef ?? "";
+  if (name.startsWith("Software:")) return "SUB";
+  if (name.startsWith("Professional Services:")) return "SVC";
+  return "OTHER";
+}
+
+// Singleton config for recognition JE generation. Six account refs (3
+// deferred + 3 revenue) since ThinkVAL maintains separate deferred/revenue
+// accounts for SUB and SVC.
+export interface FyAccountConfig {
+  id: 1;
+  deferred_sub_account_qbo_id: string | null;
+  deferred_svc_account_qbo_id: string | null;
+  deferred_other_account_qbo_id: string | null;
+  revenue_sub_account_qbo_id: string | null;
+  revenue_svc_account_qbo_id: string | null;
+  revenue_other_account_qbo_id: string | null;
+  je_memo_prefix: string;
+  je_doc_number_template: string;
+  notes: string | null;
+  updated_at: string;
+}
+
 function deriveLineTotals(est: QboEstimate): Pick<Contract, "net_total" | "tax_total" | "sub_net" | "svc_net" | "other_net"> {
   const lines = (est.line_items as EstimateLine[] | null) ?? [];
   let netTotal = 0, subNet = 0, svcNet = 0, otherNet = 0;
@@ -449,7 +508,689 @@ export function useOrderforms() {
   });
 }
 
+// ─── Invoice line recognition ─────────────────────────────────────────────
+
+export function useInvoiceLinesWithRecognition(opts?: {
+  startDate?: string;       // filter by invoice txn_date >= startDate
+  endDate?: string;         // filter by invoice txn_date <= endDate
+  onlyUnannotated?: boolean;
+}) {
+  return useQuery({
+    queryKey: [
+      ...financeKeys.all,
+      "invoice-lines-recognition",
+      opts?.startDate ?? "all",
+      opts?.endDate ?? "all",
+      opts?.onlyUnannotated ? "unann" : "all",
+    ],
+    queryFn: async (): Promise<InvoiceLineWithRecognition[]> => {
+      const supabase = getSupabaseClient();
+      return await fetchAllPages<InvoiceLineWithRecognition>(() => {
+        let q = supabase
+          .from("invoice_lines_with_recognition")
+          .select("*")
+          .order("txn_date", { ascending: false })
+          .order("line_num", { ascending: true });
+        if (opts?.startDate) q = q.gte("txn_date", opts.startDate);
+        if (opts?.endDate) q = q.lte("txn_date", opts.endDate);
+        if (opts?.onlyUnannotated) q = q.eq("is_annotated", false);
+        return q;
+      });
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useUpsertInvoiceLineRecognition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      qbo_invoice_id: string;
+      qbo_line_id: string;
+      line_type?: "SUB" | "SVC" | "OTHER";
+      recog_start?: string | null;
+      recog_end?: string | null;
+      recog_method?: "straight_line" | "on_receipt" | "milestone";
+      contract_code?: string | null;
+      notes?: string | null;
+    }) => {
+      const supabase = getSupabaseClient();
+      const row: Record<string, unknown> = {
+        qbo_invoice_id: input.qbo_invoice_id,
+        qbo_line_id: input.qbo_line_id,
+        annotated_at: new Date().toISOString(),
+      };
+      // line_type is required by the table; on insert default to OTHER unless caller provides one.
+      row.line_type = input.line_type ?? "OTHER";
+      if (input.recog_start !== undefined) row.recog_start = input.recog_start;
+      if (input.recog_end !== undefined) row.recog_end = input.recog_end;
+      if (input.recog_method !== undefined) row.recog_method = input.recog_method;
+      if (input.contract_code !== undefined) row.contract_code = input.contract_code;
+      if (input.notes !== undefined) row.notes = input.notes;
+
+      const { data, error } = await supabase
+        .from("invoice_line_recognition")
+        .upsert(row, { onConflict: "qbo_invoice_id,qbo_line_id" })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "invoice-lines-recognition"] });
+    },
+  });
+}
+
+// ─── Recognition JEs (parsed from qbo_journal_entries memo) ──────────────
+
+// Memo convention: ^(prefix)-(SUB|SVC|OTHER)-(period_index)$ where prefix is
+// the invoice doc_number (or legacy orderform code; usually identical).
+//
+// `prefix`/`type`/`period_index` may be null when the doc_number doesn't
+// match the convention (typo, manual JE, legacy posting). Such JEs are still
+// returned so the matcher can fuzzy-attribute them by customer + date +
+// amount.
+export interface ParsedRecognitionJe {
+  qbo_id: string;
+  doc_number: string;
+  txn_date: string;
+  prefix: string | null;      // captured if doc_number matched the convention
+  type: "SUB" | "SVC" | "OTHER" | null;
+  period_index: number | null;
+  amount: number;             // recognised amount (lines[0].Amount)
+  // Human-readable memo. Prefer the first line's Description (that's where
+  // tv-client writes the rich "INV X · Item · Mon YYYY · period N of M"
+  // string when creating JEs); fall back to the JE-level PrivateNote.
+  description: string | null;
+  customer_qbo_id: string | null;
+  customer_name: string | null;
+  dr_account_qbo_id: string | null;
+  cr_account_qbo_id: string | null;
+}
+
+// Loosened: case-insensitive, multi-segment prefix (e.g. "1065-1-SUB-1").
+const RECOG_DOC_RE = /^(\d+(?:-\d+)*)-(SUB|SVC|OTHER)-(\d+)$/i;
+
+interface QboJeRow {
+  qbo_id: string;
+  doc_number: string | null;
+  txn_date: string;
+  total_amount: number | null;
+  lines: unknown;
+  private_note: string | null;
+}
+
+interface QboJeLine {
+  Amount?: number | string;
+  Description?: string;
+  JournalEntryLineDetail?: {
+    PostingType?: string;
+    Entity?: { EntityRef?: { value?: string; name?: string } };
+    AccountRef?: { value?: string; name?: string };
+  };
+}
+
+function parseRecognitionJe(je: QboJeRow): ParsedRecognitionJe {
+  const doc = je.doc_number ?? "";
+  const m = doc.match(RECOG_DOC_RE);
+  const lines = (je.lines as QboJeLine[] | null) ?? [];
+  let amount = 0;
+  let drAccount: string | null = null;
+  let crAccount: string | null = null;
+  let customerId: string | null = null;
+  let customerName: string | null = null;
+  let description: string | null = null;
+  for (const l of lines) {
+    const det = l.JournalEntryLineDetail;
+    if (!det) continue;
+    const a = Number(l.Amount ?? 0);
+    if (det.PostingType === "Debit") {
+      drAccount = drAccount ?? det.AccountRef?.value ?? null;
+      if (a > amount) amount = a;
+    } else if (det.PostingType === "Credit") {
+      crAccount = crAccount ?? det.AccountRef?.value ?? null;
+    }
+    const ent = det.Entity?.EntityRef;
+    if (!customerId && ent?.value) {
+      customerId = ent.value;
+      customerName = ent.name ?? null;
+    }
+    if (!description && l.Description) description = l.Description;
+  }
+  // Prefer a line-level Description (that's where our rich memo lives).
+  // If QBO stripped or legacy JEs don't have one, fall back to the JE's
+  // PrivateNote, which we also set on create.
+  if (!description && je.private_note) description = je.private_note;
+  return {
+    qbo_id: je.qbo_id,
+    doc_number: doc,
+    txn_date: je.txn_date,
+    prefix: m ? m[1] : null,
+    type: m ? (m[2].toUpperCase() as "SUB" | "SVC" | "OTHER") : null,
+    period_index: m ? parseInt(m[3], 10) : null,
+    amount,
+    description,
+    customer_qbo_id: customerId,
+    customer_name: customerName,
+    dr_account_qbo_id: drAccount,
+    cr_account_qbo_id: crAccount,
+  };
+}
+
+// Fetch ALL journal entries in range (not just the regex-matching ones) so the
+// matcher has a full candidate pool for fuzzy attribution by customer + date +
+// amount. Caller filters out non-recognition JEs by checking accounts/amount.
+// Supabase's hosted PostgREST enforces a server-side `db-max-rows = 1000`
+// hard cap per request — asking for `.range(0, 99999)` still returns at
+// most 1000 rows. We paginate in 1000-row chunks until we drain the table.
+// `build` returns a Supabase query builder; we call `.range` on each page.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+async function fetchAllPages<T>(build: () => any): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build().range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as T[];
+    out.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return out;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+export function useFyRecognitionJes(opts?: { startDate?: string; endDate?: string; alwaysIncludeIds?: string[] }) {
+  const extraIds = [...(opts?.alwaysIncludeIds ?? [])].sort();
+  return useQuery({
+    queryKey: [...financeKeys.all, "fy-recognition-jes", opts?.startDate ?? "all", opts?.endDate ?? "all", extraIds],
+    queryFn: async (): Promise<ParsedRecognitionJe[]> => {
+      const supabase = getSupabaseClient();
+      const rows = await fetchAllPages<QboJeRow>(() => {
+        let q = supabase
+          .from("qbo_journal_entries")
+          .select("qbo_id, doc_number, txn_date, total_amount, lines, private_note")
+          .order("txn_date", { ascending: true });
+        if (opts?.startDate) q = q.gte("txn_date", opts.startDate);
+        if (opts?.endDate) q = q.lte("txn_date", opts.endDate);
+        return q;
+      });
+
+      // Second fetch: JEs that MUST appear regardless of the date window —
+      // typically JEs with an explicit user override or a reviewed-line
+      // matched_je_id. Without this, narrowing the period filter can hide
+      // JEs the user has already manually attributed.
+      const seen = new Set(rows.map((r) => r.qbo_id));
+      const missing = extraIds.filter((id) => !seen.has(id));
+      if (missing.length > 0) {
+        const { data: extra, error: extraErr } = await supabase
+          .from("qbo_journal_entries")
+          .select("qbo_id, doc_number, txn_date, total_amount, lines, private_note")
+          .in("qbo_id", missing);
+        if (extraErr) throw new Error(extraErr.message);
+        rows.push(...((extra ?? []) as QboJeRow[]));
+      }
+      return rows.map(parseRecognitionJe);
+    },
+    staleTime: 60_000,
+  });
+}
+
+// Index parsed JEs into a lookup: prefix → type → period_index → JE.
+// Only includes JEs whose doc_number matched the recognition convention.
+export function indexRecognitionJes(jes: ParsedRecognitionJe[]): Map<string, Map<string, Map<number, ParsedRecognitionJe>>> {
+  const idx = new Map<string, Map<string, Map<number, ParsedRecognitionJe>>>();
+  for (const j of jes) {
+    if (!j.prefix || !j.type || j.period_index == null) continue;
+    let byType = idx.get(j.prefix);
+    if (!byType) {
+      byType = new Map();
+      idx.set(j.prefix, byType);
+    }
+    let byPeriod = byType.get(j.type);
+    if (!byPeriod) {
+      byPeriod = new Map();
+      byType.set(j.type, byPeriod);
+    }
+    byPeriod.set(j.period_index, j);
+  }
+  return idx;
+}
+
+// ─── JE → invoice line manual overrides ───────────────────────────────────
+
+export interface JeOverride {
+  qbo_je_id: string;
+  qbo_invoice_id: string | null;
+  qbo_line_id: string | null;
+  notes: string | null;
+  updated_at: string;
+}
+
+export function useJeOverrides() {
+  return useQuery({
+    queryKey: [...financeKeys.all, "je-overrides"],
+    queryFn: async (): Promise<JeOverride[]> => {
+      const supabase = getSupabaseClient();
+      // Paginate past Supabase's server-enforced 1000-row cap — users with
+      // many reassignments were losing overrides mid-list, making the
+      // matcher look like it was "re-running allocation" after they'd
+      // manually pinned things.
+      return await fetchAllPages<JeOverride>(() =>
+        supabase.from("je_invoice_line_overrides").select("*"),
+      );
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useUpsertJeOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      qbo_je_id: string;
+      qbo_invoice_id: string | null;
+      qbo_line_id: string | null;
+      notes?: string | null;
+    }) => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from("je_invoice_line_overrides")
+        .upsert(input, { onConflict: "qbo_je_id" })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      return data as JeOverride;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "je-overrides"] });
+    },
+  });
+}
+
+export function useDeleteJeOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (qbo_je_id: string) => {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase
+        .from("je_invoice_line_overrides")
+        .delete()
+        .eq("qbo_je_id", qbo_je_id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "je-overrides"] });
+    },
+  });
+}
+
+// ─── Invoice line review (lock-in JE attribution) ────────────────────────
+
+// Lock in an invoice line's current JE attribution:
+//   1. Upsert the invoice_line_recognition row with reviewed_at = now()
+//      (creating it with the effective line_type if it didn't exist)
+//   2. For each currently-matched JE, upsert an override row pointing to
+//      this line. That makes the attribution authoritative and prevents the
+//      auto-matcher from moving those JEs to other invoices later.
+export function useReviewInvoiceLine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      qbo_invoice_id: string;
+      qbo_line_id: string;
+      line_type: "SUB" | "SVC" | "OTHER";
+      matched_je_ids: string[];
+    }) => {
+      const supabase = getSupabaseClient();
+      const now = new Date().toISOString();
+
+      // 1. Upsert the ILR row, setting reviewed_at. Default-on-insert fields
+      // let us create the row if it didn't exist yet.
+      const ilrRes = await supabase
+        .from("invoice_line_recognition")
+        .upsert(
+          {
+            qbo_invoice_id: input.qbo_invoice_id,
+            qbo_line_id: input.qbo_line_id,
+            line_type: input.line_type,
+            reviewed_at: now,
+          },
+          { onConflict: "qbo_invoice_id,qbo_line_id" },
+        );
+      if (ilrRes.error) throw new Error(ilrRes.error.message);
+
+      // 2. Upsert overrides for each currently-matched JE
+      if (input.matched_je_ids.length > 0) {
+        const rows = input.matched_je_ids.map((id) => ({
+          qbo_je_id: id,
+          qbo_invoice_id: input.qbo_invoice_id,
+          qbo_line_id: input.qbo_line_id,
+        }));
+        const ovRes = await supabase
+          .from("je_invoice_line_overrides")
+          .upsert(rows, { onConflict: "qbo_je_id" });
+        if (ovRes.error) throw new Error(ovRes.error.message);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "invoice-lines-recognition"] });
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "je-overrides"] });
+    },
+  });
+}
+
+// Unlock: clear reviewed_at and remove any overrides pointing to this line.
+// The auto-matcher will re-attribute on next render.
+export function useUnreviewInvoiceLine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { qbo_invoice_id: string; qbo_line_id: string }) => {
+      const supabase = getSupabaseClient();
+
+      const ilrRes = await supabase
+        .from("invoice_line_recognition")
+        .update({ reviewed_at: null, reviewed_by: null })
+        .eq("qbo_invoice_id", input.qbo_invoice_id)
+        .eq("qbo_line_id", input.qbo_line_id);
+      if (ilrRes.error) throw new Error(ilrRes.error.message);
+
+      const ovRes = await supabase
+        .from("je_invoice_line_overrides")
+        .delete()
+        .eq("qbo_invoice_id", input.qbo_invoice_id)
+        .eq("qbo_line_id", input.qbo_line_id);
+      if (ovRes.error) throw new Error(ovRes.error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "invoice-lines-recognition"] });
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "je-overrides"] });
+    },
+  });
+}
+
+// Upsert the accepted_as_adjustment flag. Inserts a bare invoice_line_recognition
+// row if one doesn't already exist (with line_type defaulted to OTHER; caller
+// doesn't need to know its classification since adjustment lines aren't
+// expected to generate JEs).
+
+export function useSetInvoiceLineAdjustment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      qbo_invoice_id: string;
+      qbo_line_id: string;
+      line_type: "SUB" | "SVC" | "OTHER";   // used only on insert
+      accepted: boolean;
+    }) => {
+      const supabase = getSupabaseClient();
+
+      // Try updating first so we don't clobber an existing line_type.
+      const upd = await supabase
+        .from("invoice_line_recognition")
+        .update({
+          accepted_as_adjustment: input.accepted,
+          annotated_at: new Date().toISOString(),
+        })
+        .eq("qbo_invoice_id", input.qbo_invoice_id)
+        .eq("qbo_line_id", input.qbo_line_id)
+        .select("qbo_invoice_id");
+      if (upd.error) throw new Error(upd.error.message);
+      if ((upd.data?.length ?? 0) > 0) return;
+
+      // No row → insert.
+      const ins = await supabase
+        .from("invoice_line_recognition")
+        .insert({
+          qbo_invoice_id: input.qbo_invoice_id,
+          qbo_line_id: input.qbo_line_id,
+          line_type: input.line_type,
+          accepted_as_adjustment: input.accepted,
+          annotated_at: new Date().toISOString(),
+        });
+      if (ins.error) throw new Error(ins.error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "invoice-lines-recognition"] });
+    },
+  });
+}
+
+// ─── Recognition account config (singleton) ──────────────────────────────
+
+export function useFyAccountConfig() {
+  return useQuery({
+    queryKey: [...financeKeys.all, "fy-account-config"],
+    queryFn: async (): Promise<FyAccountConfig | null> => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from("fy_account_config")
+        .select("*")
+        .eq("id", 1)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return (data ?? null) as FyAccountConfig | null;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useUpsertFyAccountConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Partial<Omit<FyAccountConfig, "id" | "updated_at">>) => {
+      const supabase = getSupabaseClient();
+      const row: Record<string, unknown> = { id: 1 };
+      for (const [k, v] of Object.entries(input)) {
+        if (v !== undefined) row[k] = v;
+      }
+      const { data, error } = await supabase
+        .from("fy_account_config")
+        .upsert(row, { onConflict: "id" })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      return data as FyAccountConfig;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...financeKeys.all, "fy-account-config"] });
+    },
+  });
+}
+
 // ─── Actions (edge function invocations via Supabase client) ──────────────
+
+// Push a batch of recognition JEs to QuickBooks via the qbo-create-journal-entry
+// edge function. Returns per-entry results so the UI can show which succeeded
+// and surface QBO IDs / errors.
+export interface CreateJeEntry {
+  doc_number: string;
+  txn_date: string;
+  description: string;
+  amount: number;
+  dr_account_qbo_id: string;
+  cr_account_qbo_id: string;
+  customer_qbo_id: string;
+  currency?: string;
+}
+
+export interface CreateJeResult {
+  doc_number: string;
+  success: boolean;
+  qbo_id?: string;
+  sync_token?: string;
+  error?: string;
+}
+
+export interface CreateJeBatchResponse {
+  results: CreateJeResult[];
+  created: number;
+  failed: number;
+}
+
+export function useCreateJournalEntries() {
+  const qc = useQueryClient();
+  return useMutation<CreateJeBatchResponse, Error, CreateJeEntry[]>({
+    mutationFn: async (entries) => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.functions.invoke("qbo-create-journal-entry", {
+        body: { entries, triggered_by: "tv-client" },
+      });
+      if (error) throw new Error(error.message);
+      return data as CreateJeBatchResponse;
+    },
+    onSuccess: () => {
+      // New JEs in qbo_journal_entries → invalidate the matcher's data source.
+      qc.invalidateQueries({ queryKey: financeKeys.all });
+    },
+  });
+}
+
+export interface UpdateJeDocNumberResult {
+  success: boolean;
+  qbo_id?: string;
+  sync_token?: string;
+  doc_number?: string;
+  error?: string;
+}
+
+export interface UpdateJeAmountResult {
+  success: boolean;
+  qbo_id?: string;
+  sync_token?: string;
+  amount?: number;
+  error?: string;
+}
+
+export function useUpdateJeAmount() {
+  const qc = useQueryClient();
+  return useMutation<UpdateJeAmountResult, Error, { qbo_id: string; amount: number }>({
+    mutationFn: async (input) => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.functions.invoke("qbo-update-je-amount", {
+        body: input,
+      });
+      if (error) throw new Error(error.message);
+      return data as UpdateJeAmountResult;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: financeKeys.all });
+    },
+  });
+}
+
+export interface SyncInvoiceResult {
+  success: boolean;
+  invoice_synced?: number;
+  je_synced?: number;
+  je_deleted?: number;
+  error?: string;
+}
+
+export function useSyncInvoice() {
+  const qc = useQueryClient();
+  return useMutation<SyncInvoiceResult, Error, { doc_number: string }>({
+    mutationFn: async (input) => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.functions.invoke("qbo-sync-invoice", {
+        body: input,
+      });
+      if (error) throw new Error(error.message);
+      return data as SyncInvoiceResult;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: financeKeys.all });
+    },
+  });
+}
+
+export interface DeleteJeResult {
+  success: boolean;
+  qbo_id?: string;
+  error?: string;
+}
+
+export interface DeleteInvoiceResult {
+  success: boolean;
+  qbo_id?: string;
+  error?: string;
+}
+
+export function useDeleteInvoice() {
+  const qc = useQueryClient();
+  return useMutation<DeleteInvoiceResult, Error, { qbo_id: string }>({
+    mutationFn: async (input) => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.functions.invoke("qbo-delete-invoice", {
+        body: input,
+      });
+      if (error) throw new Error(error.message);
+      return data as DeleteInvoiceResult;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: financeKeys.all });
+    },
+  });
+}
+
+export function useDeleteJe() {
+  const qc = useQueryClient();
+  return useMutation<DeleteJeResult, Error, { qbo_id: string }>({
+    mutationFn: async (input) => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.functions.invoke("qbo-delete-journal-entry", {
+        body: input,
+      });
+      if (error) throw new Error(error.message);
+      return data as DeleteJeResult;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: financeKeys.all });
+    },
+  });
+}
+
+export interface UpdateJeTxnDateResult {
+  success: boolean;
+  qbo_id?: string;
+  sync_token?: string;
+  txn_date?: string;
+  error?: string;
+}
+
+export function useUpdateJeTxnDate() {
+  const qc = useQueryClient();
+  return useMutation<UpdateJeTxnDateResult, Error, { qbo_id: string; txn_date: string }>({
+    mutationFn: async (input) => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.functions.invoke("qbo-update-je-txndate", {
+        body: input,
+      });
+      if (error) throw new Error(error.message);
+      return data as UpdateJeTxnDateResult;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: financeKeys.all });
+    },
+  });
+}
+
+export function useUpdateJeDocNumber() {
+  const qc = useQueryClient();
+  return useMutation<UpdateJeDocNumberResult, Error, { qbo_id: string; doc_number: string }>({
+    mutationFn: async (input) => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.functions.invoke("qbo-update-je-docnumber", {
+        body: input,
+      });
+      if (error) throw new Error(error.message);
+      return data as UpdateJeDocNumberResult;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: financeKeys.all });
+    },
+  });
+}
 
 export function useFyCaptureSnapshot() {
   const qc = useQueryClient();
