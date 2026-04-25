@@ -1,13 +1,26 @@
 // src/modules/public-data/JobReviewsView.tsx
 // Browse MCF job postings, filter, review, and add companies to CRM
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
+import { AgGridReact } from "ag-grid-react";
+import {
+  ColDef,
+  ModuleRegistry,
+  AllCommunityModule,
+  GetRowIdParams,
+} from "ag-grid-community";
+import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
+import { useAppStore } from "../../stores/appStore";
+import { themeStyles } from "../domains/reviewGridStyles";
 import {
   Search,
   Loader2,
   ExternalLink,
   Building2,
   ChevronDown,
+  ChevronRight,
   X,
   Save,
   Trash2,
@@ -16,8 +29,14 @@ import {
   Eye,
   SkipForward,
   UserPlus,
-  Check,
   Sparkles,
+  Layers,
+  Circle,
+  Bookmark,
+  Maximize2,
+  RotateCcw,
+  ChevronsLeftRight,
+  Star,
 } from "lucide-react";
 import { useAuth } from "../../stores/authStore";
 import {
@@ -47,6 +66,13 @@ import {
   REVIEW_STATUS_CONFIG,
 } from "../../lib/public-data/types";
 
+// Register AG Grid modules (idempotent)
+ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
+
+if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
+  LicenseManager.setLicenseKey(import.meta.env.VITE_AG_GRID_LICENSE_KEY);
+}
+
 // ─── Main View ─────────────────────────────────────────
 
 export function JobReviewsView() {
@@ -58,6 +84,15 @@ export function JobReviewsView() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [smartSearch, setSmartSearch] = useState(false);
   const [semanticQuery, setSemanticQuery] = useState("");
+
+  // Grid imperative handle + view state (lifted so the filter bar can drive layouts/fullscreen)
+  const gridHandleRef = useRef<JobsGridHandle>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && isFullscreen) setIsFullscreen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isFullscreen]);
 
   // Standard paginated search
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
@@ -104,7 +139,10 @@ export function JobReviewsView() {
   }, [fetchNextPage, hasNextPage, isFetchingNextPage, smartSearch]);
 
   return (
-    <div className="flex h-full">
+   <div className="h-full flex overflow-hidden px-4 py-4">
+    <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
+      <JobsSidebar filters={filters} onChange={setFilters} />
+
       {/* Left: filter bar + list */}
       <div className="flex-1 flex flex-col min-w-0 border-r border-zinc-200 dark:border-zinc-800">
         <JobsFilterBar
@@ -117,13 +155,22 @@ export function JobReviewsView() {
           semanticQuery={semanticQuery}
           onSemanticQueryChange={setSemanticQuery}
           isSearching={isSemanticFetching}
+          gridHandleRef={gridHandleRef}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
         />
-        <div className="flex-1 overflow-y-auto">
+        <div className="px-4 py-1.5 text-[11px] text-zinc-400 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
           {loading ? (
-            <div className="flex items-center justify-center h-64 text-zinc-400">
-              <Loader2 size={20} className="animate-spin" />
-            </div>
-          ) : filteredJobs.length === 0 ? (
+            <Loader2 size={10} className="animate-spin" />
+          ) : (
+            <>{filteredJobs.length}{smartSearch ? "" : "+"} results</>
+          )}
+          {smartSearch && isSemanticFetching && (
+            <Loader2 size={10} className="animate-spin" />
+          )}
+        </div>
+        <div className="flex-1 min-h-0">
+          {!loading && filteredJobs.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-400">
               <Briefcase size={32} className="mb-2" />
               <p className="text-sm">
@@ -138,35 +185,18 @@ export function JobReviewsView() {
               </p>
             </div>
           ) : (
-            <>
-              <div className="px-4 py-1.5 text-[11px] text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
-                {filteredJobs.length}{smartSearch ? "" : "+"} results
-                {smartSearch && isSemanticFetching && (
-                  <Loader2 size={10} className="inline animate-spin ml-1" />
-                )}
-              </div>
-              {filteredJobs.map((job) => (
-                <JobRow
-                  key={job.id}
-                  job={job}
-                  selected={job.mcf_uuid === selectedMcfUuid}
-                  reviewed={reviewedIds?.has(job.mcf_uuid)}
-                  similarity={"similarity" in job ? (job as SemanticSearchResult).similarity : undefined}
-                  onClick={() =>
-                    setSelectedMcfUuid(
-                      job.mcf_uuid === selectedMcfUuid ? null : job.mcf_uuid
-                    )
-                  }
-                />
-              ))}
-              {!smartSearch && (
-                <div ref={sentinelRef} className="h-12 flex items-center justify-center">
-                  {isFetchingNextPage && (
-                    <Loader2 size={16} className="animate-spin text-zinc-400" />
-                  )}
-                </div>
-              )}
-            </>
+            <JobsGrid
+              ref={gridHandleRef}
+              jobs={filteredJobs}
+              reviewedIds={reviewedIds}
+              selectedMcfUuid={selectedMcfUuid}
+              onSelectJob={(uuid) =>
+                setSelectedMcfUuid(uuid === selectedMcfUuid ? null : uuid)
+              }
+              sentinelRef={!smartSearch ? sentinelRef : undefined}
+              isFetchingNextPage={isFetchingNextPage}
+              isFullscreen={isFullscreen}
+            />
           )}
         </div>
       </div>
@@ -189,6 +219,7 @@ export function JobReviewsView() {
         />
       )}
     </div>
+   </div>
   );
 }
 
@@ -204,6 +235,9 @@ function JobsFilterBar({
   semanticQuery,
   onSemanticQueryChange,
   isSearching,
+  gridHandleRef,
+  isFullscreen,
+  onToggleFullscreen,
 }: {
   filters: JobFilters;
   onChange: (f: JobFilters) => void;
@@ -214,11 +248,68 @@ function JobsFilterBar({
   semanticQuery: string;
   onSemanticQueryChange: (q: string) => void;
   isSearching: boolean;
+  gridHandleRef: React.RefObject<JobsGridHandle | null>;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
 }) {
   const { data: savedFilters = [] } = useSavedFilters();
   const deleteFilter = useDeleteSavedFilter();
   const [searchInput, setSearchInput] = useState(filters.search || "");
   const [smartInput, setSmartInput] = useState(semanticQuery);
+
+  // Layouts state — local to the bar, persisted in localStorage
+  const LAYOUTS_KEY = "tv-jobs-grid-layouts";
+  const DEFAULT_LAYOUT_KEY = "tv-jobs-grid-default-layout";
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  const [savedLayouts, setSavedLayouts] = useState<Record<string, object>>(() => {
+    try { return JSON.parse(localStorage.getItem(LAYOUTS_KEY) || "{}"); } catch { return {}; }
+  });
+  const [defaultLayoutName, setDefaultLayoutName] = useState<string | null>(() =>
+    localStorage.getItem(DEFAULT_LAYOUT_KEY)
+  );
+  const persistLayouts = (next: Record<string, object>) => {
+    setSavedLayouts(next);
+    localStorage.setItem(LAYOUTS_KEY, JSON.stringify(next));
+  };
+  const saveCurrentLayout = (name: string) => {
+    const api = gridHandleRef.current?.getApi();
+    if (!api || !name.trim()) return;
+    persistLayouts({
+      ...savedLayouts,
+      [name.trim()]: { columnState: api.getColumnState(), filterModel: api.getFilterModel() },
+    });
+  };
+  const loadLayout = (name: string) => {
+    const api = gridHandleRef.current?.getApi();
+    const layout = savedLayouts[name] as { columnState?: unknown; filterModel?: Record<string, unknown> } | undefined;
+    if (!api || !layout?.columnState) return;
+    api.applyColumnState({ state: layout.columnState as never, applyOrder: true });
+    if (layout.filterModel) api.setFilterModel(layout.filterModel);
+    setShowLayoutMenu(false);
+  };
+  const deleteLayout = (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = { ...savedLayouts };
+    delete next[name];
+    persistLayouts(next);
+    if (defaultLayoutName === name) {
+      setDefaultLayoutName(null);
+      localStorage.removeItem(DEFAULT_LAYOUT_KEY);
+    }
+  };
+  const toggleDefaultLayout = (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = defaultLayoutName === name ? null : name;
+    setDefaultLayoutName(next);
+    if (next) localStorage.setItem(DEFAULT_LAYOUT_KEY, next); else localStorage.removeItem(DEFAULT_LAYOUT_KEY);
+  };
+  const autoSizeAll = () => gridHandleRef.current?.getApi()?.autoSizeAllColumns();
+  const resetLayout = () => {
+    const api = gridHandleRef.current?.getApi();
+    if (!api) return;
+    api.resetColumnState();
+    api.setFilterModel(null);
+  };
 
   const handleSearchSubmit = () => {
     onChange({ ...filters, search: searchInput || undefined });
@@ -229,7 +320,7 @@ function JobsFilterBar({
   };
 
   return (
-    <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2">
+    <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 space-y-1.5">
       {/* Row 1: Search + smart toggle + saved filters + save */}
       <div className="flex items-center gap-2">
         {/* Smart search toggle */}
@@ -251,12 +342,12 @@ function JobsFilterBar({
         <div className="relative flex-1">
           {isSearching ? (
             <Loader2
-              size={14}
+              size={13}
               className="absolute left-2.5 top-1/2 -translate-y-1/2 text-violet-500 animate-spin"
             />
           ) : (
             <Search
-              size={14}
+              size={13}
               className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${
                 smartSearch ? "text-violet-400" : "text-zinc-400"
               }`}
@@ -269,7 +360,7 @@ function JobsFilterBar({
               value={smartInput}
               onChange={(e) => setSmartInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSmartSearchSubmit()}
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500 text-zinc-900 dark:text-zinc-100 placeholder-violet-400"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500 text-zinc-900 dark:text-zinc-100 placeholder-violet-400"
             />
           ) : (
             <input
@@ -279,7 +370,7 @@ function JobsFilterBar({
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearchSubmit()}
               onBlur={handleSearchSubmit}
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400"
             />
           )}
         </div>
@@ -328,41 +419,85 @@ function JobsFilterBar({
           <Save size={12} />
           Save
         </button>
+
+        {/* Layouts dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            title="Layouts & view options"
+          >
+            <Bookmark size={12} /> Layouts
+          </button>
+          {showLayoutMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowLayoutMenu(false)} />
+              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-md shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
+                <button onClick={() => { autoSizeAll(); setShowLayoutMenu(false); }} className="w-full px-3 py-1.5 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2">
+                  <ChevronsLeftRight size={12} /> Auto-fit Columns
+                </button>
+                <button onClick={() => { resetLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-1.5 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2">
+                  <RotateCcw size={12} /> Reset to Default
+                </button>
+                <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+                <button
+                  onClick={() => {
+                    const name = window.prompt("Layout name?");
+                    if (name?.trim()) saveCurrentLayout(name);
+                    setShowLayoutMenu(false);
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+                >
+                  <span className="text-green-600 dark:text-green-400">+</span> Save current layout...
+                </button>
+                {Object.keys(savedLayouts).length > 0 && (
+                  <>
+                    <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+                    <div className="px-3 py-1 text-[10px] font-medium text-zinc-500 uppercase tracking-wide">Saved</div>
+                    {Object.keys(savedLayouts).map((name) => (
+                      <div
+                        key={name}
+                        onClick={() => loadLayout(name)}
+                        className="w-full px-3 py-1.5 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group"
+                      >
+                        <span className="truncate flex items-center gap-1.5">
+                          {defaultLayoutName === name && <Star size={10} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
+                          {name}
+                        </span>
+                        <div className="flex items-center gap-0.5">
+                          <button onClick={(e) => toggleDefaultLayout(name, e)} className={`p-1 rounded ${defaultLayoutName === name ? "text-amber-500" : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500"}`} title={defaultLayoutName === name ? "Remove as default" : "Set as default"}>
+                            <Star size={10} className={defaultLayoutName === name ? "fill-amber-500" : ""} />
+                          </button>
+                          <button onClick={(e) => deleteLayout(name, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500" title="Delete layout">
+                            <X size={10} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Fullscreen */}
+        <button
+          onClick={onToggleFullscreen}
+          className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+            isFullscreen
+              ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+              : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+          }`}
+          title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
+        >
+          {isFullscreen ? <X size={12} /> : <Maximize2 size={12} />}
+        </button>
       </div>
 
-      {/* Row 2: Filter chips */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <MultiSelectChips
-          label="Industry"
-          options={INDUSTRY_TAG_OPTIONS}
-          selected={filters.industry_tag || []}
-          onChange={(v) => onChange({ ...filters, industry_tag: v.length ? v : undefined })}
-        />
-        <MultiSelectChips
-          label="Role"
-          options={ROLE_CATEGORY_OPTIONS}
-          selected={filters.role_category || []}
-          onChange={(v) => onChange({ ...filters, role_category: v.length ? v : undefined })}
-        />
-
-        <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-700 mx-1" />
-
-        {/* Unreviewed toggle */}
-        <button
-          onClick={() =>
-            onChange({ ...filters, unreviewed_only: !filters.unreviewed_only })
-          }
-          className={`px-2 py-0.5 text-[11px] font-medium rounded-full transition-colors ${
-            filters.unreviewed_only
-              ? "bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300"
-              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-          }`}
-        >
-          Unreviewed only
-        </button>
-
-        {/* Clear all */}
-        {Object.keys(filters).length > 0 && (
+      {/* Row 2: Clear all */}
+      {Object.keys(filters).length > 0 && (
+        <div className="flex items-center">
           <button
             onClick={() => {
               onChange({});
@@ -370,183 +505,422 @@ function JobsFilterBar({
             }}
             className="px-2 py-0.5 text-[11px] font-medium text-red-500 hover:text-red-600 rounded-full"
           >
-            Clear all
+            Clear all filters
           </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Multi-Select Chip Dropdown ────────────────────────
-
-function MultiSelectChips({
-  label,
-  options,
-  selected,
-  onChange,
-}: {
-  label: string;
-  options: Record<string, string>;
-  selected: string[];
-  onChange: (v: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  const toggle = (key: string) => {
-    onChange(
-      selected.includes(key)
-        ? selected.filter((s) => s !== key)
-        : [...selected, key]
-    );
-  };
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full transition-colors ${
-          selected.length > 0
-            ? "bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300"
-            : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-        }`}
-      >
-        {label}
-        {selected.length > 0 && (
-          <span className="bg-teal-600 text-white text-[9px] rounded-full px-1 min-w-[14px] text-center">
-            {selected.length}
-          </span>
-        )}
-        <ChevronDown size={10} />
-      </button>
-
-      {open && (
-        <div className="absolute left-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
-          {Object.entries(options).map(([key, display]) => (
-            <button
-              key={key}
-              onClick={() => toggle(key)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-            >
-              <div
-                className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
-                  selected.includes(key)
-                    ? "bg-teal-600 border-teal-600"
-                    : "border-zinc-300 dark:border-zinc-600"
-                }`}
-              >
-                {selected.includes(key) && <Check size={10} className="text-white" />}
-              </div>
-              <span className="text-zinc-700 dark:text-zinc-300">{display}</span>
-            </button>
-          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ─── Job Row ───────────────────────────────────────────
+// ─── Sidebar ───────────────────────────────────────────
 
-function JobRow({
-  job,
-  selected,
-  reviewed,
-  similarity,
-  onClick,
+type JobView = "all" | "unreviewed";
+const VIEW_DEFS: { id: JobView; label: string; icon: typeof Layers }[] = [
+  { id: "all",        label: "All",         icon: Layers },
+  { id: "unreviewed", label: "Unreviewed",  icon: Circle },
+];
+
+function JobsSidebar({
+  filters,
+  onChange,
 }: {
-  job: McfJobPosting;
-  selected: boolean;
-  reviewed?: boolean;
-  similarity?: number;
-  onClick: () => void;
+  filters: JobFilters;
+  onChange: (f: JobFilters) => void;
 }) {
-  const salaryText = formatSalary(job.salary_min, job.salary_max, job.salary_type);
+  const [openSections, setOpenSections] = useState<Set<string>>(() => new Set(["industry", "role"]));
+  const toggleSection = (s: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
+  };
+
+  const view: JobView = filters.unreviewed_only ? "unreviewed" : "all";
+  const setView = (v: JobView) => {
+    onChange({ ...filters, unreviewed_only: v === "unreviewed" ? true : undefined });
+  };
+
+  const selectedIndustry = filters.industry_tag?.[0];
+  const selectedRole = filters.role_category?.[0];
+  const hasSpecificIndustry = (filters.industry_tag?.length ?? 0) === 1;
+  const hasSpecificRole = (filters.role_category?.length ?? 0) === 1;
 
   return (
-    <div
-      onClick={onClick}
-      className={`px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 cursor-pointer transition-colors ${
-        selected
-          ? "bg-teal-50 dark:bg-teal-950/30"
-          : "hover:bg-zinc-50 dark:hover:bg-zinc-900"
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        {/* Review indicator */}
-        <div className="flex-shrink-0 mt-1">
-          {reviewed ? (
-            <div className="w-2 h-2 rounded-full bg-teal-500" />
-          ) : (
-            <div className="w-2 h-2 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {/* Title */}
-          <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
-            {job.title}
-          </div>
-
-          {/* Company */}
-          <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">
-            {job.company_name || "Unknown company"}
-            {job.company_employee_count && (
-              <span className="ml-2 text-zinc-400">
-                ({job.company_employee_count} employees)
-              </span>
-            )}
-          </div>
-
-          {/* Badges */}
-          <div className="flex flex-wrap gap-1 mt-1.5">
-            {job.industry_tag && (
-              <Badge color="amber">
-                {INDUSTRY_TAG_OPTIONS[job.industry_tag] || job.industry_tag}
-              </Badge>
-            )}
-            {job.role_category && (
-              <Badge color="teal">
-                {ROLE_CATEGORY_OPTIONS[job.role_category] || job.role_category}
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Salary + date + similarity */}
-        <div className="flex-shrink-0 text-right">
-          {similarity !== undefined && (
-            <div className="text-[10px] font-medium text-violet-600 dark:text-violet-400 mb-0.5">
-              {Math.round(similarity * 100)}% match
-            </div>
-          )}
-          {salaryText && (
-            <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {salaryText}
-            </div>
-          )}
-          <div className="text-[11px] text-zinc-400 mt-0.5">
-            {job.new_posting_date
-              ? new Date(job.new_posting_date).toLocaleDateString("en-SG", {
-                  day: "numeric",
-                  month: "short",
-                })
-              : ""}
-          </div>
+    <aside className="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
+      {/* View section */}
+      <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
+        <div className="space-y-0.5">
+          {VIEW_DEFS.map((v) => {
+            const Icon = v.icon;
+            const active = view === v.id;
+            return (
+              <button
+                key={v.id}
+                onClick={() => setView(v.id)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-[13px] ${
+                  active
+                    ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                }`}
+              >
+                <Icon size={13} />
+                {v.label}
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      {/* Industry + Role sections */}
+      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
+        <SidebarSection
+          title="Industry"
+          isOpen={openSections.has("industry")}
+          onToggle={() => toggleSection("industry")}
+        >
+          <SidebarRow
+            label="All industries"
+            active={!hasSpecificIndustry}
+            onClick={() => onChange({ ...filters, industry_tag: undefined })}
+          />
+          {Object.entries(INDUSTRY_TAG_OPTIONS).map(([key, label]) => (
+            <SidebarRow
+              key={key}
+              label={label}
+              active={hasSpecificIndustry && selectedIndustry === key}
+              onClick={() => onChange({ ...filters, industry_tag: [key] })}
+            />
+          ))}
+        </SidebarSection>
+
+        <SidebarSection
+          title="Role"
+          isOpen={openSections.has("role")}
+          onToggle={() => toggleSection("role")}
+        >
+          <SidebarRow
+            label="All roles"
+            active={!hasSpecificRole}
+            onClick={() => onChange({ ...filters, role_category: undefined })}
+          />
+          {Object.entries(ROLE_CATEGORY_OPTIONS).map(([key, label]) => (
+            <SidebarRow
+              key={key}
+              label={label}
+              active={hasSpecificRole && selectedRole === key}
+              onClick={() => onChange({ ...filters, role_category: [key] })}
+            />
+          ))}
+        </SidebarSection>
+      </div>
+    </aside>
+  );
+}
+
+function SidebarSection({
+  title,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+      >
+        {isOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        {title}
+      </button>
+      {isOpen && <div className="mt-0.5">{children}</div>}
     </div>
   );
 }
+
+function SidebarRow({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center pl-4 pr-2 py-1 rounded text-[12px] text-left truncate ${
+        active
+          ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+          : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+      }`}
+      title={label}
+    >
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+// ─── Jobs Grid ─────────────────────────────────────────
+
+interface JobsGridRow {
+  id: string;
+  mcf_uuid: string;
+  title: string;
+  company_name: string | null;
+  company_employee_count: string | null;
+  industry_label: string;
+  role_label: string;
+  salary: string;
+  posted: string;
+  postedTs: number;
+  reviewed: boolean;
+  similarity?: number;
+}
+
+export interface JobsGridHandle {
+  getApi: () => import("ag-grid-community").GridApi | undefined;
+}
+
+const JobsGrid = forwardRef<JobsGridHandle, {
+  jobs: McfJobPosting[];
+  reviewedIds: Set<string> | undefined;
+  selectedMcfUuid: string | null;
+  onSelectJob: (mcfUuid: string) => void;
+  sentinelRef?: React.Ref<HTMLDivElement>;
+  isFetchingNextPage: boolean;
+  isFullscreen: boolean;
+}>(function JobsGrid({
+  jobs,
+  reviewedIds,
+  selectedMcfUuid,
+  onSelectJob,
+  sentinelRef,
+  isFetchingNextPage,
+  isFullscreen,
+}, ref) {
+  const theme = useAppStore((s) => s.theme);
+  const gridRef = useRef<AgGridReact<JobsGridRow>>(null);
+
+  useImperativeHandle(ref, () => ({
+    getApi: () => gridRef.current?.api,
+  }), []);
+
+  const rowData = useMemo<JobsGridRow[]>(() => {
+    return jobs.map((j) => ({
+      id: j.id,
+      mcf_uuid: j.mcf_uuid,
+      title: j.title,
+      company_name: j.company_name,
+      company_employee_count: j.company_employee_count,
+      industry_label: j.industry_tag
+        ? INDUSTRY_TAG_OPTIONS[j.industry_tag] || j.industry_tag
+        : "",
+      role_label: j.role_category
+        ? ROLE_CATEGORY_OPTIONS[j.role_category] || j.role_category
+        : "",
+      salary: formatSalary(j.salary_min, j.salary_max, j.salary_type) || "",
+      posted: j.new_posting_date
+        ? new Date(j.new_posting_date).toLocaleDateString("en-SG", {
+            day: "numeric",
+            month: "short",
+          })
+        : "",
+      postedTs: j.new_posting_date ? new Date(j.new_posting_date).getTime() : 0,
+      reviewed: reviewedIds?.has(j.mcf_uuid) ?? false,
+      similarity:
+        "similarity" in j ? (j as SemanticSearchResult).similarity : undefined,
+    }));
+  }, [jobs, reviewedIds]);
+
+  const hasSimilarity = useMemo(
+    () => rowData.some((r) => r.similarity !== undefined),
+    [rowData],
+  );
+
+  const columnDefs = useMemo<ColDef<JobsGridRow>[]>(() => {
+    const cols: ColDef<JobsGridRow>[] = [
+      {
+        headerName: "",
+        field: "reviewed",
+        width: 36,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        cellClass: "flex items-center justify-center",
+        cellRenderer: (p: { value: boolean }) => (
+          <span
+            className={`inline-block w-2 h-2 rounded-full ${
+              p.value ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700"
+            }`}
+          />
+        ),
+      },
+      {
+        field: "title",
+        headerName: "Title",
+        flex: 2,
+        minWidth: 220,
+        filter: "agTextColumnFilter",
+        cellClass: "text-sm font-medium text-zinc-900 dark:text-zinc-100",
+      },
+      {
+        field: "company_name",
+        headerName: "Company",
+        flex: 1.5,
+        minWidth: 180,
+        filter: "agTextColumnFilter",
+        cellRenderer: (p: { value: string; data?: JobsGridRow }) => (
+          <span className="text-xs text-zinc-600 dark:text-zinc-400">
+            {p.value || "Unknown company"}
+            {p.data?.company_employee_count && (
+              <span className="ml-1 text-zinc-400">
+                ({p.data.company_employee_count})
+              </span>
+            )}
+          </span>
+        ),
+      },
+      {
+        field: "industry_label",
+        headerName: "Industry",
+        width: 140,
+        filter: "agSetColumnFilter",
+        cellRenderer: (p: { value: string }) =>
+          p.value ? (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+              {p.value}
+            </span>
+          ) : null,
+      },
+      {
+        field: "role_label",
+        headerName: "Role",
+        width: 160,
+        filter: "agSetColumnFilter",
+        cellRenderer: (p: { value: string }) =>
+          p.value ? (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400">
+              {p.value}
+            </span>
+          ) : null,
+      },
+      {
+        field: "salary",
+        headerName: "Salary",
+        width: 130,
+        filter: "agTextColumnFilter",
+        cellClass: "text-sm font-medium text-zinc-700 dark:text-zinc-300",
+      },
+      {
+        field: "postedTs",
+        headerName: "Posted",
+        width: 110,
+        sort: "desc",
+        filter: "agNumberColumnFilter",
+        valueFormatter: (p: { data?: JobsGridRow }) => p.data?.posted ?? "",
+        cellClass: "text-xs text-zinc-500 dark:text-zinc-400",
+      },
+    ];
+
+    if (hasSimilarity) {
+      cols.splice(1, 0, {
+        headerName: "Match",
+        field: "similarity",
+        width: 90,
+        sort: "desc",
+        cellRenderer: (p: { value: number | undefined }) =>
+          p.value !== undefined ? (
+            <span className="text-[11px] font-medium text-violet-600 dark:text-violet-400">
+              {Math.round(p.value * 100)}%
+            </span>
+          ) : null,
+      });
+    }
+
+    return cols;
+  }, [hasSimilarity]);
+
+  const defaultColDef = useMemo<ColDef>(
+    () => ({
+      sortable: true,
+      resizable: true,
+      filter: true,
+      floatingFilter: true,
+      tooltipShowDelay: 500,
+      cellClass: "text-xs",
+    }),
+    [],
+  );
+
+  const getRowId = useCallback(
+    (params: GetRowIdParams<JobsGridRow>) => params.data.mcf_uuid,
+    [],
+  );
+
+  const themeClass = theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine";
+
+  return (
+    <div className={isFullscreen ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex flex-col" : "h-full flex flex-col"}>
+      <style>{themeStyles}{`
+        .ag-theme-alpine .ag-cell,
+        .ag-theme-alpine-dark .ag-cell {
+          display: flex;
+          align-items: center;
+        }
+        .ag-theme-alpine .ag-row.ag-row-selected-tv,
+        .ag-theme-alpine-dark .ag-row.ag-row-selected-tv {
+          background-color: rgb(204 251 241 / 0.4) !important;
+        }
+        .ag-theme-alpine-dark .ag-row.ag-row-selected-tv {
+          background-color: rgb(19 78 74 / 0.3) !important;
+        }
+      `}</style>
+
+      <div className={`${themeClass} flex-1 min-h-0`} style={{ width: "100%" }}>
+        <AgGridReact<JobsGridRow>
+          ref={gridRef}
+          theme="legacy"
+          rowData={rowData}
+          columnDefs={columnDefs}
+          defaultColDef={defaultColDef}
+          getRowId={getRowId}
+          rowHeight={36}
+          headerHeight={32}
+          floatingFiltersHeight={28}
+          autoSizeStrategy={{ type: "fitCellContents", skipHeader: false }}
+          animateRows
+          enableBrowserTooltips
+          rowSelection="single"
+          suppressRowClickSelection
+          onRowClicked={(e) => {
+            if (e.data?.mcf_uuid) onSelectJob(e.data.mcf_uuid);
+          }}
+          getRowClass={(p) =>
+            p.data?.mcf_uuid === selectedMcfUuid
+              ? "ag-row-selected-tv"
+              : undefined
+          }
+        />
+      </div>
+      {sentinelRef && (
+        <div ref={sentinelRef} className="h-10 flex items-center justify-center flex-shrink-0">
+          {isFetchingNextPage && (
+            <Loader2 size={14} className="animate-spin text-zinc-400" />
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
 
 // ─── Job Detail Panel ──────────────────────────────────
 
