@@ -5,7 +5,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AgGridReact } from "ag-grid-react";
 import {
-  ColDef, ModuleRegistry, AllCommunityModule, CellValueChangedEvent, GetRowIdParams,
+  ColDef, ColumnState, ModuleRegistry, AllCommunityModule, CellValueChangedEvent, GetRowIdParams,
 } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
@@ -32,6 +32,13 @@ import { useAllLookupValues } from "../../hooks/useLookupValues";
 import { Settings, ChevronRight, RefreshCw, Tags, Plus } from "lucide-react";
 import { useApolloRevealPhone } from "../../hooks/apollo/useApollo";
 import { useEmailDrafts, useSendDraft, useDeleteDraft, useUpdateDraft, useDraftTracking } from "../../hooks/email/useDrafts";
+import {
+  useGridLayouts,
+  useSaveGridLayout,
+  useDeleteGridLayout,
+  useSetDefaultGridLayout,
+  type GridLayout,
+} from "../../hooks/useGridLayouts";
 
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
 if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
@@ -301,10 +308,22 @@ export function MetadataView() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addDialogLabel, setAddDialogLabel] = useState("");
   const addInputRef = useRef<HTMLInputElement>(null);
-  const [savedLayouts, setSavedLayouts] = useState<Record<string, object>>(() => {
-    try { return JSON.parse(localStorage.getItem("tv-desktop-metadata-grid-layouts") || "{}"); } catch { return {}; }
-  });
-  const [defaultLayoutName, setDefaultLayoutName] = useState<string | null>(() => localStorage.getItem("tv-desktop-metadata-grid-default-layout"));
+  // Supabase-backed shared layouts — one grid_key per sub-tab so each entity
+  // grid has its own saved views (layouts are shared across all users).
+  const gridKey = `metadata-${subTab}`;
+  const { data: layouts = [], isFetched: layoutsFetched } = useGridLayouts(gridKey);
+  const saveLayoutMutation = useSaveGridLayout(gridKey);
+  const deleteLayoutMutation = useDeleteGridLayout(gridKey);
+  const setDefaultMutation = useSetDefaultGridLayout(gridKey);
+  const layoutsByName = useMemo(() => {
+    const m: Record<string, GridLayout> = {};
+    for (const l of layouts) m[l.name] = l;
+    return m;
+  }, [layouts]);
+  const defaultLayout = useMemo(() => layouts.find((l) => l.is_default) ?? null, [layouts]);
+  const [activeLayoutName, setActiveLayoutName] = useState<string | null>(null);
+  const [layoutModified, setLayoutModified] = useState(false);
+  const [activeFilterCount, setActiveFilterCount] = useState(0);
   const [selection, setSelection] = useState<{ type: string; id: string } | null>(null);
   const [detailWidth, setDetailWidth] = useState(400);
   const dragging = useRef(false);
@@ -542,8 +561,6 @@ export function MetadataView() {
 
   // ── Layout management ──────────────────────────────────────────────────
 
-  const STORAGE_KEY = "tv-desktop-metadata-grid-layouts";
-  const DEFAULT_KEY = "tv-desktop-metadata-grid-default-layout";
 
   const applyFlatLayout = useCallback(() => {
     const api = gridRef.current?.api;
@@ -564,44 +581,131 @@ export function MetadataView() {
     toast.info("Layout reset");
   }, []);
 
-  const saveCurrentLayout = useCallback((name: string) => {
+  const saveCurrentLayout = useCallback(async (name: string) => {
     const api = gridRef.current?.api;
-    if (!api || !name.trim()) return;
-    const layout = { columnState: api.getColumnState(), filterModel: api.getFilterModel(), rowGroupColumns: api.getRowGroupColumns().map((c: any) => c.getColId()), savedAt: new Date().toISOString() };
-    const newLayouts = { ...savedLayouts, [name.trim()]: layout };
-    setSavedLayouts(newLayouts);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newLayouts));
-    setShowSaveDialog(false); setNewLayoutName("");
-    toast.success(`Layout "${name.trim()}" saved`);
-  }, [savedLayouts]);
+    const trimmed = name.trim();
+    if (!api || !trimmed) return;
+    try {
+      await saveLayoutMutation.mutateAsync({
+        name: trimmed,
+        payload: {
+          column_state: api.getColumnState() as unknown[],
+          filter_model: (api.getFilterModel() ?? {}) as Record<string, unknown>,
+          row_group_columns: api.getRowGroupColumns().map((c: any) => c.getColId()),
+        },
+      });
+      setActiveLayoutName(trimmed);
+      setLayoutModified(false);
+      setShowSaveDialog(false);
+      setNewLayoutName("");
+      toast.success(`Layout "${trimmed}" saved`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to save layout");
+    }
+  }, [saveLayoutMutation]);
 
   const loadLayout = useCallback((name: string) => {
     const api = gridRef.current?.api;
     if (!api) return;
-    const layout = savedLayouts[name] as any;
+    const layout = layoutsByName[name];
     if (!layout) return;
     api.setRowGroupColumns([]);
-    api.applyColumnState({ state: layout.columnState, applyOrder: true });
-    if (layout.rowGroupColumns?.length) api.setRowGroupColumns(layout.rowGroupColumns);
-    if (layout.filterModel) api.setFilterModel(layout.filterModel); else api.setFilterModel(null);
+    api.applyColumnState({ state: layout.column_state as ColumnState[], applyOrder: true });
+    if (layout.row_group_columns?.length) api.setRowGroupColumns(layout.row_group_columns);
+    if (layout.filter_model && Object.keys(layout.filter_model).length) api.setFilterModel(layout.filter_model);
+    else api.setFilterModel(null);
+    setActiveLayoutName(name);
+    setLayoutModified(false);
     setShowLayoutMenu(false);
     toast.info(`Layout "${name}" applied`);
-  }, [savedLayouts]);
+  }, [layoutsByName]);
 
-  const deleteLayout = useCallback((name: string, e: React.MouseEvent) => {
+  const deleteLayout = useCallback(async (name: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const n = { ...savedLayouts }; delete n[name];
-    setSavedLayouts(n);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(n));
-    if (defaultLayoutName === name) { setDefaultLayoutName(null); localStorage.removeItem(DEFAULT_KEY); }
-    toast.info(`Layout "${name}" deleted`);
-  }, [savedLayouts, defaultLayoutName]);
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    try {
+      await deleteLayoutMutation.mutateAsync(layout.id);
+      if (activeLayoutName === name) { setActiveLayoutName(null); setLayoutModified(false); }
+      toast.info(`Layout "${name}" deleted`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to delete layout");
+    }
+  }, [layoutsByName, deleteLayoutMutation, activeLayoutName]);
 
-  const toggleDefaultLayout = useCallback((name: string, e: React.MouseEvent) => {
+  const toggleDefaultLayout = useCallback(async (name: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (defaultLayoutName === name) { setDefaultLayoutName(null); localStorage.removeItem(DEFAULT_KEY); }
-    else { setDefaultLayoutName(name); localStorage.setItem(DEFAULT_KEY, name); }
-  }, [defaultLayoutName]);
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    try {
+      await setDefaultMutation.mutateAsync({ id: layout.id, makeDefault: !layout.is_default });
+      toast.info(layout.is_default ? `"${name}" removed as default` : `"${name}" set as default layout`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to update default");
+    }
+  }, [layoutsByName, setDefaultMutation]);
+
+  // Auto-apply default layout when sub-tab changes (and its layouts resolve)
+  const hasAppliedDefault = useRef<string | null>(null);
+  const isFirstDataRendered = useRef<string | null>(null);
+  const applyDefaultIfReady = useCallback(() => {
+    if (hasAppliedDefault.current === subTab) return;
+    if (isFirstDataRendered.current !== subTab) return;
+    if (!layoutsFetched) return;
+    const api = gridRef.current?.api;
+    if (!api) return;
+    if (defaultLayout) {
+      api.applyColumnState({ state: defaultLayout.column_state as ColumnState[], applyOrder: true });
+      if (defaultLayout.row_group_columns?.length) api.setRowGroupColumns(defaultLayout.row_group_columns);
+      if (defaultLayout.filter_model && Object.keys(defaultLayout.filter_model).length) {
+        api.setFilterModel(defaultLayout.filter_model);
+      }
+      setActiveLayoutName(defaultLayout.name);
+      setLayoutModified(false);
+    } else {
+      api.autoSizeAllColumns(false);
+      setActiveLayoutName(null);
+      setLayoutModified(false);
+    }
+    hasAppliedDefault.current = subTab;
+  }, [defaultLayout, layoutsFetched, subTab]);
+
+  useEffect(() => { applyDefaultIfReady(); }, [applyDefaultIfReady]);
+
+  // Reset the latch whenever the sub-tab changes — the grid remounts (key={subTab}).
+  useEffect(() => {
+    hasAppliedDefault.current = null;
+    isFirstDataRendered.current = null;
+    setActiveLayoutName(null);
+    setLayoutModified(false);
+    setActiveFilterCount(0);
+  }, [subTab]);
+
+  const handleFirstDataRendered = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    isFirstDataRendered.current = subTab;
+    applyDefaultIfReady();
+  }, [applyDefaultIfReady, subTab]);
+
+  const handleFilterChanged = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const model = api.getFilterModel() ?? {};
+    setActiveFilterCount(Object.keys(model).length);
+    if (hasAppliedDefault.current === subTab && activeLayoutName) setLayoutModified(true);
+  }, [activeLayoutName, subTab]);
+
+  const handleLayoutDirty = useCallback(() => {
+    if (hasAppliedDefault.current === subTab && activeLayoutName) setLayoutModified(true);
+  }, [activeLayoutName, subTab]);
+
+  const clearAllFilters = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    api.setFilterModel(null);
+    setQuickFilter("");
+  }, []);
 
   // ── Column defs per sub-tab ─────────────────────────────────────────────
 
@@ -853,7 +957,7 @@ export function MetadataView() {
   const currentTable = isTaskStatusTab ? "task_statuses" : subTab === "companies" ? "crm_companies" : subTab === "contacts" ? "crm_contacts" : subTab === "partners" ? "partner_access" : subTab === "initiatives" ? "initiatives" : subTab === "labels" ? "labels" : isLookupTab ? "lookup_values" : "users";
 
   const defaultColDef = useMemo<ColDef>(() => ({
-    sortable: true, resizable: true, filter: true, cellClass: "text-xs", enableRowGroup: true,
+    sortable: true, resizable: true, filter: true, floatingFilter: true, cellClass: "text-xs", enableRowGroup: true, tooltipShowDelay: 500,
   }), []);
 
   const getRowId = useCallback((params: GetRowIdParams) => params.data.id, []);
@@ -979,15 +1083,15 @@ export function MetadataView() {
   const hasSelection = !!selection;
 
   return (
-    <div className={isFullscreen ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 flex flex-col" : "h-full flex flex-col"}>
+    <div className={isFullscreen ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex" : "h-full flex overflow-hidden px-4 py-4"}>
       <style>{groupRowStyles}{themeStyles}{`
         .ag-theme-alpine .ag-cell, .ag-theme-alpine-dark .ag-cell { display: flex; align-items: center; }
       `}</style>
 
-      {/* Body: sidebar + grid + optional detail panel */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Body: sidebar + grid + optional detail panel, wrapped in a bordered rounded box */}
+      <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
         {/* Vertical tab sidebar */}
-        <aside className="flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto py-2 transition-all duration-200" style={{ width: sidebarCollapsed ? 40 : 160 }}>
+        <aside className="flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 overflow-y-auto py-2 transition-all duration-200 rounded-l-md" style={{ width: sidebarCollapsed ? 40 : 160 }}>
           {sidebarCollapsed ? (
             <div className="flex flex-col items-center">
               <button
@@ -1049,6 +1153,19 @@ export function MetadataView() {
                   className="w-48 px-2.5 py-1.5 pl-8 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
               </div>
 
+              {(activeFilterCount > 0 || quickFilter.trim().length > 0) && (
+                <button
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60 transition-colors whitespace-nowrap"
+                  title="Clear all filters"
+                >
+                  <span>
+                    {activeFilterCount + (quickFilter.trim().length > 0 ? 1 : 0)} filter{activeFilterCount + (quickFilter.trim().length > 0 ? 1 : 0) === 1 ? "" : "s"} active
+                  </span>
+                  <X size={12} />
+                </button>
+              )}
+
               {(isLookupTab || isTaskStatusTab || subTab === "partners" || subTab === "labels") && (
                 <>
                   <button onClick={handleAddRow}
@@ -1088,8 +1205,17 @@ export function MetadataView() {
               {/* Layouts dropdown */}
               <div className="relative">
                 <button onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
-                  <Bookmark size={13} /> Layouts
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                  title={activeLayoutName ? `Current layout: ${activeLayoutName}${layoutModified ? " (modified)" : ""}` : "Layouts"}>
+                  <Bookmark size={13} />
+                  {activeLayoutName ? (
+                    <span className="flex items-center gap-1">
+                      <span className="max-w-[120px] truncate">{activeLayoutName}</span>
+                      {layoutModified && <span className="text-amber-500" title="Layout has unsaved changes">•</span>}
+                    </span>
+                  ) : (
+                    <span>Layouts</span>
+                  )}
                 </button>
                 {showLayoutMenu && (
                   <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
@@ -1098,17 +1224,17 @@ export function MetadataView() {
                     <button onClick={() => { resetLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><RotateCcw size={13} /> Reset to Default</button>
                     <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
                     <button onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><span className="text-green-600">+</span> Save current layout...</button>
-                    {Object.keys(savedLayouts).length > 0 && (
+                    {layouts.length > 0 && (
                       <>
                         <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
-                        <div className="px-3 py-1 text-xs font-medium text-zinc-500">Saved Layouts</div>
-                        {Object.keys(savedLayouts).map(name => (
-                          <div key={name} onClick={() => loadLayout(name)} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group">
-                            <span className="truncate flex items-center gap-1.5">{defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500" />}{name}</span>
+                        <div className="px-3 py-1 text-[10px] font-medium text-zinc-500 uppercase tracking-wide">Shared Layouts</div>
+                        {layouts.map((layout) => (
+                          <div key={layout.id} onClick={() => loadLayout(layout.name)} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group">
+                            <span className="truncate flex items-center gap-1.5">{layout.is_default && <Star size={11} className="text-amber-500 fill-amber-500" />}{layout.name}</span>
                             <div className="flex items-center gap-0.5">
-                              <button onClick={(e) => { e.stopPropagation(); saveCurrentLayout(name); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500"><Save size={12} /></button>
-                              <button onClick={(e) => toggleDefaultLayout(name, e)} className={cn("p-1 rounded", defaultLayoutName === name ? "text-amber-500" : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500")}><Star size={12} className={defaultLayoutName === name ? "fill-amber-500" : ""} /></button>
-                              <button onClick={(e) => deleteLayout(name, e)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-red-500"><X size={12} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); saveCurrentLayout(layout.name); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500" title="Overwrite with current layout"><Save size={12} /></button>
+                              <button onClick={(e) => toggleDefaultLayout(layout.name, e)} className={cn("p-1 rounded", layout.is_default ? "text-amber-500" : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500")} title={layout.is_default ? "Remove as default" : "Set as default"}><Star size={12} className={layout.is_default ? "fill-amber-500" : ""} /></button>
+                              <button onClick={(e) => deleteLayout(layout.name, e)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-red-500" title="Delete layout"><X size={12} /></button>
                             </div>
                           </div>
                         ))}
@@ -1215,7 +1341,14 @@ export function MetadataView() {
             onCellValueChanged={handleCellValueChanged}
             onRowDoubleClicked={handleRowDoubleClicked}
             quickFilterText={quickFilter}
-            onFirstDataRendered={(params) => params.api.autoSizeAllColumns()}
+            onFirstDataRendered={handleFirstDataRendered}
+            onFilterChanged={handleFilterChanged}
+            onColumnMoved={handleLayoutDirty}
+            onColumnResized={handleLayoutDirty}
+            onColumnVisible={handleLayoutDirty}
+            onColumnPinned={handleLayoutDirty}
+            onColumnRowGroupChanged={handleLayoutDirty}
+            onSortChanged={handleLayoutDirty}
             animateRows
             enableRangeSelection
             enableBrowserTooltips
@@ -1224,6 +1357,7 @@ export function MetadataView() {
             rowSelection="single"
             suppressRowClickSelection={!isLookupTab && !isTaskStatusTab}
             headerHeight={32}
+            floatingFiltersHeight={30}
             rowHeight={34}
             getContextMenuItems={() => ["copy", "copyWithHeaders", "paste", "separator", "export", "separator", "autoSizeAll", "resetColumns"]}
             sideBar={{

@@ -2,7 +2,21 @@
 // My Tasks and Team Tasks dashboard views
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, AlertTriangle, Clock, Calendar, CheckCircle2, Loader2, Zap, X, Target, ArrowRight, Filter } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, Clock, Calendar, CheckCircle2, Loader2, Zap, X, Target, ArrowRight, Layers, Briefcase, Inbox, Archive, Send, Bookmark, Star, Save, RotateCcw, ChevronsLeftRight, Maximize2 } from "lucide-react";
+import { AgGridReact } from "ag-grid-react";
+import {
+  ColDef,
+  ColumnState,
+  ModuleRegistry,
+  AllCommunityModule,
+  GetRowIdParams,
+} from "ag-grid-community";
+import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
+import { useAppStore } from "../../stores/appStore";
+import { themeStyles } from "../domains/reviewGridStyles";
+import { cn } from "../../lib/cn";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +32,20 @@ import { useJobsStore } from "../../stores/jobsStore";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
 import { formatError } from "../../lib/formatError";
 import { useTeams } from "../../hooks/work/useTeams";
+import {
+  useGridLayouts,
+  useSaveGridLayout,
+  useDeleteGridLayout,
+  useSetDefaultGridLayout,
+  type GridLayout,
+} from "../../hooks/useGridLayouts";
+
+// Register AG Grid (idempotent across files)
+ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
+
+if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
+  LicenseManager.setLicenseKey(import.meta.env.VITE_AG_GRID_LICENSE_KEY);
+}
 
 // ─── Task Triage Types & Hooks ───────────────────────────────────────────
 
@@ -149,40 +177,6 @@ function classifyTask(t: TaskWithRelations): "overdue" | "today" | "upcoming" | 
   return "upcoming";
 }
 
-// ─── TaskBucket ───────────────────────────────────────────────────────────
-
-function TaskBucket({ label, tasks, icon: Icon, color, defaultOpen = true, onSelectTask, contextLabels, selectedTaskIds, onToggleSelect }: {
-  label: string;
-  tasks: TaskWithRelations[];
-  icon: typeof AlertTriangle;
-  color: string;
-  defaultOpen?: boolean;
-  onSelectTask: (id: string) => void;
-  contextLabels?: Map<string, string>;
-  selectedTaskIds?: Set<string>;
-  onToggleSelect?: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(defaultOpen && tasks.length > 0);
-  if (tasks.length === 0) return null;
-
-  return (
-    <div className="mb-2">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors rounded-lg"
-      >
-        {open ? <ChevronDown size={12} className="text-zinc-400" /> : <ChevronRight size={12} className="text-zinc-400" />}
-        <Icon size={13} style={{ color }} />
-        <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">{label}</span>
-        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${color}15`, color }}>{tasks.length}</span>
-      </button>
-      {open && (
-        <StatusGroupedTasks tasks={tasks} onSelectTask={onSelectTask} contextLabels={contextLabels || new Map()} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
-      )}
-    </div>
-  );
-}
-
 // ─── Bucketing helper ─────────────────────────────────────────────────────
 
 function bucketTasks(tasks: TaskWithRelations[]) {
@@ -197,11 +191,6 @@ function bucketTasks(tasks: TaskWithRelations[]) {
 
 function isSalesTask(t: TaskWithRelations): boolean {
   return (t as any).project?.project_type === "deal";
-}
-
-function daysAgo(dateStr: string | null | undefined): number {
-  if (!dateStr) return 999;
-  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 }
 
 // ─── CollapsibleSection ───────────────────────────────────────────────────
@@ -324,37 +313,6 @@ export function _DoTodayRow({ task, onSelect, contextLabel, onDeferred, onReject
   );
 }
 
-// ─── TaskBuckets (renders overdue/today/upcoming/no_date for a set of tasks) ─
-
-function TaskBuckets({ tasks, onSelectTask, contextLabels, showCompleted, defaultCollapsed, selectedTaskIds, onToggleSelect }: {
-  tasks: TaskWithRelations[];
-  onSelectTask: (id: string) => void;
-  contextLabels?: Map<string, string>;
-  showCompleted?: TaskWithRelations[];
-  defaultCollapsed?: boolean;
-  selectedTaskIds?: Set<string>;
-  onToggleSelect?: (id: string) => void;
-}) {
-  const buckets = useMemo(() => bucketTasks(tasks), [tasks]);
-  const active = tasks.filter(t => t.status?.type !== "complete");
-  const collapsed = defaultCollapsed ?? false;
-
-  return (
-    <>
-      <TaskBucket label="Overdue" tasks={buckets.overdue} icon={AlertTriangle} color="#EF4444" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
-      <TaskBucket label="Due Today" tasks={buckets.today} icon={Clock} color="#F59E0B" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
-      <TaskBucket label="Upcoming" tasks={buckets.upcoming} icon={Calendar} color="#3B82F6" defaultOpen={!collapsed} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
-      <TaskBucket label="No Due Date" tasks={buckets.no_date} icon={Calendar} color="#9CA3AF" defaultOpen={false} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
-      {showCompleted && showCompleted.length > 0 && (
-        <TaskBucket label="Completed This Week" tasks={showCompleted} icon={CheckCircle2} color="#10B981" defaultOpen={false} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedTaskIds} onToggleSelect={onToggleSelect} />
-      )}
-      {active.length === 0 && (
-        <div className="text-center py-6 text-xs text-zinc-400">No active tasks</div>
-      )}
-    </>
-  );
-}
-
 // ─── Loading Skeleton ─────────────────────────────────────────────────────
 
 function TaskDashboardSkeleton() {
@@ -417,19 +375,7 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
   const [includeNotion, setIncludeNotion] = useState(true);
   const [myTasksTab, setMyTasksTab] = useState<"strategy" | "tasks">("strategy");
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
-  const [todayOpen, setTodayOpen] = useState(true);
   const [showChangesPanel, setShowChangesPanel] = useState(false);
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedTaskIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
-  }, []);
-  const selectAllOf = useCallback((tasks: TaskWithRelations[]) => {
-    setSelectedTaskIds(prev => {
-      const allSelected = tasks.every(t => prev.has(t.id));
-      const next = new Set(prev);
-      tasks.forEach(t => allSelected ? next.delete(t.id) : next.add(t.id));
-      return next;
-    });
-  }, []);
   const [_showTriageLog, _setShowTriageLog] = useState(false);
   const triageMutation = useTaskTriage();
   useTriageEnrichment();
@@ -549,10 +495,6 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
     allMyTasks.filter(t => !(t as any).archived_at && !isStale(t)),
   [allMyTasks, isStale]);
 
-  // Split into sales (deal) vs non-sales (work) tasks
-  const salesTasks = useMemo(() => myTasks.filter(isSalesTask), [myTasks]);
-  const workTasks = useMemo(() => myTasks.filter(t => !isSalesTask(t)), [myTasks]);
-
   // Filter proposals for Focus panel
 
 
@@ -617,19 +559,11 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
     );
   }, [myTasks]);
 
-  const activeSales = salesTasks.filter(t => t.status?.type !== "complete");
-
-  // (triage summary shown via proposals Focus panel)
-  const activeWork = workTasks.filter(t => t.status?.type !== "complete");
-
-  // (triage summary is now shown via proposals panel)
   const allBuckets = useMemo(() => bucketTasks(myTasks), [myTasks]);
   const recentlyCompleted = allBuckets.done.filter(t => {
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return t.updated_at && new Date(t.updated_at).getTime() > weekAgo;
   });
-  const recentlyCompletedSales = recentlyCompleted.filter(isSalesTask);
-  const recentlyCompletedWork = recentlyCompleted.filter(t => !isSalesTask(t));
 
   // Motivation stats
   const completedToday = useMemo(() =>
@@ -718,196 +652,36 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
         </div>
       )}
 
-      {/* Tasks Tab */}
+      {/* Tasks Tab — AG Grid + sidebar pattern */}
       {myTasksTab === "tasks" && (
-      <div className="flex-1 overflow-y-auto p-4">
-
-        {/* Bulk actions bar */}
-        {selectedTaskIds.size > 0 && (
-          <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200/30 dark:border-blue-800/20">
-            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">{selectedTaskIds.size} selected</span>
-            <button
-              className="text-[10px] px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 font-medium transition-colors"
-              onClick={async () => {
-                const tasksToSync = allMyTasks.filter(t => selectedTaskIds.has(t.id) && (t as any).notion_page_id);
-                if (tasksToSync.length === 0) { toast.error("No selected tasks have Notion pages"); return; }
-                const jobId = `notion-bulk-${Date.now()}`;
-                const jobStore = useJobsStore.getState();
-                jobStore.addJob({ id: jobId, name: `Notion Bulk Sync`, status: "running", message: `0/${tasksToSync.length} tasks...` });
-                let synced = 0, failed = 0;
-                const failures: string[] = [];
-                for (const t of tasksToSync) {
-                  try {
-                    await invoke("notion_push_task", { taskId: t.id });
-                    synced++;
-                  } catch (err: any) {
-                    failed++;
-                    failures.push(`${t.title?.slice(0, 40)}: ${err?.message || err}`);
-                  }
-                  jobStore.updateJob(jobId, { message: `${synced + failed}/${tasksToSync.length} (${synced} synced${failed ? `, ${failed} failed` : ""})` });
-                }
-                jobStore.updateJob(jobId, { status: failed > 0 ? "failed" : "completed", message: `${synced} synced${failed ? `, ${failed} failed` : ""} of ${tasksToSync.length}` });
-                setSelectedTaskIds(new Set());
-                queryClient.invalidateQueries({ queryKey: ["work"] });
-              }}
-            >
-              ↑ Sync to Notion
-            </button>
-            <button
-              className="text-[10px] px-2 py-1 rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-medium"
-              onClick={() => setSelectedTaskIds(new Set())}
-            >
-              Clear
-            </button>
-          </div>
-        )}
-
-        {/* Today's Work — overdue + due today, collapsible */}
-        {(() => {
-          const todayTasks = myTasks.filter(t => t.status?.type !== "complete" && (isOverdue(t.due_date || "") || isToday(t.due_date)));
-          return todayTasks.length > 0 ? (
-            <div className="mb-4 rounded-lg border border-red-200/30 dark:border-red-800/20 bg-red-50/30 dark:bg-red-900/5 p-3">
-              <button
-                onClick={() => setTodayOpen(!todayOpen)}
-                className="w-full flex items-center gap-2 mb-1 hover:opacity-80 transition-opacity"
-              >
-                {todayOpen ? <ChevronDown size={12} className="text-red-400" /> : <ChevronRight size={12} className="text-red-400" />}
-                <AlertTriangle size={14} className="text-red-500" />
-                <span className="text-sm font-semibold text-red-600 dark:text-red-400">Today</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium">{todayTasks.length}</span>
-                {/* Select all today */}
-                <span
-                  className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full bg-red-100/50 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 cursor-pointer transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const allSelected = todayTasks.every(t => selectedTaskIds.has(t.id));
-                    const next = new Set(selectedTaskIds);
-                    todayTasks.forEach(t => allSelected ? next.delete(t.id) : next.add(t.id));
-                    setSelectedTaskIds(next);
-                  }}
-                >
-                  {todayTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}
-                </span>
-              </button>
-              {todayOpen && (
-                <StatusGroupedTasks
-                  tasks={todayTasks}
-                  onSelectTask={onSelectTask}
-                  contextLabels={contextLabels}
-                  rowComponent={(t) => (
-                    <div key={t.id} className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedTaskIds.has(t.id)}
-                        onChange={() => {
-                          const next = new Set(selectedTaskIds);
-                          next.has(t.id) ? next.delete(t.id) : next.add(t.id);
-                          setSelectedTaskIds(next);
-                        }}
-                        className="w-3 h-3 rounded border-zinc-200 dark:border-zinc-800 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <TaskRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />
-                    </div>
-                  )}
-                />
-              )}
-            </div>
-          ) : (
-            <div className="mb-4 rounded-lg border border-emerald-200/30 dark:border-emerald-800/20 bg-emerald-50/30 dark:bg-emerald-900/5 p-3 flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-emerald-500" />
-              <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">All clear for today</span>
-            </div>
-          );
-        })()}
-
-        {/* No Due Date — with inline date picker */}
-        {noDueDateTasks.length > 0 && (
-          <CollapsibleSection label="Needs Due Date" count={noDueDateTasks.length} icon={AlertTriangle} color="#F59E0B" defaultOpen={false} badge="Assign due dates"
-            actions={<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100/50 dark:bg-amber-900/20 text-amber-600 hover:bg-amber-200 dark:hover:bg-amber-900/40 cursor-pointer transition-colors" onClick={() => selectAllOf(noDueDateTasks)}>{noDueDateTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}</span>}
-          >
-            <div className="ml-2 border-l-2 border-amber-100 dark:border-amber-900/30 pl-2">
-              {noDueDateTasks.map(t => (
-                <div key={t.id} className="flex items-center gap-1">
-                  <input type="checkbox" checked={selectedTaskIds.has(t.id)} onChange={() => toggleSelect(t.id)} className="w-3 h-3 rounded border-zinc-200 dark:border-zinc-800 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()} />
-                  <NeedsDueDateRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} onUpdated={() => queryClient.invalidateQueries({ queryKey: ["work"] })} />
-                </div>
-              ))}
-            </div>
-          </CollapsibleSection>
-        )}
-
-        {/* Sales */}
-        <CollapsibleSection label="Sales" count={activeSales.length} color="#3B82F6" defaultOpen={false}
-          actions={<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100/50 dark:bg-blue-900/20 text-blue-600 hover:bg-blue-200 dark:hover:bg-blue-900/40 cursor-pointer transition-colors" onClick={() => selectAllOf(salesTasks)}>{salesTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}</span>}
-        >
-          <div className="ml-2 pl-2">
-            <TaskBuckets tasks={salesTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedSales} defaultCollapsed selectedTaskIds={selectedTaskIds} onToggleSelect={toggleSelect} />
-          </div>
-        </CollapsibleSection>
-
-        {/* Work */}
-        <CollapsibleSection label="Work" count={activeWork.length} color="#0D9488" defaultOpen={false}
-          actions={<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-teal-100/50 dark:bg-teal-900/20 text-teal-600 hover:bg-teal-200 dark:hover:bg-teal-900/40 cursor-pointer transition-colors" onClick={() => selectAllOf(workTasks)}>{workTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}</span>}
-        >
-          <div className="ml-2 pl-2">
-            <TaskBuckets tasks={workTasks} onSelectTask={onSelectTask} contextLabels={contextLabels} showCompleted={recentlyCompletedWork} defaultCollapsed selectedTaskIds={selectedTaskIds} onToggleSelect={toggleSelect} />
-          </div>
-        </CollapsibleSection>
-
-        {/* Stale — tasks not updated in 60+ days */}
-        {staleTasks.length > 0 && (
-          <CollapsibleSection label="Stale" count={staleTasks.length} icon={Clock} color="#F59E0B" defaultOpen={false} badge={`Not updated in ${STALE_DAYS}+ days`}
-            actions={<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100/50 dark:bg-amber-900/20 text-amber-600 hover:bg-amber-200 dark:hover:bg-amber-900/40 cursor-pointer transition-colors" onClick={() => selectAllOf(staleTasks)}>{staleTasks.every(t => selectedTaskIds.has(t.id)) ? "Deselect all" : "Select all"}</span>}
-          >
-            <div className="ml-2 border-l-2 border-amber-100 dark:border-amber-900/30 pl-2">
-              {staleTasks.map(t => (
-                <div key={t.id} className="group flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 rounded">
-                  <input type="checkbox" checked={selectedTaskIds.has(t.id)} onChange={() => toggleSelect(t.id)} className="w-3 h-3 rounded border-zinc-200 dark:border-zinc-800 text-blue-500 focus:ring-blue-500 flex-shrink-0 cursor-pointer" onClick={(e) => e.stopPropagation()} />
-                  <TaskRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />
-                  <span className="text-[10px] text-amber-500 flex-shrink-0">{daysAgo(t.updated_at)}d ago</span>
-                  <button
-                    className="text-[10px] px-2 py-0.5 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      await supabase.from("tasks").update({ archived_at: new Date().toISOString() }).eq("id", t.id);
-                      toast.success("Archived");
-                      queryClient.invalidateQueries({ queryKey: ["work"] });
-                    }}
-                  >
-                    Archive
-                  </button>
-                </div>
-              ))}
-            </div>
-          </CollapsibleSection>
-        )}
-
-        {/* Archived — hidden by default */}
-        {archivedTasks.length > 0 && (
-          <CollapsibleSection label="Archived" count={archivedTasks.length} icon={X} color="#6B7280" defaultOpen={false}>
-            <div className="ml-2 border-l-2 border-zinc-200 dark:border-zinc-800 pl-2">
-              {archivedTasks.map(t => (
-                <div key={t.id} className="group flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 rounded opacity-50 hover:opacity-100 transition-opacity">
-                  <TaskRow task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} />
-                  <button
-                    className="text-[10px] px-2 py-0.5 rounded text-zinc-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 font-medium opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      await supabase.from("tasks").update({ archived_at: null }).eq("id", t.id);
-                      toast.success("Restored");
-                      queryClient.invalidateQueries({ queryKey: ["work"] });
-                    }}
-                  >
-                    Restore
-                  </button>
-                </div>
-              ))}
-            </div>
-          </CollapsibleSection>
-        )}
-      </div>
+      <MyTasksGridView
+        myTasks={myTasks}
+        staleTasks={staleTasks}
+        archivedTasks={archivedTasks}
+        recentlyCompleted={recentlyCompleted}
+        contextLabels={contextLabels}
+        selectedTaskIds={selectedTaskIds}
+        setSelectedTaskIds={setSelectedTaskIds}
+        onSelectTask={onSelectTask}
+        onBulkSyncToNotion={async () => {
+          const tasksToSync = allMyTasks.filter(t => selectedTaskIds.has(t.id) && (t as any).notion_page_id);
+          if (tasksToSync.length === 0) { toast.error("No selected tasks have Notion pages"); return; }
+          const jobId = `notion-bulk-${Date.now()}`;
+          const jobStore = useJobsStore.getState();
+          jobStore.addJob({ id: jobId, name: `Notion Bulk Sync`, status: "running", message: `0/${tasksToSync.length} tasks...` });
+          let synced = 0, failed = 0;
+          for (const t of tasksToSync) {
+            try { await invoke("notion_push_task", { taskId: t.id }); synced++; }
+            catch { failed++; }
+            jobStore.updateJob(jobId, { message: `${synced + failed}/${tasksToSync.length} (${synced} synced${failed ? `, ${failed} failed` : ""})` });
+          }
+          jobStore.updateJob(jobId, { status: failed > 0 ? "failed" : "completed", message: `${synced} synced${failed ? `, ${failed} failed` : ""} of ${tasksToSync.length}` });
+          setSelectedTaskIds(new Set());
+          queryClient.invalidateQueries({ queryKey: ["work"] });
+        }}
+      />
       )}
+
       </div>{/* end flex-col content */}
 
       {/* Recent Changes Side Panel */}
@@ -985,49 +759,6 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
         </div>
       )}
       </div>{/* end flex row */}
-    </div>
-  );
-}
-
-// ─── NeedsDueDateRow — task row with inline date picker ───────────────────
-
-function NeedsDueDateRow({ task, onSelect, contextLabel, onUpdated }: {
-  task: TaskWithRelations;
-  onSelect: (id: string) => void;
-  contextLabel?: string;
-  onUpdated: () => void;
-}) {
-  const [dateValue, setDateValue] = useState("");
-
-  const handleSetDate = async () => {
-    if (!dateValue) return;
-    const { error } = await supabase.from("tasks").update({ due_date: dateValue }).eq("id", task.id);
-    if (error) { toast.error(`Failed: ${error.message}`); return; }
-    toast.success(`Due date set to ${formatShortDate(dateValue)}`);
-    setDateValue("");
-    onUpdated();
-  };
-
-  return (
-    <div className="group flex items-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 rounded transition-colors">
-      <div className="flex-1 min-w-0">
-        <TaskRow task={task} onSelect={onSelect} contextLabel={contextLabel} />
-      </div>
-      <input
-        type="date"
-        value={dateValue}
-        onChange={(e) => setDateValue(e.target.value)}
-        className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 bg-transparent text-zinc-600 dark:text-zinc-400 w-28 flex-shrink-0"
-        onClick={(e) => e.stopPropagation()}
-      />
-      {dateValue && (
-        <button
-          onClick={handleSetDate}
-          className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 font-medium flex-shrink-0"
-        >
-          Set
-        </button>
-      )}
     </div>
   );
 }
@@ -1679,266 +1410,14 @@ function StatusGroupedTasks({ tasks, onSelectTask, contextLabels, rowComponent, 
   );
 }
 
-function PersonSection({ user, tasks, onSelectTask, contextLabels, defaultOpen = false, applyFilters }: {
-  user: { id: string; name: string } | null;
-  tasks: TaskWithRelations[];
-  onSelectTask: (id: string) => void;
-  contextLabels: Map<string, string>;
-  defaultOpen?: boolean;
-  applyFilters?: (tasks: TaskWithRelations[]) => TaskWithRelations[];
-}) {
-  const queryClient = useQueryClient();
-  const [open, setOpen] = useState(defaultOpen);
-  const [showPersonTriage, setShowPersonTriage] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
-  }, []);
-  const active = tasks.filter(t => t.status?.type !== "complete");
-  const displayed = applyFilters ? applyFilters(active) : active;
 
-  // Load person's last triage
-  const personTriageKey = user ? `person-${user.id}` : null;
-  const { data: personTriage } = useQuery({
-    queryKey: ["triage_runs", personTriageKey],
-    queryFn: async () => {
-      if (!personTriageKey) return null;
-      const { data } = await supabase.from("triage_runs").select("*").eq("view", personTriageKey).order("created_at", { ascending: false }).limit(1);
-      return data?.[0] || null;
-    },
-    enabled: !!personTriageKey,
-    staleTime: 60_000,
-  });
-
-  // Badges always from unfiltered data
-  const overdue = active.filter(t => isOverdue(t.due_date || ""));
-  const dueToday = active.filter(t => isToday(t.due_date));
-
-  // Group by triage action
-  const actionGroups = useMemo(() => {
-    const groups: Record<string, TaskWithRelations[]> = { do_now: [], do_this_week: [], defer: [], untriaged: [] };
-    for (const t of displayed) {
-      const action = t.triage_action;
-      if (action === "do_now") groups.do_now.push(t);
-      else if (action === "do_this_week") groups.do_this_week.push(t);
-      else if (action === "defer" || action === "delegate" || action === "kill") groups.defer.push(t);
-      else groups.untriaged.push(t);
-    }
-    for (const arr of Object.values(groups)) arr.sort((a, b) => (b.triage_score ?? 0) - (a.triage_score ?? 0));
-    return groups;
-  }, [displayed]);
-
-  // Context pills for this person
-  const personContexts = useMemo(() => {
-    const ctxMap = new Map<string, { name: string; level: string; count: number }>();
-    for (const t of active) {
-      const matches = (t as any).triage_context_matches as any[] | null;
-      if (matches) {
-        for (const cm of matches) {
-          const existing = ctxMap.get(cm.context_name);
-          if (existing) existing.count++;
-          else ctxMap.set(cm.context_name, { name: cm.context_name, level: cm.level, count: 1 });
-        }
-      }
-    }
-    return [...ctxMap.values()].sort((a, b) => b.count - a.count).slice(0, 5);
-  }, [active]);
-
-  return (
-    <div className="mb-1">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors rounded-lg"
-      >
-        {open ? <ChevronDown size={12} className="text-zinc-400" /> : <ChevronRight size={12} className="text-zinc-400" />}
-        <div className="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          {user ? initials(user.name) : "?"}
-        </div>
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{user?.name || "Unassigned"}</span>
-        <span className="text-xs text-zinc-400">{active.length}</span>
-        <div className="flex items-center gap-1">
-          {overdue.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-50 text-red-500 dark:bg-red-900/20 font-medium">{overdue.length} overdue</span>}
-          {dueToday.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-900/20 font-medium">{dueToday.length} today</span>}
-        </div>
-        {/* Context pills */}
-        <div className="flex items-center gap-1">
-          {personContexts.map(ctx => (
-            <span key={ctx.name} className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${
-              ctx.level === "customer" ? "bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400" :
-              ctx.level === "product" ? "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" :
-              ctx.level === "team" ? "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400" :
-              "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-            }`}>
-              {ctx.name}
-            </span>
-          ))}
-        </div>
-        <div className="ml-auto flex items-center gap-1">
-          {/* Sync all to Notion */}
-          {active.some(t => (t as any).notion_page_id) && (
-            <span
-              className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
-              title="Sync all tasks to Notion"
-              onClick={async (e) => {
-                e.stopPropagation();
-                const notionTasks = active.filter(t => (t as any).notion_page_id);
-                const jobId = `notion-push-${user?.name || "unassigned"}-${Date.now()}`;
-                const jobStore = useJobsStore.getState();
-                jobStore.addJob({ id: jobId, name: `Notion Push: ${user?.name || "Unassigned"}`, status: "running", message: `0/${notionTasks.length} tasks...` });
-                let synced = 0, failed = 0;
-                const failures: string[] = [];
-                for (const t of notionTasks) {
-                  try { await invoke("notion_push_task", { taskId: t.id }); synced++; } catch (err: any) { failed++; failures.push(`${t.title?.slice(0, 40)}: ${err?.message || err}`); }
-                  jobStore.updateJob(jobId, { message: `${synced + failed}/${notionTasks.length} tasks (${synced} synced${failed ? `, ${failed} failed` : ""})` });
-                }
-                if (failures.length) console.error(`[Notion Push] ${user?.name} failures:\n${failures.join("\n")}`);
-                jobStore.updateJob(jobId, { status: failed > 0 ? "failed" : "completed", message: `${synced} synced${failed ? `, ${failed} failed` : ""} of ${notionTasks.length} tasks${failures.length ? " — " + failures.join(" | ") : ""}` });
-              }}
-            >
-              ↑ Notion
-            </span>
-          )}
-          {/* Per-person triage */}
-          <span
-            className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer transition-colors"
-            title={`Triage ${user?.name || "Unassigned"}'s tasks`}
-            onClick={async (e) => {
-              e.stopPropagation();
-              const personName = user?.name || "Unassigned";
-              const jobId = `triage-person-${user?.id || "unassigned"}-${Date.now()}`;
-              const jobStore = useJobsStore.getState();
-              const claudeStore = useClaudeRunStore.getState();
-              jobStore.addJob({ id: jobId, name: `Triage: ${personName}`, status: "running", message: "Claude is analyzing..." });
-              claudeStore.createRun({ id: jobId, name: `Triage: ${personName}`, domainName: "", tableId: "" });
-              const personPrompt = `You are a strategic task triage advisor. Use mcp__supabase__execute_sql to query the database.\n\nSTEP 1 — QUERY:\n- SELECT t.id, t.title, t.description, t.priority, t.due_date, ts.name as status, ts.type as status_type, p.name as project, p.project_type, c.display_name as company FROM tasks t LEFT JOIN task_statuses ts ON ts.id = t.status_id LEFT JOIN projects p ON p.id = t.project_id LEFT JOIN crm_companies c ON c.id = t.company_id WHERE ts.type != 'complete' AND t.updated_at > NOW() - INTERVAL '60 days' AND t.id IN (SELECT task_id FROM task_assignees WHERE user_id = '${user?.id}') ORDER BY t.due_date ASC NULLS LAST\n- SELECT horizon, title FROM plans WHERE status = 'active'\n\nSCOPE: Individual triage for ${personName}.\nFocus on what ${personName} should prioritize: what to do now, what can wait, what's blocking them, any tasks that should be reassigned.\n\nSTEP 2 — For EACH task, assign: action (do_now|do_this_week|defer|delegate|kill), score (0-100), reason (1 sentence).\n\nSTEP 3 — Summary with labeled sections:\nURGENT: [what ${personName} needs to do now]\nTHIS WEEK: [key focus areas]\nDEFER/KILL: [what to cut]\nWORKLOAD: [capacity assessment]\n\nRULES: READ ONLY. No updates. Return ONLY JSON:\n{"summary":"...","tasks":[{"id":"uuid","title":"...","project":"...","action":"...","score":0,"reason":"..."}]}`;
-              try {
-                const result = await invoke<{ result: string; is_error: boolean }>("claude_run", {
-                  runId: jobId,
-                  request: { prompt: personPrompt, allowed_tools: ["mcp__supabase__execute_sql"], model: "sonnet", max_budget_usd: 0.5 },
-                });
-                if (result.result) {
-                  let parsed: any = {};
-                  try {
-                    const raw = result.result.trim();
-                    let jsonStr = raw;
-                    const codeMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-                    if (codeMatch) jsonStr = codeMatch[1].trim();
-                    const s = jsonStr.indexOf("{"), en = jsonStr.lastIndexOf("}");
-                    if (s >= 0 && en > s) parsed = JSON.parse(jsonStr.slice(s, en + 1));
-                  } catch {}
-                  const scoredTasks = parsed.tasks || [];
-                  const activeIds = new Set(active.map(t => t.id));
-                  const now = new Date().toISOString();
-                  scoredTasks.filter((t: any) => activeIds.has(t.id)).forEach((t: any) => {
-                    supabase.from("tasks").update({ triage_score: t.score, triage_action: t.action, triage_reason: t.reason, last_triaged_at: now }).eq("id", t.id).then(() => {});
-                  });
-                  const personView = `person-${user?.id}`;
-                  await supabase.from("triage_runs").insert({ view: personView, tasks_scored: scoredTasks.length, summary: parsed.summary || "", details: { tasks: scoredTasks }, created_by: user?.name || "unknown" });
-                  jobStore.updateJob(jobId, { status: "completed", message: `${scoredTasks.length} tasks triaged for ${personName}` });
-                  toast.success(`${personName}: ${scoredTasks.length} tasks triaged`);
-                  setShowPersonTriage(true);
-                  queryClient.invalidateQueries({ queryKey: ["work"] });
-                  queryClient.invalidateQueries({ queryKey: ["triage_runs", personView] });
-                } else {
-                  jobStore.updateJob(jobId, { status: "failed", message: "No result" });
-                }
-              } catch (err: any) {
-                jobStore.updateJob(jobId, { status: "failed", message: formatError(err) });
-              }
-            }}
-          >
-            ⚡ Triage
-          </span>
-        </div>
-      </button>
-      {open && (
-        <div className="ml-5 border-l-2 border-zinc-100 dark:border-zinc-800 pl-2 pb-2">
-          {/* Person triage summary */}
-          {personTriage?.summary && (
-            <div className="mb-2">
-              <button onClick={() => setShowPersonTriage(!showPersonTriage)} className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-amber-500 hover:text-amber-600 transition-colors">
-                <Zap size={10} />
-                <span className="font-medium">Triage: {formatTimeAgo(new Date(personTriage.created_at))}</span>
-                {showPersonTriage ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-              </button>
-              {showPersonTriage && (
-                <div className="mx-2 p-2 rounded bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/20 dark:border-amber-800/20 text-[11px] text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line"
-                  dangerouslySetInnerHTML={{ __html: personTriage.summary.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>') }}
-                />
-              )}
-            </div>
-          )}
-          {/* Bulk actions bar */}
-          {selectedIds.size > 0 && (
-            <div className="mb-2 mx-1 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200/30 dark:border-blue-800/20">
-              <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">{selectedIds.size} selected</span>
-              <button
-                className="text-[9px] px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 font-medium transition-colors"
-                onClick={async () => {
-                  const tasksToSync = active.filter(t => selectedIds.has(t.id) && (t as any).notion_page_id);
-                  if (tasksToSync.length === 0) { toast.error("No selected tasks have Notion pages"); return; }
-                  const jobId = `notion-bulk-${user?.name || "person"}-${Date.now()}`;
-                  const jobStore = useJobsStore.getState();
-                  jobStore.addJob({ id: jobId, name: `Notion Sync: ${user?.name || "Unassigned"}`, status: "running", message: `0/${tasksToSync.length} tasks...` });
-                  let synced = 0, failed = 0;
-                  for (const t of tasksToSync) {
-                    try { await invoke("notion_push_task", { taskId: t.id }); synced++; } catch { failed++; }
-                    jobStore.updateJob(jobId, { message: `${synced + failed}/${tasksToSync.length} (${synced} synced${failed ? `, ${failed} failed` : ""})` });
-                  }
-                  jobStore.updateJob(jobId, { status: failed > 0 ? "failed" : "completed", message: `${synced} synced${failed ? `, ${failed} failed` : ""} of ${tasksToSync.length}` });
-                  setSelectedIds(new Set());
-                  queryClient.invalidateQueries({ queryKey: ["work"] });
-                }}
-              >
-                ↑ Sync to Notion
-              </button>
-              <button className="text-[9px] px-2 py-0.5 rounded text-zinc-500 hover:text-zinc-700 font-medium" onClick={() => setSelectedIds(new Set())}>Clear</button>
-            </div>
-          )}
-          {/* Now (do_now) — expanded, red card */}
-          {actionGroups.do_now.length > 0 && (
-            <div className="mb-2 mx-1 rounded-lg border border-red-200/30 dark:border-red-800/20 bg-red-50/30 dark:bg-red-900/5 p-2.5">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle size={12} className="text-red-500" />
-                <span className="text-[11px] font-semibold text-red-600 dark:text-red-400">Now</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium">{actionGroups.do_now.length}</span>
-              </div>
-              <StatusGroupedTasks tasks={actionGroups.do_now} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
-            </div>
-          )}
-          {/* This Week (do_this_week) — expanded */}
-          {actionGroups.do_this_week.length > 0 && (
-            <CollapsibleSection label="This Week" count={actionGroups.do_this_week.length} icon={Clock} color="#F59E0B" defaultOpen={true}>
-              <StatusGroupedTasks tasks={actionGroups.do_this_week} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
-            </CollapsibleSection>
-          )}
-          {/* Defer — collapsed */}
-          {actionGroups.defer.length > 0 && (
-            <CollapsibleSection label="Defer" count={actionGroups.defer.length} icon={Calendar} color="#3B82F6" defaultOpen={false}>
-              <StatusGroupedTasks tasks={actionGroups.defer} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
-            </CollapsibleSection>
-          )}
-          {/* Untriaged — collapsed */}
-          {actionGroups.untriaged.length > 0 && (
-            <CollapsibleSection label="Untriaged" count={actionGroups.untriaged.length} icon={Calendar} color="#9CA3AF" defaultOpen={false}>
-              <StatusGroupedTasks tasks={actionGroups.untriaged} onSelectTask={onSelectTask} contextLabels={contextLabels} selectedTaskIds={selectedIds} onToggleSelect={toggleSelect} />
-            </CollapsibleSection>
-          )}
-          {displayed.length === 0 && <div className="px-3 py-2 text-xs text-zinc-400">No matching tasks</div>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, initiativeLinks }: {
+export function TeamTasksView({ allTasks, users: _users, onSelectTask, initiatives, initiativeLinks }: {
   allTasks: TaskWithRelations[];
   users: User[];
   onSelectTask: (id: string) => void;
   initiatives?: Initiative[];
   initiativeLinks?: InitiativeProjectLink[];
 }) {
-  const queryClient = useQueryClient();
   const { data: teams = [] } = useTeams();
   const claudeRunStore = useClaudeRunStore();
   const [includeNotion, setIncludeNotion] = useState(true);
@@ -1960,8 +1439,6 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
   }, []);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [teamDefaulted, setTeamDefaulted] = useState(false);
-  const [showPersons, setShowPersons] = useState(false);
-
   // Default to Analyst team on first load
   useEffect(() => {
     if (!teamDefaulted && teams.length > 0) {
@@ -2011,62 +1488,6 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
     return map;
   }, [allTasks, initiatives, initiativeLinks]);
 
-  // Group by person
-  const grouped = useMemo(() => {
-    const map = new Map<string | null, TaskWithRelations[]>();
-    for (const t of tasks) {
-      const assignees = t.assignees?.length ? t.assignees : [{ user: null as any }];
-      for (const a of assignees) {
-        const key = a.user?.id || null;
-        const arr = map.get(key) || [];
-        arr.push(t);
-        map.set(key, arr);
-      }
-    }
-    let entries = [...map.entries()];
-    // Filter by selected persons
-    if (selectedPersonIds.size > 0) {
-      entries = entries.filter(([id]) => id !== null && selectedPersonIds.has(id));
-    }
-    // Build team order: Analyst → Customer Success → Engineering → Sales → unassigned
-    const teamOrder = ["analyst", "customer success", "customer-success", "engineering", "sales"];
-    const userTeamRank = new Map<string, number>();
-    for (const team of teams) {
-      const rank = teamOrder.findIndex(t => team.name.toLowerCase().includes(t) || team.slug?.toLowerCase().includes(t));
-      for (const m of team.members) {
-        const existing = userTeamRank.get(m.user_id);
-        const r = rank === -1 ? 99 : rank;
-        if (existing === undefined || r < existing) userTeamRank.set(m.user_id, r);
-      }
-    }
-
-    // Sort: by team first, then by selected sort within each team
-    entries.sort((a, b) => {
-      if (a[0] === null) return 1;
-      if (b[0] === null) return -1;
-
-      // Primary: team order
-      const aTeam = userTeamRank.get(a[0]!) ?? 98;
-      const bTeam = userTeamRank.get(b[0]!) ?? 98;
-      if (aTeam !== bTeam) return aTeam - bTeam;
-
-      // Secondary: selected sort
-      if (sortBy === "overdue") {
-        const aOverdue = a[1].filter(t => isOverdue(t.due_date || "")).length;
-        const bOverdue = b[1].filter(t => isOverdue(t.due_date || "")).length;
-        if (bOverdue !== aOverdue) return bOverdue - aOverdue;
-        return b[1].length - a[1].length;
-      }
-      if (sortBy === "name") {
-        const aName = users.find(u => u.id === a[0])?.name || "zzz";
-        const bName = users.find(u => u.id === b[0])?.name || "zzz";
-        return aName.localeCompare(bName);
-      }
-      return b[1].length - a[1].length; // tasks
-    });
-    return entries;
-  }, [tasks, selectedPersonIds, sortBy, users, teams]);
-
   // All persons for filter pills — sorted by team order
   const allPersons = useMemo(() => {
     const seen = new Map<string, string>();
@@ -2099,31 +1520,14 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
     return tasks.filter(t => (t.assignees || []).some(a => a.user?.id && selectedPersonIds.has(a.user.id)));
   }, [tasks, selectedPersonIds]);
 
-  // Task filters (for People tab)
+  // Task filters (for People tab) — action filter lives in the sidebar; company
+  // and context can be filtered from the grid's per-column floating filters.
   const [actionFilter, setActionFilter] = useState<Set<string>>(new Set());
-  const [companyFilter, setCompanyFilter] = useState<string | null>(null);
-  const [contextFilter, setContextFilter] = useState<string | null>(null);
-
-  const filterOptions = useMemo(() => {
-    const companies = new Map<string, string>();
-    const contexts = new Set<string>();
-    for (const t of filteredTasks) {
-      if (t.company?.id) companies.set(t.company.id, (t.company as any).display_name || t.company.name);
-      const matches = (t as any).triage_context_matches as any[] | null;
-      if (matches) for (const cm of matches) contexts.add(cm.context_name);
-    }
-    return { companies: [...companies.entries()].sort((a, b) => a[1].localeCompare(b[1])), contexts: [...contexts].sort() };
-  }, [filteredTasks]);
 
   const applyTaskFilters = useCallback((taskList: TaskWithRelations[]) => {
-    let result = taskList;
-    if (actionFilter.size > 0) result = result.filter(t => actionFilter.has(t.triage_action || "untriaged"));
-    if (companyFilter) result = result.filter(t => t.company?.id === companyFilter);
-    if (contextFilter) result = result.filter(t => ((t as any).triage_context_matches as any[] | null)?.some((cm: any) => cm.context_name === contextFilter));
-    return result;
-  }, [actionFilter, companyFilter, contextFilter]);
-
-  const hasActiveFilters = actionFilter.size > 0 || !!companyFilter || !!contextFilter;
+    if (actionFilter.size === 0) return taskList;
+    return taskList.filter(t => actionFilter.has(t.triage_action || "untriaged"));
+  }, [actionFilter]);
 
   const totalActive = filteredTasks.length;
   const totalOverdue = filteredTasks.filter(t => isOverdue(t.due_date || "")).length;
@@ -2175,98 +1579,6 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
         </label>
       </div>
 
-      {/* Team + Person filter + sort */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 flex-wrap">
-        <button
-          onClick={() => { setSelectedPersonIds(new Set()); setSelectedTeamId(null); }}
-          className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-            selectedPersonIds.size === 0 && !selectedTeamId ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-          }`}
-        >All</button>
-        {teams.map(team => (
-          <button
-            key={team.id}
-            onClick={() => {
-              if (selectedTeamId === team.id) {
-                setSelectedTeamId(null);
-                setSelectedPersonIds(new Set());
-              } else {
-                setSelectedTeamId(team.id);
-                setSelectedPersonIds(new Set(team.members.map(m => m.user_id)));
-              }
-            }}
-            className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors flex items-center gap-1 ${
-              selectedTeamId === team.id ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 ring-1 ring-violet-300 dark:ring-violet-700" : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-            }`}
-          >
-            {team.color && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: team.color }} />}
-            {team.name}
-            <span className="opacity-50">{team.members.length}</span>
-          </button>
-        ))}
-        {teams.length > 0 && <span className="text-zinc-300 dark:text-zinc-700">|</span>}
-        <button
-          onClick={() => setShowPersons(!showPersons)}
-          className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors flex items-center gap-1"
-        >
-          {showPersons ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-          People
-        </button>
-        {showPersons ? (
-          allPersons.map(([id, name]) => (
-            <button
-              key={id}
-              onClick={() => {
-                const next = new Set(selectedPersonIds);
-                if (next.has(id)) next.delete(id); else next.add(id);
-                setSelectedPersonIds(next);
-                setSelectedTeamId(null);
-              }}
-              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors flex items-center gap-1 ${
-                selectedPersonIds.has(id) ? "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-              }`}
-            >
-              <span className="w-4 h-4 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-bold text-zinc-600 dark:text-zinc-400">
-                {initials(name)}
-              </span>
-              {name}
-            </button>
-          ))
-        ) : (
-          /* Compact: just avatars */
-          allPersons.map(([id, name]) => (
-            <button
-              key={id}
-              onClick={() => {
-                const next = new Set(selectedPersonIds);
-                if (next.has(id)) next.delete(id); else next.add(id);
-                setSelectedPersonIds(next);
-                setSelectedTeamId(null);
-              }}
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold transition-colors ${
-                selectedPersonIds.has(id) ? "bg-teal-500 text-white ring-2 ring-teal-300 dark:ring-teal-700" : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-600"
-              }`}
-              title={name}
-            >
-              {initials(name)}
-            </button>
-          ))
-        )}
-        <div className="flex-1" />
-        <span className="text-[10px] text-zinc-400">Sort:</span>
-        {(["overdue", "tasks", "name"] as const).map(s => (
-          <button
-            key={s}
-            onClick={() => setSortBy(s)}
-            className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${
-              sortBy === s ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-            }`}
-          >
-            {s === "overdue" ? "Overdue" : s === "tasks" ? "Tasks" : "Name"}
-          </button>
-        ))}
-      </div>
-
       {/* Tabs */}
       <div className="flex-shrink-0 flex items-center gap-0 px-4 border-b border-zinc-100 dark:border-zinc-800">
         {(["strategy", "people"] as const).map(tab => (
@@ -2292,82 +1604,1431 @@ export function TeamTasksView({ allTasks, users, onSelectTask, initiatives, init
       )}
 
       {/* People Tab */}
-      {teamTab === "people" && (<>
-      {/* Task filter bar */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800 flex-wrap">
-        <Filter size={11} className="text-zinc-500" />
-        <span className="text-[10px] text-zinc-500">Filter:</span>
-        {(["do_now", "do_this_week", "defer", "untriaged"] as const).map(action => {
-          const style = ACTION_STYLES[action] || { label: "Untriaged", bg: "bg-zinc-100 dark:bg-zinc-800", text: "text-zinc-500 dark:text-zinc-400" };
-          const label = action === "do_now" ? "Now" : action === "do_this_week" ? "This Week" : action === "defer" ? "Defer" : "Untriaged";
-          const active = actionFilter.has(action);
-          return (
-            <button key={action} onClick={() => {
-              setActionFilter(prev => { const next = new Set(prev); next.has(action) ? next.delete(action) : next.add(action); return next; });
-            }}
-              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${active ? `${style.bg} ${style.text} ring-1 ring-current/20` : "text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"}`}
-            >
-              {label}
-            </button>
-          );
-        })}
-        <span className="text-zinc-300 dark:text-zinc-700">|</span>
-        <select value={companyFilter || ""} onChange={e => setCompanyFilter(e.target.value || null)}
-          className="text-[10px] bg-transparent border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 outline-none focus:ring-2 focus:ring-teal-500/30">
-          <option value="">All Companies</option>
-          {filterOptions.companies.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-        </select>
-        {filterOptions.contexts.length > 0 && (
-          <select value={contextFilter || ""} onChange={e => setContextFilter(e.target.value || null)}
-            className="text-[10px] bg-transparent border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 outline-none focus:ring-2 focus:ring-teal-500/30">
-            <option value="">All Contexts</option>
-            {filterOptions.contexts.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        )}
-        {hasActiveFilters && (
-          <button onClick={() => { setActionFilter(new Set()); setCompanyFilter(null); setContextFilter(null); }}
-            className="text-[10px] text-zinc-400 hover:text-zinc-200 flex items-center gap-0.5 transition-colors">
-            <X size={10} /> Clear
-          </button>
-        )}
-      </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Needs Attention — tasks missing due date or company */}
-        {!hasActiveFilters && totalNoDate > 0 && (
-          <CollapsibleSection label="Needs Due Date" count={totalNoDate} icon={AlertTriangle} color="#F59E0B" defaultOpen={false} badge="Assign due dates to these tasks">
-            <StatusGroupedTasks
-              tasks={filteredTasks.filter(t => !t.due_date).slice(0, 50)}
-              onSelectTask={onSelectTask}
-              contextLabels={contextLabels}
-              rowComponent={(t) => <NeedsDueDateRow key={t.id} task={t} onSelect={onSelectTask} contextLabel={contextLabels.get(t.project_id)} onUpdated={() => queryClient.invalidateQueries({ queryKey: ["work"] })} />}
-            />
-          </CollapsibleSection>
-        )}
-
-        {grouped.map(([userId, userTasks]) => {
-          const user = userId ? users.find(u => u.id === userId) || null : null;
-          // Hide empty persons when filters are active
-          if (hasActiveFilters) {
-            const filtered = applyTaskFilters(userTasks.filter(t => t.status?.type !== "complete"));
-            if (filtered.length === 0) return null;
-          }
-          return (
-            <PersonSection
-              key={userId || "unassigned"}
-              user={user ? { id: user.id, name: user.name } : null}
-              tasks={userTasks}
-              onSelectTask={onSelectTask}
-              contextLabels={contextLabels}
-              defaultOpen={userId !== null && userTasks.some(t => isOverdue(t.due_date || ""))}
-              applyFilters={applyTaskFilters}
-            />
-          );
-        })}
-        {grouped.length === 0 && (
-          <div className="text-center py-12 text-sm text-zinc-400">No active tasks</div>
-        )}
-      </div>
-      </>)}
+      {teamTab === "people" && (
+        <TeamPeopleGridView
+          tasks={applyTaskFilters(filteredTasks.filter(t => t.status?.type !== "complete"))}
+          contextLabels={contextLabels}
+          onSelectTask={onSelectTask}
+          teams={teams}
+          selectedTeamId={selectedTeamId}
+          onSelectTeam={(teamId) => {
+            if (!teamId) {
+              setSelectedTeamId(null);
+              setSelectedPersonIds(new Set());
+            } else {
+              const team = teams.find(t => t.id === teamId);
+              setSelectedTeamId(teamId);
+              setSelectedPersonIds(new Set(team?.members.map(m => m.user_id) ?? []));
+            }
+          }}
+          allPersons={allPersons}
+          selectedPersonIds={selectedPersonIds}
+          onTogglePerson={(id) => {
+            const next = new Set(selectedPersonIds);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            setSelectedPersonIds(next);
+            setSelectedTeamId(null);
+          }}
+          onClearPersons={() => { setSelectedPersonIds(new Set()); setSelectedTeamId(null); }}
+          actionFilter={actionFilter}
+          onToggleAction={(action) => {
+            setActionFilter(prev => {
+              const next = new Set(prev);
+              if (next.has(action)) next.delete(action); else next.add(action);
+              return next;
+            });
+          }}
+          sortBy={sortBy}
+          onSortByChange={setSortBy}
+        />
+      )}
     </div>
   );
 }
+
+// ─── My Tasks AG Grid View ─────────────────────────────────────────────────
+
+type MyTasksGridFilter = "all" | "today" | "this_week" | "no_due" | "sales" | "work" | "stale" | "completed_week" | "archived";
+
+interface MyTasksGridRow {
+  id: string;
+  identifier: string;
+  title: string;
+  statusName: string;
+  statusType: string;
+  statusColor: string | null;
+  priority: number;
+  dueDate: string | null;
+  dueTs: number;
+  context: string;
+  projectName: string;
+  projectColor: string | null;
+  isSales: boolean;
+  isStale: boolean;
+  isArchived: boolean;
+  archivedAt: string | null;
+  updatedAt: string | null;
+  notion: boolean;
+  triageScore: number | null;
+}
+
+const MY_TASKS_VIEWS: { id: MyTasksGridFilter; label: string; icon: typeof Layers; color?: string }[] = [
+  { id: "all",             label: "All active",     icon: Layers },
+  { id: "today",           label: "Today",          icon: AlertTriangle, color: "#EF4444" },
+  { id: "this_week",       label: "This week",      icon: Calendar,      color: "#3B82F6" },
+  { id: "no_due",          label: "No due date",    icon: Calendar,      color: "#F59E0B" },
+  { id: "sales",           label: "Sales",          icon: Briefcase,     color: "#3B82F6" },
+  { id: "work",            label: "Work",           icon: Inbox,         color: "#0D9488" },
+  { id: "stale",           label: "Stale",          icon: Clock,         color: "#F59E0B" },
+  { id: "completed_week",  label: "Done this week", icon: CheckCircle2,  color: "#10B981" },
+  { id: "archived",        label: "Archived",       icon: Archive,       color: "#6B7280" },
+];
+
+// ─── Team People AG Grid View ───────────────────────────────────────────────
+// Row-grouped by assignee; each task can appear under multiple people if
+// multi-assigned. `grid_key = "team-tasks"` — shared layouts per workspace.
+
+interface TeamGridRow {
+  rowId: string;          // composite id for multi-assignee dedupe
+  taskId: string;
+  assignee: string;
+  identifier: string;
+  title: string;
+  statusName: string;
+  statusType: string;
+  statusColor: string | null;
+  priority: number;
+  triageAction: string;
+  dueDate: string | null;
+  dueTs: number;
+  context: string;
+  company: string;
+  triageScore: number | null;
+  notion: boolean;
+  isOverdue: boolean;
+}
+
+function TeamPeopleGridView({
+  tasks,
+  contextLabels,
+  onSelectTask,
+  teams,
+  selectedTeamId,
+  onSelectTeam,
+  allPersons,
+  selectedPersonIds,
+  onTogglePerson,
+  onClearPersons,
+  actionFilter,
+  onToggleAction,
+  sortBy,
+  onSortByChange,
+}: {
+  tasks: TaskWithRelations[];
+  contextLabels: Map<string, string>;
+  onSelectTask: (id: string) => void;
+  teams: { id: string; name: string; slug?: string; color?: string; members: { user_id: string }[] }[];
+  selectedTeamId: string | null;
+  onSelectTeam: (teamId: string | null) => void;
+  allPersons: [string, string][];
+  selectedPersonIds: Set<string>;
+  onTogglePerson: (id: string) => void;
+  onClearPersons: () => void;
+  actionFilter: Set<string>;
+  onToggleAction: (action: string) => void;
+  sortBy: "overdue" | "tasks" | "name";
+  onSortByChange: (s: "overdue" | "tasks" | "name") => void;
+}) {
+  const theme = useAppStore((s) => s.theme);
+  const [quickFilter, setQuickFilter] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const gridRef = useRef<AgGridReact<TeamGridRow>>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) setIsFullscreen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isFullscreen]);
+
+  // Fan out multi-assignee tasks → one row per (task, person) pair
+  const rowData = useMemo<TeamGridRow[]>(() => {
+    const rows: TeamGridRow[] = [];
+    for (const t of tasks) {
+      const assignees = t.assignees?.length ? t.assignees : [{ user: null as any }];
+      for (const a of assignees) {
+        const assignee = a.user?.name || "Unassigned";
+        rows.push({
+          rowId: `${t.id}:${a.user?.id || "none"}`,
+          taskId: t.id,
+          assignee,
+          identifier: getTaskIdentifier(t as any),
+          title: t.title || "(untitled)",
+          statusName: t.status?.name || "—",
+          statusType: t.status?.type || "todo",
+          statusColor: t.status?.color || null,
+          priority: t.priority ?? 0,
+          triageAction: (t as any).triage_action || "untriaged",
+          dueDate: t.due_date || null,
+          dueTs: t.due_date ? new Date(t.due_date).getTime() : 0,
+          context: contextLabels.get(t.project_id) || t.project?.name || "—",
+          company: (t.company as any)?.display_name || t.company?.name || "",
+          triageScore: (t as any).triage_score ?? null,
+          notion: !!(t as any).notion_page_id,
+          isOverdue: !!t.due_date && isOverdue(t.due_date),
+        });
+      }
+    }
+    return rows;
+  }, [tasks, contextLabels]);
+
+  const columnDefs = useMemo<ColDef<TeamGridRow>[]>(() => [
+    {
+      field: "assignee",
+      headerName: "Assignee",
+      rowGroup: true,
+      hide: true,
+      enableRowGroup: true,
+      filter: "agSetColumnFilter",
+    },
+    {
+      field: "identifier",
+      headerName: "ID",
+      width: 95,
+      filter: "agTextColumnFilter",
+      cellClass: "text-[11px] font-mono text-zinc-400",
+    },
+    {
+      field: "statusName",
+      headerName: "Status",
+      width: 130,
+      filter: "agSetColumnFilter",
+      cellRenderer: (p: { value: string; data?: TeamGridRow }) => (
+        <span className="flex items-center gap-1.5">
+          <StatusIcon type={(p.data?.statusType ?? "todo") as any} color={p.data?.statusColor ?? "#6B7280"} size={11} />
+          <span className="text-xs text-zinc-700 dark:text-zinc-300">{p.value}</span>
+        </span>
+      ),
+    },
+    {
+      field: "priority",
+      headerName: "P",
+      width: 60,
+      filter: "agNumberColumnFilter",
+      cellRenderer: (p: { value: number }) => <PriorityBars priority={p.value as any} size={10} />,
+    },
+    {
+      field: "title",
+      headerName: "Title",
+      flex: 2,
+      minWidth: 280,
+      filter: "agTextColumnFilter",
+      cellClass: "text-sm text-zinc-900 dark:text-zinc-100",
+    },
+    {
+      field: "context",
+      headerName: "Project",
+      flex: 1.4,
+      minWidth: 220,
+      filter: "agTextColumnFilter",
+      cellClass: "text-xs text-zinc-500 dark:text-zinc-400",
+    },
+    {
+      field: "triageAction",
+      headerName: "Action",
+      width: 110,
+      filter: "agSetColumnFilter",
+      valueFormatter: (p: { value: string }) =>
+        p.value === "do_now" ? "Now"
+        : p.value === "do_this_week" ? "This Week"
+        : p.value === "defer" ? "Defer"
+        : p.value === "delegate" ? "Delegate"
+        : p.value === "kill" ? "Kill"
+        : "Untriaged",
+    },
+    {
+      field: "dueTs",
+      headerName: "Due",
+      width: 110,
+      sort: "asc",
+      sortIndex: 0,
+      filter: "agNumberColumnFilter",
+      valueFormatter: (p: { data?: TeamGridRow }) => p.data?.dueDate ? formatShortDate(p.data.dueDate) : "—",
+      cellClass: (p: { data?: TeamGridRow }) => {
+        if (!p.data?.dueDate) return "text-xs text-zinc-400";
+        if (p.data.isOverdue) return "text-xs text-red-500 font-medium";
+        if (isToday(p.data.dueDate)) return "text-xs text-amber-500 font-medium";
+        return "text-xs text-zinc-500 dark:text-zinc-400";
+      },
+    },
+    {
+      field: "company",
+      headerName: "Company",
+      width: 160,
+      filter: "agSetColumnFilter",
+      cellClass: "text-xs text-zinc-500 dark:text-zinc-400",
+    },
+    {
+      field: "triageScore",
+      headerName: "Score",
+      width: 80,
+      filter: "agNumberColumnFilter",
+      valueFormatter: (p: { value: number | null }) => p.value != null ? String(p.value) : "—",
+      cellClass: "text-xs text-zinc-500 dark:text-zinc-400",
+    },
+    {
+      field: "notion",
+      headerName: "Notion",
+      width: 80,
+      filter: "agSetColumnFilter",
+      cellRenderer: (p: { value: boolean }) =>
+        p.value ? <span className="text-[10px] text-zinc-400">✓</span> : null,
+    },
+  ], []);
+
+  const defaultColDef = useMemo<ColDef>(() => ({
+    sortable: true,
+    resizable: true,
+    filter: true,
+    floatingFilter: true,
+    tooltipShowDelay: 500,
+  }), []);
+
+  const autoGroupColumnDef = useMemo<ColDef<TeamGridRow>>(() => ({
+    headerName: "Assignee",
+    minWidth: 240,
+    pinned: "left",
+    cellRendererParams: { suppressCount: false },
+  }), []);
+
+  const getRowId = useCallback((params: GetRowIdParams<TeamGridRow>) => params.data.rowId, []);
+
+  // ─── Shared layouts (grid_key = "team-tasks") ──────────────────────────────
+  const GRID_KEY = "team-tasks";
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [newLayoutName, setNewLayoutName] = useState("");
+  const [activeLayoutName, setActiveLayoutName] = useState<string | null>(null);
+  const [layoutModified, setLayoutModified] = useState(false);
+  const [activeFilterCount, setActiveFilterCount] = useState(0);
+  const { data: layouts = [], isFetched: layoutsFetched } = useGridLayouts(GRID_KEY);
+  const saveLayoutMutation = useSaveGridLayout(GRID_KEY);
+  const deleteLayoutMutation = useDeleteGridLayout(GRID_KEY);
+  const setDefaultMutation = useSetDefaultGridLayout(GRID_KEY);
+  const layoutsByName = useMemo(() => {
+    const m: Record<string, GridLayout> = {};
+    for (const l of layouts) m[l.name] = l;
+    return m;
+  }, [layouts]);
+  const defaultLayout = useMemo(() => layouts.find((l) => l.is_default) ?? null, [layouts]);
+
+  const saveCurrentLayout = useCallback(async (name: string) => {
+    const api = gridRef.current?.api;
+    const trimmed = name.trim();
+    if (!api || !trimmed) return;
+    try {
+      await saveLayoutMutation.mutateAsync({
+        name: trimmed,
+        payload: {
+          column_state: api.getColumnState() as unknown[],
+          filter_model: (api.getFilterModel() ?? {}) as Record<string, unknown>,
+          row_group_columns: api.getRowGroupColumns().map((col) => col.getColId()),
+        },
+      });
+      setActiveLayoutName(trimmed);
+      setLayoutModified(false);
+      setShowSaveDialog(false);
+      setNewLayoutName("");
+      toast.success(`Layout "${trimmed}" saved`);
+    } catch (err) {
+      toast.error(formatError(err));
+    }
+  }, [saveLayoutMutation]);
+
+  const loadLayout = useCallback((name: string) => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    api.setRowGroupColumns([]);
+    api.applyColumnState({ state: layout.column_state as ColumnState[], applyOrder: true });
+    if (layout.row_group_columns?.length) api.setRowGroupColumns(layout.row_group_columns);
+    if (layout.filter_model && Object.keys(layout.filter_model).length) {
+      api.setFilterModel(layout.filter_model);
+    } else {
+      api.setFilterModel(null);
+    }
+    setActiveLayoutName(name);
+    setLayoutModified(false);
+    setShowLayoutMenu(false);
+    toast.info(`Layout "${name}" applied`);
+  }, [layoutsByName]);
+
+  const deleteLayout = useCallback(async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    try {
+      await deleteLayoutMutation.mutateAsync(layout.id);
+      if (activeLayoutName === name) { setActiveLayoutName(null); setLayoutModified(false); }
+      toast.info(`Layout "${name}" deleted`);
+    } catch (err) {
+      toast.error(formatError(err));
+    }
+  }, [layoutsByName, deleteLayoutMutation, activeLayoutName]);
+
+  const toggleDefaultLayout = useCallback(async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    try {
+      await setDefaultMutation.mutateAsync({ id: layout.id, makeDefault: !layout.is_default });
+      toast.info(layout.is_default ? `"${name}" removed as default` : `"${name}" set as default layout`);
+    } catch (err) {
+      toast.error(formatError(err));
+    }
+  }, [layoutsByName, setDefaultMutation]);
+
+  const resetLayout = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    api.setFilterModel(null);
+    api.resetColumnState();
+    api.setRowGroupColumns(["assignee"]);
+    setQuickFilter("");
+    setActiveLayoutName(null);
+    setLayoutModified(false);
+    toast.info("Layout reset");
+  }, []);
+
+  const autoSizeAllColumns = useCallback(() => {
+    gridRef.current?.api.autoSizeAllColumns();
+  }, []);
+
+  const hasAppliedDefault = useRef(false);
+  const isFirstDataRendered = useRef(false);
+
+  const applyDefaultIfReady = useCallback(() => {
+    if (hasAppliedDefault.current) return;
+    if (!isFirstDataRendered.current) return;
+    if (!layoutsFetched) return;
+    const api = gridRef.current?.api;
+    if (!api) return;
+
+    if (defaultLayout) {
+      api.applyColumnState({ state: defaultLayout.column_state as ColumnState[], applyOrder: true });
+      if (defaultLayout.row_group_columns?.length) api.setRowGroupColumns(defaultLayout.row_group_columns);
+      if (defaultLayout.filter_model && Object.keys(defaultLayout.filter_model).length) {
+        api.setFilterModel(defaultLayout.filter_model);
+      }
+      setActiveLayoutName(defaultLayout.name);
+      setLayoutModified(false);
+    } else {
+      api.autoSizeAllColumns(false);
+    }
+    hasAppliedDefault.current = true;
+  }, [defaultLayout, layoutsFetched]);
+
+  const handleFirstDataRendered = useCallback(() => {
+    isFirstDataRendered.current = true;
+    applyDefaultIfReady();
+  }, [applyDefaultIfReady]);
+
+  useEffect(() => { applyDefaultIfReady(); }, [applyDefaultIfReady]);
+
+  const handleFilterChanged = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const model = api.getFilterModel() ?? {};
+    setActiveFilterCount(Object.keys(model).length);
+    if (hasAppliedDefault.current && activeLayoutName) setLayoutModified(true);
+  }, [activeLayoutName]);
+
+  const handleLayoutDirty = useCallback(() => {
+    if (hasAppliedDefault.current && activeLayoutName) setLayoutModified(true);
+  }, [activeLayoutName]);
+
+  const clearAllFilters = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    api.setFilterModel(null);
+    setQuickFilter("");
+  }, []);
+
+  const themeClass = theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine";
+
+  const ACTIONS: { id: string; label: string; icon: typeof Layers; color?: string }[] = [
+    { id: "do_now",        label: "Now",        icon: AlertTriangle, color: "#EF4444" },
+    { id: "do_this_week",  label: "This Week",  icon: Calendar,      color: "#3B82F6" },
+    { id: "defer",         label: "Defer",      icon: Clock,         color: "#F59E0B" },
+    { id: "untriaged",     label: "Untriaged",  icon: Inbox,         color: "#6B7280" },
+  ];
+
+  return (
+    <div className={isFullscreen
+      ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex overflow-hidden"
+      : "flex-1 min-h-0 flex overflow-hidden px-4 py-4"
+    }>
+      <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
+        {/* Sidebar: View presets, Teams, People, Sort */}
+        <aside className="w-60 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-3 py-3">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
+              <div className="space-y-0.5">
+                <button
+                  onClick={() => { actionFilter.forEach(a => onToggleAction(a)); }}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                    actionFilter.size === 0
+                      ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                  )}
+                >
+                  <span className="flex items-center gap-2"><Layers size={13} /> All</span>
+                </button>
+                {ACTIONS.map((a) => {
+                  const Icon = a.icon;
+                  const active = actionFilter.has(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => onToggleAction(a.id)}
+                      className={cn(
+                        "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                        active
+                          ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                          : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                      )}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Icon size={13} style={a.color ? { color: a.color } : undefined} />
+                        {a.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {teams.length > 0 && (
+              <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Teams</div>
+                <div className="space-y-0.5">
+                  <button
+                    onClick={() => onSelectTeam(null)}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 rounded text-[13px]",
+                      !selectedTeamId
+                        ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
+                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+                    )}
+                  >
+                    All teams
+                  </button>
+                  {teams.map((team) => (
+                    <button
+                      key={team.id}
+                      onClick={() => onSelectTeam(selectedTeamId === team.id ? null : team.id)}
+                      className={cn(
+                        "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                        selectedTeamId === team.id
+                          ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300"
+                          : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                      )}
+                    >
+                      <span className="flex items-center gap-2">
+                        {team.color && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: team.color }} />}
+                        {team.name}
+                      </span>
+                      <span className="text-[11px] text-zinc-400">{team.members.length}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500">People</div>
+                {selectedPersonIds.size > 0 && (
+                  <button onClick={onClearPersons} className="text-[10px] text-zinc-400 hover:text-zinc-200">Clear</button>
+                )}
+              </div>
+              <div className="space-y-0.5">
+                {allPersons.map(([id, name]) => {
+                  const active = selectedPersonIds.has(id);
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => onTogglePerson(id)}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-2 py-1.5 rounded text-[13px]",
+                        active
+                          ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                          : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                      )}
+                    >
+                      <span className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[9px] font-bold text-zinc-600 dark:text-zinc-400 flex-shrink-0">
+                        {initials(name)}
+                      </span>
+                      <span className="truncate">{name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-800">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Sort</div>
+              <div className="flex items-center gap-1">
+                {(["overdue", "tasks", "name"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => onSortByChange(s)}
+                    className={cn(
+                      "text-[11px] px-1.5 py-0.5 rounded font-medium transition-colors",
+                      sortBy === s ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                    )}
+                  >
+                    {s === "overdue" ? "Overdue" : s === "tasks" ? "Tasks" : "Name"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main: toolbar + grid */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      {/* Toolbar */}
+      <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
+        <input
+          type="text"
+          value={quickFilter}
+          onChange={(e) => setQuickFilter(e.target.value)}
+          placeholder="Quick filter..."
+          className="max-w-md flex-1 px-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        />
+        <span className="text-[11px] text-zinc-400 whitespace-nowrap">{rowData.length} rows</span>
+
+        {(activeFilterCount > 0 || quickFilter.trim().length > 0) && (
+          <button
+            onClick={clearAllFilters}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60 transition-colors whitespace-nowrap"
+            title="Clear all filters"
+          >
+            <span>
+              {activeFilterCount + (quickFilter.trim().length > 0 ? 1 : 0)} filter{activeFilterCount + (quickFilter.trim().length > 0 ? 1 : 0) === 1 ? "" : "s"} active
+            </span>
+            <X size={11} />
+          </button>
+        )}
+
+        <div className="flex-1" />
+
+        {/* Layouts dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+            className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            title={activeLayoutName ? `Current layout: ${activeLayoutName}${layoutModified ? " (modified)" : ""}` : "Layouts"}
+          >
+            <Bookmark size={11} />
+            {activeLayoutName ? (
+              <span className="flex items-center gap-1">
+                <span className="max-w-[110px] truncate">{activeLayoutName}</span>
+                {layoutModified && <span className="text-amber-500" title="Layout has unsaved changes">•</span>}
+              </span>
+            ) : (
+              <span>Layouts</span>
+            )}
+          </button>
+          {showLayoutMenu && (
+            <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
+              <button
+                onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }}
+                className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+              >
+                <ChevronsLeftRight size={12} /> Auto-fit Columns
+              </button>
+              <button
+                onClick={() => { resetLayout(); setShowLayoutMenu(false); }}
+                className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+              >
+                <RotateCcw size={12} /> Reset Layout
+              </button>
+              <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+              <button
+                onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }}
+                className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+              >
+                <span className="text-green-600 dark:text-green-400">+</span>
+                Save current layout...
+              </button>
+              {layouts.length > 0 && (
+                <>
+                  <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+                  <div className="px-3 py-1 text-[10px] font-medium text-zinc-500 uppercase tracking-wide">Shared Layouts</div>
+                  {layouts.map((layout) => (
+                    <div
+                      key={layout.id}
+                      onClick={() => loadLayout(layout.name)}
+                      className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group"
+                    >
+                      <span className="truncate flex items-center gap-1.5">
+                        {layout.is_default && <Star size={10} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
+                        {layout.name}
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        <button onClick={(e) => { e.stopPropagation(); saveCurrentLayout(layout.name); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/30" title="Overwrite with current layout">
+                          <Save size={11} />
+                        </button>
+                        <button
+                          onClick={(e) => toggleDefaultLayout(layout.name, e)}
+                          className={cn(
+                            "p-1 rounded",
+                            layout.is_default
+                              ? "text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                              : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                          )}
+                          title={layout.is_default ? "Remove as default" : "Set as default"}
+                        >
+                          <Star size={11} className={layout.is_default ? "fill-amber-500" : ""} />
+                        </button>
+                        <button onClick={(e) => deleteLayout(layout.name, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400" title="Delete layout">
+                          <X size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          className={cn(
+            "flex items-center justify-center p-1.5 rounded-md border transition-colors",
+            isFullscreen
+              ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+              : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          )}
+          title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
+        >
+          {isFullscreen ? <X size={12} /> : <Maximize2 size={12} />}
+        </button>
+      </div>
+
+      {/* AG Grid */}
+      <div className={`${themeClass} flex-1 min-h-0`} style={{ width: "100%" }}>
+        <style>{themeStyles}{`
+          .ag-theme-alpine .ag-cell,
+          .ag-theme-alpine-dark .ag-cell { display: flex; align-items: center; }
+        `}</style>
+        <AgGridReact<TeamGridRow>
+          ref={gridRef}
+          theme="legacy"
+          rowData={rowData}
+          columnDefs={columnDefs}
+          defaultColDef={defaultColDef}
+          autoGroupColumnDef={autoGroupColumnDef}
+          getRowId={getRowId}
+          rowHeight={36}
+          headerHeight={32}
+          floatingFiltersHeight={30}
+          animateRows
+          enableBrowserTooltips
+          groupDisplayType="singleColumn"
+          groupDefaultExpanded={1}
+          rowGroupPanelShow="never"
+          quickFilterText={quickFilter}
+          onFirstDataRendered={handleFirstDataRendered}
+          onFilterChanged={handleFilterChanged}
+          onColumnMoved={handleLayoutDirty}
+          onColumnResized={handleLayoutDirty}
+          onColumnVisible={handleLayoutDirty}
+          onColumnPinned={handleLayoutDirty}
+          onColumnRowGroupChanged={handleLayoutDirty}
+          onSortChanged={handleLayoutDirty}
+          onRowClicked={(e) => { if (e.data?.taskId) onSelectTask(e.data.taskId); }}
+          sideBar={{
+            toolPanels: [
+              { id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" },
+              { id: "filters", labelDefault: "Filters", labelKey: "filters", iconKey: "filter", toolPanel: "agFiltersToolPanel" },
+            ],
+            defaultToolPanel: "",
+          }}
+          pagination
+          paginationPageSize={200}
+          paginationPageSizeSelector={[100, 200, 500, 1000]}
+        />
+      </div>
+
+      {showSaveDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-800">
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Save Layout</h3>
+            <input
+              type="text"
+              value={newLayoutName}
+              onChange={(e) => setNewLayoutName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newLayoutName.trim()) saveCurrentLayout(newLayoutName);
+                else if (e.key === "Escape") { setShowSaveDialog(false); setNewLayoutName(""); }
+              }}
+              placeholder="Enter layout name..."
+              className="w-full px-3 py-2 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setShowSaveDialog(false); setNewLayoutName(""); }} className="px-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700">Cancel</button>
+              <button onClick={() => saveCurrentLayout(newLayoutName)} disabled={!newLayoutName.trim()} className="px-3 py-1.5 text-xs rounded-md bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showLayoutMenu && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowLayoutMenu(false)} />
+      )}
+        </div> {/* end main column */}
+      </div> {/* end box */}
+    </div>
+  );
+}
+
+function MyTasksGridView({
+  myTasks,
+  staleTasks,
+  archivedTasks,
+  recentlyCompleted,
+  contextLabels,
+  selectedTaskIds,
+  setSelectedTaskIds,
+  onSelectTask,
+  onBulkSyncToNotion,
+}: {
+  myTasks: TaskWithRelations[];
+  staleTasks: TaskWithRelations[];
+  archivedTasks: TaskWithRelations[];
+  recentlyCompleted: TaskWithRelations[];
+  contextLabels: Map<string, string>;
+  selectedTaskIds: Set<string>;
+  setSelectedTaskIds: (ids: Set<string>) => void;
+  onSelectTask: (id: string) => void;
+  onBulkSyncToNotion: () => void | Promise<void>;
+}) {
+  const theme = useAppStore((s) => s.theme);
+  const [view, setView] = useState<MyTasksGridFilter>("all");
+  const [quickFilter, setQuickFilter] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const gridRef = useRef<AgGridReact<MyTasksGridRow>>(null);
+
+  // ESC to exit fullscreen
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) setIsFullscreen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isFullscreen]);
+
+  // Filter the source list per the active view
+  const filteredTasks = useMemo<TaskWithRelations[]>(() => {
+    const weekFromNow = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    switch (view) {
+      case "all":            return myTasks.filter(t => t.status?.type !== "complete");
+      case "today":          return myTasks.filter(t => t.status?.type !== "complete" && (isOverdue(t.due_date || "") || isToday(t.due_date)));
+      case "this_week":      return myTasks.filter(t => t.status?.type !== "complete" && t.due_date && new Date(t.due_date).getTime() <= weekFromNow);
+      case "no_due":         return myTasks.filter(t => t.status?.type !== "complete" && !t.due_date);
+      case "sales":          return myTasks.filter(t => isSalesTask(t) && t.status?.type !== "complete");
+      case "work":           return myTasks.filter(t => !isSalesTask(t) && t.status?.type !== "complete");
+      case "stale":          return staleTasks;
+      case "completed_week": return recentlyCompleted;
+      case "archived":       return archivedTasks;
+    }
+  }, [view, myTasks, staleTasks, archivedTasks, recentlyCompleted]);
+
+  // Counts per view
+  const viewCounts = useMemo<Record<MyTasksGridFilter, number>>(() => {
+    const weekFromNow = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    return {
+      all:            myTasks.filter(t => t.status?.type !== "complete").length,
+      today:          myTasks.filter(t => t.status?.type !== "complete" && (isOverdue(t.due_date || "") || isToday(t.due_date))).length,
+      this_week:      myTasks.filter(t => t.status?.type !== "complete" && t.due_date && new Date(t.due_date).getTime() <= weekFromNow).length,
+      no_due:         myTasks.filter(t => t.status?.type !== "complete" && !t.due_date).length,
+      sales:          myTasks.filter(t => isSalesTask(t) && t.status?.type !== "complete").length,
+      work:           myTasks.filter(t => !isSalesTask(t) && t.status?.type !== "complete").length,
+      stale:          staleTasks.length,
+      completed_week: recentlyCompleted.length,
+      archived:       archivedTasks.length,
+    };
+  }, [myTasks, staleTasks, archivedTasks, recentlyCompleted]);
+
+  // Map to grid rows
+  const rowData = useMemo<MyTasksGridRow[]>(() => {
+    return filteredTasks.map((t) => ({
+      id: t.id,
+      identifier: getTaskIdentifier(t as any),
+      title: t.title || "(untitled)",
+      statusName: t.status?.name || "—",
+      statusType: t.status?.type || "todo",
+      statusColor: t.status?.color || null,
+      priority: t.priority ?? 0,
+      dueDate: t.due_date || null,
+      dueTs: t.due_date ? new Date(t.due_date).getTime() : 0,
+      context: contextLabels.get(t.project_id) || t.project?.name || "—",
+      projectName: t.project?.name || "",
+      projectColor: t.project?.color || null,
+      isSales: isSalesTask(t),
+      isStale: false,
+      isArchived: !!(t as any).archived_at,
+      archivedAt: (t as any).archived_at || null,
+      updatedAt: t.updated_at || null,
+      notion: !!(t as any).notion_page_id,
+      triageScore: (t as any).triage_score ?? null,
+    }));
+  }, [filteredTasks, contextLabels]);
+
+  const columnDefs = useMemo<ColDef<MyTasksGridRow>[]>(() => [
+    {
+      headerCheckboxSelection: true,
+      checkboxSelection: true,
+      width: 40,
+      pinned: "left",
+      sortable: false,
+      filter: false,
+      resizable: false,
+    },
+    {
+      field: "identifier",
+      headerName: "ID",
+      width: 95,
+      filter: "agTextColumnFilter",
+      cellClass: "text-[11px] font-mono text-zinc-400",
+    },
+    {
+      field: "statusName",
+      headerName: "Status",
+      width: 130,
+      filter: "agSetColumnFilter",
+      cellRenderer: (p: { value: string; data?: MyTasksGridRow }) => (
+        <span className="flex items-center gap-1.5">
+          <StatusIcon type={(p.data?.statusType ?? "todo") as any} color={p.data?.statusColor ?? "#6B7280"} size={11} />
+          <span className="text-xs text-zinc-700 dark:text-zinc-300">{p.value}</span>
+        </span>
+      ),
+    },
+    {
+      field: "priority",
+      headerName: "P",
+      width: 60,
+      filter: "agNumberColumnFilter",
+      cellRenderer: (p: { value: number }) => <PriorityBars priority={p.value as any} size={10} />,
+    },
+    {
+      field: "title",
+      headerName: "Title",
+      flex: 2,
+      minWidth: 280,
+      filter: "agTextColumnFilter",
+      cellClass: "text-sm text-zinc-900 dark:text-zinc-100",
+    },
+    {
+      field: "context",
+      headerName: "Project",
+      flex: 1.4,
+      minWidth: 220,
+      filter: "agTextColumnFilter",
+      cellClass: "text-xs text-zinc-500 dark:text-zinc-400",
+    },
+    {
+      field: "dueTs",
+      headerName: "Due",
+      width: 110,
+      sort: "asc",
+      sortIndex: 0,
+      filter: "agNumberColumnFilter",
+      valueFormatter: (p: { data?: MyTasksGridRow }) => p.data?.dueDate ? formatShortDate(p.data.dueDate) : "—",
+      cellClass: (p: { data?: MyTasksGridRow }) => {
+        if (!p.data?.dueDate) return "text-xs text-zinc-400";
+        if (isOverdue(p.data.dueDate)) return "text-xs text-red-500 font-medium";
+        if (isToday(p.data.dueDate)) return "text-xs text-amber-500 font-medium";
+        return "text-xs text-zinc-500 dark:text-zinc-400";
+      },
+    },
+    {
+      field: "triageScore",
+      headerName: "Score",
+      width: 80,
+      filter: "agNumberColumnFilter",
+      valueFormatter: (p: { value: number | null }) => p.value != null ? String(p.value) : "—",
+      cellClass: "text-xs text-zinc-500 dark:text-zinc-400",
+    },
+    {
+      field: "notion",
+      headerName: "Notion",
+      width: 80,
+      filter: "agSetColumnFilter",
+      cellRenderer: (p: { value: boolean }) =>
+        p.value ? <span className="text-[10px] text-zinc-400">✓</span> : null,
+    },
+  ], []);
+
+  const defaultColDef = useMemo<ColDef>(() => ({
+    sortable: true,
+    resizable: true,
+    filter: true,
+    floatingFilter: true,
+    tooltipShowDelay: 500,
+  }), []);
+
+  const getRowId = useCallback((params: GetRowIdParams<MyTasksGridRow>) => params.data.id, []);
+
+  // ─── Shared layouts (Supabase grid_layouts, grid_key = "my-tasks") ───────
+  const GRID_KEY = "my-tasks";
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [newLayoutName, setNewLayoutName] = useState("");
+  const [activeLayoutName, setActiveLayoutName] = useState<string | null>(null);
+  const [layoutModified, setLayoutModified] = useState(false);
+  const [activeFilterCount, setActiveFilterCount] = useState(0);
+  const { data: layouts = [], isFetched: layoutsFetched } = useGridLayouts(GRID_KEY);
+  const saveLayoutMutation = useSaveGridLayout(GRID_KEY);
+  const deleteLayoutMutation = useDeleteGridLayout(GRID_KEY);
+  const setDefaultMutation = useSetDefaultGridLayout(GRID_KEY);
+  const layoutsByName = useMemo(() => {
+    const m: Record<string, GridLayout> = {};
+    for (const l of layouts) m[l.name] = l;
+    return m;
+  }, [layouts]);
+  const defaultLayout = useMemo(() => layouts.find((l) => l.is_default) ?? null, [layouts]);
+
+  const saveCurrentLayout = useCallback(async (name: string) => {
+    const api = gridRef.current?.api;
+    const trimmed = name.trim();
+    if (!api || !trimmed) return;
+    try {
+      await saveLayoutMutation.mutateAsync({
+        name: trimmed,
+        payload: {
+          column_state: api.getColumnState() as unknown[],
+          filter_model: (api.getFilterModel() ?? {}) as Record<string, unknown>,
+          row_group_columns: api.getRowGroupColumns().map((col) => col.getColId()),
+        },
+      });
+      setActiveLayoutName(trimmed);
+      setLayoutModified(false);
+      setShowSaveDialog(false);
+      setNewLayoutName("");
+      toast.success(`Layout "${trimmed}" saved`);
+    } catch (err) {
+      toast.error(formatError(err));
+    }
+  }, [saveLayoutMutation]);
+
+  const loadLayout = useCallback((name: string) => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    api.setRowGroupColumns([]);
+    api.applyColumnState({ state: layout.column_state as ColumnState[], applyOrder: true });
+    if (layout.row_group_columns?.length) api.setRowGroupColumns(layout.row_group_columns);
+    if (layout.filter_model && Object.keys(layout.filter_model).length) {
+      api.setFilterModel(layout.filter_model);
+    } else {
+      api.setFilterModel(null);
+    }
+    setActiveLayoutName(name);
+    setLayoutModified(false);
+    setShowLayoutMenu(false);
+    toast.info(`Layout "${name}" applied`);
+  }, [layoutsByName]);
+
+  const deleteLayout = useCallback(async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    try {
+      await deleteLayoutMutation.mutateAsync(layout.id);
+      if (activeLayoutName === name) {
+        setActiveLayoutName(null);
+        setLayoutModified(false);
+      }
+      toast.info(`Layout "${name}" deleted`);
+    } catch (err) {
+      toast.error(formatError(err));
+    }
+  }, [layoutsByName, deleteLayoutMutation, activeLayoutName]);
+
+  const toggleDefaultLayout = useCallback(async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    try {
+      await setDefaultMutation.mutateAsync({ id: layout.id, makeDefault: !layout.is_default });
+      toast.info(layout.is_default ? `"${name}" removed as default` : `"${name}" set as default layout`);
+    } catch (err) {
+      toast.error(formatError(err));
+    }
+  }, [layoutsByName, setDefaultMutation]);
+
+  const resetLayout = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    api.setFilterModel(null);
+    api.resetColumnState();
+    api.setRowGroupColumns([]);
+    setQuickFilter("");
+    setActiveLayoutName(null);
+    setLayoutModified(false);
+    toast.info("Layout reset");
+  }, []);
+
+  const autoSizeAllColumns = useCallback(() => {
+    gridRef.current?.api.autoSizeAllColumns();
+  }, []);
+
+  // Apply default layout once grid + Supabase query are both ready.
+  const hasAppliedDefault = useRef(false);
+  const isFirstDataRendered = useRef(false);
+
+  const applyDefaultIfReady = useCallback(() => {
+    if (hasAppliedDefault.current) return;
+    if (!isFirstDataRendered.current) return;
+    if (!layoutsFetched) return;
+    const api = gridRef.current?.api;
+    if (!api) return;
+
+    if (defaultLayout) {
+      api.applyColumnState({ state: defaultLayout.column_state as ColumnState[], applyOrder: true });
+      if (defaultLayout.row_group_columns?.length) api.setRowGroupColumns(defaultLayout.row_group_columns);
+      if (defaultLayout.filter_model && Object.keys(defaultLayout.filter_model).length) {
+        api.setFilterModel(defaultLayout.filter_model);
+      }
+      setActiveLayoutName(defaultLayout.name);
+      setLayoutModified(false);
+    } else {
+      api.autoSizeAllColumns(false);
+    }
+    hasAppliedDefault.current = true;
+  }, [defaultLayout, layoutsFetched]);
+
+  const handleFirstDataRendered = useCallback(() => {
+    isFirstDataRendered.current = true;
+    applyDefaultIfReady();
+  }, [applyDefaultIfReady]);
+
+  useEffect(() => {
+    applyDefaultIfReady();
+  }, [applyDefaultIfReady]);
+
+  const handleFilterChanged = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const model = api.getFilterModel() ?? {};
+    setActiveFilterCount(Object.keys(model).length);
+    if (hasAppliedDefault.current && activeLayoutName) setLayoutModified(true);
+  }, [activeLayoutName]);
+
+  const handleLayoutDirty = useCallback(() => {
+    if (hasAppliedDefault.current && activeLayoutName) setLayoutModified(true);
+  }, [activeLayoutName]);
+
+  const clearAllFilters = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    api.setFilterModel(null);
+    setQuickFilter("");
+  }, []);
+
+  const themeClass = theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine";
+
+  return (
+    <div className={isFullscreen
+      ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex overflow-hidden"
+      : "flex-1 min-h-0 flex overflow-hidden px-4 py-4"
+    }>
+      <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
+        {/* Sidebar */}
+        <aside className="w-60 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
+          <div className="px-3 py-3">
+            <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
+            <div className="space-y-0.5">
+              {MY_TASKS_VIEWS.map((v) => {
+                const Icon = v.icon;
+                const active = view === v.id;
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => { setView(v.id); setSelectedTaskIds(new Set()); }}
+                    className={cn(
+                      "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                      active
+                        ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icon size={13} style={v.color ? { color: v.color } : undefined} />
+                      {v.label}
+                    </span>
+                    <span className="text-[11px] text-zinc-500">{viewCounts[v.id]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+
+        {/* Main column */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          {/* Toolbar */}
+          <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
+            {/* Left group: search, count, filter pill */}
+            <input
+              type="text"
+              value={quickFilter}
+              onChange={(e) => setQuickFilter(e.target.value)}
+              placeholder="Quick filter..."
+              className="max-w-md flex-1 px-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            />
+            <span className="text-[11px] text-zinc-400 whitespace-nowrap">{rowData.length} tasks</span>
+
+            {(activeFilterCount > 0 || quickFilter.trim().length > 0) && (
+              <button
+                onClick={clearAllFilters}
+                className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60 transition-colors whitespace-nowrap"
+                title="Clear all filters"
+              >
+                <span>
+                  {activeFilterCount + (quickFilter.trim().length > 0 ? 1 : 0)} filter{activeFilterCount + (quickFilter.trim().length > 0 ? 1 : 0) === 1 ? "" : "s"} active
+                </span>
+                <X size={11} />
+              </button>
+            )}
+
+            {/* Spacer pushes remaining buttons to the right */}
+            <div className="flex-1" />
+
+            {/* Right group: Selected-task actions (shown only when selection is non-empty) */}
+            {selectedTaskIds.size > 0 && (
+              <>
+                <span className="text-xs font-medium text-blue-600 dark:text-blue-400 whitespace-nowrap">{selectedTaskIds.size} selected</span>
+                <button
+                  onClick={() => onBulkSyncToNotion()}
+                  className="flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 font-medium whitespace-nowrap"
+                >
+                  <Send size={11} /> Sync to Notion
+                </button>
+                <button
+                  onClick={() => { setSelectedTaskIds(new Set()); gridRef.current?.api.deselectAll(); }}
+                  className="text-[11px] px-2 py-1 rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                >
+                  Clear
+                </button>
+              </>
+            )}
+
+            {/* Layouts dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                title={activeLayoutName ? `Current layout: ${activeLayoutName}${layoutModified ? " (modified)" : ""}` : "Layouts"}
+              >
+                <Bookmark size={11} />
+                {activeLayoutName ? (
+                  <span className="flex items-center gap-1">
+                    <span className="max-w-[110px] truncate">{activeLayoutName}</span>
+                    {layoutModified && <span className="text-amber-500" title="Layout has unsaved changes">•</span>}
+                  </span>
+                ) : (
+                  <span>Layouts</span>
+                )}
+              </button>
+              {showLayoutMenu && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
+                  <button
+                    onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }}
+                    className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+                  >
+                    <ChevronsLeftRight size={12} /> Auto-fit Columns
+                  </button>
+                  <button
+                    onClick={() => { resetLayout(); setShowLayoutMenu(false); }}
+                    className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+                  >
+                    <RotateCcw size={12} /> Reset Layout
+                  </button>
+                  <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+                  <button
+                    onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }}
+                    className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+                  >
+                    <span className="text-green-600 dark:text-green-400">+</span>
+                    Save current layout...
+                  </button>
+                  {layouts.length > 0 && (
+                    <>
+                      <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+                      <div className="px-3 py-1 text-[10px] font-medium text-zinc-500 uppercase tracking-wide">Shared Layouts</div>
+                      {layouts.map((layout) => (
+                        <div
+                          key={layout.id}
+                          onClick={() => loadLayout(layout.name)}
+                          className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group"
+                        >
+                          <span className="truncate flex items-center gap-1.5">
+                            {layout.is_default && <Star size={10} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
+                            {layout.name}
+                          </span>
+                          <div className="flex items-center gap-0.5">
+                            <button onClick={(e) => { e.stopPropagation(); saveCurrentLayout(layout.name); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/30" title="Overwrite with current layout">
+                              <Save size={11} />
+                            </button>
+                            <button
+                              onClick={(e) => toggleDefaultLayout(layout.name, e)}
+                              className={cn(
+                                "p-1 rounded",
+                                layout.is_default
+                                  ? "text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                                  : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                              )}
+                              title={layout.is_default ? "Remove as default" : "Set as default"}
+                            >
+                              <Star size={11} className={layout.is_default ? "fill-amber-500" : ""} />
+                            </button>
+                            <button onClick={(e) => deleteLayout(layout.name, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400" title="Delete layout">
+                              <X size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className={cn(
+                "flex items-center justify-center p-1.5 rounded-md border transition-colors",
+                isFullscreen
+                  ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                  : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              )}
+              title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
+            >
+              {isFullscreen ? <X size={12} /> : <Maximize2 size={12} />}
+            </button>
+          </div>
+
+          {/* AG Grid */}
+          <div className={`${themeClass} flex-1 min-h-0`} style={{ width: "100%" }}>
+            <style>{themeStyles}{`
+              .ag-theme-alpine .ag-cell,
+              .ag-theme-alpine-dark .ag-cell { display: flex; align-items: center; }
+            `}</style>
+            <AgGridReact<MyTasksGridRow>
+              ref={gridRef}
+              theme="legacy"
+              rowData={rowData}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              getRowId={getRowId}
+              rowHeight={36}
+              headerHeight={32}
+              floatingFiltersHeight={30}
+              animateRows
+              enableBrowserTooltips
+              rowSelection="multiple"
+              suppressRowClickSelection
+              quickFilterText={quickFilter}
+              onFirstDataRendered={handleFirstDataRendered}
+              onFilterChanged={handleFilterChanged}
+              onColumnMoved={handleLayoutDirty}
+              onColumnResized={handleLayoutDirty}
+              onColumnVisible={handleLayoutDirty}
+              onColumnPinned={handleLayoutDirty}
+              onSortChanged={handleLayoutDirty}
+              onSelectionChanged={() => {
+                const api = gridRef.current?.api;
+                if (!api) return;
+                const ids = new Set<string>();
+                api.getSelectedNodes().forEach((n) => { if (n.data?.id) ids.add(n.data.id); });
+                setSelectedTaskIds(ids);
+              }}
+              onRowClicked={(e) => {
+                if (e.data?.id) onSelectTask(e.data.id);
+              }}
+              sideBar={{
+                toolPanels: [
+                  { id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" },
+                  { id: "filters", labelDefault: "Filters", labelKey: "filters", iconKey: "filter", toolPanel: "agFiltersToolPanel" },
+                ],
+                defaultToolPanel: "",
+              }}
+              statusBar={{
+                statusPanels: [
+                  { statusPanel: "agTotalAndFilteredRowCountComponent", align: "left" },
+                  { statusPanel: "agSelectedRowCountComponent", align: "left" },
+                ],
+              }}
+              pagination
+              paginationPageSize={100}
+              paginationPageSizeSelector={[50, 100, 200, 500]}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Save Layout Dialog */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-800">
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Save Layout</h3>
+            <input
+              type="text"
+              value={newLayoutName}
+              onChange={(e) => setNewLayoutName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newLayoutName.trim()) saveCurrentLayout(newLayoutName);
+                else if (e.key === "Escape") { setShowSaveDialog(false); setNewLayoutName(""); }
+              }}
+              placeholder="Enter layout name..."
+              className="w-full px-3 py-2 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowSaveDialog(false); setNewLayoutName(""); }}
+                className="px-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => saveCurrentLayout(newLayoutName)}
+                disabled={!newLayoutName.trim()}
+                className="px-3 py-1.5 text-xs rounded-md bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Click outside to close layout menu */}
+      {showLayoutMenu && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowLayoutMenu(false)} />
+      )}
+    </div>
+  );
+}
+

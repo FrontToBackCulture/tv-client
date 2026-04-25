@@ -1,5 +1,6 @@
 // ProjectsGrid — AG Grid Enterprise table for all projects
-// Full feature parity with SkillReviewGrid: layouts, fullscreen, export, inline editing
+// Standard treatment: sidebar presets, shared layouts (Supabase), floating filters,
+// rounded bordered box wrapper, toolbar with filter pill + Layouts + Fullscreen.
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { AgGridReact } from "ag-grid-react";
@@ -11,8 +12,9 @@ import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import {
-  Search, Download, FileSpreadsheet, Maximize2, X, RotateCcw, Columns,
-  ChevronsLeftRight, Bookmark, Star, Save, WrapText,
+  Download, FileSpreadsheet, Maximize2, X, RotateCcw, Layers,
+  ChevronsLeftRight, Bookmark, Star, Save, WrapText, Target,
+  Hammer, CheckCircle2, PauseCircle, Clock, Activity,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { toSGTDateString } from "../../lib/date";
@@ -23,12 +25,21 @@ import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
 import { supabase } from "../../lib/supabase";
 import type { Project } from "../../lib/work/types";
 import { DEAL_STAGES, DEAL_SOLUTIONS } from "../../lib/crm/types";
+import {
+  useGridLayouts,
+  useSaveGridLayout,
+  useDeleteGridLayout,
+  useSetDefaultGridLayout,
+  type GridLayout,
+} from "../../hooks/useGridLayouts";
 
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
 
 if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
   LicenseManager.setLicenseKey(import.meta.env.VITE_AG_GRID_LICENSE_KEY);
 }
+
+const GRID_KEY = "projects-manage";
 
 interface ProjectRow {
   id: string;
@@ -68,12 +79,38 @@ interface Props {
   onSelectProject: (id: string) => void;
 }
 
-const LAYOUT_STORAGE_KEY = "tv-desktop-project-grid-layouts";
-const DEFAULT_LAYOUT_KEY = "tv-desktop-project-grid-default-layout";
-
 const STATUS_VALUES = ["planned", "active", "completed", "paused"];
 const TYPE_VALUES = ["work", "deal"];
 const HEALTH_VALUES = ["on_track", "at_risk", "off_track", ""];
+
+type StatusKey = "all" | "active" | "planned" | "completed" | "paused";
+type TypeKey = "all" | "deal" | "work";
+type StageKey = string; // "all" | one of DEAL_STAGES values
+
+const STATUS_VIEWS: { id: StatusKey; label: string; icon: typeof Layers }[] = [
+  { id: "all",       label: "All",       icon: Layers },
+  { id: "active",    label: "Active",    icon: Activity },
+  { id: "planned",   label: "Planned",   icon: Clock },
+  { id: "completed", label: "Completed", icon: CheckCircle2 },
+  { id: "paused",    label: "Paused",    icon: PauseCircle },
+];
+
+const TYPE_VIEWS: { id: TypeKey; label: string; icon: typeof Layers }[] = [
+  { id: "all",  label: "All Types", icon: Layers },
+  { id: "deal", label: "Deals",     icon: Target },
+  { id: "work", label: "Work",      icon: Hammer },
+];
+
+const STAGE_DOT_COLORS: Record<string, string> = {
+  zinc:   "bg-zinc-400",
+  gray:   "bg-gray-400",
+  blue:   "bg-blue-500",
+  purple: "bg-purple-500",
+  cyan:   "bg-cyan-500",
+  yellow: "bg-yellow-500",
+  green:  "bg-emerald-500",
+  red:    "bg-red-500",
+};
 
 function buildColumns(wrapNotes: boolean): (ColDef<ProjectRow> | ColGroupDef<ProjectRow>)[] {
   return [
@@ -150,22 +187,22 @@ function buildColumns(wrapNotes: boolean): (ColDef<ProjectRow> | ColGroupDef<Pro
     },
     { field: "lead", headerName: "Lead", width: 100, editable: true, hide: true },
     { field: "intent", headerName: "Intent", width: 120, editable: true, hide: true, filter: "agSetColumnFilter" },
-    { field: "target_date", headerName: "Target Date", width: 110, editable: true, hide: true },
-    { field: "task_count", headerName: "Tasks", width: 70, type: "numericColumn" },
-    { field: "completed_count", headerName: "Done", width: 70, type: "numericColumn" },
-    { field: "overdue_count", headerName: "Overdue", width: 80, type: "numericColumn",
+    { field: "target_date", headerName: "Target Date", width: 110, editable: true, hide: true, filter: "agDateColumnFilter" },
+    { field: "task_count", headerName: "Tasks", width: 70, type: "numericColumn", filter: "agNumberColumnFilter" },
+    { field: "completed_count", headerName: "Done", width: 70, type: "numericColumn", filter: "agNumberColumnFilter" },
+    { field: "overdue_count", headerName: "Overdue", width: 80, type: "numericColumn", filter: "agNumberColumnFilter",
       cellStyle: (params: any) => params.value > 0 ? { color: "#ef4444", fontWeight: 600 } : undefined,
     },
     {
       field: "description", headerName: "Description", minWidth: 200, flex: 1, editable: true, hide: true,
-      wrapText: wrapNotes, autoHeight: wrapNotes, enableRowGroup: false,
+      wrapText: wrapNotes, autoHeight: wrapNotes, enableRowGroup: false, filter: "agTextColumnFilter",
     },
     {
       field: "deal_notes", headerName: "Notes", minWidth: 200, flex: 1, editable: true, hide: true,
-      wrapText: wrapNotes, autoHeight: wrapNotes, enableRowGroup: false,
+      wrapText: wrapNotes, autoHeight: wrapNotes, enableRowGroup: false, filter: "agTextColumnFilter",
     },
     {
-      field: "updated_at", headerName: "Updated", width: 100,
+      field: "updated_at", headerName: "Updated", width: 110, filter: "agDateColumnFilter",
       valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "",
     },
   ];
@@ -177,13 +214,9 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
   const [quickFilter, setQuickFilter] = useState("");
   const [wrapNotes, setWrapNotes] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [newLayoutName, setNewLayoutName] = useState("");
-  const [savedLayouts, setSavedLayouts] = useState<Record<string, object>>(() => {
-    try { return JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || "{}"); } catch { return {}; }
-  });
-  const [defaultLayoutName, setDefaultLayoutName] = useState<string | null>(() => localStorage.getItem(DEFAULT_LAYOUT_KEY));
+  const [statusFilter, setStatusFilter] = useState<StatusKey>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeKey>("all");
+  const [stageFilter, setStageFilter] = useState<StageKey>("all");
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape" && isFullscreen) setIsFullscreen(false); };
@@ -191,7 +224,53 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isFullscreen]);
 
-  const rowData: ProjectRow[] = useMemo(() => projects.map(p => {
+  // Predicates per dimension (excludes self so counts react to other dimensions)
+  const matchStatus = useCallback((p: Project, key: StatusKey) => key === "all" || p.status === key, []);
+  const matchType   = useCallback((p: Project, key: TypeKey)   => key === "all" || p.project_type === key, []);
+  const matchStage  = useCallback((p: Project, key: StageKey)  => key === "all" || p.deal_stage === key, []);
+
+  // Per-dimension counts: each section's counts respect the other two filters
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const v of STATUS_VIEWS) counts[v.id] = 0;
+    for (const proj of projects) {
+      if (!matchType(proj, typeFilter) || !matchStage(proj, stageFilter)) continue;
+      for (const v of STATUS_VIEWS) if (matchStatus(proj, v.id)) counts[v.id]++;
+    }
+    return counts;
+  }, [projects, typeFilter, stageFilter, matchType, matchStage, matchStatus]);
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const v of TYPE_VIEWS) counts[v.id] = 0;
+    for (const proj of projects) {
+      if (!matchStatus(proj, statusFilter) || !matchStage(proj, stageFilter)) continue;
+      for (const v of TYPE_VIEWS) if (matchType(proj, v.id)) counts[v.id]++;
+    }
+    return counts;
+  }, [projects, statusFilter, stageFilter, matchStatus, matchStage, matchType]);
+
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: 0 };
+    for (const s of DEAL_STAGES) counts[s.value] = 0;
+    for (const proj of projects) {
+      if (!matchStatus(proj, statusFilter) || !matchType(proj, typeFilter)) continue;
+      counts.all++;
+      if (proj.deal_stage && counts[proj.deal_stage] !== undefined) counts[proj.deal_stage]++;
+    }
+    return counts;
+  }, [projects, statusFilter, typeFilter, matchStatus, matchType]);
+
+  // Filtered projects (AND across all three dimensions)
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p) =>
+      matchStatus(p, statusFilter) &&
+      matchType(p, typeFilter) &&
+      matchStage(p, stageFilter),
+    );
+  }, [projects, statusFilter, typeFilter, stageFilter, matchStatus, matchType, matchStage]);
+
+  const rowData: ProjectRow[] = useMemo(() => filteredProjects.map(p => {
     const counts = taskCounts.get(p.id) || { total: 0, completed: 0, overdue: 0 };
     const company = companyMap.get(p.company_id || "");
     return {
@@ -208,12 +287,13 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
       created_at: p.created_at, updated_at: p.updated_at,
       task_count: counts.total, completed_count: counts.completed, overdue_count: counts.overdue,
     };
-  }), [projects, taskCounts, companyMap]);
+  }), [filteredProjects, taskCounts, companyMap]);
 
   const columnDefs = useMemo(() => buildColumns(wrapNotes), [wrapNotes]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
-    sortable: true, resizable: true, filter: true, tooltipShowDelay: 500, enableRowGroup: true, cellClass: "text-xs",
+    sortable: true, resizable: true, filter: true, floatingFilter: true,
+    tooltipShowDelay: 500, enableRowGroup: true, cellClass: "text-xs",
   }), []);
 
   const autoGroupColumnDef = useMemo<ColDef<ProjectRow>>(() => ({
@@ -222,7 +302,7 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
 
   const getRowId = useCallback((params: GetRowIdParams<ProjectRow>) => params.data.id, []);
   const getRowClass = useCallback((params: { node: { group?: boolean } }) => params.node.group ? "ag-group-row-custom" : undefined, []);
-  const getRowHeight = useCallback((params: { node: { group?: boolean } }) => params.node.group ? 44 : 36, []);
+  const getRowHeight = useCallback((params: { node: { group?: boolean } }) => params.node.group ? 40 : 36, []);
 
   const handleCellValueChanged = useCallback(async (event: CellValueChangedEvent<ProjectRow>) => {
     const { data, colDef, newValue } = event;
@@ -230,31 +310,6 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
     const field = colDef.field;
     if (["company_name", "company_stage", "task_count", "completed_count", "overdue_count"].includes(field)) return;
     await supabase.from("projects").update({ [field]: newValue || null, updated_at: new Date().toISOString() }).eq("id", data.id);
-  }, []);
-
-  // Layout management
-  const applyFlatLayout = useCallback(() => {
-    const api = gridRef.current?.api;
-    if (!api) return;
-    api.setRowGroupColumns([]);
-    api.applyColumnState({
-      state: [
-        { colId: "name", hide: false, pinned: "left" as const, width: 250 },
-        { colId: "project_type", hide: false, width: 100 },
-        { colId: "ag-Grid-AutoColumn", hide: true },
-      ],
-      applyOrder: false,
-    });
-  }, []);
-
-  const resetLayout = useCallback(() => {
-    const api = gridRef.current?.api;
-    if (!api) return;
-    api.setFilterModel(null);
-    api.resetColumnState();
-    api.setRowGroupColumns(["project_type"]);
-    setQuickFilter("");
-    toast.info("Layout reset");
   }, []);
 
   const autoSizeAllColumns = useCallback(() => { gridRef.current?.api.autoSizeAllColumns(); }, []);
@@ -267,194 +322,440 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
     gridRef.current?.api.exportDataAsCsv({ fileName: `projects-${toSGTDateString()}.csv`, allColumns: true, skipRowGroups: true });
   }, []);
 
-  const saveCurrentLayout = useCallback((name: string) => {
+  // ─── Shared layouts (Supabase) ────────────────────────────────────────────
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [newLayoutName, setNewLayoutName] = useState("");
+  const [activeLayoutName, setActiveLayoutName] = useState<string | null>(null);
+  const [layoutModified, setLayoutModified] = useState(false);
+  const [activeFilterCount, setActiveFilterCount] = useState(0);
+  const { data: layouts = [], isFetched: layoutsFetched } = useGridLayouts(GRID_KEY);
+  const saveLayoutMutation = useSaveGridLayout(GRID_KEY);
+  const deleteLayoutMutation = useDeleteGridLayout(GRID_KEY);
+  const setDefaultMutation = useSetDefaultGridLayout(GRID_KEY);
+  const layoutsByName = useMemo(() => {
+    const m: Record<string, GridLayout> = {};
+    for (const l of layouts) m[l.name] = l;
+    return m;
+  }, [layouts]);
+  const defaultLayout = useMemo(() => layouts.find((l) => l.is_default) ?? null, [layouts]);
+
+  const saveCurrentLayout = useCallback(async (name: string) => {
     const api = gridRef.current?.api;
-    if (!api || !name.trim()) return;
-    const layout = { columnState: api.getColumnState(), filterModel: api.getFilterModel(), rowGroupColumns: api.getRowGroupColumns().map(c => c.getColId()), savedAt: new Date().toISOString() };
-    const newLayouts = { ...savedLayouts, [name.trim()]: layout };
-    setSavedLayouts(newLayouts);
-    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(newLayouts));
-    setShowSaveDialog(false);
-    setNewLayoutName("");
-    toast.success(`Layout "${name.trim()}" saved`);
-  }, [savedLayouts]);
+    const trimmed = name.trim();
+    if (!api || !trimmed) return;
+    try {
+      await saveLayoutMutation.mutateAsync({
+        name: trimmed,
+        payload: {
+          column_state: api.getColumnState() as unknown[],
+          filter_model: (api.getFilterModel() ?? {}) as Record<string, unknown>,
+          row_group_columns: api.getRowGroupColumns().map((c) => c.getColId()),
+        },
+      });
+      setActiveLayoutName(trimmed);
+      setLayoutModified(false);
+      setShowSaveDialog(false);
+      setNewLayoutName("");
+      toast.success(`Layout "${trimmed}" saved`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to save layout");
+    }
+  }, [saveLayoutMutation]);
 
   const loadLayout = useCallback((name: string) => {
     const api = gridRef.current?.api;
     if (!api) return;
-    const layout = savedLayouts[name] as { columnState: ColumnState[]; rowGroupColumns?: string[]; filterModel?: Record<string, unknown> } | undefined;
+    const layout = layoutsByName[name];
     if (!layout) return;
     api.setRowGroupColumns([]);
-    api.applyColumnState({ state: layout.columnState, applyOrder: true });
-    if (layout.rowGroupColumns?.length) api.setRowGroupColumns(layout.rowGroupColumns);
-    if (layout.filterModel) api.setFilterModel(layout.filterModel); else api.setFilterModel(null);
+    api.applyColumnState({ state: layout.column_state as ColumnState[], applyOrder: true });
+    if (layout.row_group_columns?.length) api.setRowGroupColumns(layout.row_group_columns);
+    if (layout.filter_model && Object.keys(layout.filter_model).length) api.setFilterModel(layout.filter_model);
+    else api.setFilterModel(null);
+    setActiveLayoutName(name);
+    setLayoutModified(false);
     setShowLayoutMenu(false);
     toast.info(`Layout "${name}" applied`);
-  }, [savedLayouts]);
+  }, [layoutsByName]);
 
-  const deleteLayout = useCallback((name: string, e: React.MouseEvent) => {
+  const deleteLayout = useCallback(async (name: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const newLayouts = { ...savedLayouts }; delete newLayouts[name];
-    setSavedLayouts(newLayouts);
-    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(newLayouts));
-    if (defaultLayoutName === name) { setDefaultLayoutName(null); localStorage.removeItem(DEFAULT_LAYOUT_KEY); }
-    toast.info(`Layout "${name}" deleted`);
-  }, [savedLayouts, defaultLayoutName]);
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    try {
+      await deleteLayoutMutation.mutateAsync(layout.id);
+      if (activeLayoutName === name) { setActiveLayoutName(null); setLayoutModified(false); }
+      toast.info(`Layout "${name}" deleted`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to delete layout");
+    }
+  }, [layoutsByName, deleteLayoutMutation, activeLayoutName]);
 
-  const toggleDefaultLayout = useCallback((name: string, e: React.MouseEvent) => {
+  const toggleDefaultLayout = useCallback(async (name: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (defaultLayoutName === name) { setDefaultLayoutName(null); localStorage.removeItem(DEFAULT_LAYOUT_KEY); }
-    else { setDefaultLayoutName(name); localStorage.setItem(DEFAULT_LAYOUT_KEY, name); }
-  }, [defaultLayoutName]);
+    const layout = layoutsByName[name];
+    if (!layout) return;
+    try {
+      await setDefaultMutation.mutateAsync({ id: layout.id, makeDefault: !layout.is_default });
+      toast.info(layout.is_default ? `"${name}" removed as default` : `"${name}" set as default layout`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to update default");
+    }
+  }, [layoutsByName, setDefaultMutation]);
 
-  const hasAppliedDefault = useRef(false);
-  const handleFirstDataRendered = useCallback(() => {
-    if (hasAppliedDefault.current) return;
-    hasAppliedDefault.current = true;
+  const resetLayout = useCallback(() => {
     const api = gridRef.current?.api;
     if (!api) return;
-    const defaultName = localStorage.getItem(DEFAULT_LAYOUT_KEY);
-    if (defaultName) {
-      try {
-        const stored = localStorage.getItem(LAYOUT_STORAGE_KEY);
-        if (stored) {
-          const layouts = JSON.parse(stored);
-          const layout = layouts[defaultName];
-          if (layout?.columnState) {
-            api.applyColumnState({ state: layout.columnState, applyOrder: true });
-            if (layout.rowGroupColumns?.length) api.setRowGroupColumns(layout.rowGroupColumns);
-            if (layout.filterModel) api.setFilterModel(layout.filterModel);
-            return;
-          }
-        }
-      } catch { /* */ }
+    api.setFilterModel(null);
+    api.resetColumnState();
+    api.setRowGroupColumns([]);
+    setQuickFilter("");
+    setActiveLayoutName(null);
+    setLayoutModified(false);
+    toast.info("Layout reset");
+  }, []);
+
+  const hasAppliedDefault = useRef(false);
+  const isFirstDataRendered = useRef(false);
+  const applyDefaultIfReady = useCallback(() => {
+    if (hasAppliedDefault.current) return;
+    if (!isFirstDataRendered.current) return;
+    if (!layoutsFetched) return;
+    const api = gridRef.current?.api;
+    if (!api) return;
+    if (defaultLayout) {
+      api.applyColumnState({ state: defaultLayout.column_state as ColumnState[], applyOrder: true });
+      if (defaultLayout.row_group_columns?.length) api.setRowGroupColumns(defaultLayout.row_group_columns);
+      if (defaultLayout.filter_model && Object.keys(defaultLayout.filter_model).length) {
+        api.setFilterModel(defaultLayout.filter_model);
+      }
+      setActiveLayoutName(defaultLayout.name);
+      setLayoutModified(false);
+    } else {
+      api.autoSizeAllColumns(false);
     }
-    api.setRowGroupColumns(["project_type"]);
+    hasAppliedDefault.current = true;
+  }, [defaultLayout, layoutsFetched]);
+
+  const handleFirstDataRendered = useCallback(() => {
+    isFirstDataRendered.current = true;
+    applyDefaultIfReady();
+  }, [applyDefaultIfReady]);
+
+  useEffect(() => { applyDefaultIfReady(); }, [applyDefaultIfReady]);
+
+  const handleFilterChanged = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const model = api.getFilterModel() ?? {};
+    setActiveFilterCount(Object.keys(model).length);
+    if (hasAppliedDefault.current && activeLayoutName) setLayoutModified(true);
+  }, [activeLayoutName]);
+
+  const handleLayoutDirty = useCallback(() => {
+    if (hasAppliedDefault.current && activeLayoutName) setLayoutModified(true);
+  }, [activeLayoutName]);
+
+  const clearAllFilters = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    api.setFilterModel(null);
+    setQuickFilter("");
   }, []);
 
   const themeClass = theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine";
 
   return (
-    <div className={isFullscreen ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex flex-col" : "h-full flex flex-col"}>
+    <div className={isFullscreen
+      ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex overflow-hidden"
+      : "h-full flex overflow-hidden px-4 py-4"
+    }>
       <style>{groupRowStyles}{themeStyles}{`
         .ag-theme-alpine .ag-cell, .ag-theme-alpine-dark .ag-cell { display: flex; align-items: center; }
       `}</style>
 
-      {/* Toolbar */}
-      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
-        <div className="flex items-center gap-3 flex-1">
-          <div className="relative flex-1 max-w-md">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input type="text" placeholder="Quick filter..." value={quickFilter} onChange={(e) => setQuickFilter(e.target.value)}
-              className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
-          </div>
-        </div>
+      <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
+        {/* Sidebar */}
+        <aside className="w-60 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
+          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+            {/* VIEW = Status */}
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
+              <div className="space-y-0.5">
+                {STATUS_VIEWS.map((v) => {
+                  const Icon = v.icon;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => setStatusFilter(v.id)}
+                      className={cn(
+                        "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                        statusFilter === v.id
+                          ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                          : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                      )}
+                    >
+                      <span className="flex items-center gap-2"><Icon size={13} /> {v.label}</span>
+                      <span className="text-[11px] text-zinc-500">{statusCounts[v.id]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        <div className="flex items-center gap-2">
-          {/* Layouts */}
-          <div className="relative">
-            <button onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
-              <Bookmark size={14} /> Layouts
-            </button>
-            {showLayoutMenu && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
-                <button onClick={() => { applyFlatLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><Columns size={13} /> Flat View</button>
-                <button onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><ChevronsLeftRight size={13} /> Auto-fit Columns</button>
-                <button onClick={() => { resetLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><RotateCcw size={13} /> Reset to Default</button>
-                <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
-                <button onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"><span className="text-green-600">+</span> Save current layout...</button>
-                {Object.keys(savedLayouts).length > 0 && (
-                  <>
-                    <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
-                    <div className="px-3 py-1 text-xs font-medium text-zinc-500">Saved Layouts</div>
-                    {Object.keys(savedLayouts).map(name => (
-                      <div key={name} onClick={() => loadLayout(name)} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group">
-                        <span className="truncate flex items-center gap-1.5">{defaultLayoutName === name && <Star size={11} className="text-amber-500 fill-amber-500" />}{name}</span>
-                        <div className="flex items-center gap-0.5">
-                          <button onClick={(e) => { e.stopPropagation(); saveCurrentLayout(name); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500"><Save size={12} /></button>
-                          <button onClick={(e) => toggleDefaultLayout(name, e)} className={cn("p-1 rounded", defaultLayoutName === name ? "text-amber-500" : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500")}><Star size={12} className={defaultLayoutName === name ? "fill-amber-500" : ""} /></button>
-                          <button onClick={(e) => deleteLayout(name, e)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-red-500"><X size={12} /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </>
+            {/* PROJECTS = Type */}
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Projects</div>
+              <div className="space-y-0.5">
+                {TYPE_VIEWS.map((v) => {
+                  const Icon = v.icon;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => setTypeFilter(v.id)}
+                      className={cn(
+                        "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                        typeFilter === v.id
+                          ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                          : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                      )}
+                    >
+                      <span className="flex items-center gap-2"><Icon size={13} /> {v.label}</span>
+                      <span className="text-[11px] text-zinc-500">{typeCounts[v.id]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* STAGE = Deal stages */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500">Stage</div>
+                {stageFilter !== "all" && (
+                  <button
+                    onClick={() => setStageFilter("all")}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  >
+                    Clear
+                  </button>
                 )}
               </div>
+              <div className="space-y-0.5">
+                <button
+                  onClick={() => setStageFilter("all")}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                    stageFilter === "all"
+                      ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                  )}
+                >
+                  <span className="flex items-center gap-2"><Layers size={13} /> All Stages</span>
+                  <span className="text-[11px] text-zinc-500">{stageCounts.all}</span>
+                </button>
+                {DEAL_STAGES.map((stage) => (
+                  <button
+                    key={stage.value}
+                    onClick={() => setStageFilter(stage.value)}
+                    className={cn(
+                      "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                      stageFilter === stage.value
+                        ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                    )}
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className={cn("w-2 h-2 rounded-full shrink-0", STAGE_DOT_COLORS[stage.color] || "bg-zinc-400")} />
+                      <span className="truncate">{stage.label}</span>
+                    </span>
+                    <span className="text-[11px] text-zinc-500">{stageCounts[stage.value] || 0}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main column */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          {/* Toolbar */}
+          <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
+            <input
+              type="text"
+              value={quickFilter}
+              onChange={(e) => setQuickFilter(e.target.value)}
+              placeholder="Quick filter..."
+              className="max-w-md flex-1 px-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            />
+            <span className="text-[11px] text-zinc-400 whitespace-nowrap">{rowData.length} project{rowData.length === 1 ? "" : "s"}</span>
+
+            {(activeFilterCount > 0 || quickFilter.trim().length > 0) && (
+              <button
+                onClick={clearAllFilters}
+                className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60 transition-colors whitespace-nowrap"
+                title="Clear all filters"
+              >
+                <span>
+                  {activeFilterCount + (quickFilter.trim().length > 0 ? 1 : 0)} filter{activeFilterCount + (quickFilter.trim().length > 0 ? 1 : 0) === 1 ? "" : "s"} active
+                </span>
+                <X size={11} />
+              </button>
             )}
+
+            <div className="flex-1" />
+
+            {/* Wrap toggle */}
+            <button
+              onClick={() => setWrapNotes(!wrapNotes)}
+              className={cn(
+                "flex items-center justify-center p-1.5 rounded-md border transition-colors",
+                wrapNotes
+                  ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                  : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              )}
+              title="Wrap text in Notes/Description"
+            >
+              <WrapText size={12} />
+            </button>
+
+            <Button variant="secondary" size="sm" icon={Download} onClick={exportToCsv}>CSV</Button>
+            <Button size="sm" icon={FileSpreadsheet} onClick={exportToExcel}>Excel</Button>
+
+            {/* Layouts dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                title={activeLayoutName ? `Current layout: ${activeLayoutName}${layoutModified ? " (modified)" : ""}` : "Layouts"}
+              >
+                <Bookmark size={11} />
+                {activeLayoutName ? (
+                  <span className="flex items-center gap-1">
+                    <span className="max-w-[110px] truncate">{activeLayoutName}</span>
+                    {layoutModified && <span className="text-amber-500" title="Layout has unsaved changes">•</span>}
+                  </span>
+                ) : (
+                  <span>Layouts</span>
+                )}
+              </button>
+              {showLayoutMenu && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
+                  <button onClick={() => { autoSizeAllColumns(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2">
+                    <ChevronsLeftRight size={12} /> Auto-fit Columns
+                  </button>
+                  <button onClick={() => { resetLayout(); setShowLayoutMenu(false); }} className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2">
+                    <RotateCcw size={12} /> Reset Layout
+                  </button>
+                  <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+                  <button onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }} className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2">
+                    <span className="text-green-600 dark:text-green-400">+</span> Save current layout...
+                  </button>
+                  {layouts.length > 0 && (
+                    <>
+                      <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+                      <div className="px-3 py-1 text-[10px] font-medium text-zinc-500 uppercase tracking-wide">Shared Layouts</div>
+                      {layouts.map((layout) => (
+                        <div key={layout.id} onClick={() => loadLayout(layout.name)} className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-between cursor-pointer group">
+                          <span className="truncate flex items-center gap-1.5">
+                            {layout.is_default && <Star size={10} className="text-amber-500 fill-amber-500" />}
+                            {layout.name}
+                          </span>
+                          <div className="flex items-center gap-0.5">
+                            <button onClick={(e) => { e.stopPropagation(); saveCurrentLayout(layout.name); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-teal-500" title="Overwrite with current layout"><Save size={11} /></button>
+                            <button onClick={(e) => toggleDefaultLayout(layout.name, e)} className={cn("p-1 rounded", layout.is_default ? "text-amber-500" : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-amber-500")} title={layout.is_default ? "Remove as default" : "Set as default"}><Star size={11} className={layout.is_default ? "fill-amber-500" : ""} /></button>
+                            <button onClick={(e) => deleteLayout(layout.name, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400" title="Delete layout"><X size={11} /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className={cn(
+                "flex items-center justify-center p-1.5 rounded-md border transition-colors",
+                isFullscreen
+                  ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                  : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              )}
+              title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
+            >
+              {isFullscreen ? <X size={12} /> : <Maximize2 size={12} />}
+            </button>
           </div>
 
-          <button onClick={() => setWrapNotes(!wrapNotes)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${wrapNotes ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"}`}>
-            <WrapText size={14} />
-          </button>
-
-          <Button variant="secondary" size="md" icon={Download} onClick={exportToCsv}>CSV</Button>
-          <Button size="md" icon={FileSpreadsheet} onClick={exportToExcel}>Excel</Button>
-
-          <button onClick={() => setIsFullscreen(!isFullscreen)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${isFullscreen ? "border-teal-500 bg-teal-500/20 text-teal-600" : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"}`}>
-            {isFullscreen ? <X size={14} /> : <Maximize2 size={14} />}
-          </button>
+          {/* AG Grid */}
+          <div className={cn(themeClass, "flex-1 min-h-0 overflow-hidden")} style={{ width: "100%" }}>
+            <AgGridReact<ProjectRow>
+              ref={gridRef}
+              theme="legacy"
+              rowData={rowData}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              autoGroupColumnDef={autoGroupColumnDef}
+              getRowId={getRowId}
+              getRowClass={getRowClass}
+              getRowHeight={getRowHeight}
+              headerHeight={32}
+              floatingFiltersHeight={30}
+              quickFilterText={quickFilter}
+              onCellValueChanged={handleCellValueChanged}
+              onFirstDataRendered={handleFirstDataRendered}
+              onFilterChanged={handleFilterChanged}
+              onColumnMoved={handleLayoutDirty}
+              onColumnResized={handleLayoutDirty}
+              onColumnVisible={handleLayoutDirty}
+              onColumnPinned={handleLayoutDirty}
+              onSortChanged={handleLayoutDirty}
+              onColumnRowGroupChanged={handleLayoutDirty}
+              onRowDoubleClicked={(e) => { if (e.data) onSelectProject(e.data.id); }}
+              animateRows
+              enableRangeSelection
+              enableBrowserTooltips
+              singleClickEdit
+              stopEditingWhenCellsLoseFocus
+              groupDisplayType="singleColumn"
+              groupDefaultExpanded={0}
+              rowGroupPanelShow="never"
+              rowSelection="single"
+              suppressRowClickSelection
+              getContextMenuItems={() => ["copy", "copyWithHeaders", "paste", "separator", "export", "separator", "autoSizeAll", "resetColumns", "separator", "expandAll", "contractAll"]}
+              sideBar={{
+                toolPanels: [
+                  { id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" },
+                  { id: "filters", labelDefault: "Filters", labelKey: "filters", iconKey: "filter", toolPanel: "agFiltersToolPanel" },
+                ],
+                defaultToolPanel: "",
+              }}
+              statusBar={{
+                statusPanels: [
+                  { statusPanel: "agTotalAndFilteredRowCountComponent", align: "left" },
+                  { statusPanel: "agSelectedRowCountComponent", align: "left" },
+                  { statusPanel: "agAggregationComponent", align: "right" },
+                ],
+              }}
+              pagination
+              paginationPageSize={100}
+              paginationPageSizeSelector={[50, 100, 200, 500]}
+            />
+          </div>
         </div>
-      </div>
-
-      {/* AG Grid */}
-      <div className={cn(themeClass, "flex-1 min-h-0 overflow-hidden")} style={{ width: "100%" }}>
-        <AgGridReact<ProjectRow>
-          ref={gridRef}
-          theme="legacy"
-          rowData={rowData}
-          columnDefs={columnDefs}
-          defaultColDef={defaultColDef}
-          autoGroupColumnDef={autoGroupColumnDef}
-          getRowId={getRowId}
-          getRowClass={getRowClass}
-          getRowHeight={getRowHeight}
-          quickFilterText={quickFilter}
-          onCellValueChanged={handleCellValueChanged}
-          onFirstDataRendered={handleFirstDataRendered}
-          onRowDoubleClicked={(e) => { if (e.data) onSelectProject(e.data.id); }}
-          animateRows
-          enableRangeSelection
-          enableBrowserTooltips
-          singleClickEdit
-          stopEditingWhenCellsLoseFocus
-          groupDisplayType="singleColumn"
-          groupDefaultExpanded={0}
-          rowGroupPanelShow="never"
-          rowSelection="single"
-          suppressRowClickSelection
-          getContextMenuItems={() => ["copy", "copyWithHeaders", "paste", "separator", "export", "separator", "autoSizeAll", "resetColumns", "separator", "expandAll", "contractAll"]}
-          sideBar={{
-            toolPanels: [
-              { id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" },
-              { id: "filters", labelDefault: "Filters", labelKey: "filters", iconKey: "filter", toolPanel: "agFiltersToolPanel" },
-            ],
-            defaultToolPanel: "",
-          }}
-          statusBar={{
-            statusPanels: [
-              { statusPanel: "agTotalAndFilteredRowCountComponent", align: "left" },
-              { statusPanel: "agSelectedRowCountComponent", align: "left" },
-              { statusPanel: "agAggregationComponent", align: "right" },
-            ],
-          }}
-          pagination
-          paginationPageSize={100}
-          paginationPageSizeSelector={[50, 100, 200, 500]}
-        />
       </div>
 
       {/* Save Layout Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-6 w-96 max-w-[90vw] border border-zinc-200 dark:border-zinc-800">
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Save Layout</h3>
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Save Layout</h3>
             <input type="text" value={newLayoutName} onChange={(e) => setNewLayoutName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && newLayoutName.trim()) saveCurrentLayout(newLayoutName); else if (e.key === "Escape") { setShowSaveDialog(false); setNewLayoutName(""); } }}
               placeholder="Enter layout name..." autoFocus
-              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mb-4" />
+              className="w-full px-3 py-2 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30 mb-4" />
             <div className="flex justify-end gap-2">
               <Button variant="secondary" size="md" onClick={() => { setShowSaveDialog(false); setNewLayoutName(""); }}>Cancel</Button>
               <Button size="md" onClick={() => saveCurrentLayout(newLayoutName)} disabled={!newLayoutName.trim()}>Save</Button>
