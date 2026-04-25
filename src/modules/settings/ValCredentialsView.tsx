@@ -152,8 +152,11 @@ export function ValCredentialsView() {
   const handleImportEnv = useCallback(async () => {
     try {
       const selected = await open({
-        title: "Import VAL credentials from .env",
-        filters: [{ name: "Environment", extensions: ["env"] }, { name: "All Files", extensions: ["*"] }],
+        title: "Import VAL credentials",
+        filters: [
+          { name: "Credentials", extensions: ["env", "json"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
         multiple: false,
       });
       if (selected) {
@@ -190,8 +193,8 @@ export function ValCredentialsView() {
             Manage login credentials for each VAL domain
           </p>
         </div>
-        <Button variant="secondary" icon={Upload} onClick={handleImportEnv} disabled={importCreds.isPending} loading={importCreds.isPending} title="Import from .env file">
-          Import .env
+        <Button variant="secondary" icon={Upload} onClick={handleImportEnv} disabled={importCreds.isPending} loading={importCreds.isPending} title="Import from .env or exported settings JSON">
+          Import
         </Button>
       </div>
 

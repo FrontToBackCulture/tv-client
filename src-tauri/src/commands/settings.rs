@@ -405,8 +405,10 @@ pub fn settings_get_val_credentials(
     Ok((email, password))
 }
 
-/// Import credentials from val-sync .env file
-/// Parses VAL_DOMAIN_{DOMAIN}_EMAIL/PASSWORD entries
+/// Import credentials from a val-sync .env file OR a tv-desktop settings JSON
+/// export. Handles both:
+///   - .env lines: VAL_DOMAIN_{DOMAIN}_EMAIL / VAL_DOMAIN_{DOMAIN}_PASSWORD
+///   - JSON `keys` object with val_email_{domain} / val_password_{domain}
 #[command]
 pub fn settings_import_val_credentials(env_file_path: String) -> CmdResult<Vec<String>> {
     let content = fs::read_to_string(&env_file_path)?;
@@ -414,6 +416,31 @@ pub fn settings_import_val_credentials(env_file_path: String) -> CmdResult<Vec<S
     let mut settings = load_settings()?;
     let mut imported = Vec::new();
 
+    // Try JSON first — exported settings files have shape { "keys": { ... } }
+    // or a flat { key: value } object. Pick out only val_email_* / val_password_*.
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+        let obj = json
+            .get("keys")
+            .and_then(|k| k.as_object())
+            .or_else(|| json.as_object());
+
+        if let Some(obj) = obj {
+            for (k, v) in obj {
+                let Some(val) = v.as_str() else { continue };
+                if val.is_empty() {
+                    continue;
+                }
+                if k.starts_with("val_email_") || k.starts_with("val_password_") {
+                    settings.keys.insert(k.clone(), val.to_string());
+                    imported.push(k.clone());
+                }
+            }
+            save_settings(&settings)?;
+            return Ok(imported);
+        }
+    }
+
+    // Fallback: parse as .env with VAL_DOMAIN_{DOMAIN}_EMAIL/PASSWORD entries
     for line in content.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -430,7 +457,6 @@ pub fn settings_import_val_credentials(env_file_path: String) -> CmdResult<Vec<S
             continue;
         }
 
-        // Match VAL_DOMAIN_{DOMAIN}_EMAIL or VAL_DOMAIN_{DOMAIN}_PASSWORD
         if let Some(rest) = key.strip_prefix("VAL_DOMAIN_") {
             if let Some(domain_upper) = rest.strip_suffix("_EMAIL") {
                 let domain = domain_upper.to_lowercase().replace('_', "-");

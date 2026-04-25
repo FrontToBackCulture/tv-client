@@ -205,8 +205,9 @@ fn collect_local_files(base: &std::path::Path, dir: &std::path::Path, out: &mut 
     for entry in entries.flatten() {
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
-        // Skip hidden files and ai_config.json (local-only config)
-        if name.starts_with('.') || name == "ai_config.json" {
+        // Skip hidden files, ai_config.json (local-only config), and custom.md
+        // (author-only source — its content is merged into instructions.md by the generator)
+        if name.starts_with('.') || name == "ai_config.json" || name == "custom.md" {
             continue;
         }
         if path.is_dir() {

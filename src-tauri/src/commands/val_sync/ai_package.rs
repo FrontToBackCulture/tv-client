@@ -270,6 +270,8 @@ fn collect_tables_recursive(
 
 /// Regenerate instructions.md from template or fallback.
 /// Reads registry.json for each skill to include descriptions in the instructions.
+/// If a sibling `custom.md` exists and is non-empty, its contents are appended
+/// under a "## Custom Instructions" section. `custom.md` is never modified.
 fn regenerate_instructions(
     ai_path: &Path,
     templates_base: &Path,
@@ -293,23 +295,36 @@ fn regenerate_instructions(
         .collect::<Vec<_>>()
         .join("\n");
 
-    if instructions_template.exists() {
+    let mut content = if instructions_template.exists() {
         let template = fs::read_to_string(&instructions_template)?;
-        let content = template
+        template
             .replace("{{DOMAIN}}", domain)
-            .replace("{{SKILL_LIST}}", &skill_list);
-        fs::write(&instructions_path, &content)?;
-        Ok(true)
+            .replace("{{SKILL_LIST}}", &skill_list)
     } else {
-        let content = format!(
+        format!(
             "# {} AI Package\n\n\
              This folder contains AI skill documentation for the {} domain.\n\n\
              ## Skills\n\n{}\n",
             domain, domain, skill_list
-        );
-        fs::write(&instructions_path, &content)?;
-        Ok(true)
+        )
+    };
+
+    // Append custom.md if author has provided one.
+    let custom_path = ai_path.join("custom.md");
+    if let Ok(custom_raw) = fs::read_to_string(&custom_path) {
+        let custom = custom_raw.trim();
+        if !custom.is_empty() {
+            if !content.ends_with('\n') {
+                content.push('\n');
+            }
+            content.push_str("\n---\n\n## Custom Instructions\n\n");
+            content.push_str(custom);
+            content.push('\n');
+        }
     }
+
+    fs::write(&instructions_path, &content)?;
+    Ok(true)
 }
 
 // ============================================================================
@@ -811,4 +826,96 @@ pub async fn val_skill_deployment_status(
         master_file_count,
         domains,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    fn unique_tmp_dir(label: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = env::temp_dir().join(format!("ai_package_test_{}_{}", label, nanos));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn regenerate_falls_back_when_no_template_or_custom() {
+        let dir = unique_tmp_dir("fallback");
+        let ai_path = dir.join("ai");
+        let templates = dir.join("templates_missing");
+        let skills = dir.join("skills_missing");
+        fs::create_dir_all(&ai_path).unwrap();
+
+        regenerate_instructions(&ai_path, &templates, &skills, "demo", &["foo".into()]).unwrap();
+
+        let out = fs::read_to_string(ai_path.join("instructions.md")).unwrap();
+        assert!(out.contains("# demo AI Package"));
+        assert!(out.contains("- `skills/foo/SKILL.md`"));
+        assert!(!out.contains("Custom Instructions"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn regenerate_appends_custom_when_present() {
+        let dir = unique_tmp_dir("with_custom");
+        let ai_path = dir.join("ai");
+        fs::create_dir_all(&ai_path).unwrap();
+        fs::write(ai_path.join("custom.md"), "Call me bubble boy.\nNever apologize.").unwrap();
+
+        regenerate_instructions(&ai_path, &dir.join("nope"), &dir.join("nope"), "demo", &[]).unwrap();
+
+        let out = fs::read_to_string(ai_path.join("instructions.md")).unwrap();
+        assert!(out.contains("# demo AI Package"));
+        assert!(out.contains("---\n\n## Custom Instructions"));
+        assert!(out.contains("Call me bubble boy."));
+        assert!(out.contains("Never apologize."));
+
+        // custom.md must be untouched
+        let custom = fs::read_to_string(ai_path.join("custom.md")).unwrap();
+        assert_eq!(custom, "Call me bubble boy.\nNever apologize.");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn regenerate_skips_empty_or_whitespace_custom() {
+        let dir = unique_tmp_dir("empty_custom");
+        let ai_path = dir.join("ai");
+        fs::create_dir_all(&ai_path).unwrap();
+        fs::write(ai_path.join("custom.md"), "   \n\n  ").unwrap();
+
+        regenerate_instructions(&ai_path, &dir.join("nope"), &dir.join("nope"), "demo", &[]).unwrap();
+
+        let out = fs::read_to_string(ai_path.join("instructions.md")).unwrap();
+        assert!(!out.contains("Custom Instructions"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn regenerate_uses_template_and_appends_custom() {
+        let dir = unique_tmp_dir("template_plus_custom");
+        let ai_path = dir.join("ai");
+        let templates = dir.join("templates");
+        fs::create_dir_all(&ai_path).unwrap();
+        fs::create_dir_all(&templates).unwrap();
+        fs::write(
+            templates.join("instructions.md"),
+            "# {{DOMAIN}}\n\nSkills:\n{{SKILL_LIST}}\n",
+        )
+        .unwrap();
+        fs::write(ai_path.join("custom.md"), "Custom block").unwrap();
+
+        regenerate_instructions(&ai_path, &templates, &dir.join("nope"), "demo", &["a".into()])
+            .unwrap();
+
+        let out = fs::read_to_string(ai_path.join("instructions.md")).unwrap();
+        assert!(out.starts_with("# demo\n"));
+        assert!(out.contains("- `skills/a/SKILL.md`"));
+        assert!(out.contains("\n---\n\n## Custom Instructions\n\nCustom block\n"));
+        fs::remove_dir_all(&dir).ok();
+    }
 }
