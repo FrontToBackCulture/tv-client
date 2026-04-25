@@ -58,6 +58,16 @@ export interface ReviewGridProps {
   externalRows?: ReviewRow[];
   /** Enable cross-domain mode (adds Domain column) */
   crossDomain?: boolean;
+  /** External sidebar filter — narrows rows by view + category/sub-category */
+  sidebarFilter?: {
+    view: "all" | "active" | "deleted" | "custom" | "configured" | "unconfigured";
+    category: string | null;
+    subCategory: string | null;
+  };
+  /** Callback that hands the parent the full row list once loaded (for sidebar counts/categories) */
+  onRowsLoaded?: (rows: ReviewRow[]) => void;
+  /** Surfaced as a toolbar button — opens the dedicated full-screen review route */
+  onOpenFullScreen?: () => void;
 }
 
 export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function ReviewGrid({
@@ -73,6 +83,9 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
   onAddToDataModel,
   externalRows,
   crossDomain = false,
+  sidebarFilter,
+  onRowsLoaded,
+  onOpenFullScreen,
 }, ref) {
   const gridRef = useRef<AgGridReact>(null);
   const theme = useAppStore((s) => s.theme);
@@ -161,6 +174,11 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
       .finally(() => setLoading(false));
   }, [folderPath, resourceType, domainSlug, reloadKey, externalRows]);
 
+  // Notify parent of rows for sidebar counts
+  useEffect(() => {
+    if (onRowsLoaded) onRowsLoaded(rows);
+  }, [rows, onRowsLoaded]);
+
   // Handle ESC key to exit fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -180,8 +198,10 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
     sortable: true,
     resizable: true,
     filter: true,
+    floatingFilter: true,
     tooltipShowDelay: 500,
     enableRowGroup: isTable,
+    cellClass: "text-xs",
   }), [isTable]);
 
   const autoGroupColumnDef = useMemo<ColDef<ReviewRow>>(() => ({
@@ -266,26 +286,48 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
     "opacity-50": (params: { data?: ReviewRow }) => !!params.data?.isStale,
   }), []);
 
-  // External filter for review filter buttons (deleted, needs-review, modified)
+  // External filter — combines toolbar review filter + sidebar filter
+  const sidebarActive = !!sidebarFilter && (
+    sidebarFilter.view !== "all" || !!sidebarFilter.category || !!sidebarFilter.subCategory
+  );
   const isExternalFilterPresent = useCallback(() => {
-    return reviewFilter !== "all";
-  }, [reviewFilter]);
+    return reviewFilter !== "all" || sidebarActive;
+  }, [reviewFilter, sidebarActive]);
 
   const doesExternalFilterPass = useCallback((node: { data?: ReviewRow }) => {
     if (!node.data) return true;
-    if (reviewFilter === "deleted") return !!node.data.isStale;
-    if (reviewFilter === "needs-review") return node.data.action === "To Review";
+    // Toolbar review filter
+    if (reviewFilter === "deleted" && !node.data.isStale) return false;
+    if (reviewFilter === "needs-review" && node.data.action !== "To Review") return false;
     if (reviewFilter === "modified") {
       const key = isTable ? node.data.name : node.data.folderName;
-      return !!modifiedRows?.has(key);
+      if (!modifiedRows?.has(key)) return false;
+    }
+    // Sidebar filter
+    if (sidebarFilter) {
+      const r = node.data;
+      const isCustom = (r.name?.startsWith("custom_tbl_") ?? false);
+      // Query rows use `category`; tables/dashboards/workflows use `dataCategory`
+      const effectiveCategory = resourceType === "query"
+        ? (r.category || r.dataCategory)
+        : r.dataCategory;
+      switch (sidebarFilter.view) {
+        case "active":       if (r.isStale) return false; break;
+        case "deleted":      if (!r.isStale) return false; break;
+        case "custom":       if (!isCustom) return false; break;
+        case "configured":   if (!effectiveCategory) return false; break;
+        case "unconfigured": if (effectiveCategory) return false; break;
+      }
+      if (sidebarFilter.category && (effectiveCategory ?? "Uncategorized") !== sidebarFilter.category) return false;
+      if (sidebarFilter.subCategory && (r.dataSubCategory ?? "—") !== sidebarFilter.subCategory) return false;
     }
     return true;
-  }, [reviewFilter, isTable, modifiedRows]);
+  }, [reviewFilter, isTable, modifiedRows, sidebarFilter, resourceType]);
 
-  // Re-run external filter when reviewFilter changes
+  // Re-run external filter when reviewFilter or sidebar changes
   useEffect(() => {
     gridRef.current?.api?.onFilterChanged();
-  }, [reviewFilter, modifiedRows]);
+  }, [reviewFilter, modifiedRows, sidebarFilter]);
 
   // Auto-apply default saved layout
   const lastAppliedPath = useRef<string | null>(null);
@@ -387,12 +429,13 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
         reviewFilter={reviewFilter}
         setReviewFilter={setReviewFilter}
         isTable={isTable}
+        onOpenFullScreen={onOpenFullScreen}
       />
 
       {/* AG Grid */}
       <div
         className={`${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"} flex-1 min-h-0 overflow-hidden`}
-        style={{ width: "100%", height: isFullscreen ? "100%" : "calc(100vh - 200px)" }}
+        style={{ width: "100%" }}
       >
         <style>{themeStyles}</style>
         <AgGridReact<ReviewRow>
@@ -424,7 +467,9 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
           rowGroupPanelShow={isTable ? (reviewMode ? "never" : "always") : "never"}
           singleClickEdit={reviewMode}
           stopEditingWhenCellsLoseFocus={true}
-          headerHeight={isTable ? undefined : 32}
+          headerHeight={32}
+          floatingFiltersHeight={28}
+          autoSizeStrategy={{ type: "fitCellContents", skipHeader: false }}
           rowHeight={isTable ? undefined : 32}
           enableCellTextSelection={!isTable}
           suppressCellFocus={!isTable ? false : undefined}

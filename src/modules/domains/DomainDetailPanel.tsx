@@ -29,7 +29,6 @@ import {
   Check,
   Pencil,
   Zap,
-  Maximize2,
   Folder,
   FileText,
   AlertCircle,
@@ -502,24 +501,13 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
       {/* Review tab content — rendered outside the padded wrapper so the grid fills the space */}
       {REVIEW_TABS[activeTab] && discoveredDomain && (
         <div className="flex-1 overflow-hidden flex flex-col">
-          {/* Expand button bar */}
-          <div className="flex items-center justify-end px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
-            {REVIEW_TABS[activeTab].onFullScreen && (
-              <Button
-                onClick={REVIEW_TABS[activeTab].onFullScreen}
-                variant="ghost"
-                icon={Maximize2}
-              >
-                Full Screen
-              </Button>
-            )}
-          </div>
           <div className="flex-1 overflow-hidden">
             <UnifiedReviewView
               key={`${domain}-${activeTab}`}
               resourceType={REVIEW_TABS[activeTab].resourceType}
               folderPath={`${discoveredDomain.global_path}/${REVIEW_TABS[activeTab].folder}`}
               domainName={domain}
+              onOpenFullScreen={REVIEW_TABS[activeTab].onFullScreen}
             />
           </div>
         </div>

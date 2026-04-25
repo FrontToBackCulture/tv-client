@@ -4,7 +4,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles, Globe, ChevronDown } from "lucide-react";
+import { CheckCircle, AlertTriangle, Loader2, FileText, Database, RefreshCw, Tags, Sparkles, Globe, ChevronDown, ChevronRight, Layers, CheckCircle2, Trash2, Wrench, Tag } from "lucide-react";
 import { ReviewGrid, ReviewGridHandle } from "./ReviewGrid";
 import { TableDetailPreview } from "./TableDetailPreview";
 import { ArtifactDetailPreview } from "./ArtifactDetailPreview";
@@ -39,6 +39,8 @@ interface UnifiedReviewViewProps {
   domainName?: string;
   crossDomain?: boolean;
   onItemSelect?: (path: string) => void;
+  /** Navigate to the dedicated full-screen review route — surfaced in the grid toolbar */
+  onOpenFullScreen?: () => void;
 }
 
 export function UnifiedReviewView({
@@ -47,6 +49,7 @@ export function UnifiedReviewView({
   domainName = "",
   crossDomain = false,
   onItemSelect,
+  onOpenFullScreen,
 }: UnifiedReviewViewProps) {
   const isTable = resourceType === "table";
 
@@ -82,6 +85,13 @@ export function UnifiedReviewView({
 
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  // Sidebar filter state (tables only — sidebar shown only for tables)
+  const [sidebarView, setSidebarView] = useState<DomainsSidebarView>("all");
+  const [sidebarCategory, setSidebarCategory] = useState<string | null>(null);
+  const [sidebarSubCategory, setSidebarSubCategory] = useState<string | null>(null);
+  const [sidebarRows, setSidebarRows] = useState<ReviewRow[]>([]);
+  const handleRowsLoaded = useCallback((rows: ReviewRow[]) => setSidebarRows(rows), []);
 
   // Jobs store for background operations (tables only)
   const addJob = useJobsStore((s) => s.addJob);
@@ -599,21 +609,21 @@ export function UnifiedReviewView({
   return (
     <div className="h-full flex flex-col">
       {/* Header toolbar */}
-      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-shrink-0">
+      <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2 flex-shrink-0">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {crossDomain
               ? `${RESOURCE_LABEL[resourceType]} — All Domains`
               : isTable ? "Review Mode" : `${RESOURCE_LABEL[resourceType]} Review`}
           </h2>
-          <p className="text-xs text-zinc-400 mt-0.5 max-w-2xl">
+          <p className="text-[11px] text-zinc-400 mt-0.5 max-w-2xl">
             {crossDomain
               ? `${crossDomainRows.length} ${RESOURCE_LABEL[resourceType].toLowerCase()} across ${crossDomainCount} domains`
               : RESOURCE_DESCRIPTION[resourceType]}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Modified count indicator */}
           {modifiedCount > 0 && !isSaving && (
             <span className="px-2 py-1 text-xs font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
@@ -652,9 +662,9 @@ export function UnifiedReviewView({
               <div className="relative group" data-help-id="review-fetch">
                 <button
                   disabled={isBatchRunning}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Database size={14} /> Fetch <ChevronDown size={12} />
+                  <Database size={13} /> Fetch <ChevronDown size={11} />
                 </button>
                 <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1 hidden group-hover:block">
                   <button onClick={handleFetchAllSamples} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50">
@@ -676,9 +686,9 @@ export function UnifiedReviewView({
               <div className="relative group" data-help-id="review-ai">
                 <button
                   disabled={isBatchRunning}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Sparkles size={14} /> AI <ChevronDown size={12} />
+                  <Sparkles size={13} /> AI <ChevronDown size={11} />
                 </button>
                 <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1 hidden group-hover:block">
                   <button onClick={handleDescribeAll} disabled={isBatchRunning} className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 disabled:opacity-50">
@@ -706,13 +716,13 @@ export function UnifiedReviewView({
               data-help-id="review-sync-portal"
               title={modifiedCount > 0 ? "Save changes before syncing" : "Sync resources to portal"}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors",
+                "flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors",
                 isSyncing
                   ? "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
                   : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
-              {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+              {isSyncing ? <Loader2 size={13} className="animate-spin" /> : <Globe size={13} />}
               {isSyncing ? "Syncing..." : "Sync to Portal"}
             </button>
           )}
@@ -721,7 +731,22 @@ export function UnifiedReviewView({
       </div>
 
       {/* Split content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden px-4 py-4">
+       <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
+        {/* Sidebar (single-domain only — cross-domain skips it for now) */}
+        {!crossDomain && (
+          <DomainsSidebar
+            resourceType={resourceType}
+            rows={sidebarRows}
+            view={sidebarView}
+            setView={(v) => { setSidebarView(v); setSidebarCategory(null); setSidebarSubCategory(null); }}
+            category={sidebarCategory}
+            setCategory={(c) => { setSidebarCategory(c); setSidebarSubCategory(null); }}
+            subCategory={sidebarSubCategory}
+            setSubCategory={setSidebarSubCategory}
+          />
+        )}
+
         {/* Left: AG Grid */}
         <div className="flex-1 overflow-hidden">
           <ReviewGrid
@@ -738,6 +763,13 @@ export function UnifiedReviewView({
             onAddToDataModel={isTable && !crossDomain ? setAddToDataModelRow : undefined}
             externalRows={crossDomain ? crossDomainRows : undefined}
             crossDomain={crossDomain}
+            sidebarFilter={!crossDomain ? {
+              view: sidebarView,
+              category: sidebarCategory,
+              subCategory: sidebarSubCategory,
+            } : undefined}
+            onRowsLoaded={!crossDomain ? handleRowsLoaded : undefined}
+            onOpenFullScreen={onOpenFullScreen}
           />
         </div>
 
@@ -789,6 +821,7 @@ export function UnifiedReviewView({
             )}
           </div>
         )}
+       </div>
       </div>
 
       {/* Add to Data Model dialog (tables only) */}
@@ -814,5 +847,227 @@ export function UnifiedReviewView({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+
+type DomainsSidebarView = "all" | "active" | "deleted" | "custom" | "configured" | "unconfigured";
+
+function viewsForResourceType(resourceType: ReviewResourceType): { id: DomainsSidebarView; label: string; icon: typeof Layers }[] {
+  if (resourceType === "table") {
+    return [
+      { id: "all",          label: "All",          icon: Layers },
+      { id: "active",       label: "Active",       icon: CheckCircle2 },
+      { id: "deleted",      label: "Deleted",      icon: Trash2 },
+      { id: "custom",       label: "Custom tables", icon: Wrench },
+      { id: "configured",   label: "Configured",   icon: Tag },
+      { id: "unconfigured", label: "Unconfigured", icon: Tag },
+    ];
+  }
+  // queries / dashboards / workflows
+  return [
+    { id: "all",          label: "All",           icon: Layers },
+    { id: "active",       label: "Active",        icon: CheckCircle2 },
+    { id: "deleted",      label: "Deleted",       icon: Trash2 },
+    { id: "configured",   label: "Configured",    icon: Tag },
+    { id: "unconfigured", label: "Unconfigured",  icon: Tag },
+  ];
+}
+
+function rowMatchesView(r: ReviewRow, v: DomainsSidebarView): boolean {
+  switch (v) {
+    case "all":          return true;
+    case "active":       return !r.isStale;
+    case "deleted":      return !!r.isStale;
+    case "custom":       return r.name?.startsWith("custom_tbl_") ?? false;
+    case "configured":   return !!r.dataCategory;
+    case "unconfigured": return !r.dataCategory;
+  }
+}
+
+function DomainsSidebar({
+  resourceType,
+  rows,
+  view,
+  setView,
+  category,
+  setCategory,
+  subCategory,
+  setSubCategory,
+}: {
+  resourceType: ReviewResourceType;
+  rows: ReviewRow[];
+  view: DomainsSidebarView;
+  setView: (v: DomainsSidebarView) => void;
+  category: string | null;
+  setCategory: (c: string | null) => void;
+  subCategory: string | null;
+  setSubCategory: (s: string | null) => void;
+}) {
+  const sidebarViews = useMemo(() => viewsForResourceType(resourceType), [resourceType]);
+
+  // Counts per view (against full rows)
+  const viewCounts = useMemo<Record<DomainsSidebarView, number>>(() => {
+    const counts: Record<DomainsSidebarView, number> = {
+      all: 0, active: 0, deleted: 0, custom: 0, configured: 0, unconfigured: 0,
+    };
+    for (const r of rows) {
+      for (const v of sidebarViews) {
+        if (rowMatchesView(r, v.id)) counts[v.id]++;
+      }
+    }
+    return counts;
+  }, [rows, sidebarViews]);
+
+  // Categories scoped to current view
+  const viewScopedRows = useMemo(() => rows.filter((r) => rowMatchesView(r, view)), [rows, view]);
+
+  // Category field varies per resource type:
+  //   tables → dataCategory / dataSubCategory
+  //   queries → category (no sub) — VAL's saved-query category
+  //   dashboards / workflows → dataCategory / dataSubCategory (classification fields)
+  const categoryOf = useCallback((r: ReviewRow): { cat: string; sub: string } => {
+    if (resourceType === "query") {
+      return { cat: r.category || r.dataCategory || "Uncategorized", sub: r.dataSubCategory || "—" };
+    }
+    return { cat: r.dataCategory || "Uncategorized", sub: r.dataSubCategory || "—" };
+  }, [resourceType]);
+
+  const categoryGroups = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    for (const r of viewScopedRows) {
+      const { cat, sub } = categoryOf(r);
+      if (!map.has(cat)) map.set(cat, new Map());
+      const subMap = map.get(cat)!;
+      subMap.set(sub, (subMap.get(sub) ?? 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([cat, subMap]) => ({
+        category: cat,
+        total: Array.from(subMap.values()).reduce((a, b) => a + b, 0),
+        subcategories: Array.from(subMap.entries())
+          .map(([sub, count]) => ({ subcategory: sub, count }))
+          .sort((a, b) => a.subcategory.localeCompare(b.subcategory)),
+      }))
+      .sort((a, b) => a.category.localeCompare(b.category));
+  }, [viewScopedRows, categoryOf]);
+
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggleCat = (c: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c); else next.add(c);
+      return next;
+    });
+  };
+
+  return (
+    <aside className="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
+      {/* View section */}
+      <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
+        <div className="space-y-0.5">
+          {sidebarViews.map((v) => {
+            const Icon = v.icon;
+            const active = view === v.id;
+            return (
+              <button
+                key={v.id}
+                onClick={() => setView(v.id)}
+                className={cn(
+                  "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                  active
+                    ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <Icon size={13} />
+                  {v.label}
+                </span>
+                <span className="text-[11px] text-zinc-500">{viewCounts[v.id]}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Category tree */}
+      <div className="flex-1 overflow-y-auto px-2 py-3">
+        <button
+          onClick={() => { setCategory(null); setSubCategory(null); }}
+          className={cn(
+            "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[12.5px] mb-1",
+            !category
+              ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+              : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+          )}
+        >
+          <span className="font-medium">All categories</span>
+          <span className="text-[11px] text-zinc-500">{viewScopedRows.length}</span>
+        </button>
+
+        {categoryGroups.length === 0 && (
+          <div className="px-2 py-3 text-[11px] text-zinc-400 italic">No categories</div>
+        )}
+
+        {categoryGroups.map(({ category: cat, total, subcategories }) => {
+          const isOpen = !collapsed.has(cat);
+          const isActiveCat = category === cat;
+          const hasMultipleSubs = subcategories.length > 1 || subcategories[0]?.subcategory !== "—";
+          return (
+            <div key={cat} className="mt-1">
+              <div className="flex items-center group">
+                <button
+                  onClick={() => hasMultipleSubs && toggleCat(cat)}
+                  className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  aria-label="Toggle"
+                >
+                  {hasMultipleSubs ? (
+                    isOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />
+                  ) : (
+                    <span className="inline-block w-[11px]" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setCategory(cat)}
+                  className={cn(
+                    "flex-1 flex items-center justify-between gap-2 pr-2 py-1 rounded text-[12px] text-left truncate",
+                    isActiveCat
+                      ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300",
+                  )}
+                  title={cat}
+                >
+                  <span className="truncate">{cat}</span>
+                  <span className="text-[11px] text-zinc-500 shrink-0">{total}</span>
+                </button>
+              </div>
+
+              {isOpen && hasMultipleSubs && subcategories.map(({ subcategory, count }) => {
+                const isActiveSub = isActiveCat && subCategory === subcategory;
+                return (
+                  <button
+                    key={subcategory}
+                    onClick={() => { setCategory(cat); setSubCategory(subcategory); }}
+                    className={cn(
+                      "w-full flex items-center justify-between gap-2 pl-7 pr-2 py-0.5 rounded text-[11.5px] text-left",
+                      isActiveSub
+                        ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400",
+                    )}
+                    title={subcategory}
+                  >
+                    <span className="truncate">{subcategory === "—" ? <span className="italic text-zinc-400">no subcategory</span> : subcategory}</span>
+                    <span className="text-[11px] text-zinc-500 shrink-0">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </aside>
   );
 }

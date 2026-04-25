@@ -35,6 +35,8 @@ interface ReviewGridToolbarProps {
   reviewFilter: "all" | "needs-review" | "modified" | "deleted";
   setReviewFilter: (v: "all" | "needs-review" | "modified" | "deleted") => void;
   isTable?: boolean;
+  /** Optional — opens dedicated full-screen review route (review mode only) */
+  onOpenFullScreen?: () => void;
 }
 
 export function ReviewGridToolbar({
@@ -50,6 +52,7 @@ export function ReviewGridToolbar({
   reviewFilter,
   setReviewFilter,
   isTable = false,
+  onOpenFullScreen,
 }: ReviewGridToolbarProps) {
   const [savedLayouts, setSavedLayouts] = useState<Record<string, object>>(() => {
     const stored = localStorage.getItem("tv-desktop-ag-grid-layouts");
@@ -213,26 +216,26 @@ export function ReviewGridToolbar({
 
   return (
     <>
-      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
+      <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2 flex-wrap flex-shrink-0">
         {/* Left side: Search and filters */}
-        <div className="flex items-center gap-3 flex-1">
+        <div className="flex items-center gap-2 flex-1">
           <div className="relative flex-1 max-w-md">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
             <input
               type="text"
               placeholder="Quick filter..."
               value={quickFilterText}
               onChange={(e) => setQuickFilterText(e.target.value)}
-              className="w-full px-3 py-2 pl-9 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
 
           {reviewMode && (
-            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 rounded-md p-0.5">
               <button
                 onClick={() => setReviewFilter("all")}
                 className={cn(
-                  "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
+                  "flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded transition-colors",
                   reviewFilter === "all"
                     ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
                     : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
@@ -243,7 +246,7 @@ export function ReviewGridToolbar({
               <button
                 onClick={() => setReviewFilter("deleted")}
                 className={cn(
-                  "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors",
+                  "flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded transition-colors",
                   reviewFilter === "deleted"
                     ? "bg-white dark:bg-zinc-700 text-red-600 dark:text-red-400 shadow-sm"
                     : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
@@ -256,15 +259,15 @@ export function ReviewGridToolbar({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Layouts dropdown — includes Flat, Fit, Reset + saved layouts */}
           <div className="relative">
             <button
               onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               title="Layouts & view options"
             >
-              <Bookmark size={14} /> Layouts
+              <Bookmark size={13} /> Layouts
             </button>
             {showLayoutMenu && (
               <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 z-50 py-1">
@@ -339,35 +342,45 @@ export function ReviewGridToolbar({
             )}
           </div>
 
+          {reviewMode && onOpenFullScreen && (
+            <button
+              onClick={onOpenFullScreen}
+              title="Open in full-screen review"
+              className="flex items-center px-2 py-1.5 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <Maximize2 size={13} />
+            </button>
+          )}
+
           {!reviewMode && (
             <>
               <button
                 onClick={() => setWrapSummary(!wrapSummary)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border transition-colors ${
                   wrapSummary
                     ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
                     : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 }`}
                 title={wrapSummary ? "Click to truncate text" : "Click to wrap text"}
               >
-                <WrapText size={14} />
+                <WrapText size={13} />
               </button>
-              <Button variant="secondary" size="md" icon={Download} onClick={exportToCsv} title="Export to CSV">
+              <Button variant="secondary" size="sm" icon={Download} onClick={exportToCsv} title="Export to CSV">
                 CSV
               </Button>
-              <Button size="md" icon={FileSpreadsheet} onClick={exportToExcel} title="Export to Excel">
+              <Button size="sm" icon={FileSpreadsheet} onClick={exportToExcel} title="Export to Excel">
                 Excel
               </Button>
               <button
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border transition-colors ${
                   isFullscreen
                     ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
                     : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 }`}
                 title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
               >
-                {isFullscreen ? <X size={14} /> : <Maximize2 size={14} />}
+                {isFullscreen ? <X size={13} /> : <Maximize2 size={13} />}
               </button>
             </>
           )}
