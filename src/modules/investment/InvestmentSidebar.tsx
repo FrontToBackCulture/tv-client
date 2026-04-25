@@ -4,10 +4,10 @@
 // because its view state is not URL-routed.
 
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, List, TrendingUp, Coins } from "lucide-react";
+import { LayoutDashboard, List, TrendingUp, Coins, Sparkles } from "lucide-react";
 import { cn } from "../../lib/cn";
 
-export type InvestmentView = "overview" | "positions" | "trades" | "dividends";
+export type InvestmentView = "overview" | "positions" | "signals" | "trades" | "dividends";
 
 interface ViewDef {
   id: InvestmentView;
@@ -18,6 +18,7 @@ interface ViewDef {
 const VIEWS: ViewDef[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "positions", label: "Positions", icon: List },
+  { id: "signals", label: "Signals", icon: Sparkles },
   { id: "trades", label: "Trades", icon: TrendingUp },
   { id: "dividends", label: "Dividends", icon: Coins },
 ];

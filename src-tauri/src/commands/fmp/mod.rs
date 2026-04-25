@@ -13,6 +13,7 @@
 
 pub mod client;
 pub mod endpoints;
+pub mod projections;
 pub mod sync;
 
 use crate::commands::error::CmdResult;

@@ -20,6 +20,7 @@ use tauri::Emitter;
 
 use super::client::{fetch, CALL_DELAY};
 use super::endpoints::{MarketUrl, MARKET_ENDPOINTS, REFERENCE_ENDPOINTS, TICKER_ENDPOINTS};
+use super::projections;
 use super::FmpSyncSummary;
 
 fn load_api_key() -> CmdResult<String> {
@@ -103,6 +104,11 @@ pub async fn sync_ticker(
                     errors.push(format!("{}: upsert failed: {}", ep.name, e));
                 } else {
                     ok_count += 1;
+                    // Projection failures don't fail the sync — JSONB is still
+                    // authoritative in fmp_cache. Surface as a warning.
+                    if let Err(e) = projections::project(symbol, exchange, ep.name, &data).await {
+                        errors.push(format!("{}: projection failed: {}", ep.name, e));
+                    }
                 }
             }
             Err(e) => {

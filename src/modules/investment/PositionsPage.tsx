@@ -69,9 +69,10 @@ async function loadResearchFolders(libraryBase: string): Promise<Map<string, str
 interface PositionsPageProps {
   accountId: string | null;
   hasMultipleAccounts: boolean;
+  onSelectSymbol?: (symbol: string) => void;
 }
 
-export function PositionsPage({ accountId, hasMultipleAccounts }: PositionsPageProps) {
+export function PositionsPage({ accountId, hasMultipleAccounts, onSelectSymbol }: PositionsPageProps) {
   const { data: positions, isLoading, error } = useLatestPositions(accountId);
   const knowledgePaths = useKnowledgePaths();
   const showAccountColumn = accountId === null && hasMultipleAccounts;
@@ -179,7 +180,17 @@ export function PositionsPage({ accountId, hasMultipleAccounts }: PositionsPageP
                       </td>
                     )}
                     <td className="px-3 py-2 font-medium text-zinc-900 dark:text-zinc-100">
-                      {p.symbol}
+                      {onSelectSymbol ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelectSymbol(p.symbol)}
+                          className="text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 hover:underline"
+                        >
+                          {p.symbol}
+                        </button>
+                      ) : (
+                        p.symbol
+                      )}
                       {p.asset_class && (
                         <span className="ml-1.5 text-[10px] uppercase text-zinc-400">
                           {p.asset_class}
