@@ -4,9 +4,9 @@ interface SkeletonProps {
   className?: string;
 }
 
-/** Base skeleton primitive with shimmer animation. */
+/** Base skeleton primitive with pulsating animation. */
 export function Skeleton({ className }: SkeletonProps) {
-  return <div className={cn("animate-shimmer rounded", className)} />;
+  return <div className={cn("animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded", className)} />;
 }
 
 /** Skeleton for list views (email list, task list, etc.) */

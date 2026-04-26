@@ -1,0 +1,22 @@
+{
+  "name": "tv-agent-runner",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Agent SDK sidecar for tv-client. Reads a JSON request on stdin, runs an Agent SDK loop, streams events as NDJSON on stdout.",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --target=bun --outfile dist/tv-agent-runner",
+    "build:macos-arm64": "bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/tv-agent-runner-aarch64-apple-darwin",
+    "build:macos-x64": "bun build src/index.ts --compile --target=bun-darwin-x64 --outfile dist/tv-agent-runner-x86_64-apple-darwin",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.119"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.4.0"
+  }
+}

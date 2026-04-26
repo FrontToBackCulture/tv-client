@@ -77,7 +77,7 @@ export function SharedInboxModule() {
   // Empty state: no mailboxes
   if (!isLoadingMailboxes && mailboxes.length === 0) {
     return (
-      <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+      <div className="h-full flex flex-col">
         <PageHeader description="Shared email inboxes visible to all workspace users." />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-sm">
@@ -97,7 +97,7 @@ export function SharedInboxModule() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader description="Shared email inboxes visible to all workspace users." />
 
       {/* Sync status bar */}

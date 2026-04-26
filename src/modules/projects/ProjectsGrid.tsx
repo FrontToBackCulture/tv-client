@@ -14,11 +14,13 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import {
   Download, FileSpreadsheet, Maximize2, X, RotateCcw, Layers,
   ChevronsLeftRight, Bookmark, Star, Save, WrapText, Target,
-  Hammer, CheckCircle2, PauseCircle, Clock, Activity,
+  Hammer, CheckCircle2, PauseCircle, Clock, Activity, Flag,
+  PanelLeftOpen, PanelLeftClose,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { toSGTDateString } from "../../lib/date";
 import { Button } from "../../components/ui";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
 import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
@@ -70,13 +72,19 @@ interface ProjectRow {
   task_count: number;
   completed_count: number;
   overdue_count: number;
+  initiative: string | null;
+  referral: string | null;
 }
 
 interface Props {
   projects: Project[];
   taskCounts: Map<string, { total: number; completed: number; overdue: number }>;
-  companyMap: Map<string, { name: string; stage: string | null }>;
+  companyMap: Map<string, { name: string; stage: string | null; referred_by: string | null }>;
+  initiativeMap?: Map<string, string>;
   onSelectProject: (id: string) => void;
+  onSelectInitiative?: (name: string) => void;
+  onToggleChanges?: () => void;
+  showChanges?: boolean;
 }
 
 const STATUS_VALUES = ["planned", "active", "completed", "paused"];
@@ -144,6 +152,8 @@ function buildColumns(wrapNotes: boolean): (ColDef<ProjectRow> | ColGroupDef<Pro
         return <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", colors[params.value] ?? "")}>{params.value}</span>;
       },
     },
+    { field: "initiative", headerName: "Initiative", width: 160, filter: "agSetColumnFilter", enableRowGroup: true },
+    { field: "referral", headerName: "Referral", width: 130, filter: "agSetColumnFilter", enableRowGroup: true },
     { field: "company_name", headerName: "Company", width: 150, filter: "agTextColumnFilter" },
     { field: "company_stage", headerName: "Co. Stage", width: 100, filter: "agSetColumnFilter" },
     {
@@ -208,7 +218,7 @@ function buildColumns(wrapNotes: boolean): (ColDef<ProjectRow> | ColGroupDef<Pro
   ];
 }
 
-export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject }: Props) {
+export function ProjectsGrid({ projects, taskCounts, companyMap, initiativeMap, onSelectProject, onSelectInitiative, onToggleChanges, showChanges }: Props) {
   const theme = useAppStore((s) => s.theme);
   const gridRef = useRef<AgGridReact<ProjectRow>>(null);
   const [quickFilter, setQuickFilter] = useState("");
@@ -217,6 +227,8 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
   const [statusFilter, setStatusFilter] = useState<StatusKey>("all");
   const [typeFilter, setTypeFilter] = useState<TypeKey>("all");
   const [stageFilter, setStageFilter] = useState<StageKey>("all");
+  const [initiativeFilter, setInitiativeFilter] = useState<string>("all");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape" && isFullscreen) setIsFullscreen(false); };
@@ -228,47 +240,75 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
   const matchStatus = useCallback((p: Project, key: StatusKey) => key === "all" || p.status === key, []);
   const matchType   = useCallback((p: Project, key: TypeKey)   => key === "all" || p.project_type === key, []);
   const matchStage  = useCallback((p: Project, key: StageKey)  => key === "all" || p.deal_stage === key, []);
+  const matchInitiative = useCallback(
+    (p: Project, key: string) => key === "all" || (initiativeMap?.get(p.id) ?? "—") === key,
+    [initiativeMap],
+  );
 
-  // Per-dimension counts: each section's counts respect the other two filters
+  // Sorted list of initiatives (with "—" bucket for unassigned)
+  const initiativeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of projects) set.add(initiativeMap?.get(p.id) ?? "—");
+    return Array.from(set).sort((a, b) => {
+      if (a === "—") return 1;
+      if (b === "—") return -1;
+      return a.localeCompare(b);
+    });
+  }, [projects, initiativeMap]);
+
+  // Per-dimension counts: each section's counts respect the other filters
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const v of STATUS_VIEWS) counts[v.id] = 0;
     for (const proj of projects) {
-      if (!matchType(proj, typeFilter) || !matchStage(proj, stageFilter)) continue;
+      if (!matchType(proj, typeFilter) || !matchStage(proj, stageFilter) || !matchInitiative(proj, initiativeFilter)) continue;
       for (const v of STATUS_VIEWS) if (matchStatus(proj, v.id)) counts[v.id]++;
     }
     return counts;
-  }, [projects, typeFilter, stageFilter, matchType, matchStage, matchStatus]);
+  }, [projects, typeFilter, stageFilter, initiativeFilter, matchType, matchStage, matchStatus, matchInitiative]);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const v of TYPE_VIEWS) counts[v.id] = 0;
     for (const proj of projects) {
-      if (!matchStatus(proj, statusFilter) || !matchStage(proj, stageFilter)) continue;
+      if (!matchStatus(proj, statusFilter) || !matchStage(proj, stageFilter) || !matchInitiative(proj, initiativeFilter)) continue;
       for (const v of TYPE_VIEWS) if (matchType(proj, v.id)) counts[v.id]++;
     }
     return counts;
-  }, [projects, statusFilter, stageFilter, matchStatus, matchStage, matchType]);
+  }, [projects, statusFilter, stageFilter, initiativeFilter, matchStatus, matchStage, matchType, matchInitiative]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = { all: 0 };
     for (const s of DEAL_STAGES) counts[s.value] = 0;
     for (const proj of projects) {
-      if (!matchStatus(proj, statusFilter) || !matchType(proj, typeFilter)) continue;
+      if (!matchStatus(proj, statusFilter) || !matchType(proj, typeFilter) || !matchInitiative(proj, initiativeFilter)) continue;
       counts.all++;
       if (proj.deal_stage && counts[proj.deal_stage] !== undefined) counts[proj.deal_stage]++;
     }
     return counts;
-  }, [projects, statusFilter, typeFilter, matchStatus, matchType]);
+  }, [projects, statusFilter, typeFilter, initiativeFilter, matchStatus, matchType, matchInitiative]);
 
-  // Filtered projects (AND across all three dimensions)
+  const initiativeCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: 0 };
+    for (const opt of initiativeOptions) counts[opt] = 0;
+    for (const proj of projects) {
+      if (!matchStatus(proj, statusFilter) || !matchType(proj, typeFilter) || !matchStage(proj, stageFilter)) continue;
+      counts.all++;
+      const init = initiativeMap?.get(proj.id) ?? "—";
+      if (counts[init] !== undefined) counts[init]++;
+    }
+    return counts;
+  }, [projects, statusFilter, typeFilter, stageFilter, initiativeOptions, initiativeMap, matchStatus, matchType, matchStage]);
+
+  // Filtered projects (AND across all four dimensions)
   const filteredProjects = useMemo(() => {
     return projects.filter((p) =>
       matchStatus(p, statusFilter) &&
       matchType(p, typeFilter) &&
-      matchStage(p, stageFilter),
+      matchStage(p, stageFilter) &&
+      matchInitiative(p, initiativeFilter),
     );
-  }, [projects, statusFilter, typeFilter, stageFilter, matchStatus, matchType, matchStage]);
+  }, [projects, statusFilter, typeFilter, stageFilter, initiativeFilter, matchStatus, matchType, matchStage, matchInitiative]);
 
   const rowData: ProjectRow[] = useMemo(() => filteredProjects.map(p => {
     const counts = taskCounts.get(p.id) || { total: 0, completed: 0, overdue: 0 };
@@ -286,8 +326,10 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
       health: p.health, lead: p.lead, target_date: p.target_date, intent: (p as any).intent,
       created_at: p.created_at, updated_at: p.updated_at,
       task_count: counts.total, completed_count: counts.completed, overdue_count: counts.overdue,
+      initiative: initiativeMap?.get(p.id) || null,
+      referral: company?.referred_by || null,
     };
-  }), [filteredProjects, taskCounts, companyMap]);
+  }), [filteredProjects, taskCounts, companyMap, initiativeMap]);
 
   const columnDefs = useMemo(() => buildColumns(wrapNotes), [wrapNotes]);
 
@@ -297,8 +339,27 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
   }), []);
 
   const autoGroupColumnDef = useMemo<ColDef<ProjectRow>>(() => ({
-    headerName: "Group", minWidth: 250, flex: 1, cellRendererParams: { suppressCount: false },
-  }), []);
+    headerName: "Group", minWidth: 250, flex: 1,
+    cellRendererParams: {
+      suppressCount: false,
+      innerRenderer: (params: any) => {
+        const isInitiativeGroup = params.node?.field === "initiative" && params.node?.key && params.node.key !== "—";
+        if (isInitiativeGroup && onSelectInitiative) {
+          return (
+            <span
+              role="button"
+              onClick={(e) => { e.stopPropagation(); onSelectInitiative(params.node.key); }}
+              className="cursor-pointer hover:underline hover:text-teal-600 dark:hover:text-teal-400"
+              title={`Open initiative: ${params.node.key}`}
+            >
+              {params.value}
+            </span>
+          );
+        }
+        return <span>{params.value}</span>;
+      },
+    },
+  }), [onSelectInitiative]);
 
   const getRowId = useCallback((params: GetRowIdParams<ProjectRow>) => params.data.id, []);
   const getRowClass = useCallback((params: { node: { group?: boolean } }) => params.node.group ? "ag-group-row-custom" : undefined, []);
@@ -426,6 +487,12 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
     if (!api) return;
     if (defaultLayout) {
       api.applyColumnState({ state: defaultLayout.column_state as ColumnState[], applyOrder: true });
+      // Ensure newly-introduced columns missing from the saved layout are visible.
+      const layoutCols = new Set((defaultLayout.column_state as ColumnState[] | undefined ?? []).map((c) => c.colId));
+      const newColumns = ["initiative", "referral"].filter((c) => !layoutCols.has(c));
+      if (newColumns.length) {
+        api.applyColumnState({ state: newColumns.map((colId) => ({ colId, hide: false })) });
+      }
       if (defaultLayout.row_group_columns?.length) api.setRowGroupColumns(defaultLayout.row_group_columns);
       if (defaultLayout.filter_model && Object.keys(defaultLayout.filter_model).length) {
         api.setFilterModel(defaultLayout.filter_model);
@@ -473,115 +540,183 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
     }>
       <style>{groupRowStyles}{themeStyles}{`
         .ag-theme-alpine .ag-cell, .ag-theme-alpine-dark .ag-cell { display: flex; align-items: center; }
+        .ag-theme-alpine .ag-group-row-custom .ag-cell-wrapper,
+        .ag-theme-alpine-dark .ag-group-row-custom .ag-cell-wrapper { align-items: center !important; }
+        .ag-theme-alpine .ag-group-row-custom .ag-group-child-count,
+        .ag-theme-alpine-dark .ag-group-row-custom .ag-group-child-count {
+          align-self: center !important;
+          font-size: 11px !important;
+          line-height: 1 !important;
+          margin-top: 0 !important;
+          position: static !important;
+          transform: none !important;
+        }
       `}</style>
 
       <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
         {/* Sidebar */}
+        {sidebarOpen && (
         <aside className="w-60 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
             {/* VIEW = Status */}
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
-              <div className="space-y-0.5">
-                {STATUS_VIEWS.map((v) => {
-                  const Icon = v.icon;
-                  return (
-                    <button
-                      key={v.id}
-                      onClick={() => setStatusFilter(v.id)}
-                      className={cn(
-                        "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
-                        statusFilter === v.id
-                          ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-                          : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
-                      )}
-                    >
-                      <span className="flex items-center gap-2"><Icon size={13} /> {v.label}</span>
-                      <span className="text-[11px] text-zinc-500">{statusCounts[v.id]}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* PROJECTS = Type */}
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Projects</div>
-              <div className="space-y-0.5">
-                {TYPE_VIEWS.map((v) => {
-                  const Icon = v.icon;
-                  return (
-                    <button
-                      key={v.id}
-                      onClick={() => setTypeFilter(v.id)}
-                      className={cn(
-                        "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
-                        typeFilter === v.id
-                          ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-                          : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
-                      )}
-                    >
-                      <span className="flex items-center gap-2"><Icon size={13} /> {v.label}</span>
-                      <span className="text-[11px] text-zinc-500">{typeCounts[v.id]}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* STAGE = Deal stages */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500">Stage</div>
-                {stageFilter !== "all" && (
+            <CollapsibleSection title="View" storageKey="projects:view">
+              {STATUS_VIEWS.map((v) => {
+                const Icon = v.icon;
+                return (
                   <button
-                    onClick={() => setStageFilter("all")}
-                    className="text-[10px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <button
-                  onClick={() => setStageFilter("all")}
-                  className={cn(
-                    "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
-                    stageFilter === "all"
-                      ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
-                  )}
-                >
-                  <span className="flex items-center gap-2"><Layers size={13} /> All Stages</span>
-                  <span className="text-[11px] text-zinc-500">{stageCounts.all}</span>
-                </button>
-                {DEAL_STAGES.map((stage) => (
-                  <button
-                    key={stage.value}
-                    onClick={() => setStageFilter(stage.value)}
+                    key={v.id}
+                    onClick={() => setStatusFilter(v.id)}
                     className={cn(
                       "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
-                      stageFilter === stage.value
+                      statusFilter === v.id
                         ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
                         : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
                     )}
                   >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span className={cn("w-2 h-2 rounded-full shrink-0", STAGE_DOT_COLORS[stage.color] || "bg-zinc-400")} />
-                      <span className="truncate">{stage.label}</span>
-                    </span>
-                    <span className="text-[11px] text-zinc-500">{stageCounts[stage.value] || 0}</span>
+                    <span className="flex items-center gap-2"><Icon size={13} /> {v.label}</span>
+                    <span className="text-[11px] text-zinc-500">{statusCounts[v.id]}</span>
                   </button>
-                ))}
-              </div>
-            </div>
+                );
+              })}
+            </CollapsibleSection>
+
+            {/* PROJECTS = Type */}
+            <CollapsibleSection title="Projects" storageKey="projects:type">
+              {TYPE_VIEWS.map((v) => {
+                const Icon = v.icon;
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => setTypeFilter(v.id)}
+                    className={cn(
+                      "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                      typeFilter === v.id
+                        ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                    )}
+                  >
+                    <span className="flex items-center gap-2"><Icon size={13} /> {v.label}</span>
+                    <span className="text-[11px] text-zinc-500">{typeCounts[v.id]}</span>
+                  </button>
+                );
+              })}
+            </CollapsibleSection>
+
+            {/* STAGE = Deal stages */}
+            <CollapsibleSection
+              title="Stage"
+              storageKey="projects:stage"
+              rightSlot={stageFilter !== "all" && (
+                <button
+                  onClick={() => setStageFilter("all")}
+                  className="text-[10px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                >
+                  Clear
+                </button>
+              )}
+            >
+              <button
+                onClick={() => setStageFilter("all")}
+                className={cn(
+                  "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                  stageFilter === "all"
+                    ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                )}
+              >
+                <span className="flex items-center gap-2"><Layers size={13} /> All Stages</span>
+                <span className="text-[11px] text-zinc-500">{stageCounts.all}</span>
+              </button>
+              {DEAL_STAGES.map((stage) => (
+                <button
+                  key={stage.value}
+                  onClick={() => setStageFilter(stage.value)}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                    stageFilter === stage.value
+                      ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                  )}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className={cn("w-2 h-2 rounded-full shrink-0", STAGE_DOT_COLORS[stage.color] || "bg-zinc-400")} />
+                    <span className="truncate">{stage.label}</span>
+                  </span>
+                  <span className="text-[11px] text-zinc-500">{stageCounts[stage.value] || 0}</span>
+                </button>
+              ))}
+            </CollapsibleSection>
+
+            {/* INITIATIVE */}
+            <CollapsibleSection
+              title="Initiative"
+              storageKey="projects:initiative"
+              rightSlot={initiativeFilter !== "all" && (
+                <button
+                  onClick={() => setInitiativeFilter("all")}
+                  className="text-[10px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                >
+                  Clear
+                </button>
+              )}
+            >
+              <button
+                onClick={() => setInitiativeFilter("all")}
+                className={cn(
+                  "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                  initiativeFilter === "all"
+                    ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                )}
+              >
+                <span className="flex items-center gap-2"><Flag size={13} /> All Initiatives</span>
+                <span className="text-[11px] text-zinc-500">{initiativeCounts.all}</span>
+              </button>
+              {initiativeOptions.map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => setInitiativeFilter(opt)}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                    initiativeFilter === opt
+                      ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                  )}
+                  title={opt === "—" ? "Projects with no initiative assigned" : opt}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className={cn(
+                      "w-2 h-2 rounded-full shrink-0",
+                      opt === "—" ? "bg-zinc-400" : "bg-purple-500",
+                    )} />
+                    <span className={cn("truncate", opt === "—" && "italic text-zinc-400")}>
+                      {opt === "—" ? "Unassigned" : opt}
+                    </span>
+                  </span>
+                  <span className="text-[11px] text-zinc-500">{initiativeCounts[opt] || 0}</span>
+                </button>
+              ))}
+            </CollapsibleSection>
           </div>
         </aside>
+        )}
 
         {/* Main column */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* Toolbar */}
           <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className={cn(
+                "flex items-center justify-center p-1.5 rounded-md border transition-colors flex-shrink-0",
+                sidebarOpen
+                  ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                  : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              )}
+              title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+            >
+              {sidebarOpen ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
+            </button>
             <input
               type="text"
               value={quickFilter}
@@ -674,6 +809,21 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, onSelectProject
                 </div>
               )}
             </div>
+
+            {onToggleChanges && (
+              <button
+                onClick={onToggleChanges}
+                className={cn(
+                  "flex items-center justify-center p-1.5 rounded-md border transition-colors",
+                  showChanges
+                    ? "border-purple-500 bg-purple-500/20 text-purple-600 dark:text-purple-400"
+                    : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                )}
+                title="Recent Changes"
+              >
+                <Clock size={12} />
+              </button>
+            )}
 
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}

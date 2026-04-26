@@ -5,6 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ActivityBar } from "./ActivityBar";
 import { StatusBar } from "./StatusBar";
 import { CommandPalette } from "./CommandPalette";
+import { EntityChatModal } from "../components/chat/EntityChatModal";
 import { SidePanel } from "./SidePanel";
 import { ModuleTabBar } from "./ModuleTabBar";
 import { ModeTabs } from "./ModeTabs";
@@ -40,6 +41,7 @@ const moduleLabels: Record<ModuleId, string> = {
   product: "Product",
   gallery: "Gallery",
   skills: "Skills",
+  "mcp-tools": "MCP Tools",
   portal: "Portal",
   scheduler: "Scheduler",
   repos: "Repos",
@@ -84,14 +86,7 @@ function TitleBar() {
       />
       <div
         onMouseDown={() => getCurrentWindow().startDragging()}
-        className="h-8 bg-zinc-100 dark:bg-zinc-900 border-b flex items-center select-none"
-        style={{
-          // Layer a workspace-color tint on top of the base background-color
-          // (set by Tailwind). `backgroundImage` is independent of
-          // `backgroundColor`, so this composites cleanly in both themes.
-          backgroundImage: `linear-gradient(rgba(var(--workspace-accent-rgb), 0.22), rgba(var(--workspace-accent-rgb), 0.22))`,
-          borderColor: `rgba(var(--workspace-accent-rgb), 0.35)`,
-        }}
+        className="h-8 border-b border-zinc-200/70 dark:border-zinc-800/60 flex items-center select-none bg-surface-glass"
       >
         {/* Traffic lights space + sidebar toggle */}
         <div className="flex items-center flex-shrink-0 pl-[78px] pr-1 gap-1.5" onMouseDown={(e) => e.stopPropagation()}>
@@ -200,7 +195,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
   }, [activeModule, secondary]);
 
   return (
-    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 bg-noise text-zinc-900 dark:text-zinc-100">
+    <div className="h-screen flex flex-col bg-app-mesh bg-noise text-zinc-900 dark:text-zinc-100">
       {/* Draggable title bar region for macOS with module tabs */}
       <TitleBar />
 
@@ -230,6 +225,7 @@ export function Shell({ activeModule, onModuleChange, children }: ShellProps) {
       <ToastContainer />
       <Mascot />
       <CommandPalette />
+      <EntityChatModal />
       <WhatsNewModal />
       <HelpHighlight />
     </div>

@@ -61,18 +61,6 @@ function formatRelativeTime(isoString: string | null): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function groupByType(domains: DiscoveredDomain[], typeOrder: string[]): Map<string, DiscoveredDomain[]> {
-  const groups = new Map<string, DiscoveredDomain[]>();
-  for (const type of typeOrder) {
-    const items = domains.filter((d) => d.domain_type === type);
-    if (items.length > 0) groups.set(type, items);
-  }
-  const known = new Set<string>(typeOrder);
-  const other = domains.filter((d) => !known.has(d.domain_type));
-  if (other.length > 0) groups.set("other", other);
-  return groups;
-}
-
 // ============================
 // DropdownMenu
 // ============================
@@ -221,8 +209,18 @@ function DomainCard({
 // Main component
 // ============================
 
+const TYPE_FILTER_KEY = "tv-desktop-domains-type-filter";
+
 export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>(() => {
+    if (typeof window === "undefined") return "all";
+    return localStorage.getItem(TYPE_FILTER_KEY) || "all";
+  });
+  const handleTypeFilterChange = useCallback((value: string) => {
+    setTypeFilter(value);
+    if (typeof window !== "undefined") localStorage.setItem(TYPE_FILTER_KEY, value);
+  }, []);
   const typeConfig = useDomainTypeConfig();
 
   const paths = usePrimaryKnowledgePaths();
@@ -307,10 +305,6 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   const all = domains ?? [];
   const domainNames = all.map((d) => d.domain);
 
-  const productionCount = all.filter((d) => d.domain_type === "production").length;
-  const notActiveCount = all.filter((d) => d.domain_type === "not-active").length;
-  const demoCount = all.filter((d) => d.domain_type === "demo").length;
-  const templateCount = all.filter((d) => d.domain_type === "template").length;
 
   // Full Analysis pipeline
   const handleFullAnalysis = useCallback(async () => {
@@ -347,10 +341,19 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   }, [abortSync]);
 
   // Filter
-  const filtered = all.filter((d) =>
-    search ? d.domain.toLowerCase().includes(search.toLowerCase()) : true
-  );
-  const grouped = groupByType(filtered, typeConfig.order);
+  const filtered = all.filter((d) => {
+    if (typeFilter !== "all" && d.domain_type !== typeFilter) return false;
+    if (search && !d.domain.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+  // Counts per type (across all domains, not the filtered set, so the sidebar reflects totals)
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: all.length };
+    for (const t of typeConfig.order) {
+      counts[t] = all.filter((d) => d.domain_type === t).length;
+    }
+    return counts;
+  }, [all, typeConfig.order]);
   const currentOp = getCurrentOperation();
 
   // Dropdown menu items
@@ -418,22 +421,12 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header: stats + search + batch controls */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
-        {/* Title row */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-              Domains
-            </h1>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              {all.length} domains — {productionCount} production
-              {notActiveCount > 0 ? ` · ${notActiveCount} inactive` : ""}
-              {demoCount > 0 ? ` · ${demoCount} demo` : ""}
-              {templateCount > 0 ? ` · ${templateCount} template` : ""}
-            </p>
-          </div>
+    <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
+      {/* Header: search + batch controls */}
+      <div className="flex-shrink-0 px-4 py-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
+        {/* Search + batch controls row */}
+        <div className="flex items-center gap-2">
           <div className="relative w-56">
             <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
@@ -444,10 +437,7 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
               className="w-full pl-7 pr-2 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             />
           </div>
-        </div>
-
-        {/* Batch controls row */}
-        <div className="flex items-center gap-2">
+          <div className="flex-1" />
           <Button
             onClick={handleFullAnalysis}
             disabled={anyRunning}
@@ -519,39 +509,70 @@ export function DomainsOverview({ onSelectDomain }: DomainsOverviewProps) {
         )}
       </div>
 
-      {/* Domain cards grid */}
-      <div className="flex-1 overflow-auto p-6">
-        {filtered.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-sm text-zinc-400">
-              {all.length === 0 ? "No domains found" : "No matching domains"}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {Array.from(grouped.entries()).map(([type, items]) => (
-              <div key={type}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                    {typeConfig.labels[type] ?? type}
-                  </span>
-                  <span className="text-xs text-zinc-400/60">{items.length}</span>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                  {items.map((d) => (
-                    <DomainCard
-                      key={d.domain}
-                      domain={d}
-                      onClick={() => onSelectDomain(d.domain)}
-                      dotColors={typeConfig.dotColors}
-                      labels={typeConfig.labels}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      {/* Sidebar (type filter) + flat card grid */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 overflow-y-auto px-3 py-3">
+          <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 px-1">Type</div>
+          <nav className="space-y-0.5">
+            <button
+              onClick={() => handleTypeFilterChange("all")}
+              className={cn(
+                "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
+                typeFilter === "all"
+                  ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                  : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+              )}
+            >
+              <Database size={13} className={typeFilter === "all" ? "text-teal-500" : "text-zinc-400"} />
+              <span className="flex-1">All</span>
+              <span className="text-[10px] text-zinc-400">{typeCounts.all}</span>
+            </button>
+            {typeConfig.order.map((type) => {
+              const isActive = typeFilter === type;
+              const count = typeCounts[type] || 0;
+              const dotColor = typeConfig.dotColors[type] || "bg-zinc-400";
+              return (
+                <button
+                  key={type}
+                  onClick={() => handleTypeFilterChange(type)}
+                  className={cn(
+                    "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
+                    isActive
+                      ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                  )}
+                >
+                  <span className={cn("w-2 h-2 rounded-full", dotColor)} />
+                  <span className="flex-1">{typeConfig.labels[type] ?? type}</span>
+                  <span className="text-[10px] text-zinc-400">{count}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <div className="flex-1 overflow-auto p-4">
+          {filtered.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-sm text-zinc-400">
+                {all.length === 0 ? "No domains found" : "No matching domains"}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {filtered.map((d) => (
+                <DomainCard
+                  key={d.domain}
+                  domain={d}
+                  onClick={() => onSelectDomain(d.domain)}
+                  dotColors={typeConfig.dotColors}
+                  labels={typeConfig.labels}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
       </div>
     </div>
   );

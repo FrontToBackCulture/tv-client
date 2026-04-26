@@ -19,6 +19,7 @@
  *   SUPABASE owns: rating, verified, last_audited, owner, needs_work, work_notes, action, outcome,
  *                   gallery_pinned, gallery_order, demo_uploaded, demo_url
  *   SHARED (file wins on create, DB wins on update): category, subcategory, target, status, domain, command
+ *   FILE_IF_PRESENT (file wins when set in frontmatter, DB preserved otherwise): data_types
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -145,7 +146,13 @@ function scanSkillsFromFiles() {
       status: frontmatter.status || "active",
       skill_type: classifySkillType(slug),
       command: frontmatter.command || null,
-      domain: frontmatter.domain || null,
+      domain: Array.isArray(frontmatter.domain)
+        ? frontmatter.domain
+        : (frontmatter.domain ? [frontmatter.domain] : []),
+      platform: Array.isArray(frontmatter.platform)
+        ? frontmatter.platform
+        : (frontmatter.platform ? [frontmatter.platform] : []),
+      data_types: Array.isArray(frontmatter.data_types) ? frontmatter.data_types : undefined,
       ...assets,
       distributions,
     };
@@ -188,7 +195,7 @@ const DB_OWNED = [
 
 // Fields where file wins on create, DB wins on update
 const SHARED_FIELDS = [
-  "category", "subcategory", "target", "status", "domain", "command",
+  "category", "subcategory", "target", "status", "domain", "platform", "command",
 ];
 
 function mergeSkills(fileSkills, dbSkills) {
@@ -309,6 +316,12 @@ async function upsertToSupabase(fileSkills, dbSkills) {
         row[field] = fileData[field];
       }
       // Existing skill — don't touch shared fields (DB wins)
+    }
+
+    // data_types: file-wins-if-present. Omit from row when frontmatter doesn't set it,
+    // so the upsert preserves the existing DB value.
+    if (fileData.data_types !== undefined) {
+      row.data_types = fileData.data_types;
     }
 
     rows.push(row);

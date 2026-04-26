@@ -646,6 +646,7 @@ pub struct ProjectContext {
 // Skills
 // ============================================================================
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Skill {
     pub slug: String,
@@ -691,6 +692,7 @@ pub struct Skill {
     pub updated_at: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterSkill {
     pub slug: String,
@@ -752,6 +754,7 @@ pub struct Contact {
 // Pipeline Stats
 // ============================================================================
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineStage {
     pub stage: String,
@@ -759,6 +762,7 @@ pub struct PipelineStage {
     pub value: f64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineStats {
     pub by_stage: Vec<PipelineStage>,
@@ -770,6 +774,7 @@ pub struct PipelineStats {
 // Session/Artifact/Context create/update types
 // ============================================================================
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProjectSession {
     pub project_id: String,
@@ -789,6 +794,7 @@ pub struct CreateProjectSession {
     pub conversation_id: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateProjectSession {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -805,6 +811,7 @@ pub struct UpdateProjectSession {
     pub conversation_id: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProjectArtifact {
     pub project_id: String,
@@ -818,6 +825,7 @@ pub struct CreateProjectArtifact {
     pub preview_content: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpsertProjectContext {
     pub project_id: String,

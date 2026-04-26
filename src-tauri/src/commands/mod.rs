@@ -1,6 +1,7 @@
 // Tauri IPC command handlers
 
 pub mod error;
+pub mod agent_runner;
 pub mod analytics;
 pub mod auth;
 pub mod claude_setup;

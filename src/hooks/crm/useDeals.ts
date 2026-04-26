@@ -1,7 +1,7 @@
 // CRM Deals CRUD + Deal Tasks hooks
 // Now queries from unified projects table (project_type='deal')
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import type {
   DealFilters,
@@ -324,93 +324,82 @@ export function useDeleteDeal() {
   });
 }
 
-export function useDealsWithTasks(filters?: DealFilters) {
-  const dealsQuery = useDeals(filters);
+// Single round-trip: deals + tasks + status + assignees via PostgREST embeds.
+// Replaces an old 3-RTT cascade (deals → tasks → statuses) which dominated
+// CRM mount time.
+function dealsWithTasksKey(filters?: DealFilters) {
+  return filters?.companyId
+    ? [...crmKeys.dealsByCompany(filters.companyId), "with-tasks"]
+    : [...crmKeys.deals(), filters, "with-tasks"];
+}
 
-  // Extract deal IDs for batch fetching
-  const dealIds = (dealsQuery.data ?? []).map((d) => d.id);
-  const dealIdsKey = dealIds.join(",");
+async function fetchDealsWithTasks(filters?: DealFilters): Promise<DealWithTaskInfo[]> {
+  let query = supabase
+    .from("projects")
+    .select(
+      `*,
+       company:crm_companies(name, referred_by),
+       tasks!project_id(
+         id, title, priority, due_date, status_id,
+         status:task_statuses(type),
+         assignees:task_assignees(user:users(id, name))
+       )`
+    )
+    .eq("project_type", "deal")
+    .is("archived_at", null);
 
-  // Fetch tasks linked to these deals (deals are projects, tasks link via project_id)
-  const tasksQuery = useQuery({
-    queryKey: [...crmKeys.deals(), "tasks", dealIdsKey],
-    queryFn: async (): Promise<Map<string, DealTask[]>> => {
-      if (!dealIds.length) return new Map();
+  if (filters?.companyId) query = query.eq("company_id", filters.companyId);
+  if (filters?.stage) {
+    const stages = Array.isArray(filters.stage) ? filters.stage : [filters.stage];
+    query = query.in("deal_stage", stages);
+  }
+  if (filters?.minValue !== undefined) query = query.gte("deal_value", filters.minValue);
+  if (filters?.maxValue !== undefined) query = query.lte("deal_value", filters.maxValue);
 
-      // Tasks link to deal-projects via project_id
-      const { data: tasks } = await supabase
-        .from("tasks")
-        .select("id, title, priority, due_date, project_id, status_id, assignees:task_assignees(user:users(id, name))")
-        .in("project_id", dealIds);
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to fetch deals: ${error.message}`);
 
-      if (!tasks?.length) return new Map();
-
-      // Fetch statuses
-      const statusIds = [...new Set(tasks.map(t => t.status_id).filter(Boolean))];
-      let statusMap = new Map<string, string>();
-      if (statusIds.length > 0) {
-        const { data: statuses } = await supabase
-          .from("task_statuses")
-          .select("id, type")
-          .in("id", statusIds);
-        statusMap = new Map((statuses ?? []).map(s => [s.id, s.type]));
-      }
-
-      // Build deal-to-tasks mapping
-      const tasksByDeal = new Map<string, DealTask[]>();
-      tasks.forEach((task: any) => {
-        const dealTask: DealTask = {
-          id: task.id,
-          title: task.title,
-          status_type: statusMap.get(task.status_id) || "todo",
-          priority: task.priority,
-          due_date: task.due_date,
-          assignee_name: task.assignees?.[0]?.user?.name || null,
-        };
-        const dealId = task.project_id;
-        const dealTasks = tasksByDeal.get(dealId) || [];
-        dealTasks.push(dealTask);
-        tasksByDeal.set(dealId, dealTasks);
-      });
-
-      return tasksByDeal;
-    },
-    enabled: dealIds.length > 0,
-  });
-
-  // Combine deals with their tasks
-  const enrichedDeals: DealWithTaskInfo[] = (dealsQuery.data ?? []).map((deal) => {
-    const tasks = tasksQuery.data?.get(deal.id) || [];
-    const openTasks = tasks.filter(
-      (t) => t.status_type !== "complete"
-    );
-
-    const sortedOpenTasks = [...openTasks].sort((a, b) => {
+  return (data ?? []).map((p: any) => {
+    const deal = mapProjectToDeal(p as DealFromProject);
+    const tasks: DealTask[] = (p.tasks ?? []).map((t: any) => ({
+      id: t.id,
+      title: t.title,
+      status_type: t.status?.type ?? "todo",
+      priority: t.priority,
+      due_date: t.due_date,
+      assignee_name: t.assignees?.[0]?.user?.name ?? null,
+    }));
+    const openTasks = tasks.filter((t) => t.status_type !== "complete");
+    const sortedOpen = [...openTasks].sort((a, b) => {
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
       return a.due_date.localeCompare(b.due_date);
     });
-
     return {
       ...deal,
       tasks,
       openTaskCount: openTasks.length,
-      nextTask: sortedOpenTasks[0]
-        ? { title: sortedOpenTasks[0].title, due_date: sortedOpenTasks[0].due_date }
+      nextTask: sortedOpen[0]
+        ? { title: sortedOpen[0].title, due_date: sortedOpen[0].due_date }
         : null,
     };
   });
+}
 
-  return {
-    data: enrichedDeals,
-    isLoading: dealsQuery.isLoading || tasksQuery.isLoading,
-    refetch: () => {
-      dealsQuery.refetch();
-      tasksQuery.refetch();
-    },
-    error: dealsQuery.error || tasksQuery.error,
-  };
+export function useDealsWithTasks(filters?: DealFilters) {
+  return useQuery({
+    queryKey: dealsWithTasksKey(filters),
+    queryFn: () => fetchDealsWithTasks(filters),
+  });
+}
+
+// Hover-prefetch: warm the cache before the user clicks into CRM.
+export function prefetchDealsWithTasks(queryClient: QueryClient, filters?: DealFilters) {
+  return queryClient.prefetchQuery({
+    queryKey: dealsWithTasksKey(filters),
+    queryFn: () => fetchDealsWithTasks(filters),
+  });
 }
 
 export interface DealTaskFull {

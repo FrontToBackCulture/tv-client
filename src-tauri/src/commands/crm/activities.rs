@@ -73,6 +73,7 @@ pub async fn crm_log_activity(data: CreateActivity) -> CmdResult<Activity> {
 }
 
 /// Update an activity
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn crm_update_activity(activity_id: String, data: UpdateActivity) -> CmdResult<Activity> {
     let client = get_client().await?;

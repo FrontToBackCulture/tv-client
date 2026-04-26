@@ -674,7 +674,8 @@ function HealthScoreboard() {
 // ============================================================
 
 import { ImporterErrorsGrid, IntegrationErrorsGrid, WorkflowExecutionsGrid, NotificationsGrid } from "./ErrorsGridView";
-import { Play, Bell, Clock } from "lucide-react";
+import { Play, Bell } from "lucide-react";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 
 type HealthSubTab = "scoreboard" | "executions" | "notifications" | "importer-errors" | "integration-errors";
 
@@ -706,61 +707,64 @@ export function HealthDashboard() {
   const since = useMemo(() => getTimeSince(timeRange), [timeRange]);
   const showTimeRange = activeSubTab !== "scoreboard";
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Sub-tab bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
-        <div className="flex items-center gap-1">
-          {HEALTH_SUB_TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeSubTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900",
-                )}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+  const itemBase = "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors";
+  const itemActive = "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400";
+  const itemIdle = "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50";
 
-        {showTimeRange && (
-          <div className="flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-zinc-400 mr-1" />
-            {TIME_RANGE_OPTIONS.map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => setTimeRange(opt.id)}
-                className={cn(
-                  "px-2.5 py-1 rounded text-xs font-medium transition-colors",
-                  timeRange === opt.id
-                    ? "bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900",
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+  return (
+    <div className="h-full flex overflow-hidden px-4 py-4">
+     <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
+      {/* Sidebar */}
+      <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
+        <div className="h-full flex flex-col overflow-y-auto px-3 py-3 space-y-3">
+          <CollapsibleSection title="View" storageKey="domains-health-view">
+            {HEALTH_SUB_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeSubTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveSubTab(tab.id)}
+                  className={cn(itemBase, isActive ? itemActive : itemIdle)}
+                >
+                  <Icon size={13} className={isActive ? "text-teal-500" : "text-zinc-400"} />
+                  <span className="flex-1">{tab.label}</span>
+                </button>
+              );
+            })}
+          </CollapsibleSection>
+
+          {showTimeRange && (
+            <CollapsibleSection title="Time Range" storageKey="domains-health-time-range">
+              {TIME_RANGE_OPTIONS.map((opt) => {
+                const isActive = timeRange === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => setTimeRange(opt.id)}
+                    className={cn(itemBase, isActive ? itemActive : itemIdle)}
+                  >
+                    <span className={cn("w-2 h-2 rounded-full", isActive ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700")} />
+                    <span className="flex-1">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </CollapsibleSection>
+          )}
+
+          <div className="flex-1" />
+        </div>
+      </aside>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {activeSubTab === "scoreboard" && <HealthScoreboard />}
         {activeSubTab === "executions" && <WorkflowExecutionsGrid since={since} />}
         {activeSubTab === "notifications" && <NotificationsGrid since={since} />}
         {activeSubTab === "importer-errors" && <ImporterErrorsGrid since={since} />}
         {activeSubTab === "integration-errors" && <IntegrationErrorsGrid since={since} />}
       </div>
+     </div>
     </div>
   );
 }

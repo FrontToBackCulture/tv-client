@@ -13,6 +13,7 @@
 
 import { useMemo, useState } from "react";
 import { PanelLeftClose, Search, Layers, AlertTriangle, Circle, Package, CreditCard, CheckCircle2 } from "lucide-react";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 import { cn } from "../../lib/cn";
 import { formatMoney } from "./formatters";
 import type { InvoiceLineWithRecognition, ParsedRecognitionJe } from "../../hooks/finance/useFyReview";
@@ -303,8 +304,7 @@ export function CustomerReviewSidebar({
           "VIEW" top menu). Replaces the collapsible status sections; the same
           status groupings are now expressed as a top-level filter. */}
       <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
-        <div className="space-y-0.5">
+        <CollapsibleSection title="View" storageKey="customer-review:view">
           {VIEWS.map((v) => (
             <button
               key={v.id}
@@ -323,7 +323,7 @@ export function CustomerReviewSidebar({
               <span className="text-[11px] text-zinc-500">{viewCounts[v.id]}</span>
             </button>
           ))}
-        </div>
+        </CollapsibleSection>
       </div>
 
       {/* Scroll region — "All customers" anchor (grand total $) + flat list

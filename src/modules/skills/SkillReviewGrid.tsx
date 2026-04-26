@@ -19,6 +19,7 @@ import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { formatError } from "../../lib/formatError";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 import {
   Search,
   Download,
@@ -45,6 +46,8 @@ import {
   Archive,
   ShieldAlert,
   Clock,
+  PanelLeftOpen,
+  PanelLeftClose,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { toSGTDateString } from "../../lib/date";
@@ -84,10 +87,12 @@ interface SkillReviewRow {
   description: string;
   category: string;
   subcategory: string;
+  dataTypes: string[];
   skillType: string;
   target: string;
   status: string;
-  domain: string;
+  domain: string[];
+  platform: string[];
   command: string;
   verified: boolean;
   last_audited: string;
@@ -119,6 +124,8 @@ let lastChevronMouseDownAt = 0;
 
 interface SkillReviewGridProps {
   onSelectSkill?: (slug: string) => void;
+  onToggleChanges?: () => void;
+  showChanges?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -228,12 +235,58 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
       headerName: "Category",
       filter: "agSetColumnFilter",
       editable: true,
+      sort: "asc",
+      sortIndex: 0,
     },
     {
       field: "subcategory",
       headerName: "Subcategory",
       filter: "agSetColumnFilter",
       editable: true,
+      sort: "asc",
+      sortIndex: 1,
+    },
+    {
+      field: "dataTypes",
+      headerName: "Data Types",
+      minWidth: 200,
+      filter: "agSetColumnFilter",
+      filterParams: {
+        // Each array element becomes its own checkbox option in the Set filter
+        keyCreator: (p: { value: string[] | null | undefined }) => p.value ?? [],
+        valueFormatter: (p: { value: string }) => p.value,
+      },
+      editable: true,
+      enableRowGroup: false,
+      autoHeight: true,
+      wrapText: true,
+      valueFormatter: (params: { value: string[] | null | undefined }) =>
+        Array.isArray(params.value) ? params.value.join(", ") : "",
+      valueParser: (params: { newValue: unknown }): string[] => {
+        if (Array.isArray(params.newValue)) return params.newValue.map(String);
+        if (typeof params.newValue !== "string") return [];
+        return params.newValue
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
+      },
+      cellStyle: { display: "flex", alignItems: "center", paddingTop: 4, paddingBottom: 4, lineHeight: "1.4" },
+      cellRenderer: (params: { value: string[] | null | undefined }) => {
+        const tags = Array.isArray(params.value) ? params.value : [];
+        if (tags.length === 0) return <span className="text-zinc-300 text-xs">—</span>;
+        return (
+          <span className="flex flex-wrap items-center gap-1">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400"
+              >
+                {tag}
+              </span>
+            ))}
+          </span>
+        );
+      },
     },
     {
       field: "skillType",
@@ -300,10 +353,83 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
     },
     {
       field: "domain",
-      headerName: "Platform/Domain",
+      headerName: "Client",
+      minWidth: 140,
       filter: "agSetColumnFilter",
+      filterParams: {
+        keyCreator: (p: { value: string[] | null | undefined }) => p.value ?? [],
+        valueFormatter: (p: { value: string }) => p.value,
+      },
       editable: true,
-      cellClass: "text-xs text-zinc-500",
+      autoHeight: true,
+      wrapText: true,
+      valueFormatter: (params: { value: string[] | null | undefined }) =>
+        Array.isArray(params.value) ? params.value.join(", ") : "",
+      valueParser: (params: { newValue: unknown }): string[] => {
+        if (Array.isArray(params.newValue)) return params.newValue.map(String);
+        if (typeof params.newValue !== "string") return [];
+        return params.newValue
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
+      },
+      cellStyle: { display: "flex", alignItems: "center", paddingTop: 4, paddingBottom: 4, lineHeight: "1.4" },
+      cellRenderer: (params: { value: string[] | null | undefined }) => {
+        const tags = Array.isArray(params.value) ? params.value : [];
+        if (tags.length === 0) return <span className="text-zinc-300 text-xs">—</span>;
+        return (
+          <span className="flex flex-wrap items-center gap-1">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400"
+              >
+                {tag}
+              </span>
+            ))}
+          </span>
+        );
+      },
+    },
+    {
+      field: "platform",
+      headerName: "Platform",
+      minWidth: 160,
+      filter: "agSetColumnFilter",
+      filterParams: {
+        keyCreator: (p: { value: string[] | null | undefined }) => p.value ?? [],
+        valueFormatter: (p: { value: string }) => p.value,
+      },
+      editable: true,
+      autoHeight: true,
+      wrapText: true,
+      valueFormatter: (params: { value: string[] | null | undefined }) =>
+        Array.isArray(params.value) ? params.value.join(", ") : "",
+      valueParser: (params: { newValue: unknown }): string[] => {
+        if (Array.isArray(params.newValue)) return params.newValue.map(String);
+        if (typeof params.newValue !== "string") return [];
+        return params.newValue
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
+      },
+      cellStyle: { display: "flex", alignItems: "center", paddingTop: 4, paddingBottom: 4, lineHeight: "1.4" },
+      cellRenderer: (params: { value: string[] | null | undefined }) => {
+        const tags = Array.isArray(params.value) ? params.value : [];
+        if (tags.length === 0) return <span className="text-zinc-300 text-xs">—</span>;
+        return (
+          <span className="flex flex-wrap items-center gap-1">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+              >
+                {tag}
+              </span>
+            ))}
+          </span>
+        );
+      },
     },
     {
       field: "command",
@@ -634,7 +760,7 @@ function SkillDetailRow(params: { data?: SkillReviewRow }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
+export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }: SkillReviewGridProps) {
   const theme = useAppStore((s) => s.theme);
   const gridRef = useRef<AgGridReact<SkillReviewRow>>(null);
   const queryClient = useQueryClient();
@@ -680,6 +806,7 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
   const [typeFilter, setTypeFilter] = useState<"all" | "report" | "diagnostic" | "chat">("all");
   const [wrapNotes, setWrapNotes] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
 
@@ -865,10 +992,12 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         description: skill.description ?? "",
         category: skill.category ?? "",
         subcategory: skill.subcategory ?? "",
+        dataTypes: Array.isArray(skill.data_types) ? skill.data_types : [],
         skillType: skill.skill_type ?? "report",
         target: skill.target,
         status: skill.status,
-        domain: skill.domain ?? "",
+        domain: Array.isArray(skill.domain) ? skill.domain : [],
+        platform: Array.isArray(skill.platform) ? skill.platform : [],
         command: skill.command ?? "",
         verified: skill.verified,
         last_audited: skill.last_audited ?? "",
@@ -951,7 +1080,8 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
   }, []);
 
   const getRowHeight = useCallback((params: { node: { group?: boolean } }) => {
-    return params.node.group ? 44 : 36;
+    if (params.node.group) return 44;
+    return undefined; // let autoHeight columns drive non-group row height
   }, []);
 
   // Persist edits — skill fields go to Supabase `skills`, web fields go to Supabase `skill_library`
@@ -973,12 +1103,13 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
         demoUploaded: "demo_uploaded",
         demoUrl: "demo_url",
         skillType: "skill_type",
+        dataTypes: "data_types",
       };
       const dbField = fieldMap[field] ?? field;
 
       const editableFields = [
-        "name", "description", "category", "subcategory", "skill_type", "target", "status",
-        "domain", "command", "verified", "last_audited", "rating", "owner",
+        "name", "description", "category", "subcategory", "data_types", "skill_type", "target", "status",
+        "domain", "platform", "command", "verified", "last_audited", "rating", "owner",
         "has_demo", "has_examples", "has_deck", "has_guide",
         "demo_uploaded", "demo_url",
       ];
@@ -1360,16 +1491,19 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
 
       <div className="flex-1 min-h-0 flex overflow-hidden px-4 py-4">
        <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
-        <SkillReviewSidebar
-          rows={viewScopedRows}
-          view={view}
-          setView={(v) => { setView(v); setCategoryFilter("all"); setSubcategoryFilter("all"); }}
-          viewCounts={viewCounts}
-          categoryFilter={categoryFilter}
-          setCategoryFilter={(c) => { setCategoryFilter(c); setSubcategoryFilter("all"); }}
-          subcategoryFilter={subcategoryFilter}
-          setSubcategoryFilter={setSubcategoryFilter}
-        />
+        {sidebarOpen && (
+          <SkillReviewSidebar
+            rows={viewScopedRows}
+            view={view}
+            setView={(v) => { setView(v); setCategoryFilter("all"); setSubcategoryFilter("all"); }}
+            viewCounts={viewCounts}
+            categoryFilter={categoryFilter}
+            setCategoryFilter={(c) => { setCategoryFilter(c); setSubcategoryFilter("all"); }}
+            subcategoryFilter={subcategoryFilter}
+            setSubcategoryFilter={setSubcategoryFilter}
+            onClose={() => setSidebarOpen(false)}
+          />
+        )}
 
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
@@ -1377,6 +1511,18 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
       <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2 flex-wrap flex-shrink-0">
         {/* Left: search + filter buttons */}
         <div className="flex items-center gap-2 flex-1">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={cn(
+              "flex items-center justify-center p-1.5 rounded-md border transition-colors flex-shrink-0",
+              sidebarOpen
+                ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            )}
+            title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+          >
+            {sidebarOpen ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
+          </button>
           <div className="relative flex-1 max-w-md">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
             <input
@@ -1468,6 +1614,21 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
                   className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
                   <RotateCcw size={13} /> Reset to Default
+                </button>
+
+                <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+
+                <button
+                  onClick={() => { exportToCsv(); setShowLayoutMenu(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+                >
+                  <Download size={13} /> Export CSV
+                </button>
+                <button
+                  onClick={() => { exportToExcel(); setShowLayoutMenu(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+                >
+                  <FileSpreadsheet size={13} /> Export Excel
                 </button>
 
                 <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
@@ -1582,12 +1743,19 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
             )}
           </div>
 
-          <Button variant="secondary" size="sm" icon={Download} onClick={exportToCsv} title="Export to CSV">
-            CSV
-          </Button>
-          <Button size="sm" icon={FileSpreadsheet} onClick={exportToExcel} title="Export to Excel">
-            Excel
-          </Button>
+          {onToggleChanges && (
+            <button
+              onClick={onToggleChanges}
+              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                showChanges
+                  ? "border-purple-500 bg-purple-500/20 text-purple-600 dark:text-purple-400"
+                  : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+              }`}
+              title="Recent Changes"
+            >
+              <Clock size={13} />
+            </button>
+          )}
 
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
@@ -1636,9 +1804,9 @@ export function SkillReviewGrid({ onSelectSkill }: SkillReviewGridProps) {
           enableBrowserTooltips
           singleClickEdit
           stopEditingWhenCellsLoseFocus
-          groupDisplayType="singleColumn"
+          groupDisplayType="groupRows"
           groupDefaultExpanded={0}
-          rowGroupPanelShow="never"
+          rowGroupPanelShow="onlyWhenGrouping"
           rowSelection="single"
           suppressRowClickSelection
           masterDetail
@@ -1733,6 +1901,7 @@ function SkillReviewSidebar({
   setCategoryFilter,
   subcategoryFilter,
   setSubcategoryFilter,
+  onClose,
 }: {
   rows: SkillReviewRow[];
   view: SkillViewMode;
@@ -1742,6 +1911,7 @@ function SkillReviewSidebar({
   setCategoryFilter: (v: string | "all") => void;
   subcategoryFilter: string | "all";
   setSubcategoryFilter: (v: string | "all") => void;
+  onClose?: () => void;
 }) {
   // Group rows by category → subcategory
   const categoryGroups = useMemo(() => {
@@ -1764,9 +1934,10 @@ function SkillReviewSidebar({
       .sort((a, b) => a.category.localeCompare(b.category));
   }, [rows]);
 
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Track which categories are expanded. Default = none (all collapsed by default).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleCat = (c: string) => {
-    setCollapsed((prev) => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(c)) next.delete(c); else next.add(c);
       return next;
@@ -1777,8 +1948,19 @@ function SkillReviewSidebar({
     <aside className="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
       {/* View section */}
       <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
-        <div className="space-y-0.5">
+        <CollapsibleSection
+          title="View"
+          storageKey="skills:view"
+          rightSlot={onClose && (
+            <button
+              onClick={onClose}
+              className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              title="Collapse sidebar"
+            >
+              <PanelLeftClose size={12} />
+            </button>
+          )}
+        >
           {VIEW_DEFS.map((v) => {
             const Icon = v.icon;
             const active = view === v.id;
@@ -1801,7 +1983,7 @@ function SkillReviewSidebar({
               </button>
             );
           })}
-        </div>
+        </CollapsibleSection>
       </div>
 
       {/* Category tree */}
@@ -1824,7 +2006,7 @@ function SkillReviewSidebar({
         )}
 
         {categoryGroups.map(({ category, total, subcategories }) => {
-          const isOpen = !collapsed.has(category);
+          const isOpen = expanded.has(category);
           const isActiveCat = categoryFilter === category;
           const hasMultipleSubs = subcategories.length > 1 || subcategories[0]?.subcategory !== "—";
           return (

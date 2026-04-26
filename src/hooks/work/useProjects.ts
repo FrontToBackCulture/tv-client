@@ -11,11 +11,11 @@ import { workKeys } from "./keys";
 
 export function useProjects(projectType?: string) {
   return useQuery({
-    queryKey: [...workKeys.projects(), projectType],
+    queryKey: [...workKeys.projects(), projectType, "v2-with-referral"],
     queryFn: async (): Promise<Project[]> => {
       let query = supabase
         .from("projects")
-        .select("*, company:crm_companies(name, display_name)")
+        .select("*, company:crm_companies(name, display_name, stage, referred_by)")
         .is("archived_at", null)
         .order("sort_order");
 
@@ -33,13 +33,14 @@ export function useProjects(projectType?: string) {
 
       if (error) throw new Error(`Failed to fetch projects: ${error.message}`);
 
-      // For deal-type projects, prepend company name to the display name
+      // For deal-type projects, prepend company name to the display name.
+      // Keep the joined `company` object so downstream consumers (grid columns,
+      // filters) can read name/display_name/stage.
       return (data ?? []).map((p: any) => ({
         ...p,
         name: p.project_type === "deal" && p.company?.name
           ? `${p.company.display_name || p.company.name} — ${p.name}`
           : p.name,
-        company: undefined, // clean up joined data
       }));
     },
   });

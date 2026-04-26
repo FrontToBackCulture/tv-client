@@ -82,7 +82,7 @@ export function PortalModule() {
   }, [activeView]);
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader
         description="Client portal — manage conversations, announcements, and help center content."
         tabs={<>

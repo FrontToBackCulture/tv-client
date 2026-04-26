@@ -34,7 +34,7 @@ export function DeploymentDetailPanel({ id, onClose }: DeploymentDetailPanelProp
   ];
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div>

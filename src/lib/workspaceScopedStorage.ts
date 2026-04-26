@@ -47,6 +47,7 @@ export const WORKSPACE_SCOPED_KEYS = [
   "tv-client-recent-files",
   "tv-client-repositories",
   "tv-client-side-panel",
+  "tv-client-sidebar-layout",
   "tv-client-tabs",
   "tv-client-task-fields",
   "tv-skill-types",

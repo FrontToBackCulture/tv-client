@@ -23,10 +23,13 @@ export interface SkillEntry {
   name: string;
   description: string;
   category: string;
+  subcategory?: string;
+  data_types?: string[];
   target: "bot" | "platform" | "both";
   status: "active" | "inactive" | "deprecated" | "test" | "review" | "draft";
   command?: string;
-  domain?: string;
+  domain?: string[];
+  platform?: string[];
   verified?: boolean;
   rating?: number;
   last_audited?: string;
@@ -70,12 +73,6 @@ export interface BotInfo {
   label: string;
   skills_path: string;
   has_skills_dir: boolean;
-}
-
-export interface SkillModInfo {
-  slug: string;
-  last_modified: string;
-  file_count: number;
 }
 
 export interface DiffLine {
@@ -155,16 +152,6 @@ export function useSkillDistribute() {
   });
 }
 
-export function useSkillCheck() {
-  const folderConfig = useFolderConfig();
-
-  return useMutation({
-    mutationFn: async (slug: string) => {
-      return invoke<SkillDriftStatus[]>("skill_check", { slug, skillsFolder: folderConfig.skills });
-    },
-  });
-}
-
 export function useSkillCheckAll() {
   const folderConfig = useFolderConfig();
 
@@ -210,36 +197,6 @@ export function useSkillPull() {
   });
 }
 
-export function useSkillRegistryUpdate() {
-  const paths = useKnowledgePaths();
-  const queryClient = useQueryClient();
-
-  const registryPath = paths
-    ? `${paths.skills}/registry.json`
-    : null;
-
-  return useMutation({
-    mutationFn: async (registry: SkillRegistry) => {
-      if (!paths) throw new Error("No repository");
-      const path = `${paths.skills}/registry.json`;
-      const content = JSON.stringify(registry, null, 2);
-      await invoke("write_file", { path, content });
-      return registry;
-    },
-    onMutate: async (newRegistry) => {
-      // Cancel any outgoing refetches so they don't overwrite our optimistic update
-      await queryClient.cancelQueries({ queryKey: ["skill-registry"] });
-      // Optimistically update to the new value
-      if (registryPath) {
-        queryClient.setQueryData(["skill-registry", registryPath], newRegistry);
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["skill-registry"] });
-    },
-  });
-}
-
 // ─── Bot discovery ───────────────────────────────────────────────────────────
 
 export function useSkillListBots() {
@@ -279,20 +236,6 @@ export function useSkillDistributeTo() {
       queryClient.invalidateQueries({ queryKey: ["skill-drift"] });
       queryClient.invalidateQueries({ queryKey: ["skill-registry"] });
     },
-  });
-}
-
-// ─── Skill summary (modification info) ──────────────────────────────────────
-
-export function useSkillSummary() {
-  const folderConfig = useFolderConfig();
-
-  return useQuery({
-    queryKey: ["skill-summary"],
-    queryFn: async () => {
-      return invoke<SkillModInfo[]>("skill_summary", { skillsFolder: folderConfig.skills });
-    },
-    staleTime: 30_000,
   });
 }
 

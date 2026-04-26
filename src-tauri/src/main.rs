@@ -329,16 +329,6 @@ fn main() {
             commands::work::work_remove_task_labels,
             commands::work::work_add_task_assignees,
             commands::work::work_remove_task_assignees,
-            commands::work::work_task_triage,
-            commands::work::work_apply_triage,
-            commands::work::work_triage_summary,
-            commands::work::work_list_triage_contexts,
-            commands::work::work_upsert_triage_context,
-            commands::work::work_delete_triage_context,
-            commands::work::work_get_context_weights,
-            commands::work::work_set_context_weights,
-            commands::work::work_get_priorities,
-            commands::work::work_reprioritise,
             // Work Module - Milestones
             commands::work::work_list_milestones,
             commands::work::work_get_milestone,
@@ -440,6 +430,9 @@ fn main() {
             // VAL Sync - Claude Runner
             commands::val_sync::claude_runner::claude_run,
             commands::val_sync::claude_runner::claude_run_cancel,
+            // Agent SDK Runner (sidecar — replacement for claude CLI subprocess)
+            commands::agent_runner::agent_run,
+            commands::agent_runner::agent_run_cancel,
             // VAL Sync - Metadata
             commands::val_sync::metadata::val_sync_get_status,
             commands::val_sync::metadata::val_get_output_status,
@@ -554,13 +547,11 @@ fn main() {
             // Skill Registry
             commands::skill_registry::skill_init,
             commands::skill_registry::skill_distribute,
-            commands::skill_registry::skill_check,
             commands::skill_registry::skill_pull,
             commands::skill_registry::skill_diff,
             commands::skill_registry::skill_check_all,
             commands::skill_registry::skill_list_bots,
             commands::skill_registry::skill_distribute_to,
-            commands::skill_registry::skill_summary,
             commands::skill_registry::skill_inspect,
             commands::skill_registry::skill_list_examples,
             commands::skill_registry::ai_summarize_diff,

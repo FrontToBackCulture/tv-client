@@ -25,7 +25,7 @@ export function SchedulerModule() {
   const { data: allRuns = [], isLoading: runsLoading } = useRuns(undefined, 200);
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader
         description="Scheduled automations — manage jobs and view activity logs."
         tabs={<>

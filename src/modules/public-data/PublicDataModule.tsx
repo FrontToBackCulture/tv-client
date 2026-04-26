@@ -22,6 +22,8 @@ import {
   ChevronsLeftRight,
   X,
   Maximize2,
+  PanelLeftOpen,
+  PanelLeftClose,
 } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import {
@@ -37,12 +39,15 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import { JobReviewsView } from "./JobReviewsView";
 import { ViewTab } from "../../components/ViewTab";
 import { PageHeader } from "../../components/PageHeader";
+import { StatsStrip } from "../../components/StatsStrip";
+import { timeAgoVerbose } from "../../lib/date";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useSources, useSyncSource, useSyncAllP1, useClassifyJobs } from "../../hooks/public-data";
 import { useIngestionLogs } from "../../hooks/public-data";
 import type { DataSource, IngestionLog } from "../../lib/public-data/types";
 import { STATUS_CONFIG, PRIORITY_LABELS, DOMAIN_LABELS, DATA_TYPE_LABELS } from "../../lib/public-data/types";
 import { cn } from "../../lib/cn";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
 import { themeStyles } from "../domains/reviewGridStyles";
@@ -88,6 +93,8 @@ type ViewType = "sources" | "history" | "jobs";
 export function PublicDataModule() {
   const [activeView, setActiveView] = usePersistedModuleView<ViewType>("public-data", "sources");
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  const { data: sources = [] } = useSources();
+  const { data: logs = [] } = useIngestionLogs(undefined, 50);
 
   const setViewContext = useViewContextStore((s) => s.setView);
   useEffect(() => {
@@ -99,10 +106,33 @@ export function PublicDataModule() {
     setViewContext("public-data", labels[activeView]);
   }, [activeView, setViewContext]);
 
+  const sourceStats = useMemo(() => {
+    return {
+      total: sources.length,
+      synced: sources.filter((s) => s.sync_status === "success").length,
+      errored: sources.filter((s) => s.sync_status === "error").length,
+      running: sources.filter((s) => s.sync_status === "running").length,
+      neverSynced: sources.filter((s) => !s.last_synced_at).length,
+    };
+  }, [sources]);
+
+  const lastActivity = useMemo(() => {
+    let max = 0;
+    for (const s of sources) {
+      const ts = s.last_synced_at ? new Date(s.last_synced_at).getTime() : 0;
+      if (ts > max) max = ts;
+    }
+    for (const l of logs) {
+      const ts = l.started_at ? new Date(l.started_at).getTime() : 0;
+      if (ts > max) max = ts;
+    }
+    return max > 0 ? `Last activity ${timeAgoVerbose(new Date(max).toISOString())}` : undefined;
+  }, [sources, logs]);
+
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader
-        description="Public data sources — government registries, incentive databases, and industry datasets."
+        description={lastActivity}
         tabs={<>
           <ViewTab label="Sources" icon={Database} active={activeView === "sources"} onClick={() => setActiveView("sources")} />
           <ViewTab label="Jobs" icon={Briefcase} active={activeView === "jobs"} onClick={() => setActiveView("jobs")} />
@@ -111,8 +141,18 @@ export function PublicDataModule() {
         actions={<SyncAllButton />}
       />
 
+      {(activeView === "sources" || activeView === "history") && (
+        <StatsStrip stats={[
+          { value: sourceStats.total, label: <>total<br/>sources</>, color: "blue" },
+          { value: sourceStats.synced, label: <>synced</>, color: "emerald" },
+          { value: sourceStats.errored, label: <>errored</>, color: sourceStats.errored > 0 ? "red" : "zinc" },
+          { value: sourceStats.running, label: <>running</>, color: sourceStats.running > 0 ? "amber" : "zinc" },
+          { value: sourceStats.neverSynced, label: <>never<br/>synced</>, color: "zinc" },
+        ]} />
+      )}
+
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {activeView === "sources" && (
           <SourcesView selectedId={selectedSourceId} onSelect={setSelectedSourceId} />
         )}
@@ -151,6 +191,7 @@ function SourcesView({ selectedId, onSelect }: { selectedId: string | null; onSe
   const [quickFilter, setQuickFilter] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [domainFilter, setDomainFilter] = useState<string>("all");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const gridRef = useRef<AgGridReact<SourceRow>>(null);
 
   useEffect(() => {
@@ -511,45 +552,78 @@ function SourcesView({ selectedId, onSelect }: { selectedId: string | null; onSe
     }>
       <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
         {/* Sidebar: Domains */}
-        <aside className="w-60 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
-          <div className="flex-1 overflow-y-auto px-3 py-3">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Domain</div>
-            <div className="space-y-0.5">
-              <button
-                onClick={() => setDomainFilter("all")}
-                className={cn(
-                  "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
-                  domainFilter === "all"
-                    ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
-                )}
-              >
-                <span className="flex items-center gap-2"><Layers size={13} /> All</span>
-                <span className="text-[11px] text-zinc-500">{sources.length}</span>
-              </button>
-              {domainsWithCount.map(([dom, count]) => (
+        {sidebarOpen && (
+        <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
+          <div className="h-full flex flex-col overflow-y-auto px-3 py-3 space-y-3">
+            <CollapsibleSection
+              title="Domain"
+              storageKey="public-data:domain"
+              rightSlot={
                 <button
-                  key={dom}
-                  onClick={() => setDomainFilter(dom)}
-                  className={cn(
-                    "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
-                    domainFilter === dom
-                      ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
-                  )}
+                  onClick={() => setSidebarOpen(false)}
+                  className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  title="Collapse sidebar"
                 >
-                  <span className="truncate">{DOMAIN_LABELS[dom] || dom}</span>
-                  <span className="text-[11px] text-zinc-500">{count}</span>
+                  <PanelLeftClose size={12} />
                 </button>
-              ))}
-            </div>
+              }
+            >
+              {(() => {
+                const isAllActive = domainFilter === "all";
+                return (
+                  <button
+                    onClick={() => setDomainFilter("all")}
+                    className={cn(
+                      "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
+                      isAllActive
+                        ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                    )}
+                  >
+                    <Layers size={13} className={isAllActive ? "text-teal-500" : "text-zinc-400"} />
+                    <span className="flex-1">All</span>
+                    <span className="text-[10px] text-zinc-400">{sources.length}</span>
+                  </button>
+                );
+              })()}
+              {domainsWithCount.map(([dom, count]) => {
+                const isActive = domainFilter === dom;
+                return (
+                  <button
+                    key={dom}
+                    onClick={() => setDomainFilter(dom)}
+                    className={cn(
+                      "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
+                      isActive
+                        ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                    )}
+                  >
+                    <Globe size={13} className={isActive ? "text-teal-500" : "text-zinc-400"} />
+                    <span className="flex-1 truncate" title={DOMAIN_LABELS[dom] || dom}>{DOMAIN_LABELS[dom] || dom}</span>
+                    <span className="text-[10px] text-zinc-400">{count}</span>
+                  </button>
+                );
+              })}
+            </CollapsibleSection>
+            <div className="flex-1" />
           </div>
         </aside>
+        )}
 
         {/* Main column */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* Toolbar */}
           <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-1.5 rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                title="Open sidebar"
+              >
+                <PanelLeftOpen size={13} />
+              </button>
+            )}
             <input
               type="text"
               value={quickFilter}
@@ -810,59 +884,112 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function HistoryView() {
   const { data: logs = [], isLoading } = useIngestionLogs(undefined, 50);
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    try { return localStorage.getItem("public-data-history-status") || "all"; } catch { return "all"; }
+  });
+  const handleSetStatus = (s: string) => {
+    setStatusFilter(s);
+    try { localStorage.setItem("public-data-history-status", s); } catch {/* ignore */}
+  };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-zinc-400">
-        <Loader2 size={20} className="animate-spin" />
-      </div>
-    );
-  }
+  const counts = useMemo(() => ({
+    all: logs.length,
+    success: logs.filter((l) => l.status === "success").length,
+    error: logs.filter((l) => l.status === "error").length,
+    running: logs.filter((l) => l.status === "running").length,
+  }), [logs]);
 
-  if (logs.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 text-zinc-400">
-        <Clock size={32} className="mb-2" />
-        <p className="text-sm">No sync history yet</p>
-        <p className="text-xs mt-1">Run a sync from the Sources tab to get started</p>
-      </div>
-    );
-  }
+  const filteredLogs = useMemo(() => {
+    if (statusFilter === "all") return logs;
+    return logs.filter((l) => l.status === statusFilter);
+  }, [logs, statusFilter]);
+
+  const STATUS_FILTERS: { id: string; label: string; icon: typeof Layers }[] = [
+    { id: "all", label: "All", icon: Layers },
+    { id: "success", label: "Success", icon: CheckCircle2 },
+    { id: "error", label: "Error", icon: AlertCircle },
+    { id: "running", label: "Running", icon: Loader2 },
+  ];
+
+  const itemBase = "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors";
+  const itemActive = "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400";
+  const itemIdle = "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50";
 
   return (
-    <div className="overflow-y-auto">
-      <table className="w-full text-sm">
-        <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
-          <tr>
-            <th className="text-left px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Source</th>
-            <th className="text-left px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Status</th>
-            <th className="text-right px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Rows</th>
-            <th className="text-right px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Duration</th>
-            <th className="text-right px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">When</th>
-          </tr>
-        </thead>
-        <tbody>
-          {logs.map((log) => (
-            <tr key={log.id} className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900">
-              <td className="px-4 py-2 text-zinc-900 dark:text-zinc-100 font-medium">{log.source_id}</td>
-              <td className="px-4 py-2">
-                <StatusBadge status={log.status} />
-              </td>
-              <td className="px-4 py-2 text-right text-zinc-600 dark:text-zinc-400">
-                {log.rows_upserted > 0 ? log.rows_upserted.toLocaleString() : "—"}
-              </td>
-              <td className="px-4 py-2 text-right text-zinc-600 dark:text-zinc-400">
-                {log.duration_ms ? `${(log.duration_ms / 1000).toFixed(1)}s` : "—"}
-              </td>
-              <td className="px-4 py-2 text-right text-zinc-500 dark:text-zinc-400 text-xs">
-                {new Date(log.started_at).toLocaleString("en-SG", {
-                  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                })}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="h-full flex overflow-hidden px-4 py-4">
+     <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
+      {/* Sidebar */}
+      <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
+        <div className="h-full flex flex-col overflow-y-auto px-3 py-3 space-y-3">
+          <CollapsibleSection title="Status" storageKey="public-data:history-status">
+            {STATUS_FILTERS.map((f) => {
+              const Icon = f.icon;
+              const isActive = statusFilter === f.id;
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => handleSetStatus(f.id)}
+                  className={cn(itemBase, isActive ? itemActive : itemIdle)}
+                >
+                  <Icon size={13} className={isActive ? "text-teal-500" : "text-zinc-400"} />
+                  <span className="flex-1">{f.label}</span>
+                  <span className="text-[10px] text-zinc-400">{(counts as Record<string, number>)[f.id]}</span>
+                </button>
+              );
+            })}
+          </CollapsibleSection>
+          <div className="flex-1" />
+        </div>
+      </aside>
+
+      {/* Content */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64 text-zinc-400">
+            <Loader2 size={20} className="animate-spin" />
+          </div>
+        ) : filteredLogs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-zinc-400">
+            <Clock size={32} className="mb-2" />
+            <p className="text-sm">No sync history</p>
+            <p className="text-xs mt-1">Run a sync from the Sources tab to get started</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
+                <tr>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Source</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Status</th>
+                  <th className="text-right px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Rows</th>
+                  <th className="text-right px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Duration</th>
+                  <th className="text-right px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLogs.map((log) => (
+                  <tr key={log.id} className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900">
+                    <td className="px-4 py-2 text-zinc-900 dark:text-zinc-100 font-medium">{log.source_id}</td>
+                    <td className="px-4 py-2"><StatusBadge status={log.status} /></td>
+                    <td className="px-4 py-2 text-right text-zinc-600 dark:text-zinc-400">
+                      {log.rows_upserted > 0 ? log.rows_upserted.toLocaleString() : "—"}
+                    </td>
+                    <td className="px-4 py-2 text-right text-zinc-600 dark:text-zinc-400">
+                      {log.duration_ms ? `${(log.duration_ms / 1000).toFixed(1)}s` : "—"}
+                    </td>
+                    <td className="px-4 py-2 text-right text-zinc-500 dark:text-zinc-400 text-xs">
+                      {new Date(log.started_at).toLocaleString("en-SG", {
+                        day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+     </div>
     </div>
   );
 }

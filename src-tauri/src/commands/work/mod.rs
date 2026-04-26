@@ -8,7 +8,9 @@ pub mod milestones;
 pub mod initiatives;
 pub mod labels;
 pub mod users;
+#[allow(dead_code)]
 pub mod sessions;
+#[allow(dead_code)]
 pub mod skills;
 
 #[allow(unused_imports)]
@@ -19,5 +21,7 @@ pub use milestones::*;
 pub use initiatives::*;
 pub use labels::*;
 pub use users::*;
+#[allow(unused_imports)]
 pub use sessions::*;
+#[allow(unused_imports)]
 pub use skills::*;

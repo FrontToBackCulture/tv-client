@@ -3,11 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
+import { useThemeStore } from "../stores/themeStore";
+import { THEME_LIST, type ThemeId } from "../lib/themes";
 import { useModuleTabStore } from "../stores/moduleTabStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { useClaudeRunStore } from "../stores/claudeRunStore";
+import { useSelectedEntityStore } from "../stores/selectedEntityStore";
 import { cn } from "../lib/cn";
-import { Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, Code, ChevronDown, Wrench, Activity, Brain, StopCircle, Sun, Moon, Cat } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, Code, ChevronDown, Wrench, Activity, Brain, StopCircle, Palette, Cat, MessageSquare } from "lucide-react";
 import { useMascotVisible } from "../components/mascot/useMascotVisible";
 import { NotificationBell } from "../components/notifications/NotificationBell";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
@@ -34,10 +37,61 @@ function ElapsedTime({ startedAt }: { startedAt: Date }) {
   return <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0">{elapsed}</span>;
 }
 
+// ─── Theme + mode popover ────────────────────────────────────────────────
+
+function ThemePopover({ onClose }: { onClose: () => void }) {
+  const themeId = useThemeStore((s) => s.themeId);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={popoverRef}
+      className="absolute bottom-full right-0 mb-1 z-50 w-72 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl p-3"
+    >
+      <div className="text-[10px] uppercase tracking-wider text-zinc-400 mb-2 font-medium">Theme</div>
+      <div className="grid grid-cols-3 gap-1.5 max-h-[260px] overflow-y-auto">
+        {THEME_LIST.map((t) => {
+          const active = themeId === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id as ThemeId)}
+              title={t.description}
+              className={cn(
+                "text-left rounded-md border p-1.5 transition-all",
+                active
+                  ? "border-[rgb(var(--workspace-accent-rgb))] ring-1 ring-[rgba(var(--workspace-accent-rgb),0.3)]"
+                  : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700",
+              )}
+            >
+              <div
+                className="h-7 rounded-sm mb-1"
+                style={{ backgroundColor: t.preview }}
+              />
+              <div className="text-[10px] font-medium text-zinc-800 dark:text-zinc-200 leading-tight truncate">
+                {t.label}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function StatusBar() {
   const syncStatus = useAppStore((s) => s.syncStatus);
-  const theme = useAppStore((s) => s.theme);
-  const toggleTheme = useAppStore((s) => s.toggleTheme);
+  const themeId = useThemeStore((s) => s.themeId);
+  const [themePopoverOpen, setThemePopoverOpen] = useState(false);
   const runningJobs = useRunningJobs();
   const recentJobs = useRecentJobs(10);
   const clearCompleted = useJobsStore((s) => s.clearCompleted);
@@ -335,6 +389,9 @@ export function StatusBar() {
           <span>{advisorRunning ? "Checking..." : "Check-in"}</span>
         </button>
 
+        {/* Entity Chat (Cmd+J) toggle */}
+        <ChatToggleButton />
+
         {/* Notifications */}
         <NotificationBell variant="statusbar" />
 
@@ -351,25 +408,21 @@ export function StatusBar() {
           <Cat size={12} />
         </button>
 
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          data-help-id="status-bar-theme"
-          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-        >
-          {theme === "dark" ? (
-            <>
-              <Moon size={12} className="text-zinc-400" />
-              <span className="text-zinc-400">Dark</span>
-            </>
-          ) : (
-            <>
-              <Sun size={12} className="text-amber-500" />
-              <span className="text-zinc-600">Light</span>
-            </>
-          )}
-        </button>
+        {/* Theme picker */}
+        <div className="relative">
+          <button
+            onClick={() => setThemePopoverOpen((v) => !v)}
+            data-help-id="status-bar-theme"
+            className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+            title={THEME_LIST.find((t) => t.id === themeId)?.description ?? "Theme"}
+          >
+            <Palette size={12} className="text-zinc-400" />
+            <span className="text-zinc-400">
+              {THEME_LIST.find((t) => t.id === themeId)?.label ?? "Theme"}
+            </span>
+          </button>
+          {themePopoverOpen && <ThemePopover onClose={() => setThemePopoverOpen(false)} />}
+        </div>
       </div>
 
       {/* Claude Output Drawer — slides up from status bar */}
@@ -444,5 +497,27 @@ export function StatusBar() {
         );
       })()}
     </div>
+  );
+}
+
+// Status-bar toggle for the entity-scoped chat modal (the Cmd+J target).
+function ChatToggleButton() {
+  const open = useSelectedEntityStore((s) => s.chatModalOpen);
+  const openModal = useSelectedEntityStore((s) => s.openChatModal);
+  const closeModal = useSelectedEntityStore((s) => s.closeChatModal);
+  return (
+    <button
+      onClick={() => (open ? closeModal() : openModal())}
+      className={cn(
+        "flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors",
+        open
+          ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+          : "hover:bg-zinc-200 dark:hover:bg-zinc-800",
+      )}
+      title="Open chat (⌘J)"
+    >
+      <MessageSquare size={12} />
+      <span>Chat</span>
+    </button>
   );
 }

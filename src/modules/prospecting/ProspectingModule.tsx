@@ -35,7 +35,7 @@ export function ProspectingModule() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader
         description="Find, research, and track outbound prospects — manage your pipeline, outreach, and performance."
         tabs={<>
@@ -68,7 +68,7 @@ export function ProspectingModule() {
 
         {/* Detail panels */}
         {selectedContactId && activeView !== "outreach" && (
-          <ResizablePanel storageKey="tv-prospecting-detail-width" defaultWidth={520} minWidth={380} maxWidth={800}>
+          <ResizablePanel storageKey="tv-prospecting-detail-width" minWidth={380}>
             <ProspectDetailPanel
               contactId={selectedContactId}
               onClose={() => setSelectedContactId(null)}
@@ -76,7 +76,7 @@ export function ProspectingModule() {
           </ResizablePanel>
         )}
         {selectedOutreachId && activeView === "outreach" && (
-          <ResizablePanel storageKey="tv-prospecting-detail-width" defaultWidth={520} minWidth={380} maxWidth={800}>
+          <ResizablePanel storageKey="tv-prospecting-detail-width" minWidth={380}>
             <OutreachDetailPanel
               draftId={selectedOutreachId}
               onClose={() => setSelectedOutreachId(null)}

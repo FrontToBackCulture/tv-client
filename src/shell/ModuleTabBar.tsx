@@ -11,6 +11,7 @@ import {
   Globe,
   Boxes,
   Puzzle,
+  Wrench,
   Clock,
   GitBranch,
   MailPlus,
@@ -54,6 +55,7 @@ const moduleIcons: Record<ModuleId, LucideIcon> = {
   product: Boxes,
   gallery: GalleryHorizontalEnd,
   skills: Puzzle,
+  "mcp-tools": Wrench,
   portal: Headset,
   scheduler: Clock,
   repos: GitBranch,
@@ -75,7 +77,7 @@ const moduleLabels: Record<ModuleId, string> = {
   library: "Library",
   projects: "Projects",
   metadata: "Metadata",
-  work: "Work",
+  work: "Tasks",
   inbox: "Inbox",
   calendar: "Calendar",
   chat: "Chat",
@@ -85,6 +87,7 @@ const moduleLabels: Record<ModuleId, string> = {
   product: "Product",
   gallery: "Gallery",
   skills: "Skills",
+  "mcp-tools": "MCP Tools",
   portal: "Portal",
   scheduler: "Scheduler",
   repos: "Repos",
@@ -243,8 +246,8 @@ export function ModuleTabBar() {
               className={cn(
                 "group flex items-center gap-1.5 pl-2.5 pr-1 h-7 text-[12px] cursor-pointer select-none flex-shrink-0 rounded-md mx-px transition-colors",
                 isActive
-                  ? "bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 shadow-sm"
-                  : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50",
+                  ? "bg-surface-glass text-zinc-800 dark:text-zinc-100 ring-1 ring-[rgba(var(--workspace-accent-rgb),0.35)] shadow-[0_4px_16px_-8px_rgba(var(--workspace-accent-rgb),0.45)]"
+                  : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-accent-soft",
                 isDragging && "opacity-40",
                 isDragOver && "ring-1 ring-teal-500/50"
               )}

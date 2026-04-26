@@ -49,7 +49,7 @@ export function getInitiativeColor(init: { color?: string | null }, index: numbe
   return init.color || INITIATIVE_COLORS[index % INITIATIVE_COLORS.length];
 }
 
-export type WorkView = "inbox" | "dashboard" | "board" | "tracker" | "notion" | "project" | "triage-context";
+export type WorkView = "inbox" | "dashboard" | "board" | "tracker" | "notion" | "project";
 
 export interface InitiativeProjectLink {
   initiative_id: string;

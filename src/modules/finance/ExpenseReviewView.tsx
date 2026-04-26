@@ -22,7 +22,10 @@ import {
   Receipt,
   RefreshCw,
   Search,
+  PanelLeftOpen,
+  PanelLeftClose,
 } from "lucide-react";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 import {
   useExpenseLinesUnified,
   useExpenseReviewConfig,
@@ -430,8 +433,7 @@ function Sidebar({
   return (
     <aside className="w-72 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden">
       <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
-        <div className="space-y-0.5">
+        <CollapsibleSection title="View" storageKey="expense-review:view">
           {VIEWS.map((v) => (
             <button
               key={v.id}
@@ -450,7 +452,7 @@ function Sidebar({
               <span className="text-[11px] text-zinc-500">{viewCounts[v.id]}</span>
             </button>
           ))}
-        </div>
+        </CollapsibleSection>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-3">
@@ -1221,6 +1223,7 @@ export function ExpenseReviewView() {
   const [view, setView] = useState<ViewMode>("all");
   const [fsLineFilter, setFsLineFilter] = useState<string | "all">("all");
   const [search, setSearch] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [menu, setMenu] = useState<ContextMenu | null>(null);
   const [popup, setPopup] = useState<BillPopup | null>(null);
   const [reversalCell, setReversalCell] = useState<ReversalCell | null>(null);
@@ -1636,18 +1639,32 @@ export function ExpenseReviewView() {
 
   return (
     <div className="h-[calc(100vh-120px)] flex bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md overflow-hidden">
-      <Sidebar
-        lines={linesRaw}
-        fsLineFilter={fsLineFilter}
-        setFsLineFilter={setFsLineFilter}
-        view={view}
-        setView={setView}
-        viewCounts={viewCounts}
-      />
+      {sidebarOpen && (
+        <Sidebar
+          lines={linesRaw}
+          fsLineFilter={fsLineFilter}
+          setFsLineFilter={setFsLineFilter}
+          view={view}
+          setView={setView}
+          viewCounts={viewCounts}
+        />
+      )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={cn(
+              "flex items-center justify-center p-1.5 rounded-md border transition-colors flex-shrink-0",
+              sidebarOpen
+                ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            )}
+            title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+          >
+            {sidebarOpen ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
+          </button>
           <div className="mr-auto min-w-0">
             <div className="font-semibold truncate">{headerLabel}</div>
             <div className="text-[11px] text-zinc-500">

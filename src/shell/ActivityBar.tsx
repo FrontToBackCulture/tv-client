@@ -14,6 +14,7 @@ import {
   Headset,
   Clock,
   Puzzle,
+  Wrench,
   GitBranch,
   MailPlus,
   GalleryHorizontalEnd,
@@ -23,7 +24,6 @@ import {
   Cloud,
   Database,
   CalendarDays,
-  MoreHorizontal,
   Target,
   SlidersHorizontal,
   Activity,
@@ -36,6 +36,8 @@ import {
   LineChart,
   Inbox,
   Wallet,
+  ListChecks,
+  Building2,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { ModuleId } from "../stores/appStore";
@@ -45,9 +47,12 @@ import { UserProfile } from "../components/UserProfile";
 import { useModuleVisibilityStore } from "../stores/moduleVisibilityStore";
 import { useTeamConfigStore } from "../stores/teamConfigStore";
 import { useModeStore } from "../stores/modeStore";
+import { useSidebarLayoutStore, syncSidebarLayoutFromCloud, clearSidebarLayoutSync } from "../stores/sidebarLayoutStore";
+import { EyeOff, RotateCcw, Pencil, Trash2, FolderPlus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useCurrentUserId } from "../hooks/work/useUsers";
+import { prefetchModule } from "../lib/modulePrefetch";
 
 interface ActivityBarProps {
   activeModule: ModuleId;
@@ -71,6 +76,8 @@ const navSections: NavSection[] = [
     label: "Work",
     items: [
       { id: "projects", icon: FolderOpen, label: "Projects", shortcut: "\u23181" },
+      { id: "work", icon: ListChecks, label: "Tasks", shortcut: "" },
+      { id: "crm", icon: Building2, label: "CRM", shortcut: "" },
       { id: "library", icon: Library, label: "Library", shortcut: "\u23182" },
       { id: "metadata", icon: SlidersHorizontal, label: "Metadata", shortcut: "\u23185" },
       { id: "analytics", icon: Activity, label: "Analytics", shortcut: "" },
@@ -103,6 +110,11 @@ const navSections: NavSection[] = [
       { id: "domains", icon: Globe, label: "Domains", shortcut: "\u23183" },
       { id: "public-data", icon: Database, label: "Public Data", shortcut: "" },
       { id: "skills", icon: Puzzle, label: "Skills", shortcut: "\u23188" },
+      { id: "mcp-tools", icon: Wrench, label: "MCP Tools", shortcut: "" },
+      { id: "product", icon: Boxes, label: "Product", shortcut: "\u23184" },
+      { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "\u23189" },
+      { id: "repos", icon: GitBranch, label: "Repos", shortcut: "" },
+      { id: "s3browser", icon: Cloud, label: "S3 Browser", shortcut: "" },
     ],
   },
   // Personal section — only rendered in workspaces that have personal
@@ -122,15 +134,6 @@ const navSections: NavSection[] = [
     ],
   },
 ];
-
-// Items hidden behind "More" flyout in Platform section
-const moreItems: NavItem[] = [
-  { id: "product", icon: Boxes, label: "Product", shortcut: "\u23184" },
-  { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "\u23189" },
-  { id: "repos", icon: GitBranch, label: "Repos", shortcut: "" },
-  { id: "s3browser", icon: Cloud, label: "S3 Browser", shortcut: "" },
-];
-
 
 interface ContextMenuState {
   moduleId: ModuleId;
@@ -180,7 +183,19 @@ function Tooltip({ children, label, shortcut, show }: {
 // Context menu
 // ---------------------------------------------------------------------------
 
-function ActivityBarContextMenu({ menu, onClose, onModuleChange }: { menu: ContextMenuState; onClose: () => void; onModuleChange: (module: ModuleId) => void }) {
+function ActivityBarContextMenu({
+  menu,
+  onClose,
+  onModuleChange,
+  onHide,
+  onResetLayout,
+}: {
+  menu: ContextMenuState;
+  onClose: () => void;
+  onModuleChange: (module: ModuleId) => void;
+  onHide: (module: ModuleId) => void;
+  onResetLayout: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -217,6 +232,113 @@ function ActivityBarContextMenu({ menu, onClose, onModuleChange }: { menu: Conte
         <ExternalLink size={14} />
         Open in New Window
       </button>
+      <div className="my-1 h-px bg-slate-200 dark:bg-slate-700" />
+      <button
+        onClick={() => {
+          onHide(menu.moduleId);
+          onClose();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+      >
+        <EyeOff size={14} />
+        Hide from Sidebar
+      </button>
+      <button
+        onClick={() => {
+          onResetLayout();
+          onClose();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+      >
+        <RotateCcw size={14} />
+        Reset Sidebar Layout
+      </button>
+    </div>
+  );
+}
+
+interface SectionMenuState {
+  sectionKey: string;
+  x: number;
+  y: number;
+}
+
+function SectionContextMenu({
+  menu,
+  isCustom,
+  onClose,
+  onRename,
+  onAddSection,
+  onDeleteSection,
+  onResetLayout,
+}: {
+  menu: SectionMenuState;
+  isCustom: boolean;
+  onClose: () => void;
+  onRename: () => void;
+  onAddSection: () => void;
+  onDeleteSection: () => void;
+  onResetLayout: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-50 min-w-[200px] bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg py-1"
+      style={{ top: menu.y, left: menu.x }}
+    >
+      <button
+        onClick={() => {
+          onRename();
+          onClose();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+      >
+        <Pencil size={14} />
+        Rename Section
+      </button>
+      <button
+        onClick={() => {
+          onAddSection();
+          onClose();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+      >
+        <FolderPlus size={14} />
+        New Section
+      </button>
+      {isCustom && (
+        <button
+          onClick={() => {
+            onDeleteSection();
+            onClose();
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+        >
+          <Trash2 size={14} />
+          Delete Section
+        </button>
+      )}
+      <div className="my-1 h-px bg-slate-200 dark:bg-slate-700" />
+      <button
+        onClick={() => {
+          onResetLayout();
+          onClose();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+      >
+        <RotateCcw size={14} />
+        Reset Sidebar Layout
+      </button>
     </div>
   );
 }
@@ -225,11 +347,59 @@ function ActivityBarContextMenu({ menu, onClose, onModuleChange }: { menu: Conte
 // Section header (expanded mode)
 // ---------------------------------------------------------------------------
 
-function SectionHeader({ label, collapsed, onToggle }: { label: string; collapsed: boolean; onToggle: () => void }) {
+function SectionHeader({
+  label,
+  collapsed,
+  isRenaming,
+  isDragging,
+  isDragOver,
+  onCommitRename,
+  onCancelRename,
+  onContextMenu,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+}: {
+  label: string;
+  collapsed: boolean;
+  isRenaming: boolean;
+  isDragging: boolean;
+  isDragOver: boolean;
+  onCommitRename: (next: string) => void;
+  onCancelRename: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerMove: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  onPointerCancel: (e: React.PointerEvent) => void;
+}) {
+  const [draft, setDraft] = useState(label);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming) {
+      setDraft(label);
+      // Defer focus so React has rendered the input.
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
+    }
+  }, [isRenaming, label]);
+
   return (
-    <button
-      onClick={onToggle}
-      className="w-full px-3 pt-3 pb-1 flex items-center gap-1.5 group cursor-pointer"
+    <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onContextMenu={onContextMenu}
+      className={cn(
+        "w-full px-3 pt-3 pb-1 flex items-center gap-1.5 group cursor-pointer select-none",
+        isDragging && "opacity-40",
+        isDragOver && "ring-1 ring-teal-500/40 rounded"
+      )}
     >
       <ChevronRight
         size={10}
@@ -238,10 +408,30 @@ function SectionHeader({ label, collapsed, onToggle }: { label: string; collapse
           !collapsed && "rotate-90"
         )}
       />
-      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
-        {label}
-      </span>
-    </button>
+      {isRenaming ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => onCommitRename(draft)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onCommitRename(draft);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onCancelRename();
+            }
+          }}
+          className="flex-1 min-w-0 bg-transparent border border-slate-300 dark:border-slate-600 rounded px-1 py-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300 outline-none focus:border-teal-500"
+        />
+      ) : (
+        <span className="flex-1 min-w-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors truncate">
+          {label}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -254,36 +444,56 @@ function NavButton({
   isActive,
   isExpanded,
   badge,
+  isDragging,
+  isDragOver,
   onModuleChange,
   onContextMenu,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
 }: {
   item: NavItem;
   isActive: boolean;
   isExpanded: boolean;
   badge?: number;
+  isDragging?: boolean;
+  isDragOver?: boolean;
   onModuleChange: (id: ModuleId) => void;
   onContextMenu: (e: React.MouseEvent, item: NavItem) => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
+  onPointerMove?: (e: React.PointerEvent) => void;
+  onPointerUp?: (e: React.PointerEvent) => void;
+  onPointerCancel?: (e: React.PointerEvent) => void;
 }) {
   const Icon = item.icon;
 
   if (!isExpanded) {
     return (
       <Tooltip label={item.label} shortcut={item.shortcut} show>
-        <div className="relative">
-          <button
-            key={item.id}
+        <div
+          className="relative"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
+          onPointerEnter={() => prefetchModule(item.id)}
+        >
+          <div
             data-help-id={`activity-bar-${item.id}`}
             onClick={() => onModuleChange(item.id)}
             onContextMenu={(e) => onContextMenu(e, item)}
             className={cn(
-              "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150",
+              "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150 cursor-pointer select-none",
               isActive
                 ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20 dark:shadow-teal-500/15"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60",
+              isDragging && "opacity-40",
+              isDragOver && !isDragging && "ring-1 ring-teal-500/50"
             )}
           >
             <Icon size={18} strokeWidth={isActive ? 2.25 : 1.75} />
-          </button>
+          </div>
           {badge !== undefined && badge > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold bg-red-500 text-white rounded-full px-1 pointer-events-none">
               {badge > 9 ? "9+" : badge}
@@ -295,16 +505,22 @@ function NavButton({
   }
 
   return (
-    <button
-      key={item.id}
+    <div
       data-help-id={`activity-bar-${item.id}`}
       onClick={() => onModuleChange(item.id)}
       onContextMenu={(e) => onContextMenu(e, item)}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onPointerEnter={() => prefetchModule(item.id)}
       className={cn(
-        "w-full h-8 flex items-center gap-2.5 px-2.5 rounded-lg transition-all duration-150",
+        "w-full h-8 flex items-center gap-2.5 px-2.5 rounded-lg transition-all duration-150 cursor-pointer select-none",
         isActive
-          ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm shadow-teal-600/20 dark:shadow-teal-500/15"
-          : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
+          ? "bg-accent-gradient text-white"
+          : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-accent-soft",
+        isDragging && "opacity-40",
+        isDragOver && !isDragging && "ring-1 ring-teal-500/50"
       )}
     >
       <Icon size={16} strokeWidth={isActive ? 2.25 : 1.75} className="shrink-0" />
@@ -317,126 +533,10 @@ function NavButton({
       {!badge && item.shortcut && (
         <span className={cn(
           "text-[10px] font-mono shrink-0",
-          isActive ? "text-teal-200" : "text-slate-400 dark:text-slate-600"
+          isActive ? "text-white/70" : "text-slate-400 dark:text-slate-600"
         )}>
           {item.shortcut}
         </span>
-      )}
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// More flyout
-// ---------------------------------------------------------------------------
-
-function MoreFlyout({
-  items,
-  activeModule,
-  isExpanded,
-  onModuleChange,
-  onContextMenu,
-}: {
-  items: NavItem[];
-  activeModule: ModuleId;
-  isExpanded: boolean;
-  onModuleChange: (id: ModuleId) => void;
-  onContextMenu: (e: React.MouseEvent, item: NavItem) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const hasActiveItem = items.some((item) => item.id === activeModule);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    if (open) {
-      document.addEventListener("mousedown", handler);
-      return () => document.removeEventListener("mousedown", handler);
-    }
-  }, [open]);
-
-  return (
-    <div className="relative" ref={ref}>
-      {isExpanded ? (
-        <button
-          onClick={() => setOpen(!open)}
-          className={cn(
-            "w-full h-8 flex items-center gap-2.5 px-2.5 rounded-lg transition-colors",
-            "hover:bg-slate-200/60 dark:hover:bg-slate-800/60",
-            hasActiveItem
-              ? "text-teal-600 dark:text-teal-400"
-              : "text-slate-500 dark:text-slate-400"
-          )}
-        >
-          <MoreHorizontal size={16} className="shrink-0" />
-          <span className="text-[13px] truncate flex-1 text-left">More</span>
-          <ChevronRight
-            size={11}
-            className={cn("shrink-0 transition-transform text-slate-400", open && "rotate-90")}
-          />
-        </button>
-      ) : (
-        <Tooltip label="More modules" show>
-          <button
-            onClick={() => setOpen(!open)}
-            className={cn(
-              "w-9 h-9 flex items-center justify-center rounded-lg transition-colors",
-              "hover:bg-slate-200/60 dark:hover:bg-slate-800/60",
-              hasActiveItem
-                ? "text-teal-600 dark:text-teal-400"
-                : "text-slate-500 dark:text-slate-400"
-            )}
-          >
-            <MoreHorizontal size={18} />
-          </button>
-        </Tooltip>
-      )}
-
-      {open && (
-        <div
-          className="fixed z-50 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg py-1 min-w-[200px]"
-          style={{
-            left: ref.current ? ref.current.getBoundingClientRect().right + 6 : 0,
-            bottom: ref.current
-              ? window.innerHeight - ref.current.getBoundingClientRect().bottom
-              : 0,
-          }}
-        >
-          {items.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeModule === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  onModuleChange(item.id);
-                  setOpen(false);
-                }}
-                onContextMenu={(e) => {
-                  onContextMenu(e, item);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors",
-                  "hover:bg-slate-100 dark:hover:bg-slate-800",
-                  isActive
-                    ? "text-teal-600 dark:text-teal-400 bg-slate-50 dark:bg-slate-800/50"
-                    : "text-slate-700 dark:text-slate-300"
-                )}
-              >
-                <Icon size={15} className="shrink-0" />
-                <span className="flex-1 text-left">{item.label}</span>
-                {item.shortcut && (
-                  <span className="text-[10px] font-mono text-slate-400 dark:text-slate-600 shrink-0">
-                    {item.shortcut}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
       )}
     </div>
   );
@@ -461,9 +561,47 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
   // on this value to recompute.
   const activeMode = useModeStore((s) => s.activeMode);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [sectionMenu, setSectionMenu] = useState<SectionMenuState | null>(null);
+  const [renamingSection, setRenamingSection] = useState<string | null>(null);
+
+  const layoutSectionOrder = useSidebarLayoutStore((s) => s.sectionOrder);
+  const layoutItemOrder = useSidebarLayoutStore((s) => s.itemOrder);
+  const customSectionLabels = useSidebarLayoutStore((s) => s.customSectionLabels);
+  const itemSectionOverride = useSidebarLayoutStore((s) => s.itemSection);
+  const customSections = useSidebarLayoutStore((s) => s.customSections);
+  const reorderSection = useSidebarLayoutStore((s) => s.reorderSection);
+  const moveItem = useSidebarLayoutStore((s) => s.moveItem);
+  const renameSection = useSidebarLayoutStore((s) => s.renameSection);
+  const addSection = useSidebarLayoutStore((s) => s.addSection);
+  const removeSection = useSidebarLayoutStore((s) => s.removeSection);
+  const resetLayout = useSidebarLayoutStore((s) => s.resetLayout);
+  const toggleModule = useModuleVisibilityStore((s) => s.toggleModule);
+
+  // Drag state — sections and items use independent state buckets so a drag
+  // in one doesn't visually bleed into the other.
+  const [sectionDragIndex, setSectionDragIndex] = useState<number | null>(null);
+  const [sectionDragOverIndex, setSectionDragOverIndex] = useState<number | null>(null);
+  const [itemDrag, setItemDrag] = useState<{ section: string; from: number; over: number | null } | null>(null);
+  const sectionPointerRef = useRef<{ startX: number; startY: number; startIndex: number; pointerId: number; dragging: boolean } | null>(null);
+  const itemPointerRef = useRef<{ startX: number; startY: number; sectionKey: string; startIndex: number; pointerId: number; dragging: boolean } | null>(null);
 
   // Chat unread badge — count conversations with activity after user's last read position
   const currentUserId = useCurrentUserId();
+
+  // Cloud sync — pull the user's saved layout from Supabase once we know who
+  // they are. Subsequent local changes are auto-pushed (debounced) by the
+  // store's subscribe handler. On user switch / sign-out, stop pushing.
+  useEffect(() => {
+    if (!currentUserId) {
+      clearSidebarLayoutSync();
+      return;
+    }
+    syncSidebarLayoutFromCloud(currentUserId);
+    return () => {
+      clearSidebarLayoutSync();
+    };
+  }, [currentUserId]);
+
   const { data: chatUnreadCount = 0 } = useQuery({
     queryKey: ["chat", "unread-badge", currentUserId],
     queryFn: async () => {
@@ -551,34 +689,273 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
     }
   });
 
-  const toggleSection = useCallback((label: string) => {
-    setCollapsedSections((prev) => {
-      const next = { ...prev, [label]: !prev[label] };
-      localStorage.setItem("tv-client-collapsed-sections", JSON.stringify(next));
-      return next;
-    });
-  }, []);
-
-  // Filter sections to exclude hidden modules
+  // Build the rendered section list by walking ALL known sections (canonical
+  // + user-created custom) in user-defined order. For each module, decide
+  // its home section: explicit override (`itemSection`) wins, otherwise it
+  // lives in its canonical section. Within a section, ordering follows
+  // `itemOrder[sectionKey]`, with anything missing appended at the end.
+  // Custom sections render even when empty (so the user has a drop target),
+  // canonical sections drop when empty so the sidebar doesn't grow ghost
+  // headers for sections like "Mgmt" in non-mgmt workspaces.
   const filteredSections = useMemo(() => {
-    return navSections
-      .map((section) => ({
-        ...section,
-        items: section.items.filter((item) => isModuleVisible(item.id)),
-      }))
-      .filter((section) => section.items.length > 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isModuleVisible, hiddenModules, teamConfig, activeMode]);
+    type Entry = { key: string; label: string; isCustom: boolean; items: NavItem[] };
 
-  const filteredMoreItems = useMemo(() => {
-    return moreItems.filter((item) => isModuleVisible(item.id));
+    // Canonical section index for fallback assignment.
+    const canonicalByKey = new Map<string, NavSection>();
+    for (const s of navSections) canonicalByKey.set(s.label, s);
+
+    // Build a master item lookup so overridden items can render in any section.
+    const itemById = new Map<ModuleId, NavItem>();
+    for (const s of navSections) for (const it of s.items) itemById.set(it.id, it);
+
+    // Group items by their effective section key.
+    const itemsBySection = new Map<string, NavItem[]>();
+    for (const s of navSections) {
+      for (const it of s.items) {
+        const target = itemSectionOverride[it.id] ?? s.label;
+        if (!itemsBySection.has(target)) itemsBySection.set(target, []);
+        itemsBySection.get(target)!.push(it);
+      }
+    }
+
+    // Build ordered key list: saved order first, then any sections not yet
+    // saved (canonical, then custom).
+    const allKeys: string[] = [];
+    for (const k of layoutSectionOrder) {
+      if (!allKeys.includes(k) && (canonicalByKey.has(k) || customSections.some((c) => c.key === k))) {
+        allKeys.push(k);
+      }
+    }
+    for (const s of navSections) if (!allKeys.includes(s.label)) allKeys.push(s.label);
+    for (const c of customSections) if (!allKeys.includes(c.key)) allKeys.push(c.key);
+
+    const result: Entry[] = [];
+    for (const key of allKeys) {
+      const isCustom = customSections.some((c) => c.key === key);
+      const canonical = canonicalByKey.get(key);
+      const label = isCustom
+        ? (customSections.find((c) => c.key === key)?.label ?? "Section")
+        : (customSectionLabels[key] ?? canonical?.label ?? key);
+
+      const groupItems = itemsBySection.get(key) ?? [];
+      // Order within the section: saved order, then any new items appended.
+      const savedOrder = layoutItemOrder[key] ?? [];
+      const groupSet = new Set(groupItems.map((it) => it.id));
+      const ordered: NavItem[] = [];
+      for (const id of savedOrder) {
+        if (!groupSet.has(id)) continue;
+        const it = itemById.get(id);
+        if (it && !ordered.some((o) => o.id === id)) ordered.push(it);
+      }
+      for (const it of groupItems) {
+        if (!ordered.some((o) => o.id === it.id)) ordered.push(it);
+      }
+      const visible = ordered.filter((item) => isModuleVisible(item.id));
+      // Drop empty canonical sections (e.g. Mgmt outside mgmt workspace),
+      // keep empty custom sections so the user can drop into them.
+      if (!isCustom && visible.length === 0) continue;
+      result.push({ key, label, isCustom, items: visible });
+    }
+    return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isModuleVisible, hiddenModules, teamConfig, activeMode]);
+  }, [
+    isModuleVisible,
+    hiddenModules,
+    teamConfig,
+    activeMode,
+    layoutSectionOrder,
+    layoutItemOrder,
+    customSectionLabels,
+    itemSectionOverride,
+    customSections,
+  ]);
 
   const handleContextMenu = (e: React.MouseEvent, item: NavItem) => {
     e.preventDefault();
     setContextMenu({ moduleId: item.id, label: item.label, x: e.clientX, y: e.clientY });
   };
+
+  const handleSectionContextMenu = (e: React.MouseEvent, sectionKey: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSectionMenu({ sectionKey, x: e.clientX, y: e.clientY });
+  };
+
+  // Section drag handlers
+  const handleSectionPointerDown = useCallback((e: React.PointerEvent, index: number) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest("input, button")) return;
+    sectionPointerRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startIndex: index,
+      pointerId: e.pointerId,
+      dragging: false,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const handleSectionPointerMove = useCallback((e: React.PointerEvent) => {
+    const state = sectionPointerRef.current;
+    if (!state) return;
+    if (!state.dragging) {
+      if (Math.hypot(e.clientX - state.startX, e.clientY - state.startY) < 6) return;
+      state.dragging = true;
+      setSectionDragIndex(state.startIndex);
+    }
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const sectionEl = el?.closest("[data-section-index]") as HTMLElement | null;
+    if (sectionEl) setSectionDragOverIndex(Number(sectionEl.dataset.sectionIndex));
+  }, []);
+
+  const handleSectionPointerUp = useCallback((e: React.PointerEvent, sectionKey: string) => {
+    const state = sectionPointerRef.current;
+    if (!state) return;
+    const { dragging, startIndex, pointerId } = state;
+    const over = sectionDragOverIndex;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(pointerId);
+    } catch {}
+    sectionPointerRef.current = null;
+    setSectionDragIndex(null);
+    setSectionDragOverIndex(null);
+    if (!dragging) {
+      // Don't toggle while inline-renaming this section.
+      if (renamingSection !== sectionKey) {
+        setCollapsedSections((prev) => {
+          const next = { ...prev, [sectionKey]: !prev[sectionKey] };
+          localStorage.setItem("tv-client-collapsed-sections", JSON.stringify(next));
+          return next;
+        });
+      }
+      return;
+    }
+    if (dragging && over !== null && over !== startIndex) {
+      // Persist the *full* current order so future codebase additions
+      // don't reset the user's customization.
+      const currentKeys = filteredSections.map((s) => s.key);
+      // Build a complete key list that preserves user order: start with
+      // currently-rendered ordered keys, then append any sections that
+      // were filtered out (no visible items).
+      const allKeys = [...currentKeys];
+      for (const s of navSections) if (!allKeys.includes(s.label)) allKeys.push(s.label);
+      // Translate the visible-only swap onto allKeys positions.
+      const fromKey = currentKeys[startIndex];
+      const toKey = currentKeys[over];
+      const fromAll = allKeys.indexOf(fromKey);
+      const toAll = allKeys.indexOf(toKey);
+      if (fromAll !== -1 && toAll !== -1) {
+        const next = [...allKeys];
+        const [moved] = next.splice(fromAll, 1);
+        next.splice(toAll, 0, moved);
+        // Replace the persisted order wholesale.
+        useSidebarLayoutStore.setState({ sectionOrder: next });
+      } else {
+        reorderSection(startIndex, over);
+      }
+    }
+  }, [sectionDragOverIndex, filteredSections, reorderSection, renamingSection]);
+
+  const handleSectionPointerCancel = useCallback(() => {
+    sectionPointerRef.current = null;
+    setSectionDragIndex(null);
+    setSectionDragOverIndex(null);
+  }, []);
+
+  // Item drag handlers (per section)
+  const handleItemPointerDown = useCallback((e: React.PointerEvent, sectionKey: string, index: number) => {
+    if (e.button !== 0) return;
+    itemPointerRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      sectionKey,
+      startIndex: index,
+      pointerId: e.pointerId,
+      dragging: false,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const handleItemPointerMove = useCallback((e: React.PointerEvent) => {
+    const state = itemPointerRef.current;
+    if (!state) return;
+    if (!state.dragging) {
+      if (Math.hypot(e.clientX - state.startX, e.clientY - state.startY) < 6) return;
+      state.dragging = true;
+      setItemDrag({ section: state.sectionKey, from: state.startIndex, over: null });
+    }
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    // Hit-test items in any section first (most specific drop target).
+    const itemEl = el?.closest("[data-item-section]") as HTMLElement | null;
+    if (itemEl) {
+      const overSection = itemEl.dataset.itemSection!;
+      const idx = Number(itemEl.dataset.itemIndex);
+      setItemDrag({ section: overSection, from: state.startIndex, over: idx });
+      return;
+    }
+    // Otherwise, treat a hover over a section header or the section's body
+    // as "drop at the end of that section."
+    const sectionEl = el?.closest("[data-drop-section]") as HTMLElement | null;
+    if (sectionEl) {
+      const overSection = sectionEl.dataset.dropSection!;
+      // Insert at the end (length) — moveItem clamps.
+      setItemDrag({ section: overSection, from: state.startIndex, over: -1 });
+    }
+  }, []);
+
+  const handleItemPointerUp = useCallback((e: React.PointerEvent, fromSectionKey: string, _activate: () => void) => {
+    const state = itemPointerRef.current;
+    if (!state) return;
+    const { dragging, startIndex, pointerId } = state;
+    const drag = itemDrag;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(pointerId);
+    } catch {}
+    itemPointerRef.current = null;
+    if (dragging) {
+      if (drag) {
+        const fromSection = filteredSections.find((s) => s.key === fromSectionKey);
+        const moduleId = fromSection?.items[startIndex]?.id;
+        if (moduleId) {
+          const targetSectionKey = drag.section;
+          const sameSection = targetSectionKey === fromSectionKey;
+          if (sameSection) {
+            // Pure reorder within section.
+            if (drag.over !== null && drag.over !== -1 && drag.over !== startIndex) {
+              const currentIds = fromSection!.items.map((it) => it.id);
+              const next = [...currentIds];
+              const [moved] = next.splice(startIndex, 1);
+              next.splice(drag.over, 0, moved);
+              useSidebarLayoutStore.setState((s) => ({
+                itemOrder: { ...s.itemOrder, [fromSectionKey]: next },
+              }));
+            }
+          } else {
+            // Cross-section move.
+            const targetSection = filteredSections.find((s) => s.key === targetSectionKey);
+            const targetCount = targetSection?.items.length ?? 0;
+            const insertAt = drag.over === -1 || drag.over === null ? targetCount : drag.over;
+            moveItem(moduleId, fromSectionKey, targetSectionKey, insertAt);
+          }
+        }
+      }
+      setItemDrag(null);
+      // Suppress the synthetic click that follows a pointerup after drag.
+      const swallow = (ev: MouseEvent) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        document.removeEventListener("click", swallow, true);
+      };
+      document.addEventListener("click", swallow, true);
+    } else {
+      setItemDrag(null);
+    }
+  }, [itemDrag, filteredSections, moveItem]);
+
+  const handleItemPointerCancel = useCallback(() => {
+    itemPointerRef.current = null;
+    setItemDrag(null);
+  }, []);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -604,14 +981,10 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
   return (
     <div
       data-help-id="activity-bar"
-      className="bg-slate-50 dark:bg-slate-900 flex flex-col py-2 gap-0.5 overflow-hidden select-none flex-shrink-0 items-stretch px-1.5 relative"
+      className="bg-surface-glass border-r border-zinc-200/70 dark:border-zinc-800/60 flex flex-col py-2 gap-0.5 overflow-hidden select-none flex-shrink-0 items-stretch px-1.5 relative"
       style={{
         width: sidebarWidth,
-        // Workspace-color tint layered over the base background-color set
-        // by Tailwind. Matches the title bar tint so both surfaces read as
-        // the same workspace at a glance. The `--workspace-accent-rgb` var
-        // is set on :root by the Shell's useWorkspaceAccent hook.
-        backgroundImage: `linear-gradient(rgba(var(--workspace-accent-rgb), 0.12), rgba(var(--workspace-accent-rgb), 0.12))`,
+        backgroundImage: `linear-gradient(180deg, rgba(var(--workspace-accent-rgb), 0.10) 0%, rgba(var(--workspace-accent-rgb), 0.02) 100%)`,
       }}
     >
       {/* Resize handle */}
@@ -627,17 +1000,42 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
         <>
           {/* Module sections */}
           {filteredSections.map((section, i) => {
-            const isCollapsed = !!collapsedSections[section.label];
+            const isCollapsed = !!collapsedSections[section.key];
             const containsActive = section.items.some((item) => item.id === activeModule);
             const showItems = !isCollapsed || containsActive;
+            const isSectionDragging = sectionDragIndex === i;
+            const isSectionDragOver = sectionDragOverIndex === i && sectionDragIndex !== i;
+
+            const isCrossSectionTarget =
+              itemDrag != null && itemDrag.section === section.key && section.items.length === 0;
 
             return (
-              <div key={section.label}>
+              <div
+                key={section.key}
+                data-section-index={i}
+                data-drop-section={section.key}
+                className={cn(
+                  section.isCustom && section.items.length === 0 && "min-h-[28px]",
+                  isCrossSectionTarget && "ring-1 ring-teal-500/50 rounded"
+                )}
+              >
                 {isExpanded ? (
                   <SectionHeader
                     label={section.label}
                     collapsed={isCollapsed}
-                    onToggle={() => toggleSection(section.label)}
+                    isRenaming={renamingSection === section.key}
+                    isDragging={isSectionDragging}
+                    isDragOver={isSectionDragOver}
+                    onCommitRename={(next) => {
+                      renameSection(section.key, next);
+                      setRenamingSection(null);
+                    }}
+                    onCancelRename={() => setRenamingSection(null)}
+                    onContextMenu={(e) => handleSectionContextMenu(e, section.key)}
+                    onPointerDown={(e) => handleSectionPointerDown(e, i)}
+                    onPointerMove={handleSectionPointerMove}
+                    onPointerUp={(e) => handleSectionPointerUp(e, section.key)}
+                    onPointerCancel={handleSectionPointerCancel}
                   />
                 ) : (
                   i > 0 && (
@@ -651,32 +1049,63 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
                     "flex flex-col",
                     isExpanded ? "gap-0.5" : "gap-0.5 items-center"
                   )}>
-                    {section.items.map((item) => (
-                      <NavButton
-                        key={item.id}
-                        item={item}
-                        isActive={activeModule === item.id}
-                        isExpanded={isExpanded}
-                        badge={item.id === "chat" ? chatUnreadCount : undefined}
-                        onModuleChange={onModuleChange}
-                        onContextMenu={handleContextMenu}
-                      />
-                    ))}
-                    {/* More flyout — at the end of Platform section */}
-                    {section.label === "Platform" && filteredMoreItems.length > 0 && (
-                      <MoreFlyout
-                        items={filteredMoreItems}
-                        activeModule={activeModule}
-                        isExpanded={isExpanded}
-                        onModuleChange={onModuleChange}
-                        onContextMenu={handleContextMenu}
-                      />
+                    {isExpanded && section.isCustom && section.items.length === 0 && (
+                      <div className="px-3 py-1.5 text-[11px] italic text-slate-400 dark:text-slate-500">
+                        Drop modules here
+                      </div>
                     )}
+                    {section.items.map((item, itemIdx) => {
+                      const isItemDragging =
+                        itemDrag?.section === section.key && itemDrag.from === itemIdx;
+                      const isItemDragOver =
+                        itemDrag?.section === section.key &&
+                        itemDrag.over === itemIdx &&
+                        itemDrag.from !== itemIdx;
+                      return (
+                        <div
+                          key={item.id}
+                          data-item-section={section.key}
+                          data-item-index={itemIdx}
+                          className="w-full"
+                        >
+                          <NavButton
+                            item={item}
+                            isActive={activeModule === item.id}
+                            isExpanded={isExpanded}
+                            badge={item.id === "chat" ? chatUnreadCount : undefined}
+                            isDragging={isItemDragging}
+                            isDragOver={isItemDragOver}
+                            onModuleChange={onModuleChange}
+                            onContextMenu={handleContextMenu}
+                            onPointerDown={(e) => handleItemPointerDown(e, section.key, itemIdx)}
+                            onPointerMove={handleItemPointerMove}
+                            onPointerUp={(e) => handleItemPointerUp(e, section.key, () => onModuleChange(item.id))}
+                            onPointerCancel={handleItemPointerCancel}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             );
           })}
+
+          {/* New section button — only when expanded; keeps custom layout
+              creation discoverable without crowding collapsed-mode icons. */}
+          {isExpanded && (
+            <button
+              onClick={() => {
+                const key = addSection("New Section");
+                // Open inline rename so the user can name it immediately.
+                setRenamingSection(key);
+              }}
+              className="w-full mt-1 flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/40 dark:hover:bg-slate-800/40 rounded transition-colors"
+            >
+              <FolderPlus size={11} />
+              <span>New Section</span>
+            </button>
+          )}
 
           {/* Spacer */}
           <div className="flex-1" />
@@ -692,7 +1121,27 @@ export function ActivityBar({ activeModule, onModuleChange }: ActivityBarProps) 
 
       {/* Context menu overlay */}
       {contextMenu && (
-        <ActivityBarContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onModuleChange={onModuleChange} />
+        <ActivityBarContextMenu
+          menu={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onModuleChange={onModuleChange}
+          onHide={(id) => toggleModule(id)}
+          onResetLayout={resetLayout}
+        />
+      )}
+      {sectionMenu && (
+        <SectionContextMenu
+          menu={sectionMenu}
+          isCustom={customSections.some((c) => c.key === sectionMenu.sectionKey)}
+          onClose={() => setSectionMenu(null)}
+          onRename={() => setRenamingSection(sectionMenu.sectionKey)}
+          onAddSection={() => {
+            const key = addSection("New Section");
+            setRenamingSection(key);
+          }}
+          onDeleteSection={() => removeSection(sectionMenu.sectionKey)}
+          onResetLayout={resetLayout}
+        />
       )}
     </div>
   );

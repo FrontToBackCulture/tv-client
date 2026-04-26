@@ -9,6 +9,8 @@ import { useJobsStore } from "../../stores/jobsStore";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { gatherMyTasks, buildPromptData } from "./gatherContext";
+import { getEntityChatConfig, getModuleChatConfig } from "../../lib/entityChatConfig";
+import type { EntityType } from "../../stores/selectedEntityStore";
 
 const BOT_AUTHOR = "bot-mel";
 
@@ -392,45 +394,129 @@ ${folderContext}
     addEvent(runId, { type: "init", content: existingSessionId ? "Resuming session..." : "Processing your reply...", timestamp: Date.now() });
     updateJob(runId, { message: existingSessionId ? "Resuming Claude session..." : "Claude is working on your request..." });
 
-    await invoke("claude_run", {
-      runId,
-      request: {
-        prompt,
-        allowed_tools: [
-          // Tasks
-          "mcp__tv-mcp__update-task",
-          "mcp__tv-mcp__get-task",
-          "mcp__tv-mcp__create-task",
-          "mcp__tv-mcp__list-tasks",
-          // CRM
-          "mcp__tv-mcp__find-crm-company",
-          "mcp__tv-mcp__get-crm-company",
-          "mcp__tv-mcp__log-crm-activity",
-          "mcp__tv-mcp__list-crm-activities",
-          "mcp__tv-mcp__update-crm-company",
-          "mcp__tv-mcp__find-crm-contact",
-          "mcp__tv-mcp__create-crm-contact",
-          // Projects
-          "mcp__tv-mcp__get-project",
-          "mcp__tv-mcp__list-projects",
-          "mcp__tv-mcp__update-project",
-          "mcp__tv-mcp__add-project-session",
-          "mcp__tv-mcp__create-project-update",
-          // Supabase (for direct queries when needed)
-          "mcp__supabase__execute_sql",
-          "mcp__supabase__list_tables",
-          // Filesystem for saving attachments, reading pasted files, etc.
-          "Bash",
-          "Read",
-          "Write",
-          "Glob",
-        ],
-        model: "sonnet",
-        max_budget_usd: 0.5,
-        resume_session_id: existingSessionId,
-        cwd: botCwd,
-      },
-    });
+    // SDK routing — three thread-id prefixes go through the Agent SDK sidecar:
+    //   project-chat:* / task-chat:*  → legacy popups (corner)
+    //   entity-chat:{type}:{id}       → unified Cmd+J modal, tools per entity type
+    const isLegacyPopup =
+      discussion.entity_id.startsWith("project-chat:") ||
+      discussion.entity_id.startsWith("task-chat:");
+    const isEntityChat = discussion.entity_id.startsWith("entity-chat:");
+    const useAgentSDK = isLegacyPopup || isEntityChat;
+
+    // Resolve the per-entity tool list. Entity-chat threads embed the type in
+    // their id; legacy popups use the broad fallback list.
+    let allowedTools: string[];
+    let systemPrompt: string | undefined;
+    if (isEntityChat) {
+      const parts = discussion.entity_id.split(":");
+      const entityType = parts[1] as EntityType;
+      const entityKeyId = parts[2] ?? "";
+
+      if (entityType === "module") {
+        // Module-level chat (no specific entity selected) — use per-module config.
+        const cfg = getModuleChatConfig(entityKeyId);
+        allowedTools = cfg.tools;
+        systemPrompt = cfg.systemPrompt.replace(/\{name\}/g, entityKeyId);
+      } else if (entityType === "domain") {
+        // Domains are folder-based, not a DB row. The id IS the name.
+        const cfg = getEntityChatConfig("domain");
+        allowedTools = cfg?.tools ?? [];
+        systemPrompt = cfg?.systemPrompt?.replace(/\{name\}/g, entityKeyId);
+      } else {
+        const cfg = getEntityChatConfig(entityType);
+        allowedTools = cfg?.tools ?? [];
+        // Resolve {name} placeholder by looking up the entity.
+        let entityName = entityKeyId;
+        try {
+          const table =
+            entityType === "task" ? "tasks"
+            : entityType === "company" ? "crm_companies"
+            : entityType === "contact" ? "crm_contacts"
+            : entityType === "initiative" ? "initiatives"
+            : entityType === "blog_article" ? "blog_articles"
+            : entityType === "skill" ? "skills"
+            : entityType === "mcp_tool" ? "mcp_tools"
+            : "projects";
+          const nameField = entityType === "task" ? "title" : entityType === "blog_article" ? "title" : "name";
+          const idField = entityType === "skill" || entityType === "mcp_tool" ? "slug" : "id";
+          const { data } = await supabase
+            .from(table)
+            .select(`${nameField}, ${idField}`)
+            .eq(idField, entityKeyId)
+            .maybeSingle();
+          if (data && (data as any)[nameField]) entityName = (data as any)[nameField];
+        } catch (e) {
+          console.warn("[botMentionHandler] entity name lookup failed:", e);
+        }
+        systemPrompt = cfg?.systemPrompt?.replace(/\{name\}/g, entityName);
+      }
+    } else {
+      allowedTools = [
+        // Tasks
+        "mcp__tv-mcp__update-task",
+        "mcp__tv-mcp__get-task",
+        "mcp__tv-mcp__create-task",
+        "mcp__tv-mcp__list-tasks",
+        // CRM
+        "mcp__tv-mcp__find-company",
+        "mcp__tv-mcp__get-company",
+        "mcp__tv-mcp__add-activity",
+        "mcp__tv-mcp__list-activities",
+        "mcp__tv-mcp__update-company",
+        "mcp__tv-mcp__find-contact",
+        "mcp__tv-mcp__create-contact",
+        // Projects
+        "mcp__tv-mcp__get-project",
+        "mcp__tv-mcp__list-projects",
+        "mcp__tv-mcp__update-project",
+        "mcp__tv-mcp__add-project-session",
+        "mcp__tv-mcp__create-project-update",
+        // Supabase (for direct queries when needed)
+        "mcp__supabase__execute_sql",
+        "mcp__supabase__list_tables",
+        // Filesystem for saving attachments, reading pasted files, etc.
+        "Bash",
+        "Read",
+        "Write",
+        "Glob",
+      ];
+    }
+
+    if (useAgentSDK) {
+      const homeMatch = botCwd.match(/^(\/Users\/[^/]+)/);
+      const home = homeMatch ? homeMatch[1] : "";
+      await invoke("agent_run", {
+        runId,
+        request: {
+          prompt,
+          allowed_tools: allowedTools,
+          model: "claude-sonnet-4-5",
+          cwd: botCwd,
+          resume_session_id: existingSessionId,
+          max_turns: 30,
+          system_prompt: systemPrompt,
+          mcp_servers: {
+            "tv-mcp": {
+              command: `${home}/.tv-mcp/bin/tv-mcp`,
+              args: [],
+              env: {},
+            },
+          },
+        },
+      });
+    } else {
+      await invoke("claude_run", {
+        runId,
+        request: {
+          prompt,
+          allowed_tools: allowedTools,
+          model: "sonnet",
+          max_budget_usd: 0.5,
+          resume_session_id: existingSessionId,
+          cwd: botCwd,
+        },
+      });
+    }
 
     // NOTE: datasource/instruction blocks in the result are handled by the
     // respective popup UIs (DataSourceChatPopup, BotGeneratorChatPopup) which

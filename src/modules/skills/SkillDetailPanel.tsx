@@ -1,20 +1,17 @@
 // src/modules/skills/SkillDetailPanel.tsx
 // Right panel — tree sidebar + content viewer (replaces tabbed layout)
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
-  X, FileText, FolderOpen, ArrowDownToLine, ArrowUpFromLine,
-  CheckCircle2, AlertTriangle, Circle, Loader2, ExternalLink,
-  Send, Bot, Boxes, ChevronDown, Microscope,
-  Tag, Terminal, Globe, PenTool, Eye, Copy, GitBranch, History,
-  AppWindow,
+  X, FileText, FolderOpen,
+  CheckCircle2, ChevronDown,
+  Tag, Terminal, Globe, PenTool, Eye, Copy, ExternalLink,
+  AppWindow, Bot, Boxes,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { Button, IconButton } from "../../components/ui";
+import { IconButton } from "../../components/ui";
 import { SectionLoading } from "../../components/ui/DetailStates";
 import { cn } from "../../lib/cn";
-import { formatError } from "../../lib/formatError";
 import { useFileTree, useReadFile, type TreeNode } from "../../hooks/useFiles";
 import { useKnowledgePaths, useFolderConfig } from "../../hooks/useKnowledgePaths";
 import { MarkdownViewer } from "../library/MarkdownViewer";
@@ -23,16 +20,8 @@ import {
   type SkillEntry,
   type SkillRegistry,
   type SkillDriftStatus,
-  useSkillDistribute,
-  useSkillPull,
-  useSkillDistributeTo,
-  useSkillListBots,
-  useSkillInspect,
 } from "./useSkillRegistry";
-import { useJobsStore } from "../../stores/jobsStore";
-import { toast } from "../../stores/toastStore";
 import { useUpdateSkill } from "../../hooks/skills/useSkills";
-import { useSkillActivityLog } from "../../hooks/skills/useSkillActivity";
 import { SKILL_STATUS_CONFIG, type SkillStatus } from "../../playground/botPlaygroundTypes";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -46,63 +35,15 @@ interface SkillDetailPanelProps {
   onOpenFile?: (path: string) => void;
 }
 
-const driftStatusConfig: Record<string, { icon: typeof CheckCircle2; label: string; color: string }> = {
-  in_sync: { icon: CheckCircle2, label: "In sync", color: "text-emerald-500" },
-  drifted: { icon: AlertTriangle, label: "Drifted", color: "text-amber-500" },
-  not_distributed: { icon: Circle, label: "Not distributed", color: "text-zinc-400" },
-  missing: { icon: Circle, label: "Missing", color: "text-red-400" },
-};
-
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFile }: SkillDetailPanelProps) {
+export function SkillDetailPanel({ slug, skill, onClose, onOpenFile }: SkillDetailPanelProps) {
   const paths = useKnowledgePaths();
   const folderConfig = useFolderConfig();
   const skillPath = paths ? `${paths.skills}/${slug}` : undefined;
   const [showStatusMenu, setShowStatusMenu] = useState(false);
-  const [showDistPanel, setShowDistPanel] = useState(false);
-  const [showActivityView, setShowActivityView] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState(false);
   const updateSkill = useUpdateSkill();
-  const { data: activityLog, isLoading: activityLoading } = useSkillActivityLog(showActivityView ? slug : undefined);
-  const inspectMutation = useSkillInspect();
-  const queryClient = useQueryClient();
-  const { addJob, updateJob } = useJobsStore();
-  const inspectJobId = useRef<string | null>(null);
-
-  const handleInspect = useCallback(() => {
-    const jobId = `inspect-${slug}-${Date.now()}`;
-    inspectJobId.current = jobId;
-
-    // Register in jobs store (shows in status bar)
-    addJob({ id: jobId, name: `Inspect: ${slug}`, status: "running", message: "Claude is analyzing..." });
-
-    // Show loading toast
-    const toastId = toast.loading(`Inspecting ${slug}...`);
-
-    inspectMutation.mutate(
-      { slug },
-      {
-        onSuccess: (result) => {
-          if (result.success && result.output_path) {
-            updateJob(jobId, { status: "completed", message: "Report generated" });
-            toast.update(toastId, { type: "success", message: `Inspection complete — ${slug}`, duration: 4000 });
-            // Refresh file tree and auto-select the report
-            queryClient.invalidateQueries({ queryKey: ["fileTree"] }).then(() => {
-              setSelectedPath(result.output_path);
-            });
-          } else {
-            updateJob(jobId, { status: "failed", message: result.error || "Report not generated" });
-            toast.update(toastId, { type: "error", message: result.error || "Inspection failed", duration: 5000 });
-          }
-        },
-        onError: (err) => {
-          updateJob(jobId, { status: "failed", message: formatError(err) });
-          toast.update(toastId, { type: "error", message: `Inspection failed: ${formatError(err)}`, duration: 5000 });
-        },
-      }
-    );
-  }, [slug, inspectMutation, queryClient, addJob, updateJob]);
 
   // Read recursive file tree
   const { data: tree } = useFileTree(skillPath, 3);
@@ -243,34 +184,6 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
             )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              title={inspectMutation.isPending ? "Inspecting... (Claude is running)" : "Inspect skill"}
-              onClick={inspectMutation.isPending ? undefined : handleInspect}
-              disabled={inspectMutation.isPending}
-              className={cn(
-                "p-1 rounded transition-colors",
-                inspectMutation.isPending
-                  ? "text-teal-500 cursor-wait"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
-              )}
-            >
-              {inspectMutation.isPending
-                ? <Loader2 size={16} className="animate-spin" />
-                : <Microscope size={16} />
-              }
-            </button>
-            <IconButton
-              icon={GitBranch}
-              label="Distribution"
-              onClick={() => setShowDistPanel(!showDistPanel)}
-              className={showDistPanel ? "text-teal-600 bg-teal-50 dark:bg-teal-900/30" : ""}
-            />
-            <IconButton
-              icon={History}
-              label="Activity log"
-              onClick={() => setShowActivityView(!showActivityView)}
-              className={showActivityView ? "text-teal-600 bg-teal-50 dark:bg-teal-900/30" : ""}
-            />
             {onOpenFile && selectedPath && (
               <IconButton icon={ExternalLink} label="Open in editor" onClick={() => onOpenFile(selectedPath)} />
             )}
@@ -283,7 +196,25 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
           <MetaChip icon={Tag} label={skill.category} />
           <MetaChip icon={skill.target === "bot" ? Bot : Boxes} label={skill.target} />
           {skill.command && <MetaChip icon={Terminal} label={skill.command} mono />}
-          {skill.domain && <MetaChip icon={Globe} label={skill.domain} />}
+          {Array.isArray(skill.domain) && skill.domain.map((d) => (
+            <MetaChip key={`client-${d}`} icon={Globe} label={d} />
+          ))}
+          {Array.isArray(skill.platform) && skill.platform.map((p) => (
+            <span
+              key={`platform-${p}`}
+              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+            >
+              {p}
+            </span>
+          ))}
+          {Array.isArray(skill.data_types) && skill.data_types.map((dt) => (
+            <span
+              key={dt}
+              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400"
+            >
+              {dt}
+            </span>
+          ))}
           {skill.verified && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
               <CheckCircle2 size={10} />
@@ -293,26 +224,8 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
         </div>
       </div>
 
-      {/* ── Distribution panel (collapsible) ── */}
-      {showDistPanel && (
-        <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 max-h-[300px] overflow-y-auto">
-          <DistributionPanel
-            slug={slug}
-            skill={skill}
-            driftStatuses={driftStatuses}
-          />
-        </div>
-      )}
-
-      {/* ── Body ── */}
-      {showActivityView ? (
-        /* ── Activity log view (replaces file tree + content) ── */
-        <div className="flex-1 overflow-auto">
-          <ActivityView activities={activityLog ?? []} isLoading={activityLoading} />
-        </div>
-      ) : (
-        /* ── File tree + content pane ── */
-        <div className="flex-1 flex overflow-hidden">
+      {/* ── Body: file tree + content pane ── */}
+      <div className="flex-1 flex overflow-hidden">
           {/* Left: file tree */}
           <div
             className="flex-shrink-0 overflow-y-auto border-r border-zinc-100 dark:border-zinc-800 py-1"
@@ -412,7 +325,6 @@ export function SkillDetailPanel({ slug, skill, driftStatuses, onClose, onOpenFi
             </div>
           </div>
         </div>
-      )}
     </div>
   );
 }
@@ -629,314 +541,6 @@ function FileIcon({ name, isSelected }: { name: string; isSelected: boolean }) {
   return <FileText size={13} className={cn("flex-shrink-0", isSelected ? "text-teal-600" : "text-zinc-400")} />;
 }
 
-// ─── Distribution Panel ─────────────────────────────────────────────────────
-
-function DistributionPanel({ slug, skill, driftStatuses }: {
-  slug: string;
-  skill: SkillEntry;
-  driftStatuses: SkillDriftStatus[];
-}) {
-  const { data: bots = [] } = useSkillListBots();
-  const distribute = useSkillDistribute();
-  const distributeTo = useSkillDistributeTo();
-  const pull = useSkillPull();
-  const [actionSlug, setActionSlug] = useState<string | null>(null);
-  const [showDistributeMenu, setShowDistributeMenu] = useState(false);
-
-  const handleDistributeAll = async () => {
-    setActionSlug("distribute");
-    try { await distribute.mutateAsync(slug); } finally { setActionSlug(null); }
-  };
-
-  const handleDistributeToBot = async (botSkillsPath: string) => {
-    setActionSlug("distribute-to");
-    setShowDistributeMenu(false);
-    try { await distributeTo.mutateAsync({ slug, targetPath: botSkillsPath, distType: "bot" }); } finally { setActionSlug(null); }
-  };
-
-  const handlePull = async (targetPath: string) => {
-    setActionSlug(`pull:${targetPath}`);
-    try { await pull.mutateAsync({ slug, targetPath }); } finally { setActionSlug(null); }
-  };
-
-  const handlePush = async (targetPath: string, distType: "bot" | "platform") => {
-    setActionSlug(`push:${targetPath}`);
-    try { await distributeTo.mutateAsync({ slug, targetPath, distType }); } finally { setActionSlug(null); }
-  };
-
-  const safeDistributions = Array.isArray(skill.distributions) ? skill.distributions : [];
-
-  const registeredPaths = new Set(safeDistributions.map((d: { path: string }) => d.path));
-  const discoveredDrifts = driftStatuses.filter(
-    d => d.slug === slug && !registeredPaths.has(d.distribution_path)
-  );
-
-  const allDistributions = useMemo(() => {
-    const registered = safeDistributions.map((d: { path: string; type: string }) => ({
-      path: d.path,
-      type: d.type,
-      isRegistered: true,
-    }));
-    const discovered = discoveredDrifts.map(d => ({
-      path: d.distribution_path,
-      type: d.distribution_path.startsWith("_team/") ? "bot" : "platform",
-      isRegistered: false,
-    }));
-    return [...registered, ...discovered];
-  }, [safeDistributions, discoveredDrifts]);
-
-  const distributedBotPaths = new Set(
-    allDistributions
-      .filter(d => d.type === "bot")
-      .map(d => { const p = d.path.split("/"); p.pop(); return p.join("/"); })
-  );
-
-  return (
-    <div className="px-4 py-2">
-      {/* Action buttons */}
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        {allDistributions.filter(d => d.isRegistered).length > 0 && (
-          <Button
-            size="sm"
-            onClick={handleDistributeAll}
-            disabled={actionSlug !== null}
-            loading={actionSlug === "distribute"}
-            icon={ArrowDownToLine}
-          >
-            Distribute All
-          </Button>
-        )}
-        <div className="relative">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => setShowDistributeMenu(!showDistributeMenu)}
-            disabled={actionSlug !== null}
-            loading={actionSlug === "distribute-to"}
-            icon={Send}
-            iconRight={ChevronDown}
-          >
-            Distribute to...
-          </Button>
-          {showDistributeMenu && (
-            <DistributeMenu
-              bots={bots}
-              distributedBotPaths={distributedBotPaths}
-              onSelectBot={handleDistributeToBot}
-              onClose={() => setShowDistributeMenu(false)}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Distribution targets */}
-      {allDistributions.length > 0 ? (
-        <div className="space-y-1.5">
-          {allDistributions.map((dist) => {
-            const drift = driftStatuses.find(d => d.distribution_path === dist.path);
-            const cfg = driftStatusConfig[drift?.status || "not_distributed"];
-            const StatusIcon = cfg.icon;
-            const distType = dist.type === "platform" ? "platform" as const : "bot" as const;
-            const isPushing = actionSlug === `push:${dist.path}`;
-            const isPulling = actionSlug === `pull:${dist.path}`;
-            const isBusy = actionSlug !== null;
-            const notInSync = drift?.status && drift.status !== "in_sync";
-
-            return (
-              <div key={dist.path} className="flex items-center gap-2 text-xs">
-                <StatusIcon size={12} className={cfg.color} />
-                <span className="text-zinc-400 font-mono truncate flex-1">{dist.path}</span>
-                <span className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 text-[10px]">
-                  {dist.type}
-                </span>
-                {!dist.isRegistered && (
-                  <span className="px-1 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 text-[10px]">
-                    discovered
-                  </span>
-                )}
-                <button
-                  onClick={() => handlePush(dist.path, distType)}
-                  disabled={isBusy}
-                  className={cn("disabled:opacity-50", notInSync ? "text-teal-600" : "text-zinc-400 hover:text-zinc-600")}
-                  title="Push to target"
-                >
-                  {isPushing ? <Loader2 size={11} className="animate-spin" /> : <ArrowDownToLine size={11} />}
-                </button>
-                <button
-                  onClick={() => handlePull(dist.path)}
-                  disabled={isBusy}
-                  className={cn("disabled:opacity-50", drift?.status === "drifted" ? "text-amber-600" : "text-zinc-400 hover:text-zinc-600")}
-                  title="Pull to source"
-                >
-                  {isPulling ? <Loader2 size={11} className="animate-spin" /> : <ArrowUpFromLine size={11} />}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="text-xs text-zinc-400">No targets. Use "Distribute to..." to push this skill.</p>
-      )}
-    </div>
-  );
-}
-
-// ─── Distribute Menu ─────────────────────────────────────────────────────────
-
-function DistributeMenu({
-  bots,
-  distributedBotPaths,
-  onSelectBot,
-  onClose,
-}: {
-  bots: { name: string; label: string; skills_path: string; has_skills_dir: boolean }[];
-  distributedBotPaths: Set<string>;
-  onSelectBot: (skillsPath: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute left-0 top-full mt-1 z-50 min-w-[220px] bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-lg py-1">
-        <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Bots</div>
-        {bots.map((bot) => {
-          const alreadyDistributed = distributedBotPaths.has(bot.skills_path);
-          return (
-            <button
-              key={bot.skills_path}
-              onClick={() => onSelectBot(bot.skills_path)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left"
-            >
-              <Bot size={14} className="text-zinc-400 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <span className="text-zinc-700 dark:text-zinc-300">{bot.label}</span>
-                {!bot.has_skills_dir && <span className="ml-1 text-xs text-zinc-400">(no skills/ yet)</span>}
-              </div>
-              {alreadyDistributed && <CheckCircle2 size={12} className="text-emerald-500 flex-shrink-0" />}
-            </button>
-          );
-        })}
-        {bots.length === 0 && <p className="px-3 py-2 text-xs text-zinc-400">No bots found</p>}
-      </div>
-    </>
-  );
-}
-
-// ─── Activity View ───────────────────────────────────────────────────────────
-
-interface ActivityEntry {
-  id: string;
-  file_path: string;
-  action: string;
-  actor: string | null;
-  machine: string | null;
-  old_value: string | null;
-  new_value: string | null;
-  created_at: string;
-}
-
-function ActivityView({ activities, isLoading }: { activities: ActivityEntry[]; isLoading: boolean }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  if (isLoading) return <SectionLoading className="py-6" />;
-
-  if (activities.length === 0) {
-    return (
-      <div className="h-full flex items-center justify-center text-xs text-zinc-400">
-        No changes recorded yet
-      </div>
-    );
-  }
-
-  return (
-    <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
-      {activities.map((a) => {
-        const d = new Date(a.created_at);
-        const timeStr = d.toLocaleDateString("en-SG", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", hour12: false });
-        const isExpanded = expandedId === a.id;
-        const hasDiff = a.old_value || a.new_value;
-        const actionColor = a.action === "create"
-          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-          : "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
-
-        return (
-          <div key={a.id}>
-            <button
-              onClick={() => hasDiff && setExpandedId(isExpanded ? null : a.id)}
-              className={cn(
-                "w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors",
-                hasDiff ? "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer" : "cursor-default",
-              )}
-            >
-              <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0", actionColor)}>
-                {a.action}
-              </span>
-              <span className="text-xs text-zinc-600 dark:text-zinc-400 font-mono truncate flex-1" title={a.file_path}>
-                {a.file_path}
-              </span>
-              <span className="text-xs text-zinc-400 flex-shrink-0">{a.actor ?? "unknown"}</span>
-              <span className="text-[11px] text-zinc-300 dark:text-zinc-600 flex-shrink-0 tabular-nums">{timeStr}</span>
-              {hasDiff && (
-                <ChevronDown size={12} className={cn("text-zinc-400 flex-shrink-0 transition-transform", isExpanded && "rotate-180")} />
-              )}
-            </button>
-
-            {isExpanded && hasDiff && (
-              <div className="px-4 pb-3">
-                <DiffView oldValue={a.old_value} newValue={a.new_value} />
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function DiffView({ oldValue, newValue }: { oldValue: string | null; newValue: string | null }) {
-  const oldLines = (oldValue ?? "").split("\n");
-  const newLines = (newValue ?? "").split("\n");
-  const maxLines = Math.max(oldLines.length, newLines.length);
-
-  return (
-    <div className="rounded-md border border-zinc-200 dark:border-zinc-800 overflow-hidden text-xs font-mono">
-      {/* Header */}
-      <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
-        <div className="flex-1 px-2 py-1 text-zinc-500 font-medium border-r border-zinc-200 dark:border-zinc-800">Removed</div>
-        <div className="flex-1 px-2 py-1 text-zinc-500 font-medium">Added</div>
-      </div>
-      {/* Side-by-side lines */}
-      <div className="flex">
-        {/* Left: old */}
-        <div className="flex-1 min-w-0 border-r border-zinc-200 dark:border-zinc-800">
-          {Array.from({ length: maxLines }, (_, i) => {
-            const line = oldLines[i];
-            const hasLine = i < oldLines.length && oldValue;
-            return (
-              <div key={`old-${i}`} className={cn("flex min-h-[20px]", hasLine ? "bg-red-50/60 dark:bg-red-900/10" : "")}>
-                <span className="w-6 flex-shrink-0 text-right pr-1 text-red-300 dark:text-red-700 select-none border-r border-zinc-200 dark:border-zinc-800 bg-red-50/40 dark:bg-red-900/15">{hasLine ? "−" : ""}</span>
-                <span className="px-2 py-px text-red-700 dark:text-red-400 whitespace-pre-wrap break-all">{line ?? ""}</span>
-              </div>
-            );
-          })}
-        </div>
-        {/* Right: new */}
-        <div className="flex-1 min-w-0">
-          {Array.from({ length: maxLines }, (_, i) => {
-            const line = newLines[i];
-            const hasLine = i < newLines.length && newValue;
-            return (
-              <div key={`new-${i}`} className={cn("flex min-h-[20px]", hasLine ? "bg-emerald-50/60 dark:bg-emerald-900/10" : "")}>
-                <span className="w-6 flex-shrink-0 text-right pr-1 text-emerald-300 dark:text-emerald-700 select-none border-r border-zinc-200 dark:border-zinc-800 bg-emerald-50/40 dark:bg-emerald-900/15">{hasLine ? "+" : ""}</span>
-                <span className="px-2 py-px text-emerald-700 dark:text-emerald-400 whitespace-pre-wrap break-all">{line ?? ""}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

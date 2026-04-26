@@ -6,6 +6,8 @@ import { useState, useEffect, useRef } from "react";
 import { X, Brain, Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { supabase } from "../../../lib/supabase";
 import { useDiscussions, useCreateDiscussion } from "../../../hooks/useDiscussions";
 import { useClaudeRunStore } from "../../../stores/claudeRunStore";
@@ -72,7 +74,7 @@ When I attach screenshots or files, they get uploaded to Supabase storage and ap
 3. Download each file with curl, giving it a descriptive name:
    \`curl -sL "<url>" -o "${taskFolderAbs}/<descriptive-name>.<ext>"\`
 4. Verify the download succeeded: \`ls -la "${taskFolderAbs}/"\`
-5. Log an activity on the task (\`log-crm-activity\` or create a note) mentioning what was saved and why.
+5. Log an activity on the task (\`add-activity\` with task_id) mentioning what was saved and why.
 
 **Always use absolute paths** when operating on files outside the bot's own directory. Don't try to read files from CleanShot's local folder — use the uploaded URLs in my messages instead.`
         : `
@@ -123,7 +125,25 @@ Acknowledge briefly and wait for my instructions.`;
   }, [entityId, taskId, taskTitle, userId, userName, initialized, messages.length, queryClient]);
 
   const runs = useClaudeRunStore((s) => s.runs);
-  const activeRun = Object.values(runs).find((r) => r.entityId === entityId && !r.isComplete);
+  const liveRun = Object.values(runs).find((r) => r.entityId === entityId && !r.isComplete);
+
+  // Bridge the gap between SDK `result` (run goes !isComplete=false → true) and
+  // the persisted bot reply arriving via Supabase realtime (~200–500ms later).
+  const [snapshotMsgCount, setSnapshotMsgCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (liveRun) setSnapshotMsgCount(messages.length);
+  }, [liveRun?.id]);
+  useEffect(() => {
+    if (snapshotMsgCount !== null && messages.length > snapshotMsgCount) {
+      setSnapshotMsgCount(null);
+    }
+  }, [messages.length, snapshotMsgCount]);
+
+  const latestRun = Object.values(runs)
+    .filter((r) => r.entityId === entityId)
+    .sort((a, b) => (a.events.at(-1)?.timestamp ?? 0) - (b.events.at(-1)?.timestamp ?? 0))
+    .at(-1);
+  const activeRun = liveRun ?? (snapshotMsgCount !== null ? latestRun : undefined);
   const recentEvents = activeRun?.events
     .filter((e) => e.type === "tool_use" || e.type === "text" || e.type === "init")
     .slice(-4) ?? [];
@@ -223,11 +243,11 @@ Acknowledge briefly and wait for my instructions.`;
             <div key={msg.id} className={`flex ${isBot ? "justify-start" : "justify-end"}`}>
               <div
                 className={cn(
-                  "rounded-lg px-3 py-2 text-xs whitespace-pre-wrap",
+                  "rounded-lg px-3 py-2 text-xs",
                   sizeLevel >= 1 ? "max-w-[80%]" : "max-w-[90%]",
                   isBot
                     ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
-                    : "bg-teal-600 text-white",
+                    : "bg-teal-600 text-white whitespace-pre-wrap",
                 )}
               >
                 {isBot && (
@@ -235,7 +255,13 @@ Acknowledge briefly and wait for my instructions.`;
                     {msg.author}
                   </span>
                 )}
-                {cleanBody}
+                {isBot ? (
+                  <div className="text-xs leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1.5 [&_strong]:font-semibold [&_em]:italic [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:my-1.5 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:my-1.5 [&_h3]:font-semibold [&_h3]:my-1 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:my-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:my-1 [&_li]:my-0.5 [&_a]:text-teal-500 [&_a]:underline [&_code]:bg-zinc-200 dark:[&_code]:bg-zinc-700 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-zinc-50 dark:[&_pre]:bg-zinc-900 [&_pre]:p-2 [&_pre]:rounded [&_pre]:my-1 [&_pre]:overflow-x-auto [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-400 [&_blockquote]:pl-2">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanBody}</ReactMarkdown>
+                  </div>
+                ) : (
+                  cleanBody
+                )}
               </div>
             </div>
           );

@@ -127,7 +127,7 @@ export function ProjectView({
   const DEFAULT_HIDDEN = ["Backlog", "Done", "Won't Do", "Monitor", "Archived"];
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(() => new Set(DEFAULT_HIDDEN));
   const [showStatusPicker, setShowStatusPicker] = useState(false);
-  const [showDiscussions, setShowDiscussions] = useState(false);
+  const [activeTab, setActiveTab] = useState<"tasks" | "discussion">("tasks");
   const { data: discussionCount } = useDiscussionCount("project", project.id);
   const { data: allStatuses = [] } = useStatuses();
   const { data: allCompanies = [] } = useCompanies();
@@ -394,120 +394,143 @@ export function ProjectView({
   }, [filteredTasks, groupBy, hiddenStatuses]);
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Project header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
-        <div className="flex items-center gap-3 mb-2">
+    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
+      {/* Header — mirrors TaskDetailPanel chrome */}
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
           <BackButton onClick={onBack} />
-          <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color || "#6B7280" }} />
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{project.name}</h2>
-        </div>
-        <div className="flex items-center gap-6 ml-8">
-          <div className="flex items-center gap-4 text-xs text-zinc-500">
+          <Folder size={16} className="text-zinc-400 flex-shrink-0" />
+          {project.identifier_prefix && (
+            <span className="text-sm text-zinc-500 font-mono">{project.identifier_prefix}</span>
+          )}
+          <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color || "#6B7280" }} />
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{project.name}</h2>
+          <div className="flex items-center gap-3 text-xs text-zinc-500 flex-shrink-0 ml-1">
             <span>
-              {activeFilterCount > 0 ? `${filteredTasks.length} of ${projectTasks.length} tasks` : `${projectTasks.length} tasks`}
+              {activeFilterCount > 0 ? `${filteredTasks.length} of ${projectTasks.length}` : `${projectTasks.length} tasks`}
             </span>
-            <span>{completed} completed</span>
+            <span>{completed} done</span>
             {overdue > 0 && <span className="text-red-500 font-medium">{overdue} overdue</span>}
             {project.lead && (
-              <span className="flex items-center gap-1">
+              <span className="inline-flex items-center gap-1">
                 <User size={10} />
                 {getUserName(users, project.lead)}
               </span>
             )}
             {project.target_date && (
-              <span className="flex items-center gap-1">
+              <span className="inline-flex items-center gap-1">
                 <Calendar size={10} />
                 {formatDate(project.target_date)}
               </span>
             )}
           </div>
-          <div className="w-40">
+          <div className="w-32 flex-shrink-0">
             <ProgressBar completed={completed} total={projectTasks.length} color={project.color || "#0D7680"} />
           </div>
-          <div className="ml-auto flex items-center gap-1.5">
-            <span className="text-xs text-zinc-400">Group:</span>
-            {(["status", "priority", "assignee"] as GroupBy[]).map(g => (
-              <button
-                key={g}
-                onClick={() => { setGroupBy(g); setGroupOverrides(new Map()); }}
-                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                  groupBy === g
-                    ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                }`}
-              >
-                {g.charAt(0).toUpperCase() + g.slice(1)}
-              </button>
-            ))}
-            <div className="relative">
-              <button
-                onClick={() => setShowStatusPicker(v => !v)}
-                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                  hiddenStatuses.size > 0
-                    ? "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                    : "bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
-                }`}
-              >
-                {hiddenStatuses.size > 0 ? `${hiddenStatuses.size} hidden` : "All visible"}
-              </button>
-              {showStatusPicker && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setShowStatusPicker(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[180px]">
-                    {allStatuses.map((s) => {
-                      const isHidden = hiddenStatuses.has(s.name);
-                      const count = filteredTasks.filter(t => t.status?.id === s.id).length;
-                      return (
-                        <button
-                          key={s.id}
-                          onClick={() => setHiddenStatuses(prev => {
-                            const next = new Set(prev);
-                            next.has(s.name) ? next.delete(s.name) : next.add(s.name);
-                            return next;
-                          })}
-                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-                        >
-                          <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isHidden ? "border-zinc-300 dark:border-zinc-600" : "border-teal-500 bg-teal-500"}`}>
-                            {!isHidden && <Check size={10} className="text-white" />}
-                          </span>
-                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color || "#6B7280" }} />
-                          <span className={isHidden ? "text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}>{s.name}</span>
-                          <span className="ml-auto text-[10px] text-zinc-400">{count}</span>
-                        </button>
-                      );
-                    })}
-                    <div className="border-t border-zinc-100 dark:border-zinc-800 mt-1 pt-1 px-3 py-1 flex gap-2">
-                      <button onClick={() => setHiddenStatuses(new Set())} className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-medium">Show all</button>
-                      <button onClick={() => setHiddenStatuses(new Set(DEFAULT_HIDDEN))} className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 font-medium">Reset</button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-800 mx-1" />
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {onCreateTask && (
             <button
-              onClick={() => setShowDiscussions(!showDiscussions)}
-              className={`relative p-1 rounded transition-colors ${
-                showDiscussions
-                  ? "text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950"
-                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-              }`}
-              title="Discussion"
+              onClick={onCreateTask}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition-colors"
             >
-              <MessageSquare size={14} />
-              {(discussionCount ?? 0) > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-[12px] flex items-center justify-center text-[8px] font-bold bg-teal-600 text-white rounded-full px-0.5">
-                  {discussionCount}
-                </span>
-              )}
+              <Plus size={12} /> New Task
             </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tab bar — mirrors TaskDetailPanel pill style */}
+      <div className="flex-shrink-0 flex items-center gap-1 px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+        {([
+          { key: "tasks" as const, label: "Tasks", icon: Folder, badge: projectTasks.length },
+          { key: "discussion" as const, label: "Discussion", icon: MessageSquare, badge: discussionCount },
+        ]).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+              activeTab === tab.key
+                ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+            }`}
+          >
+            <tab.icon size={13} />
+            {tab.label}
+            {(tab.badge ?? 0) > 0 && (
+              <span className="text-[10px] font-medium bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="text-xs text-zinc-400">Group:</span>
+          {(["status", "priority", "assignee"] as GroupBy[]).map(g => (
+            <button
+              key={g}
+              onClick={() => { setGroupBy(g); setGroupOverrides(new Map()); }}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                groupBy === g
+                  ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+              }`}
+            >
+              {g.charAt(0).toUpperCase() + g.slice(1)}
+            </button>
+          ))}
+          <div className="relative">
+            <button
+              onClick={() => setShowStatusPicker(v => !v)}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                hiddenStatuses.size > 0
+                  ? "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                  : "bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
+              }`}
+            >
+              {hiddenStatuses.size > 0 ? `${hiddenStatuses.size} hidden` : "All visible"}
+            </button>
+            {showStatusPicker && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowStatusPicker(false)} />
+                <div className="absolute right-0 top-full mt-1 z-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[180px]">
+                  {allStatuses.map((s) => {
+                    const isHidden = hiddenStatuses.has(s.name);
+                    const count = filteredTasks.filter(t => t.status?.id === s.id).length;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => setHiddenStatuses(prev => {
+                          const next = new Set(prev);
+                          next.has(s.name) ? next.delete(s.name) : next.add(s.name);
+                          return next;
+                        })}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                      >
+                        <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isHidden ? "border-zinc-300 dark:border-zinc-600" : "border-teal-500 bg-teal-500"}`}>
+                          {!isHidden && <Check size={10} className="text-white" />}
+                        </span>
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color || "#6B7280" }} />
+                        <span className={isHidden ? "text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}>{s.name}</span>
+                        <span className="ml-auto text-[10px] text-zinc-400">{count}</span>
+                      </button>
+                    );
+                  })}
+                  <div className="border-t border-zinc-100 dark:border-zinc-800 mt-1 pt-1 px-3 py-1 flex gap-2">
+                    <button onClick={() => setHiddenStatuses(new Set())} className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-medium">Show all</button>
+                    <button onClick={() => setHiddenStatuses(new Set(DEFAULT_HIDDEN))} className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 font-medium">Reset</button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
+      {activeTab === "tasks" && (<>
       {/* Filter toolbar */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-6 py-2 border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950">
         <input
           type="checkbox"
           checked={filteredTasks.length > 0 && filteredTasks.every(t => selectedTaskIds.has(t.id))}
@@ -648,17 +671,9 @@ export function ProjectView({
             Clear all
           </button>
         )}
-        {onCreateTask && (
-          <button
-            onClick={onCreateTask}
-            className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition-colors"
-          >
-            <Plus size={12} /> New Task
-          </button>
-        )}
       </div>
 
-      {/* Task list + optional discussion sidebar */}
+      {/* Task list */}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-y-auto">
           {/* Column headers */}
@@ -716,16 +731,14 @@ export function ProjectView({
             );
           })}
         </div>
-        {showDiscussions && (
-          <div className="w-[320px] flex-shrink-0">
-            <DiscussionPanel
-              entityType="project"
-              entityId={project.id}
-              onClose={() => setShowDiscussions(false)}
-            />
-          </div>
-        )}
       </div>
+      </>)}
+
+      {activeTab === "discussion" && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <DiscussionPanel entityType="project" entityId={project.id} />
+        </div>
+      )}
 
       <AutoAssignCompanyModal
         taskIds={selectedTaskIdsArray}

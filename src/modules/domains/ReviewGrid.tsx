@@ -58,11 +58,12 @@ export interface ReviewGridProps {
   externalRows?: ReviewRow[];
   /** Enable cross-domain mode (adds Domain column) */
   crossDomain?: boolean;
-  /** External sidebar filter — narrows rows by view + category/sub-category */
+  /** External sidebar filter — narrows rows by view + category/sub-category + (cross-domain) selected domains */
   sidebarFilter?: {
     view: "all" | "active" | "deleted" | "custom" | "configured" | "unconfigured";
     category: string | null;
     subCategory: string | null;
+    domains?: string[];
   };
   /** Callback that hands the parent the full row list once loaded (for sidebar counts/categories) */
   onRowsLoaded?: (rows: ReviewRow[]) => void;
@@ -288,7 +289,10 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
 
   // External filter — combines toolbar review filter + sidebar filter
   const sidebarActive = !!sidebarFilter && (
-    sidebarFilter.view !== "all" || !!sidebarFilter.category || !!sidebarFilter.subCategory
+    sidebarFilter.view !== "all" ||
+    !!sidebarFilter.category ||
+    !!sidebarFilter.subCategory ||
+    (sidebarFilter.domains?.length ?? 0) > 0
   );
   const isExternalFilterPresent = useCallback(() => {
     return reviewFilter !== "all" || sidebarActive;
@@ -320,6 +324,9 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
       }
       if (sidebarFilter.category && (effectiveCategory ?? "Uncategorized") !== sidebarFilter.category) return false;
       if (sidebarFilter.subCategory && (r.dataSubCategory ?? "—") !== sidebarFilter.subCategory) return false;
+      if (sidebarFilter.domains && sidebarFilter.domains.length > 0) {
+        if (!r.domain || !sidebarFilter.domains.includes(r.domain)) return false;
+      }
     }
     return true;
   }, [reviewFilter, isTable, modifiedRows, sidebarFilter, resourceType]);

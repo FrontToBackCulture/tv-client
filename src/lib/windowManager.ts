@@ -20,6 +20,7 @@ const moduleLabels: Record<ModuleId, string> = {
   product: "Product",
   gallery: "Gallery",
   skills: "Skills",
+  "mcp-tools": "MCP Tools",
   portal: "Portal",
   scheduler: "Scheduler",
   repos: "Repos",

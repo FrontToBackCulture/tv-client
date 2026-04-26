@@ -294,6 +294,21 @@ export function ReviewGridToolbar({
                 <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
 
                 <button
+                  onClick={() => { exportToCsv(); setShowLayoutMenu(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+                >
+                  <Download size={13} /> Export CSV
+                </button>
+                <button
+                  onClick={() => { exportToExcel(); setShowLayoutMenu(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
+                >
+                  <FileSpreadsheet size={13} /> Export Excel
+                </button>
+
+                <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+
+                <button
                   onClick={() => { setShowLayoutMenu(false); setShowSaveDialog(true); }}
                   className="w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center gap-2"
                 >
@@ -365,12 +380,6 @@ export function ReviewGridToolbar({
               >
                 <WrapText size={13} />
               </button>
-              <Button variant="secondary" size="sm" icon={Download} onClick={exportToCsv} title="Export to CSV">
-                CSV
-              </Button>
-              <Button size="sm" icon={FileSpreadsheet} onClick={exportToExcel} title="Export to Excel">
-                Excel
-              </Button>
               <button
                 onClick={() => setIsFullscreen(!isFullscreen)}
                 className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border transition-colors ${

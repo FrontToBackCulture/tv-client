@@ -177,9 +177,10 @@ export function CrossDomainReportsView() {
   // ─── Layout: Tree (left) + Preview (right) ────────────────────────────────
 
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="h-full flex overflow-hidden px-4 py-4">
+     <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
       {/* ── Tree sidebar ── */}
-      <div className="w-52 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
+      <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
         {/* Search */}
         <div className="p-2 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
           <div className="relative">
@@ -241,7 +242,7 @@ export function CrossDomainReportsView() {
             />
           ))}
         </div>
-      </div>
+      </aside>
 
       {/* ── Content pane ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -295,6 +296,7 @@ export function CrossDomainReportsView() {
           </div>
         )}
       </div>
+     </div>
     </div>
   );
 }
@@ -349,14 +351,14 @@ function TreeFile({
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-1.5 px-2 py-1 rounded text-left transition-colors truncate",
+        "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors truncate",
         active
-          ? "bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
-          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/30",
+          ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
       )}
     >
-      {icon ?? <FileText size={12} className="text-zinc-400 flex-shrink-0" />}
-      <span className="text-[11px] truncate">{name}</span>
+      {icon ?? <FileText size={13} className={active ? "text-teal-500" : "text-zinc-400"} />}
+      <span className="truncate flex-1">{name}</span>
     </button>
   );
 }

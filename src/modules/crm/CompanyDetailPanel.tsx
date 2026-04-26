@@ -22,13 +22,35 @@ import {
   Globe,
   MessageSquare,
   Mail,
+  Clock,
 } from "lucide-react";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { EmailsPanel } from "../../components/emails/EmailsPanel";
 import { useLinkedEmailCount } from "../../hooks/email/useEntityEmails";
-import { DetailLoading, DetailNotFound, DeleteConfirm, IconButton, Badge, Button } from "../../components/ui";
+import { DetailLoading, DetailNotFound, DeleteConfirm, IconButton, Button } from "../../components/ui";
 import { toast } from "../../stores/toastStore";
+import { cn } from "../../lib/cn";
+
+const STAGE_COLORS: Record<string, string> = {
+  prospect: "#6B7280",
+  opportunity: "#3B82F6",
+  client: "#10B981",
+  churned: "#EF4444",
+  partner: "#A855F7",
+};
+
+function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleDateString("en-SG", {
+    month: "short",
+    day: "numeric",
+  }) + " at " + new Date(dateStr).toLocaleTimeString("en-SG", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
 interface CompanyDetailPanelProps {
   companyId: string;
@@ -100,42 +122,121 @@ export function CompanyDetailPanel({
   if (!company) return <DetailNotFound message="Company not found" />;
 
   const stageConfig = COMPANY_STAGES.find((s) => s.value === company.stage);
+  const stageColor = STAGE_COLORS[company.stage] || "#6B7280";
+  const companyName = company.display_name || company.name;
+  const tabs: { key: TabId; label: string; icon: typeof Mail | null; badge?: number | null }[] = [
+    { key: "timeline", label: "Timeline", icon: null },
+    { key: "contacts", label: "Contacts", icon: null, badge: company.contacts?.length || 0 },
+    { key: "deals", label: "Deals", icon: null, badge: company.deals?.length || 0 },
+    { key: "emails", label: "Emails", icon: Mail, badge: emailCount ?? 0 },
+    { key: "discussion", label: "Discussion", icon: MessageSquare, badge: discussionCount ?? 0 },
+  ];
 
   return (
     <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-3">
-        {/* Company name + actions */}
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 truncate">
-                {company.display_name || company.name}
-              </h2>
-              <StageChip
-                stage={company.stage}
-                label={stageConfig?.label || company.stage}
-              />
-              <IconButton icon={Pencil} size={14} label="Edit company" onClick={() => setShowEditForm(true)} />
-              <IconButton icon={Trash2} size={14} label="Delete company" variant="danger" onClick={() => setShowDeleteConfirm(true)} />
-            </div>
-            {company.industry && (
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">{company.industry}</span>
-            )}
-            {company.hiring_signals && (company.hiring_signals as any).active_jobs?.length > 0 && (
-              <div className="mt-1 flex items-center gap-1.5">
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                  Hiring: {(company.hiring_signals as any).active_jobs.map((j: any) => j.title).join(", ")}
-                </span>
-              </div>
-            )}
+      {/* Header — compact identifier row, matches WorkspaceDetailView style */}
+      <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-4 py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+          {/* Stage circle */}
+          <div
+            className="w-5 h-5 rounded-full border-2 flex-shrink-0"
+            style={{ borderColor: stageColor }}
+            title={stageConfig?.label || company.stage}
+          >
+            <span className="block w-full h-full rounded-full" style={{ backgroundColor: `${stageColor}30` }} />
           </div>
-          {onClose && (
-            <IconButton icon={X} size={18} label="Close" onClick={onClose} />
+
+          {/* Short id — click to copy */}
+          <button
+            onClick={() => { navigator.clipboard.writeText(companyId); toast.success("Company ID copied"); }}
+            className="text-[10px] text-zinc-300 dark:text-zinc-600 font-mono cursor-pointer hover:text-teal-500 dark:hover:text-teal-400 transition-colors flex-shrink-0"
+            title={companyId}
+          >
+            {companyId.slice(0, 8)}
+          </button>
+
+          {/* Stage pill (OPPORTUNITY / CLIENT / etc) */}
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider flex-shrink-0"
+            style={{ backgroundColor: `${stageColor}20`, color: stageColor }}
+          >
+            {stageConfig?.label || company.stage}
+          </span>
+
+          {/* Industry pill */}
+          {company.industry && (
+            <>
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 flex-shrink-0">
+                {company.industry}
+              </span>
+              <span className="text-zinc-300 dark:text-zinc-600 text-xs flex-shrink-0">›</span>
+            </>
+          )}
+
+          {/* Company name as the trailing breadcrumb pill */}
+          <span
+            className="px-2 py-0.5 rounded text-xs font-medium truncate max-w-[320px]"
+            style={{ backgroundColor: `${stageColor}20`, color: stageColor }}
+            title={companyName}
+          >
+            {companyName}
+          </span>
+
+          {/* Hiring signal */}
+          {company.hiring_signals && (company.hiring_signals as any).active_jobs?.length > 0 && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 flex-shrink-0 truncate max-w-[200px]">
+              Hiring: {(company.hiring_signals as any).active_jobs.map((j: any) => j.title).join(", ")}
+            </span>
           )}
         </div>
 
-        {/* Quick stats */}
+        <div className="flex items-center gap-3 text-xs text-zinc-400 flex-shrink-0">
+          {company.updated_at && (
+            <span
+              className="flex items-center gap-1"
+              title={`Created: ${formatDateTime(company.created_at)}\nUpdated: ${formatDateTime(company.updated_at)}`}
+            >
+              <Clock size={11} />
+              {formatDateTime(company.updated_at)}
+            </span>
+          )}
+          <IconButton icon={Pencil} size={14} label="Edit company" onClick={() => setShowEditForm(true)} />
+          <IconButton icon={Trash2} size={14} label="Delete company" variant="danger" onClick={() => setShowDeleteConfirm(true)} />
+          {onClose && <IconButton icon={X} size={18} label="Close" onClick={onClose} />}
+        </div>
+      </div>
+
+      {/* Tab bar — pill style, matches WorkspaceDetailView */}
+      <div className="flex-shrink-0 flex items-center gap-1 px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 overflow-x-auto">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.key;
+          const TabIcon = tab.icon;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              data-help-id={`crm-detail-${tab.key}`}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
+                isActive
+                  ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50",
+              )}
+            >
+              {TabIcon && <TabIcon size={13} />}
+              {tab.label}
+              {(tab.badge ?? 0) > 0 && (
+                <span className="text-[10px] font-medium bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Stat row + quick links */}
+      <div className="flex-shrink-0 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 space-y-3">
         <div className="flex gap-3">
           <div className="flex-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 px-3 py-2 text-center">
             <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{company.contacts?.length || 0}</div>
@@ -151,9 +252,8 @@ export function CompanyDetailPanel({
           </div>
         </div>
 
-        {/* Quick links */}
         {(company.client_folder_path || company.deal_folder_path || company.research_folder_path || company.domain_id || company.website) && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {company.client_folder_path && (
               <Button variant="link" size="sm" icon={FolderOpen} onClick={() => handleOpenFolder("client_folder_path")} className="text-xs py-1">
                 Client
@@ -187,49 +287,6 @@ export function CompanyDetailPanel({
             )}
           </div>
         )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
-        {(["timeline", "contacts", "deals", "emails", "discussion"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            data-help-id={`crm-detail-${tab}`}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
-              activeTab === tab
-                ? "border-teal-500 text-teal-600 dark:text-teal-400"
-                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            }`}
-          >
-            {tab === "discussion" ? (
-              <>
-                <MessageSquare size={13} />
-                {(discussionCount ?? 0) > 0 && (
-                  <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
-                    {discussionCount}
-                  </span>
-                )}
-              </>
-            ) : tab === "emails" ? (
-              <>
-                <Mail size={13} />
-                Emails
-                {(emailCount ?? 0) > 0 && (
-                  <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
-                    {emailCount}
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                {tab === "contacts" && ` (${company.contacts?.length || 0})`}
-                {tab === "deals" && ` (${company.deals?.length || 0})`}
-              </>
-            )}
-          </button>
-        ))}
       </div>
 
       {/* Tab content */}
@@ -338,16 +395,4 @@ export function CompanyDetailPanel({
       )}
     </div>
   );
-}
-
-const stageColors: Record<string, "zinc" | "blue" | "green" | "red" | "purple"> = {
-  prospect: "zinc",
-  opportunity: "blue",
-  client: "green",
-  churned: "red",
-  partner: "purple",
-};
-
-function StageChip({ stage, label }: { stage: string; label: string }) {
-  return <Badge color={stageColors[stage] || "zinc"}>{label}</Badge>;
 }

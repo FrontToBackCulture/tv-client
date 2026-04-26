@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-const VALID_MODULES = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "analytics", "product", "gallery", "skills", "portal", "scheduler", "repos", "email", "blog", "guides", "s3browser", "prospecting", "public-data", "referrals", "investment", "finance", "shared-inbox", "settings"] as const;
+const VALID_MODULES = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "analytics", "product", "gallery", "skills", "mcp-tools", "portal", "scheduler", "repos", "email", "blog", "guides", "s3browser", "prospecting", "public-data", "referrals", "investment", "finance", "shared-inbox", "settings"] as const;
 
 export type ModuleId = (typeof VALID_MODULES)[number];
 export type Theme = "light" | "dark";
@@ -40,27 +40,12 @@ export function isSecondaryWindow(): boolean {
   return new URLSearchParams(window.location.search).has("module");
 }
 
-// Get initial theme from localStorage or system preference
+// Read the *resolved* light/dark from <html> — themeStore owns the source
+// of truth; this just mirrors the current state for legacy consumers like
+// AG Grid theme styles that read `useAppStore((s) => s.theme)`.
 function getInitialTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-  const stored = localStorage.getItem("tv-client-theme") as Theme | null;
-  if (stored) return stored;
-  // Check system preference
-  if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    return "dark";
-  }
-  return "light";
-}
-
-// Apply theme to document
-function applyTheme(theme: Theme) {
-  if (typeof document === "undefined") return;
-  if (theme === "dark") {
-    document.documentElement.classList.add("dark");
-  } else {
-    document.documentElement.classList.remove("dark");
-  }
-  localStorage.setItem("tv-client-theme", theme);
+  if (typeof document === "undefined") return "dark";
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
 interface AppState {
@@ -89,21 +74,27 @@ interface AppState {
   setSettingsView: (view: SettingsView) => void;
 }
 
-// Initialize theme on load
+// themeStore owns theme application; this mirror just reflects current state.
 const initialTheme = getInitialTheme();
-applyTheme(initialTheme);
 
 export const useAppStore = create<AppState>((set) => ({
-  // Theme
+  // Theme — read-only mirror of the resolved light/dark state for legacy
+  // consumers (AG Grid styles etc.). To change theme, use
+  // useThemeStore.setTheme() in themeStore.ts.
   theme: initialTheme,
   setTheme: (theme) => {
-    applyTheme(theme);
+    // Legacy callers asking for "light"/"dark" map to default themes.
+    import("./themeStore").then(({ useThemeStore }) => {
+      useThemeStore.getState().setTheme(theme === "dark" ? "aurora" : "aurora-day");
+    });
     set({ theme });
   },
   toggleTheme: () =>
     set((state) => {
       const newTheme = state.theme === "dark" ? "light" : "dark";
-      applyTheme(newTheme);
+      import("./themeStore").then(({ useThemeStore }) => {
+        useThemeStore.getState().setTheme(newTheme === "dark" ? "aurora" : "aurora-day");
+      });
       return { theme: newTheme };
     }),
 
@@ -128,13 +119,15 @@ export const useAppStore = create<AppState>((set) => ({
   setSettingsView: (view) => set({ settingsView: view }),
 }));
 
-// Sync theme across windows via localStorage storage event
+// Mirror the resolved light/dark state for AG Grid + other legacy readers
+// whenever themeStore re-applies theme (it toggles the .dark class).
 if (typeof window !== "undefined") {
-  window.addEventListener("storage", (e) => {
-    if (e.key === "tv-client-theme" && e.newValue) {
-      const newTheme = e.newValue as Theme;
-      applyTheme(newTheme);
-      useAppStore.setState({ theme: newTheme });
+  const observer = new MutationObserver(() => {
+    const isDark = document.documentElement.classList.contains("dark");
+    const next: Theme = isDark ? "dark" : "light";
+    if (useAppStore.getState().theme !== next) {
+      useAppStore.setState({ theme: next });
     }
   });
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 }

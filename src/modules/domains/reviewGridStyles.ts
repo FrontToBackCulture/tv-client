@@ -79,6 +79,32 @@ export const groupRowStyles = `
 
 /** AG Grid theme variable overrides (light + dark) */
 export const themeStyles = `
+  /* Group row alignment — universal fix so the auto-group column renders
+     expander + label + count on one line regardless of per-grid cell styles. */
+  .ag-theme-alpine .ag-row-group .ag-cell-wrapper,
+  .ag-theme-alpine-dark .ag-row-group .ag-cell-wrapper,
+  .ag-theme-alpine [col-id="ag-Grid-AutoColumn"] .ag-cell-wrapper,
+  .ag-theme-alpine-dark [col-id="ag-Grid-AutoColumn"] .ag-cell-wrapper {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+  }
+  .ag-theme-alpine .ag-group-value,
+  .ag-theme-alpine-dark .ag-group-value,
+  .ag-theme-alpine .ag-group-child-count,
+  .ag-theme-alpine-dark .ag-group-child-count {
+    display: inline-block !important;
+    white-space: nowrap !important;
+    line-height: 1.4 !important;
+    vertical-align: middle !important;
+  }
+  .ag-theme-alpine .ag-group-child-count,
+  .ag-theme-alpine-dark .ag-group-child-count {
+    margin-left: 4px !important;
+  }
+
   /* Light mode */
   .ag-theme-alpine {
     --ag-background-color: #ffffff;

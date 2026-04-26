@@ -14,6 +14,7 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { useAppStore } from "../../stores/appStore";
 import { themeStyles } from "../domains/reviewGridStyles";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 import {
   Search,
   Loader2,
@@ -37,6 +38,8 @@ import {
   RotateCcw,
   ChevronsLeftRight,
   Star,
+  PanelLeftOpen,
+  PanelLeftClose,
 } from "lucide-react";
 import { useAuth } from "../../stores/authStore";
 import {
@@ -88,6 +91,7 @@ export function JobReviewsView() {
   // Grid imperative handle + view state (lifted so the filter bar can drive layouts/fullscreen)
   const gridHandleRef = useRef<JobsGridHandle>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && isFullscreen) setIsFullscreen(false); };
     document.addEventListener("keydown", onKey);
@@ -141,7 +145,7 @@ export function JobReviewsView() {
   return (
    <div className="h-full flex overflow-hidden px-4 py-4">
     <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
-      <JobsSidebar filters={filters} onChange={setFilters} />
+      {sidebarOpen && <JobsSidebar filters={filters} onChange={setFilters} />}
 
       {/* Left: filter bar + list */}
       <div className="flex-1 flex flex-col min-w-0 border-r border-zinc-200 dark:border-zinc-800">
@@ -158,6 +162,8 @@ export function JobReviewsView() {
           gridHandleRef={gridHandleRef}
           isFullscreen={isFullscreen}
           onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
         <div className="px-4 py-1.5 text-[11px] text-zinc-400 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
           {loading ? (
@@ -238,6 +244,8 @@ function JobsFilterBar({
   gridHandleRef,
   isFullscreen,
   onToggleFullscreen,
+  sidebarOpen,
+  onToggleSidebar,
 }: {
   filters: JobFilters;
   onChange: (f: JobFilters) => void;
@@ -251,6 +259,8 @@ function JobsFilterBar({
   gridHandleRef: React.RefObject<JobsGridHandle | null>;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
 }) {
   const { data: savedFilters = [] } = useSavedFilters();
   const deleteFilter = useDeleteSavedFilter();
@@ -323,6 +333,17 @@ function JobsFilterBar({
     <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 space-y-1.5">
       {/* Row 1: Search + smart toggle + saved filters + save */}
       <div className="flex items-center gap-2">
+        <button
+          onClick={onToggleSidebar}
+          className={`flex items-center justify-center p-1.5 rounded-md border transition-colors flex-shrink-0 ${
+            sidebarOpen
+              ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+              : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          }`}
+          title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+        >
+          {sidebarOpen ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
+        </button>
         {/* Smart search toggle */}
         <button
           onClick={() => onSmartSearchToggle(!smartSearch)}
@@ -551,8 +572,7 @@ function JobsSidebar({
     <aside className="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
       {/* View section */}
       <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
-        <div className="space-y-0.5">
+        <CollapsibleSection title="View" storageKey="job-reviews:view">
           {VIEW_DEFS.map((v) => {
             const Icon = v.icon;
             const active = view === v.id;
@@ -571,7 +591,7 @@ function JobsSidebar({
               </button>
             );
           })}
-        </div>
+        </CollapsibleSection>
       </div>
 
       {/* Industry + Role sections */}

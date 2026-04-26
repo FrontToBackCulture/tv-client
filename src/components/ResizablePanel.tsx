@@ -12,7 +12,7 @@ export function ResizablePanel({
   children,
   minWidth = 380,
   maxWidth = Math.round(window.innerWidth * 0.75),
-  defaultWidth = Math.round(window.innerWidth * 0.5),
+  defaultWidth = Math.round(window.innerWidth / 3),
   storageKey = "tv-work-detail-panel-width",
 }: ResizablePanelProps) {
   const [width, setWidth] = useState(() => {
@@ -57,17 +57,17 @@ export function ResizablePanel({
 
   return (
     <div className="flex-shrink-0 relative" style={{ width }}>
-      {/* Drag handle — wide hit area with visible border */}
+      {/* Drag handle — invisible 2px hit area, hairline indicator on hover/drag */}
       <div
         onMouseDown={(e) => {
           e.preventDefault();
           dragRef.current = { startX: e.clientX, startWidth: width };
           setDragging(true);
         }}
-        className="absolute -left-2 top-0 bottom-0 w-5 cursor-col-resize z-20 flex items-center justify-center"
+        title="Drag to resize"
+        className="absolute -left-1 top-0 bottom-0 w-2 cursor-col-resize z-20 group flex items-stretch justify-center"
       >
-        {/* Visible drag indicator — always shows a subtle line, highlights on hover/drag */}
-        <div className={`h-full w-[3px] rounded-full transition-colors ${dragging ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-600 hover:bg-teal-500"}`} />
+        <div className={`w-px transition-colors ${dragging ? "bg-teal-500" : "bg-transparent group-hover:bg-teal-500"}`} />
       </div>
       <div className="h-full overflow-auto">
         {children}

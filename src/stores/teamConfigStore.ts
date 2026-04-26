@@ -48,17 +48,24 @@ const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "projects", "dom
 // Admin identifiers — GitHub usernames or Microsoft emails
 const ADMIN_LOGINS = new Set(["melvinFTBC", "melvinwang", "melvin@thinkval.com"]);
 
-// Legacy module IDs that were consolidated into "projects"
-const LEGACY_PROJECT_MODULES = new Set(["work", "workspace", "crm"]);
+// "workspace" is the only remaining legacy alias — both work and crm now have
+// their own top-level modules again. Anyone whose visible_modules grants
+// "projects" also gets "work" (Tasks) and "crm" so the un-bundling is
+// transparent to existing team members.
+const LEGACY_PROJECT_MODULES = new Set(["workspace"]);
 
 function migrateVisibleModules(modules: string[] | null): ModuleId[] | null {
   if (!modules) return null;
-  const hasLegacy = modules.some((m) => LEGACY_PROJECT_MODULES.has(m));
-  if (!hasLegacy) return modules as ModuleId[];
-  // Replace legacy modules with "projects"
-  const migrated = modules.filter((m) => !LEGACY_PROJECT_MODULES.has(m));
-  if (!migrated.includes("projects")) migrated.push("projects");
-  return migrated as ModuleId[];
+  const filtered = modules.filter((m) => !LEGACY_PROJECT_MODULES.has(m));
+  const set = new Set(filtered);
+  if (set.has("projects")) {
+    set.add("work");
+    set.add("crm");
+  }
+  // Only signal "changed" if we actually mutated the list — keeps the
+  // back-fill update path quiet when there was nothing to do.
+  const out = Array.from(set) as ModuleId[];
+  return out;
 }
 
 function mapRowToMember(row: {

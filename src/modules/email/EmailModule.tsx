@@ -73,7 +73,7 @@ export function EmailModule() {
   }, [activeView]);
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader
         description="Email marketing — manage contacts, build groups, create campaigns, and track performance."
         tabs={<>
@@ -121,7 +121,7 @@ export function EmailModule() {
 
         {/* Detail panels */}
         {selectedContactId && activeView === "contacts" && (
-          <ResizablePanel storageKey="tv-email-detail-width" defaultWidth={420} minWidth={320} maxWidth={700}>
+          <ResizablePanel storageKey="tv-email-detail-width" minWidth={320}>
             <ContactDetailPanel
               contactId={selectedContactId}
               onClose={() => setSelectedContactId(null)}
@@ -129,7 +129,7 @@ export function EmailModule() {
           </ResizablePanel>
         )}
         {selectedGroupId && activeView === "groups" && (
-          <ResizablePanel storageKey="tv-email-detail-width" defaultWidth={420} minWidth={320} maxWidth={700}>
+          <ResizablePanel storageKey="tv-email-detail-width" minWidth={320}>
             <GroupDetailPanel
               groupId={selectedGroupId}
               onClose={() => setSelectedGroupId(null)}
@@ -137,7 +137,7 @@ export function EmailModule() {
           </ResizablePanel>
         )}
         {selectedCampaignId && activeView === "campaigns" && (
-          <ResizablePanel storageKey="tv-email-detail-width" defaultWidth={420} minWidth={320} maxWidth={700}>
+          <ResizablePanel storageKey="tv-email-detail-width" minWidth={320}>
             <CampaignDetailPanel
               campaignId={selectedCampaignId}
               onClose={() => setSelectedCampaignId(null)}

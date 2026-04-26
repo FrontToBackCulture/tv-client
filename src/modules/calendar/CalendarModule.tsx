@@ -135,7 +135,7 @@ export function CalendarModule() {
     : currentDate.toLocaleDateString("en-SG", { month: "long", year: "numeric" });
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader description="Outlook calendar events synced to your workspace." />
       {/* Header */}
       <SectionToolbar

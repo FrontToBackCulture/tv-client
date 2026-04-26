@@ -34,9 +34,21 @@ import {
   AlertCircle,
   ChevronDown,
   MessageSquare,
+  Info,
+  Sparkles,
+  Database,
+  Search,
+  Workflow,
+  BarChart3,
+  Trash2,
+  GitBranch,
+  Package,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { Button, IconButton } from "../../components/ui";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 import { EmptyState } from "../../components/EmptyState";
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
@@ -67,6 +79,18 @@ import * as XLSX from "xlsx";
 
 export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onReviewQueries, onReviewWorkflows, onReviewDashboards, discoveredDomain }: DomainDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("domain-detail-sidebar-open") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("domain-detail-sidebar-open", String(sidebarOpen));
+    } catch {/* ignore */}
+  }, [sidebarOpen]);
 
   // Report domain + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
@@ -271,36 +295,40 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
     dashboards: { folder: "dashboards", resourceType: "dashboard", onFullScreen: onReviewDashboards },
   };
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "ai", label: "AI" },
-    { id: "data-models", label: "Data Models" },
-    { id: "queries", label: "Queries" },
-    { id: "workflows", label: "Workflows" },
-    { id: "dashboards", label: "Dashboards" },
-    { id: "cleanup", label: "Cleanup" },
-    { id: "dependencies", label: "Dependencies" },
-    { id: "reports", label: "Reports" },
-    { id: "solutions", label: "Solutions" },
-    { id: "discussion", label: "Discussion" },
+  const tabs: { id: Tab; label: string; icon: typeof Info }[] = [
+    { id: "overview", label: "Overview", icon: Info },
+    { id: "ai", label: "AI", icon: Sparkles },
+    { id: "data-models", label: "Data Models", icon: Database },
+    { id: "queries", label: "Queries", icon: Search },
+    { id: "workflows", label: "Workflows", icon: Workflow },
+    { id: "dashboards", label: "Dashboards", icon: BarChart3 },
+    { id: "cleanup", label: "Cleanup", icon: Trash2 },
+    { id: "dependencies", label: "Dependencies", icon: GitBranch },
+    { id: "reports", label: "Reports", icon: FileText },
+    { id: "solutions", label: "Solutions", icon: Package },
+    { id: "discussion", label: "Discussion", icon: MessageSquare },
   ];
+
+  const itemBase = "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors";
+  const itemActive = "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400";
+  const itemIdle = "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50";
 
   const typeColors = discoveredDomain ? (typeConfig.colors[optimisticType] ?? typeConfig.colors.production ?? null) : null;
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       {/* Header — Profile style when discoveredDomain provided, simple otherwise */}
       {discoveredDomain && typeColors ? (
         <div className="flex-shrink-0">
-          <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-start gap-3.5">
+          <div className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
               {/* Initials avatar */}
-              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0", typeColors.avatar)}>
+              <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0", typeColors.avatar)}>
                 {domain.slice(0, 2).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200 truncate">
                     {domain}
                   </h2>
                   <select
@@ -331,23 +359,20 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
                       Not authenticated
                     </span>
                   )}
-                </div>
-                <p className="text-xs text-zinc-400 mt-0.5 truncate font-mono">
-                  {discoveredDomain.global_path}
-                </p>
-                {/* Stat pills */}
-                <div className="flex items-center gap-2 mt-2">
                   {discoveredDomain.artifact_count != null && discoveredDomain.artifact_count > 0 && (
-                    <span className="px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
-                      <Zap size={10} className="inline mr-1 -mt-0.5" />
-                      {discoveredDomain.artifact_count.toLocaleString()} Artifacts
+                    <span className="inline-flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      <Zap size={10} />
+                      {discoveredDomain.artifact_count.toLocaleString()}
                     </span>
                   )}
-                  <span className="px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
-                    <RefreshCw size={10} className="inline mr-1 -mt-0.5" />
+                  <span className="inline-flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    <RefreshCw size={10} />
                     {formatRelativeShort(discoveredDomain.last_sync)}
                   </span>
                 </div>
+                <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-mono">
+                  {discoveredDomain.global_path}
+                </p>
               </div>
               {/* Actions */}
               <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -427,81 +452,109 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="px-4 border-b border-zinc-200 dark:border-zinc-800 flex gap-4 flex-shrink-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "py-2 text-sm border-b-2 transition-colors flex items-center gap-1",
-              activeTab === tab.id
-                ? "border-teal-500 text-teal-600 dark:text-teal-400"
-                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            )}
-          >
-            {tab.id === "discussion" ? (
-              <>
-                <MessageSquare size={13} />
-                {(discussionCount ?? 0) > 0 && (
-                  <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded-full">
-                    {discussionCount}
-                  </span>
-                )}
-              </>
-            ) : (
-              tab.label
-            )}
-          </button>
-        ))}
-      </div>
+      {/* Body — sidebar + content container */}
+      <div className="flex-1 flex overflow-hidden px-4 py-4">
+       <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
+        {/* Sidebar */}
+        {sidebarOpen && (
+          <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
+            <div className="h-full flex flex-col overflow-y-auto px-3 py-3 space-y-3">
+              <CollapsibleSection
+                title="View"
+                storageKey={`domain-detail-view`}
+                rightSlot={
+                  <button
+                    onClick={() => setSidebarOpen(false)}
+                    className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                    title="Collapse sidebar"
+                  >
+                    <PanelLeftClose size={12} />
+                  </button>
+                }
+              >
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={cn(itemBase, isActive ? itemActive : itemIdle)}
+                    >
+                      <Icon size={13} className={isActive ? "text-teal-500" : "text-zinc-400"} />
+                      <span className="flex-1">{tab.label}</span>
+                      {tab.id === "discussion" && (discussionCount ?? 0) > 0 && (
+                        <span className="text-[10px] text-zinc-400">{discussionCount}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </CollapsibleSection>
+              <div className="flex-1" />
+            </div>
+          </aside>
+        )}
+
+        {/* Content pane */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {!sidebarOpen && (
+            <div className="flex-shrink-0 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-1.5 rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                title="Open sidebar"
+              >
+                <PanelLeftOpen size={13} />
+              </button>
+            </div>
+          )}
 
       {/* Discussion tab */}
       {activeTab === "discussion" && (
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <DiscussionPanel entityType="domain" entityId={domain} />
         </div>
       )}
 
       {/* AI tab — full-height tree+detail pane */}
       {activeTab === "ai" && discoveredDomain && (
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <DomainAiTab aiPath={`${discoveredDomain.global_path}/ai`} domainName={domain} globalPath={discoveredDomain.global_path} />
         </div>
       )}
 
       {/* Cleanup tab — dependency analysis and resource cleanup */}
       {activeTab === "cleanup" && discoveredDomain && (
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <DomainCleanupTab domainName={domain} globalPath={discoveredDomain.global_path} />
         </div>
       )}
 
       {/* Dependencies tab — dependency graph explorer */}
       {activeTab === "dependencies" && (
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <DomainDependenciesTab domainName={domain} />
         </div>
       )}
 
       {/* Reports tab — full-height tree+detail pane */}
       {activeTab === "reports" && discoveredDomain && (
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <DomainReportsTab reportsPath={`${discoveredDomain.global_path}/reports`} domainName={domain} />
         </div>
       )}
 
       {/* Solutions tab — onboarding matrix */}
       {activeTab === "solutions" && (
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <DomainSolutionsTab domainName={domain} />
         </div>
       )}
 
       {/* Review tab content — rendered outside the padded wrapper so the grid fills the space */}
       {REVIEW_TABS[activeTab] && discoveredDomain && (
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <UnifiedReviewView
               key={`${domain}-${activeTab}`}
               resourceType={REVIEW_TABS[activeTab].resourceType}
@@ -513,8 +566,8 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         </div>
       )}
 
-      {/* Tab content */}
-      <div className={cn("flex-1 overflow-auto p-4", (REVIEW_TABS[activeTab] || activeTab === "ai" || activeTab === "reports" || activeTab === "cleanup" || activeTab === "dependencies" || activeTab === "solutions") && "hidden")}>
+      {/* Tab content (overview) */}
+      <div className={cn("flex-1 min-h-0 overflow-auto p-4", (REVIEW_TABS[activeTab] || activeTab === "ai" || activeTab === "reports" || activeTab === "cleanup" || activeTab === "dependencies" || activeTab === "solutions" || activeTab === "discussion") && "hidden")}>
         {activeTab === "overview" && discoveredDomain && (
           /* Two-column overview when discoveredDomain is provided */
           <div className="flex gap-6">
@@ -1030,6 +1083,10 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         {activeTab === "reports" && !discoveredDomain && (
           <EmptyState message="Domain path not available" className="py-4" />
         )}
+      </div>
+
+        </div>
+       </div>
       </div>
     </div>
   );

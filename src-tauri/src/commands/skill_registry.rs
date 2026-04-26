@@ -199,13 +199,6 @@ pub struct BotInfo {
 }
 
 #[derive(Debug, Serialize)]
-pub struct SkillModInfo {
-    pub slug: String,
-    pub last_modified: String, // ISO 8601
-    pub file_count: u32,
-}
-
-#[derive(Debug, Serialize)]
 pub struct DiffHunk {
     pub source_start: u32,
     pub target_start: u32,
@@ -669,65 +662,6 @@ pub async fn skill_distribute(
                 }
             }
         }
-    }
-
-    Ok(results)
-}
-
-/// Check drift status for a skill
-#[command]
-pub async fn skill_check(
-    state: State<'_, AppState>,
-    slug: String,
-    skills_folder: String,
-) -> CmdResult<Vec<SkillDriftStatus>> {
-    let kb = &state.knowledge_path;
-    let skills_dir = resolve_skills_dir(kb, &skills_folder);
-    let source_dir = skills_dir.join(&slug);
-
-    if !source_dir.exists() {
-        return Err(CommandError::NotFound(format!("Skill '{}' not found in skills dir", slug)));
-    }
-
-    // Load skill from Supabase
-    let entry = load_skill_from_db(&slug).await?;
-
-    let source_hash = hash_skill_folder(&source_dir)?;
-    let mut results = Vec::new();
-
-    for dist in &entry.distributions {
-        let target_path = PathBuf::from(kb).join(&dist.path);
-
-        if !target_path.exists() {
-            results.push(SkillDriftStatus {
-                slug: slug.clone(),
-                distribution_path: dist.path.clone(),
-                status: "not_distributed".to_string(),
-                source_hash: source_hash.clone(),
-                target_hash: String::new(),
-                source_modified: get_folder_latest_modified(&source_dir),
-                target_modified: String::new(),
-            });
-            continue;
-        }
-
-        let target_hash = hash_skill_folder(&target_path)?;
-
-        let status = if source_hash == target_hash {
-            "in_sync".to_string()
-        } else {
-            "drifted".to_string()
-        };
-
-        results.push(SkillDriftStatus {
-            slug: slug.clone(),
-            distribution_path: dist.path.clone(),
-            status,
-            source_hash: source_hash.clone(),
-            target_hash,
-            source_modified: get_folder_latest_modified(&source_dir),
-            target_modified: get_folder_latest_modified(&target_path),
-        });
     }
 
     Ok(results)
@@ -1271,70 +1205,6 @@ pub async fn skill_distribute_to(
         source_modified: mod_time.clone(),
         target_modified: mod_time,
     })
-}
-
-/// Get modification info for all skills in the registry (for dashboard display).
-/// Returns slug, last modified time (most recent file in the skill folder), and file count.
-#[command]
-pub async fn skill_summary(
-    state: State<'_, AppState>,
-    skills_folder: String,
-) -> CmdResult<Vec<SkillModInfo>> {
-    let kb = &state.knowledge_path;
-    let skills_dir = resolve_skills_dir(kb, &skills_folder);
-
-    if !skills_dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    let mut results = Vec::new();
-    let entries = fs::read_dir(&skills_dir)
-        .map_err(|e| CommandError::Io(format!("Failed to read skills dir: {}", e)))?;
-
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if !entry.path().is_dir() || name.starts_with('_') || name.starts_with('.') {
-            continue;
-        }
-
-        let mut file_count: u32 = 0;
-        let mut latest_modified: Option<std::time::SystemTime> = None;
-
-        let mut files: Vec<PathBuf> = Vec::new();
-        if let Ok(()) = collect_files(&entry.path(), &mut files) {
-            file_count = files.len() as u32;
-            for file in &files {
-                if let Ok(meta) = fs::metadata(file) {
-                    if let Ok(modified) = meta.modified() {
-                        latest_modified = Some(match latest_modified {
-                            Some(prev) if modified > prev => modified,
-                            Some(prev) => prev,
-                            None => modified,
-                        });
-                    }
-                }
-            }
-        }
-
-        let last_modified = latest_modified
-            .map(|t| {
-                chrono::DateTime::<chrono::Utc>::from(t)
-                    .format("%Y-%m-%dT%H:%M:%SZ")
-                    .to_string()
-            })
-            .unwrap_or_default();
-
-        results.push(SkillModInfo {
-            slug: name,
-            last_modified,
-            file_count,
-        });
-    }
-
-    // Sort by most recently modified first
-    results.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
-
-    Ok(results)
 }
 
 // ─── Report Gallery ─────────────────────────────────────────────────────────

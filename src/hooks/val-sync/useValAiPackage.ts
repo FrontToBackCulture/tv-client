@@ -65,13 +65,11 @@ export function useGenerateAiPackage() {
     mutationFn: (params: {
       domain: string;
       skillsPath: string;
-      templatesPath: string;
       skills: string[];
     }) =>
       invoke<AiPackageResult>("val_generate_ai_package", {
         domain: params.domain,
         skillsPath: params.skillsPath,
-        templatesPath: params.templatesPath,
         skills: params.skills,
       }),
     onSuccess: () => {

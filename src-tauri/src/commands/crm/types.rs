@@ -295,6 +295,7 @@ pub struct CreateActivity {
     pub activity_date: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateActivity {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]

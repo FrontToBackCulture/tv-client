@@ -1,5 +1,6 @@
 // WhatsApp Summaries Module
 // Daily AI-generated summaries of WhatsApp chats, linked to client initiatives
+#![allow(dead_code)]
 
 use crate::commands::error::CmdResult;
 use crate::commands::supabase::get_client;

@@ -29,7 +29,7 @@ export function AnalyticsModule() {
   }, [activeTab, setViewContext]);
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader
         description="GA4 usage analytics — identify unused pages, dashboards, and content across platform and website."
         tabs={<>

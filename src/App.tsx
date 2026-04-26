@@ -13,9 +13,11 @@ import { ProjectsModule } from "./modules/projects";
 import { InboxModule } from "./modules/inbox/InboxModule";
 
 // Lazy-loaded modules (loaded on first navigate — keeps initial bundle small)
+const WorkModule = lazy(() => import("./modules/work").then(m => ({ default: m.WorkModule })));
+const CrmModule = lazy(() => import("./modules/crm").then(m => ({ default: m.CrmModule })));
 const LibraryModule = lazy(() => import("./modules/library/LibraryModule").then(m => ({ default: m.LibraryModule })));
 const MetadataModule = lazy(() => import("./modules/projects/MetadataView").then(m => ({
-  default: () => <div className="h-full flex flex-col bg-white dark:bg-zinc-950"><div className="flex-1 overflow-hidden"><m.MetadataView /></div></div>,
+  default: () => <div className="h-full bg-white dark:bg-zinc-950"><m.MetadataView /></div>,
 })));
 const CalendarModule = lazy(() => import("./modules/calendar").then(m => ({ default: m.CalendarModule })));
 const DomainsModule = lazy(() => import("./modules/domains").then(m => ({ default: m.DomainsModule })));
@@ -25,6 +27,7 @@ const PortalModule = lazy(() => import("./modules/portal").then(m => ({ default:
 const SchedulerModule = lazy(() => import("./modules/scheduler").then(m => ({ default: m.SchedulerModule })));
 const ReposModule = lazy(() => import("./modules/repos").then(m => ({ default: m.ReposModule })));
 const SkillsModule = lazy(() => import("./modules/skills/SkillsModule").then(m => ({ default: m.SkillsModule })));
+const McpToolsModule = lazy(() => import("./modules/mcp-tools/McpToolsModule").then(m => ({ default: m.McpToolsModule })));
 const EmailModule = lazy(() => import("./modules/email/EmailModule").then(m => ({ default: m.EmailModule })));
 const GalleryModule = lazy(() => import("./modules/gallery").then(m => ({ default: m.GalleryModule })));
 const BlogModule = lazy(() => import("./modules/blog").then(m => ({ default: m.BlogModule })));
@@ -46,7 +49,7 @@ import { useAppStore, ModuleId } from "./stores/appStore";
 import {
   useModuleTabStore,
   useActiveTab,
-  useActiveTabs,
+  useMountedTabs,
 } from "./stores/moduleTabStore";
 import { useModeStore } from "./stores/modeStore";
 import type { Mode } from "./config/modes";
@@ -68,16 +71,17 @@ const modules: Record<ModuleId, React.ComponentType> = {
   library: LibraryModule,
   projects: ProjectsModule,
   metadata: MetadataModule,
-  work: ProjectsModule,
+  work: WorkModule,
   inbox: InboxModule,
   calendar: CalendarModule,
   chat: ChatModule,
-  crm: ProjectsModule,
+  crm: CrmModule,
   domains: DomainsModule,
   analytics: AnalyticsModule,
   product: ProductModule,
   gallery: GalleryModule,
   skills: SkillsModule,
+  "mcp-tools": McpToolsModule,
   portal: PortalModule,
   scheduler: SchedulerModule,
   repos: ReposModule,
@@ -93,6 +97,54 @@ const modules: Record<ModuleId, React.ComponentType> = {
   "shared-inbox": SharedInboxModule,
   settings: SettingsModule,
 };
+
+// Prefetch every lazy module chunk on idle so first navigation is instant.
+// Without this, the first click on each tab triggers Vite to compile the chunk
+// + all its transitive imports on-demand (slow). On reload everything is cached
+// from disk, which is why reloads feel fast and first-clicks feel slow.
+function prefetchLazyChunks() {
+  const importers: Array<() => Promise<unknown>> = [
+    () => import("./modules/work"),
+    () => import("./modules/crm"),
+    () => import("./modules/library/LibraryModule"),
+    () => import("./modules/projects/MetadataView"),
+    () => import("./modules/calendar"),
+    () => import("./modules/domains"),
+    () => import("./modules/analytics"),
+    () => import("./modules/product/ProductModule"),
+    () => import("./modules/portal"),
+    () => import("./modules/scheduler"),
+    () => import("./modules/repos"),
+    () => import("./modules/skills/SkillsModule"),
+    () => import("./modules/mcp-tools/McpToolsModule"),
+    () => import("./modules/email/EmailModule"),
+    () => import("./modules/gallery"),
+    () => import("./modules/blog"),
+    () => import("./modules/guides"),
+    () => import("./modules/s3-browser"),
+    () => import("./modules/prospecting"),
+    () => import("./modules/public-data/PublicDataModule"),
+    () => import("./modules/chat"),
+    () => import("./modules/referrals/ReferralsModule"),
+    () => import("./modules/investment"),
+    () => import("./modules/finance/FinanceModule"),
+    () => import("./modules/shared-inbox/SharedInboxModule"),
+    () => import("./modules/settings/SettingsModule"),
+  ];
+  const idle = (cb: () => void) => {
+    const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, opts?: { timeout?: number }) => number);
+    if (ric) ric(cb, { timeout: 4000 });
+    else setTimeout(cb, 1500);
+  };
+  // Stagger imports so we don't flood the dev server with parallel compile requests.
+  let i = 0;
+  const next = () => {
+    if (i >= importers.length) return;
+    importers[i++]().catch(() => {/* ignore prefetch failures */});
+    idle(next);
+  };
+  idle(next);
+}
 
 // Force hard reload when app version changes (clears stale webview cache)
 const CACHE_BUST_KEY = "tv-client-cache-bust-version";
@@ -111,7 +163,10 @@ const CACHE_BUST_KEY = "tv-client-cache-bust-version";
 export default function App() {
   // Tabs are per-mode — these hooks resolve to the currently-active mode's
   // slice, so a mode switch re-renders the shell with the right tab set.
-  const openTabs = useActiveTabs();
+  // `mountedTabs` includes soft-closed tabs (kept mounted, hidden from the
+  // tab strip) so close→reopen is instant; the strip itself reads
+  // `useActiveTabs` directly inside ModuleTabBar.
+  const mountedTabs = useMountedTabs();
   const activeTab = useActiveTab();
   const openTab = useModuleTabStore((s) => s.openTab);
   const activeMode = useModeStore((s) => s.activeMode);
@@ -129,6 +184,10 @@ export default function App() {
   // Keep appStore.activeModule in sync with the current mode's active tab.
   // Tabs are now per-mode, so we derive the active tab from both stores and
   // re-sync on either change.
+  // Kick off prefetching of every lazy module chunk on idle so first-time
+  // navigation to a tab doesn't have to wait for Vite to compile on demand.
+  useEffect(() => { prefetchLazyChunks(); }, []);
+
   useEffect(() => {
     const sync = () => {
       const mode = useModeStore.getState().activeMode;
@@ -259,7 +318,7 @@ export default function App() {
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeTab, { ignoreMode: true })) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "skills", "portal", "scheduler", "repos", "email", "blog", "s3browser", "referrals"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "skills", "mcp-tools", "portal", "scheduler", "repos", "email", "blog", "s3browser", "referrals"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id, { ignoreMode: true }));
       if (firstVisible) {
         openTab(firstVisible);
@@ -558,7 +617,7 @@ export default function App() {
 
   return (
     <Shell activeModule={activeTab} onModuleChange={openTab}>
-      {openTabs.map((tabId) => {
+      {mountedTabs.map((tabId) => {
         const Module = modules[tabId];
         return (
           <div
@@ -568,7 +627,7 @@ export default function App() {
           >
             <Suspense
               fallback={
-                <div className="flex-1 flex items-center justify-center">
+                <div className="h-full w-full overflow-hidden">
                   <ListSkeleton rows={8} />
                 </div>
               }

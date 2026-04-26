@@ -158,7 +158,7 @@ export function OutreachDetailPanel({ draftId, onClose }: OutreachDetailPanelPro
     });
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2 min-w-0">

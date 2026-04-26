@@ -133,7 +133,7 @@ export function ProductModule() {
   const handleSelect = useCallback((id: string | null) => setSelectedId(id), []);
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader
         description="Product catalogue — modules, solutions, connectors, data models, features, and releases."
         tabs={<>

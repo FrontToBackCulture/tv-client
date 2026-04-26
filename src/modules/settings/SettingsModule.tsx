@@ -161,7 +161,7 @@ export function SettingsModule() {
   }, [activeView, setViewContext]);
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader description="API keys, credentials, sync paths, and platform configuration." />
 
       {/* Body: sidebar + content */}

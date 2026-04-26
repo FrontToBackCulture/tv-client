@@ -107,9 +107,6 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   }, [driftStatuses, domainSkillsRelPath]);
 
   const centralSkillsPath = paths ? paths.skills : null;
-  const templatesPath = paths
-    ? `${paths.base}/_team/melvin/bot-mel/skills/ai-project-generator/templates`
-    : null;
 
   const skillsPath = `${aiPath}/skills`;
   const instructionsPath = `${aiPath}/instructions.md`;
@@ -160,12 +157,12 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   );
 
   const handleGenerate = useCallback(() => {
-    if (!centralSkillsPath || !templatesPath) return;
+    if (!centralSkillsPath) return;
     generateMutation.mutate(
-      { domain: domainName, skillsPath: centralSkillsPath, templatesPath, skills: selectedSkills },
+      { domain: domainName, skillsPath: centralSkillsPath, skills: selectedSkills },
       { onSuccess: () => { configFile.refetch(); skillsDir.refetch(); instructionsFile.refetch(); customFile.refetch(); aiDir.refetch(); } }
     );
-  }, [domainName, centralSkillsPath, templatesPath, selectedSkills, generateMutation, configFile, skillsDir, instructionsFile, customFile, aiDir]);
+  }, [domainName, centralSkillsPath, selectedSkills, generateMutation, configFile, skillsDir, instructionsFile, customFile, aiDir]);
 
   const locallyGeneratedSlugs = useMemo(() => {
     const set = new Set<string>();

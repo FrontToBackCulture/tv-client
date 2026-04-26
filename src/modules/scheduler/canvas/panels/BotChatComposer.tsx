@@ -1,10 +1,12 @@
 // Multi-line composer for bot-dedicated chats (always @bot-mel).
-// Supports image paste, drag-drop, and file picker. Images upload to Supabase
-// storage and are included as markdown image links in the message body.
+// Supports image paste, drag-drop, file picker, AND @user autocomplete so you
+// can pull teammates into any thread. Images upload to Supabase storage and
+// are included as markdown image links in the message body.
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { Send, Paperclip, X, Loader2, Image as ImageIcon, Bot, User } from "lucide-react";
 import { supabase } from "../../../../lib/supabase";
+import { useUsers } from "../../../../hooks/work";
 
 interface Props {
   onSubmit: (body: string, attachmentUrls?: string[]) => void;
@@ -39,6 +41,25 @@ export function BotChatComposer({ onSubmit, placeholder, disabled }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // @mention autocomplete
+  const { data: allUsers = [] } = useUsers();
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionMatches = useMemo(() => {
+    if (mentionQuery == null) return [];
+    const q = mentionQuery.toLowerCase();
+    return allUsers
+      .filter((u) => u.name.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const aBot = a.type === "bot" ? 0 : 1;
+        const bBot = b.type === "bot" ? 0 : 1;
+        if (aBot !== bBot) return aBot - bBot;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, 8)
+      .map((u) => ({ name: u.name, type: u.type as string }));
+  }, [allUsers, mentionQuery]);
+
   // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current;
@@ -46,6 +67,35 @@ export function BotChatComposer({ onSubmit, placeholder, disabled }: Props) {
     ta.style.height = "auto";
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
   }, [body]);
+
+  function detectMention(value: string, cursorPos: number) {
+    const before = value.slice(0, cursorPos);
+    const m = before.match(/@([\w-]*)$/);
+    if (m) {
+      setMentionQuery(m[1]);
+      setMentionIndex(0);
+    } else {
+      setMentionQuery(null);
+    }
+  }
+
+  function insertMention(name: string) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const cursorPos = ta.selectionStart;
+    const before = body.slice(0, cursorPos);
+    const after = body.slice(cursorPos);
+    const triggerIdx = before.lastIndexOf("@");
+    if (triggerIdx === -1) return;
+    const newText = before.slice(0, triggerIdx) + `@${name} ` + after;
+    setBody(newText);
+    setMentionQuery(null);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const newPos = triggerIdx + name.length + 2; // @ + name + space
+      ta.setSelectionRange(newPos, newPos);
+    });
+  }
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
     const list = Array.from(files);
@@ -199,22 +249,76 @@ export function BotChatComposer({ onSubmit, placeholder, disabled }: Props) {
           }}
           className="hidden"
         />
-        <textarea
-          ref={textareaRef}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          onPaste={handlePaste}
-          placeholder={placeholder ?? "Message bot-mel..."}
-          disabled={disabled}
-          rows={1}
-          className="flex-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 disabled:opacity-50 resize-none leading-relaxed focus:outline-none focus:border-teal-500 dark:focus:border-teal-500"
-        />
+        <div className="flex-1 relative">
+          {/* @mention dropdown */}
+          {mentionQuery !== null && mentionMatches.length > 0 && (
+            <div className="absolute bottom-full left-0 right-0 mb-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20 max-h-56 overflow-y-auto">
+              {mentionMatches.map((m, i) => {
+                const Icon = m.type === "bot" ? Bot : User;
+                return (
+                  <button
+                    key={`${m.type}:${m.name}`}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      insertMention(m.name);
+                    }}
+                    onMouseEnter={() => setMentionIndex(i)}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
+                      i === mentionIndex
+                        ? "bg-zinc-100 dark:bg-zinc-800"
+                        : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                    }`}
+                  >
+                    <Icon size={12} className={m.type === "bot" ? "text-purple-500" : "text-zinc-400"} />
+                    <span className="text-zinc-700 dark:text-zinc-200">{m.name}</span>
+                    <span className="ml-auto text-[10px] text-zinc-400">{m.type}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <textarea
+            ref={textareaRef}
+            value={body}
+            onChange={(e) => {
+              setBody(e.target.value);
+              detectMention(e.target.value, e.target.selectionStart);
+            }}
+            onKeyDown={(e) => {
+              if (mentionQuery !== null && mentionMatches.length > 0) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setMentionIndex((i) => Math.min(i + 1, mentionMatches.length - 1));
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setMentionIndex((i) => Math.max(i - 1, 0));
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  insertMention(mentionMatches[mentionIndex].name);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  setMentionQuery(null);
+                  return;
+                }
+              }
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            onPaste={handlePaste}
+            placeholder={placeholder ?? "Message bot-mel..."}
+            disabled={disabled}
+            rows={1}
+            className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-2.5 py-1.5 placeholder:text-zinc-400 disabled:opacity-50 resize-none leading-relaxed focus:outline-none focus:border-teal-500 dark:focus:border-teal-500"
+          />
+        </div>
         <button
           onClick={handleSend}
           disabled={!canSend}

@@ -8,7 +8,7 @@ use crate::commands::supabase::get_client;
 /// List all projects with optional type filter
 #[tauri::command]
 pub async fn work_list_projects(
-    include_statuses: Option<bool>,
+    _include_statuses: Option<bool>,
     project_type: Option<String>,
 ) -> CmdResult<Vec<Project>> {
     let client = get_client().await?;
@@ -246,6 +246,7 @@ pub async fn work_delete_project(project_id: String) -> CmdResult<()> {
 }
 
 /// Get pipeline statistics from projects table
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn work_get_pipeline() -> CmdResult<PipelineStats> {
     let client = get_client().await?;
@@ -286,7 +287,7 @@ pub async fn work_get_pipeline() -> CmdResult<PipelineStats> {
 
 /// List task statuses for a project
 #[tauri::command]
-pub async fn work_list_project_statuses(project_id: String) -> CmdResult<Vec<TaskStatus>> {
+pub async fn work_list_project_statuses(_project_id: String) -> CmdResult<Vec<TaskStatus>> {
     let client = get_client().await?;
 
     // Statuses are global — return all, ignore project_id

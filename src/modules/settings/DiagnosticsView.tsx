@@ -116,7 +116,7 @@ const KEY_FEATURE_MAP: Record<string, { features: string; howToGet: string; requ
 
 const EXPECTED_TOOL_GROUPS: Record<string, string[]> = {
   "Work Module": ["list-projects", "create-project", "list-tasks", "create-task"],
-  "CRM": ["list-crm-companies", "list-crm-contacts", "log-crm-activity", "list-crm-activities"],
+  "CRM": ["list-companies", "list-contacts", "add-activity", "list-activities"],
   "VAL Sync": ["execute-val-sql", "sync-val-status", "sync-val-all"],
   "Content Generation": ["gamma-generate", "nanobanana-generate", "generate-proposal", "generate-order-form"],
   "Publishing": ["publish-to-intercom", "list-intercom-collections"],
@@ -426,7 +426,7 @@ export function DiagnosticsView({ onNavigate }: DiagnosticsViewProps) {
     const liveTests: Array<[string, string, string, string[]]> = [
       ["live-val", "sync-val-list-domains", "VAL Connection", ["supabase_url", "supabase_anon_key"]],
       ["live-work", "list-projects", "Work Module", ["supabase_url", "supabase_anon_key"]],
-      ["live-crm", "list-crm-companies", "CRM Module", ["supabase_url", "supabase_anon_key"]],
+      ["live-crm", "list-companies", "CRM Module", ["supabase_url", "supabase_anon_key"]],
     ];
 
     for (const [testId, toolName, label, depKeys] of liveTests) {

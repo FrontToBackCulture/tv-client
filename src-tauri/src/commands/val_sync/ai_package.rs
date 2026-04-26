@@ -268,19 +268,26 @@ fn collect_tables_recursive(
     }
 }
 
-/// Regenerate instructions.md from template or fallback.
+/// Bundled instructions.md template, embedded at compile time.
+/// The template ships with the app — no Dropbox/path dependency.
+const INSTRUCTIONS_TEMPLATE: &str =
+    include_str!("../../../resources/domain-ai-instructions.md");
+
+/// Regenerate instructions.md from the bundled template.
 /// Reads registry.json for each skill to include descriptions in the instructions.
 /// If a sibling `custom.md` exists and is non-empty, its contents are appended
 /// under a "## Custom Instructions" section. `custom.md` is never modified.
+///
+/// `template_override` is for tests; production callers pass `None` to use the
+/// embedded template.
 fn regenerate_instructions(
     ai_path: &Path,
-    templates_base: &Path,
     skills_path: &Path,
     domain: &str,
     skills: &[String],
+    template_override: Option<&str>,
 ) -> CmdResult<bool> {
     let instructions_path = ai_path.join("instructions.md");
-    let instructions_template = templates_base.join("instructions.md");
 
     // Build skill list with descriptions from registry.json
     let skill_list = skills
@@ -295,19 +302,10 @@ fn regenerate_instructions(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let mut content = if instructions_template.exists() {
-        let template = fs::read_to_string(&instructions_template)?;
-        template
-            .replace("{{DOMAIN}}", domain)
-            .replace("{{SKILL_LIST}}", &skill_list)
-    } else {
-        format!(
-            "# {} AI Package\n\n\
-             This folder contains AI skill documentation for the {} domain.\n\n\
-             ## Skills\n\n{}\n",
-            domain, domain, skill_list
-        )
-    };
+    let template = template_override.unwrap_or(INSTRUCTIONS_TEMPLATE);
+    let mut content = template
+        .replace("{{DOMAIN}}", domain)
+        .replace("{{SKILL_LIST}}", &skill_list);
 
     // Append custom.md if author has provided one.
     let custom_path = ai_path.join("custom.md");
@@ -332,12 +330,12 @@ fn regenerate_instructions(
 // ============================================================================
 
 /// Generate an AI package for a specific domain.
-/// Copies skill files from _skills/ and generates instructions.md.
+/// Copies skill files from _skills/ and generates instructions.md from the
+/// bundled template (`resources/domain-ai-instructions.md`).
 #[command]
 pub fn val_generate_ai_package(
     domain: String,
     skills_path: String,
-    templates_path: String,
     skills: Vec<String>,
 ) -> CmdResult<AiPackageResult> {
     let skills_base = Path::new(&skills_path);
@@ -374,8 +372,6 @@ pub fn val_generate_ai_package(
     }
 
     // Copy skill files from _skills/{slug}/
-    let templates_base = Path::new(&templates_path);
-
     for skill in &skills {
         let skill_src_dir = skills_base.join(skill);
         let skill_src_md = skill_src_dir.join("SKILL.md");
@@ -415,7 +411,7 @@ pub fn val_generate_ai_package(
 
     // Always (re)generate instructions.md so skill lists stay current
     let instructions_generated = match regenerate_instructions(
-        &ai_path, &templates_base, &skills_base, &domain, &skills_copied,
+        &ai_path, &skills_base, &domain, &skills_copied, None,
     ) {
         Ok(v) => v,
         Err(e) => {
@@ -844,17 +840,16 @@ mod tests {
     }
 
     #[test]
-    fn regenerate_falls_back_when_no_template_or_custom() {
-        let dir = unique_tmp_dir("fallback");
+    fn regenerate_uses_bundled_template_when_no_override() {
+        let dir = unique_tmp_dir("bundled");
         let ai_path = dir.join("ai");
-        let templates = dir.join("templates_missing");
         let skills = dir.join("skills_missing");
         fs::create_dir_all(&ai_path).unwrap();
 
-        regenerate_instructions(&ai_path, &templates, &skills, "demo", &["foo".into()]).unwrap();
+        regenerate_instructions(&ai_path, &skills, "demo", &["foo".into()], None).unwrap();
 
         let out = fs::read_to_string(ai_path.join("instructions.md")).unwrap();
-        assert!(out.contains("# demo AI Package"));
+        assert!(out.contains("demo"));
         assert!(out.contains("- `skills/foo/SKILL.md`"));
         assert!(!out.contains("Custom Instructions"));
         fs::remove_dir_all(&dir).ok();
@@ -867,10 +862,11 @@ mod tests {
         fs::create_dir_all(&ai_path).unwrap();
         fs::write(ai_path.join("custom.md"), "Call me bubble boy.\nNever apologize.").unwrap();
 
-        regenerate_instructions(&ai_path, &dir.join("nope"), &dir.join("nope"), "demo", &[]).unwrap();
+        let template = "# {{DOMAIN}}\n{{SKILL_LIST}}\n";
+        regenerate_instructions(&ai_path, &dir.join("nope"), "demo", &[], Some(template)).unwrap();
 
         let out = fs::read_to_string(ai_path.join("instructions.md")).unwrap();
-        assert!(out.contains("# demo AI Package"));
+        assert!(out.contains("# demo"));
         assert!(out.contains("---\n\n## Custom Instructions"));
         assert!(out.contains("Call me bubble boy."));
         assert!(out.contains("Never apologize."));
@@ -888,7 +884,8 @@ mod tests {
         fs::create_dir_all(&ai_path).unwrap();
         fs::write(ai_path.join("custom.md"), "   \n\n  ").unwrap();
 
-        regenerate_instructions(&ai_path, &dir.join("nope"), &dir.join("nope"), "demo", &[]).unwrap();
+        let template = "# {{DOMAIN}}\n{{SKILL_LIST}}\n";
+        regenerate_instructions(&ai_path, &dir.join("nope"), "demo", &[], Some(template)).unwrap();
 
         let out = fs::read_to_string(ai_path.join("instructions.md")).unwrap();
         assert!(!out.contains("Custom Instructions"));
@@ -896,20 +893,14 @@ mod tests {
     }
 
     #[test]
-    fn regenerate_uses_template_and_appends_custom() {
-        let dir = unique_tmp_dir("template_plus_custom");
+    fn regenerate_uses_template_override_and_appends_custom() {
+        let dir = unique_tmp_dir("override_plus_custom");
         let ai_path = dir.join("ai");
-        let templates = dir.join("templates");
         fs::create_dir_all(&ai_path).unwrap();
-        fs::create_dir_all(&templates).unwrap();
-        fs::write(
-            templates.join("instructions.md"),
-            "# {{DOMAIN}}\n\nSkills:\n{{SKILL_LIST}}\n",
-        )
-        .unwrap();
         fs::write(ai_path.join("custom.md"), "Custom block").unwrap();
 
-        regenerate_instructions(&ai_path, &templates, &dir.join("nope"), "demo", &["a".into()])
+        let template = "# {{DOMAIN}}\n\nSkills:\n{{SKILL_LIST}}\n";
+        regenerate_instructions(&ai_path, &dir.join("nope"), "demo", &["a".into()], Some(template))
             .unwrap();
 
         let out = fs::read_to_string(ai_path.join("instructions.md")).unwrap();

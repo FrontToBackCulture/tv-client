@@ -24,7 +24,7 @@ interface SkillEntry {
   target: string;
   status: string;
   command?: string;
-  domain?: string;
+  domain?: string | string[];
   verified?: boolean;
   rating?: number;
   last_audited?: string;
@@ -96,7 +96,9 @@ async function main() {
       target: skill.target || "platform",
       status: skill.status || "active",
       command: skill.command || null,
-      domain: skill.domain || null,
+      domain: Array.isArray(skill.domain)
+        ? skill.domain
+        : (skill.domain ? [skill.domain] : []),
       verified: skill.verified ?? false,
       owner: skill.owner || null,
       last_audited: skill.last_audited || null,

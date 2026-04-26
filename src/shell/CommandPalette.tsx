@@ -18,6 +18,7 @@ import {
   Sun,
   ExternalLink,
   Puzzle,
+  Wrench,
   Clock,
   GitBranch,
   FolderOpen,
@@ -55,6 +56,7 @@ import { getSuggestedQuestions } from "../lib/help/helpContent";
 import { useViewContextStore } from "../stores/viewContextStore";
 import { useCommandStore, Command } from "../stores/commandStore";
 import { useNotificationNavStore } from "../stores/notificationNavStore";
+import { useSelectedEntityStore } from "../stores/selectedEntityStore";
 import { openModuleInNewWindow } from "../lib/windowManager";
 import { HelpMessage } from "../components/help/HelpMessage";
 import { triggerWhatsNew } from "./WhatsNewModal";
@@ -83,6 +85,7 @@ const moduleIcons: Record<ModuleId, typeof Library> = {
   product: Boxes,
   gallery: GalleryHorizontalEnd,
   skills: Puzzle,
+  "mcp-tools": Wrench,
   scheduler: Clock,
   repos: GitBranch,
   inbox: Mail,
@@ -115,6 +118,7 @@ const moduleLabels: Record<ModuleId, string> = {
   product: "Product",
   gallery: "Gallery",
   skills: "Skills",
+  "mcp-tools": "MCP Tools",
   scheduler: "Scheduler",
   repos: "Repos",
   inbox: "Inbox",
@@ -642,6 +646,13 @@ export function CommandPalette() {
         e.preventDefault();
         setIsOpen(true);
         setMode("help");
+      }
+      // Cmd+J: toggle Entity Chat modal scoped to the currently focused entity.
+      if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+        e.preventDefault();
+        const s = useSelectedEntityStore.getState();
+        if (s.chatModalOpen) s.closeChatModal();
+        else s.openChatModal();
       }
       if (e.key === "Escape") {
         if (mode === "help") {

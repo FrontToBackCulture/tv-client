@@ -12,6 +12,7 @@ import {
   MessageSquare, Maximize2, Upload,
 } from "lucide-react";
 import { useNotionPushTask } from "../../hooks/useNotion";
+import { useSelectedEntityStore } from "../../stores/selectedEntityStore";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import ReactMarkdown from "react-markdown";
@@ -1679,6 +1680,17 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
   const [bulkNotionSyncing, setBulkNotionSyncing] = useState(false);
   const notionPushTask = useNotionPushTask();
   const [taskDetailId, setTaskDetailId] = useState<string | null>(null);
+
+  // Sync to global selection store so Cmd+J chat modal scopes to whichever
+  // entity is currently in focus: an opened task wins over the parent project.
+  const setGlobalSelected = useSelectedEntityStore((s) => s.setSelected);
+  useEffect(() => {
+    if (taskDetailId) {
+      setGlobalSelected({ type: "task", id: taskDetailId });
+    } else {
+      setGlobalSelected({ type: "project", id: workspaceId });
+    }
+  }, [taskDetailId, workspaceId, setGlobalSelected]);
   const [showMilestoneInput, setShowMilestoneInput] = useState(false);
   const [taskSearch, setTaskSearch] = useState("");
   const [taskPageSize, setTaskPageSize] = useState(50);
@@ -2138,7 +2150,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
   const identPrefix = (ws as any).identifier_prefix;
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       {/* Header — compact identifier row, matches TaskDetailPanel style */}
       <div className="flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-4 py-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0 overflow-hidden">
@@ -3648,7 +3660,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
       {projectChatPopupSession && ws && (
         <ProjectChatPopup
           projectId={workspaceId}
-          projectName={ws.name}
+          projectName={ws.raw_name || workspace.title}
           projectType={(ws.project_type === "deal" ? "deal" : "project") as "project" | "deal"}
           folderPath={(ws as any).folder_path ?? null}
           sessionEntityId={projectChatPopupSession}

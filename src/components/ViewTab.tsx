@@ -18,11 +18,17 @@ export function ViewTab({ label, icon: Icon, active, onClick, badge, "data-help-
     <button
       onClick={onClick}
       data-help-id={helpId}
-      className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+      className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors relative ${
         active
-          ? "border-teal-600 text-teal-700 dark:text-teal-400 dark:border-teal-500"
+          ? "text-[rgb(var(--workspace-accent-rgb))] dark:text-[rgb(var(--workspace-accent-rgb))]"
           : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
       }`}
+      style={active ? {
+        borderImageSource: `linear-gradient(90deg, rgba(var(--workspace-accent-rgb),0) 0%, rgba(var(--workspace-accent-rgb),1) 50%, rgba(var(--workspace-accent-rgb),0) 100%)`,
+        borderImageSlice: 1,
+        borderBottomWidth: 2,
+        borderStyle: "solid",
+      } : undefined}
     >
       <Icon size={14} />
       {label}

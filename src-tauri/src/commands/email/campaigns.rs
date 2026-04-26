@@ -1,4 +1,5 @@
 // Email Campaign CRUD Commands
+#![allow(dead_code)]
 
 use crate::commands::error::CmdResult;
 use crate::commands::supabase::get_client;

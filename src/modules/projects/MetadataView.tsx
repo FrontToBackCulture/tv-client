@@ -16,9 +16,13 @@ import {
   Bookmark, ChevronsLeftRight, Columns, Star, Save, WrapText, PanelLeftOpen, PanelLeftClose, Globe, AlertTriangle,
 } from "lucide-react";
 import { useCollapsiblePanel } from "../../hooks/useCollapsiblePanel";
+import { useSelectedEntityStore, type EntityType } from "../../stores/selectedEntityStore";
 import { cn } from "../../lib/cn";
-import { toSGTDateString } from "../../lib/date";
+import { toSGTDateString, timeAgoVerbose } from "../../lib/date";
 import { Button } from "../../components/ui";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
+import { PageHeader } from "../../components/PageHeader";
+import { StatsStrip } from "../../components/StatsStrip";
 import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
 import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
@@ -47,7 +51,7 @@ if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
 
 // ── Inline editable field for detail panel ──────────────────────────────────
 
-function EditField({ value, onSave, type = "text", options }: {
+export function EditField({ value, onSave, type = "text", options }: {
   value: string | number | boolean | null | undefined;
   onSave: (val: string) => void;
   type?: "text" | "textarea" | "select";
@@ -165,7 +169,7 @@ function RequestPhoneButton({ contactId, onSuccess }: { contactId: string; onSuc
   );
 }
 
-function FieldGrid({ fields, onUpdate, companyId, contacts }: {
+export function FieldGrid({ fields, onUpdate, companyId, contacts }: {
   fields: { label: string; field: string; value: any; type?: FieldType; options?: { value: string; label: string }[] }[];
   onUpdate: (field: string, value: any) => void;
   companyId?: string;
@@ -325,6 +329,25 @@ export function MetadataView() {
   const [layoutModified, setLayoutModified] = useState(false);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
   const [selection, setSelection] = useState<{ type: string; id: string } | null>(null);
+
+  // Sync to global selection store so Cmd+J chat modal scopes to the
+  // currently-focused entity. If a specific row is selected, scope to it.
+  // Otherwise, downgrade to the CRM module-level chat (companies + contacts
+  // are CRM data — "Metadata Chat" feels too generic on those tabs).
+  const setGlobalSelected = useSelectedEntityStore((s) => s.setSelected);
+  useEffect(() => {
+    if (selection && (selection.type === "company" || selection.type === "contact")) {
+      setGlobalSelected({ type: selection.type as EntityType, id: selection.id });
+    } else if (subTab === "companies") {
+      setGlobalSelected({ type: "module", id: "companies" });
+    } else if (subTab === "contacts") {
+      setGlobalSelected({ type: "module", id: "contacts" });
+    } else {
+      setGlobalSelected(null);
+    }
+    return () => setGlobalSelected(null);
+  }, [selection, subTab, setGlobalSelected]);
+
   const [detailWidth, setDetailWidth] = useState(400);
   const dragging = useRef(false);
 
@@ -1082,8 +1105,39 @@ export function MetadataView() {
 
   const hasSelection = !!selection;
 
+  const lastActivity = useMemo(() => {
+    let max = 0;
+    const collect = (rows: { updated_at?: string | null; created_at?: string | null }[]) => {
+      for (const r of rows) {
+        const ts = new Date(r.updated_at ?? r.created_at ?? 0).getTime();
+        if (ts > max) max = ts;
+      }
+    };
+    collect(companies as any);
+    collect(contacts as any);
+    collect(initiatives as any);
+    return max > 0 ? `Last activity ${timeAgoVerbose(new Date(max).toISOString())}` : undefined;
+  }, [companies, contacts, initiatives]);
+
+  const itemBase = "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors";
+  const itemActiveCls = "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400";
+  const itemIdle = "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50";
+
   return (
-    <div className={isFullscreen ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex" : "h-full flex overflow-hidden px-4 py-4"}>
+    <div className="h-full flex flex-col">
+     {!isFullscreen && (
+       <>
+        <PageHeader description={lastActivity} />
+        <StatsStrip stats={[
+          { value: companies.length, label: <>companies</>, color: "blue" },
+          { value: contacts.length, label: <>contacts</>, color: "emerald" },
+          { value: initiatives.length, label: <>initiatives</>, color: "amber" },
+          { value: users.length, label: <>users</>, color: "zinc" },
+          { value: partners.length, label: <>partners</>, color: "purple" },
+        ]} />
+       </>
+     )}
+    <div className={isFullscreen ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex" : "flex-1 flex overflow-hidden px-4 py-4"}>
       <style>{groupRowStyles}{themeStyles}{`
         .ag-theme-alpine .ag-cell, .ag-theme-alpine-dark .ag-cell { display: flex; align-items: center; }
       `}</style>
@@ -1091,9 +1145,9 @@ export function MetadataView() {
       {/* Body: sidebar + grid + optional detail panel, wrapped in a bordered rounded box */}
       <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
         {/* Vertical tab sidebar */}
-        <aside className="flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 overflow-y-auto py-2 transition-all duration-200 rounded-l-md" style={{ width: sidebarCollapsed ? 40 : 160 }}>
+        <aside className="flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 overflow-hidden flex flex-col transition-all duration-200 rounded-l-md" style={{ width: sidebarCollapsed ? 40 : 224 }}>
           {sidebarCollapsed ? (
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center pt-2">
               <button
                 onClick={toggleSidebar}
                 className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
@@ -1103,41 +1157,41 @@ export function MetadataView() {
               </button>
             </div>
           ) : (
-            <nav className="space-y-3 px-2">
-              <div className="flex justify-end px-1">
-                <button
-                  onClick={toggleSidebar}
-                  className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                  title="Collapse panel"
+            <div className="h-full flex flex-col overflow-y-auto px-3 py-3 space-y-3">
+              {tabGroups.map((group, gi) => (
+                <CollapsibleSection
+                  key={group.label}
+                  title={group.label}
+                  storageKey={`metadata-sidebar-${group.label.toLowerCase()}`}
+                  rightSlot={gi === 0 ? (
+                    <button
+                      onClick={toggleSidebar}
+                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                      title="Collapse sidebar"
+                    >
+                      <PanelLeftClose size={12} />
+                    </button>
+                  ) : undefined}
                 >
-                  <PanelLeftClose size={12} />
-                </button>
-              </div>
-              {tabGroups.map((group) => (
-                <div key={group.label}>
-                  <div className="px-2 py-1 text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                    {group.label}
-                  </div>
-                  <div className="space-y-0.5 mt-0.5">
-                    {group.tabs.map(tab => (
+                  {group.tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = subTab === tab.id;
+                    return (
                       <button
                         key={tab.id}
                         onClick={() => { setSubTab(tab.id); setSelection(null); setQuickFilter(""); gridRef.current?.api?.setGridOption("quickFilterText", ""); }}
-                        className={cn(
-                          "w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors",
-                          subTab === tab.id
-                            ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
-                            : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                        )}
+                        className={cn(itemBase, isActive ? itemActiveCls : itemIdle)}
                       >
-                        <span className="truncate">{tab.label}</span>
-                        <span className="text-[9px] text-zinc-400 ml-1 flex-shrink-0">{tab.count}</span>
+                        <Icon size={13} className={isActive ? "text-teal-500" : "text-zinc-400"} />
+                        <span className="flex-1 truncate">{tab.label}</span>
+                        <span className="text-[10px] text-zinc-400">{tab.count}</span>
                       </button>
-                    ))}
-                  </div>
-                </div>
+                    );
+                  })}
+                </CollapsibleSection>
               ))}
-            </nav>
+              <div className="flex-1" />
+            </div>
           )}
         </aside>
 
@@ -1842,6 +1896,7 @@ export function MetadataView() {
       {showLayoutMenu && <div className="fixed inset-0 z-40" onClick={() => setShowLayoutMenu(false)} />}
       {jobModal && <JobDetailsModal job={jobModal} onClose={() => setJobModal(null)} />}
     </div>
+   </div>
   );
 }
 

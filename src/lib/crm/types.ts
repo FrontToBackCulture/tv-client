@@ -50,7 +50,7 @@ export type EmailCompanyLink =
 
 // Deal with task info (for company views)
 export interface DealWithTaskInfo extends Deal {
-  company?: { name: string };
+  company?: { name: string; referred_by?: string | null };
   tasks?: DealTask[];
   openTaskCount?: number;
   nextTask?: { title: string; due_date: string | null } | null;

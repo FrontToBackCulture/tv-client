@@ -218,7 +218,7 @@ export function InboxModule() {
   const syncErrorMsg = syncEventError || (syncStart.error ? formatError(syncStart.error) : null);
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader
         description="Emails synced from Outlook — filter by folder, category, or status. Click to read, archive, or follow up."
       />

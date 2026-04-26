@@ -39,4 +39,20 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+
+  // Pre-bundle heavy deps at server start so the first navigation to a lazy
+  // module doesn't trigger a stop-the-world dep-bundling pass.
+  optimizeDeps: {
+    include: [
+      'react', 'react-dom',
+      '@tanstack/react-query',
+      'ag-grid-community', 'ag-grid-enterprise', 'ag-grid-react',
+      'lucide-react',
+      'react-markdown', 'remark-gfm',
+      'xlsx',
+      '@supabase/supabase-js',
+      'date-fns',
+      'zustand',
+    ],
+  },
 });

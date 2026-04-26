@@ -12,6 +12,7 @@ import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import '@fontsource/instrument-serif/latin.css';
 import App from './App';
+import './stores/themeStore'; // applies theme + dark class on boot
 import './styles/globals.css';
 
 // Global error handler — shows crash screen only if React hasn't rendered yet

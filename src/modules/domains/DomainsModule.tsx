@@ -1,7 +1,7 @@
 // src/modules/domains/DomainsModule.tsx
 // Domains module — two-level navigation: All Domains (tabbed) → Single Domain detail
 
-import { useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { BackButton } from "../../components/BackButton";
 import { usePersistedModuleView } from "../../hooks/usePersistedModuleView";
 import {
@@ -17,8 +17,10 @@ import {
 } from "lucide-react";
 import { ViewTab } from "../../components/ViewTab";
 import { PageHeader } from "../../components/PageHeader";
+import { StatsStrip } from "../../components/StatsStrip";
 import { useViewContextStore } from "../../stores/viewContextStore";
 import { useNotificationNavStore } from "../../stores/notificationNavStore";
+import { useSelectedEntityStore } from "../../stores/selectedEntityStore";
 import { useDiscoverDomains } from "../../hooks/val-sync";
 import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
 import { UnifiedReviewView } from "./UnifiedReviewView";
@@ -28,6 +30,7 @@ import { DomainDetailPanel } from "./DomainDetailPanel";
 import { DriveTabView } from "./DriveTabView";
 import { CrossDomainReportsView } from "./CrossDomainReportsView";
 import { HealthDashboard } from "./HealthDashboard";
+import { timeAgoVerbose } from "../../lib/date";
 
 type Level1Tab = "overview" | "data-models" | "queries" | "workflows" | "dashboards" | "drive" | "reports" | "health";
 type ReviewType = "data-models" | "queries" | "dashboards" | "workflows";
@@ -53,6 +56,13 @@ function setUrlParams(updates: Record<string, string | null>) {
 export function DomainsModule() {
   // Two-level navigation state — initialise from URL params so refresh preserves position
   const [selectedDomain, setSelectedDomain] = useState<string | null>(() => getUrlParam("domain") ?? getUrlParam("review"));
+
+  // Sync to global selection store so Cmd+J chat modal knows the focus.
+  const setGlobalSelected = useSelectedEntityStore((s) => s.setSelected);
+  useEffect(() => {
+    setGlobalSelected(selectedDomain ? { type: "domain", id: selectedDomain } : null);
+    return () => setGlobalSelected(null);
+  }, [selectedDomain, setGlobalSelected]);
   const [activeTab, setActiveTab] = usePersistedModuleView<Level1Tab>("domains", "overview");
 
   // Handle notification navigation
@@ -120,6 +130,27 @@ export function DomainsModule() {
   // Find the discovered domain object for Level 2
   const discoveredDomain =
     domainsQuery.data?.find((d) => d.domain === selectedDomain) ?? null;
+
+  // Aggregate stats for the Overview tab
+  const overviewStats = useMemo(() => {
+    const list = domainsQuery.data ?? [];
+    const total = list.length;
+    const production = list.filter((d) => d.domain_type === "production").length;
+    const inactive = list.filter((d) => d.domain_type === "not-active").length;
+    const demo = list.filter((d) => d.domain_type === "demo").length;
+    const template = list.filter((d) => d.domain_type === "template").length;
+    return { total, production, inactive, demo, template };
+  }, [domainsQuery.data]);
+
+  // Last activity across all domains' last_sync timestamps
+  const lastActivity = useMemo(() => {
+    let max = 0;
+    for (const d of domainsQuery.data ?? []) {
+      const ts = d.last_sync ? new Date(d.last_sync).getTime() : 0;
+      if (ts > max) max = ts;
+    }
+    return max > 0 ? `Last activity ${timeAgoVerbose(new Date(max).toISOString())}` : undefined;
+  }, [domainsQuery.data]);
 
   // Navigation handlers
   const handleSelectDomain = useCallback((domain: string) => {
@@ -218,7 +249,7 @@ export function DomainsModule() {
   // ── Level 2: Single Domain ──
   if (selectedDomain && discoveredDomain) {
     return (
-      <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+      <div className="h-full flex flex-col">
         {/* Breadcrumb */}
         <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-1.5">
           <BackButton onClick={handleBackToOverview} parentLabel="Domains" title={selectedDomain} />
@@ -242,19 +273,9 @@ export function DomainsModule() {
 
   // ── Level 1: All Domains (tabbed) ──
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-950">
+    <div className="h-full flex flex-col">
       <PageHeader
-        description={
-          activeTab === "overview" ? "All connected VAL domains — sync data, manage credentials, and monitor sync status."
-            : activeTab === "data-models" ? "Cross-domain view of all table schemas — compare, classify, and manage data models across domains."
-            : activeTab === "queries" ? "Cross-domain view of all saved queries — review SQL, check dashboard usage, and manage portal visibility."
-            : activeTab === "workflows" ? "Cross-domain view of all automation workflows — review triggers, actions, and execution status."
-            : activeTab === "dashboards" ? "Cross-domain view of all dashboards — review widgets, linked queries, and portal visibility."
-            : activeTab === "drive" ? "Browse VAL Drive folders across domains — view uploaded files and workflow file processing."
-            : activeTab === "reports" ? "Generated reports across all domains — HTML reports, analysis outputs, and documentation."
-            : activeTab === "health" ? "Domain health scoreboard — workflow failures, stale jobs, mapping duplicates, and error patterns across all production domains."
-            : undefined
-        }
+        description={activeTab === "overview" ? lastActivity : undefined}
         tabs={<>
           <ViewTab label="Overview" icon={Globe} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} data-help-id="domains-tab-overview" />
           <ViewTab label="Data Models" icon={Database} active={activeTab === "data-models"} onClick={() => setActiveTab("data-models")} data-help-id="domains-tab-data-models" />
@@ -266,6 +287,16 @@ export function DomainsModule() {
           <ViewTab label="Health" icon={HeartPulse} active={activeTab === "health"} onClick={() => setActiveTab("health")} data-help-id="domains-tab-health" />
         </>}
       />
+
+      {activeTab === "overview" && overviewStats.total > 0 && (
+        <StatsStrip stats={[
+          { value: overviewStats.total, label: <>total<br/>domains</>, color: "blue" },
+          { value: overviewStats.production, label: <>production</>, color: "emerald" },
+          { value: overviewStats.inactive, label: <>inactive</>, color: overviewStats.inactive > 0 ? "amber" : "zinc" },
+          { value: overviewStats.demo, label: <>demo</>, color: "zinc" },
+          { value: overviewStats.template, label: <>template</>, color: "zinc" },
+        ]} />
+      )}
 
       {/* Tab content */}
       <div className="flex-1 flex overflow-hidden">

@@ -1,54 +1,49 @@
 // CRM Pipeline Stats hook
-// Now queries from unified projects table (project_type='deal')
+// Derives stats from the same `useDealsWithTasks` cache the rest of the
+// CRM module already consumes — eliminates the duplicate `projects` fetch
+// that previously ran in parallel on every CRM mount.
 
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "../../lib/supabase";
+import { useMemo } from "react";
 import type { PipelineStats } from "../../lib/crm/types";
-import { crmKeys } from "./keys";
+import { useDealsWithTasks } from "./useDeals";
+
+const ACTIVE_STAGES = [
+  "target",
+  "prospect",
+  "lead",
+  "qualified",
+  "pilot",
+  "proposal",
+  "negotiation",
+];
 
 export function usePipelineStats() {
-  return useQuery({
-    queryKey: crmKeys.pipeline(),
-    queryFn: async (): Promise<PipelineStats> => {
-      const { data: deals, error } = await supabase
-        .from("projects")
-        .select("deal_stage, deal_value")
-        .eq("project_type", "deal")
-        .is("archived_at", null)
-        .in("deal_stage", [
-          "target",
-          "prospect",
-          "lead",
-          "qualified",
-          "pilot",
-          "proposal",
-          "negotiation",
-        ]);
+  const dealsQuery = useDealsWithTasks();
 
-      if (error) throw new Error(`Failed to fetch deals: ${error.message}`);
-
-      const byStage = [
-        "target",
-        "prospect",
-        "lead",
-        "qualified",
-        "pilot",
-        "proposal",
-        "negotiation",
-      ].map((stage) => {
-        const stageDeals = (deals ?? []).filter((d) => d.deal_stage === stage);
-        return {
-          stage,
-          count: stageDeals.length,
-          value: stageDeals.reduce((sum, d) => sum + (d.deal_value || 0), 0),
-        };
-      });
-
+  const data: PipelineStats | undefined = useMemo(() => {
+    if (!dealsQuery.data) return undefined;
+    const active = dealsQuery.data.filter(
+      (d) => d.stage && ACTIVE_STAGES.includes(d.stage)
+    );
+    const byStage = ACTIVE_STAGES.map((stage) => {
+      const stageDeals = active.filter((d) => d.stage === stage);
       return {
-        byStage,
-        totalValue: (deals ?? []).reduce((sum, d) => sum + (d.deal_value || 0), 0),
-        totalDeals: (deals ?? []).length,
+        stage,
+        count: stageDeals.length,
+        value: stageDeals.reduce((sum, d) => sum + (d.value || 0), 0),
       };
-    },
-  });
+    });
+    return {
+      byStage,
+      totalValue: active.reduce((sum, d) => sum + (d.value || 0), 0),
+      totalDeals: active.length,
+    };
+  }, [dealsQuery.data]);
+
+  return {
+    data,
+    isLoading: dealsQuery.isLoading,
+    error: dealsQuery.error,
+    refetch: dealsQuery.refetch,
+  };
 }

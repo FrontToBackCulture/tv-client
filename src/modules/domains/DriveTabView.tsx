@@ -532,11 +532,12 @@ export function DriveTabView() {
   const isLoading = foldersQuery.isLoading || filesQuery.isLoading;
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 flex overflow-hidden px-4 py-4">
+     <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
       {/* ── Left sidebar: domain list ── */}
-      <div className="w-[220px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
+      <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
         {/* Search + Scan All */}
-        <div className="p-2 border-b border-zinc-100 dark:border-zinc-800 space-y-1.5">
+        <div className="p-2 border-b border-zinc-200 dark:border-zinc-800 space-y-1.5">
           <div className="relative">
             <Search
               size={13}
@@ -547,7 +548,7 @@ export function DriveTabView() {
               placeholder="Filter domains..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-7 pr-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full pl-7 pr-2 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
           <div className="flex gap-1">
@@ -597,35 +598,42 @@ export function DriveTabView() {
           {Array.from(grouped.entries()).map(([type, domains]) => {
             const isCollapsed = collapsedSections.has(type);
             return (
-              <div key={type}>
+              <div key={type} className="px-2">
                 <button
                   onClick={() => toggleSection(type)}
-                  className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-400"
+                  className="w-full flex items-center gap-1 px-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
                 >
                   {isCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-                  {typeConfig.labels[type] ?? type} ({domains.length})
+                  <span className="flex-1 text-left">{typeConfig.labels[type] ?? type}</span>
+                  <span className="text-[10px] text-zinc-400 normal-case">{domains.length}</span>
                 </button>
-                {!isCollapsed &&
-                  domains.map((d) => (
-                    <button
-                      key={d.domain}
-                      onClick={() => handleSelectDomain(d.domain)}
-                      className={cn(
-                        "w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors",
-                        selectedDomain === d.domain
-                          ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300"
-                          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-                      )}
-                    >
-                      <HardDrive size={12} className="flex-shrink-0 opacity-50" />
-                      <span className="truncate">{d.domain}</span>
-                    </button>
-                  ))}
+                {!isCollapsed && (
+                  <div className="space-y-0.5 pb-1">
+                    {domains.map((d) => {
+                      const isActive = selectedDomain === d.domain;
+                      return (
+                        <button
+                          key={d.domain}
+                          onClick={() => handleSelectDomain(d.domain)}
+                          className={cn(
+                            "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors",
+                            isActive
+                              ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
+                              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                          )}
+                        >
+                          <HardDrive size={13} className={isActive ? "text-teal-500" : "text-zinc-400"} />
+                          <span className="flex-1 truncate">{d.domain}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-      </div>
+      </aside>
 
       {/* ── Right content: file browser ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -814,6 +822,7 @@ export function DriveTabView() {
           </>
         )}
       </div>
+     </div>
     </div>
   );
 }

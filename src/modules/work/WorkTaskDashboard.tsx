@@ -2,7 +2,7 @@
 // My Tasks and Team Tasks dashboard views
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, AlertTriangle, Clock, Calendar, CheckCircle2, Loader2, Zap, X, Target, ArrowRight, Layers, Briefcase, Inbox, Archive, Send, Bookmark, Star, Save, RotateCcw, ChevronsLeftRight, Maximize2 } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, Clock, Calendar, CheckCircle2, X, ArrowRight, Layers, Briefcase, Inbox, Archive, Send, Bookmark, Star, Save, RotateCcw, ChevronsLeftRight, Maximize2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import {
   ColDef,
@@ -17,9 +17,9 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import { useAppStore } from "../../stores/appStore";
 import { themeStyles } from "../domains/reviewGridStyles";
 import { cn } from "../../lib/cn";
+import { CollapsibleSection as SidebarSection } from "../../components/ui/CollapsibleSection";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import type { TaskWithRelations, User, Initiative } from "../../lib/work/types";
 import { getTaskIdentifier } from "../../lib/work/types";
@@ -29,7 +29,6 @@ import { TaskRow, initials } from "./workViewsShared";
 import type { InitiativeProjectLink } from "./workViewsShared";
 import { toast } from "../../stores/toastStore";
 import { useJobsStore } from "../../stores/jobsStore";
-import { useClaudeRunStore } from "../../stores/claudeRunStore";
 import { formatError } from "../../lib/formatError";
 import { useTeams } from "../../hooks/work/useTeams";
 import {
@@ -45,100 +44,6 @@ ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
 
 if (typeof window !== "undefined" && import.meta.env.VITE_AG_GRID_LICENSE_KEY) {
   LicenseManager.setLicenseKey(import.meta.env.VITE_AG_GRID_LICENSE_KEY);
-}
-
-// ─── Task Triage Types & Hooks ───────────────────────────────────────────
-
-interface ContextMatch {
-  context_id: string;
-  context_name: string;
-  level: string;
-  boost: number;
-  raw_boost: number;
-  text: string;
-}
-
-interface TriageProposal {
-  task_id: string;
-  title: string;
-  project: string;
-  type: "task" | "deal";             // serde renames item_type → "type"
-  triage_score: number;
-  triage_action: "do_now" | "do_this_week" | "defer" | "delegate" | "kill";
-  triage_reason: string;
-  // Structured metadata
-  due_date?: string | null;
-  days_overdue?: number | null;      // positive = overdue, negative = days until
-  suggested_due_date?: string | null;
-  // Deal-specific
-  deal_stage?: string | null;
-  deal_value?: number | null;
-  days_stale?: number | null;
-  company?: string | null;
-  // Context influence
-  context_matches?: ContextMatch[] | null;
-  context_bonus?: number | null;
-}
-
-interface TaskTriageResult {
-  success: boolean;
-  proposals: TriageProposal[];
-  output_text: string;
-  error: string | null;
-  cost_usd: number | null;
-}
-
-interface TaskTriageProgress {
-  message: string;
-  phase: "starting" | "running" | "complete" | "error";
-}
-
-function useTaskTriage() {
-  return useMutation({
-    mutationFn: async ({ model, taskIds }: { model?: string; taskIds?: string[] } = {}) => {
-      const result = await invoke<TaskTriageResult>("work_task_triage", {
-        model: model ?? "sonnet",
-        taskIds: taskIds ?? null,
-      });
-      return result;
-    },
-  });
-}
-
-
-function useTriageProgress(active: boolean) {
-  const [logs, setLogs] = useState<string[]>([]);
-  const [phase, setPhase] = useState<string>("idle");
-
-  useEffect(() => {
-    if (!active) return;
-    setLogs([]);
-    setPhase("starting");
-
-    const unlisten = listen<TaskTriageProgress>("task-triage:progress", (event) => {
-      const { message, phase: p } = event.payload;
-      setPhase(p);
-      setLogs((prev) => [...prev, message]);
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [active]);
-
-  return { logs, phase, clearLogs: () => setLogs([]) };
-}
-
-// Listen for Claude's background enrichment completing — refresh task data
-function useTriageEnrichment() {
-  const queryClient = useQueryClient();
-  useEffect(() => {
-    const unlisten = listen("task-triage:enriched", () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["work"] });
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, [queryClient]);
 }
 
 const ACTION_STYLES: Record<string, { label: string; bg: string; text: string }> = {
@@ -373,94 +278,25 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
   initiativeLinks?: InitiativeProjectLink[];
 }) {
   const [includeNotion, setIncludeNotion] = useState(true);
-  const [myTasksTab, setMyTasksTab] = useState<"strategy" | "tasks">("strategy");
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [showChangesPanel, setShowChangesPanel] = useState(false);
-  const [_showTriageLog, _setShowTriageLog] = useState(false);
-  const triageMutation = useTaskTriage();
-  useTriageEnrichment();
   const queryClient = useQueryClient();
-  // const { data: priorities } = useQuery({
-  //   queryKey: ["work", "priorities"],
-  //   queryFn: () => invoke<{ task_ids?: string[]; reasons?: string[]; last_confirmed?: string }>("work_get_priorities"),
-  //   staleTime: 60_000,
-  // });
-  // reprioritise — temporarily disabled, kept for future use
-  // const [reprioritising, setReprioritising] = useState(false);
-  // const handleReprioritise = useCallback(async () => {
-  //   setReprioritising(true);
-  //   try {
-  //     await invoke("work_reprioritise");
-  //     await queryClient.invalidateQueries({ queryKey: ["work", "priorities"] });
-  //     toast.success("Priorities updated");
-  //   } catch (err) {
-  //     toast.error(`Reprioritise failed: ${err}`);
-  //   } finally {
-  //     setReprioritising(false);
-  //   }
-  // }, [queryClient]);
-  const { logs: triageLogs, phase: _triagePhase, clearLogs: _clearLogs } = useTriageProgress(triageMutation.isPending || _showTriageLog);
-  const logEndRef = useRef<HTMLDivElement>(null);
-  // const { addJob, updateJob } = useJobsStore(); // unused while handleTriage is disabled
-  // const triageJobId = useRef<string | null>(null);
-
-  // Auto-scroll log to bottom
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [triageLogs.length]);
-
-  // handleTriage — temporarily disabled, kept for future use
-  // const handleTriage = useCallback(() => {
-  //   const jobId = `triage-${Date.now()}`;
-  //   triageJobId.current = jobId;
-  //   clearLogs();
-  //   setShowTriageLog(true);
-  //   addJob({ id: jobId, name: "Task Triage", status: "running", message: "Scoring tasks..." });
-  //   const toastId = toast.loading("Triaging tasks...");
-  //   triageMutation.mutate(
-  //     { model: "sonnet" },
-  //     {
-  //       onSuccess: (result) => {
-  //         if (result.success && result.proposals.length > 0) {
-  //           updateJob(jobId, { status: "completed", message: `${result.proposals.length} tasks scored` });
-  //           toast.update(toastId, { type: "success", message: `${result.proposals.length} tasks scored and prioritized`, duration: 4000 });
-  //           queryClient.invalidateQueries({ queryKey: ["work"] });
-  //           setShowTriageLog(false);
-  //         } else {
-  //           updateJob(jobId, { status: "failed", message: result.error || "No proposals" });
-  //           toast.update(toastId, { type: "error", message: result.error || "Triage produced no proposals", duration: 5000 });
-  //         }
-  //       },
-  //       onError: (err) => {
-  //         updateJob(jobId, { status: "failed", message: String(err) });
-  //         toast.update(toastId, { type: "error", message: `Triage failed: ${err}`, duration: 5000 });
-  //       },
-  //     }
-  //   );
-  // }, [triageMutation, addJob, updateJob, clearLogs]);
-
-
-  // visibleProposals is computed after salesTasks below
 
   const STALE_DAYS = 60;
   const staleThreshold = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000;
 
-  const currentUserName = useMemo(() => _users.find(u => u.id === currentUserId)?.name || null, [_users, currentUserId]);
-
-  // Recent changes across all my tasks (last 24h)
+  // Recent changes across all my tasks (last 50 updates)
   const myTaskIds = useMemo(() => allTasks.filter(t => (t.assignees || []).some(a => a.user?.id === currentUserId)).map(t => t.id), [allTasks, currentUserId]);
   const { data: recentChanges = [] } = useQuery({
-    queryKey: ["task_changes_recent", currentUserId],
+    queryKey: ["task_changes_recent", currentUserId, myTaskIds.length],
     queryFn: async () => {
       if (myTaskIds.length === 0) return [];
-      const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       const { data, error } = await supabase
         .from("task_changes")
         .select("*")
         .in("task_id", myTaskIds.slice(0, 200))
-        .gte("changed_at", since)
         .order("changed_at", { ascending: false })
-        .limit(30);
+        .limit(50);
       if (error) throw error;
       return data ?? [];
     },
@@ -611,49 +447,10 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
         {allClear && (
           <span className="text-xs font-medium text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full">All clear!</span>
         )}
-        <button
-          onClick={() => setShowChangesPanel(!showChangesPanel)}
-          className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md transition-colors ${showChangesPanel ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"}`}
-          title="Recent Changes"
-        >
-          <Clock size={12} />
-          {recentChanges.length > 0 && <span className="font-medium">{recentChanges.length}</span>}
-        </button>
-        <label className="flex items-center gap-1 text-[10px] text-zinc-400 cursor-pointer">
-          <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500 w-3 h-3" />
-          Notion
-        </label>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex-shrink-0 flex items-center gap-0 px-4 border-b border-zinc-100 dark:border-zinc-800">
-        {(["strategy", "tasks"] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setMyTasksTab(tab)}
-            className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
-              myTasksTab === tab
-                ? "border-teal-500 text-teal-600 dark:text-teal-400"
-                : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-            }`}
-          >
-            {tab === "strategy" ? "Strategy" : "Tasks"}
-          </button>
-        ))}
       </div>
 
       <div className="flex-1 flex overflow-hidden">
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-      {/* Strategy Tab */}
-      {myTasksTab === "strategy" && (
-        <div className="flex-1 overflow-y-auto">
-          <PlansBanner currentUserName={currentUserName} />
-          <TriageBanner view="my_tasks" tasks={myTasks.filter(t => t.status?.type !== "complete")} currentUserName={currentUserName} />
-        </div>
-      )}
-
-      {/* Tasks Tab — AG Grid + sidebar pattern */}
-      {myTasksTab === "tasks" && (
       <MyTasksGridView
         myTasks={myTasks}
         staleTasks={staleTasks}
@@ -663,6 +460,10 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
         selectedTaskIds={selectedTaskIds}
         setSelectedTaskIds={setSelectedTaskIds}
         onSelectTask={onSelectTask}
+        onToggleChanges={() => setShowChangesPanel(!showChangesPanel)}
+        showChanges={showChangesPanel}
+        includeNotion={includeNotion}
+        setIncludeNotion={setIncludeNotion}
         onBulkSyncToNotion={async () => {
           const tasksToSync = allMyTasks.filter(t => selectedTaskIds.has(t.id) && (t as any).notion_page_id);
           if (tasksToSync.length === 0) { toast.error("No selected tasks have Notion pages"); return; }
@@ -680,7 +481,6 @@ export function MyTasksView({ allTasks, users: _users, currentUserId, onSelectTa
           queryClient.invalidateQueries({ queryKey: ["work"] });
         }}
       />
-      )}
 
       </div>{/* end flex-col content */}
 
@@ -848,499 +648,6 @@ export function _ProjectGroupedTasks({ tasks, onSelectTask, contextLabels }: {
   );
 }
 
-// ─── Plans Banner — persistent planning horizons ────────────────────────
-
-interface Plan {
-  id: string;
-  horizon: string;
-  title: string;
-  description: string | null;
-  status: string;
-  sort_order: number;
-  starts_at: string;
-  ends_at: string;
-}
-
-function PlansBanner({ currentUserName }: { currentUserName: string | null }) {
-  const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(true);
-  const [adding, setAdding] = useState<string | null>(null); // horizon being added to
-  const [newTitle, setNewTitle] = useState("");
-
-  const { data: plans = [] } = useQuery({
-    queryKey: ["plans", currentUserName],
-    queryFn: async (): Promise<Plan[]> => {
-      let query = supabase
-        .from("plans")
-        .select("*")
-        .eq("status", "active");
-      if (currentUserName) query = query.eq("created_by", currentUserName);
-      const { data } = await query.order("horizon").order("sort_order");
-      return (data ?? []) as Plan[];
-    },
-    staleTime: 60_000,
-    enabled: !!currentUserName,
-  });
-
-  const monthPlans = plans.filter(p => p.horizon === "month");
-  const weekPlans = plans.filter(p => p.horizon === "week");
-  const dayPlans = plans.filter(p => p.horizon === "3_day");
-
-  const today = new Date();
-  const horizonDates: Record<string, { starts_at: string; ends_at: string }> = {
-    month: {
-      starts_at: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10),
-      ends_at: new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10),
-    },
-    week: {
-      starts_at: new Date(today.getTime() - today.getDay() * 86400000).toISOString().slice(0, 10),
-      ends_at: new Date(today.getTime() + (6 - today.getDay()) * 86400000).toISOString().slice(0, 10),
-    },
-    "3_day": {
-      starts_at: today.toISOString().slice(0, 10),
-      ends_at: new Date(today.getTime() + 2 * 86400000).toISOString().slice(0, 10),
-    },
-  };
-
-  const handleAdd = async (horizon: string) => {
-    if (!newTitle.trim()) return;
-    await supabase.from("plans").insert({
-      horizon,
-      title: newTitle.trim(),
-      status: "active",
-      sort_order: plans.filter(p => p.horizon === horizon).length,
-      starts_at: horizonDates[horizon].starts_at,
-      ends_at: horizonDates[horizon].ends_at,
-      created_by: currentUserName || "unknown",
-    });
-    setNewTitle("");
-    setAdding(null);
-    queryClient.invalidateQueries({ queryKey: ["plans", currentUserName] });
-  };
-
-  const handleComplete = async (id: string) => {
-    await supabase.from("plans").update({ status: "completed" }).eq("id", id);
-    queryClient.invalidateQueries({ queryKey: ["plans", currentUserName] });
-  };
-
-  const handleDrop = async (id: string) => {
-    await supabase.from("plans").update({ status: "dropped" }).eq("id", id);
-    queryClient.invalidateQueries({ queryKey: ["plans", currentUserName] });
-  };
-
-  const totalPlans = plans.length;
-
-  const renderHorizon = (label: string, horizon: string, items: Plan[], color: string) => (
-    <div className={`rounded-lg border border-${color}-200/30 dark:border-${color}-800/20 p-2.5`} style={{ borderColor: `${color}30` }}>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
-        <button
-          onClick={() => { setAdding(adding === horizon ? null : horizon); setNewTitle(""); }}
-          className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-        >+</button>
-      </div>
-      {items.length === 0 && adding !== horizon && (
-        <div className="text-[10px] text-zinc-400 italic">No plans set</div>
-      )}
-      {items.map(p => (
-        <div key={p.id} className="group flex items-center gap-1.5 py-0.5">
-          <button onClick={() => handleComplete(p.id)} className="text-zinc-300 hover:text-emerald-500 transition-colors flex-shrink-0" title="Mark complete">
-            <CheckCircle2 size={10} />
-          </button>
-          <span className="text-[11px] text-zinc-700 dark:text-zinc-300 flex-1">{p.title}</span>
-          <button onClick={() => handleDrop(p.id)} className="text-zinc-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0" title="Drop">
-            <X size={10} />
-          </button>
-        </div>
-      ))}
-      {adding === horizon && (
-        <div className="flex items-center gap-1 mt-1">
-          <input
-            type="text"
-            value={newTitle}
-            onChange={e => setNewTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") handleAdd(horizon); if (e.key === "Escape") setAdding(null); }}
-            placeholder="Add a goal..."
-            autoFocus
-            className="flex-1 text-[11px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-0 outline-none focus:ring-1 focus:ring-teal-500"
-          />
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full"
-      >
-        {expanded ? <ChevronDown size={10} className="text-zinc-400" /> : <ChevronRight size={10} className="text-zinc-400" />}
-        <Target size={12} className="text-teal-500" />
-        <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400">Plans</span>
-        <span className="text-[10px] text-zinc-400">{totalPlans} active</span>
-        {totalPlans === 0 && <span className="text-[10px] text-amber-500">Set your goals</span>}
-      </button>
-      {expanded && (
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {renderHorizon("This Month", "month", monthPlans, "#3B82F6")}
-          {renderHorizon("This Week", "week", weekPlans, "#F59E0B")}
-          {renderHorizon("Next 3 Days", "3_day", dayPlans, "#10B981")}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Triage Banner — shows last triage summary + triage button ──────────
-
-function TriageBanner({ view, viewKey, tasks, currentUserName }: { view: "my_tasks" | "team"; viewKey?: string; tasks: TaskWithRelations[]; currentUserName?: string | null }) {
-  const effectiveViewKey = viewKey || view;
-  const queryClient = useQueryClient();
-  const triageMutation = useTaskTriage();
-  const { addJob, updateJob } = useJobsStore();
-  const [expanded, setExpanded] = useState(true);
-  const [_editingPrompt, setEditingPrompt] = useState(false);
-  const [promptText, setPromptText] = useState("");
-  const [promptModel, _setPromptModel] = useState("claude-haiku-4-5-20251001");
-  const claudeRunStore = useClaudeRunStore();
-
-  // Listen for Claude stream events and feed into claudeRunStore
-  useEffect(() => {
-    const unlisten = listen<{ run_id: string; event_type: string; content: string; metadata?: any }>("claude-stream", (event) => {
-      if (!event.payload.run_id.startsWith("triage-")) return;
-      const { run_id, event_type, content, metadata } = event.payload;
-      if (event_type === "result") {
-        claudeRunStore.completeRun(run_id, content, metadata?.is_error || false, metadata?.cost_usd || 0, metadata?.duration_ms || 0);
-      } else {
-        claudeRunStore.addEvent(run_id, { type: event_type, content, timestamp: Date.now() });
-      }
-    });
-    return () => { unlisten.then(fn => fn()); };
-  }, []);
-
-  // Load triage config
-  const { data: triageConfig } = useQuery({
-    queryKey: ["triage_config"],
-    queryFn: async () => {
-      const { data } = await supabase.from("triage_config").select("*").eq("id", "default").limit(1);
-      return data?.[0] || null;
-    },
-    staleTime: 300_000,
-  });
-
-  const _openPromptEditor = () => {
-    setPromptText(triageConfig?.summary_system_prompt || "");
-    _setPromptModel(triageConfig?.summary_model || "claude-haiku-4-5-20251001");
-    setEditingPrompt(true);
-  };
-
-  const _savePrompt = async () => {
-    await supabase.from("triage_config").upsert({
-      id: "default",
-      summary_system_prompt: promptText,
-      summary_model: promptModel,
-      updated_at: new Date().toISOString(),
-    });
-    queryClient.invalidateQueries({ queryKey: ["triage_config"] });
-    setEditingPrompt(false);
-    toast.success("Triage prompt updated");
-  };
-  // Suppress unused warnings — these are temporarily disabled features
-  void _openPromptEditor; void _savePrompt;
-
-  // Load last triage run
-  const triageCreatedBy = currentUserName || "unknown";
-  const { data: lastRun } = useQuery({
-    queryKey: ["triage_runs", effectiveViewKey, triageCreatedBy],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("triage_runs")
-        .select("*")
-        .eq("view", effectiveViewKey)
-        .eq("created_by", triageCreatedBy)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      return data?.[0] || null;
-    },
-    staleTime: 60_000,
-  });
-
-  const handleTriage = useCallback(async () => {
-    const teamLabel = view === "team" ? "Team" : "My Tasks";
-    const jobId = `triage-${view}-${Date.now()}`;
-    addJob({ id: jobId, name: `Triage: ${teamLabel}`, status: "running", message: "Claude is analyzing..." });
-    claudeRunStore.createRun({ id: jobId, name: `Triage: ${teamLabel}`, domainName: "", tableId: "" });
-
-    // Build scope-specific instructions
-    const assigneeNames = [...new Set(tasks.flatMap(t => (t.assignees || []).map(a => a.user?.name).filter(Boolean)))];
-    // Only score tasks that haven't been triaged recently (> 24h ago)
-    const untriaged = tasks.filter(t => !t.last_triaged_at || (Date.now() - new Date(t.last_triaged_at as string).getTime()) > 24 * 60 * 60 * 1000);
-    const alreadyTriaged = tasks.filter(t => t.triage_action && t.last_triaged_at && (Date.now() - new Date(t.last_triaged_at as string).getTime()) <= 24 * 60 * 60 * 1000);
-    const taskIds = (untriaged.length > 0 ? untriaged : tasks).slice(0, 200).map(t => t.id);
-    // Build context of already-triaged tasks so Claude includes them in the summary
-    const existingTriageContext = alreadyTriaged.length > 0
-      ? `\n\nALREADY TRIAGED (include these in your summary and action cards, do NOT re-score them):\n${alreadyTriaged.slice(0, 100).map(t => `${t.id} | ${t.title} | ${(t as any).project?.name || "?"} | ${t.triage_action} | ${t.triage_score} | ${t.triage_reason || ""}`).join("\n")}`
-      : "";
-
-    const taskFilter = view === "team"
-      ? `SCOPE: Team triage for the team: ${assigneeNames.join(", ") || "all team members"}.
-IMPORTANT: Only recommend actions WITHIN this team. Do NOT suggest delegating to people outside this team. "delegate" means reassign between ${assigneeNames.join(", ")}.
-Assess workload balance across these team members. Mention each person by name.
-${untriaged.length < tasks.length ? `NOTE: ${tasks.length - untriaged.length} tasks were already triaged recently — only scoring ${taskIds.length} new/stale tasks.` : ""}
-Task IDs to triage:\n${taskIds.join("\n")}`
-      : `SCOPE: Individual triage for mel-tv (Melvin).
-Focus on personal prioritization: what to do today, what to push back, what to kill.
-${untriaged.length < tasks.length ? `NOTE: ${tasks.length - untriaged.length} tasks already triaged recently — only scoring ${taskIds.length} new/stale tasks.` : ""}
-Task IDs to triage:\n${taskIds.join("\n")}`;
-
-    const prompt = `You are a strategic task triage advisor. Use mcp__supabase__execute_sql to query the database and understand the full context.
-
-STEP 1 — QUERY these tables:
-- SELECT i.id, i.name, i.status, i.health FROM initiatives i WHERE i.status IN ('active','planned')
-- SELECT p.id, p.name, p.project_type, p.status, c.display_name as company, c.stage FROM projects p LEFT JOIN crm_companies c ON c.id = p.company_id WHERE p.status = 'active'
-- SELECT t.id, t.title, t.description, t.priority, t.due_date, ts.name as status, ts.type as status_type, p.name as project, c.display_name as company FROM tasks t LEFT JOIN task_statuses ts ON ts.id = t.status_id LEFT JOIN projects p ON p.id = t.project_id LEFT JOIN crm_companies c ON c.id = t.company_id WHERE ts.type != 'complete' AND t.updated_at > NOW() - INTERVAL '60 days' ORDER BY t.due_date ASC NULLS LAST
-- SELECT ta.task_id, u.name FROM task_assignees ta JOIN users u ON u.id = ta.user_id
-- SELECT horizon, title FROM plans WHERE status = 'active'
-
-STEP 2 — For EACH active task, assign:
-- action: do_now | do_this_week | defer | delegate | kill
-- score: 0-100 (strategic urgency, not just due date)
-- reason: 1 concise sentence with specific context (names, amounts, dates)
-
-STEP 3 — Write summary with labeled sections separated by line breaks:
-URGENT: [what needs action now, 1-2 sentences]
-PLAN STATUS: [on track or drifting, 1 sentence]
-DEFER/KILL: [what to cut, 1 sentence]
-WORKLOAD: [capacity concerns, 1 sentence]
-
-RULES:
-- READ ONLY. Do NOT update, insert, or modify any data.
-- Do NOT use update-task or any write tools.
-- For deals: be aggressive about kill for cold deals, do_now for active engagement.
-- Return ONLY valid JSON, no markdown code blocks:
-{"summary":"URGENT: ...\\n\\nPLAN STATUS: ...\\n\\nDEFER/KILL: ...\\n\\nWORKLOAD: ...","tasks":[{"id":"uuid","title":"task name","project":"project name","action":"do_now","score":90,"reason":"..."}]}
-
-${taskFilter}${existingTriageContext}`;
-
-    try {
-      const claudeResult = await invoke<{ result: string; is_error: boolean }>("claude_run", {
-        runId: jobId,
-        request: {
-          prompt,
-          allowed_tools: ["mcp__supabase__execute_sql"],
-          model: "sonnet",
-          max_budget_usd: 1.0,
-        },
-      });
-
-      if (claudeResult.result) {
-        // Note: don't check is_error — Claude sometimes flags code-block output as "error"
-        // Parse Claude's structured JSON response
-        let parsed: { summary?: string; tasks?: { id: string; action: string; score: number; reason: string }[] } = {};
-        try {
-          const raw = claudeResult.result.trim();
-          // Try to find the JSON object — Claude might wrap it in text or code blocks
-          let jsonStr = raw;
-          // Strip markdown code blocks if present
-          const codeMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-          if (codeMatch) jsonStr = codeMatch[1].trim();
-          const start = jsonStr.indexOf("{");
-          const end = jsonStr.lastIndexOf("}");
-          if (start >= 0 && end > start) {
-            parsed = JSON.parse(jsonStr.slice(start, end + 1));
-          }
-          console.log(`[triage] Parsed ${parsed.tasks?.length || 0} tasks from Claude response`);
-        } catch (e) {
-          console.error("[triage] JSON parse failed:", e, "Raw:", claudeResult.result.slice(0, 500));
-          toast.error("Triage JSON parse failed — check console");
-        }
-
-        const aiSummary = parsed.summary || claudeResult.result;
-        const newScoredTasks = parsed.tasks || [];
-
-        // Merge new scores with existing triage data for complete action cards
-        const allScored = [
-          ...newScoredTasks,
-          ...alreadyTriaged.map(t => ({
-            id: t.id, title: t.title, project: (t as any).project?.name || "",
-            action: t.triage_action!, score: t.triage_score!, reason: t.triage_reason || "",
-          })),
-        ];
-        // Deduplicate — new scores override existing
-        const seenIds = new Set<string>();
-        const scoredTasks = allScored.filter(t => { if (seenIds.has(t.id)) return false; seenIds.add(t.id); return true; });
-
-        // Build action cards
-        const counts: Record<string, number> = {};
-        const actionLabels: Record<string, string> = { do_now: "Urgent", do_this_week: "This Week", defer: "Defer", delegate: "Delegate", kill: "Kill" };
-        const topByAction: Record<string, { label: string; tasks: { title: string; project: string; score: number; reason: string }[] }> = {};
-        for (const st of scoredTasks) counts[st.action] = (counts[st.action] || 0) + 1;
-        for (const action of ["do_now", "do_this_week", "defer", "delegate", "kill"]) {
-          const top = scoredTasks.filter(t => t.action === action).sort((a, b) => b.score - a.score).slice(0, 8)
-            .map(t => {
-              const task = tasks.find(tt => tt.id === t.id);
-              return { title: (t as any).title || task?.title || t.id.slice(0, 8), project: (t as any).project || (task as any)?.project?.name || "", score: t.score, reason: t.reason };
-            });
-          if (top.length > 0) topByAction[action] = { label: actionLabels[action] || action, tasks: top };
-        }
-
-        // Save triage run IMMEDIATELY so UI updates fast
-        const triageData = { view: effectiveViewKey, tasks_scored: scoredTasks.length, summary: aiSummary, details: { counts, topByAction }, created_by: triageCreatedBy };
-        const { error: insertErr } = await supabase.from("triage_runs").insert(triageData);
-        if (insertErr) {
-          toast.error(`Failed to save triage: ${insertErr.message}`);
-        }
-        updateJob(jobId, { status: "completed", message: `${scoredTasks.length} tasks triaged` });
-
-        // Update UI immediately with the new data (don't wait for refetch)
-        queryClient.setQueryData(["triage_runs", effectiveViewKey], triageData);
-        setExpanded(true);
-        toast.success(`Triage complete: ${scoredTasks.length} tasks scored`);
-
-        // Write task scores in background (don't block UI)
-        const activeTaskIds = new Set(tasks.map(t => t.id));
-        const activeScoredTasks = scoredTasks.filter(t => activeTaskIds.has(t.id));
-        const now = new Date().toISOString();
-        // Batch update via SQL for speed
-        if (activeScoredTasks.length > 0) {
-          const cases = activeScoredTasks.map(t =>
-            `WHEN '${t.id}' THEN ${t.score}`
-          ).join(" ");
-          const actionCases = activeScoredTasks.map(t =>
-            `WHEN '${t.id}' THEN '${t.action}'`
-          ).join(" ");
-          const reasonCases = activeScoredTasks.map(t =>
-            `WHEN '${t.id}' THEN '${t.reason.replace(/'/g, "''")}'`
-          ).join(" ");
-          const ids = activeScoredTasks.map(t => `'${t.id}'`).join(",");
-
-          await supabase.rpc("execute_raw_sql" as any, { query: `
-            UPDATE tasks SET
-              triage_score = CASE id ${cases} END,
-              triage_action = CASE id ${actionCases} END,
-              triage_reason = CASE id ${reasonCases} END,
-              last_triaged_at = '${now}'
-            WHERE id IN (${ids})
-          `}).then(({ error: rpcError }) => { if (rpcError) {
-            // Fallback: individual updates if RPC not available
-            activeScoredTasks.forEach(t => {
-              supabase.from("tasks").update({
-                triage_score: t.score, triage_action: t.action, triage_reason: t.reason, last_triaged_at: now,
-              }).eq("id", t.id).then(() => {});
-            });
-          }});
-        }
-
-        // Background refetch to sync everything
-        queryClient.invalidateQueries({ queryKey: ["work"] });
-      } else {
-        const errMsg = claudeResult?.result?.slice(0, 300) || "No result returned";
-        updateJob(jobId, { status: "failed", message: `Triage failed: ${errMsg}` });
-        toast.error(`Triage failed: ${errMsg}`);
-      }
-    } catch (err: any) {
-      updateJob(jobId, { status: "failed", message: formatError(err) });
-    }
-  }, [view, addJob, updateJob, queryClient, triageConfig, tasks, claudeRunStore]);
-
-  const triaged = tasks.filter(t => t.triage_action);
-  const untriaged = tasks.length - triaged.length;
-  const timeAgo = lastRun?.created_at ? formatTimeAgo(new Date(lastRun.created_at)) : null;
-
-  return (
-    <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
-      <div className="flex items-center gap-3">
-        <Zap size={12} className="text-amber-500" />
-        <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400">Triage</span>
-        {timeAgo && (
-          <span className="text-[10px] text-zinc-400">Last: {timeAgo}</span>
-        )}
-        {triaged.length > 0 && (
-          <span className="text-[10px] text-zinc-400">{triaged.length} scored, {untriaged} unscored</span>
-        )}
-        <div className="flex-1" />
-        {lastRun?.summary && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-          >
-            {expanded ? "Hide summary" : "Show summary"}
-          </button>
-        )}
-        <button
-          onClick={handleTriage}
-          disabled={triageMutation.isPending}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
-            triageMutation.isPending
-              ? "text-amber-500 bg-amber-50 dark:bg-amber-900/20 cursor-wait"
-              : "text-amber-600 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:bg-amber-900/20 dark:hover:bg-amber-900/30"
-          }`}
-        >
-          {triageMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
-          {triageMutation.isPending ? "Scoring..." : "Triage"}
-        </button>
-      </div>
-      {expanded && lastRun && (
-        <div className="mt-2 space-y-3">
-          {/* AI Strategic Summary */}
-          {lastRun.summary && (
-            <div className="bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/30 dark:border-amber-800/20 rounded-lg p-3">
-              <div className="flex items-start gap-2">
-                <Zap size={12} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                <div className="text-[12px] text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line"
-                  dangerouslySetInnerHTML={{ __html: lastRun.summary
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\n/g, '<br/>')
-                  }}
-                />
-              </div>
-            </div>
-          )}
-          {/* Per-action breakdown */}
-          {lastRun.details?.topByAction && (
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(lastRun.details.topByAction).map(([action, group]: [string, any]) => {
-                const styles: Record<string, { border: string; bg: string; text: string }> = {
-                  do_now: { border: "border-red-200/30 dark:border-red-800/20", bg: "bg-red-50/50 dark:bg-red-900/10", text: "text-red-500" },
-                  do_this_week: { border: "border-amber-200/30 dark:border-amber-800/20", bg: "bg-amber-50/50 dark:bg-amber-900/10", text: "text-amber-500" },
-                  defer: { border: "border-blue-200/30 dark:border-blue-800/20", bg: "bg-blue-50/50 dark:bg-blue-900/10", text: "text-blue-500" },
-                  delegate: { border: "border-zinc-200/30 dark:border-zinc-700/30", bg: "bg-zinc-50/50 dark:bg-zinc-800/30", text: "text-zinc-500" },
-                  kill: { border: "border-zinc-200/30 dark:border-zinc-700/30", bg: "bg-zinc-50/50 dark:bg-zinc-800/30", text: "text-zinc-400" },
-                };
-                const s = styles[action] || styles.kill;
-                return (
-                  <div key={action} className={`rounded-lg border ${s.border} ${s.bg} p-2.5`}>
-                    <div className={`text-[10px] font-semibold ${s.text} mb-1.5`}>{group.label} ({group.tasks.length})</div>
-                    {group.tasks.map((t: any, i: number) => (
-                      <div key={i} className="text-[10px] text-zinc-500 dark:text-zinc-400 py-0.5 flex gap-1.5 items-baseline">
-                        <span className={`font-mono font-medium ${s.text} flex-shrink-0 w-5 text-right`}>{t.score}</span>
-                        <span className="flex-1 min-w-0">
-                          <span className="text-zinc-700 dark:text-zinc-300">{t.title}</span>
-                          {t.project && <span className="text-zinc-400 ml-1">· {t.project}</span>}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function formatTimeAgo(date: Date): string {
-  const mins = Math.floor((Date.now() - date.getTime()) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 function StatusGroupedTasks({ tasks, onSelectTask, contextLabels, rowComponent, selectedTaskIds, onToggleSelect }: {
   tasks: TaskWithRelations[];
@@ -1419,24 +726,9 @@ export function TeamTasksView({ allTasks, users: _users, onSelectTask, initiativ
   initiativeLinks?: InitiativeProjectLink[];
 }) {
   const { data: teams = [] } = useTeams();
-  const claudeRunStore = useClaudeRunStore();
   const [includeNotion, setIncludeNotion] = useState(true);
   const [showStale, setShowStale] = useState(false);
   const [selectedPersonIds, setSelectedPersonIds] = useState<Set<string>>(new Set());
-
-  // Listen for ALL triage Claude stream events (team + individual)
-  useEffect(() => {
-    const unlisten = listen<{ run_id: string; event_type: string; content: string; metadata?: any }>("claude-stream", (event) => {
-      if (!event.payload.run_id.startsWith("triage-")) return;
-      const { run_id, event_type, content, metadata } = event.payload;
-      if (event_type === "result") {
-        claudeRunStore.completeRun(run_id, content, metadata?.is_error || false, metadata?.cost_usd || 0, metadata?.duration_ms || 0);
-      } else {
-        claudeRunStore.addEvent(run_id, { type: event_type, content, timestamp: Date.now() });
-      }
-    });
-    return () => { unlisten.then(fn => fn()); };
-  }, []);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [teamDefaulted, setTeamDefaulted] = useState(false);
   // Default to Analyst team on first load
@@ -1451,7 +743,6 @@ export function TeamTasksView({ allTasks, users: _users, onSelectTask, initiativ
     }
   }, [teams, teamDefaulted]);
   const [sortBy, setSortBy] = useState<"tasks" | "overdue" | "name">("overdue");
-  const [teamTab, setTeamTab] = useState<"strategy" | "people">("strategy");
 
   const filteredByNotion = useMemo(() =>
     allTasks.filter(t => includeNotion || !(t as any).notion_page_id),
@@ -1568,44 +859,14 @@ export function TeamTasksView({ allTasks, users: _users, onSelectTask, initiativ
           <span className={`text-2xl font-bold ${totalNoCompany > 0 ? "text-amber-500" : "text-zinc-300"}`}>{totalNoCompany}</span>
           <span className="text-[10px] text-zinc-400 leading-tight">no<br/>company</span>
         </div>
-        <div className="flex-1" />
-        <label className="flex items-center gap-1 text-[10px] text-zinc-400 cursor-pointer">
-          <input type="checkbox" checked={showStale} onChange={(e) => setShowStale(e.target.checked)} className="rounded border-zinc-200 dark:border-zinc-800 text-amber-600 focus:ring-amber-500 w-3 h-3" />
-          Stale ({staleCount})
-        </label>
-        <label className="flex items-center gap-1 text-[10px] text-zinc-400 cursor-pointer">
-          <input type="checkbox" checked={includeNotion} onChange={(e) => setIncludeNotion(e.target.checked)} className="rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500 w-3 h-3" />
-          Notion
-        </label>
       </div>
 
-      {/* Tabs */}
-      <div className="flex-shrink-0 flex items-center gap-0 px-4 border-b border-zinc-100 dark:border-zinc-800">
-        {(["strategy", "people"] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setTeamTab(tab)}
-            className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
-              teamTab === tab
-                ? "border-teal-500 text-teal-600 dark:text-teal-400"
-                : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-            }`}
-          >
-            {tab === "strategy" ? "Team" : "People"}
-          </button>
-        ))}
-      </div>
-
-      {/* Strategy Tab */}
-      {teamTab === "strategy" && (
-        <div className="flex-1 overflow-y-auto">
-          <TriageBanner view="team" viewKey={selectedTeamId ? `team-${teams.find(t => t.id === selectedTeamId)?.slug || selectedTeamId}` : "team-all"} tasks={filteredTasks} />
-        </div>
-      )}
-
-      {/* People Tab */}
-      {teamTab === "people" && (
-        <TeamPeopleGridView
+      <TeamPeopleGridView
+          includeNotion={includeNotion}
+          setIncludeNotion={setIncludeNotion}
+          showStale={showStale}
+          setShowStale={setShowStale}
+          staleCount={staleCount}
           tasks={applyTaskFilters(filteredTasks.filter(t => t.status?.type !== "complete"))}
           contextLabels={contextLabels}
           onSelectTask={onSelectTask}
@@ -1641,7 +902,6 @@ export function TeamTasksView({ allTasks, users: _users, onSelectTask, initiativ
           sortBy={sortBy}
           onSortByChange={setSortBy}
         />
-      )}
     </div>
   );
 }
@@ -1723,6 +983,11 @@ function TeamPeopleGridView({
   onToggleAction,
   sortBy,
   onSortByChange,
+  includeNotion,
+  setIncludeNotion,
+  showStale,
+  setShowStale,
+  staleCount,
 }: {
   tasks: TaskWithRelations[];
   contextLabels: Map<string, string>;
@@ -1738,10 +1003,16 @@ function TeamPeopleGridView({
   onToggleAction: (action: string) => void;
   sortBy: "overdue" | "tasks" | "name";
   onSortByChange: (s: "overdue" | "tasks" | "name") => void;
+  includeNotion?: boolean;
+  setIncludeNotion?: (v: boolean) => void;
+  showStale?: boolean;
+  setShowStale?: (v: boolean) => void;
+  staleCount?: number;
 }) {
   const theme = useAppStore((s) => s.theme);
   const [quickFilter, setQuickFilter] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const gridRef = useRef<AgGridReact<TeamGridRow>>(null);
 
   useEffect(() => {
@@ -2072,11 +1343,11 @@ function TeamPeopleGridView({
     }>
       <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
         {/* Sidebar: View presets, Teams, People, Sort */}
+        {sidebarOpen && (
         <aside className="w-60 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
           <div className="flex-1 overflow-y-auto">
             <div className="px-3 py-3">
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
-              <div className="space-y-0.5">
+              <SidebarSection title="View" storageKey="work-tasks:view">
                 <button
                   onClick={() => { actionFilter.forEach(a => onToggleAction(a)); }}
                   className={cn(
@@ -2109,13 +1380,12 @@ function TeamPeopleGridView({
                     </button>
                   );
                 })}
-              </div>
+              </SidebarSection>
             </div>
 
             {teams.length > 0 && (
               <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-800">
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Teams</div>
-                <div className="space-y-0.5">
+                <SidebarSection title="Teams" storageKey="work-tasks:teams">
                   <button
                     onClick={() => onSelectTeam(null)}
                     className={cn(
@@ -2145,18 +1415,18 @@ function TeamPeopleGridView({
                       <span className="text-[11px] text-zinc-400">{team.members.length}</span>
                     </button>
                   ))}
-                </div>
+                </SidebarSection>
               </div>
             )}
 
             <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500">People</div>
-                {selectedPersonIds.size > 0 && (
+              <SidebarSection
+                title="People"
+                storageKey="work-tasks:people"
+                rightSlot={selectedPersonIds.size > 0 && (
                   <button onClick={onClearPersons} className="text-[10px] text-zinc-400 hover:text-zinc-200">Clear</button>
                 )}
-              </div>
-              <div className="space-y-0.5">
+              >
                 {allPersons.map(([id, name]) => {
                   const active = selectedPersonIds.has(id);
                   return (
@@ -2177,33 +1447,47 @@ function TeamPeopleGridView({
                     </button>
                   );
                 })}
-              </div>
+              </SidebarSection>
             </div>
 
             <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-800">
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Sort</div>
-              <div className="flex items-center gap-1">
-                {(["overdue", "tasks", "name"] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => onSortByChange(s)}
-                    className={cn(
-                      "text-[11px] px-1.5 py-0.5 rounded font-medium transition-colors",
-                      sortBy === s ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800",
-                    )}
-                  >
-                    {s === "overdue" ? "Overdue" : s === "tasks" ? "Tasks" : "Name"}
-                  </button>
-                ))}
-              </div>
+              <SidebarSection title="Sort" storageKey="work-tasks:sort">
+                <div className="flex items-center gap-1">
+                  {(["overdue", "tasks", "name"] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => onSortByChange(s)}
+                      className={cn(
+                        "text-[11px] px-1.5 py-0.5 rounded font-medium transition-colors",
+                        sortBy === s ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                      )}
+                    >
+                      {s === "overdue" ? "Overdue" : s === "tasks" ? "Tasks" : "Name"}
+                    </button>
+                  ))}
+                </div>
+              </SidebarSection>
             </div>
           </div>
         </aside>
+        )}
 
         {/* Main: toolbar + grid */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
       {/* Toolbar */}
       <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className={cn(
+            "flex items-center justify-center p-1.5 rounded-md border transition-colors flex-shrink-0",
+            sidebarOpen
+              ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+              : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          )}
+          title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+        >
+          {sidebarOpen ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
+        </button>
         <input
           type="text"
           value={quickFilter}
@@ -2227,6 +1511,30 @@ function TeamPeopleGridView({
         )}
 
         <div className="flex-1" />
+
+        {setShowStale && (
+          <label className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showStale ?? false}
+              onChange={(e) => setShowStale(e.target.checked)}
+              className="rounded border-zinc-200 dark:border-zinc-800 text-amber-600 focus:ring-amber-500 w-3 h-3"
+            />
+            Stale ({staleCount ?? 0})
+          </label>
+        )}
+
+        {setIncludeNotion && (
+          <label className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeNotion ?? true}
+              onChange={(e) => setIncludeNotion(e.target.checked)}
+              className="rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500 w-3 h-3"
+            />
+            Notion
+          </label>
+        )}
 
         {/* Layouts dropdown */}
         <div className="relative">
@@ -2410,6 +1718,10 @@ function MyTasksGridView({
   setSelectedTaskIds,
   onSelectTask,
   onBulkSyncToNotion,
+  onToggleChanges,
+  showChanges,
+  includeNotion,
+  setIncludeNotion,
 }: {
   myTasks: TaskWithRelations[];
   staleTasks: TaskWithRelations[];
@@ -2420,11 +1732,16 @@ function MyTasksGridView({
   setSelectedTaskIds: (ids: Set<string>) => void;
   onSelectTask: (id: string) => void;
   onBulkSyncToNotion: () => void | Promise<void>;
+  onToggleChanges?: () => void;
+  showChanges?: boolean;
+  includeNotion?: boolean;
+  setIncludeNotion?: (v: boolean) => void;
 }) {
   const theme = useAppStore((s) => s.theme);
   const [view, setView] = useState<MyTasksGridFilter>("all");
   const [quickFilter, setQuickFilter] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const gridRef = useRef<AgGridReact<MyTasksGridRow>>(null);
 
   // ESC to exit fullscreen
@@ -2755,10 +2072,10 @@ function MyTasksGridView({
     }>
       <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
         {/* Sidebar */}
+        {sidebarOpen && (
         <aside className="w-60 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
           <div className="px-3 py-3">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
-            <div className="space-y-0.5">
+            <SidebarSection title="View" storageKey="my-tasks:view">
               {MY_TASKS_VIEWS.map((v) => {
                 const Icon = v.icon;
                 const active = view === v.id;
@@ -2781,14 +2098,27 @@ function MyTasksGridView({
                   </button>
                 );
               })}
-            </div>
+            </SidebarSection>
           </div>
         </aside>
+        )}
 
         {/* Main column */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* Toolbar */}
           <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className={cn(
+                "flex items-center justify-center p-1.5 rounded-md border transition-colors flex-shrink-0",
+                sidebarOpen
+                  ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                  : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              )}
+              title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+            >
+              {sidebarOpen ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
+            </button>
             {/* Left group: search, count, filter pill */}
             <input
               type="text"
@@ -2832,6 +2162,18 @@ function MyTasksGridView({
                   Clear
                 </button>
               </>
+            )}
+
+            {setIncludeNotion && (
+              <label className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeNotion ?? true}
+                  onChange={(e) => setIncludeNotion(e.target.checked)}
+                  className="rounded border-zinc-200 dark:border-zinc-800 text-teal-600 focus:ring-teal-500 w-3 h-3"
+                />
+                Notion
+              </label>
             )}
 
             {/* Layouts dropdown */}
@@ -2914,6 +2256,21 @@ function MyTasksGridView({
                 </div>
               )}
             </div>
+
+            {onToggleChanges && (
+              <button
+                onClick={onToggleChanges}
+                className={cn(
+                  "flex items-center justify-center p-1.5 rounded-md border transition-colors",
+                  showChanges
+                    ? "border-purple-500 bg-purple-500/20 text-purple-600 dark:text-purple-400"
+                    : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                )}
+                title="Recent Changes"
+              >
+                <Clock size={12} />
+              </button>
+            )}
 
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}

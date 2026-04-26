@@ -15,8 +15,9 @@ import {
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
-import { Send, Trash2, Layers, Inbox, CheckCircle2, Archive, Clock, Bookmark, Star, Save, RotateCcw, ChevronsLeftRight, X, Maximize2 } from "lucide-react";
+import { Send, Trash2, Layers, Inbox, CheckCircle2, Archive, Clock, Bookmark, Star, Save, RotateCcw, ChevronsLeftRight, X, Maximize2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import { useOutreachDrafts, useBatchApproveOutreach } from "../../hooks/email";
+import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 import { useDraftTracking, useDeleteDraft } from "../../hooks/email/useDrafts";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
@@ -128,6 +129,7 @@ export function OutreachView({ selectedId, onSelect }: OutreachViewProps) {
   const [quickFilter, setQuickFilter] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const gridRef = useRef<AgGridReact<OutreachRow>>(null);
 
   const { data: drafts = [], isLoading } = useOutreachDrafts(
@@ -454,10 +456,10 @@ export function OutreachView({ selectedId, onSelect }: OutreachViewProps) {
     }>
       <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
         {/* Sidebar: View presets */}
+        {sidebarOpen && (
         <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
           <div className="flex-1 overflow-y-auto px-3 py-3">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">View</div>
-            <div className="space-y-0.5">
+            <CollapsibleSection title="View" storageKey="outreach:view">
               {VIEWS.map((v) => {
                 const Icon = v.icon;
                 const active = statusFilter === v.id;
@@ -482,14 +484,27 @@ export function OutreachView({ selectedId, onSelect }: OutreachViewProps) {
                   </button>
                 );
               })}
-            </div>
+            </CollapsibleSection>
           </div>
         </aside>
+        )}
 
         {/* Main column */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* Toolbar */}
           <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className={cn(
+                "flex items-center justify-center p-1.5 rounded-md border transition-colors flex-shrink-0",
+                sidebarOpen
+                  ? "border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-400"
+                  : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              )}
+              title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+            >
+              {sidebarOpen ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
+            </button>
             <input
               type="text"
               value={quickFilter}

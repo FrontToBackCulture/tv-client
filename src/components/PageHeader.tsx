@@ -16,20 +16,22 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ description, tabs, actions, children }: PageHeaderProps) {
-  const hasTabs = tabs || actions;
+  const hasTabsOrActions = !!(tabs || actions);
+  const hasAnything = !!(description || hasTabsOrActions);
 
   return (
     <>
-      {description && (
-        <div className="flex-shrink-0 px-4 pt-3 pb-1">
-          <p className="text-xs text-zinc-400">{description}</p>
-        </div>
-      )}
-      {children}
-      {hasTabs && (
-        <div className="flex-shrink-0 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 px-4">
-          <div className="flex items-center overflow-x-auto">
-            {tabs}
+      {hasAnything && (
+        <div className="flex-shrink-0 flex items-center justify-between px-4 border-b border-zinc-100 dark:border-zinc-800 min-h-[44px]">
+          <div className="flex items-center gap-4 overflow-x-auto min-w-0">
+            {description && (
+              <p className="text-xs text-zinc-400 flex-shrink-0">{description}</p>
+            )}
+            {tabs && (
+              <div className="flex items-center overflow-x-auto">
+                {tabs}
+              </div>
+            )}
           </div>
           {actions && (
             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
@@ -38,6 +40,7 @@ export function PageHeader({ description, tabs, actions, children }: PageHeaderP
           )}
         </div>
       )}
+      {children}
     </>
   );
 }
