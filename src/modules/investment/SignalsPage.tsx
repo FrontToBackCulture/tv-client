@@ -92,23 +92,26 @@ export function SignalsPage({ onSelectSymbol }: SignalsPageProps) {
     const map = new Map<string, { shares: number; avg_cost: number | null; market_value: number | null }>();
     for (const p of positions.data ?? []) {
       if (p.asset_class !== "STK") continue;
+      const qty = p.quantity ?? 0;
+      const pAvgCost = p.cost_basis != null && qty !== 0 ? p.cost_basis / qty : null;
+      const pMarketValue = p.position_value;
       const existing = map.get(p.symbol);
       if (existing) {
-        const totalShares = existing.shares + p.quantity;
+        const totalShares = existing.shares + qty;
         const weighted =
-          existing.avg_cost != null && p.avg_cost != null
-            ? (existing.avg_cost * existing.shares + p.avg_cost * p.quantity) / (totalShares || 1)
-            : (existing.avg_cost ?? p.avg_cost);
+          existing.avg_cost != null && pAvgCost != null
+            ? (existing.avg_cost * existing.shares + pAvgCost * qty) / (totalShares || 1)
+            : (existing.avg_cost ?? pAvgCost);
         map.set(p.symbol, {
           shares: totalShares,
           avg_cost: weighted,
-          market_value: (existing.market_value ?? 0) + (p.market_value ?? 0),
+          market_value: (existing.market_value ?? 0) + (pMarketValue ?? 0),
         });
       } else {
         map.set(p.symbol, {
-          shares: p.quantity,
-          avg_cost: p.avg_cost,
-          market_value: p.market_value,
+          shares: qty,
+          avg_cost: pAvgCost,
+          market_value: pMarketValue,
         });
       }
     }

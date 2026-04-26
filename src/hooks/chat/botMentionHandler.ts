@@ -483,7 +483,7 @@ ${folderContext}
     }
 
     if (useAgentSDK) {
-      const homeMatch = botCwd.match(/^(\/Users\/[^/]+)/);
+      const homeMatch = (botCwd ?? "").match(/^(\/Users\/[^/]+)/);
       const home = homeMatch ? homeMatch[1] : "";
       await invoke("agent_run", {
         runId,

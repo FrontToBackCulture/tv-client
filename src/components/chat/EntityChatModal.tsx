@@ -24,7 +24,6 @@ import { useClaudeRunStore } from "../../stores/claudeRunStore";
 import { handleBotMention } from "../../hooks/chat/botMentionHandler";
 import { useCurrentUserId, useCurrentUserName } from "../../hooks/work/useUsers";
 import { useCreateNotification } from "../../hooks/useNotifications";
-import { supabase } from "../../lib/supabase";
 import { getEntityChatConfig } from "../../lib/entityChatConfig";
 import { BotChatComposer } from "../../modules/scheduler/canvas/panels/BotChatComposer";
 import { cn } from "../../lib/cn";
