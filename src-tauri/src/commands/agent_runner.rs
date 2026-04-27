@@ -226,10 +226,11 @@ pub async fn agent_run(
     }
 
     // Cancellation watcher: poll the cancel flag on a background thread and
-    // SIGTERM the sidecar (and its tv-mcp child via the process group) the
-    // moment cancellation flips. Without this, the read loop only sees the
-    // cancel between NDJSON lines, so a long-running tool call won't actually
-    // stop until its next chunk arrives.
+    // terminate the sidecar (and its tv-mcp child) the moment cancellation
+    // flips. Without this, the read loop only sees the cancel between NDJSON
+    // lines, so a long-running tool call won't actually stop until its next
+    // chunk arrives.
+    #[cfg(unix)]
     {
         let cancelled_for_watcher = cancelled.clone();
         let pid = child.id() as i32;
@@ -256,6 +257,26 @@ pub async fn agent_run(
                 if libc::kill(pid, 0) != 0 {
                     break;
                 }
+            }
+        });
+    }
+
+    // Windows equivalent: shell out to taskkill /F /T to kill the whole tree.
+    // Less surgical than SIGTERM-then-SIGKILL but sufficient for cancel.
+    #[cfg(windows)]
+    {
+        let cancelled_for_watcher = cancelled.clone();
+        let pid = child.id();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            let flagged = *cancelled_for_watcher
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            if flagged {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/F", "/T", "/PID", &pid.to_string()])
+                    .output();
+                break;
             }
         });
     }
