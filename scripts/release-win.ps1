@@ -51,13 +51,23 @@ try {
   Write-Host "Ensuring x86_64-pc-windows-msvc target is installed..."
   rustup target add x86_64-pc-windows-msvc | Out-Null
 
+  # Clean any stale installers from a previous version's build so the search
+  # below cannot pick up an old artifact (this is what caused 0.10.34 to ship
+  # a 0.10.33-named installer the first time).
+  $bundleDir = "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis"
+  if (Test-Path $bundleDir) {
+    Get-ChildItem "$bundleDir\*-setup.exe" -ErrorAction SilentlyContinue | Remove-Item -Force
+  }
+
   Write-Host "Building Windows installer (this takes ~10 min on first build)..."
   npm run tauri:build -- --target x86_64-pc-windows-msvc
 
-  # Find the NSIS installer
-  $installer = Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+  # Find the NSIS installer for THIS version specifically — guards against any
+  # leftover wrong-version files in the bundle dir.
+  $installer = Get-ChildItem "$bundleDir\*_${VersionNum}_x64-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
   if (-not $installer) {
-    Write-Error "No NSIS installer found in src-tauri\target\release\bundle\nsis\"
+    $present = (Get-ChildItem $bundleDir -ErrorAction SilentlyContinue | ForEach-Object { '  ' + $_.Name }) -join "`n"
+    Write-Error "No NSIS installer for version $VersionNum found in $bundleDir.`nFiles present:`n$present"
     exit 1
   }
 
