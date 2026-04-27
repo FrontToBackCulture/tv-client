@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { invoke } from "@tauri-apps/api/core";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../../lib/cn";
@@ -1184,7 +1185,16 @@ function TaskArtifactRow({
     <div className="group">
       <div
         className="flex items-center gap-1 px-1 py-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
-        onClick={() => isFolder && setExpanded(v => !v)}
+        onClick={() => {
+          if (isFolder) {
+            setExpanded(v => !v);
+          } else {
+            invoke("open_with_default_app", { path: absPath }).catch((err) => {
+              console.error("Failed to open artifact:", err);
+              toast.error(`Could not open ${artifact.label}`);
+            });
+          }
+        }}
       >
         {isFolder ? (
           expanded ? <ChevronDown size={10} className="text-zinc-400 shrink-0" /> : <ChevronRight size={10} className="text-zinc-400 shrink-0" />
@@ -1251,13 +1261,20 @@ function TaskFileTreeNode({ node, depth }: { node: TreeNode; depth: number }) {
   const ext = node.name.split(".").pop()?.toLowerCase() ?? "";
   const Icon = ["md", "txt", "pdf"].includes(ext) ? FileText : FileIcon;
   return (
-    <div
-      className="flex items-center gap-1 py-0.5 px-1 text-zinc-600 dark:text-zinc-400"
+    <button
+      type="button"
+      onClick={() => {
+        invoke("open_with_default_app", { path: node.path }).catch((err) => {
+          console.error("Failed to open file:", err);
+          toast.error(`Could not open ${node.name}`);
+        });
+      }}
+      className="flex items-center gap-1 py-0.5 px-1 w-full text-left text-zinc-600 dark:text-zinc-400 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
       style={{ paddingLeft: `${depth * 12 + 16}px` }}
     >
       <Icon size={10} className="text-zinc-400 shrink-0" />
       <span className="text-[10px] truncate" title={node.name}>{node.name}</span>
-    </div>
+    </button>
   );
 }
 

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, type ReactNode } from "react";
 import { Pencil, Trash2, Check, X, Reply, Bot } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Discussion } from "../../hooks/useDiscussions";
+import type { Discussion, AgentMetrics } from "../../hooks/useDiscussions";
 import { EntityCard } from "../../modules/chat/entityRefs/EntityCard";
 import { useEntityRefContext } from "../../modules/chat/entityRefs/EntityRefContext";
 
@@ -78,13 +78,19 @@ function MentionText({ children }: { children: ReactNode }): ReactNode {
 // ---------------------------------------------------------------------------
 
 const authorMeta: Record<string, { color: string; bg: string; border: string }> = {
-  "mel-tv":    { color: "text-teal-400",    bg: "bg-teal-500/20",    border: "border-l-teal-500/40" },
-  "melvin":    { color: "text-teal-400",    bg: "bg-teal-500/20",    border: "border-l-teal-500/40" },
-  "dachewsg":  { color: "text-blue-400",    bg: "bg-blue-500/20",    border: "border-l-blue-500/40" },
-  "darren":    { color: "text-blue-400",    bg: "bg-blue-500/20",    border: "border-l-blue-500/40" },
-  "YCVAL":     { color: "text-amber-400",   bg: "bg-amber-500/20",   border: "border-l-amber-500/40" },
-  "GloriaGoh": { color: "text-pink-400",    bg: "bg-pink-500/20",    border: "border-l-pink-500/40" },
-  "GeneFTBC":  { color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-l-emerald-500/40" },
+  "mel-tv":       { color: "text-teal-400",    bg: "bg-teal-500/20",    border: "border-l-teal-500/40" },
+  "melvin":       { color: "text-teal-400",    bg: "bg-teal-500/20",    border: "border-l-teal-500/40" },
+  "dachewsg":     { color: "text-blue-400",    bg: "bg-blue-500/20",    border: "border-l-blue-500/40" },
+  "darren":       { color: "text-blue-400",    bg: "bg-blue-500/20",    border: "border-l-blue-500/40" },
+  "YCVAL":        { color: "text-amber-400",   bg: "bg-amber-500/20",   border: "border-l-amber-500/40" },
+  "GloriaGoh":    { color: "text-pink-400",    bg: "bg-pink-500/20",    border: "border-l-pink-500/40" },
+  "GeneFTBC":     { color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-l-emerald-500/40" },
+  // Bot fleet — distinct color per specialist so chat threads are scannable.
+  "bot-mel":      { color: "text-purple-400",  bg: "bg-purple-500/15",  border: "border-l-purple-500/40" },
+  "bot-delivery": { color: "text-emerald-400", bg: "bg-emerald-500/15", border: "border-l-emerald-500/40" },
+  "bot-sales":    { color: "text-amber-400",   bg: "bg-amber-500/15",   border: "border-l-amber-500/40" },
+  "bot-domain":   { color: "text-cyan-400",    bg: "bg-cyan-500/15",    border: "border-l-cyan-500/40" },
+  "bot-builder":  { color: "text-blue-400",    bg: "bg-blue-500/15",    border: "border-l-blue-500/40" },
 };
 
 function getAuthorStyle(author: string) {
@@ -97,9 +103,10 @@ function isBot(author: string): boolean {
 
 function AuthorAvatar({ author }: { author: string }) {
   if (isBot(author)) {
+    const style = getAuthorStyle(author);
     return (
-      <div className="w-7 h-7 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0 ring-1 ring-purple-500/20">
-        <Bot size={14} className="text-purple-400" />
+      <div className={`w-7 h-7 rounded-lg ${style.bg} flex items-center justify-center flex-shrink-0 ring-1 ring-white/5`}>
+        <Bot size={14} className={style.color} />
       </div>
     );
   }
@@ -115,6 +122,70 @@ function AuthorAvatar({ author }: { author: string }) {
 // ---------------------------------------------------------------------------
 // Time formatting
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Agent metrics footer (SDK-run bot replies only)
+// ---------------------------------------------------------------------------
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
+  return String(n);
+}
+
+function formatCost(usd: number): string {
+  if (usd === 0) return "$0";
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(3)}`;
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(s < 10 ? 1 : 0)}s`;
+  const m = Math.floor(s / 60);
+  const rem = Math.round(s - m * 60);
+  return `${m}m ${rem}s`;
+}
+
+function AgentMetricsFooter({ metrics }: { metrics: AgentMetrics }) {
+  const cost = metrics.cost_usd ?? 0;
+  const duration = metrics.duration_ms ?? 0;
+  const input = metrics.input_tokens ?? 0;
+  const output = metrics.output_tokens ?? 0;
+  const cacheRead = metrics.cache_read_tokens ?? 0;
+  const cacheCreate = metrics.cache_creation_tokens ?? 0;
+
+  // Nothing meaningful to show
+  if (cost === 0 && duration === 0 && input === 0 && output === 0) return null;
+
+  const tooltip = [
+    metrics.model ? `model: ${metrics.model}` : null,
+    `input: ${input.toLocaleString()}`,
+    `output: ${output.toLocaleString()}`,
+    cacheRead ? `cache read: ${cacheRead.toLocaleString()}` : null,
+    cacheCreate ? `cache write: ${cacheCreate.toLocaleString()}` : null,
+    `cost: $${cost.toFixed(6)}`,
+    `duration: ${duration} ms`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return (
+    <div
+      title={tooltip}
+      className="mt-1.5 inline-flex items-center gap-1.5 text-[10px] font-mono text-[var(--text-muted)] opacity-70 hover:opacity-100 transition-opacity cursor-help"
+    >
+      <span>{formatCost(cost)}</span>
+      <span className="opacity-40">·</span>
+      <span>{formatDuration(duration)}</span>
+      <span className="opacity-40">·</span>
+      <span>
+        {formatTokens(input)} in / {formatTokens(output)} out
+      </span>
+    </div>
+  );
+}
 
 function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -141,6 +212,16 @@ function MessageBody({ body }: { body: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          img: ({ src, alt }) => (
+            <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
+              <img
+                src={src}
+                alt={alt || ""}
+                loading="lazy"
+                className="max-h-52 max-w-sm rounded-lg border border-[var(--border-default)] object-cover hover:opacity-90 transition-opacity"
+              />
+            </a>
+          ),
           p: ({ children }) => (
             <p className="mb-2 last:mb-0">
               <MentionText>{children}</MentionText>
@@ -344,7 +425,7 @@ export function DiscussionItem({
 
   const showHeader = !isContinuation;
   const authorStyle = getAuthorStyle(discussion.author);
-  const borderColor = isBotMessage ? "border-l-purple-500/40" : authorStyle.border;
+  const borderColor = authorStyle.border;
 
   return (
     <div
@@ -369,15 +450,11 @@ export function DiscussionItem({
           {/* Header — only on first message of a group */}
           {showHeader && (
             <div className="flex items-center gap-2 mb-0.5">
-              <span
-                className={`text-[12px] font-semibold ${
-                  isBotMessage ? "text-purple-400" : getAuthorStyle(discussion.author).color
-                }`}
-              >
+              <span className={`text-[12px] font-semibold ${getAuthorStyle(discussion.author).color}`}>
                 {discussion.author}
               </span>
               {isBotMessage && (
-                <span className="text-[9px] font-medium uppercase tracking-wider text-purple-400/60 bg-purple-500/10 px-1.5 py-0.5 rounded">
+                <span className={`text-[9px] font-medium uppercase tracking-wider ${getAuthorStyle(discussion.author).color} ${getAuthorStyle(discussion.author).bg} px-1.5 py-0.5 rounded`}>
                   bot
                 </span>
               )}
@@ -467,6 +544,11 @@ export function DiscussionItem({
                     </a>
                   ))}
                 </div>
+              )}
+
+              {/* Agent SDK metrics — only on bot replies that went through the SDK */}
+              {isBotMessage && discussion.agent_metrics && (
+                <AgentMetricsFooter metrics={discussion.agent_metrics} />
               )}
             </>
           )}

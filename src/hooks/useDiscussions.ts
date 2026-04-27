@@ -6,6 +6,16 @@ import { supabase } from "../lib/supabase";
 
 export type DiscussionOrigin = "direct" | "automation";
 
+export interface AgentMetrics {
+  cost_usd?: number;
+  duration_ms?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_tokens?: number;
+  cache_read_tokens?: number;
+  model?: string;
+}
+
 export interface Discussion {
   id: string;
   entity_type: string;
@@ -16,6 +26,7 @@ export interface Discussion {
   title: string | null;
   origin: DiscussionOrigin;
   attachments: string[]; // array of image URLs
+  agent_metrics: AgentMetrics | null; // SDK-run cost/token usage; null for non-SDK replies
   last_activity_at: string;
   created_at: string;
   updated_at: string;

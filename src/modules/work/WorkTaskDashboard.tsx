@@ -932,17 +932,26 @@ interface MyTasksGridRow {
   triageScore: number | null;
 }
 
-const MY_TASKS_VIEWS: { id: MyTasksGridFilter; label: string; icon: typeof Layers; color?: string }[] = [
-  { id: "all",             label: "All active",     icon: Layers },
-  { id: "today",           label: "Today",          icon: AlertTriangle, color: "#EF4444" },
-  { id: "this_week",       label: "This week",      icon: Calendar,      color: "#3B82F6" },
-  { id: "no_due",          label: "No due date",    icon: Calendar,      color: "#F59E0B" },
-  { id: "sales",           label: "Sales",          icon: Briefcase,     color: "#3B82F6" },
-  { id: "work",            label: "Work",           icon: Inbox,         color: "#0D9488" },
-  { id: "stale",           label: "Stale",          icon: Clock,         color: "#F59E0B" },
-  { id: "completed_week",  label: "Done this week", icon: CheckCircle2,  color: "#10B981" },
-  { id: "archived",        label: "Archived",       icon: Archive,       color: "#6B7280" },
+type MyTasksViewSection = "overview" | "by_date" | "by_type" | "status";
+
+const MY_TASKS_VIEWS: { id: MyTasksGridFilter; label: string; icon: typeof Layers; color?: string; section: MyTasksViewSection }[] = [
+  { id: "all",             label: "All active",     icon: Layers,        section: "overview" },
+  { id: "today",           label: "Today",          icon: AlertTriangle, color: "#EF4444", section: "by_date" },
+  { id: "this_week",       label: "This week",      icon: Calendar,      color: "#3B82F6", section: "by_date" },
+  { id: "no_due",          label: "No due date",    icon: Calendar,      color: "#F59E0B", section: "by_date" },
+  { id: "sales",           label: "Deals",          icon: Briefcase,     color: "#3B82F6", section: "by_type" },
+  { id: "work",            label: "Work tasks",     icon: Inbox,         color: "#0D9488", section: "by_type" },
+  { id: "stale",           label: "Stale",          icon: Clock,         color: "#F59E0B", section: "status" },
+  { id: "completed_week",  label: "Done this week", icon: CheckCircle2,  color: "#10B981", section: "status" },
+  { id: "archived",        label: "Archived",       icon: Archive,       color: "#6B7280", section: "status" },
 ];
+
+const MY_TASKS_SECTION_LABELS: Record<MyTasksViewSection, string | null> = {
+  overview: null,
+  by_date: "By date",
+  by_type: "By type",
+  status: "Status",
+};
 
 // ─── Team People AG Grid View ───────────────────────────────────────────────
 // Row-grouped by assignee; each task can appear under multiple people if
@@ -2076,26 +2085,40 @@ function MyTasksGridView({
         <aside className="w-60 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
           <div className="px-3 py-3">
             <SidebarSection title="View" storageKey="my-tasks:view">
-              {MY_TASKS_VIEWS.map((v) => {
-                const Icon = v.icon;
-                const active = view === v.id;
+              {(["overview", "by_date", "by_type", "status"] as MyTasksViewSection[]).map((section) => {
+                const items = MY_TASKS_VIEWS.filter(v => v.section === section);
+                if (items.length === 0) return null;
+                const sectionLabel = MY_TASKS_SECTION_LABELS[section];
                 return (
-                  <button
-                    key={v.id}
-                    onClick={() => { setView(v.id); setSelectedTaskIds(new Set()); }}
-                    className={cn(
-                      "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
-                      active
-                        ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                  <div key={section} className={section === "overview" ? "" : "mt-2"}>
+                    {sectionLabel && (
+                      <div className="px-2 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                        {sectionLabel}
+                      </div>
                     )}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Icon size={13} style={v.color ? { color: v.color } : undefined} />
-                      {v.label}
-                    </span>
-                    <span className="text-[11px] text-zinc-500">{viewCounts[v.id]}</span>
-                  </button>
+                    {items.map((v) => {
+                      const Icon = v.icon;
+                      const active = view === v.id;
+                      return (
+                        <button
+                          key={v.id}
+                          onClick={() => { setView(v.id); setSelectedTaskIds(new Set()); }}
+                          className={cn(
+                            "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[13px]",
+                            active
+                              ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+                              : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+                          )}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Icon size={13} style={v.color ? { color: v.color } : undefined} />
+                            {v.label}
+                          </span>
+                          <span className="text-[11px] text-zinc-500">{viewCounts[v.id]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 );
               })}
             </SidebarSection>

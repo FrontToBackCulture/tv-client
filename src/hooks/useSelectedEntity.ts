@@ -15,7 +15,10 @@ import { useSelectedEntityStore, type EntityType } from "../stores/selectedEntit
 const MODULE_ALLOWED_TYPES: Record<string, EntityType[]> = {
   // Projects module can drill into tasks via the project view's task panel.
   projects: ["project", "deal", "initiative", "task"],
-  work: ["task"],
+  // Work module can drill from a task into its parent project/deal/initiative
+  // via the breadcrumb — the project detail view pushes that selection up,
+  // so we accept it here. Otherwise the modal stays stuck on the task.
+  work: ["task", "project", "deal", "initiative"],
   crm: ["company", "contact"],
   skills: ["skill"],
   blog: ["blog_article"],
@@ -23,6 +26,15 @@ const MODULE_ALLOWED_TYPES: Record<string, EntityType[]> = {
   domains: ["domain"],
   // Metadata view operates on the same companies + contacts as CRM.
   metadata: ["company", "contact"],
+};
+
+// Which module-typed overrides each module accepts. Sub-tabs that want to
+// scope the chat to a virtual class (e.g. Metadata's "companies" tab pushes
+// `{type:"module", id:"companies"}`) need their parent listed here.
+// Anything else is rejected — modules don't unmount on tab switch in
+// tv-client, so without this gate a stale override leaks across tabs.
+const MODULE_VALID_OVERRIDES: Record<string, string[]> = {
+  metadata: ["companies", "contacts"],
 };
 
 // Human label for each module — falls back to a Title-Cased version of the id.
@@ -66,11 +78,17 @@ export interface EnrichedEntity {
   id: string;
   name: string;
   folderPath: string | null;
+  /**
+   * Disambiguator for routing: tasks carry the parent project's `project_type`
+   * ("deal" | "work") so bot routing can send deal-tasks to bot-sales and
+   * work-tasks to bot-delivery. Other types may use it later (none today).
+   */
+  subtype?: string;
 }
 
 const FETCHERS: Record<
   Exclude<EntityType, "module">,
-  (id: string) => Promise<{ name: string; folderPath: string | null; typeOverride?: EntityType } | null>
+  (id: string) => Promise<{ name: string; folderPath: string | null; typeOverride?: EntityType; subtype?: string } | null>
 > = {
   project: async (id) => {
     const { data } = await supabase
@@ -101,12 +119,18 @@ const FETCHERS: Record<
   task: async (id) => {
     const { data } = await supabase
       .from("tasks")
-      .select("title, project:projects!tasks_project_id_fkey(folder_path)")
+      .select("title, project:projects!tasks_project_id_fkey(folder_path, project_type)")
       .eq("id", id)
       .maybeSingle();
     if (!data) return null;
-    const proj = data.project as unknown as { folder_path: string | null } | null;
-    return { name: data.title, folderPath: proj?.folder_path ?? null };
+    const proj = data.project as unknown as
+      | { folder_path: string | null; project_type: string | null }
+      | null;
+    return {
+      name: data.title,
+      folderPath: proj?.folder_path ?? null,
+      subtype: proj?.project_type === "deal" ? "deal" : "work",
+    };
   },
   company: async (id) => {
     const { data } = await supabase
@@ -197,19 +221,42 @@ export function useSelectedEntity(): EnrichedEntity | null {
       id: validCurrent.id,
       name: data.name,
       folderPath: data.folderPath,
+      subtype: data.subtype,
+    };
+  }
+
+  // Selection exists but the enrichment query hasn't resolved yet. Returning
+  // the activeModule fallback here causes a visible flicker (modal/header
+  // briefly shows the wrong bot). Surface a placeholder for the same entity
+  // instead so the UI stays put — the fetcher will swap in name+subtype as
+  // soon as it lands. We *don't* know the final type for projects-vs-deals
+  // until then, so the bot in the header may still update once, but it
+  // won't drop back to a generic module bot.
+  if (validCurrent) {
+    return {
+      type: validCurrent.type,
+      id: validCurrent.id,
+      name: "…",
+      folderPath: null,
     };
   }
 
   // A view inside the active module can override the module-level scope by
   // pushing { type: "module", id: <other-module> } — e.g. Metadata's
-  // "companies" tab pushes "crm" so Cmd+J shows CRM Chat instead of Metadata.
+  // "companies" tab pushes "companies" so Cmd+J shows Companies Chat.
+  // BUT only honor the override when it's valid for the current activeModule;
+  // otherwise it's just stale state from a tab the user navigated away from.
   if (current?.type === "module") {
-    return {
-      type: "module",
-      id: current.id,
-      name: MODULE_LABELS[current.id] ?? current.id,
-      folderPath: null,
-    };
+    const allowedOverrides = MODULE_VALID_OVERRIDES[activeModule] ?? [];
+    if (allowedOverrides.includes(current.id)) {
+      return {
+        type: "module",
+        id: current.id,
+        name: MODULE_LABELS[current.id] ?? current.id,
+        folderPath: null,
+      };
+    }
+    // Stale override from a different tab — ignore it.
   }
 
   // Default fallback → active module's own chat.

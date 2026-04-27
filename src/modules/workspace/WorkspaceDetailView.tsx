@@ -2846,19 +2846,12 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("priority")}>Priority<SortIndicator col="priority" /></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("assignee")}>Assignee<SortIndicator col="assignee" /></th>
                           <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("due_date")}>Due Date<SortIndicator col="due_date" /></th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("company")}>Company<SortIndicator col="company" /></th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("created")}>Created<SortIndicator col="created" /></th>
-                          <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("updated")}>Updated<SortIndicator col="updated" /></th>
-                          {enabledTaskFields.includes("task_type") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-20 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("task_type")}>Type<SortIndicator col="task_type" /></th>}
-                          {enabledTaskFields.includes("contact") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("contact")}>Contact<SortIndicator col="contact" /></th>}
-                          {enabledTaskFields.includes("referral") && <th className="text-left px-2 py-2 font-medium text-zinc-400 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("referral")}>Referral<SortIndicator col="referral" /></th>}
-                          {enabledTaskFields.includes("days_in_stage") && <th className="text-left px-2 py-2 font-medium text-zinc-400 w-16 cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 select-none" onClick={() => handleSort("days_in_stage")}>Days<SortIndicator col="days_in_stage" /></th>}
                         </tr>
                       </thead>
                       <tbody>
                         {sortedStatusGroups.map(([groupKey, group]) => {
                           const isGroupCollapsed = statusGroupOverrides.get(groupKey) ?? false;
-                          const colCount = 10 + (enabledTaskFields.includes("task_type") ? 1 : 0) + (enabledTaskFields.includes("contact") ? 1 : 0) + (enabledTaskFields.includes("referral") ? 1 : 0) + (enabledTaskFields.includes("days_in_stage") ? 1 : 0);
+                          const colCount = 7;
                           return (<Fragment key={groupKey}>
                           <tr
                             onClick={() => setStatusGroupOverrides(prev => {
@@ -2933,25 +2926,85 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 <td className="px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">
                                   <span className="text-zinc-400">{identifier}</span>
                                 </td>
-                                {/* Title */}
+                                {/* Title + stacked metadata */}
                                 <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-medium">
-                                  <span className="flex items-center gap-1.5">
-                                    {task.notion_page_id && (() => {
-                                      const notionUrl = `https://www.notion.so/thinkval/${task.notion_page_id!.replace(/-/g, "")}`;
-                                      const lp = (task as any).last_pushed_at ? new Date((task as any).last_pushed_at).toLocaleString() : "never";
-                                      const lu = (task as any).last_pulled_at ? new Date((task as any).last_pulled_at).toLocaleString() : "never";
+                                  <div className="flex flex-col gap-0.5 min-w-0">
+                                    <span className="flex items-center gap-1.5">
+                                      {task.notion_page_id && (() => {
+                                        const notionUrl = `https://www.notion.so/thinkval/${task.notion_page_id!.replace(/-/g, "")}`;
+                                        const lp = (task as any).last_pushed_at ? new Date((task as any).last_pushed_at).toLocaleString() : "never";
+                                        const lu = (task as any).last_pulled_at ? new Date((task as any).last_pulled_at).toLocaleString() : "never";
+                                        return (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); openUrl(notionUrl); }}
+                                            className={`flex-shrink-0 ${(task as any).source === "notion" ? "text-zinc-800 dark:text-zinc-200" : "text-teal-500 dark:text-teal-400"} hover:opacity-70 transition-opacity`}
+                                            title={`Open in Notion\nLast pushed: ${lp}\nLast pulled: ${lu}`}
+                                          >
+                                            <svg width="12" height="12" viewBox="0 0 100 100" fill="currentColor"><path d="M6.6 12.6c5.1 4.1 7 3.8 16.5 3.1l59.7-3.6c2 0 .3-2-.3-2.2L73.2 3.5c-2.7-2.2-6.5-4.6-13.5-4L8 3.2C4 3.5 3.1 5.6 4.8 7.3zm17.1 14.3v62.7c0 3.4 1.7 4.7 5.5 4.5l65.7-3.8c3.8-.2 4.3-2.6 4.3-5.4V22.6c0-2.8-1.1-4.3-3.5-4l-68.6 4c-2.7.2-3.4 1.5-3.4 4.3zM82 29c.4 1.8 0 3.5-1.8 3.7l-3.2.6v46.3c-2.8 1.5-5.3 2.3-7.5 2.3-3.4 0-4.3-1.1-6.8-4.1L42.3 46.2v30.7l6.6 1.5s0 3.5-4.8 3.5l-13.3.8c-.4-.8 0-2.7 1.3-3l3.5-1V38.3l-4.8-.4c-.4-1.8.6-4.4 3.5-4.6l14.3-.9 21.2 32.5V37l-5.5-.6c-.4-2.2 1.2-3.7 3.2-3.9z"/></svg>
+                                          </button>
+                                        );
+                                      })()}
+                                      <span className="truncate">{task.title}</span>
+                                    </span>
+                                    {(() => {
+                                      const companyName = (task.company as any)?.display_name || (task.company as any)?.name;
+                                      const contactName = task.contact_id ? allContacts.find(c => c.id === task.contact_id)?.name : null;
+                                      const referral = (task as any).company?.referred_by;
+                                      const createdStr = task.created_at ? new Date(task.created_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : null;
+                                      const updatedStr = task.updated_at ? new Date(task.updated_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : null;
+                                      const days = (task.task_type_changed_at && task.task_type && task.task_type !== "general")
+                                        ? Math.floor((Date.now() - new Date(task.task_type_changed_at!).getTime()) / (1000 * 60 * 60 * 24))
+                                        : null;
+                                      const showType = enabledTaskFields.includes("task_type");
+                                      const showContact = enabledTaskFields.includes("contact");
+                                      const showReferral = enabledTaskFields.includes("referral");
+                                      const showDays = enabledTaskFields.includes("days_in_stage");
+                                      const typeLabel = task.task_type === "converted" ? "Deal"
+                                        : task.task_type === "target" ? "Target"
+                                        : task.task_type === "prospect" ? "Prospect"
+                                        : task.task_type === "follow_up" ? "Follow Up"
+                                        : null;
+                                      const parts: React.ReactNode[] = [];
+                                      if (companyName) parts.push(<span key="co">{companyName}</span>);
+                                      if (showContact && contactName) parts.push(<span key="ct">{contactName}</span>);
+                                      if (showType && typeLabel) {
+                                        if (task.task_type === "converted") {
+                                          const match = task.description?.match(/→ Converted to deal project: ([a-f0-9-]+)/);
+                                          const dealProjectId = match?.[1];
+                                          parts.push(
+                                            <button
+                                              key="ty"
+                                              onClick={(e) => { e.stopPropagation(); if (dealProjectId && onNavigateToProject) onNavigateToProject(dealProjectId); }}
+                                              className="text-emerald-500 hover:underline"
+                                            >
+                                              Deal
+                                            </button>
+                                          );
+                                        } else {
+                                          parts.push(<span key="ty" className={
+                                            task.task_type === "target" ? "text-amber-500" :
+                                            task.task_type === "prospect" ? "text-blue-500" :
+                                            ""
+                                          }>{typeLabel}</span>);
+                                        }
+                                      }
+                                      if (showReferral && referral) parts.push(<span key="rf">via {referral}</span>);
+                                      if (showDays && days != null) parts.push(<span key="dy" className={days > 30 ? "text-red-500" : days > 14 ? "text-amber-500" : ""}>{days}d in stage</span>);
+                                      if (createdStr) parts.push(<span key="cr">created {createdStr}</span>);
+                                      if (updatedStr && updatedStr !== createdStr) parts.push(<span key="up">updated {updatedStr}</span>);
+                                      if (parts.length === 0) return null;
                                       return (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); openUrl(notionUrl); }}
-                                          className={`flex-shrink-0 ${(task as any).source === "notion" ? "text-zinc-800 dark:text-zinc-200" : "text-teal-500 dark:text-teal-400"} hover:opacity-70 transition-opacity`}
-                                          title={`Open in Notion\nLast pushed: ${lp}\nLast pulled: ${lu}`}
-                                        >
-                                          <svg width="12" height="12" viewBox="0 0 100 100" fill="currentColor"><path d="M6.6 12.6c5.1 4.1 7 3.8 16.5 3.1l59.7-3.6c2 0 .3-2-.3-2.2L73.2 3.5c-2.7-2.2-6.5-4.6-13.5-4L8 3.2C4 3.5 3.1 5.6 4.8 7.3zm17.1 14.3v62.7c0 3.4 1.7 4.7 5.5 4.5l65.7-3.8c3.8-.2 4.3-2.6 4.3-5.4V22.6c0-2.8-1.1-4.3-3.5-4l-68.6 4c-2.7.2-3.4 1.5-3.4 4.3zM82 29c.4 1.8 0 3.5-1.8 3.7l-3.2.6v46.3c-2.8 1.5-5.3 2.3-7.5 2.3-3.4 0-4.3-1.1-6.8-4.1L42.3 46.2v30.7l6.6 1.5s0 3.5-4.8 3.5l-13.3.8c-.4-.8 0-2.7 1.3-3l3.5-1V38.3l-4.8-.4c-.4-1.8.6-4.4 3.5-4.6l14.3-.9 21.2 32.5V37l-5.5-.6c-.4-2.2 1.2-3.7 3.2-3.9z"/></svg>
-                                        </button>
+                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-zinc-400 font-normal">
+                                          {parts.map((p, i) => (
+                                            <Fragment key={i}>
+                                              {i > 0 && <span className="text-zinc-300 dark:text-zinc-700">·</span>}
+                                              {p}
+                                            </Fragment>
+                                          ))}
+                                        </div>
                                       );
                                     })()}
-                                    {task.title}
-                                  </span>
+                                  </div>
                                 </td>
                                 {/* Priority */}
                                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
@@ -3016,119 +3069,6 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                     )}
                                   </div>
                                 </td>
-                                {/* Company */}
-                                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <SearchableCell
-                                    value={task.company_id || null}
-                                    displayValue={(task.company as any)?.display_name || (task.company as any)?.name}
-                                    options={allCompanies.map(c => ({ value: c.id, label: (c as any).display_name || c.name }))}
-                                    onChange={(val) => updateTaskMutation.mutate({ id: task.id, updates: { company_id: val, contact_id: null } })}
-                                  />
-                                </td>
-                                {/* Created */}
-                                <td className="px-2 py-1.5">
-                                  <span className="text-[10px] text-zinc-400" title={task.created_at ? new Date(task.created_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" }) : ""}>
-                                    {task.created_at ? new Date(task.created_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
-                                  </span>
-                                </td>
-                                {/* Updated */}
-                                <td className="px-2 py-1.5">
-                                  <span className="text-[10px] text-zinc-400" title={task.updated_at ? new Date(task.updated_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" }) : ""}>
-                                    {task.updated_at ? new Date(task.updated_at).toLocaleDateString("en-SG", { day: "2-digit", month: "short" }) : ""}
-                                  </span>
-                                </td>
-                                {/* Type */}
-                                {enabledTaskFields.includes("task_type") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  {task.task_type === "converted" ? (() => {
-                                    const match = task.description?.match(/→ Converted to deal project: ([a-f0-9-]+)/);
-                                    const dealProjectId = match?.[1];
-                                    const dealProject = dealProjectId ? allProjectsList.find(p => p.id === dealProjectId) : null;
-                                    return (
-                                      <button
-                                        onClick={() => {
-                                          if (dealProjectId && onNavigateToProject) {
-                                            onNavigateToProject(dealProjectId);
-                                          }
-                                        }}
-                                        className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-800/40 transition-colors"
-                                        title={dealProject ? `Deal: ${dealProject.name}` : "Converted to deal"}
-                                      >
-                                        <ArrowUpRight size={9} />
-                                        Deal
-                                      </button>
-                                    );
-                                  })() : (
-                                    <select
-                                      value={task.task_type || "general"}
-                                      onChange={(e) => {
-                                        updateTaskMutation.mutate({ id: task.id, updates: { task_type: e.target.value } });
-                                      }}
-                                      className={`appearance-none text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer border-0 outline-none ${
-                                        task.task_type === "target" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                                        task.task_type === "prospect" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
-                                        task.task_type === "follow_up" ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" :
-                                        "bg-transparent text-zinc-400"
-                                      }`}
-                                    >
-                                      <option value="general">—</option>
-                                      <option value="target">Target</option>
-                                      <option value="prospect">Prospect</option>
-                                      <option value="follow_up">Follow Up</option>
-                                    </select>
-                                  )}
-                                </td>}
-                                {/* Contact */}
-                                {enabledTaskFields.includes("contact") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <select
-                                    value={task.contact_id || ""}
-                                    onChange={(e) => {
-                                      const val = e.target.value || null;
-                                      updateTaskMutation.mutate(
-                                        { id: task.id, updates: { contact_id: val } },
-                                        { onError: (err) => console.error("Contact update failed:", err) }
-                                      );
-                                    }}
-                                    className="appearance-none bg-transparent text-[11px] cursor-pointer border-0 outline-none text-zinc-500"
-                                  >
-                                    <option value="">—</option>
-                                    {allContacts
-                                      .filter((c) => !task.company_id || c.company_id === task.company_id)
-                                      .map((c) => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                      ))}
-                                  </select>
-                                </td>}
-                                {/* Referral */}
-                                {enabledTaskFields.includes("referral") && <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                                  <select
-                                    value={(task as any).company?.referred_by || ""}
-                                    onChange={(e) => {
-                                      const companyId = task.company_id;
-                                      if (!companyId) return;
-                                      const val = e.target.value || null;
-                                      import("../../lib/supabase").then(({ supabase }) => {
-                                        supabase.from("crm_companies").update({ referred_by: val }).eq("id", companyId).then(({ error }) => {
-                                          if (error) toast.error(`Failed to update referral: ${error.message}`);
-                                          else { toast.success("Saved"); refetchWorkspace(); }
-                                        });
-                                      });
-                                    }}
-                                    className="appearance-none bg-transparent text-[11px] cursor-pointer border-0 outline-none text-zinc-500"
-                                  >
-                                    <option value="">—</option>
-                                    {referralContactNames.map((name) => (
-                                      <option key={name} value={name}>{name}</option>
-                                    ))}
-                                  </select>
-                                </td>}
-                                {/* Days in Stage */}
-                                {enabledTaskFields.includes("days_in_stage") && <td className="px-2 py-1.5">
-                                  {task.task_type_changed_at && task.task_type && task.task_type !== "general" && (() => {
-                                    const days = Math.floor((Date.now() - new Date(task.task_type_changed_at!).getTime()) / (1000 * 60 * 60 * 24));
-                                    const color = days > 30 ? "text-red-500" : days > 14 ? "text-amber-500" : "text-zinc-400";
-                                    return <span className={`text-[11px] ${color}`}>{days}d</span>;
-                                  })()}
-                                </td>}
                               </tr>
                             );
                           })}

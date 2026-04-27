@@ -88,6 +88,33 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
     () => discussions?.filter((d) => !d.parent_id) ?? [],
     [discussions]
   );
+
+  // Roll up agent metrics across every bot reply in this thread that has them.
+  // Only SDK-routed runs persist agent_metrics, so this naturally skips
+  // legacy CLI replies and human messages.
+  const threadMetrics = useMemo(() => {
+    if (!discussions) return null;
+    let cost = 0;
+    let duration = 0;
+    let input = 0;
+    let output = 0;
+    let cacheRead = 0;
+    let cacheCreate = 0;
+    let count = 0;
+    for (const d of discussions) {
+      const m = d.agent_metrics;
+      if (!m) continue;
+      count += 1;
+      cost += m.cost_usd ?? 0;
+      duration += m.duration_ms ?? 0;
+      input += m.input_tokens ?? 0;
+      output += m.output_tokens ?? 0;
+      cacheRead += m.cache_read_tokens ?? 0;
+      cacheCreate += m.cache_creation_tokens ?? 0;
+    }
+    if (count === 0) return null;
+    return { cost, duration, input, output, cacheRead, cacheCreate, count };
+  }, [discussions]);
   const repliesByParent = useMemo(() => {
     const map = new Map<string, typeof discussions>();
     discussions?.forEach((d) => {
@@ -286,6 +313,41 @@ export function ChatThreadView({ thread, onMarkRead }: ChatThreadViewProps) {
             {discussions && (
               <span className="text-[10px] text-[var(--text-muted)]">
                 {discussions.length} message{discussions.length !== 1 ? "s" : ""}
+              </span>
+            )}
+            {threadMetrics && (
+              <span
+                title={[
+                  `${threadMetrics.count} bot ${threadMetrics.count === 1 ? "reply" : "replies"}`,
+                  `cost: $${threadMetrics.cost.toFixed(6)}`,
+                  `duration: ${(threadMetrics.duration / 1000).toFixed(1)}s`,
+                  `input: ${threadMetrics.input.toLocaleString()}`,
+                  `output: ${threadMetrics.output.toLocaleString()}`,
+                  threadMetrics.cacheRead ? `cache read: ${threadMetrics.cacheRead.toLocaleString()}` : null,
+                  threadMetrics.cacheCreate ? `cache write: ${threadMetrics.cacheCreate.toLocaleString()}` : null,
+                ]
+                  .filter(Boolean)
+                  .join("\n")}
+                className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-muted)] text-[10px] font-mono text-[var(--text-muted)] cursor-help"
+              >
+                <span>
+                  {threadMetrics.cost === 0
+                    ? "$0"
+                    : threadMetrics.cost < 0.01
+                      ? `$${threadMetrics.cost.toFixed(4)}`
+                      : `$${threadMetrics.cost.toFixed(3)}`}
+                </span>
+                <span className="opacity-40">·</span>
+                <span>
+                  {threadMetrics.input >= 1000
+                    ? `${(threadMetrics.input / 1000).toFixed(threadMetrics.input >= 10000 ? 0 : 1)}k`
+                    : threadMetrics.input}{" "}
+                  in /{" "}
+                  {threadMetrics.output >= 1000
+                    ? `${(threadMetrics.output / 1000).toFixed(threadMetrics.output >= 10000 ? 0 : 1)}k`
+                    : threadMetrics.output}{" "}
+                  out
+                </span>
               </span>
             )}
             {thread.session_id && (

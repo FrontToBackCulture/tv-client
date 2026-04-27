@@ -48,8 +48,19 @@ export function ProjectsModule() {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [createTaskProjectId, setCreateTaskProjectId] = useState<string | undefined>();
   const [manageSelectedId, setManageSelectedId] = useState<string | null>(null);
-  const [manageDetailWidth, setManageDetailWidth] = useState(450);
+  const [manageDetailWidth, setManageDetailWidth] = useState(() =>
+    Math.round((typeof window !== "undefined" ? window.innerWidth : 1440) / 2)
+  );
   const manageDragging = useRef(false);
+
+  useEffect(() => {
+    const onResize = () => {
+      const half = Math.round(window.innerWidth / 2);
+      setManageDetailWidth((w) => Math.min(half, Math.max(300, manageDragging.current ? w : half)));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [showChanges, setShowChanges] = useState(false);
 
   const setViewContext = useViewContextStore((s) => s.setView);
@@ -140,8 +151,12 @@ export function ProjectsModule() {
       const ts = p.updated_at ? new Date(p.updated_at).getTime() : 0;
       if (ts > max) max = ts;
     }
+    for (const t of allTasks) {
+      const ts = t.updated_at ? new Date(t.updated_at).getTime() : 0;
+      if (ts > max) max = ts;
+    }
     return max > 0 ? `Last activity ${timeAgoVerbose(new Date(max).toISOString())}` : undefined;
-  }, [allProjects]);
+  }, [allProjects, allTasks]);
 
   const projectStats = useMemo(() => {
     const total = allProjects.length;
@@ -155,6 +170,20 @@ export function ProjectsModule() {
   const projectNames = useMemo(() => {
     const map: Record<string, string> = {};
     for (const p of allProjects) map[p.id] = p.name;
+    return map;
+  }, [allProjects]);
+
+  const taskTitles = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const t of allTasks) map[t.id] = t.title;
+    return map;
+  }, [allTasks]);
+
+  const companyNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of allProjects) {
+      if (p.company_id && (p as any).company?.name) map[p.company_id] = (p as any).company.name;
+    }
     return map;
   }, [allProjects]);
 
@@ -232,10 +261,32 @@ export function ProjectsModule() {
             <RecentChangesPanel
               open={showChanges}
               onClose={() => setShowChanges(false)}
-              table="project_changes"
               queryKey={["project_changes_recent"]}
-              fieldLabels={{ name: "Name", description: "Description", status: "Status", health: "Health", priority: "Priority", lead_id: "Lead", target_date: "Target Date", deal_stage: "Deal Stage", deal_value: "Deal Value", deal_expected_close: "Expected Close", company_id: "Company", archived_at: "Archived" }}
-              titleFor={(c) => projectNames[c.project_id] || c.project_id?.slice(0, 8)}
+              sources={[
+                {
+                  table: "project_changes",
+                  kindLabel: "Project",
+                  fieldLabels: { name: "Name", description: "Description", status: "Status", health: "Health", priority: "Priority", lead_id: "Lead", target_date: "Target Date", deal_stage: "Deal Stage", deal_value: "Deal Value", deal_expected_close: "Expected Close", company_id: "Company", archived_at: "Archived" },
+                  titleFor: (c) => projectNames[c.project_id] || c.project_id?.slice(0, 8),
+                  valueFor: (field, v) => {
+                    if (!v) return v;
+                    if (field === "company_id") return companyNames[v] || v.slice(0, 8);
+                    return v;
+                  },
+                },
+                {
+                  table: "task_changes",
+                  kindLabel: "Task",
+                  fieldLabels: { project_id: "Project", company_id: "Company", title: "Title", status_id: "Status", priority: "Priority", due_date: "Due Date", triage_action: "Triage" },
+                  titleFor: (c) => taskTitles[c.task_id] || c.task_id?.slice(0, 8),
+                  valueFor: (field, v) => {
+                    if (!v) return v;
+                    if (field === "project_id") return projectNames[v] || v.slice(0, 8);
+                    if (field === "company_id") return companyNames[v] || v.slice(0, 8);
+                    return v;
+                  },
+                },
+              ]}
             />
             {manageSelectedId && (
               <>
@@ -247,7 +298,7 @@ export function ProjectsModule() {
                     const startX = e.clientX;
                     const startW = manageDetailWidth;
                     const move = (ev: MouseEvent) => {
-                      if (manageDragging.current) setManageDetailWidth(Math.min(900, Math.max(300, startW - (ev.clientX - startX))));
+                      if (manageDragging.current) setManageDetailWidth(Math.min(Math.round(window.innerWidth / 2), Math.max(300, startW - (ev.clientX - startX))));
                     };
                     const up = () => {
                       manageDragging.current = false;
@@ -287,7 +338,7 @@ export function ProjectsModule() {
                     const startX = e.clientX;
                     const startW = manageDetailWidth;
                     const move = (ev: MouseEvent) => {
-                      if (manageDragging.current) setManageDetailWidth(Math.min(900, Math.max(300, startW - (ev.clientX - startX))));
+                      if (manageDragging.current) setManageDetailWidth(Math.min(Math.round(window.innerWidth / 2), Math.max(300, startW - (ev.clientX - startX))));
                     };
                     const up = () => {
                       manageDragging.current = false;

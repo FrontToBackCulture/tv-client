@@ -9,6 +9,9 @@ import { useModuleTabStore } from "../stores/moduleTabStore";
 import { useJobsStore, useRunningJobs, useRecentJobs } from "../stores/jobsStore";
 import { useClaudeRunStore } from "../stores/claudeRunStore";
 import { useSelectedEntityStore } from "../stores/selectedEntityStore";
+import { useSelectedEntity } from "../hooks/useSelectedEntity";
+import { useBotSettingsStore } from "../stores/botSettingsStore";
+import { matchRoutingRule } from "../lib/botRouting";
 import { cn } from "../lib/cn";
 import { Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, Code, ChevronDown, Wrench, Activity, Brain, StopCircle, Palette, Cat, MessageSquare } from "lucide-react";
 import { useMascotVisible } from "../components/mascot/useMascotVisible";
@@ -389,6 +392,9 @@ export function StatusBar() {
           <span>{advisorRunning ? "Checking..." : "Check-in"}</span>
         </button>
 
+        {/* Live scope → bot indicator (click to inspect routing rules) */}
+        <CurrentScopeChip />
+
         {/* Entity Chat (Cmd+J) toggle */}
         <ChatToggleButton />
 
@@ -497,6 +503,67 @@ export function StatusBar() {
         );
       })()}
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Live scope → bot chip
+//
+// Shows the routing key the engine would compute for whatever is in focus
+// right now (entity selection or active module fallback) and which bot it
+// would route to. Click jumps to Settings → Bots → Routing rules.
+// ────────────────────────────────────────────────────────────────────────────
+
+const SCOPE_BOT_TEXT_COLOR: Record<string, string> = {
+  "bot-mel": "text-purple-500",
+  "bot-delivery": "text-emerald-500",
+  "bot-sales": "text-amber-600",
+  "bot-domain": "text-cyan-500",
+  "bot-builder": "text-blue-500",
+};
+
+function CurrentScopeChip() {
+  const entity = useSelectedEntity();
+  const routingOverrides = useBotSettingsStore((s) => s.routingOverrides);
+
+  if (!entity) return null;
+
+  const isModule = entity.type === "module";
+  const scopeLabel = isModule
+    ? entity.id
+    : entity.subtype
+      ? `${entity.type} / ${entity.subtype}`
+      : entity.type;
+
+  const match = matchRoutingRule(
+    { entityType: entity.type, id: entity.id, subtype: entity.subtype },
+    routingOverrides,
+  );
+  const botColor = SCOPE_BOT_TEXT_COLOR[match.bot] ?? "text-zinc-500";
+
+  const tooltip = [
+    `Scope: ${scopeLabel}`,
+    `Bot: ${match.bot}`,
+    match.isFallback ? "No rule matched — falling back" : `Rule #${match.ruleIndex + 1}`,
+    entity.name && entity.name !== "…" ? `Entity: ${entity.name}` : null,
+    "Click to edit routing rules",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return (
+    <button
+      onClick={() => {
+        useAppStore.getState().setSettingsView("bots");
+        useModuleTabStore.getState().openTab("settings");
+      }}
+      title={tooltip}
+      className="flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[10px] hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+    >
+      <span className="text-zinc-400 truncate max-w-[120px]">{scopeLabel}</span>
+      <span className="text-zinc-300 dark:text-zinc-700">→</span>
+      <span className={cn("font-semibold", botColor)}>{match.bot.replace("bot-", "")}</span>
+    </button>
   );
 }
 

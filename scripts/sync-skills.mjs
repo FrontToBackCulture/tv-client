@@ -25,6 +25,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync, readdirSync, existsSync, statSync, writeFileSync } from "fs";
 import { resolve, join } from "path";
+import { createHash } from "crypto";
 import matter from "gray-matter";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -131,6 +132,7 @@ function scanSkillsFromFiles() {
     const skillPath = join(SKILLS_DIR, slug, "SKILL.md");
     const raw = readFileSync(skillPath, "utf-8");
     const { data: frontmatter } = matter(raw);
+    const content_hash = createHash("sha256").update(raw).digest("hex");
 
     const dirPath = join(SKILLS_DIR, slug);
     const assets = inspectAssets(dirPath);
@@ -155,6 +157,7 @@ function scanSkillsFromFiles() {
       data_types: Array.isArray(frontmatter.data_types) ? frontmatter.data_types : undefined,
       ...assets,
       distributions,
+      content_hash,
     };
   }
 
@@ -182,7 +185,7 @@ async function fetchSupabaseSkills() {
 const FILE_OWNED = [
   "name", "description", "skill_type",
   "has_demo", "has_examples", "has_guide", "has_deck",
-  "distributions",
+  "distributions", "content_hash",
 ];
 
 // Fields that DB owns (never overwritten by file sync)
@@ -293,9 +296,28 @@ function buildCategories(skills) {
 
 async function upsertToSupabase(fileSkills, dbSkills) {
   const rows = [];
+  let skipped = 0;
 
   for (const [slug, fileData] of Object.entries(fileSkills)) {
     const dbData = dbSkills[slug];
+
+    // Skip no-op upserts so updated_at only bumps on real changes.
+    // Normalize distributions: it's stored as a JSON-encoded string in jsonb,
+    // so dbData[f] may be either the array or the stringified form.
+    const norm = (f, val) => {
+      if (f !== "distributions") return JSON.stringify(val ?? null);
+      const arr = typeof val === "string" ? JSON.parse(val || "[]") : (val || []);
+      return JSON.stringify(arr);
+    };
+    if (dbData) {
+      const allMatch = FILE_OWNED.every((f) => norm(f, fileData[f]) === norm(f, dbData[f]));
+      const dataTypesChanged = fileData.data_types !== undefined
+        && JSON.stringify(fileData.data_types) !== JSON.stringify(dbData.data_types);
+      if (allMatch && !dataTypesChanged) {
+        skipped++;
+        continue;
+      }
+    }
 
     // Build upsert row: only file-owned + shared fields
     const row = { slug };
@@ -328,7 +350,12 @@ async function upsertToSupabase(fileSkills, dbSkills) {
   }
 
   if (dryRun) {
-    console.log(`[dry-run] Would upsert ${rows.length} skills to Supabase`);
+    console.log(`[dry-run] Would upsert ${rows.length} skills to Supabase (${skipped} unchanged, skipped)`);
+    return;
+  }
+
+  if (rows.length === 0) {
+    console.log(`No changes to upsert (${skipped} unchanged, skipped)`);
     return;
   }
 
@@ -362,7 +389,7 @@ async function upsertToSupabase(fileSkills, dbSkills) {
     }
   }
 
-  console.log(`Upserted ${total} skills to Supabase${errors ? ` (${errors} errors)` : ""}`);
+  console.log(`Upserted ${total} skills to Supabase (${skipped} unchanged, skipped)${errors ? ` (${errors} errors)` : ""}`);
 }
 
 // ─── Cleanup DB-only skills ──────────────────────────────────────────────────

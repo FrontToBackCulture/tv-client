@@ -5,14 +5,25 @@ import { listen } from "@tauri-apps/api/event";
 import { supabase } from "../../lib/supabase";
 import { formatError } from "../../lib/formatError";
 import type { QueryClient } from "@tanstack/react-query";
-import { useJobsStore } from "../../stores/jobsStore";
 import { useClaudeRunStore } from "../../stores/claudeRunStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { gatherMyTasks, buildPromptData } from "./gatherContext";
 import { getEntityChatConfig, getModuleChatConfig } from "../../lib/entityChatConfig";
 import type { EntityType } from "../../stores/selectedEntityStore";
+import { resolveBot, type BotName } from "../../lib/botRouting";
+import { loadBotInstructions } from "./useBotInstructions";
+import { useBotSettingsStore } from "../../stores/botSettingsStore";
+import { getBotOverride } from "../../lib/botOverrides";
 
 const BOT_AUTHOR = "bot-mel";
+
+const NO_FISHING_RULES =
+  "\n\n## Hard rules (tv-client chat)\n" +
+  "- Use the MCP tools listed in your scope. Do NOT use Read, Glob, or Grep on " +
+  "`~/.claude/`, `/tmp/`, or anywhere outside the project folder.\n" +
+  "- If you need an entity's details, call its `get-*` MCP tool with the id provided. " +
+  "Never search the filesystem to find an entity by name.\n" +
+  "- If a tool errors, report the error. Do not retry by switching to filesystem search.";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,6 +103,51 @@ async function persistThreadSession(
 }
 
 // ---------------------------------------------------------------------------
+// Bot path resolution helpers
+// ---------------------------------------------------------------------------
+
+async function loadTeamFolder(userId: string): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from("users")
+      .select("team_folder")
+      .eq("id", userId)
+      .maybeSingle();
+    return (data?.team_folder as string | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Optional per-bot path overrides at ~/.tv-client/bot-paths.json.
+ * Lets users with non-standard repo layouts point each bot at an explicit path.
+ * Missing/invalid file just returns an empty override map.
+ */
+let botPathOverridesCache: Record<string, string> | null = null;
+let botPathOverridesLoadedAt = 0;
+const OVERRIDE_TTL_MS = 60_000;
+
+async function loadBotPathOverrides(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (botPathOverridesCache && now - botPathOverridesLoadedAt < OVERRIDE_TTL_MS) {
+    return botPathOverridesCache;
+  }
+  try {
+    const { homeDir } = await import("@tauri-apps/api/path");
+    const { readTextFile } = await import("@tauri-apps/plugin-fs");
+    const home = await homeDir();
+    const text = await readTextFile(`${home}/.tv-client/bot-paths.json`);
+    const parsed = JSON.parse(text);
+    botPathOverridesCache = parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    botPathOverridesCache = {};
+  }
+  botPathOverridesLoadedAt = now;
+  return botPathOverridesCache ?? {};
+}
+
+// ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
 
@@ -121,14 +177,14 @@ export async function handleBotMention(
 
   console.log(`[${botName}] Processing mention:`, discussion.body.slice(0, 80));
 
-  const { addJob, updateJob } = useJobsStore.getState();
-  const { createRun, addEvent, completeRun } =
-    useClaudeRunStore.getState();
+  const { createRun, addEvent, completeRun } = useClaudeRunStore.getState();
 
   const runId = `${botName}-reply-${Date.now()}`;
   const jobName = `${botName} — processing request`;
 
-  addJob({ id: runId, name: jobName, status: "running", message: "Reading your message..." });
+  // Chat runs are tracked in claudeRunStore (and surfaced in the modal's
+  // ActiveAgentsRail) — we deliberately do NOT call useJobsStore so the
+  // global Jobs panel stays focused on system tasks (syncs, imports, etc.).
   createRun({ id: runId, name: jobName, domainName: "", tableId: "", entityId: discussion.entity_id });
 
   // Gather conversation history for this thread
@@ -354,6 +410,7 @@ ${folderContext}
 
   // Listen for Claude stream events
   let resultText = "";
+  let resultMetrics: Record<string, unknown> | null = null;
   const existingSessionId = await loadThreadSession(
     discussion.entity_type,
     discussion.entity_id
@@ -371,28 +428,41 @@ ${folderContext}
     }
 
     if (data.event_type === "result") {
-      const isError = (data.metadata?.is_error as boolean) ?? false;
-      const costUsd = (data.metadata?.cost_usd as number) ?? 0;
-      const durationMs = (data.metadata?.duration_ms as number) ?? 0;
+      const meta = data.metadata ?? {};
+      const isError = (meta.is_error as boolean) ?? false;
+      const costUsd = (meta.cost_usd as number) ?? 0;
+      const durationMs = (meta.duration_ms as number) ?? 0;
+      const inputTokens = (meta.input_tokens as number) ?? 0;
+      const outputTokens = (meta.output_tokens as number) ?? 0;
+      const cacheCreationTokens = (meta.cache_creation_tokens as number) ?? 0;
+      const cacheReadTokens = (meta.cache_read_tokens as number) ?? 0;
+      const model = (meta.model as string) ?? "";
+
       resultText = data.content;
+      resultMetrics = {
+        cost_usd: costUsd,
+        duration_ms: durationMs,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cache_creation_tokens: cacheCreationTokens,
+        cache_read_tokens: cacheReadTokens,
+        ...(model ? { model } : {}),
+      };
+
       completeRun(runId, data.content, isError, costUsd, durationMs);
-      updateJob(runId, {
-        status: isError ? "failed" : "completed",
-        message: isError ? "Failed to process reply" : `Done — ${(durationMs / 1000).toFixed(0)}s`,
-      });
     } else if (data.event_type === "error") {
       addEvent(runId, { type: "error", content: data.content, timestamp: Date.now() });
     } else {
       addEvent(runId, { type: data.event_type, content: data.content, timestamp: Date.now() });
-      if (data.event_type === "tool_use" || data.event_type === "text") {
-        updateJob(runId, { message: data.content.slice(0, 100) });
-      }
     }
   });
 
+  // Hoisted so the catch handler below can use the resolved bot as the
+  // error-reply author.
+  let resolvedBot: BotName = botName as BotName;
+
   try {
     addEvent(runId, { type: "init", content: existingSessionId ? "Resuming session..." : "Processing your reply...", timestamp: Date.now() });
-    updateJob(runId, { message: existingSessionId ? "Resuming Claude session..." : "Claude is working on your request..." });
 
     // SDK routing — three thread-id prefixes go through the Agent SDK sidecar:
     //   project-chat:* / task-chat:*  → legacy popups (corner)
@@ -407,48 +477,127 @@ ${folderContext}
     // their id; legacy popups use the broad fallback list.
     let allowedTools: string[];
     let systemPrompt: string | undefined;
+    // resolvedBot defaults to the caller-passed bot (typically bot-mel) and
+    // gets overridden below by botRouting for entity/module chats so
+    // deals→bot-sales, work→bot-delivery, etc.
     if (isEntityChat) {
       const parts = discussion.entity_id.split(":");
       const entityType = parts[1] as EntityType;
       const entityKeyId = parts[2] ?? "";
 
-      if (entityType === "module") {
-        // Module-level chat (no specific entity selected) — use per-module config.
-        const cfg = getModuleChatConfig(entityKeyId);
-        allowedTools = cfg.tools;
-        systemPrompt = cfg.systemPrompt.replace(/\{name\}/g, entityKeyId);
-      } else if (entityType === "domain") {
-        // Domains are folder-based, not a DB row. The id IS the name.
-        const cfg = getEntityChatConfig("domain");
-        allowedTools = cfg?.tools ?? [];
-        systemPrompt = cfg?.systemPrompt?.replace(/\{name\}/g, entityKeyId);
-      } else {
-        const cfg = getEntityChatConfig(entityType);
-        allowedTools = cfg?.tools ?? [];
-        // Resolve {name} placeholder by looking up the entity.
-        let entityName = entityKeyId;
+      // Resolve {name} for this entity, plus subtype (deal vs work) for tasks
+      // — needed by botRouting to pick the right specialist bot.
+      let entityName = entityKeyId;
+      let subtype: string | undefined;
+
+      if (entityType === "task") {
+        try {
+          const { data } = await supabase
+            .from("tasks")
+            .select("title, project:projects!tasks_project_id_fkey(project_type)")
+            .eq("id", entityKeyId)
+            .maybeSingle();
+          if (data) {
+            entityName = (data as any).title ?? entityName;
+            const proj = (data as any).project as { project_type?: string } | null;
+            subtype = proj?.project_type === "deal" ? "deal" : "work";
+          }
+        } catch (e) {
+          console.warn("[botMentionHandler] task lookup failed:", e);
+        }
+      } else if (entityType === "project" || entityType === "deal") {
+        try {
+          const { data } = await supabase
+            .from("projects")
+            .select("name, project_type")
+            .eq("id", entityKeyId)
+            .maybeSingle();
+          if (data) {
+            entityName = (data as any).name ?? entityName;
+            // If a thread says "project" but it's actually a deal, route as deal.
+            if ((data as any).project_type === "deal") subtype = "deal";
+          }
+        } catch (e) {
+          console.warn("[botMentionHandler] project lookup failed:", e);
+        }
+      } else if (entityType !== "module" && entityType !== "domain") {
         try {
           const table =
-            entityType === "task" ? "tasks"
-            : entityType === "company" ? "crm_companies"
+            entityType === "company" ? "crm_companies"
             : entityType === "contact" ? "crm_contacts"
             : entityType === "initiative" ? "initiatives"
             : entityType === "blog_article" ? "blog_articles"
             : entityType === "skill" ? "skills"
             : entityType === "mcp_tool" ? "mcp_tools"
-            : "projects";
-          const nameField = entityType === "task" ? "title" : entityType === "blog_article" ? "title" : "name";
-          const idField = entityType === "skill" || entityType === "mcp_tool" ? "slug" : "id";
-          const { data } = await supabase
-            .from(table)
-            .select(`${nameField}, ${idField}`)
-            .eq(idField, entityKeyId)
-            .maybeSingle();
-          if (data && (data as any)[nameField]) entityName = (data as any)[nameField];
+            : null;
+          if (table) {
+            const nameField = entityType === "blog_article" ? "title" : "name";
+            const idField = entityType === "skill" || entityType === "mcp_tool" ? "slug" : "id";
+            const { data } = await supabase
+              .from(table)
+              .select(`${nameField}, ${idField}`)
+              .eq(idField, entityKeyId)
+              .maybeSingle();
+            if (data && (data as any)[nameField]) entityName = (data as any)[nameField];
+          }
         } catch (e) {
           console.warn("[botMentionHandler] entity name lookup failed:", e);
         }
-        systemPrompt = cfg?.systemPrompt?.replace(/\{name\}/g, entityName);
+      }
+
+      // Route to the specialist bot for this scope. Per-thread overrides
+      // (set via the New Agent picker) win — user explicitly picked this bot
+      // for this chat. Otherwise honor user-defined routing rules from
+      // Settings, falling back to baked rules.
+      const settings = useBotSettingsStore.getState();
+      const threadOverride = getBotOverride(discussion.entity_id);
+      resolvedBot = threadOverride ?? resolveBot(
+        { entityType, id: entityKeyId, subtype },
+        settings.routingOverrides,
+      );
+
+      // Tool list comes from entityChatConfig (per entity type / module).
+      // Promotes deal→deal config when subtype shifted us.
+      const effectiveType: EntityType =
+        entityType === "project" && subtype === "deal" ? "deal" : entityType;
+
+      if (effectiveType === "module") {
+        const cfg = getModuleChatConfig(entityKeyId);
+        allowedTools = cfg.tools;
+        // Module overlay falls back to the (slim) baked prompt.
+        systemPrompt = cfg.systemPrompt
+          .replace(/\{name\}/g, entityKeyId)
+          .replace(/\{id\}/g, entityKeyId);
+      } else {
+        const cfg = getEntityChatConfig(effectiveType);
+        allowedTools = cfg?.tools ?? [];
+        systemPrompt = cfg?.systemPrompt
+          ?.replace(/\{name\}/g, entityName)
+          ?.replace(/\{id\}/g, entityKeyId);
+      }
+
+      // Layer in the bot's CLAUDE.md as the persona/scope source-of-truth.
+      // Entity overlay (the short systemPrompt above) tells Claude what
+      // specific entity it's working on right now; the CLAUDE.md tells it
+      // who it is, what it owns, what's out of scope, and any data models.
+      //
+      // Override precedence: Settings store > legacy JSON file > convention.
+      const jsonOverrides = await loadBotPathOverrides();
+      const mergedOverrides = { ...jsonOverrides, ...settings.botPathOverrides };
+      const instructions = await loadBotInstructions(resolvedBot, {
+        knowledgeRoot,
+        teamFolder: await loadTeamFolder(userId),
+        overrides: mergedOverrides,
+        fleetFolderPath: settings.fleetFolderPath || null,
+      });
+      if (instructions.found && instructions.content) {
+        systemPrompt = `${instructions.content}\n\n---\n\n## Current scope\n${
+          systemPrompt ?? ""
+        }${NO_FISHING_RULES}`;
+      } else {
+        // Fall back to entityChatConfig prompt + hard rules; happens when the
+        // bot's CLAUDE.md isn't on disk yet (e.g. fresh tv-client install).
+        systemPrompt = `${systemPrompt ?? ""}${NO_FISHING_RULES}`;
       }
     } else {
       allowedTools = [
@@ -493,7 +642,7 @@ ${folderContext}
           model: "claude-sonnet-4-5",
           cwd: botCwd,
           resume_session_id: existingSessionId,
-          max_turns: 30,
+          max_turns: 100,
           system_prompt: systemPrompt,
           mcp_servers: {
             "tv-mcp": {
@@ -523,16 +672,22 @@ ${folderContext}
     // show Add/Update buttons. Auto-inserting here caused duplicates when
     // editing existing sources.
 
-    // Post the result as a reply in the chat thread
+    // Post the result as a reply in the chat thread, authored by the bot
+    // routing resolved for this scope (e.g. bot-delivery for work projects,
+    // bot-sales for deals). Fall back to whatever botName the caller passed
+    // for non-entity-chat threads where no scope routing happens.
+    const replyAuthor = resolvedBot ?? botName;
     if (resultText && resultText.trim()) {
       const replyBody = `@${userName} ${resultText.trim()}`;
 
       await supabase.from("discussions").insert({
         entity_type: "general",
         entity_id: discussion.entity_id,
-        author: botName,
+        author: replyAuthor,
         body: replyBody,
         parent_id: threadRootId,
+        // Only persisted for SDK-routed runs; legacy claude_run path leaves null.
+        ...(useAgentSDK && resultMetrics ? { agent_metrics: resultMetrics } : {}),
       });
 
       const preview = replyBody.length > 100 ? replyBody.slice(0, 100) + "..." : replyBody;
@@ -542,7 +697,7 @@ ${folderContext}
         discussion_id: discussion.id,
         entity_type: discussion.entity_type,
         entity_id: discussion.entity_id,
-        actor: botName,
+        actor: replyAuthor,
         body_preview: preview,
       });
     }
@@ -555,13 +710,12 @@ ${folderContext}
     const msg = formatError(e);
     addEvent(runId, { type: "error", content: msg, timestamp: Date.now() });
     completeRun(runId, msg, true, 0, 0);
-    updateJob(runId, { status: "failed", message: msg.slice(0, 100) });
 
     await supabase.from("discussions").insert({
       entity_type: "general",
       entity_id: discussion.entity_id,
-      author: botName,
-      body: "Something went wrong processing your request. Check the Jobs panel for details.",
+      author: resolvedBot ?? botName,
+      body: "Something went wrong. Check the Active Agents rail in the chat for details.",
       parent_id: threadRootId,
     });
     queryClient.invalidateQueries({ queryKey: ["discussions"] });

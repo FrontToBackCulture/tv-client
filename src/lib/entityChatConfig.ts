@@ -61,37 +61,36 @@ const COMPANY_TOOLS = [
   TV_MCP("list-activities"),
 ];
 
+// Short entity overlay — appended to the bot's CLAUDE.md by botMentionHandler.
+// Persona/scope/data-model text lives in CLAUDE.md, NOT here.
+// Substitutions: {name}, {id} replaced before sending.
 export const ENTITY_CHAT_CONFIG: Record<EntityType, EntityChatConfig> = {
   project: {
     label: "Project Chat",
     folderPathField: "folder_path",
     tools: PROJECT_TOOLS,
     systemPrompt:
-      'You are bot-mel scoped to project "{name}". Read it first if you need details. ' +
-      "All updates apply to this project. Confirm destructive changes before making them.",
+      'Currently scoped to project "{name}" (id: `{id}`). Use `get-project` with this id for details. All updates apply to this project.',
   },
   deal: {
     label: "Deal Chat",
     folderPathField: "folder_path",
     tools: PROJECT_TOOLS,
     systemPrompt:
-      'You are bot-mel scoped to deal "{name}". Read it first if you need details. ' +
-      "All updates (fields, activities, tasks) apply to this deal.",
+      'Currently scoped to deal "{name}" (id: `{id}`). Use `get-project` with this id for details. All updates (fields, activities, tasks) apply to this deal.',
   },
   task: {
     label: "Task Chat",
     tools: TASK_TOOLS,
     systemPrompt:
-      'You are bot-mel scoped to task "{name}". Read it first if you need details. ' +
-      "All updates apply to this task or its parent project.",
+      'Currently scoped to task "{name}" (id: `{id}`). Use `get-task` with this id for details, `update-task` for changes.',
   },
   company: {
     label: "Company Chat",
     folderPathField: "client_folder_path",
     tools: COMPANY_TOOLS,
     systemPrompt:
-      'You are bot-mel scoped to company "{name}". Read it first if you need details. ' +
-      "Use it for CRM updates, contact management, activity logging.",
+      'Currently scoped to company "{name}" (id: `{id}`). Use `get-crm-company` with this id for details.',
   },
   contact: {
     label: "Contact Chat",
@@ -103,8 +102,7 @@ export const ENTITY_CHAT_CONFIG: Record<EntityType, EntityChatConfig> = {
       TV_MCP("log-activity"),
     ],
     systemPrompt:
-      'You are bot-mel scoped to contact "{name}". Read it first if you need details. ' +
-      "Use it for contact updates and logging interactions.",
+      'Currently scoped to contact "{name}" (id: `{id}`). Use `find-crm-contact` with this id for details.',
   },
   initiative: {
     label: "Initiative Chat",
@@ -116,29 +114,25 @@ export const ENTITY_CHAT_CONFIG: Record<EntityType, EntityChatConfig> = {
       TV_MCP("remove-project-from-initiative"),
     ],
     systemPrompt:
-      'You are bot-mel scoped to initiative "{name}". Use it for managing the ' +
-      "initiative's projects, status, and notes.",
+      'Currently scoped to initiative "{name}" (id: `{id}`).',
   },
   blog_article: {
     label: "Article Chat",
     tools: [...COMMON_TOOLS, TV_MCP("get-blog-article"), TV_MCP("update-blog-article")],
     systemPrompt:
-      'You are bot-mel scoped to blog article "{name}". Help draft, edit, or ' +
-      "publish it.",
+      'Currently scoped to blog article "{name}" (id: `{id}`). Use `get-blog-article` to read, `update-blog-article` to edit.',
   },
   skill: {
     label: "Skill Chat",
     tools: [...COMMON_TOOLS, TV_MCP("list-skills"), TV_MCP("register-skill")],
     systemPrompt:
-      'You are bot-mel scoped to skill "{name}". Help review, edit, test, or ' +
-      "improve this skill. The SKILL.md file lives in `_skills/{name}/SKILL.md`.",
+      'Currently scoped to skill "{name}" (slug: `{id}`). SKILL.md lives at `_skills/{id}/SKILL.md`.',
   },
   mcp_tool: {
     label: "MCP Tool Chat",
     tools: COMMON_TOOLS,
     systemPrompt:
-      'You are bot-mel scoped to MCP tool "{name}". Help review or improve ' +
-      "this tool. tv-mcp source lives in `~/Code/SkyNet/tv-mcp/`.",
+      'Currently scoped to MCP tool "{name}" (slug: `{id}`). tv-mcp source lives at `~/Code/SkyNet/tv-mcp/`.',
   },
   domain: {
     label: "Domain Chat",
@@ -154,17 +148,14 @@ export const ENTITY_CHAT_CONFIG: Record<EntityType, EntityChatConfig> = {
       TV_MCP("sync-val-list-domains"),
     ],
     systemPrompt:
-      'You are bot-mel scoped to VAL domain "{name}". Domain config and ' +
-      "schema live in `0_Platform/domains/{name}/`. NEVER guess table or " +
-      "column names — read `schema/all_tables.json` first.",
+      'Currently scoped to VAL domain "{name}" (id: `{id}`). Schema lives at `0_Platform/domains/{id}/schema/`. Never guess table or column names — read `schema/all_tables.json` first.',
   },
-  // Fallback used when nothing specific is selected — the actual tools and
-  // prompt come from getModuleChatConfig(moduleId) at runtime.
+  // Fallback when the modal can't resolve a specific entity — overridden by
+  // getModuleChatConfig(moduleId) for known module ids.
   module: {
     label: "Module Chat",
     tools: COMMON_TOOLS,
-    systemPrompt:
-      'You are bot-mel scoped to the {name} module. Help with anything in this area.',
+    systemPrompt: 'Currently scoped to the {name} module.',
   },
 };
 
@@ -177,44 +168,32 @@ const MODULE_CONFIGS: Record<string, EntityChatConfig> = {
   projects: {
     label: "Projects Chat",
     tools: PROJECT_TOOLS,
-    systemPrompt:
-      "You are bot-mel scoped to the Projects module. Help find, create, " +
-      "update, or analyze projects, deals, tasks, and milestones.",
+    systemPrompt: "Currently scoped to the Projects module — work across any project, deal, or milestone.",
   },
   work: {
     label: "Tasks Chat",
     tools: TASK_TOOLS,
-    systemPrompt:
-      "You are bot-mel scoped to the Tasks module. Help find, create, " +
-      "update, or organize tasks across all projects.",
+    systemPrompt: "Currently scoped to the Tasks module — work across any task in any project.",
   },
   crm: {
     label: "CRM Chat",
     tools: COMPANY_TOOLS,
-    systemPrompt:
-      "You are bot-mel scoped to the CRM module. Help find, update, or " +
-      "research companies and contacts. Log activities as needed.",
+    systemPrompt: "Currently scoped to the CRM module — companies, contacts, activities.",
   },
   skills: {
     label: "Skills Chat",
     tools: [...COMMON_TOOLS, TV_MCP("list-skills"), TV_MCP("register-skill")],
-    systemPrompt:
-      "You are bot-mel scoped to the Skills module. Help review, edit, test, " +
-      "or improve any skill. Skills live in `_skills/{slug}/SKILL.md`.",
+    systemPrompt: "Currently scoped to the Skills module. Skills live at `_skills/{slug}/SKILL.md`.",
   },
   "mcp-tools": {
     label: "MCP Tools Chat",
     tools: COMMON_TOOLS,
-    systemPrompt:
-      "You are bot-mel scoped to the MCP Tools module. Help review or improve " +
-      "any tv-mcp tool. tv-mcp source lives in `~/Code/SkyNet/tv-mcp/`.",
+    systemPrompt: "Currently scoped to the MCP Tools module. tv-mcp source lives at `~/Code/SkyNet/tv-mcp/`.",
   },
   domains: {
     label: "Domains Chat",
     tools: [...COMMON_TOOLS, TV_MCP("sync-val-list-domains"), TV_MCP("execute-val-sql")],
-    systemPrompt:
-      "You are bot-mel scoped to the Domains module. Help find, sync, or " +
-      "explore VAL domains. Domain configs live under `0_Platform/domains/`.",
+    systemPrompt: "Currently scoped to the Domains module. Domain configs live under `0_Platform/domains/`.",
   },
   blog: {
     label: "Blog Chat",
@@ -225,9 +204,7 @@ const MODULE_CONFIGS: Record<string, EntityChatConfig> = {
       TV_MCP("create-blog-article"),
       TV_MCP("update-blog-article"),
     ],
-    systemPrompt:
-      "You are bot-mel scoped to the Blog module. Help draft, edit, or " +
-      "publish blog articles.",
+    systemPrompt: "Currently scoped to the Blog module — draft, edit, publish articles.",
   },
   email: {
     label: "Email Chat",
@@ -238,9 +215,7 @@ const MODULE_CONFIGS: Record<string, EntityChatConfig> = {
       TV_MCP("create-email-draft"),
       TV_MCP("send-email"),
     ],
-    systemPrompt:
-      "You are bot-mel scoped to the Email module. Help draft, review, or " +
-      "schedule email campaigns and outreach.",
+    systemPrompt: "Currently scoped to the Email module — campaigns, drafts, outreach.",
   },
   // Virtual sub-scopes — pushed by views that drill into a class of entities
   // without picking a specific row (e.g., Metadata's Companies tab).
@@ -258,10 +233,7 @@ const MODULE_CONFIGS: Record<string, EntityChatConfig> = {
       TV_MCP("log-activity"),
       TV_MCP("list-activities"),
     ],
-    systemPrompt:
-      "You are bot-mel scoped to all companies. Help find, compare, update, " +
-      "or analyze any company in the CRM. You can answer questions across " +
-      "the full company list.",
+    systemPrompt: "Currently scoped to all companies — work across the full company list.",
   },
   contacts: {
     label: "Contacts Chat",
@@ -274,9 +246,7 @@ const MODULE_CONFIGS: Record<string, EntityChatConfig> = {
       TV_MCP("get-crm-company"),
       TV_MCP("log-activity"),
     ],
-    systemPrompt:
-      "You are bot-mel scoped to all contacts. Help find, update, or " +
-      "manage any contact across all companies.",
+    systemPrompt: "Currently scoped to all contacts — work across all companies.",
   },
 };
 
@@ -289,9 +259,7 @@ const GENERAL_MODULE_CONFIG: EntityChatConfig = {
     TV_MCP("list-crm-companies"),
     TV_MCP("list-skills"),
   ],
-  systemPrompt:
-    "You are bot-mel. The user is on the {name} page with no specific entity " +
-    "selected. Help with whatever they need across the workspace.",
+  systemPrompt: "Currently in the {name} module — no specific entity selected.",
 };
 
 export function getModuleChatConfig(moduleId: string): EntityChatConfig {

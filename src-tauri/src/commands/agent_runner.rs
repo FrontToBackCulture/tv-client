@@ -225,6 +225,41 @@ pub async fn agent_run(
         });
     }
 
+    // Cancellation watcher: poll the cancel flag on a background thread and
+    // SIGTERM the sidecar (and its tv-mcp child via the process group) the
+    // moment cancellation flips. Without this, the read loop only sees the
+    // cancel between NDJSON lines, so a long-running tool call won't actually
+    // stop until its next chunk arrives.
+    {
+        let cancelled_for_watcher = cancelled.clone();
+        let pid = child.id() as i32;
+        std::thread::spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            let flagged = *cancelled_for_watcher
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            if flagged {
+                // SIGTERM first, then SIGKILL after a short grace period if
+                // the sidecar didn't exit on its own.
+                unsafe {
+                    libc::kill(pid, libc::SIGTERM);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                unsafe {
+                    libc::kill(pid, libc::SIGKILL);
+                }
+                break;
+            }
+            // If the sidecar already exited, the PID will be reaped soon —
+            // bail out to avoid spinning forever.
+            unsafe {
+                if libc::kill(pid, 0) != 0 {
+                    break;
+                }
+            }
+        });
+    }
+
     let mut session_id = String::new();
     let mut final_result = String::new();
     let mut duration_ms: u64 = 0;
@@ -274,13 +309,55 @@ pub async fn agent_run(
                         .and_then(|s| s.as_str())
                         .unwrap_or("")
                         .to_string();
+                    // List which MCP servers are connected so the user can see
+                    // tv-mcp came up (or didn't).
+                    let mcp_summary = parsed
+                        .get("mcp_servers")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|s| {
+                                    let name = s.get("name").and_then(|n| n.as_str())?;
+                                    let status = s.get("status").and_then(|n| n.as_str()).unwrap_or("?");
+                                    Some(format!("{}={}", name, status))
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        })
+                        .unwrap_or_default();
+                    let model = parsed
+                        .get("model")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("");
+                    let init_msg = if !mcp_summary.is_empty() {
+                        format!("Agent SDK session started — model={}, mcp=[{}]", model, mcp_summary)
+                    } else {
+                        format!("Agent SDK session started — model={}", model)
+                    };
                     let _ = app.emit(
                         "claude-stream",
                         ClaudeStreamEvent {
                             run_id: run_id.clone(),
                             event_type: "init".to_string(),
-                            content: "Agent SDK session started".to_string(),
+                            content: init_msg,
                             metadata: Some(json!({ "session_id": session_id })),
+                        },
+                    );
+                } else {
+                    // Forward any other system subtype (error, warning, etc.)
+                    // so we can actually see what's going wrong.
+                    let detail = parsed
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .or_else(|| parsed.get("error").and_then(|e| e.as_str()))
+                        .unwrap_or("");
+                    let _ = app.emit(
+                        "claude-stream",
+                        ClaudeStreamEvent {
+                            run_id: run_id.clone(),
+                            event_type: "error".to_string(),
+                            content: format!("system/{}: {}", subtype, detail),
+                            metadata: Some(parsed.clone()),
                         },
                     );
                 }
@@ -309,18 +386,66 @@ pub async fn agent_run(
                                     );
                                 }
                             }
+                            "thinking" => {
+                                let text = block
+                                    .get("thinking")
+                                    .and_then(|t| t.as_str())
+                                    .unwrap_or("");
+                                if !text.is_empty() {
+                                    let _ = app.emit(
+                                        "claude-stream",
+                                        ClaudeStreamEvent {
+                                            run_id: run_id.clone(),
+                                            event_type: "thinking".to_string(),
+                                            content: text.to_string(),
+                                            metadata: None,
+                                        },
+                                    );
+                                }
+                            }
                             "tool_use" => {
                                 let tool_name = block
                                     .get("name")
                                     .and_then(|n| n.as_str())
                                     .unwrap_or("unknown");
                                 let input = block.get("input");
+                                // Build a friendly one-line summary of the tool call.
+                                let short_name = tool_name.replace("mcp__tv-mcp__", "");
+                                let summary = match input {
+                                    Some(v) if v.is_object() => {
+                                        let pairs: Vec<String> = v
+                                            .as_object()
+                                            .unwrap()
+                                            .iter()
+                                            .take(3)
+                                            .map(|(k, val)| {
+                                                let s = if val.is_string() {
+                                                    val.as_str().unwrap_or("").to_string()
+                                                } else {
+                                                    val.to_string()
+                                                };
+                                                let s = if s.len() > 60 {
+                                                    format!("{}…", &s[..60])
+                                                } else {
+                                                    s
+                                                };
+                                                format!("{}={}", k, s)
+                                            })
+                                            .collect();
+                                        if pairs.is_empty() {
+                                            short_name.clone()
+                                        } else {
+                                            format!("{}({})", short_name, pairs.join(", "))
+                                        }
+                                    }
+                                    _ => short_name.clone(),
+                                };
                                 let _ = app.emit(
                                     "claude-stream",
                                     ClaudeStreamEvent {
                                         run_id: run_id.clone(),
                                         event_type: "tool_use".to_string(),
-                                        content: format!("Using tool: {}", tool_name),
+                                        content: summary,
                                         metadata: Some(json!({
                                             "tool": tool_name,
                                             "input": input,
@@ -396,6 +521,27 @@ pub async fn agent_run(
                         .unwrap_or("")
                         .to_string();
                 }
+
+                // SDK result message carries a `usage` object with token counts.
+                // Forward it so we can persist per-reply token usage.
+                let usage = parsed.get("usage").cloned().unwrap_or(json!({}));
+                let input_tokens = usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+                let output_tokens = usage.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+                let cache_creation_tokens = usage
+                    .get("cache_creation_input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let cache_read_tokens = usage
+                    .get("cache_read_input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let model = parsed
+                    .get("modelUsage")
+                    .and_then(|m| m.as_object())
+                    .and_then(|m| m.keys().next().cloned())
+                    .or_else(|| parsed.get("model").and_then(|s| s.as_str()).map(|s| s.to_string()))
+                    .unwrap_or_default();
+
                 let _ = app.emit(
                     "claude-stream",
                     ClaudeStreamEvent {
@@ -406,11 +552,25 @@ pub async fn agent_run(
                             "is_error": is_error,
                             "duration_ms": duration_ms,
                             "cost_usd": cost_usd,
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                            "cache_creation_tokens": cache_creation_tokens,
+                            "cache_read_tokens": cache_read_tokens,
+                            "model": model,
                         })),
                     },
                 );
             }
-            _ => {}
+            other => {
+                // Log unknown event types to stderr so we can see what the SDK
+                // is actually emitting if a run looks stuck.
+                eprintln!(
+                    "[agent_runner {}] unknown event type '{}': {}",
+                    run_id,
+                    other,
+                    line.chars().take(200).collect::<String>()
+                );
+            }
         }
     }
 

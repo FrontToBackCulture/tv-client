@@ -1,6 +1,7 @@
 // Work Tasks CRUD hooks
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
 import { supabase } from "../../lib/supabase";
 import type {
   Task,
@@ -128,10 +129,10 @@ export function useCreateTask() {
     ): Promise<Task> => {
       const { assignee_ids, ...taskData } = task;
 
-      // Get project to get next task number
+      // Get project to get next task number + inherit company
       const { data: project, error: projectError } = await supabase
         .from("projects")
-        .select("next_task_number")
+        .select("next_task_number, company_id")
         .eq("id", taskData.project_id)
         .single();
 
@@ -139,6 +140,11 @@ export function useCreateTask() {
         throw new Error(`Failed to fetch project: ${projectError.message}`);
 
       const taskNumber = project.next_task_number;
+
+      // Inherit project's company if task didn't specify one
+      if (taskData.company_id == null && project.company_id) {
+        taskData.company_id = project.company_id;
+      }
 
       // Get max sort_order for the status
       const { data: existingTasks } = await supabase
@@ -268,6 +274,20 @@ export function useUpdateTask() {
         supabase.from("task_activity").insert(activities).then();
       }
 
+      // Push to Notion if linked. Surface the outcome via the returned task
+      // so the toast in onSuccess can confirm Notion sync status.
+      let notionSync: { attempted: boolean; ok: boolean; error?: string } = { attempted: false, ok: false };
+      if ((data as any).notion_page_id) {
+        notionSync.attempted = true;
+        try {
+          await invoke("notion_push_task", { taskId: id });
+          notionSync.ok = true;
+        } catch (err: any) {
+          notionSync.error = err?.message || String(err);
+        }
+      }
+      (data as any).__notionSync = notionSync;
+
       return data;
     },
     onMutate: ({ id, updates }) => {
@@ -283,7 +303,13 @@ export function useUpdateTask() {
       );
     },
     onSuccess: (data) => {
-      toast.success("Saved");
+      const sync = (data as any).__notionSync as { attempted: boolean; ok: boolean; error?: string } | undefined;
+      if (sync?.attempted) {
+        if (sync.ok) toast.success("Saved & synced to Notion");
+        else toast.error(`Saved, but Notion sync failed: ${sync.error}`);
+      } else {
+        toast.success("Saved");
+      }
       queryClient.invalidateQueries({ queryKey: workKeys.task(data.id) });
       queryClient.invalidateQueries({ queryKey: workKeys.tasks() });
     },
