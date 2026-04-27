@@ -45,11 +45,17 @@ try {
   # Matches the NODE_OPTIONS value used in the (now-removed) CI workflow.
   $env:NODE_OPTIONS = "--max-old-space-size=6144"
 
+  # Always cross-compile to x86_64 so the installer arch matches AMD64 user
+  # machines, regardless of host arch. This is important on Parallels Windows
+  # running on Apple Silicon, which is ARM64 by default.
+  Write-Host "Ensuring x86_64-pc-windows-msvc target is installed..."
+  rustup target add x86_64-pc-windows-msvc | Out-Null
+
   Write-Host "Building Windows installer (this takes ~10 min on first build)..."
-  npm run tauri:build
+  npm run tauri:build -- --target x86_64-pc-windows-msvc
 
   # Find the NSIS installer
-  $installer = Get-ChildItem "src-tauri\target\release\bundle\nsis\*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+  $installer = Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
   if (-not $installer) {
     Write-Error "No NSIS installer found in src-tauri\target\release\bundle\nsis\"
     exit 1
