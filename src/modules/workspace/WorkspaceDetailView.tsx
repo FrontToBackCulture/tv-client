@@ -9,7 +9,7 @@ import {
   ChevronRight, LucideIcon, Lightbulb, HelpCircle, CheckCircle2, Check,
   AlertCircle, X, Folder, FolderOpen, File, Plus, Loader2, Calendar,
   Circle, PenTool, Trash2, Milestone as MilestoneIcon, ArrowUpRight, Mail,
-  MessageSquare, Maximize2, Upload,
+  MessageSquare, Maximize2, Upload, RefreshCw,
 } from "lucide-react";
 import { useNotionPushTask } from "../../hooks/useNotion";
 import { useSelectedEntityStore } from "../../stores/selectedEntityStore";
@@ -183,13 +183,19 @@ function FileTreeNode({
   depth = 0,
   selectedFile,
   onSelectFile,
+  onContextMenu,
 }: {
   node: TreeNode;
   depth?: number;
   selectedFile: string | null;
   onSelectFile: (path: string) => void;
+  onContextMenu: (e: React.MouseEvent, path: string) => void;
 }) {
   const [expanded, setExpanded] = useState(depth < 1);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    onContextMenu(e, node.path);
+  };
 
   if (node.is_directory) {
     const children = (node.children || []).filter((c) => !c.name.startsWith("."));
@@ -202,6 +208,7 @@ function FileTreeNode({
       <div>
         <button
           onClick={() => setExpanded(!expanded)}
+          onContextMenu={handleContextMenu}
           className="flex items-center gap-1.5 w-full text-left py-0.5 px-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
           style={{ paddingLeft: `${depth * 14 + 4}px` }}
         >
@@ -210,7 +217,7 @@ function FileTreeNode({
           <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate">{node.name}</span>
         </button>
         {expanded && sorted.map((child) => (
-          <FileTreeNode key={child.path} node={child} depth={depth + 1} selectedFile={selectedFile} onSelectFile={onSelectFile} />
+          <FileTreeNode key={child.path} node={child} depth={depth + 1} selectedFile={selectedFile} onSelectFile={onSelectFile} onContextMenu={onContextMenu} />
         ))}
       </div>
     );
@@ -223,6 +230,7 @@ function FileTreeNode({
   return (
     <button
       onClick={() => onSelectFile(node.path)}
+      onContextMenu={handleContextMenu}
       className={cn(
         "flex items-center gap-1.5 w-full text-left py-0.5 px-1 rounded transition-colors",
         isSelected
@@ -249,6 +257,7 @@ function ArtifactTreeItem({
   selectedFile,
   onSelectFile,
   pathPrefix,
+  onContextMenu,
 }: {
   artifact: WorkspaceArtifact;
   workspaceId: string;
@@ -257,6 +266,7 @@ function ArtifactTreeItem({
   selectedFile: string | null;
   onSelectFile: (path: string) => void;
   pathPrefix?: string;
+  onContextMenu: (e: React.MouseEvent, path: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const removeMutation = useRemoveArtifact();
@@ -284,12 +294,17 @@ function ArtifactTreeItem({
     removeMutation.mutate({ id: artifact.id, workspaceId });
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    onContextMenu(e, absPath);
+  };
+
   const isSelected = !isFolder && selectedFile === absPath;
 
   return (
     <div className="group/artifact">
       <div
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
         className={cn(
           "flex items-center gap-1.5 px-2 py-1 rounded transition-colors cursor-pointer",
           isSelected
@@ -331,7 +346,7 @@ function ArtifactTreeItem({
               return a.name.localeCompare(b.name);
             })
             .map((child) => (
-              <FileTreeNode key={child.path} node={child} depth={0} selectedFile={selectedFile} onSelectFile={onSelectFile} />
+              <FileTreeNode key={child.path} node={child} depth={0} selectedFile={selectedFile} onSelectFile={onSelectFile} onContextMenu={onContextMenu} />
             ))}
           {(!tree.children || tree.children.filter((c) => !c.name.startsWith(".")).length === 0) && (
             <p className="text-xs text-zinc-400 px-3 py-1">Empty</p>
@@ -750,10 +765,19 @@ function FilePreview({ path }: { path: string }) {
   const previewType = getPreviewType(path);
   const basePath = path.substring(0, path.lastIndexOf("/"));
   const [editing, setEditing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   // PDF and Image viewers use Tauri's convertFileSrc — they don't need file content
   const skipContent = previewType === "pdf" || previewType === "image";
   const { data: content, isLoading, isError, refetch } = useReadFile(skipContent ? "" : path);
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+    setRefreshKey((k) => k + 1);
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 600);
+  }, [refetch]);
 
   const canEdit = previewType === "excalidraw" || previewType === "image";
 
@@ -836,6 +860,13 @@ function FilePreview({ path }: { path: string }) {
           Edit
         </button>
       )}
+      <button
+        onClick={handleRefresh}
+        title="Refresh"
+        className="flex items-center text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 transition-colors flex-shrink-0"
+      >
+        <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} />
+      </button>
     </div>
   );
 
@@ -864,7 +895,7 @@ function FilePreview({ path }: { path: string }) {
         <div className="h-full flex flex-col">
           {pathBar}
           <div className="flex-1 min-h-0">
-            <HTMLViewer content={content!} filename={filename} />
+            <HTMLViewer content={content!} filename={filename} refreshKey={refreshKey} />
           </div>
         </div>
       );
@@ -1660,6 +1691,12 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
     | null
   >(null);
   const [projectChatPopupSession, setProjectChatPopupSession] = useState<string | null>(null);
+  const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; path: string } | null>(null);
+  const handleFileContextMenu = useCallback((e: React.MouseEvent, path: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFileContextMenu({ x: e.clientX, y: e.clientY, path });
+  }, []);
   const { data: discussionCount } = useDiscussionCount("project", workspaceId);
   const botChatPrefix = `project-chat:${workspaceId}`;
   const { data: botChatSessions = [] } = useBotChatSessions(botChatPrefix);
@@ -2412,7 +2449,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                                 ) : artifact.type === "crm_company" ? (
                                   <CrmCompanyArtifactItem key={artifact.id} artifact={artifact} workspaceId={workspaceId} isSelected={false} onSelect={() => setSelection({ type: "crm_company", id: artifact.reference })} />
                                 ) : (
-                                  <ArtifactTreeItem key={artifact.id} artifact={artifact} workspaceId={workspaceId} basePath={basePath} allRepoPaths={repositories.map(r => r.path)} selectedFile={selectedFile} onSelectFile={(path) => setSelection({ type: "file", path })} pathPrefix={prefixMap.get(artifact.id)} />
+                                  <ArtifactTreeItem key={artifact.id} artifact={artifact} workspaceId={workspaceId} basePath={basePath} allRepoPaths={repositories.map(r => r.path)} selectedFile={selectedFile} onSelectFile={(path) => setSelection({ type: "file", path })} pathPrefix={prefixMap.get(artifact.id)} onContextMenu={handleFileContextMenu} />
                                 )
                               );
                             })()}
@@ -3622,7 +3659,78 @@ Write a brief current state summary. No bullet points, just a natural sentence o
           </div>
         </>
       )}
+
+      {fileContextMenu && (
+        <FileContextMenu
+          x={fileContextMenu.x}
+          y={fileContextMenu.y}
+          path={fileContextMenu.path}
+          onClose={() => setFileContextMenu(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function FileContextMenu({
+  x,
+  y,
+  path,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  path: string;
+  onClose: () => void;
+}) {
+  const handleReveal = async () => {
+    try { await invoke("open_in_finder", { path }); }
+    catch (err) { console.error("Failed to open in Finder:", err); }
+    onClose();
+  };
+  const handleOpenDefault = async () => {
+    try { await invoke("open_with_default_app", { path }); }
+    catch (err) { console.error("Failed to open with default app:", err); }
+    onClose();
+  };
+  const handleCopyPath = async () => {
+    try { await navigator.clipboard.writeText(path); }
+    catch (err) { console.error("Failed to copy path:", err); }
+    onClose();
+  };
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
+      <div
+        className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[200px]"
+        style={{ left: x, top: y }}
+      >
+        <button
+          onClick={handleOpenDefault}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+        >
+          <ArrowUpRight size={14} />
+          Open in Default App
+        </button>
+        <button
+          onClick={handleReveal}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+        >
+          <FolderOpen size={14} />
+          Reveal in Finder
+        </button>
+        <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />
+        <button
+          onClick={handleCopyPath}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+        >
+          <FileText size={14} />
+          Copy Path
+        </button>
+      </div>
+    </>,
+    document.body
   );
 }
 

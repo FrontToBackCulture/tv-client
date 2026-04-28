@@ -64,10 +64,18 @@ Each module has a specific role in the human-agent loop:
 | Module | Role | Primary Use |
 |--------|------|-------------|
 | **Inbox** | Email data pipeline | Collect and classify Outlook emails for AI context. Background data collection — builds queryable email corpus. |
+| **Shared Inbox** | Shared mailbox view | Microsoft Graph–synced shared mailbox threads, classification, replies. |
 | **Email** | Email campaigns | Campaign creation, contact management, templates, bulk sending. Distinct from Inbox's classification focus. |
 | **Chat** | Messaging | Thread-based messaging, inbox filtering, participant management, DIO automations. |
 | **Calendar** | Scheduling | Calendar view and event management. |
 | **Blog** | Content management | Blog article creation, editing, publishing workflow. |
+
+### Finance & Investment
+
+| Module | Role | Primary Use |
+|--------|------|-------------|
+| **Finance** | FY review & accounting | FY review (QBO-style P&L, snapshots, drift alerts, recognition, reconciliation), expense review, invoice recognition, account config, QBO journal entry mutations. Backed by mgmt workspace. |
+| **Investment** | Investment tracking | Signals and stock detail pages, FMP-backed market data layer. |
 
 ### Knowledge & Integration
 
@@ -86,12 +94,13 @@ Each module has a specific role in the human-agent loop:
 
 | Module | Role | Primary Use |
 |--------|------|-------------|
-| **Bot** | Agent catalog | View individual bots, their skills, and capabilities. Introspection into the agent layer. |
+| **Bot** | Agent catalog | View individual bots, their skills, and capabilities. Introspection into the agent layer. Includes the active agents rail and per-entity bot routing. |
 | **Skills** | Skills registry | Skill management, ratings, verification, demo tracking. |
 | **Scheduler** | Job scheduler | Background job queue, skill automations, pipeline step execution. |
+| **MCP Tools** | MCP tool browser | Browse the live tv-mcp tool catalog (names, schemas, categories) for reference and skill authoring. |
 | **Portal** | Client-facing surface | Help center, announcements, conversations. Intended to replace Intercom. |
 | **Settings** | Configuration | API keys, credentials, sync paths, MCP endpoints. Admin plumbing. |
-| **System** | Dev tools | MCP tool browser, Tauri command explorer. Internal reference. |
+| **System** | Dev tools | Tauri command explorer and other internal references. |
 | **Console** | Terminal | xterm.js shell access. |
 
 ## Authentication & Access Model

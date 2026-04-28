@@ -83,7 +83,10 @@ fn active_runs() -> &'static Mutex<HashMap<String, Arc<Mutex<bool>>>> {
 /// Locate the tv-agent-runner sidecar. Search order:
 ///   1. $TV_AGENT_RUNNER_BIN (escape hatch for dev/CI)
 ///   2. ~/.tv-client/bin/tv-agent-runner   (manual install / symlink)
-///   3. Tauri app resource dir (production bundle, future)
+///   3. Bundled with the app — sibling of the main executable. Tauri's
+///      `externalBin` config strips the target-triple suffix at bundle time
+///      and places the binary next to the app binary (Contents/MacOS on
+///      macOS, install dir on Windows).
 ///   4. Workspace dev build: src-tauri/sidecars/agent-runner/dist/tv-agent-runner
 fn resolve_sidecar_path() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("TV_AGENT_RUNNER_BIN") {
@@ -98,7 +101,19 @@ fn resolve_sidecar_path() -> Option<PathBuf> {
             return Some(p);
         }
     }
-    // Dev fallback: from src-tauri/target/{debug,release}/... up to repo root
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let name = if cfg!(windows) {
+                "tv-agent-runner.exe"
+            } else {
+                "tv-agent-runner"
+            };
+            let candidate = parent.join(name);
+            if candidate.exists() && candidate != exe {
+                return Some(candidate);
+            }
+        }
+    }
     if let Ok(exe) = std::env::current_exe() {
         let mut cur = exe.as_path();
         for _ in 0..6 {

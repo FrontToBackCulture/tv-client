@@ -41,6 +41,24 @@ try {
   Write-Host "Installing npm deps..."
   npm install
 
+  # Build the tv-agent-runner sidecar for Windows x64 so Tauri's externalBin
+  # can bundle it. Tauri expects the suffixed name
+  # (-x86_64-pc-windows-msvc.exe) under src-tauri\sidecars\agent-runner\dist\.
+  Write-Host "Building tv-agent-runner sidecar (windows x64)..."
+  if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+    Write-Error "'bun' not found. Install via: powershell -c 'irm bun.sh/install.ps1 | iex'"
+    exit 1
+  }
+  Push-Location src-tauri\sidecars\agent-runner
+  try {
+    bun install --frozen-lockfile
+    if ($LASTEXITCODE -ne 0) { throw "bun install failed" }
+    bun run build:windows-x64
+    if ($LASTEXITCODE -ne 0) { throw "bun run build:windows-x64 failed" }
+  } finally {
+    Pop-Location
+  }
+
   # Vite build needs >2GB heap to process the bundle without crashing.
   # Matches the NODE_OPTIONS value used in the (now-removed) CI workflow.
   $env:NODE_OPTIONS = "--max-old-space-size=6144"

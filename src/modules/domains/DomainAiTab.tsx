@@ -48,7 +48,7 @@ interface DomainAiTabProps {
   globalPath: string;
 }
 
-type SkillPublishStatus = "published" | "needs_push" | "not_generated";
+type SkillPublishStatus = "published" | "changed" | "needs_push" | "not_generated";
 
 export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps) {
   const { data: supabaseSkills = [] } = useSkills();
@@ -183,11 +183,23 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
 
   const skillRows = useMemo(() => {
     return selectedSkills.map((slug) => {
-      const s3Info = s3FileMap.get(`skills/${slug}/SKILL.md`);
-      const inLocal = locallyGeneratedSlugs.has(slug);
-      const inS3 = !!s3Info?.in_s3;
+      // Aggregate size diff across all files belonging to this skill folder.
+      const prefix = `skills/${slug}/`;
+      let anyInS3 = false;
+      let anyInLocal = false;
+      let sizesDiffer = false;
+      let skillRoot: S3FileStatus | undefined;
+      for (const [path, f] of s3FileMap) {
+        if (!path.startsWith(prefix)) continue;
+        if (f.in_s3) anyInS3 = true;
+        if (f.in_local) anyInLocal = true;
+        if (f.in_s3 && f.in_local && f.s3_size !== f.local_size) sizesDiffer = true;
+        if (path === `${prefix}SKILL.md`) skillRoot = f;
+      }
+      const inLocal = anyInLocal || locallyGeneratedSlugs.has(slug);
       let status: SkillPublishStatus;
-      if (inS3) status = "published";
+      if (anyInS3 && inLocal && sizesDiffer) status = "changed";
+      else if (anyInS3) status = "published";
       else if (inLocal) status = "needs_push";
       else status = "not_generated";
       return {
@@ -195,7 +207,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
         entry: skillEntries[slug],
         drift: driftBySlug.get(slug),
         status,
-        lastPublished: s3Info?.s3_last_modified ?? null,
+        lastPublished: skillRoot?.s3_last_modified ?? null,
       };
     });
   }, [selectedSkills, locallyGeneratedSlugs, s3FileMap, skillEntries, driftBySlug]);
@@ -206,6 +218,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   }, [selectedSkills, locallyGeneratedSlugs]);
 
   const publishedCount = skillRows.filter((r) => r.status === "published").length;
+  const changedCount = skillRows.filter((r) => r.status === "changed").length;
   const needsPushCount = skillRows.filter((r) => r.status === "needs_push").length;
   const notGeneratedCount = skillRows.filter((r) => r.status === "not_generated").length;
 
@@ -224,6 +237,10 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   const instructionsInS3 = instructionsS3Info?.in_s3 ?? false;
   const instructionsLocal = !!instructionsFile.data;
   const instructionsNeedsPush = instructionsLocal && !instructionsInS3;
+  const instructionsChanged =
+    instructionsLocal &&
+    instructionsInS3 &&
+    instructionsS3Info?.local_size !== instructionsS3Info?.s3_size;
   const instructionsLastPushed = instructionsS3Info?.s3_last_modified ?? null;
   const customContent = (customFile.data ?? "").trim();
   const customLocal = customContent.length > 0;
@@ -233,7 +250,9 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   const s3InSync = s3Status.data
     ? s3Status.data.local_count === s3Status.data.s3_count && s3Status.data.s3_count > 0
     : false;
-  const pushDisabled = s3SyncMutation.isPending || (needsPushCount === 0 && !instructionsNeedsPush && s3InSync);
+  const pushDisabled =
+    s3SyncMutation.isPending ||
+    (needsPushCount === 0 && changedCount === 0 && !instructionsNeedsPush && !instructionsChanged && s3InSync);
 
   const isRefreshing =
     s3Status.isFetching ||
@@ -270,6 +289,12 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
               <span className="flex items-center gap-1">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
                 {publishedCount} published
+              </span>
+            )}
+            {changedCount > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
+                {changedCount} changed
               </span>
             )}
             {needsPushCount > 0 && (
@@ -428,6 +453,8 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
             status={
               !instructionsLocal
                 ? { tone: "zinc", label: "missing" }
+                : instructionsChanged
+                ? { tone: "blue", label: "Changed" }
                 : instructionsInS3
                 ? { tone: "green", label: instructionsLastPushed ? `Published · ${formatRelative(instructionsLastPushed)}` : "Published" }
                 : { tone: "amber", label: "Needs push" }
@@ -527,6 +554,7 @@ type SkillRowData = {
 
 const STATUS_META: Record<SkillPublishStatus, { label: string; textClass: string; dotClass: string }> = {
   published: { label: "Published", textClass: "text-green-600 dark:text-green-400", dotClass: "bg-green-500" },
+  changed: { label: "Changed", textClass: "text-blue-600 dark:text-blue-400", dotClass: "bg-blue-500" },
   needs_push: { label: "Needs push", textClass: "text-amber-600 dark:text-amber-400", dotClass: "bg-amber-500" },
   not_generated: { label: "Not generated", textClass: "text-zinc-500 dark:text-zinc-400", dotClass: "bg-zinc-400" },
 };
@@ -615,19 +643,23 @@ function CollapsibleHeader({
   onToggle: () => void;
   icon: React.ReactNode;
   title: string;
-  status?: { tone: "green" | "amber" | "zinc"; label: string };
+  status?: { tone: "green" | "amber" | "blue" | "zinc"; label: string };
 }) {
   const toneText =
     status?.tone === "green"
       ? "text-green-600 dark:text-green-400"
       : status?.tone === "amber"
       ? "text-amber-600 dark:text-amber-400"
+      : status?.tone === "blue"
+      ? "text-blue-600 dark:text-blue-400"
       : "text-zinc-500 dark:text-zinc-400";
   const toneDot =
     status?.tone === "green"
       ? "bg-green-500"
       : status?.tone === "amber"
       ? "bg-amber-500"
+      : status?.tone === "blue"
+      ? "bg-blue-500"
       : "bg-zinc-400";
   return (
     <button

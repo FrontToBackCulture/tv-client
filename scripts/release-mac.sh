@@ -72,6 +72,17 @@ fi
 echo "Installing npm deps..."
 npm install
 
+# Build the tv-agent-runner sidecar for both Mac architectures so Tauri's
+# externalBin can pick the right one per-target. Tauri expects the suffixed
+# names (-aarch64-apple-darwin, -x86_64-apple-darwin) under
+# src-tauri/sidecars/agent-runner/dist/.
+echo "Building tv-agent-runner sidecar (mac arm64 + x64)..."
+if ! command -v bun >/dev/null 2>&1; then
+  echo "ERROR: 'bun' not found. Install via: curl -fsSL https://bun.sh/install | bash"
+  exit 1
+fi
+(cd src-tauri/sidecars/agent-runner && bun install --frozen-lockfile && bun run build:macos-arm64 && bun run build:macos-x64)
+
 echo "Building + signing Mac installer (this takes ~5 min)..."
 npm run tauri:build
 

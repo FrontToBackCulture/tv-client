@@ -634,6 +634,11 @@ ${folderContext}
     if (useAgentSDK) {
       const homeMatch = (botCwd ?? "").match(/^(\/Users\/[^/]+)/);
       const home = homeMatch ? homeMatch[1] : "";
+      // tv-mcp is installed standalone by each user (not bundled with
+      // tv-client). Standard install path is `~/.tv-mcp/bin/tv-mcp`; we
+      // pass it through and let the Agent SDK spawn it. If the Rust
+      // command's tv-agent-runner sidecar or ANTHROPIC_API_KEY is missing,
+      // Rust returns a clear error that the catch handler below surfaces.
       await invoke("agent_run", {
         runId,
         request: {
@@ -711,11 +716,18 @@ ${folderContext}
     addEvent(runId, { type: "error", content: msg, timestamp: Date.now() });
     completeRun(runId, msg, true, 0, 0);
 
+    // Surface the actual error in the chat — the generic "check the rail"
+    // message hid useful info for users on machines without the tv-mcp
+    // sidecar / CLAUDE.md / etc. Truncate so a long stack doesn't bloat the
+    // thread, and fence it as code so it renders distinctly.
+    const truncated = msg.length > 600 ? `${msg.slice(0, 600)}…` : msg;
+    const body = `Something went wrong starting the agent run.\n\n\`\`\`\n${truncated}\n\`\`\`\n\nCheck the Active Agents rail for the full event log, or paste this to bot-mel.`;
+
     await supabase.from("discussions").insert({
       entity_type: "general",
       entity_id: discussion.entity_id,
       author: resolvedBot ?? botName,
-      body: "Something went wrong. Check the Active Agents rail in the chat for details.",
+      body,
       parent_id: threadRootId,
     });
     queryClient.invalidateQueries({ queryKey: ["discussions"] });

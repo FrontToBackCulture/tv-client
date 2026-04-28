@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "TV Client",
-  "version": "0.10.36",
+  "version": "0.10.37",
   "identifier": "com.thinkval.tv-client",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -50,6 +50,9 @@
       "app",
       "dmg",
       "nsis"
+    ],
+    "externalBin": [
+      "sidecars/agent-runner/dist/tv-agent-runner"
     ],
     "createUpdaterArtifacts": false,
     "icon": [
