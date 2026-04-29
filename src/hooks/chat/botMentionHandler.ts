@@ -632,13 +632,19 @@ ${folderContext}
     }
 
     if (useAgentSDK) {
-      const homeMatch = (botCwd ?? "").match(/^(\/Users\/[^/]+)/);
-      const home = homeMatch ? homeMatch[1] : "";
       // tv-mcp is installed standalone by each user (not bundled with
-      // tv-client). Standard install path is `~/.tv-mcp/bin/tv-mcp`; we
-      // pass it through and let the Agent SDK spawn it. If the Rust
-      // command's tv-agent-runner sidecar or ANTHROPIC_API_KEY is missing,
-      // Rust returns a clear error that the catch handler below surfaces.
+      // tv-client). Standard install path is `~/.tv-mcp/bin/tv-mcp[.exe]`;
+      // we resolve the user's actual home dir via Tauri (cross-platform)
+      // and append .exe on Windows. If the Rust command's tv-agent-runner
+      // sidecar or ANTHROPIC_API_KEY is missing, Rust returns a clear
+      // error that the catch handler below surfaces.
+      const { homeDir } = await import("@tauri-apps/api/path");
+      const { platform } = await import("@tauri-apps/plugin-os");
+      const home = await homeDir();
+      const tvMcpBin =
+        platform() === "windows"
+          ? `${home}/.tv-mcp/bin/tv-mcp.exe`
+          : `${home}/.tv-mcp/bin/tv-mcp`;
       await invoke("agent_run", {
         runId,
         request: {
@@ -651,7 +657,7 @@ ${folderContext}
           system_prompt: systemPrompt,
           mcp_servers: {
             "tv-mcp": {
-              command: `${home}/.tv-mcp/bin/tv-mcp`,
+              command: tvMcpBin,
               args: [],
               env: {},
             },
