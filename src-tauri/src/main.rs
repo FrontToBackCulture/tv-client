@@ -235,6 +235,8 @@ fn main() {
             commands::claude_setup::claude_mcp_status,
             commands::claude_setup::claude_mcp_install,
             commands::claude_setup::claude_mcp_uninstall,
+            // MCP Tools registry sync
+            commands::mcp_tools::sync_mcp_tools_command,
             // File operations (Rust native)
             commands::files::read_file,
             commands::files::write_file,

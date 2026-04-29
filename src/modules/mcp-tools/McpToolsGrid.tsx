@@ -38,11 +38,12 @@ import {
   Save,
   Star,
   Clock,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useAppStore } from "../../stores/appStore";
 import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
-import { useMcpTools, useUpdateMcpTool } from "../../hooks/mcp-tools/useMcpTools";
+import { useMcpTools, useUpdateMcpTool, useSyncMcpTools } from "../../hooks/mcp-tools/useMcpTools";
 import { toast } from "../../stores/toastStore";
 import type { McpTool } from "../../hooks/mcp-tools/types";
 import {
@@ -106,6 +107,7 @@ export function McpToolsGrid({ onSelectTool, onToggleChanges, showChanges }: Pro
   const theme = useAppStore((s) => s.theme);
   const { data: tools = [], isLoading } = useMcpTools();
   const updateTool = useUpdateMcpTool();
+  const syncTools = useSyncMcpTools();
 
   const [view, setView] = useState<ViewMode>("active");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -757,6 +759,24 @@ export function McpToolsGrid({ onSelectTool, onToggleChanges, showChanges }: Pro
                   title={wrapNotes ? "Click to truncate text" : "Click to wrap text"}
                 >
                   <WrapText size={13} />
+                </button>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      const result = await syncTools.mutateAsync();
+                      toast.success(
+                        `Synced ${result.synced} tools${result.marked_missing > 0 ? `, marked ${result.marked_missing} missing` : ""}`,
+                      );
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : String(err));
+                    }
+                  }}
+                  disabled={syncTools.isPending}
+                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border transition-colors border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={syncTools.isPending ? "Syncing tools…" : "Refresh tool list from tv-mcp"}
+                >
+                  <RefreshCw size={13} className={syncTools.isPending ? "animate-spin" : ""} />
                 </button>
 
                 {onToggleChanges && (

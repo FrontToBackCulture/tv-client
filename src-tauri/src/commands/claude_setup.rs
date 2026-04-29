@@ -35,7 +35,7 @@ pub struct ClaudeCliStatus {
 /// Priority:
 /// 1. ~/.tv-mcp/bin/tv-mcp (standard install location)
 /// 2. Dev mode: cargo build output in the tv-mcp repo
-fn resolve_binary_path() -> CmdResult<PathBuf> {
+pub fn resolve_binary_path() -> CmdResult<PathBuf> {
     let binary_name = if cfg!(target_os = "windows") {
         "tv-mcp.exe"
     } else {

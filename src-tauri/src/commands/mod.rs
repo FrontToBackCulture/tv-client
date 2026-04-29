@@ -16,6 +16,7 @@ pub mod search;
 pub mod settings;
 pub mod supabase;
 pub mod terminal;
+pub mod mcp_tools;
 pub mod tools;
 pub mod val_sync;
 pub mod skill_registry;

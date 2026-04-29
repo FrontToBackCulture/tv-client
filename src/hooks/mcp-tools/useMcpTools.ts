@@ -4,9 +4,17 @@
 // notes, tags, verified, owner, last_audited).
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
 import { supabase } from "../../lib/supabase";
 import type { McpTool, McpToolUpdate } from "./types";
 import { mcpToolKeys } from "./keys";
+
+interface McpSyncResult {
+  synced: number;
+  marked_missing: number;
+  started_at: string | null;
+  finished_at: string | null;
+}
 
 export function useMcpTools(filters?: {
   status?: string;
@@ -69,6 +77,20 @@ export function useUpdateMcpTool() {
 
       if (error) throw new Error(`Failed to update mcp_tool: ${error.message}`);
       return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: mcpToolKeys.all });
+    },
+  });
+}
+
+/// Spawn `tv-mcp --sync-tools` to repopulate the registry, then invalidate
+/// the grid query so the new rows show immediately.
+export function useSyncMcpTools() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<McpSyncResult> => {
+      return await invoke<McpSyncResult>("sync_mcp_tools_command");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: mcpToolKeys.all });
