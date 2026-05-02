@@ -32,6 +32,7 @@ const EmailModule = lazy(() => import("./modules/email/EmailModule").then(m => (
 const GalleryModule = lazy(() => import("./modules/gallery").then(m => ({ default: m.GalleryModule })));
 const BlogModule = lazy(() => import("./modules/blog").then(m => ({ default: m.BlogModule })));
 const GuidesModule = lazy(() => import("./modules/guides").then(m => ({ default: m.GuidesModule })));
+const DocumentationModule = lazy(() => import("./modules/documentation").then(m => ({ default: m.DocumentationModule })));
 const S3BrowserModule = lazy(() => import("./modules/s3-browser").then(m => ({ default: m.S3BrowserModule })));
 const ProspectingModule = lazy(() => import("./modules/prospecting").then(m => ({ default: m.ProspectingModule })));
 const PublicDataModule = lazy(() => import("./modules/public-data/PublicDataModule").then(m => ({ default: m.PublicDataModule })));
@@ -88,6 +89,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   email: EmailModule,
   blog: BlogModule,
   guides: GuidesModule,
+  documentation: DocumentationModule,
   s3browser: S3BrowserModule,
   prospecting: ProspectingModule,
   "public-data": PublicDataModule,
@@ -121,6 +123,7 @@ function prefetchLazyChunks() {
     () => import("./modules/gallery"),
     () => import("./modules/blog"),
     () => import("./modules/guides"),
+    () => import("./modules/documentation"),
     () => import("./modules/s3-browser"),
     () => import("./modules/prospecting"),
     () => import("./modules/public-data/PublicDataModule"),
@@ -318,7 +321,7 @@ export default function App() {
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeTab, { ignoreMode: true })) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "skills", "mcp-tools", "portal", "scheduler", "repos", "email", "blog", "s3browser", "referrals"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "skills", "mcp-tools", "portal", "scheduler", "repos", "email", "blog", "documentation", "s3browser", "referrals"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id, { ignoreMode: true }));
       if (firstVisible) {
         openTab(firstVisible);
