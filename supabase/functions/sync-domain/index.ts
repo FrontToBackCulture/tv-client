@@ -98,7 +98,7 @@ interface SyncRequest {
   instance_id?: string;
   system_id?: string;
   system_type?: string;
-  resource_type: "tables" | "workflows" | "dashboards";
+  resource_type: "spaces" | "zones" | "tables" | "workflows" | "dashboards";
   resource_ids: string[];
   space_ids?: number[];
   zone_ids?: number[];
@@ -183,7 +183,21 @@ Deno.serve(async (req: Request) => {
       target,
     };
 
-    if (resource_type === "tables") {
+    if (resource_type === "spaces") {
+      // Spaces only — creates/updates project_tbl rows on target. No zones,
+      // no tables, no fieldcats. resource_ids are space (project) IDs as strings.
+      syncOpts.spaces = {
+        overrideCreator: override_creator || 1,
+        resources: resource_ids,
+      };
+    } else if (resource_type === "zones") {
+      // Zones only — creates/updates phase_tbl rows on target. Parent space
+      // must exist on target first (sync spaces beforehand).
+      syncOpts.zones = {
+        overrideCreator: override_creator || 1,
+        resources: resource_ids,
+      };
+    } else if (resource_type === "tables") {
       const creator = override_creator || 1;
       // Sync only the spaces and zones that contain these tables
       if (space_ids?.length) {
