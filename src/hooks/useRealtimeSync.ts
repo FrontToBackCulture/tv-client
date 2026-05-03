@@ -253,18 +253,6 @@ export function useRealtimeSync() {
       .subscribe();
     channels.push(sharedInboxChannel);
 
-    // ── Documentation ────────────────────────────────────────────────
-    const docsChannel = supabase
-      .channel("documentation-changes")
-      .on("postgres_changes", pg("docs_sections"), () => {
-        queryClient.invalidateQueries({ queryKey: ["documentation", "sections"] });
-      })
-      .on("postgres_changes", pg("docs_pages"), () => {
-        queryClient.invalidateQueries({ queryKey: ["documentation", "pages"] });
-      })
-      .subscribe();
-    channels.push(docsChannel);
-
     // Cleanup on unmount
     return () => {
       channels.forEach((channel) => {

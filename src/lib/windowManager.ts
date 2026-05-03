@@ -27,7 +27,6 @@ const moduleLabels: Record<ModuleId, string> = {
   email: "EDM",
   blog: "Blog",
   guides: "Guides",
-  documentation: "Documentation",
   s3browser: "S3 Browser",
   prospecting: "Outbound",
   "public-data": "Public Data",

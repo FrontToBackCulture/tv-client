@@ -111,7 +111,6 @@ const navSections: NavSection[] = [
       { id: "public-data", icon: Database, label: "Public Data", shortcut: "" },
       { id: "skills", icon: Puzzle, label: "Skills", shortcut: "\u23188" },
       { id: "mcp-tools", icon: Wrench, label: "MCP Tools", shortcut: "" },
-      { id: "documentation", icon: BookOpen, label: "Documentation", shortcut: "" },
       { id: "product", icon: Boxes, label: "Product", shortcut: "\u23184" },
       { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "\u23189" },
       { id: "repos", icon: GitBranch, label: "Repos", shortcut: "" },
