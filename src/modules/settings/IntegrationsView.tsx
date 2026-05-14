@@ -33,11 +33,6 @@ import {
   type ConnectorCategory,
   type ConnectorStatus,
 } from "./integrations/connectors";
-import {
-  PERSONAL_CONNECTORS,
-  workspaceHasPersonalConnectors,
-} from "./integrations/connectors.personal";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
 
 export { INTEGRATION_IDS, type ConnectorId };
 
@@ -212,16 +207,7 @@ export function IntegrationsView({ initialConnectorId = null, onBackToList }: In
   const [selectedId, setSelectedId] = useState<ConnectorId | null>(initialConnectorId);
   const { busy, msg, handleExport, handleImport } = useImportExport();
 
-  // Merge in personal-workspace-only connectors when the active workspace
-  // qualifies. Workspace switching triggers a full app reload, so this value
-  // is stable for the lifetime of the component — no reactive re-merge needed.
-  const activeWorkspace = useWorkspaceStore((s) => s.getActiveWorkspace());
-  const visibleConnectors = useMemo<readonly Connector[]>(() => {
-    if (workspaceHasPersonalConnectors(activeWorkspace?.slug)) {
-      return [...CONNECTORS, ...PERSONAL_CONNECTORS];
-    }
-    return CONNECTORS;
-  }, [activeWorkspace?.slug]);
+  const visibleConnectors: readonly Connector[] = CONNECTORS;
 
   useEffect(() => {
     if (initialConnectorId) setSelectedId(initialConnectorId);

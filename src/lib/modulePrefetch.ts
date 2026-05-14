@@ -42,7 +42,6 @@ const chunkImports: Partial<Record<ModuleId, Prefetcher>> = {
   "public-data": () => import("../modules/public-data/PublicDataModule"),
   chat: () => import("../modules/chat"),
   referrals: () => import("../modules/referrals/ReferralsModule"),
-  investment: () => import("../modules/investment"),
   finance: () => import("../modules/finance/FinanceModule"),
   "shared-inbox": () => import("../modules/shared-inbox/SharedInboxModule"),
   settings: () => import("../modules/settings/SettingsModule"),

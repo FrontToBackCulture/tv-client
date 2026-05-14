@@ -37,18 +37,6 @@ pub const KEY_LINKEDIN_CLIENT_ID: &str = "linkedin_client_id";
 pub const KEY_LINKEDIN_CLIENT_SECRET: &str = "linkedin_client_secret";
 pub const KEY_OPENROUTER_API: &str = "openrouter_api_key";
 
-// Interactive Brokers Flex Web Service — personal-workspace-only (Melly).
-// Prefixed with the workspace slug so credentials are segregated at the
-// settings-file level: other workspaces physically cannot see these keys
-// because nothing in the UI writes or reads the `melly_*` namespace.
-pub const KEY_IBKR_FLEX_TOKEN: &str = "melly_ibkr_flex_token";
-pub const KEY_IBKR_FLEX_QUERY_POSITIONS: &str = "melly_ibkr_flex_query_positions";
-pub const KEY_IBKR_FLEX_QUERY_TRADES: &str = "melly_ibkr_flex_query_trades";
-pub const KEY_IBKR_FLEX_QUERY_CASH: &str = "melly_ibkr_flex_query_cash";
-
-// Financial Modeling Prep — also personal-workspace-only.
-pub const KEY_FMP_API_KEY: &str = "melly_fmp_api_key";
-
 // Background sync toggle keys (default: not set = disabled)
 pub const KEY_BG_SYNC_OUTLOOK_EMAIL: &str = "bg_sync_outlook_email";
 pub const KEY_BG_SYNC_OUTLOOK_CALENDAR: &str = "bg_sync_outlook_calendar";
@@ -289,11 +277,6 @@ pub fn settings_list_keys() -> CmdResult<Vec<ApiKeyInfo>> {
         (KEY_APOLLO_API, "Apollo API Key", "For prospect search and enrichment"),
         (KEY_LINKEDIN_CLIENT_ID, "LinkedIn Client ID", "For LinkedIn social media integration"),
         (KEY_LINKEDIN_CLIENT_SECRET, "LinkedIn Client Secret", "For LinkedIn social media integration"),
-        (KEY_IBKR_FLEX_TOKEN, "IBKR Flex Token", "Flex Web Service token from IBKR Account Management (Melly workspace only)"),
-        (KEY_IBKR_FLEX_QUERY_POSITIONS, "IBKR Flex Query — Positions", "Query ID for the daily positions snapshot Flex query"),
-        (KEY_IBKR_FLEX_QUERY_TRADES, "IBKR Flex Query — Trades", "Query ID for the executed trades Flex query"),
-        (KEY_IBKR_FLEX_QUERY_CASH, "IBKR Flex Query — Cash Activity", "Query ID for the cash transactions / dividends Flex query"),
-        (KEY_FMP_API_KEY, "FMP API Key", "Financial Modeling Prep API key for fundamentals, ratios, market data (Melly workspace only)"),
     ];
 
     let mut result = Vec::new();

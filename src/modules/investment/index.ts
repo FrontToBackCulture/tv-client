@@ -1,1 +1,0 @@
-export { InvestmentModule } from "./InvestmentModule";

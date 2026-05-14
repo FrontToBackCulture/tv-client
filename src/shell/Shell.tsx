@@ -52,7 +52,6 @@ const moduleLabels: Record<ModuleId, string> = {
   prospecting: "Outbound",
   "public-data": "Public Data",
   referrals: "Referrals",
-  investment: "Investment",
   finance: "Finance",
   "shared-inbox": "Shared Inboxes",
   settings: "Settings",

@@ -37,7 +37,6 @@ const ProspectingModule = lazy(() => import("./modules/prospecting").then(m => (
 const PublicDataModule = lazy(() => import("./modules/public-data/PublicDataModule").then(m => ({ default: m.PublicDataModule })));
 const ChatModule = lazy(() => import("./modules/chat").then(m => ({ default: m.ChatModule })));
 const ReferralsModule = lazy(() => import("./modules/referrals/ReferralsModule").then(m => ({ default: m.ReferralsModule })));
-const InvestmentModule = lazy(() => import("./modules/investment").then(m => ({ default: m.InvestmentModule })));
 const FinanceModule = lazy(() => import("./modules/finance/FinanceModule").then(m => ({ default: m.FinanceModule })));
 const SharedInboxModule = lazy(() => import("./modules/shared-inbox/SharedInboxModule").then(m => ({ default: m.SharedInboxModule })));
 const SettingsModule = lazy(() => import("./modules/settings/SettingsModule").then(m => ({ default: m.SettingsModule })));
@@ -92,7 +91,6 @@ const modules: Record<ModuleId, React.ComponentType> = {
   prospecting: ProspectingModule,
   "public-data": PublicDataModule,
   referrals: ReferralsModule,
-  investment: InvestmentModule,
   finance: FinanceModule,
   "shared-inbox": SharedInboxModule,
   settings: SettingsModule,
@@ -126,7 +124,6 @@ function prefetchLazyChunks() {
     () => import("./modules/public-data/PublicDataModule"),
     () => import("./modules/chat"),
     () => import("./modules/referrals/ReferralsModule"),
-    () => import("./modules/investment"),
     () => import("./modules/finance/FinanceModule"),
     () => import("./modules/shared-inbox/SharedInboxModule"),
     () => import("./modules/settings/SettingsModule"),

@@ -639,13 +639,6 @@ fn main() {
             commands::linkedin::api::linkedin_get_posts,
             commands::linkedin::api::linkedin_delete_post,
             commands::linkedin::api::linkedin_get_profile,
-            // IBKR Flex Web Service (personal-workspace-only connector)
-            commands::ibkr::ibkr_sync_now,
-            // Financial Modeling Prep (personal-workspace-only connector)
-            commands::fmp::fmp_sync_ticker,
-            commands::fmp::fmp_sync_holdings,
-            commands::fmp::fmp_sync_market,
-            commands::fmp::fmp_sync_reference,
             // Multi-workspace settings registration (per-workspace scoped keys
             // for background sync reliability)
             commands::settings::settings_register_workspace,

@@ -33,7 +33,6 @@ import {
   MessageSquare,
   Handshake,
   BookOpen,
-  LineChart,
   Inbox,
   Wallet,
   ListChecks,
@@ -121,9 +120,7 @@ const navSections: NavSection[] = [
   // modules enabled (see moduleVisibilityStore). Currently only Melly.
   {
     label: "Personal",
-    items: [
-      { id: "investment", icon: LineChart, label: "Investment", shortcut: "" },
-    ],
+    items: [],
   },
   // Mgmt section — only rendered in the mgmt workspace (hard-gated in
   // moduleVisibilityStore).

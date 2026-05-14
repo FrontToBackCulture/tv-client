@@ -39,18 +39,6 @@ export const useModuleVisibilityStore = create<ModuleVisibilityState>()(
         // Home and Settings are always visible — every workspace needs them
         if (moduleId === "home" || moduleId === "settings") return true;
 
-        // Personal-workspace-only modules. Hard-gated by workspace slug so
-        // they never leak into ThinkVAL or client workspaces even if someone
-        // deep-links or if a future bug bypasses the normal allowlist. Match
-        // the same "melly" slug used by the personal connector registry
-        // (src/modules/settings/integrations/connectors.personal.tsx).
-        const PERSONAL_ONLY_MODULES = new Set(["investment"]);
-        const PERSONAL_WORKSPACE_SLUGS = new Set(["melly"]);
-        if (PERSONAL_ONLY_MODULES.has(moduleId)) {
-          const ws = useWorkspaceStore.getState().getActiveWorkspace();
-          return ws != null && PERSONAL_WORKSPACE_SLUGS.has(ws.slug);
-        }
-
         // Finance module is hard-gated to the mgmt workspace — never leaks into
         // ThinkVAL or other workspaces, regardless of allowlist/team config.
         const MGMT_ONLY_MODULES = new Set(["finance"]);
